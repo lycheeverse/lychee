@@ -3,6 +3,11 @@ name = "lychee"
 version = "0.1.0"
 authors = ["Matthias Endler <matthias-endler.de>"]
 edition = "2018"
+description = "A boring link checker for my projects (and maybe yours)"
+homepage = "https://github.com/hello-rust/lychee"
+repository = "https://github.com/hello-rust/lychee"
+documentation = "https://github.com/hello-rust/lychee/blob/master/README.md"
+license = "Apache-2.0/MIT"
 
 [dependencies]
 github-rs = "0.7.0"

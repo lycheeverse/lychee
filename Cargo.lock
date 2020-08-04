@@ -660,6 +660,7 @@ name = "lychee"
 version = "0.1.0"
 dependencies = [
  "github-rs",
+ "pico-args",
  "pulldown-cmark",
  "regex",
  "reqwest",
@@ -875,6 +876,12 @@ name = "percent-encoding"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
+
+[[package]]
+name = "pico-args"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b1eee8b1f4966c8343d7ca0f5a8452cd35d5610a2e0efbe2a68cae44bef2046"
 
 [[package]]
 name = "pin-project"
