@@ -29,7 +29,7 @@ impl Checker {
         status == StatusCode::OK
     }
 
-    fn check_normal(&self, url: &String) -> bool {
+    fn check_normal(&self, url: &str) -> bool {
         let res = reqwest::blocking::get(url);
         if let Ok(res) = res {
             res.status().is_success()
@@ -38,19 +38,24 @@ impl Checker {
         }
     }
 
-    fn extract_github(&self, url: &String) -> Result<(String, String), Box<dyn Error>> {
-        let re = Regex::new(r"github\.com/(.*?)/(.*)/?")?;
+    fn extract_github(&self, url: &str) -> Result<(String, String), Box<dyn Error>> {
+        let re = Regex::new(r"github\.com/([^/]*)/([^/]*)")?;
         let caps = re.captures(&url).ok_or("Invalid capture")?;
         let owner = caps.get(1).ok_or("Cannot capture owner")?;
         let repo = caps.get(2).ok_or("Cannot capture repo")?;
         Ok((owner.as_str().into(), repo.as_str().into()))
     }
 
-    pub fn check(&self, url: &String) -> bool {
-        match self.extract_github(&url) {
-            Ok((owner, repo)) => self.check_github(owner, repo),
-            _ => self.check_normal(&url),
+    pub fn check(&self, url: &str) -> bool {
+        if self.check_normal(&url) {
+            return true;
         }
+        // Pull out the heavy weapons in case of a failed normal request.
+        // This could be a Github URL and we run into the rate limiter.
+        if let Ok((owner, repo)) = self.extract_github(&url) {
+            return self.check_github(owner, repo);
+        }
+        false
     }
 }
 
@@ -67,16 +72,18 @@ fn extract_links(md: &str) -> Vec<String> {
 
 struct Args {
     verbose: bool,
+    input: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut args = pico_args::Arguments::from_env();
     let args = Args {
         verbose: args.contains(["-v", "--verbose"]),
+        input: args.opt_value_from_str(["-i", "--input"])?,
     };
 
     let checker = Checker::new(env::var("GITHUB_TOKEN")?);
-    let md = fs::read_to_string("README.md")?;
+    let md = fs::read_to_string(args.input.unwrap_or("README.md".into()))?;
     let links: Vec<String> = extract_links(&md);
 
     let mut errorcode = 0;
@@ -106,7 +113,7 @@ mod test {
         let checker = Checker::new("foo".into());
         assert_eq!(
             checker
-                .extract_github(&"https://github.com/mre/idiomatic-rust".into())
+                .extract_github("https://github.com/mre/idiomatic-rust")
                 .unwrap(),
             ("mre".into(), "idiomatic-rust".into())
         );
