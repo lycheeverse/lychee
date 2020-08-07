@@ -7,6 +7,9 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   inkscape:export-ydpi="44.380001"
+   inkscape:export-xdpi="44.380001"
+   inkscape:export-filename="/Users/mendler/Code/private/hello-rust/lychee/assets/banner.png"
    width="586.12097mm"
    height="199.90691mm"
    viewBox="0 0 586.12097 199.90691"
@@ -37,9 +40,9 @@
      inkscape:snap-global="false"
      inkscape:window-width="1440"
      inkscape:window-height="855"
-     inkscape:window-x="0"
-     inkscape:window-y="23"
-     inkscape:window-maximized="1" />
+     inkscape:window-x="1440"
+     inkscape:window-y="203"
+     inkscape:window-maximized="0" />
   <metadata
      id="metadata5">
     <rdf:RDF>

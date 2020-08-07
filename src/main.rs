@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 use github_rs::client::{Executor, Github};
 use github_rs::StatusCode;
 use pulldown_cmark::{Event, Parser, Tag};
@@ -5,6 +8,7 @@ use regex::Regex;
 use serde_json::Value;
 use std::fs;
 use std::{env, error::Error};
+use url::Url;
 
 struct Checker {
     client: Github,
@@ -29,11 +33,17 @@ impl Checker {
         status == StatusCode::OK
     }
 
-    fn check_normal(&self, url: &str) -> bool {
-        let res = reqwest::blocking::get(url);
+    fn check_normal(&self, url: &Url) -> bool {
+        let res = reqwest::blocking::get(url.as_str());
         if let Ok(res) = res {
-            res.status().is_success()
+            if res.status().is_success() {
+                true
+            } else {
+                warn!("Request with non-ok status code: {:?}", res);
+                false
+            }
         } else {
+            warn!("Invalid response: {:?}", res);
             false
         }
     }
@@ -46,26 +56,32 @@ impl Checker {
         Ok((owner.as_str().into(), repo.as_str().into()))
     }
 
-    pub fn check(&self, url: &str) -> bool {
+    pub fn check(&self, url: &Url) -> bool {
         if self.check_normal(&url) {
             return true;
         }
         // Pull out the heavy weapons in case of a failed normal request.
         // This could be a Github URL and we run into the rate limiter.
-        if let Ok((owner, repo)) = self.extract_github(&url) {
+        if let Ok((owner, repo)) = self.extract_github(url.as_str()) {
             return self.check_github(owner, repo);
         }
         false
     }
 }
 
-fn extract_links(md: &str) -> Vec<String> {
+fn extract_links(md: &str) -> Vec<Url> {
     let mut links: Vec<String> = Vec::new();
     Parser::new(md).for_each(|event| match event {
         Event::Start(Tag::Link(_, link, _)) => links.push(link.into_string()),
         Event::Start(Tag::Image(_, link, _)) => links.push(link.into_string()),
         _ => (),
     });
+
+    // Only keep legit URLs. This sorts out things like anchors.
+    // Silently ignore the parse failures for now.
+    // TODO: Log errors in verbose mode
+    let links: Vec<Url> = links.iter().flat_map(|l| Url::parse(&l)).collect();
+    debug!("Testing links: {:#?}", links);
 
     links
 }
@@ -76,6 +92,8 @@ struct Args {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    pretty_env_logger::init();
+
     let mut args = pico_args::Arguments::from_env();
     let args = Args {
         verbose: args.contains(["-v", "--verbose"]),
@@ -84,14 +102,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let checker = Checker::new(env::var("GITHUB_TOKEN")?);
     let md = fs::read_to_string(args.input.unwrap_or("README.md".into()))?;
-    let links: Vec<String> = extract_links(&md);
+    let links: Vec<Url> = extract_links(&md);
 
     let mut errorcode = 0;
     for link in links {
         match checker.check(&link) {
             true => {
                 if args.verbose {
-                    println!("✅{}", link);
+                    info!("✅{}", link);
                 }
             }
             false => {
@@ -107,6 +125,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 mod test {
     use super::*;
     use std::env;
+    use url::Url;
 
     #[test]
     fn test_is_github() {
@@ -123,7 +142,7 @@ mod test {
     fn test_github() {
         let checker = Checker::new(env::var("GITHUB_TOKEN").unwrap());
         assert_eq!(
-            checker.check("https://github.com/mre/idiomatic-rust".into()),
+            checker.check(&Url::parse("https://github.com/mre/idiomatic-rust").unwrap()),
             true
         );
     }
@@ -132,7 +151,9 @@ mod test {
     fn test_github_nonexistent() {
         let checker = Checker::new(env::var("GITHUB_TOKEN").unwrap());
         assert_eq!(
-            checker.check("https://github.com/mre/idiomatic-rust-doesnt-exist-man".into()),
+            checker.check(
+                &Url::parse("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap()
+            ),
             false
         );
     }
@@ -140,14 +161,14 @@ mod test {
     #[test]
     fn test_non_github() {
         let checker = Checker::new(env::var("GITHUB_TOKEN").unwrap());
-        let valid = checker.check("https://endler.dev".into());
+        let valid = checker.check(&Url::parse("https://endler.dev").unwrap());
         assert_eq!(valid, true);
     }
 
     #[test]
     fn test_non_github_nonexistent() {
         let checker = Checker::new(env::var("GITHUB_TOKEN").unwrap());
-        let valid = checker.check("https://endler.dev/abcd".into());
+        let valid = checker.check(&Url::parse("https://endler.dev/abcd").unwrap());
         assert_eq!(valid, false);
     }
 }
