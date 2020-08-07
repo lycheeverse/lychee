@@ -1,5 +1,7 @@
 ![lychee](assets/banner.png)
 
+![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
+
 ...because who says I can't write yet another link checker.
 
 ## What?
