@@ -9,7 +9,7 @@ use regex::Regex;
 use reqwest::header::{self, HeaderValue};
 use serde_json::Value;
 use std::env;
-use std::fs;
+use std::{collections::HashSet, fs};
 use url::Url;
 
 struct Checker {
@@ -90,7 +90,7 @@ impl Checker {
     }
 }
 
-fn extract_links(md: &str) -> Vec<Url> {
+fn extract_links(md: &str) -> HashSet<Url> {
     let mut links: Vec<String> = Vec::new();
     Parser::new(md).for_each(|event| match event {
         Event::Start(Tag::Link(_, link, _)) => links.push(link.into_string()),
@@ -101,7 +101,7 @@ fn extract_links(md: &str) -> Vec<Url> {
     // Only keep legit URLs. This sorts out things like anchors.
     // Silently ignore the parse failures for now.
     // TODO: Log errors in verbose mode
-    let links: Vec<Url> = links.iter().flat_map(|l| Url::parse(&l)).collect();
+    let links: HashSet<Url> = links.iter().flat_map(|l| Url::parse(&l)).collect();
     debug!("Testing links: {:#?}", links);
 
     links
@@ -123,7 +123,7 @@ fn main() -> Result<()> {
 
     let checker = Checker::try_new(env::var("GITHUB_TOKEN")?)?;
     let md = fs::read_to_string(args.input.unwrap_or("README.md".into()))?;
-    let links: Vec<Url> = extract_links(&md);
+    let links = extract_links(&md);
 
     let mut errorcode = 0;
     for link in links {
