@@ -1,16 +1,15 @@
 #[macro_use]
 extern crate log;
 
+use anyhow::Result;
+use std::env;
+use std::fs;
+
 mod checker;
 mod extract;
 
 use checker::Checker;
 use extract::extract_links;
-
-use anyhow::Result;
-use std::env;
-
-use std::fs;
 
 struct Args {
     verbose: bool,
