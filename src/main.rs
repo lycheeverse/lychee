@@ -26,7 +26,7 @@ fn main() -> Result<()> {
     };
 
     let checker = Checker::try_new(env::var("GITHUB_TOKEN")?)?;
-    let md = fs::read_to_string(args.input.unwrap_or("README.md".into()))?;
+    let md = fs::read_to_string(args.input.unwrap_or_else(|| "README.md".into()))?;
     let links = extract_links(&md);
 
     let mut errorcode = 0;
