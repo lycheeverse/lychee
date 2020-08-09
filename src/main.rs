@@ -130,7 +130,7 @@ fn main() -> Result<()> {
         match checker.check(&link) {
             true => {
                 if args.verbose {
-                    info!("✅{}", link);
+                    println!("✅{}", link);
                 }
             }
             false => {
