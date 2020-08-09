@@ -11,6 +11,17 @@ This thing was created from [Hello Rust Episode
 specially by using a `GITHUB_TOKEN` to avoid getting blocked by the bot
 protection.
 
+## Why?
+
+The existing link checkers were not flexible enough for my use-case.
+lychee can...
+
+* Handle chunked encodings
+* Handle gzip
+* Fake user agents (required for some firewalls)
+* Skip non-links like anchors or relative URLs
+* SOON: Ignore SSL certificate errors
+
 ## How?
 
 ```
