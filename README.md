@@ -8,8 +8,7 @@
 
 This thing was created from [Hello Rust Episode
 10](https://hello-rust.show/10/). It's a link checker that treats Github links
-specially by using a `GITHUB_TOKEN` to avoid getting blocked by the bot
-protection.
+specially by using a `GITHUB_TOKEN` to avoid getting blocked less by the rate limiter.
 
 ## Why?
 
