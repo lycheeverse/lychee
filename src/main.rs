@@ -12,23 +12,32 @@ use checker::Checker;
 use extract::extract_links;
 use futures::future::join_all;
 
-struct Args {
-    verbose: bool,
+use gumdrop::Options;
+
+#[derive(Debug, Options)]
+struct LycheeOptions {
+    #[options(help = "show help")]
+    help: bool,
+
+    #[options(help = "Input file containing the links to check")]
     input: Option<String>,
+
+    #[options(help = "Verbose program output")]
+    verbose: bool,
+
+    // Accumulate all exclusions in a vector
+    #[options(help = "Exclude URLs from checking (supports regex)")]
+    excludes: Vec<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     pretty_env_logger::init();
 
-    let mut args = pico_args::Arguments::from_env();
-    let args = Args {
-        verbose: args.contains(["-v", "--verbose"]),
-        input: args.opt_value_from_str(["-i", "--input"])?,
-    };
+    let opts = LycheeOptions::parse_args_default_or_exit();
 
-    let checker = Checker::try_new(env::var("GITHUB_TOKEN")?, args.verbose)?;
-    let md = fs::read_to_string(args.input.unwrap_or_else(|| "README.md".into()))?;
+    let checker = Checker::try_new(env::var("GITHUB_TOKEN")?, opts.verbose)?;
+    let md = fs::read_to_string(opts.input.unwrap_or_else(|| "README.md".into()))?;
     let links = extract_links(&md);
 
     let futures: Vec<_> = links.iter().map(|l| checker.check(&l)).collect();

@@ -507,6 +507,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "gumdrop"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46571f5d540478cf70d2a42dd0d6d8e9f4b9cc7531544b93311e657b86568a0b"
+dependencies = [
+ "gumdrop_derive",
+]
+
+[[package]]
+name = "gumdrop_derive"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "915ef07c710d84733522461de2a734d4d62a3fd39a4d4f404c2f385ef8618d05"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "h2"
 version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -813,9 +833,9 @@ dependencies = [
  "anyhow",
  "futures 0.3.5",
  "github-rs",
+ "gumdrop",
  "linkify",
  "log",
- "pico-args",
  "pretty_env_logger",
  "pulldown-cmark",
  "regex",
@@ -1065,12 +1085,6 @@ name = "percent-encoding"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
-
-[[package]]
-name = "pico-args"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b1eee8b1f4966c8343d7ca0f5a8452cd35d5610a2e0efbe2a68cae44bef2046"
 
 [[package]]
 name = "pin-project"
