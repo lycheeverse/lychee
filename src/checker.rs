@@ -37,6 +37,7 @@ impl Checker {
     }
 
     fn check_github(&self, owner: String, repo: String) -> bool {
+        info!("Check Github: {}/{}", owner, repo);
         let (_headers, status, _json) = self
             .gh_client
             .get()
