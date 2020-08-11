@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use github_rs::client::{Executor, Github};
 use github_rs::StatusCode;
-use regex::Regex;
+use regex::{Regex, RegexSet};
 use reqwest::header::{self, HeaderValue};
 use serde_json::Value;
 use url::Url;
@@ -11,12 +11,13 @@ use url::Url;
 pub(crate) struct Checker {
     reqwest_client: reqwest::Client,
     gh_client: Github,
+    excludes: RegexSet,
     verbose: bool,
 }
 
 impl Checker {
     /// Creates a new link checker
-    pub fn try_new(token: String, verbose: bool) -> Result<Self> {
+    pub fn try_new(token: String, excludes: RegexSet, verbose: bool) -> Result<Self> {
         let mut headers = header::HeaderMap::new();
         // Faking the user agent is necessary for some websites, unfortunately.
         // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
@@ -32,6 +33,7 @@ impl Checker {
         Ok(Checker {
             reqwest_client,
             gh_client,
+            excludes,
             verbose,
         })
     }
@@ -89,6 +91,12 @@ impl Checker {
     }
 
     pub async fn check(&self, url: &Url) -> bool {
+        // TODO: Indicate that the URL was skipped in the return value.
+        // (Perhaps we want to return an enum value here: Status::Skipped)
+        if self.excludes.is_match(url.as_str()) {
+            return true;
+        }
+
         let ret = self.check_real(&url).await;
         match ret {
             true => {

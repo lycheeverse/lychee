@@ -2,6 +2,7 @@
 extern crate log;
 
 use anyhow::Result;
+use regex::RegexSet;
 use std::env;
 use std::fs;
 
@@ -27,7 +28,7 @@ struct LycheeOptions {
 
     // Accumulate all exclusions in a vector
     #[options(help = "Exclude URLs from checking (supports regex)")]
-    excludes: Vec<String>,
+    exclude: Vec<String>,
 }
 
 #[tokio::main]
@@ -36,7 +37,9 @@ async fn main() -> Result<()> {
 
     let opts = LycheeOptions::parse_args_default_or_exit();
 
-    let checker = Checker::try_new(env::var("GITHUB_TOKEN")?, opts.verbose)?;
+    let excludes = RegexSet::new(opts.exclude).unwrap();
+
+    let checker = Checker::try_new(env::var("GITHUB_TOKEN")?, excludes, opts.verbose)?;
     let md = fs::read_to_string(opts.input.unwrap_or_else(|| "README.md".into()))?;
     let links = extract_links(&md);
 
