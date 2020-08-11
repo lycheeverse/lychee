@@ -9,7 +9,7 @@ use url::Url;
 /// A link checker using an API token for Github links
 /// otherwise a normal HTTP client.
 pub(crate) struct Checker {
-    reqwest_client: reqwest::blocking::Client,
+    reqwest_client: reqwest::Client,
     gh_client: Github,
     verbose: bool,
 }
@@ -23,7 +23,7 @@ impl Checker {
         headers.insert(header::USER_AGENT, HeaderValue::from_str("curl/7.71.1")?);
         headers.insert(header::TRANSFER_ENCODING, HeaderValue::from_str("chunked")?);
 
-        let reqwest_client = reqwest::blocking::ClientBuilder::new()
+        let reqwest_client = reqwest::ClientBuilder::new()
             .gzip(true)
             .default_headers(headers)
             .build()?;
@@ -48,8 +48,8 @@ impl Checker {
         status == StatusCode::OK
     }
 
-    fn check_normal(&self, url: &Url) -> bool {
-        let res = self.reqwest_client.get(url.as_str()).send();
+    async fn check_normal(&self, url: &Url) -> bool {
+        let res = self.reqwest_client.get(url.as_str()).send().await;
         if res.is_err() {
             warn!("Cannot send request: {:?}", res);
             return false;
@@ -75,8 +75,8 @@ impl Checker {
         Ok((owner.as_str().into(), repo.as_str().into()))
     }
 
-    pub fn check_real(&self, url: &Url) -> bool {
-        if self.check_normal(&url) {
+    pub async fn check_real(&self, url: &Url) -> bool {
+        if self.check_normal(&url).await {
             return true;
         }
         // Pull out the heavy weapons in case of a failed normal request.
@@ -87,8 +87,8 @@ impl Checker {
         false
     }
 
-    pub fn check(&self, url: &Url) -> bool {
-        let ret = self.check_real(&url);
+    pub async fn check(&self, url: &Url) -> bool {
+        let ret = self.check_real(&url).await;
         match ret {
             true => {
                 if self.verbose {
@@ -111,7 +111,7 @@ mod test {
 
     #[test]
     fn test_is_github() {
-        let checker = Checker::try_new("foo".into()).unwrap();
+        let checker = Checker::try_new("foo".into(), false).unwrap();
         assert_eq!(
             checker
                 .extract_github("https://github.com/mre/idiomatic-rust")
@@ -120,37 +120,45 @@ mod test {
         );
     }
 
-    #[test]
-    fn test_github() {
-        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap()).unwrap();
+    #[tokio::test]
+    async fn test_github() {
+        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), false).unwrap();
         assert_eq!(
-            checker.check(&Url::parse("https://github.com/mre/idiomatic-rust").unwrap()),
+            checker
+                .check(&Url::parse("https://github.com/mre/idiomatic-rust").unwrap())
+                .await,
             true
         );
     }
 
-    #[test]
-    fn test_github_nonexistent() {
-        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap()).unwrap();
+    #[tokio::test]
+    async fn test_github_nonexistent() {
+        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), false).unwrap();
         assert_eq!(
-            checker.check(
-                &Url::parse("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap()
-            ),
+            checker
+                .check(
+                    &Url::parse("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap()
+                )
+                .await,
             false
         );
     }
 
-    #[test]
-    fn test_non_github() {
-        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap()).unwrap();
-        let valid = checker.check(&Url::parse("https://endler.dev").unwrap());
+    #[tokio::test]
+    async fn test_non_github() {
+        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), false).unwrap();
+        let valid = checker
+            .check(&Url::parse("https://endler.dev").unwrap())
+            .await;
         assert_eq!(valid, true);
     }
 
-    #[test]
-    fn test_non_github_nonexistent() {
-        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap()).unwrap();
-        let valid = checker.check(&Url::parse("https://endler.dev/abcd").unwrap());
+    #[tokio::test]
+    async fn test_non_github_nonexistent() {
+        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), false).unwrap();
+        let valid = checker
+            .check(&Url::parse("https://endler.dev/abcd").unwrap())
+            .await;
         assert_eq!(valid, false);
     }
 }

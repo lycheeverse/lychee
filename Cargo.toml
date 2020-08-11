@@ -11,6 +11,7 @@ version = "0.1.0"
 [dependencies]
 any = "*"
 anyhow = "*"
+futures = "0.3"
 github-rs = "0.7.0"
 linkify = "*"
 log = "0.4"
@@ -22,5 +23,9 @@ serde_json = "1.0.56"
 url = "2.1.1"
 
 [dependencies.reqwest]
-features = ["blocking", "gzip"]
-version = "0.10.7"
+features = ["gzip"]
+version = "0.10"
+
+[dependencies.tokio]
+features = ["full"]
+version = "0.2"

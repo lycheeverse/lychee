@@ -16,13 +16,14 @@ protection.
 The existing link checkers were not flexible enough for my use-case.
 lychee can...
 
+- run fully asynchronously
 - handle links inside unstructured (e.g. non-Markdown) documents
 - handle chunked encodings
 - handle gzip compression
 - fake user agents (required for some firewalls)
 - skip non-links like anchors or relative URLs
-- SOON: ignore SSL certificate errors
-- SOON: run fully asynchronously
+- SOON: optionally ignore SSL certificate errors
+- SOON: automatically retry and backoff
 
 ## How?
 

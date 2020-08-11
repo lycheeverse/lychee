@@ -10,13 +10,15 @@ mod extract;
 
 use checker::Checker;
 use extract::extract_links;
+use futures::future::join_all;
 
 struct Args {
     verbose: bool,
     input: Option<String>,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     pretty_env_logger::init();
 
     let mut args = pico_args::Arguments::from_env();
@@ -29,7 +31,8 @@ fn main() -> Result<()> {
     let md = fs::read_to_string(args.input.unwrap_or_else(|| "README.md".into()))?;
     let links = extract_links(&md);
 
-    let results: Vec<bool> = links.iter().map(|l| checker.check(&l)).collect();
+    let futures: Vec<_> = links.iter().map(|l| checker.check(&l)).collect();
+    let results = join_all(futures).await;
 
     let errorcode = if results.iter().all(|r| r == &true) {
         0
