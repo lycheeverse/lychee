@@ -23,6 +23,7 @@ lychee can...
 - skip non-links like anchors or relative URLs
 - exclude some websites with regular expressions
 - handle a configurable number of redirects
+- disguise as a different user agent (like curl)
 - SOON: automatically retry and backoff
 - SOON: optionally ignore SSL certificate errors
 

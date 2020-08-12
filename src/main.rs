@@ -29,6 +29,9 @@ struct LycheeOptions {
     #[options(help = "Maximum number of allowed redirects", default = "10")]
     max_redirects: usize,
 
+    #[options(help = "User agent", default = "curl/7.71.1")]
+    user_agent: String,
+
     // Accumulate all exclusions in a vector
     #[options(help = "Exclude URLs from checking (supports regex)")]
     exclude: Vec<String>,
@@ -46,6 +49,7 @@ async fn main() -> Result<()> {
         env::var("GITHUB_TOKEN")?,
         Some(excludes),
         opts.max_redirects,
+        opts.user_agent,
         opts.verbose,
     )?;
     let md = fs::read_to_string(opts.input.unwrap_or_else(|| "README.md".into()))?;

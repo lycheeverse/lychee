@@ -70,12 +70,13 @@ impl Checker {
         token: String,
         excludes: Option<RegexSet>,
         max_redirects: usize,
+        user_agent: String,
         verbose: bool,
     ) -> Result<Self> {
         let mut headers = header::HeaderMap::new();
         // Faking the user agent is necessary for some websites, unfortunately.
         // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
-        headers.insert(header::USER_AGENT, HeaderValue::from_str("curl/7.71.1")?);
+        headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
         headers.insert(header::TRANSFER_ENCODING, HeaderValue::from_str("chunked")?);
 
         let reqwest_client = reqwest::ClientBuilder::new()
@@ -191,10 +192,21 @@ mod test {
     use std::env;
     use url::Url;
 
+    fn get_checker() -> Checker {
+        let checker = Checker::try_new(
+            env::var("GITHUB_TOKEN").unwrap(),
+            None,
+            5,
+            "curl/7.71.1".to_string(),
+            false,
+        )
+        .unwrap();
+        checker
+    }
+
     #[tokio::test]
     async fn test_nonexistent() {
-        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), None, 5, false).unwrap();
-        let res = checker
+        let res = get_checker()
             .check(&Url::parse("https://endler.dev/abcd").unwrap())
             .await;
         assert!(matches!(res, CheckStatus::Failed(_)));
@@ -202,9 +214,8 @@ mod test {
 
     #[test]
     fn test_is_github() {
-        let checker = Checker::try_new("foo".into(), None, 5, false).unwrap();
         assert_eq!(
-            checker
+            get_checker()
                 .extract_github("https://github.com/mre/idiomatic-rust")
                 .unwrap(),
             ("mre".into(), "idiomatic-rust".into())
@@ -212,9 +223,8 @@ mod test {
     }
     #[tokio::test]
     async fn test_github() {
-        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), None, 5, false).unwrap();
         assert!(matches!(
-            checker
+            get_checker()
                 .check(&Url::parse("https://github.com/mre/idiomatic-rust").unwrap())
                 .await,
             CheckStatus::OK
@@ -223,8 +233,7 @@ mod test {
 
     #[tokio::test]
     async fn test_github_nonexistent() {
-        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), None, 5, false).unwrap();
-        let res = checker
+        let res = get_checker()
             .check(&Url::parse("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap())
             .await;
         assert!(matches!(res, CheckStatus::FailedGithub(_)));
@@ -232,8 +241,7 @@ mod test {
 
     #[tokio::test]
     async fn test_non_github() {
-        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), None, 5, false).unwrap();
-        let res = checker
+        let res = get_checker()
             .check(&Url::parse("https://endler.dev").unwrap())
             .await;
         assert!(matches!(res, CheckStatus::OK));
