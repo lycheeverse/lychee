@@ -32,6 +32,12 @@ struct LycheeOptions {
     #[options(help = "User agent", default = "curl/7.71.1")]
     user_agent: String,
 
+    #[options(
+        help = "Proceed for server connections considered insecure (invalid TLS)",
+        default = "false"
+    )]
+    insecure: bool,
+
     // Accumulate all exclusions in a vector
     #[options(help = "Exclude URLs from checking (supports regex)")]
     exclude: Vec<String>,
@@ -50,6 +56,7 @@ async fn main() -> Result<()> {
         Some(excludes),
         opts.max_redirects,
         opts.user_agent,
+        opts.insecure,
         opts.verbose,
     )?;
     let md = fs::read_to_string(opts.input.unwrap_or_else(|| "README.md".into()))?;

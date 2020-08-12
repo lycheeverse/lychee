@@ -24,8 +24,8 @@ lychee can...
 - exclude some websites with regular expressions
 - handle a configurable number of redirects
 - disguise as a different user agent (like curl)
+- optionally ignore SSL certificate errors
 - SOON: automatically retry and backoff
-- SOON: optionally ignore SSL certificate errors
 
 ## How?
 

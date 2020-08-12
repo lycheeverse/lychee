@@ -16,7 +16,6 @@ pub(crate) struct Checker {
 
 #[derive(Debug)]
 pub enum CheckStatus {
-    NotSent,
     OK,
     Redirect,
     Excluded,
@@ -71,6 +70,7 @@ impl Checker {
         excludes: Option<RegexSet>,
         max_redirects: usize,
         user_agent: String,
+        allow_insecure: bool,
         verbose: bool,
     ) -> Result<Self> {
         let mut headers = header::HeaderMap::new();
@@ -82,6 +82,7 @@ impl Checker {
         let reqwest_client = reqwest::ClientBuilder::new()
             .gzip(true)
             .default_headers(headers)
+            .danger_accept_invalid_certs(allow_insecure)
             .redirect(reqwest::redirect::Policy::limited(max_redirects))
             .build()?;
 
@@ -109,10 +110,6 @@ impl Checker {
 
     async fn check_normal(&self, url: &Url) -> CheckStatus {
         let res = self.reqwest_client.get(url.as_str()).send().await;
-        if res.is_err() {
-            warn!("Cannot send request: {:?}", res);
-            return CheckStatus::NotSent;
-        }
         match res {
             Ok(response) => response.status().into(),
             Err(e) => {
@@ -164,9 +161,6 @@ impl Checker {
                     println!("🔀️{}", &url);
                 }
             }
-            CheckStatus::NotSent => {
-                println!("⚠️{}", &url);
-            }
             CheckStatus::ErrorResponse(e) => {
                 println!("🚫{} ({})", &url, e);
             }
@@ -192,12 +186,13 @@ mod test {
     use std::env;
     use url::Url;
 
-    fn get_checker() -> Checker {
+    fn get_checker(allow_insecure: bool) -> Checker {
         let checker = Checker::try_new(
             env::var("GITHUB_TOKEN").unwrap(),
             None,
             5,
             "curl/7.71.1".to_string(),
+            allow_insecure,
             false,
         )
         .unwrap();
@@ -206,7 +201,7 @@ mod test {
 
     #[tokio::test]
     async fn test_nonexistent() {
-        let res = get_checker()
+        let res = get_checker(false)
             .check(&Url::parse("https://endler.dev/abcd").unwrap())
             .await;
         assert!(matches!(res, CheckStatus::Failed(_)));
@@ -215,7 +210,7 @@ mod test {
     #[test]
     fn test_is_github() {
         assert_eq!(
-            get_checker()
+            get_checker(false)
                 .extract_github("https://github.com/mre/idiomatic-rust")
                 .unwrap(),
             ("mre".into(), "idiomatic-rust".into())
@@ -224,7 +219,7 @@ mod test {
     #[tokio::test]
     async fn test_github() {
         assert!(matches!(
-            get_checker()
+            get_checker(false)
                 .check(&Url::parse("https://github.com/mre/idiomatic-rust").unwrap())
                 .await,
             CheckStatus::OK
@@ -233,7 +228,7 @@ mod test {
 
     #[tokio::test]
     async fn test_github_nonexistent() {
-        let res = get_checker()
+        let res = get_checker(false)
             .check(&Url::parse("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap())
             .await;
         assert!(matches!(res, CheckStatus::FailedGithub(_)));
@@ -241,8 +236,22 @@ mod test {
 
     #[tokio::test]
     async fn test_non_github() {
-        let res = get_checker()
+        let res = get_checker(false)
             .check(&Url::parse("https://endler.dev").unwrap())
+            .await;
+        assert!(matches!(res, CheckStatus::OK));
+    }
+
+    #[tokio::test]
+    async fn test_invalid_ssl() {
+        let res = get_checker(false)
+            .check(&Url::parse("https://expired.badssl.com/").unwrap())
+            .await;
+        assert!(matches!(res, CheckStatus::ErrorResponse(_)));
+
+        // Same, but ignore certificate error
+        let res = get_checker(true)
+            .check(&Url::parse("https://expired.badssl.com/").unwrap())
             .await;
         assert!(matches!(res, CheckStatus::OK));
     }
