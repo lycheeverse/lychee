@@ -66,7 +66,12 @@ impl From<github_rs::StatusCode> for CheckStatus {
 
 impl Checker {
     /// Creates a new link checker
-    pub fn try_new(token: String, excludes: Option<RegexSet>, verbose: bool) -> Result<Self> {
+    pub fn try_new(
+        token: String,
+        excludes: Option<RegexSet>,
+        max_redirects: usize,
+        verbose: bool,
+    ) -> Result<Self> {
         let mut headers = header::HeaderMap::new();
         // Faking the user agent is necessary for some websites, unfortunately.
         // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
@@ -76,6 +81,7 @@ impl Checker {
         let reqwest_client = reqwest::ClientBuilder::new()
             .gzip(true)
             .default_headers(headers)
+            .redirect(reqwest::redirect::Policy::limited(max_redirects))
             .build()?;
 
         let gh_client = Github::new(token).unwrap();
@@ -187,7 +193,7 @@ mod test {
 
     #[tokio::test]
     async fn test_nonexistent() {
-        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), None, false).unwrap();
+        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), None, 5, false).unwrap();
         let res = checker
             .check(&Url::parse("https://endler.dev/abcd").unwrap())
             .await;
@@ -196,7 +202,7 @@ mod test {
 
     #[test]
     fn test_is_github() {
-        let checker = Checker::try_new("foo".into(), None, false).unwrap();
+        let checker = Checker::try_new("foo".into(), None, 5, false).unwrap();
         assert_eq!(
             checker
                 .extract_github("https://github.com/mre/idiomatic-rust")
@@ -206,7 +212,7 @@ mod test {
     }
     #[tokio::test]
     async fn test_github() {
-        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), None, false).unwrap();
+        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), None, 5, false).unwrap();
         assert!(matches!(
             checker
                 .check(&Url::parse("https://github.com/mre/idiomatic-rust").unwrap())
@@ -217,7 +223,7 @@ mod test {
 
     #[tokio::test]
     async fn test_github_nonexistent() {
-        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), None, false).unwrap();
+        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), None, 5, false).unwrap();
         let res = checker
             .check(&Url::parse("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap())
             .await;
@@ -226,7 +232,7 @@ mod test {
 
     #[tokio::test]
     async fn test_non_github() {
-        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), None, false).unwrap();
+        let checker = Checker::try_new(env::var("GITHUB_TOKEN").unwrap(), None, 5, false).unwrap();
         let res = checker
             .check(&Url::parse("https://endler.dev").unwrap())
             .await;

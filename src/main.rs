@@ -26,6 +26,9 @@ struct LycheeOptions {
     #[options(help = "Verbose program output")]
     verbose: bool,
 
+    #[options(help = "Maximum number of allowed redirects", default = "10")]
+    max_redirects: usize,
+
     // Accumulate all exclusions in a vector
     #[options(help = "Exclude URLs from checking (supports regex)")]
     exclude: Vec<String>,
@@ -39,7 +42,12 @@ async fn main() -> Result<()> {
 
     let excludes = RegexSet::new(opts.exclude).unwrap();
 
-    let checker = Checker::try_new(env::var("GITHUB_TOKEN")?, Some(excludes), opts.verbose)?;
+    let checker = Checker::try_new(
+        env::var("GITHUB_TOKEN")?,
+        Some(excludes),
+        opts.max_redirects,
+        opts.verbose,
+    )?;
     let md = fs::read_to_string(opts.input.unwrap_or_else(|| "README.md".into()))?;
     let links = extract_links(&md);
 
