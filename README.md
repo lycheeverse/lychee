@@ -16,7 +16,7 @@ The existing link checkers were not flexible enough for my use-case.
 lychee can...
 
 - run fully asynchronously
-- handle links inside unstructured (e.g. non-Markdown) documents
+- handle links inside Markdown, HTML, and other documents
 - handle chunked encodings
 - handle gzip compression
 - fake user agents (required for some firewalls)
