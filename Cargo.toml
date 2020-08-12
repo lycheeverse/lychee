@@ -7,7 +7,7 @@ homepage = "https://github.com/hello-rust/lychee"
 license = "Apache-2.0/MIT"
 name = "lychee"
 repository = "https://github.com/hello-rust/lychee"
-version = "0.1.0"
+version = "0.2.0"
 [dependencies]
 any = "*"
 anyhow = "*"
