@@ -39,14 +39,14 @@ async fn main() -> Result<()> {
 
     let excludes = RegexSet::new(opts.exclude).unwrap();
 
-    let checker = Checker::try_new(env::var("GITHUB_TOKEN")?, excludes, opts.verbose)?;
+    let checker = Checker::try_new(env::var("GITHUB_TOKEN")?, Some(excludes), opts.verbose)?;
     let md = fs::read_to_string(opts.input.unwrap_or_else(|| "README.md".into()))?;
     let links = extract_links(&md);
 
     let futures: Vec<_> = links.iter().map(|l| checker.check(&l)).collect();
     let results = join_all(futures).await;
 
-    let errorcode = if results.iter().all(|r| r == &true) {
+    let errorcode = if results.iter().all(|r| r.is_success()) {
         0
     } else {
         1
