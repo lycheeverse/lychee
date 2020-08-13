@@ -183,12 +183,11 @@ impl Checker {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::env;
     use url::Url;
 
     fn get_checker(allow_insecure: bool) -> Checker {
         let checker = Checker::try_new(
-            env::var("GITHUB_TOKEN").unwrap(),
+            "DUMMY_GITHUB_TOKEN".to_string(),
             None,
             5,
             "curl/7.71.1".to_string(),
