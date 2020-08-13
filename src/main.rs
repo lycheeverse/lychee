@@ -18,11 +18,11 @@ use reqwest::Url;
 
 #[derive(Debug, Options)]
 struct LycheeOptions {
+    #[options(free, help = "Input files")]
+    inputs: Vec<String>,
+
     #[options(help = "show help")]
     help: bool,
-
-    #[options(help = "Input file containing the links to check")]
-    input: Option<String>,
 
     #[options(help = "Verbose program output")]
     verbose: bool,
@@ -100,8 +100,13 @@ async fn run(opts: LycheeOptions) -> Result<()> {
         opts.insecure,
         opts.verbose,
     )?;
-    let md = fs::read_to_string(opts.input.unwrap_or_else(|| "README.md".into()))?;
-    let links = extract_links(&md);
+
+    let mut links = HashSet::new();
+
+    for input in opts.inputs {
+        let md = fs::read_to_string(input)?;
+        links.extend(extract_links(&md));
+    }
 
     let futures: Vec<_> = links.iter().map(|l| checker.check(&l)).collect();
 

@@ -53,7 +53,7 @@ Run it inside a repository with a `README.md` or specify a different Markdown
 file with
 
 ```
-lychee --input <yourfile.md>
+lychee <yourfile>
 ```
 
 ## Thanks
