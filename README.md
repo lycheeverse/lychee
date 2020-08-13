@@ -26,13 +26,13 @@ lychee can...
 - disguise as a different user agent (like curl)
 - optionally ignore SSL certificate errors
 - run with a low memory/CPU footprint
+- check multiple files at once
 
 SOON:
 
 - automatically retry and backoff
 - check relative and absolute paths
 - limit schema
-- check multiple files
 - support input files using wildcards
 - set timeout for HTTP requests in seconds. Disabled by default.
 - support checking links from any website URL
