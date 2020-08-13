@@ -89,11 +89,17 @@ fn print_summary(found: &HashSet<Url>, results: &Vec<CheckStatus>) {
     println!("🚫Errors: {}", errors);
 }
 
-fn collect_links(inputs: Vec<String>) -> Result<HashSet<Url>> {
+async fn collect_links(inputs: Vec<String>) -> Result<HashSet<Url>> {
     let mut links = HashSet::new();
 
     for input in inputs {
-        let content = fs::read_to_string(input)?;
+        let content = match Url::parse(&input) {
+            Ok(url) => {
+                let res = reqwest::get(url).await?;
+                res.text().await?
+            }
+            Err(_) => fs::read_to_string(input)?,
+        };
         links.extend(extract_links(&content));
     }
     Ok(links)
@@ -111,7 +117,7 @@ async fn run(opts: LycheeOptions) -> Result<()> {
         opts.verbose,
     )?;
 
-    let links = collect_links(opts.inputs)?;
+    let links = collect_links(opts.inputs).await?;
     let futures: Vec<_> = links.iter().map(|l| checker.check(&l)).collect();
     let results = join_all(futures).await;
 
