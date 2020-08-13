@@ -68,7 +68,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn print_statistics(found: &HashSet<Url>, results: &Vec<CheckStatus>) {
+fn print_summary(found: &HashSet<Url>, results: &Vec<CheckStatus>) {
     let found = found.len();
     let excluded: usize = results
         .iter()
@@ -116,7 +116,7 @@ async fn run(opts: LycheeOptions) -> Result<()> {
     let results = join_all(futures).await;
 
     if opts.verbose {
-        print_statistics(&links, &results);
+        print_summary(&links, &results);
     }
     let errorcode = if results.iter().all(|r| r.is_success()) {
         0
