@@ -89,6 +89,16 @@ fn print_statistics(found: &HashSet<Url>, results: &Vec<CheckStatus>) {
     println!("🚫Errors: {}", errors);
 }
 
+fn collect_links(inputs: Vec<String>) -> Result<HashSet<Url>> {
+    let mut links = HashSet::new();
+
+    for input in inputs {
+        let content = fs::read_to_string(input)?;
+        links.extend(extract_links(&content));
+    }
+    Ok(links)
+}
+
 async fn run(opts: LycheeOptions) -> Result<()> {
     let excludes = RegexSet::new(opts.exclude).unwrap();
 
@@ -101,15 +111,8 @@ async fn run(opts: LycheeOptions) -> Result<()> {
         opts.verbose,
     )?;
 
-    let mut links = HashSet::new();
-
-    for input in opts.inputs {
-        let md = fs::read_to_string(input)?;
-        links.extend(extract_links(&md));
-    }
-
+    let links = collect_links(opts.inputs)?;
     let futures: Vec<_> = links.iter().map(|l| checker.check(&l)).collect();
-
     let results = join_all(futures).await;
 
     if opts.verbose {
