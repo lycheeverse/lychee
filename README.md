@@ -15,7 +15,7 @@ specially by using a `GITHUB_TOKEN` to avoid getting blocked less by the rate li
 The existing link checkers were not flexible enough for my use-case.
 lychee can...
 
-- run fully asynchronously
+- run requests concurrently (fully async Rust)
 - handle links inside Markdown, HTML, and other documents
 - handle chunked encodings
 - handle gzip compression
@@ -25,7 +25,17 @@ lychee can...
 - handle a configurable number of redirects
 - disguise as a different user agent (like curl)
 - optionally ignore SSL certificate errors
-- SOON: automatically retry and backoff
+- run with a low memory/CPU footprint
+
+SOON:
+
+- automatically retry and backoff
+- check relative and absolute paths
+- limit schema
+- check multiple files
+- support input files using wildcards
+- set timeout for HTTP requests in seconds. Disabled by default.
+- accept custom headers (see https://github.com/rust-lang/crates.io/issues/788)
 
 ## How?
 
