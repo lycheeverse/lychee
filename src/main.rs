@@ -4,16 +4,17 @@ extern crate log;
 use anyhow::Result;
 use regex::RegexSet;
 use std::env;
-use std::fs;
+use std::{collections::HashSet, fs};
 
 mod checker;
 mod extract;
 
-use checker::Checker;
+use checker::{CheckStatus, Checker};
 use extract::extract_links;
 use futures::future::join_all;
 
 use gumdrop::Options;
+use reqwest::Url;
 
 #[derive(Debug, Options)]
 struct LycheeOptions {
@@ -47,7 +48,26 @@ struct LycheeOptions {
 async fn main() -> Result<()> {
     pretty_env_logger::init();
 
-    let opts = LycheeOptions::parse_args_default_or_exit();
+fn print_statistics(found: &HashSet<Url>, results: &Vec<CheckStatus>) {
+    let found = found.len();
+    let excluded: usize = results
+        .iter()
+        .filter(|l| matches!(l, CheckStatus::Excluded))
+        .count();
+    let success: usize = results
+        .iter()
+        .filter(|l| matches!(l, CheckStatus::OK))
+        .count();
+    let errors: usize = found - excluded - success;
+
+    println!("");
+    println!("📝Summary");
+    println!("-------------------");
+    println!("🔍Found: {}", found);
+    println!("👻Excluded: {}", excluded);
+    println!("✅Successful: {}", success);
+    println!("🚫Errors: {}", errors);
+}
 
     let excludes = RegexSet::new(opts.exclude).unwrap();
 
@@ -65,6 +85,9 @@ async fn main() -> Result<()> {
     let futures: Vec<_> = links.iter().map(|l| checker.check(&l)).collect();
     let results = join_all(futures).await;
 
+    if opts.verbose {
+        print_statistics(&links, &results);
+    }
     let errorcode = if results.iter().all(|r| r.is_success()) {
         0
     } else {
