@@ -30,6 +30,11 @@ struct LycheeOptions {
     #[options(help = "Maximum number of allowed redirects", default = "10")]
     max_redirects: usize,
 
+    #[options(
+        help = "Number of threads to utilize (defaults to  number of cores available to the system"
+    )]
+    threads: Option<usize>,
+
     #[options(help = "User agent", default = "curl/7.71.1")]
     user_agent: String,
 
@@ -44,9 +49,24 @@ struct LycheeOptions {
     exclude: Vec<String>,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     pretty_env_logger::init();
+    let opts = LycheeOptions::parse_args_default_or_exit();
+
+    let mut runtime = match opts.threads {
+        Some(threads) => {
+            // We define our own runtime instead of the `tokio::main` attribute since we want to make the number of threads configurable
+            tokio::runtime::Builder::new()
+                .threaded_scheduler()
+                .core_threads(threads)
+                .enable_all()
+                .build()?
+        }
+        None => tokio::runtime::Runtime::new()?,
+    };
+    runtime.block_on(run(opts))?;
+    Ok(())
+}
 
 fn print_statistics(found: &HashSet<Url>, results: &Vec<CheckStatus>) {
     let found = found.len();
@@ -69,6 +89,7 @@ fn print_statistics(found: &HashSet<Url>, results: &Vec<CheckStatus>) {
     println!("🚫Errors: {}", errors);
 }
 
+async fn run(opts: LycheeOptions) -> Result<()> {
     let excludes = RegexSet::new(opts.exclude).unwrap();
 
     let checker = Checker::try_new(
@@ -83,6 +104,7 @@ fn print_statistics(found: &HashSet<Url>, results: &Vec<CheckStatus>) {
     let links = extract_links(&md);
 
     let futures: Vec<_> = links.iter().map(|l| checker.check(&l)).collect();
+
     let results = join_all(futures).await;
 
     if opts.verbose {
