@@ -28,12 +28,12 @@ lychee can...
 - run with a low memory/CPU footprint
 - check multiple files at once
 - support checking links from any website URL
+- limit scheme (e.g. only check HTTPS links with "https")
 
 SOON:
 
 - automatically retry and backoff
 - check relative and absolute paths
-- limit schema
 - support input files using wildcards
 - set timeout for HTTP requests in seconds. Disabled by default.
 - accept custom headers (see https://github.com/rust-lang/crates.io/issues/788)

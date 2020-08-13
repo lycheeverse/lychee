@@ -44,6 +44,9 @@ struct LycheeOptions {
     )]
     insecure: bool,
 
+    #[options(help = "Only test links with given scheme (e.g. https)")]
+    scheme: Option<String>,
+
     // Accumulate all exclusions in a vector
     #[options(help = "Exclude URLs from checking (supports regex)")]
     exclude: Vec<String>,
@@ -114,6 +117,7 @@ async fn run(opts: LycheeOptions) -> Result<()> {
         opts.max_redirects,
         opts.user_agent,
         opts.insecure,
+        opts.scheme,
         opts.verbose,
     )?;
 

@@ -5,15 +5,6 @@ use reqwest::header::{self, HeaderValue};
 use serde_json::Value;
 use url::Url;
 
-/// A link checker using an API token for Github links
-/// otherwise a normal HTTP client.
-pub(crate) struct Checker {
-    reqwest_client: reqwest::Client,
-    gh_client: Github,
-    excludes: Option<RegexSet>,
-    verbose: bool,
-}
-
 #[derive(Debug)]
 pub enum CheckStatus {
     OK,
@@ -63,6 +54,16 @@ impl From<github_rs::StatusCode> for CheckStatus {
     }
 }
 
+/// A link checker using an API token for Github links
+/// otherwise a normal HTTP client.
+pub(crate) struct Checker {
+    reqwest_client: reqwest::Client,
+    gh_client: Github,
+    excludes: Option<RegexSet>,
+    scheme: Option<String>,
+    verbose: bool,
+}
+
 impl Checker {
     /// Creates a new link checker
     pub fn try_new(
@@ -71,6 +72,7 @@ impl Checker {
         max_redirects: usize,
         user_agent: String,
         allow_insecure: bool,
+        scheme: Option<String>,
         verbose: bool,
     ) -> Result<Self> {
         let mut headers = header::HeaderMap::new();
@@ -86,11 +88,14 @@ impl Checker {
             .redirect(reqwest::redirect::Policy::limited(max_redirects))
             .build()?;
 
+        let scheme = scheme.map(|s| s.to_lowercase());
+
         let gh_client = Github::new(token).unwrap();
         Ok(Checker {
             reqwest_client,
             gh_client,
             excludes,
+            scheme,
             verbose,
         })
     }
@@ -140,13 +145,21 @@ impl Checker {
         status
     }
 
-    pub async fn check(&self, url: &Url) -> CheckStatus {
-        // TODO: Indicate that the URL was skipped in the return value.
-        // (Perhaps we want to return an enum value here: Status::Skipped)
+    fn excluded(&self, url: &Url) -> bool {
         if let Some(excludes) = &self.excludes {
             if excludes.is_match(url.as_str()) {
-                return CheckStatus::Excluded;
+                return true;
             }
+        }
+        if Some(url.scheme().to_string()) != self.scheme {
+            return true;
+        }
+        false
+    }
+
+    pub async fn check(&self, url: &Url) -> CheckStatus {
+        if self.excluded(&url) {
+            return CheckStatus::Excluded;
         }
 
         let ret = self.check_real(&url).await;
@@ -192,6 +205,7 @@ mod test {
             5,
             "curl/7.71.1".to_string(),
             allow_insecure,
+            None,
             false,
         )
         .unwrap();
