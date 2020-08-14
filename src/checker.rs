@@ -151,8 +151,10 @@ impl Checker {
                 return true;
             }
         }
-        if Some(url.scheme().to_string()) != self.scheme {
-            return true;
+        if let Some(scheme) = &self.scheme {
+            if url.scheme() != scheme {
+                return true;
+            }
         }
         false
     }

@@ -2,6 +2,7 @@
 extern crate log;
 
 use anyhow::Result;
+use glob::glob;
 use regex::RegexSet;
 use std::env;
 use std::{collections::HashSet, fs};
@@ -96,14 +97,25 @@ async fn collect_links(inputs: Vec<String>) -> Result<HashSet<Url>> {
     let mut links = HashSet::new();
 
     for input in inputs {
-        let content = match Url::parse(&input) {
+        match Url::parse(&input) {
             Ok(url) => {
                 let res = reqwest::get(url).await?;
-                res.text().await?
+                let content = res.text().await?;
+                links.extend(extract_links(&content));
             }
-            Err(_) => fs::read_to_string(input)?,
+            Err(_) => {
+                // Assume we got a single file or a glob on our hands
+                for entry in glob(&input)? {
+                    match entry {
+                        Ok(path) => {
+                            let content = fs::read_to_string(path)?;
+                            links.extend(extract_links(&content));
+                        }
+                        Err(e) => println!("{:?}", e),
+                    }
+                }
+            }
         };
-        links.extend(extract_links(&content));
     }
     Ok(links)
 }
