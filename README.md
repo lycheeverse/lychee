@@ -29,6 +29,7 @@ lychee can...
 - check multiple files at once (supports globbing)
 - support checking links from any website URL
 - limit scheme (e.g. only check HTTPS links with "https")
+- show final summary/statistics
 
 SOON:
 
@@ -38,7 +39,6 @@ SOON:
 - accept custom headers (see https://github.com/rust-lang/crates.io/issues/788)
 - use `HEAD` requests instead of `GET` to avoid network I/O
 - show the progress
-- show final status
 
 ## How?
 
