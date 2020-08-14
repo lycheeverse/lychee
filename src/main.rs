@@ -16,25 +16,6 @@ mod options;
 use checker::{CheckStatus, Checker};
 use options::LycheeOptions;
 
-fn main() -> Result<()> {
-    pretty_env_logger::init();
-    let opts = LycheeOptions::parse_args_default_or_exit();
-
-    let mut runtime = match opts.threads {
-        Some(threads) => {
-            // We define our own runtime instead of the `tokio::main` attribute since we want to make the number of threads configurable
-            tokio::runtime::Builder::new()
-                .threaded_scheduler()
-                .core_threads(threads)
-                .enable_all()
-                .build()?
-        }
-        None => tokio::runtime::Runtime::new()?,
-    };
-    runtime.block_on(run(opts))?;
-    Ok(())
-}
-
 fn print_summary(found: &HashSet<Url>, results: &Vec<CheckStatus>) {
     let found = found.len();
     let excluded: usize = results
@@ -56,7 +37,26 @@ fn print_summary(found: &HashSet<Url>, results: &Vec<CheckStatus>) {
     println!("🚫Errors: {}", errors);
 }
 
-async fn run(opts: LycheeOptions) -> Result<()> {
+fn main() -> Result<()> {
+    pretty_env_logger::init();
+    let opts = LycheeOptions::parse_args_default_or_exit();
+
+    let mut runtime = match opts.threads {
+        Some(threads) => {
+            // We define our own runtime instead of the `tokio::main` attribute since we want to make the number of threads configurable
+            tokio::runtime::Builder::new()
+                .threaded_scheduler()
+                .core_threads(threads)
+                .enable_all()
+                .build()?
+        }
+        None => tokio::runtime::Runtime::new()?,
+    };
+    let errorcode = runtime.block_on(run(opts))?;
+    std::process::exit(errorcode);
+}
+
+async fn run(opts: LycheeOptions) -> Result<i32> {
     let excludes = RegexSet::new(opts.exclude).unwrap();
 
     let checker = Checker::try_new(
@@ -76,10 +76,5 @@ async fn run(opts: LycheeOptions) -> Result<()> {
     if opts.verbose {
         print_summary(&links, &results);
     }
-    let errorcode = if results.iter().all(|r| r.is_success()) {
-        0
-    } else {
-        1
-    };
-    std::process::exit(errorcode)
+    Ok(results.iter().all(|r| r.is_success()) as i32)
 }
