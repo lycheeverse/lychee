@@ -2,16 +2,14 @@
 extern crate log;
 
 use anyhow::Result;
-use glob::glob;
 use regex::RegexSet;
-use std::env;
-use std::{collections::HashSet, fs};
+use std::{collections::HashSet, env};
 
 mod checker;
+mod collector;
 mod extract;
 
 use checker::{CheckStatus, Checker};
-use extract::extract_links;
 use futures::future::join_all;
 
 use gumdrop::Options;
@@ -93,33 +91,6 @@ fn print_summary(found: &HashSet<Url>, results: &Vec<CheckStatus>) {
     println!("🚫Errors: {}", errors);
 }
 
-async fn collect_links(inputs: Vec<String>) -> Result<HashSet<Url>> {
-    let mut links = HashSet::new();
-
-    for input in inputs {
-        match Url::parse(&input) {
-            Ok(url) => {
-                let res = reqwest::get(url).await?;
-                let content = res.text().await?;
-                links.extend(extract_links(&content));
-            }
-            Err(_) => {
-                // Assume we got a single file or a glob on our hands
-                for entry in glob(&input)? {
-                    match entry {
-                        Ok(path) => {
-                            let content = fs::read_to_string(path)?;
-                            links.extend(extract_links(&content));
-                        }
-                        Err(e) => println!("{:?}", e),
-                    }
-                }
-            }
-        };
-    }
-    Ok(links)
-}
-
 async fn run(opts: LycheeOptions) -> Result<()> {
     let excludes = RegexSet::new(opts.exclude).unwrap();
 
@@ -133,7 +104,7 @@ async fn run(opts: LycheeOptions) -> Result<()> {
         opts.verbose,
     )?;
 
-    let links = collect_links(opts.inputs).await?;
+    let links = collector::collect_links(opts.inputs).await?;
     let futures: Vec<_> = links.iter().map(|l| checker.check(&l)).collect();
     let results = join_all(futures).await;
 
