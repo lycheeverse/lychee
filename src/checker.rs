@@ -1,9 +1,27 @@
+use anyhow::anyhow;
 use anyhow::{Context, Result};
 use github_rs::client::{Executor, Github};
 use regex::{Regex, RegexSet};
 use reqwest::header::{self, HeaderMap, HeaderValue};
 use serde_json::Value;
+use std::convert::TryFrom;
 use url::Url;
+
+pub(crate) enum RequestMethod {
+    GET,
+    HEAD,
+}
+
+impl TryFrom<String> for RequestMethod {
+    type Error = anyhow::Error;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.to_lowercase().as_ref() {
+            "get" => Ok(RequestMethod::GET),
+            "head" => Ok(RequestMethod::HEAD),
+            _ => Err(anyhow!("Only `get` and `head` allowed, got {}", value)),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum CheckStatus {
@@ -61,6 +79,7 @@ pub(crate) struct Checker {
     gh_client: Github,
     excludes: Option<RegexSet>,
     scheme: Option<String>,
+    method: RequestMethod,
     verbose: bool,
 }
 
@@ -74,6 +93,7 @@ impl Checker {
         allow_insecure: bool,
         scheme: Option<String>,
         custom_headers: HeaderMap,
+        method: RequestMethod,
         verbose: bool,
     ) -> Result<Self> {
         let mut headers = header::HeaderMap::new();
@@ -99,6 +119,7 @@ impl Checker {
             gh_client,
             excludes,
             scheme,
+            method,
             verbose,
         })
     }
@@ -117,7 +138,11 @@ impl Checker {
     }
 
     async fn check_normal(&self, url: &Url) -> CheckStatus {
-        let res = self.reqwest_client.get(url.as_str()).send().await;
+        let request = match self.method {
+            RequestMethod::GET => self.reqwest_client.get(url.as_str()),
+            RequestMethod::HEAD => self.reqwest_client.head(url.as_str()),
+        };
+        let res = request.send().await;
         match res {
             Ok(response) => response.status().into(),
             Err(e) => {
@@ -213,6 +238,7 @@ mod test {
             allow_insecure,
             None,
             custom_headers,
+            RequestMethod::GET,
             false,
         )
         .unwrap();

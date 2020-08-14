@@ -32,13 +32,13 @@ lychee can...
 - limit scheme (e.g. only check HTTPS links with "https")
 - accept custom headers (e.g. for cases like https://github.com/rust-lang/crates.io/issues/788)
 - show final summary/statistics
+- optionally use `HEAD` requests instead of `GET`
 
 SOON:
 
 - automatically retry and backoff
-- check relative and absolute URLs
 - set timeout for HTTP requests in seconds (`--timeout`). Default is no timeout.
-- use `HEAD` requests instead of `GET` to avoid network I/O
+- check relative and absolute URLs
 - show the progress interactively (`--progress`)
 
 ## How?

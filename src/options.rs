@@ -38,4 +38,7 @@ pub(crate) struct LycheeOptions {
     // Accumulate all headers in a vector
     #[options(help = "Custom request headers")]
     pub headers: Vec<String>,
+
+    #[options(help = "Request method", default = "get")]
+    pub method: String,
 }

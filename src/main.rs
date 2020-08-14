@@ -10,7 +10,7 @@ use reqwest::{
     header::{HeaderMap, HeaderName},
     Url,
 };
-use std::{collections::HashSet, env};
+use std::{collections::HashSet, convert::TryInto, env};
 
 mod checker;
 mod collector;
@@ -73,6 +73,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         opts.insecure,
         opts.scheme,
         headers,
+        opts.method.try_into()?,
         opts.verbose,
     )?;
 
