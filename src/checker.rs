@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use github_rs::client::{Executor, Github};
 use regex::{Regex, RegexSet};
-use reqwest::header::{self, HeaderValue};
+use reqwest::header::{self, HeaderMap, HeaderValue};
 use serde_json::Value;
 use url::Url;
 
@@ -73,6 +73,7 @@ impl Checker {
         user_agent: String,
         allow_insecure: bool,
         scheme: Option<String>,
+        custom_headers: HeaderMap,
         verbose: bool,
     ) -> Result<Self> {
         let mut headers = header::HeaderMap::new();
@@ -80,6 +81,8 @@ impl Checker {
         // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
         headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
         headers.insert(header::TRANSFER_ENCODING, HeaderValue::from_str("chunked")?);
+
+        headers.extend(custom_headers);
 
         let reqwest_client = reqwest::ClientBuilder::new()
             .gzip(true)
@@ -198,9 +201,10 @@ impl Checker {
 #[cfg(test)]
 mod test {
     use super::*;
+    use reqwest::StatusCode;
     use url::Url;
 
-    fn get_checker(allow_insecure: bool) -> Checker {
+    fn get_checker(allow_insecure: bool, custom_headers: HeaderMap) -> Checker {
         let checker = Checker::try_new(
             "DUMMY_GITHUB_TOKEN".to_string(),
             None,
@@ -208,6 +212,7 @@ mod test {
             "curl/7.71.1".to_string(),
             allow_insecure,
             None,
+            custom_headers,
             false,
         )
         .unwrap();
@@ -216,7 +221,7 @@ mod test {
 
     #[tokio::test]
     async fn test_nonexistent() {
-        let res = get_checker(false)
+        let res = get_checker(false, HeaderMap::new())
             .check(&Url::parse("https://endler.dev/abcd").unwrap())
             .await;
         assert!(matches!(res, CheckStatus::Failed(_)));
@@ -225,7 +230,7 @@ mod test {
     #[test]
     fn test_is_github() {
         assert_eq!(
-            get_checker(false)
+            get_checker(false, HeaderMap::new())
                 .extract_github("https://github.com/mre/idiomatic-rust")
                 .unwrap(),
             ("mre".into(), "idiomatic-rust".into())
@@ -234,7 +239,7 @@ mod test {
     #[tokio::test]
     async fn test_github() {
         assert!(matches!(
-            get_checker(false)
+            get_checker(false, HeaderMap::new())
                 .check(&Url::parse("https://github.com/mre/idiomatic-rust").unwrap())
                 .await,
             CheckStatus::OK
@@ -243,7 +248,7 @@ mod test {
 
     #[tokio::test]
     async fn test_github_nonexistent() {
-        let res = get_checker(false)
+        let res = get_checker(false, HeaderMap::new())
             .check(&Url::parse("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap())
             .await;
         assert!(matches!(res, CheckStatus::FailedGithub(_)));
@@ -251,7 +256,7 @@ mod test {
 
     #[tokio::test]
     async fn test_non_github() {
-        let res = get_checker(false)
+        let res = get_checker(false, HeaderMap::new())
             .check(&Url::parse("https://endler.dev").unwrap())
             .await;
         assert!(matches!(res, CheckStatus::OK));
@@ -259,14 +264,32 @@ mod test {
 
     #[tokio::test]
     async fn test_invalid_ssl() {
-        let res = get_checker(false)
+        let res = get_checker(false, HeaderMap::new())
             .check(&Url::parse("https://expired.badssl.com/").unwrap())
             .await;
         assert!(matches!(res, CheckStatus::ErrorResponse(_)));
 
         // Same, but ignore certificate error
-        let res = get_checker(true)
+        let res = get_checker(true, HeaderMap::new())
             .check(&Url::parse("https://expired.badssl.com/").unwrap())
+            .await;
+        assert!(matches!(res, CheckStatus::OK));
+    }
+
+    #[tokio::test]
+    async fn test_custom_headers() {
+        let res = get_checker(false, HeaderMap::new())
+            .check(&Url::parse("https://crates.io/keywords/cassandra").unwrap())
+            .await;
+        assert!(matches!(res, CheckStatus::Failed(StatusCode::NOT_FOUND)));
+
+        // Try again, but with a custom header.
+        // For example, crates.io requires a custom accept header.
+        // See https://github.com/rust-lang/crates.io/issues/788
+        let mut custom = HeaderMap::new();
+        custom.insert(header::ACCEPT, "text/html".parse().unwrap());
+        let res = get_checker(true, custom)
+            .check(&Url::parse("https://crates.io/keywords/cassandra").unwrap())
             .await;
         assert!(matches!(res, CheckStatus::OK));
     }

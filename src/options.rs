@@ -34,4 +34,8 @@ pub(crate) struct LycheeOptions {
     // Accumulate all exclusions in a vector
     #[options(help = "Exclude URLs from checking (supports regex)")]
     pub exclude: Vec<String>,
+
+    // Accumulate all headers in a vector
+    #[options(help = "Custom request headers")]
+    pub headers: Vec<String>,
 }

@@ -1,11 +1,15 @@
 #[macro_use]
 extern crate log;
 
+use anyhow::anyhow;
 use anyhow::Result;
 use futures::future::join_all;
 use gumdrop::Options;
 use regex::RegexSet;
-use reqwest::Url;
+use reqwest::{
+    header::{HeaderMap, HeaderName},
+    Url,
+};
 use std::{collections::HashSet, env};
 
 mod checker;
@@ -59,6 +63,8 @@ fn main() -> Result<()> {
 async fn run(opts: LycheeOptions) -> Result<i32> {
     let excludes = RegexSet::new(opts.exclude).unwrap();
 
+    let headers = read_headers(opts.headers)?;
+
     let checker = Checker::try_new(
         env::var("GITHUB_TOKEN")?,
         Some(excludes),
@@ -66,6 +72,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         opts.user_agent,
         opts.insecure,
         opts.scheme,
+        headers,
         opts.verbose,
     )?;
 
@@ -77,4 +84,43 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         print_summary(&links, &results);
     }
     Ok(results.iter().all(|r| r.is_success()) as i32)
+}
+
+fn read_header(input: String) -> Result<(String, String)> {
+    let elements: Vec<_> = input.split('=').collect();
+    if elements.len() != 2 {
+        return Err(anyhow!(
+            "Header value should be of the form key=value, got {}",
+            input
+        ));
+    }
+    Ok((elements[0].into(), elements[1].into()))
+}
+
+fn read_headers(headers: Vec<String>) -> Result<HeaderMap> {
+    let mut out = HeaderMap::new();
+    for header in headers {
+        let (key, val) = read_header(header)?;
+        out.insert(
+            HeaderName::from_bytes(key.as_bytes())?,
+            val.parse().unwrap(),
+        );
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use reqwest::header;
+
+    #[test]
+    fn test_parse_custom_headers() {
+        let mut custom = HeaderMap::new();
+        custom.insert(header::ACCEPT, "text/html".parse().unwrap());
+        assert_eq!(
+            read_headers(vec!["accept=text/html".into()]).unwrap(),
+            custom
+        );
+    }
 }

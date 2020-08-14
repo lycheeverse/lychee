@@ -8,14 +8,16 @@
 
 This thing was created from [Hello Rust Episode
 10](https://hello-rust.show/10/). It's a link checker that treats Github links
-specially by using a `GITHUB_TOKEN` to avoid getting blocked less by the rate limiter.
+specially by using a `GITHUB_TOKEN` to avoid getting blocked less by the rate
+limiter.
 
 ## Why?
 
-The existing link checkers were not flexible enough for my use-case.
+The existing link checkers were not flexible enough for my use-case. lychee
+runs all requests fully asynchronously and has a low memory/CPU footprint.
+
 lychee can...
 
-- run requests concurrently (fully async Rust)
 - handle links inside Markdown, HTML, and other documents
 - handle chunked encodings
 - handle gzip compression
@@ -24,21 +26,20 @@ lychee can...
 - exclude some websites with regular expressions
 - handle a configurable number of redirects
 - disguise as a different user agent (like curl)
-- optionally ignore SSL certificate errors
-- run with a low memory/CPU footprint
+- optionally ignore SSL certificate errors (`--insecure`)
 - check multiple files at once (supports globbing)
 - support checking links from any website URL
 - limit scheme (e.g. only check HTTPS links with "https")
+- accept custom headers (e.g. for cases like https://github.com/rust-lang/crates.io/issues/788)
 - show final summary/statistics
 
 SOON:
 
 - automatically retry and backoff
 - check relative and absolute URLs
-- set timeout for HTTP requests in seconds. Disabled by default.
-- accept custom headers (see https://github.com/rust-lang/crates.io/issues/788)
+- set timeout for HTTP requests in seconds (`--timeout`). Default is no timeout.
 - use `HEAD` requests instead of `GET` to avoid network I/O
-- show the progress
+- show the progress interactively (`--progress`)
 
 ## How?
 
@@ -54,6 +55,12 @@ file with
 ```
 lychee <yourfile>
 ```
+
+## Comparison
+
+Collecting other link checkers here to crush them in comparison. :P
+
+- https://github.com/dkhamsing/awesome_bot
 
 ## Thanks
 
