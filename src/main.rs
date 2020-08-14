@@ -2,54 +2,19 @@
 extern crate log;
 
 use anyhow::Result;
+use futures::future::join_all;
+use gumdrop::Options;
 use regex::RegexSet;
+use reqwest::Url;
 use std::{collections::HashSet, env};
 
 mod checker;
 mod collector;
 mod extract;
+mod options;
 
 use checker::{CheckStatus, Checker};
-use futures::future::join_all;
-
-use gumdrop::Options;
-use reqwest::Url;
-
-#[derive(Debug, Options)]
-struct LycheeOptions {
-    #[options(free, help = "Input files")]
-    inputs: Vec<String>,
-
-    #[options(help = "show help")]
-    help: bool,
-
-    #[options(help = "Verbose program output")]
-    verbose: bool,
-
-    #[options(help = "Maximum number of allowed redirects", default = "10")]
-    max_redirects: usize,
-
-    #[options(
-        help = "Number of threads to utilize (defaults to  number of cores available to the system"
-    )]
-    threads: Option<usize>,
-
-    #[options(help = "User agent", default = "curl/7.71.1")]
-    user_agent: String,
-
-    #[options(
-        help = "Proceed for server connections considered insecure (invalid TLS)",
-        default = "false"
-    )]
-    insecure: bool,
-
-    #[options(help = "Only test links with given scheme (e.g. https)")]
-    scheme: Option<String>,
-
-    // Accumulate all exclusions in a vector
-    #[options(help = "Exclude URLs from checking (supports regex)")]
-    exclude: Vec<String>,
-}
+use options::LycheeOptions;
 
 fn main() -> Result<()> {
     pretty_env_logger::init();
