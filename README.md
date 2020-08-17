@@ -11,6 +11,8 @@ This thing was created from [Hello Rust Episode
 specially by using a `GITHUB_TOKEN` to avoid getting blocked less by the rate
 limiter.
 
+TODO: Add screenshots here
+
 ## Why?
 
 The existing link checkers were not flexible enough for my use-case. lychee
@@ -33,13 +35,20 @@ lychee can...
 - accept custom headers (e.g. for cases like https://github.com/rust-lang/crates.io/issues/788)
 - show final summary/statistics
 - optionally use `HEAD` requests instead of `GET`
+- show colored output
 
 SOON:
 
 - automatically retry and backoff
-- set timeout for HTTP requests in seconds (`--timeout`). Default is no timeout.
-- check relative and absolute URLs
+- set timeout for HTTP requests in seconds (`--timeout`). Default is 10s. Set to 0 for no timeout.
+- check relative (`base-url` to set project root)
 - show the progress interactively (`--progress`)
+- usable as a library (https://github.com/raviqqe/liche/issues/13)
+- exclude private domains (https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go)
+- recursion
+- Filter Based on Status Response (https://github.com/tcort/markdown-link-check/issues/94) (`accept`)
+- check mailto links (disable with `no-mailto`) (https://www.npmjs.com/package/isemail)
+
 
 ## How?
 
@@ -61,6 +70,9 @@ lychee <yourfile>
 Collecting other link checkers here to crush them in comparison. :P
 
 - https://github.com/dkhamsing/awesome_bot
+- https://github.com/tcort/markdown-link-check
+- https://github.com/raviqqe/liche
+- https://github.com/raviqqe/muffet
 
 ## Thanks
 
