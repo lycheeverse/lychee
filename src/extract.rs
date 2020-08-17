@@ -3,10 +3,14 @@ use linkify::LinkFinder;
 use std::collections::HashSet;
 use url::Url;
 
-pub(crate) fn extract_links(input: &str) -> HashSet<Url> {
+// Use LinkFinder here to offload the actual link searching
+fn find_links(input: &str) -> Vec<linkify::Link> {
     let finder = LinkFinder::new();
-    let links: Vec<_> = finder.links(input).collect();
+    finder.links(input).collect()
+}
 
+pub(crate) fn extract_links(input: &str) -> HashSet<Url> {
+    let links = find_links(input);
     // Only keep legit URLs. This sorts out things like anchors.
     // Silently ignore the parse failures for now.
     // TODO: Log errors in verbose mode
@@ -65,5 +69,17 @@ mod test {
         let input = "matthias@example.com";
         let links = extract_links(input);
         assert_eq!(links, HashSet::new())
+    }
+
+    #[test]
+    #[ignore]
+    // TODO: Does this escaping need to work properly?
+    // See https://github.com/tcort/markdown-link-check/issues/37
+    fn test_md_escape() {
+        let input = r#"http://msdn.microsoft.com/library/ie/ms535874\(v=vs.85\).aspx"#;
+        let links = find_links(input);
+        let expected = "http://msdn.microsoft.com/library/ie/ms535874(v=vs.85).aspx)";
+        assert!(links.len() == 1);
+        assert_eq!(links[0].as_str(), expected);
     }
 }
