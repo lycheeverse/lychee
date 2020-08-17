@@ -17,18 +17,18 @@ mod collector;
 mod extract;
 mod options;
 
-use checker::{CheckStatus, Checker};
+use checker::{Checker, Status};
 use options::LycheeOptions;
 
-fn print_summary(found: &HashSet<Url>, results: &Vec<CheckStatus>) {
+fn print_summary(found: &HashSet<Url>, results: &Vec<Status>) {
     let found = found.len();
     let excluded: usize = results
         .iter()
-        .filter(|l| matches!(l, CheckStatus::Excluded))
+        .filter(|l| matches!(l, Status::Excluded))
         .count();
     let success: usize = results
         .iter()
-        .filter(|l| matches!(l, CheckStatus::OK))
+        .filter(|l| matches!(l, Status::Ok(_)))
         .count();
     let errors: usize = found - excluded - success;
 
@@ -62,8 +62,11 @@ fn main() -> Result<()> {
 
 async fn run(opts: LycheeOptions) -> Result<i32> {
     let excludes = RegexSet::new(opts.exclude).unwrap();
-
-    let headers = read_headers(opts.headers)?;
+    let headers = parse_headers(opts.headers)?;
+    let accepted = match opts.accept {
+        Some(accept) => parse_statuscodes(accept)?,
+        None => None,
+    };
 
     let checker = Checker::try_new(
         env::var("GITHUB_TOKEN")?,
@@ -74,6 +77,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         opts.scheme,
         headers,
         opts.method.try_into()?,
+        accepted,
         opts.verbose,
     )?;
 
@@ -98,7 +102,7 @@ fn read_header(input: String) -> Result<(String, String)> {
     Ok((elements[0].into(), elements[1].into()))
 }
 
-fn read_headers(headers: Vec<String>) -> Result<HeaderMap> {
+fn parse_headers(headers: Vec<String>) -> Result<HeaderMap> {
     let mut out = HeaderMap::new();
     for header in headers {
         let (key, val) = read_header(header)?;
@@ -110,9 +114,19 @@ fn read_headers(headers: Vec<String>) -> Result<HeaderMap> {
     Ok(out)
 }
 
+fn parse_statuscodes(accept: String) -> Result<Option<HashSet<http::StatusCode>>> {
+    let mut statuscodes = HashSet::new();
+    for code in accept.split(',').into_iter() {
+        let code: reqwest::StatusCode = reqwest::StatusCode::from_bytes(code.as_bytes())?;
+        statuscodes.insert(code);
+    }
+    Ok(Some(statuscodes))
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use http::StatusCode;
     use reqwest::header;
 
     #[test]
@@ -120,8 +134,24 @@ mod test {
         let mut custom = HeaderMap::new();
         custom.insert(header::ACCEPT, "text/html".parse().unwrap());
         assert_eq!(
-            read_headers(vec!["accept=text/html".into()]).unwrap(),
+            parse_headers(vec!["accept=text/html".into()]).unwrap(),
             custom
         );
+    }
+
+    #[test]
+    fn test_parse_statuscodes() {
+        let actual = parse_statuscodes("200,204,301".into()).unwrap();
+        let expected: Option<HashSet<StatusCode>> = Some(
+            [
+                StatusCode::OK,
+                StatusCode::NO_CONTENT,
+                StatusCode::MOVED_PERMANENTLY,
+            ]
+            .iter()
+            .cloned()
+            .collect(),
+        );
+        assert_eq!(actual, expected);
     }
 }

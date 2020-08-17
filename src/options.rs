@@ -39,6 +39,9 @@ pub(crate) struct LycheeOptions {
     #[options(help = "Custom request headers")]
     pub headers: Vec<String>,
 
+    #[options(help = "Comma-separated list of accepted status codes for valid links")]
+    pub accept: Option<String>,
+
     #[options(help = "Request method", default = "get")]
     pub method: String,
 }
