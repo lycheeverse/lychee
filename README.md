@@ -2,13 +2,13 @@
 
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
 
-...because who says I can't write yet another link checker.
+...because who says I can't write yet another link checker?
 
 ## What?
 
 This thing was created from [Hello Rust Episode
 10](https://hello-rust.show/10/). It's a link checker that treats Github links
-specially by using a `GITHUB_TOKEN` to avoid getting blocked less by the rate
+specially by using a `GITHUB_TOKEN` to avoid getting blocked by the rate
 limiter.
 
 TODO: Add screenshots here
@@ -42,13 +42,19 @@ lychee can...
 SOON:
 
 - automatically retry and backoff
-- set timeout for HTTP requests in seconds (`--timeout`). Default is 10s. Set to 0 for no timeout.
+- set timeout for HTTP requests in seconds (`--timeout`). Default is 10s. Set to 0 for no timeout. https://docs.rs/reqwest/0.10.7/reqwest/struct.ClientBuilder.html#method.pool_idle_timeout
 - check relative (`base-url` to set project root)
-- show the progress interactively (`--progress`)
+- show the progress interactively with progress bar and in-flight requests (`--progress`)
 - usable as a library (https://github.com/raviqqe/liche/issues/13)
 - exclude private domains (https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go)
 - recursion
 - check mailto links (disable with `no-mailto`) (https://www.npmjs.com/package/isemail)
+  https://github.com/amaurymartiny/check-if-email-exists
+- extended statistics: request latency
+
+## Users
+
+* SOON: https://github.com/analysis-tools-dev/static-analysis
 
 ## How?
 
