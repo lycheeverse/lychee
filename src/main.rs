@@ -67,7 +67,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         Some(accept) => parse_statuscodes(accept)?,
         None => None,
     };
-    let connect_timeout = parse_timeout(opts.connect_timeout)?;
+    let timeout = parse_timeout(opts.timeout)?;
 
     let checker = Checker::try_new(
         env::var("GITHUB_TOKEN")?,
@@ -79,7 +79,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         headers,
         opts.method.try_into()?,
         accepted,
-        Some(connect_timeout),
+        Some(timeout),
         opts.verbose,
     )?;
 

@@ -89,7 +89,7 @@ impl Checker {
         custom_headers: HeaderMap,
         method: RequestMethod,
         accepted: Option<HashSet<http::StatusCode>>,
-        connect_timeout: Option<Duration>,
+        timeout: Option<Duration>,
         verbose: bool,
     ) -> Result<Self> {
         let mut headers = header::HeaderMap::new();
@@ -106,8 +106,8 @@ impl Checker {
             .danger_accept_invalid_certs(allow_insecure)
             .redirect(reqwest::redirect::Policy::limited(max_redirects));
 
-        let builder = match connect_timeout {
-            Some(connect_timeout) => builder.connect_timeout(connect_timeout),
+        let builder = match timeout {
+            Some(timeout) => builder.timeout(timeout),
             None => builder,
         };
 

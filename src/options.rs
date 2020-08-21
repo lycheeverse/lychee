@@ -42,8 +42,11 @@ pub(crate) struct LycheeOptions {
     #[options(help = "Comma-separated list of accepted status codes for valid links")]
     pub accept: Option<String>,
 
-    #[options(help = "Website connection timeout", default = "20")]
-    pub connect_timeout: String,
+    #[options(
+        help = "Website timeout from connect to response finished",
+        default = "20"
+    )]
+    pub timeout: String,
 
     #[options(help = "Request method", default = "get")]
     pub method: String,

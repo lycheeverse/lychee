@@ -38,12 +38,11 @@ lychee can...
 - show colored output
 - filter based on status codes (https://github.com/tcort/markdown-link-check/issues/94)
   (e.g. `--accept 200,204`)
-- accept a connect timeout (`--connect-timeout`). Default is 20s. Set to 0 for no timeout.
+- accept a request timeout (`--timeout`) in seconds. Default is 20s. Set to 0 for no timeout.
 
 SOON:
 
 - automatically retry and backoff
-- set timeout for HTTP requests in seconds (`--timeout`). Default is 10s. Set to 0 for no timeout. https://docs.rs/reqwest/0.10.7/reqwest/struct.ClientBuilder.html#method.pool_idle_timeout
 - check relative (`base-url` to set project root)
 - show the progress interactively with progress bar and in-flight requests (`--progress`)
 - usable as a library (https://github.com/raviqqe/liche/issues/13)
