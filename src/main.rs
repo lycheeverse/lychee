@@ -10,7 +10,7 @@ use reqwest::{
     header::{HeaderMap, HeaderName},
     Url,
 };
-use std::{collections::HashSet, convert::TryInto, env};
+use std::{collections::HashSet, convert::TryInto, env, time::Duration};
 
 mod checker;
 mod collector;
@@ -67,6 +67,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         Some(accept) => parse_statuscodes(accept)?,
         None => None,
     };
+    let connect_timeout = parse_timeout(opts.connect_timeout)?;
 
     let checker = Checker::try_new(
         env::var("GITHUB_TOKEN")?,
@@ -78,6 +79,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         headers,
         opts.method.try_into()?,
         accepted,
+        Some(connect_timeout),
         opts.verbose,
     )?;
 
@@ -100,6 +102,10 @@ fn read_header(input: String) -> Result<(String, String)> {
         ));
     }
     Ok((elements[0].into(), elements[1].into()))
+}
+
+fn parse_timeout(timeout: String) -> Result<Duration> {
+    Ok(Duration::from_secs(timeout.parse::<u64>()?))
 }
 
 fn parse_headers(headers: Vec<String>) -> Result<HeaderMap> {

@@ -38,6 +38,7 @@ lychee can...
 - show colored output
 - filter based on status codes (https://github.com/tcort/markdown-link-check/issues/94)
   (e.g. `--accept 200,204`)
+- accept a connect timeout (`--connect-timeout`). Default is 20s. Set to 0 for no timeout.
 
 SOON:
 
@@ -54,7 +55,7 @@ SOON:
 
 ## Users
 
-* SOON: https://github.com/analysis-tools-dev/static-analysis
+- SOON: https://github.com/analysis-tools-dev/static-analysis
 
 ## How?
 

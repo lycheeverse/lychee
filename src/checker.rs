@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use hubcaps::{Credentials, Github};
 use regex::{Regex, RegexSet};
 use reqwest::header::{self, HeaderMap, HeaderValue};
-use std::{collections::HashSet, convert::TryFrom};
+use std::{collections::HashSet, convert::TryFrom, time::Duration};
 use url::Url;
 
 pub(crate) enum RequestMethod {
@@ -26,6 +26,7 @@ impl TryFrom<String> for RequestMethod {
 pub enum Status {
     Ok(http::StatusCode),
     Failed(http::StatusCode),
+    Timeout,
     Redirected,
     Excluded,
     Error(String),
@@ -56,7 +57,11 @@ impl Status {
 
 impl From<reqwest::Error> for Status {
     fn from(e: reqwest::Error) -> Self {
-        Status::Error(e.to_string())
+        if e.is_timeout() {
+            Status::Timeout
+        } else {
+            Status::Error(e.to_string())
+        }
     }
 }
 
@@ -84,6 +89,7 @@ impl Checker {
         custom_headers: HeaderMap,
         method: RequestMethod,
         accepted: Option<HashSet<http::StatusCode>>,
+        connect_timeout: Option<Duration>,
         verbose: bool,
     ) -> Result<Self> {
         let mut headers = header::HeaderMap::new();
@@ -94,12 +100,19 @@ impl Checker {
 
         headers.extend(custom_headers);
 
-        let reqwest_client = reqwest::ClientBuilder::new()
+        let builder = reqwest::ClientBuilder::new()
             .gzip(true)
             .default_headers(headers)
             .danger_accept_invalid_certs(allow_insecure)
-            .redirect(reqwest::redirect::Policy::limited(max_redirects))
-            .build()?;
+            .redirect(reqwest::redirect::Policy::limited(max_redirects));
+
+        let builder = match connect_timeout {
+            Some(connect_timeout) => builder.connect_timeout(connect_timeout),
+            None => builder,
+        };
+
+        let reqwest_client = builder.build()?;
+
         let github = Github::new(user_agent, Credentials::Token(token))?;
 
         let scheme = scheme.map(|s| s.to_lowercase());
@@ -202,6 +215,9 @@ impl Checker {
             Status::Error(e) => {
                 println!("⚡ {} ({})", url, e);
             }
+            Status::Timeout => {
+                println!("⌛{}", url);
+            }
         };
         ret
     }
@@ -211,7 +227,10 @@ impl Checker {
 mod test {
     use super::*;
     use http::StatusCode;
+    use std::time::Duration;
     use url::Url;
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn get_checker(allow_insecure: bool, custom_headers: HeaderMap) -> Checker {
         let checker = Checker::try_new(
@@ -223,6 +242,7 @@ mod test {
             None,
             custom_headers,
             RequestMethod::GET,
+            None,
             None,
             false,
         )
@@ -303,5 +323,24 @@ mod test {
             .check(&Url::parse("https://crates.io/keywords/cassandra").unwrap())
             .await;
         assert!(matches!(res, Status::Ok(_)));
+    }
+
+    #[tokio::test]
+    #[ignore]
+    // See https://github.com/LukeMathWalker/wiremock-rs/issues/19
+    async fn test_timeout() {
+        let mock_server = MockServer::start().await;
+        let delay = Duration::from_secs(30);
+        let template = ResponseTemplate::new(200).set_delay(delay.clone());
+        Mock::given(method("GET"))
+            .respond_with(template)
+            .mount(&mock_server)
+            .await;
+
+        let res = get_checker(false, HeaderMap::new())
+            .check(&Url::parse(&mock_server.uri()).unwrap())
+            .await;
+        println!("{:?}", res);
+        assert!(matches!(res, Status::Timeout));
     }
 }

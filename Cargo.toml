@@ -29,3 +29,6 @@ version = "0.10"
 [dependencies.tokio]
 features = ["full"]
 version = "0.2"
+
+[dev-dependencies]
+wiremock = "0.2.4"
