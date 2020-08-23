@@ -39,6 +39,7 @@ lychee can...
 - filter based on status codes (https://github.com/tcort/markdown-link-check/issues/94)
   (e.g. `--accept 200,204`)
 - accept a request timeout (`--timeout`) in seconds. Default is 20s. Set to 0 for no timeout.
+- check e-mail links using [check-if-mail-exists](https://github.com/amaurymartiny/check-if-email-exists)
 
 SOON:
 
@@ -48,8 +49,6 @@ SOON:
 - usable as a library (https://github.com/raviqqe/liche/issues/13)
 - exclude private domains (https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go)
 - recursion
-- check mailto links (disable with `no-mailto`) (https://www.npmjs.com/package/isemail)
-  https://github.com/amaurymartiny/check-if-email-exists
 - extended statistics: request latency
 
 ## Users
