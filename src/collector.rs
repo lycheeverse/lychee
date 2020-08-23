@@ -1,10 +1,11 @@
-use crate::extract::extract_links;
+use crate::extract::{self, extract_links};
 use anyhow::Result;
+use extract::Uri;
 use glob::glob;
 use reqwest::Url;
 use std::{collections::HashSet, fs};
 
-pub(crate) async fn collect_links(inputs: Vec<String>) -> Result<HashSet<Url>> {
+pub(crate) async fn collect_links(inputs: Vec<String>) -> Result<HashSet<Uri>> {
     let mut links = HashSet::new();
 
     for input in inputs {

@@ -6,10 +6,7 @@ use anyhow::Result;
 use futures::future::join_all;
 use gumdrop::Options;
 use regex::RegexSet;
-use reqwest::{
-    header::{HeaderMap, HeaderName},
-    Url,
-};
+use reqwest::header::{HeaderMap, HeaderName};
 use std::{collections::HashSet, convert::TryInto, env, time::Duration};
 
 mod checker;
@@ -18,9 +15,10 @@ mod extract;
 mod options;
 
 use checker::{Checker, Status};
+use extract::Uri;
 use options::LycheeOptions;
 
-fn print_summary(found: &HashSet<Url>, results: &Vec<Status>) {
+fn print_summary(found: &HashSet<Uri>, results: &Vec<Status>) {
     let found = found.len();
     let excluded: usize = results
         .iter()
@@ -84,7 +82,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
     )?;
 
     let links = collector::collect_links(opts.inputs).await?;
-    let futures: Vec<_> = links.iter().map(|l| checker.check(&l)).collect();
+    let futures: Vec<_> = links.iter().map(|l| checker.check(l)).collect();
     let results = join_all(futures).await;
 
     if opts.verbose {

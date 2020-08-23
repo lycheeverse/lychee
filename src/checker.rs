@@ -1,5 +1,7 @@
+use crate::extract::{self, Uri};
 use anyhow::anyhow;
 use anyhow::{Context, Result};
+use check_if_email_exists::{check_email, CheckEmailInput};
 use hubcaps::{Credentials, Github};
 use regex::{Regex, RegexSet};
 use reqwest::header::{self, HeaderMap, HeaderValue};
@@ -173,50 +175,83 @@ impl Checker {
         status
     }
 
-    fn excluded(&self, url: &Url) -> bool {
-        if let Some(excludes) = &self.excludes {
-            if excludes.is_match(url.as_str()) {
-                return true;
+    pub async fn valid_mail(&self, address: &String) -> bool {
+        let input = CheckEmailInput::new(vec![address.to_string()]);
+        let results = check_email(&input).await;
+        let result = results.get(0);
+        match result {
+            None => false,
+            Some(result) => {
+                // Accept everything that is not invalid
+                !matches!(
+                    result.is_reachable,
+                    check_if_email_exists::Reachable::Invalid
+                )
             }
         }
-        if let Some(scheme) = &self.scheme {
-            if url.scheme() != scheme {
+    }
+
+    fn in_excludes(&self, input: &str) -> bool {
+        if let Some(excludes) = &self.excludes {
+            if excludes.is_match(input) {
                 return true;
             }
         }
         false
     }
 
-    pub async fn check(&self, url: &Url) -> Status {
-        if self.excluded(&url) {
+    pub fn excluded(&self, uri: &Uri) -> bool {
+        if self.in_excludes(uri.as_str()) {
+            return true;
+        }
+        if self.scheme.is_none() {
+            return false;
+        }
+        uri.scheme() != self.scheme
+    }
+
+    pub async fn check(&self, uri: &extract::Uri) -> Status {
+        if self.excluded(&uri) {
             return Status::Excluded;
         }
 
-        let ret = self.check_real(&url).await;
+        let ret = match uri {
+            Uri::Website(url) => self.check_real(url).await,
+            Uri::Mail(address) => {
+                let valid = self.valid_mail(address).await;
+                if valid {
+                    // TODO: We should not be using a HTTP status code for mail
+                    Status::Ok(http::StatusCode::OK)
+                } else {
+                    Status::Error(format!("Invalid mail address: {}", address))
+                }
+            }
+        };
+
         match &ret {
             Status::Ok(code) => {
                 if self.verbose {
-                    println!("✅{} [{}]", url, code);
+                    println!("✅{} [{}]", uri, code);
                 }
             }
             Status::Failed(code) => {
-                println!("🚫{} [{}]", url, code);
+                println!("🚫{} [{}]", uri, code);
             }
             Status::Redirected => {
                 if self.verbose {
-                    println!("🔀️{}", url);
+                    println!("🔀️{}", uri);
                 }
             }
             Status::Excluded => {
                 if self.verbose {
-                    println!("👻{}", url);
+                    println!("👻{}", uri);
                 }
             }
             Status::Error(e) => {
-                println!("⚡ {} ({})", url, e);
+                println!("⚡ {} ({})", uri, e);
             }
             Status::Timeout => {
-                println!("⌛{}", url);
+                println!("⌛{}", uri);
             }
         };
         ret
@@ -253,7 +288,9 @@ mod test {
     #[tokio::test]
     async fn test_nonexistent() {
         let res = get_checker(false, HeaderMap::new())
-            .check(&Url::parse("https://endler.dev/abcd").unwrap())
+            .check(&Uri::Website(
+                Url::parse("https://endler.dev/abcd").unwrap(),
+            ))
             .await;
         assert!(matches!(res, Status::Failed(_)));
     }
@@ -271,7 +308,9 @@ mod test {
     async fn test_github() {
         assert!(matches!(
             get_checker(false, HeaderMap::new())
-                .check(&Url::parse("https://github.com/mre/idiomatic-rust").unwrap())
+                .check(&Uri::Website(
+                    Url::parse("https://github.com/mre/idiomatic-rust").unwrap()
+                ))
                 .await,
             Status::Ok(_)
         ));
@@ -280,7 +319,9 @@ mod test {
     #[tokio::test]
     async fn test_github_nonexistent() {
         let res = get_checker(false, HeaderMap::new())
-            .check(&Url::parse("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap())
+            .check(&Uri::Website(
+                Url::parse("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap(),
+            ))
             .await;
         assert!(matches!(res, Status::Error(_)));
     }
@@ -288,7 +329,7 @@ mod test {
     #[tokio::test]
     async fn test_non_github() {
         let res = get_checker(false, HeaderMap::new())
-            .check(&Url::parse("https://endler.dev").unwrap())
+            .check(&Uri::Website(Url::parse("https://endler.dev").unwrap()))
             .await;
         assert!(matches!(res, Status::Ok(_)));
     }
@@ -296,13 +337,17 @@ mod test {
     #[tokio::test]
     async fn test_invalid_ssl() {
         let res = get_checker(false, HeaderMap::new())
-            .check(&Url::parse("https://expired.badssl.com/").unwrap())
+            .check(&Uri::Website(
+                Url::parse("https://expired.badssl.com/").unwrap(),
+            ))
             .await;
         assert!(matches!(res, Status::Error(_)));
 
         // Same, but ignore certificate error
         let res = get_checker(true, HeaderMap::new())
-            .check(&Url::parse("https://expired.badssl.com/").unwrap())
+            .check(&Uri::Website(
+                Url::parse("https://expired.badssl.com/").unwrap(),
+            ))
             .await;
         assert!(matches!(res, Status::Ok(_)));
     }
@@ -310,7 +355,9 @@ mod test {
     #[tokio::test]
     async fn test_custom_headers() {
         let res = get_checker(false, HeaderMap::new())
-            .check(&Url::parse("https://crates.io/keywords/cassandra").unwrap())
+            .check(&Uri::Website(
+                Url::parse("https://crates.io/keywords/cassandra").unwrap(),
+            ))
             .await;
         assert!(matches!(res, Status::Failed(StatusCode::NOT_FOUND)));
 
@@ -320,7 +367,9 @@ mod test {
         let mut custom = HeaderMap::new();
         custom.insert(header::ACCEPT, "text/html".parse().unwrap());
         let res = get_checker(true, custom)
-            .check(&Url::parse("https://crates.io/keywords/cassandra").unwrap())
+            .check(&Uri::Website(
+                Url::parse("https://crates.io/keywords/cassandra").unwrap(),
+            ))
             .await;
         assert!(matches!(res, Status::Ok(_)));
     }
@@ -338,9 +387,46 @@ mod test {
             .await;
 
         let res = get_checker(false, HeaderMap::new())
-            .check(&Url::parse(&mock_server.uri()).unwrap())
+            .check(&Uri::Website(Url::parse(&mock_server.uri()).unwrap()))
             .await;
         println!("{:?}", res);
         assert!(matches!(res, Status::Timeout));
+    }
+
+    #[tokio::test]
+    async fn test_exclude() {
+        let excludes =
+            RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap();
+
+        let checker = Checker::try_new(
+            "DUMMY_GITHUB_TOKEN".to_string(),
+            Some(excludes),
+            5,
+            "curl/7.71.1".to_string(),
+            true,
+            None,
+            HeaderMap::new(),
+            RequestMethod::GET,
+            None,
+            None,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            checker.excluded(&Uri::Website(Url::parse("http://github.com").unwrap())),
+            true
+        );
+        assert_eq!(
+            checker.excluded(&Uri::Website(Url::parse("http://exclude.org").unwrap())),
+            true
+        );
+        assert_eq!(
+            checker.excluded(&Uri::Mail("mail@example.com".to_string())),
+            true
+        );
+        assert_eq!(
+            checker.excluded(&Uri::Mail("foo@bar.dev".to_string())),
+            false
+        );
     }
 }
