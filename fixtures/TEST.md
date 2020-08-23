@@ -15,11 +15,10 @@ Test GZIP compression. (See https://github.com/analysis-tools-dev/static-analysi
 Some more complex formatting to test that Markdown parsing works.
 [![CC0](https://i.creativecommons.org/p/zero/1.0/88x31.png)](https://creativecommons.org/publicdomain/zero/1.0/)
 
-Untrusted certificate. Whether this fails depends on whether the `--insecure` is set.
-[landscape](https://landscape.io/)
-
 Test HTTP and HTTPS for the same site.
 http://spinroot.com/cobra/
 https://spinroot.com/cobra/
 
 https://www.peerlyst.com/posts/a-list-of-static-analysis-tools-for-c-c-peerlyst 
+
+test@example.com
