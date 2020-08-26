@@ -50,6 +50,7 @@ SOON:
 - exclude private domains (https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go)
 - recursion
 - extended statistics: request latency
+- use colored output (https://crates.io/crates/colored)
 
 ## Users
 
