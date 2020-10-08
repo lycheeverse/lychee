@@ -31,7 +31,7 @@ fn print_summary(found: &HashSet<Uri>, results: &Vec<Status>) {
         .count();
     let errors: usize = found - excluded - success;
 
-    println!("");
+    println!();
     println!("📝Summary");
     println!("-------------------");
     println!("🔍Found: {}", found);
