@@ -394,9 +394,7 @@ mod test {
     #[tokio::test]
     async fn test_nonexistent() {
         let res = get_checker(false, HeaderMap::new())
-            .check(&Uri::Website(
-                Url::parse("https://endler.dev/abcd").unwrap(),
-            ))
+            .check(&website_url("https://endler.dev/abcd"))
             .await;
         assert!(matches!(res, Status::Failed(_)));
     }
@@ -414,9 +412,7 @@ mod test {
     async fn test_github() {
         assert!(matches!(
             get_checker(false, HeaderMap::new())
-                .check(&Uri::Website(
-                    Url::parse("https://github.com/mre/idiomatic-rust").unwrap()
-                ))
+                .check(&website_url("https://github.com/mre/idiomatic-rust"))
                 .await,
             Status::Ok(_)
         ));
@@ -425,8 +421,8 @@ mod test {
     #[tokio::test]
     async fn test_github_nonexistent() {
         let res = get_checker(false, HeaderMap::new())
-            .check(&Uri::Website(
-                Url::parse("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap(),
+            .check(&website_url(
+                "https://github.com/mre/idiomatic-rust-doesnt-exist-man",
             ))
             .await;
         assert!(matches!(res, Status::Error(_)));
@@ -435,7 +431,7 @@ mod test {
     #[tokio::test]
     async fn test_non_github() {
         let res = get_checker(false, HeaderMap::new())
-            .check(&Uri::Website(Url::parse("https://endler.dev").unwrap()))
+            .check(&website_url("https://endler.dev"))
             .await;
         assert!(matches!(res, Status::Ok(_)));
     }
@@ -443,17 +439,13 @@ mod test {
     #[tokio::test]
     async fn test_invalid_ssl() {
         let res = get_checker(false, HeaderMap::new())
-            .check(&Uri::Website(
-                Url::parse("https://expired.badssl.com/").unwrap(),
-            ))
+            .check(&website_url("https://expired.badssl.com/"))
             .await;
         assert!(matches!(res, Status::Error(_)));
 
         // Same, but ignore certificate error
         let res = get_checker(true, HeaderMap::new())
-            .check(&Uri::Website(
-                Url::parse("https://expired.badssl.com/").unwrap(),
-            ))
+            .check(&website_url("https://expired.badssl.com/"))
             .await;
         assert!(matches!(res, Status::Ok(_)));
     }
@@ -461,9 +453,7 @@ mod test {
     #[tokio::test]
     async fn test_custom_headers() {
         let res = get_checker(false, HeaderMap::new())
-            .check(&Uri::Website(
-                Url::parse("https://crates.io/keywords/cassandra").unwrap(),
-            ))
+            .check(&website_url("https://crates.io/keywords/cassandra"))
             .await;
         assert!(matches!(res, Status::Failed(StatusCode::NOT_FOUND)));
 
@@ -473,9 +463,7 @@ mod test {
         let mut custom = HeaderMap::new();
         custom.insert(header::ACCEPT, "text/html".parse().unwrap());
         let res = get_checker(true, custom)
-            .check(&Uri::Website(
-                Url::parse("https://crates.io/keywords/cassandra").unwrap(),
-            ))
+            .check(&website_url("https://crates.io/keywords/cassandra"))
             .await;
         assert!(matches!(res, Status::Ok(_)));
     }
@@ -493,7 +481,7 @@ mod test {
             .await;
 
         let res = get_checker(false, HeaderMap::new())
-            .check(&Uri::Website(Url::parse(&mock_server.uri()).unwrap()))
+            .check(&website_url(&mock_server.uri()))
             .await;
         println!("{:?}", res);
         assert!(matches!(res, Status::Timeout));
@@ -520,14 +508,8 @@ mod test {
             None,
         )
         .unwrap();
-        assert_eq!(
-            checker.excluded(&Uri::Website(Url::parse("http://github.com").unwrap())),
-            true
-        );
-        assert_eq!(
-            checker.excluded(&Uri::Website(Url::parse("http://exclude.org").unwrap())),
-            true
-        );
+        assert_eq!(checker.excluded(&website_url("http://github.com")), true);
+        assert_eq!(checker.excluded(&website_url("http://exclude.org")), true);
         assert_eq!(
             checker.excluded(&Uri::Mail("mail@example.com".to_string())),
             true
