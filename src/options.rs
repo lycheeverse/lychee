@@ -38,6 +38,15 @@ pub(crate) struct LycheeOptions {
     #[options(help = "Exclude URLs from checking (supports regex)")]
     pub exclude: Vec<String>,
 
+    #[options(help = "Exclude private IP address ranges from checking")]
+    pub exclude_private: bool,
+
+    #[options(help = "Exclude link-local IP address range from checking")]
+    pub exclude_link_local: bool,
+
+    #[options(help = "Exclude loopback IP address range from checking")]
+    pub exclude_loopback: bool,
+
     // Accumulate all headers in a vector
     #[options(help = "Custom request headers")]
     pub headers: Vec<String>,

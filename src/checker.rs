@@ -1,4 +1,5 @@
 use crate::extract::{self, Uri};
+use crate::options::LycheeOptions;
 use anyhow::anyhow;
 use anyhow::{Context, Result};
 use check_if_email_exists::{check_email, CheckEmailInput};
@@ -6,6 +7,7 @@ use hubcaps::{Credentials, Github};
 use indicatif::ProgressBar;
 use regex::{Regex, RegexSet};
 use reqwest::header::{self, HeaderMap, HeaderValue};
+use std::net::IpAddr;
 use std::{collections::HashSet, convert::TryFrom, time::Duration};
 use url::Url;
 
@@ -68,12 +70,42 @@ impl From<reqwest::Error> for Status {
     }
 }
 
+/// Exclude configuration for the link checker.
+pub(crate) struct Excludes {
+    regex: Option<RegexSet>,
+    private_ips: bool,
+    link_local_ips: bool,
+    loopback_ips: bool,
+}
+
+impl Excludes {
+    pub fn from_options(options: &LycheeOptions) -> Self {
+        Self {
+            regex: RegexSet::new(&options.exclude).ok(),
+            private_ips: options.exclude_private,
+            link_local_ips: options.exclude_link_local,
+            loopback_ips: options.exclude_loopback,
+        }
+    }
+}
+
+impl Default for Excludes {
+    fn default() -> Self {
+        Self {
+            regex: None,
+            private_ips: false,
+            link_local_ips: false,
+            loopback_ips: false,
+        }
+    }
+}
+
 /// A link checker using an API token for Github links
 /// otherwise a normal HTTP client.
 pub(crate) struct Checker<'a> {
     reqwest_client: reqwest::Client,
     github: Github,
-    excludes: Option<RegexSet>,
+    excludes: Excludes,
     scheme: Option<String>,
     method: RequestMethod,
     accepted: Option<HashSet<reqwest::StatusCode>>,
@@ -85,7 +117,7 @@ impl<'a> Checker<'a> {
     /// Creates a new link checker
     pub fn try_new(
         token: String,
-        excludes: Option<RegexSet>,
+        excludes: Excludes,
         max_redirects: usize,
         user_agent: String,
         allow_insecure: bool,
@@ -195,8 +227,8 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn in_excludes(&self, input: &str) -> bool {
-        if let Some(excludes) = &self.excludes {
+    fn in_regex_excludes(&self, input: &str) -> bool {
+        if let Some(excludes) = &self.excludes.regex {
             if excludes.is_match(input) {
                 return true;
             }
@@ -204,8 +236,35 @@ impl<'a> Checker<'a> {
         false
     }
 
+    fn in_ip_excludes(&self, uri: &Uri) -> bool {
+        if let Some(ipaddr) = uri.host_ip() {
+            if self.excludes.loopback_ips && ipaddr.is_loopback() {
+                return true;
+            }
+
+            // Note: in a pathological case, an IPv6 address can be IPv4-mapped
+            //       (IPv4 address embedded in a IPv6).  We purposefully
+            //       don't deal with it here, and assume if an address is IPv6,
+            //       we shouldn't attempt to map it to IPv4.
+            //       See: https://tools.ietf.org/html/rfc4291#section-2.5.5.2
+            if let IpAddr::V4(v4addr) = ipaddr {
+                if self.excludes.private_ips && v4addr.is_private() {
+                    return true;
+                }
+                if self.excludes.link_local_ips && v4addr.is_link_local() {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
     pub fn excluded(&self, uri: &Uri) -> bool {
-        if self.in_excludes(uri.as_str()) {
+        if self.in_regex_excludes(uri.as_str()) {
+            return true;
+        }
+        if self.in_ip_excludes(&uri) {
             return true;
         }
         if self.scheme.is_none() {
@@ -290,10 +349,29 @@ mod test {
     use wiremock::matchers::method;
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    // Note: the standard library as of Rust stable 1.47.0 does not expose
+    //       "link-local" or "private" IPv6 checks.  However, one might argue
+    //       that these concepts do exist in IPv6, albeit the naming is different.
+    //       See: https://en.wikipedia.org/wiki/Link-local_address#IPv6
+    //       See: https://en.wikipedia.org/wiki/Private_network#IPv6
+    //       See: https://doc.rust-lang.org/stable/std/net/struct.Ipv6Addr.html#method.is_unicast_link_local
+    const V4_PRIVATE_CLASS_A: &str = "http://10.0.0.1";
+    const V4_PRIVATE_CLASS_B: &str = "http://172.16.0.1";
+    const V4_PRIVATE_CLASS_C: &str = "http://192.168.0.1";
+
+    const V4_LOOPBACK: &str = "http://127.0.0.1";
+    const V6_LOOPBACK: &str = "http://[::1]";
+
+    const V4_LINK_LOCAL: &str = "http://169.254.0.1";
+
+    // IPv4-Mapped IPv6 addresses (IPv4 embedded in IPv6)
+    const V6_MAPPED_V4_PRIVATE_CLASS_A: &str = "http://[::ffff:10.0.0.1]";
+    const V6_MAPPED_V4_LINK_LOCAL: &str = "http://[::ffff:169.254.0.1]";
+
     fn get_checker(allow_insecure: bool, custom_headers: HeaderMap) -> Checker<'static> {
         let checker = Checker::try_new(
             "DUMMY_GITHUB_TOKEN".to_string(),
-            None,
+            Excludes::default(),
             5,
             "curl/7.71.1".to_string(),
             allow_insecure,
@@ -307,6 +385,10 @@ mod test {
         )
         .unwrap();
         checker
+    }
+
+    fn website_url(s: &str) -> Uri {
+        Uri::Website(Url::parse(s).expect("Expected valid Website Uri"))
     }
 
     #[tokio::test]
@@ -418,13 +500,14 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_exclude() {
-        let excludes =
-            RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap();
+    async fn test_exclude_regex() {
+        let mut excludes = Excludes::default();
+        excludes.regex =
+            Some(RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap());
 
         let checker = Checker::try_new(
             "DUMMY_GITHUB_TOKEN".to_string(),
-            Some(excludes),
+            excludes,
             5,
             "curl/7.71.1".to_string(),
             true,
@@ -451,6 +534,91 @@ mod test {
         );
         assert_eq!(
             checker.excluded(&Uri::Mail("foo@bar.dev".to_string())),
+            false
+        );
+    }
+
+    #[test]
+    fn test_const_sanity() {
+        let get_host = |s| {
+            Url::parse(s)
+                .expect("Expected valid URL")
+                .host()
+                .expect("Expected host address")
+                .to_owned()
+        };
+        let into_v4 = |host| match host {
+            url::Host::Ipv4(ipv4) => ipv4,
+            _ => panic!("Not IPv4"),
+        };
+        let into_v6 = |host| match host {
+            url::Host::Ipv6(ipv6) => ipv6,
+            _ => panic!("Not IPv6"),
+        };
+
+        assert!(into_v4(get_host(V4_PRIVATE_CLASS_A)).is_private());
+        assert!(into_v4(get_host(V4_PRIVATE_CLASS_B)).is_private());
+        assert!(into_v4(get_host(V4_PRIVATE_CLASS_C)).is_private());
+
+        assert!(into_v4(get_host(V4_LOOPBACK)).is_loopback());
+        assert!(into_v6(get_host(V6_LOOPBACK)).is_loopback());
+
+        assert!(into_v4(get_host(V4_LINK_LOCAL)).is_link_local());
+    }
+
+    #[test]
+    fn test_excludes_no_private_ips_by_default() {
+        let checker = get_checker(false, HeaderMap::new());
+
+        assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_A)), false);
+        assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_B)), false);
+        assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_C)), false);
+        assert_eq!(checker.excluded(&website_url(V4_LINK_LOCAL)), false);
+        assert_eq!(checker.excluded(&website_url(V4_LOOPBACK)), false);
+
+        assert_eq!(checker.excluded(&website_url(V6_LOOPBACK)), false);
+    }
+
+    #[test]
+    fn test_exclude_private() {
+        let mut checker = get_checker(false, HeaderMap::new());
+        checker.excludes.private_ips = true;
+
+        assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_A)), true);
+        assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_B)), true);
+        assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_C)), true);
+    }
+
+    #[test]
+    fn test_exclude_link_local() {
+        let mut checker = get_checker(false, HeaderMap::new());
+        checker.excludes.link_local_ips = true;
+
+        assert_eq!(checker.excluded(&website_url(V4_LINK_LOCAL)), true);
+    }
+
+    #[test]
+    fn test_exclude_loopback() {
+        let mut checker = get_checker(false, HeaderMap::new());
+        checker.excludes.loopback_ips = true;
+
+        assert_eq!(checker.excluded(&website_url(V4_LOOPBACK)), true);
+        assert_eq!(checker.excluded(&website_url(V6_LOOPBACK)), true);
+    }
+
+    #[test]
+    fn test_exclude_ip_v4_mapped_ip_v6_not_supported() {
+        let mut checker = get_checker(false, HeaderMap::new());
+        checker.excludes.private_ips = true;
+        checker.excludes.link_local_ips = true;
+
+        // if these were pure IPv4, we would exclude
+        assert_eq!(
+            checker.excluded(&website_url(V6_MAPPED_V4_PRIVATE_CLASS_A)),
+            false
+        );
+        assert_eq!(
+            checker.excluded(&website_url(V6_MAPPED_V4_LINK_LOCAL)),
             false
         );
     }
