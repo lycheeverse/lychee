@@ -11,7 +11,7 @@ pub(crate) struct LycheeOptions {
     #[options(help = "Verbose program output")]
     pub verbose: bool,
 
-    #[options(help = "Show progress", default = "true")]
+    #[options(help = "Show progress")]
     pub progress: bool,
 
     #[options(help = "Maximum number of allowed redirects", default = "10")]
