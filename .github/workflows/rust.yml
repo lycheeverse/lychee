@@ -1,5 +1,3 @@
-name: Rust
-
 on:
   push:
     branches: [ master ]
@@ -11,7 +9,7 @@ env:
 
 jobs:
   build_and_test:
-    name: Rust project
+    name: Build and test with Cargo
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
