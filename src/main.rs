@@ -1,5 +1,3 @@
-#![type_length_limit = "7912782"]
-
 #[macro_use]
 extern crate log;
 
