@@ -9,7 +9,6 @@ env:
 
 jobs:
   build_and_test:
-    name: Build and test with Cargo
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
