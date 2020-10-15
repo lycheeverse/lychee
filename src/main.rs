@@ -5,6 +5,7 @@ use anyhow::anyhow;
 use anyhow::Result;
 use futures::future::join_all;
 use gumdrop::Options;
+use indicatif::{ProgressBar, ProgressStyle};
 use regex::RegexSet;
 use reqwest::header::{HeaderMap, HeaderName};
 use std::{collections::HashSet, convert::TryInto, env, time::Duration};
@@ -66,7 +67,19 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         None => None,
     };
     let timeout = parse_timeout(opts.timeout)?;
-
+    let links = collector::collect_links(opts.inputs).await?;
+    let progress_bar = if opts.progress {
+        Some(
+            ProgressBar::new(links.len() as u64)
+            .with_style(
+                ProgressStyle::default_bar()
+                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta}) {wide_msg}")
+                .progress_chars("#>-")
+            )
+        )
+    } else {
+        None
+    };
     let checker = Checker::try_new(
         env::var("GITHUB_TOKEN")?,
         Some(excludes),
@@ -79,15 +92,21 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         accepted,
         Some(timeout),
         opts.verbose,
+        progress_bar.as_ref(),
     )?;
 
-    let links = collector::collect_links(opts.inputs).await?;
     let futures: Vec<_> = links.iter().map(|l| checker.check(l)).collect();
     let results = join_all(futures).await;
+
+    // note that prints may interfere progress bar so this must go before summary
+    if let Some(progress_bar) = progress_bar {
+        progress_bar.finish_and_clear();
+    }
 
     if opts.verbose {
         print_summary(&links, &results);
     }
+
     Ok(results.iter().all(|r| r.is_success()) as i32)
 }
 
