@@ -40,12 +40,13 @@ lychee can...
   (e.g. `--accept 200,204`)
 - accept a request timeout (`--timeout`) in seconds. Default is 20s. Set to 0 for no timeout.
 - check e-mail links using [check-if-mail-exists](https://github.com/amaurymartiny/check-if-email-exists)
+- show the progress interactively with progress bar and in-flight requests (`--progress`) by @xiaochuanyu
+
 
 SOON:
 
 - automatically retry and backoff
 - check relative (`base-url` to set project root)
-- show the progress interactively with progress bar and in-flight requests (`--progress`)
 - usable as a library (https://github.com/raviqqe/liche/issues/13)
 - exclude private domains (https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go)
 - recursion
