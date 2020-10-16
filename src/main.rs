@@ -19,7 +19,7 @@ use checker::{Checker, Status};
 use extract::Uri;
 use options::LycheeOptions;
 
-fn print_summary(found: &HashSet<Uri>, results: &Vec<Status>) {
+fn print_summary(found: &HashSet<Uri>, results: &[Status]) {
     let found = found.len();
     let excluded: usize = results
         .iter()
@@ -31,7 +31,7 @@ fn print_summary(found: &HashSet<Uri>, results: &Vec<Status>) {
         .count();
     let errors: usize = found - excluded - success;
 
-    println!("");
+    println!();
     println!("📝Summary");
     println!("-------------------");
     println!("🔍Found: {}", found);
