@@ -500,22 +500,41 @@ mod test {
     }
 
     #[tokio::test]
-    #[ignore]
-    // See https://github.com/LukeMathWalker/wiremock-rs/issues/19
     async fn test_timeout() {
+        // Note: this checks response timeout, not connect timeout.
+        // To check connect timeout, we'd have to do something more involved,
+        // see: https://github.com/LukeMathWalker/wiremock-rs/issues/19
+        let mock_delay = Duration::from_millis(20);
+        let checker_timeout = Duration::from_millis(10);
+        assert!(mock_delay > checker_timeout);
+
         let mock_server = MockServer::start().await;
-        let delay = Duration::from_secs(30);
-        let template = ResponseTemplate::new(200).set_delay(delay.clone());
+        let template = ResponseTemplate::new(200).set_delay(mock_delay);
         Mock::given(method("GET"))
             .respond_with(template)
             .mount(&mock_server)
             .await;
 
-        let res = get_checker(false, HeaderMap::new())
-            .check(&website_url(&mock_server.uri()))
+        let checker = Checker::try_new(
+            "DUMMY_GITHUB_TOKEN".to_string(),
+            Excludes::default(),
+            5,
+            "curl/7.71.1".to_string(),
+            true,
+            None,
+            HeaderMap::new(),
+            RequestMethod::GET,
+            None,
+            Some(checker_timeout),
+            false,
+            None,
+        )
+        .expect("Expected successful instantiation");
+
+        let resp = checker
+            .check(&Uri::Website(Url::parse(&mock_server.uri()).unwrap()))
             .await;
-        println!("{:?}", res);
-        assert!(matches!(res, Status::Timeout));
+        assert!(matches!(resp, Status::Timeout));
     }
 
     #[tokio::test]
