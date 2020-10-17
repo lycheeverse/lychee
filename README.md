@@ -43,6 +43,7 @@ lychee can...
 
 SOON:
 
+- report output in HTML, SQL, CSV, XML, JSON, YAML...
 - automatically retry and backoff
 - check relative (`base-url` to set project root)
 - show the progress interactively with progress bar and in-flight requests (`--progress`)
@@ -50,6 +51,7 @@ SOON:
 - exclude private domains (https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go)
 - recursion
 - extended statistics: request latency
+- lychee.toml
 
 ## Users
 
@@ -78,6 +80,12 @@ Collecting other link checkers here to crush them in comparison. :P
 - https://github.com/tcort/markdown-link-check
 - https://github.com/raviqqe/liche
 - https://github.com/raviqqe/muffet
+- https://github.com/stevenvachon/broken-link-checker
+- https://github.com/JustinBeckwith/linkinator
+- https://github.com/linkchecker/linkchecker
+- https://github.com/dantleech/fink
+- https://github.com/bartdag/pylinkvalidator
+- https://github.com/victoriadrake/hydra-link-checker
 
 ## Thanks
 
