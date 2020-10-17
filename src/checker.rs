@@ -3,6 +3,7 @@ use anyhow::anyhow;
 use anyhow::{Context, Result};
 use check_if_email_exists::{check_email, CheckEmailInput};
 use hubcaps::{Credentials, Github};
+use indicatif::ProgressBar;
 use regex::{Regex, RegexSet};
 use reqwest::header::{self, HeaderMap, HeaderValue};
 use std::{collections::HashSet, convert::TryFrom, time::Duration};
@@ -69,7 +70,7 @@ impl From<reqwest::Error> for Status {
 
 /// A link checker using an API token for Github links
 /// otherwise a normal HTTP client.
-pub(crate) struct Checker {
+pub(crate) struct Checker<'a> {
     reqwest_client: reqwest::Client,
     github: Github,
     excludes: Option<RegexSet>,
@@ -77,9 +78,10 @@ pub(crate) struct Checker {
     method: RequestMethod,
     accepted: Option<HashSet<reqwest::StatusCode>>,
     verbose: bool,
+    progress_bar: Option<&'a ProgressBar>,
 }
 
-impl Checker {
+impl<'a> Checker<'a> {
     /// Creates a new link checker
     pub fn try_new(
         token: String,
@@ -93,6 +95,7 @@ impl Checker {
         accepted: Option<HashSet<http::StatusCode>>,
         timeout: Option<Duration>,
         verbose: bool,
+        progress_bar: Option<&'a ProgressBar>,
     ) -> Result<Self> {
         let mut headers = header::HeaderMap::new();
         // Faking the user agent is necessary for some websites, unfortunately.
@@ -127,6 +130,7 @@ impl Checker {
             method,
             accepted,
             verbose,
+            progress_bar,
         })
     }
 
@@ -210,9 +214,42 @@ impl Checker {
         uri.scheme() != self.scheme
     }
 
+    fn status_message(&self, status: &Status, uri: &Uri) -> Option<String> {
+        match status {
+            Status::Ok(code) => {
+                if self.verbose {
+                    Some(format!("✅{} [{}]", uri, code))
+                } else {
+                    None
+                }
+            }
+            Status::Failed(code) => Some(format!("🚫{} [{}]", uri, code)),
+            Status::Redirected => {
+                if self.verbose {
+                    Some(format!("🔀️{}", uri))
+                } else {
+                    None
+                }
+            }
+            Status::Excluded => {
+                if self.verbose {
+                    Some(format!("👻{}", uri))
+                } else {
+                    None
+                }
+            }
+            Status::Error(e) => Some(format!("⚡ {} ({})", uri, e)),
+            Status::Timeout => Some(format!("⌛{}", uri)),
+        }
+    }
+
     pub async fn check(&self, uri: &extract::Uri) -> Status {
         if self.excluded(&uri) {
             return Status::Excluded;
+        }
+
+        if let Some(pb) = self.progress_bar {
+            pb.set_message(&uri.to_string());
         }
 
         let ret = match uri {
@@ -228,32 +265,18 @@ impl Checker {
             }
         };
 
-        match &ret {
-            Status::Ok(code) => {
-                if self.verbose {
-                    println!("✅{} [{}]", uri, code);
-                }
+        if let Some(pb) = self.progress_bar {
+            pb.inc(1);
+            // regular println! inteferes with progress bar
+            if let Some(message) = self.status_message(&ret, uri) {
+                pb.println(message);
             }
-            Status::Failed(code) => {
-                println!("🚫{} [{}]", uri, code);
+        } else {
+            if let Some(message) = self.status_message(&ret, uri) {
+                println!("{}", message);
             }
-            Status::Redirected => {
-                if self.verbose {
-                    println!("🔀️{}", uri);
-                }
-            }
-            Status::Excluded => {
-                if self.verbose {
-                    println!("👻{}", uri);
-                }
-            }
-            Status::Error(e) => {
-                println!("⚡ {} ({})", uri, e);
-            }
-            Status::Timeout => {
-                println!("⌛{}", uri);
-            }
-        };
+        }
+
         ret
     }
 }
@@ -267,7 +290,7 @@ mod test {
     use wiremock::matchers::method;
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    fn get_checker(allow_insecure: bool, custom_headers: HeaderMap) -> Checker {
+    fn get_checker(allow_insecure: bool, custom_headers: HeaderMap) -> Checker<'static> {
         let checker = Checker::try_new(
             "DUMMY_GITHUB_TOKEN".to_string(),
             None,
@@ -280,6 +303,7 @@ mod test {
             None,
             None,
             false,
+            None,
         )
         .unwrap();
         checker
@@ -410,6 +434,7 @@ mod test {
             None,
             None,
             false,
+            None,
         )
         .unwrap();
         assert_eq!(
