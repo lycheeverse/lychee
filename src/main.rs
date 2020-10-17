@@ -6,7 +6,6 @@ use anyhow::Result;
 use futures::future::join_all;
 use gumdrop::Options;
 use indicatif::{ProgressBar, ProgressStyle};
-use regex::RegexSet;
 use reqwest::header::{HeaderMap, HeaderName};
 use std::{collections::HashSet, convert::TryInto, env, time::Duration};
 
@@ -15,7 +14,7 @@ mod collector;
 mod extract;
 mod options;
 
-use checker::{Checker, Status};
+use checker::{Checker, Excludes, Status};
 use extract::Uri;
 use options::LycheeOptions;
 
@@ -31,7 +30,7 @@ fn print_summary(found: &HashSet<Uri>, results: &Vec<Status>) {
         .count();
     let errors: usize = found - excluded - success;
 
-    println!("");
+    println!();
     println!("📝Summary");
     println!("-------------------");
     println!("🔍Found: {}", found);
@@ -60,7 +59,7 @@ fn main() -> Result<()> {
 }
 
 async fn run(opts: LycheeOptions) -> Result<i32> {
-    let excludes = RegexSet::new(opts.exclude).unwrap();
+    let excludes = Excludes::from_options(&opts);
     let headers = parse_headers(opts.headers)?;
     let accepted = match opts.accept {
         Some(accept) => parse_statuscodes(accept)?,
@@ -82,7 +81,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
     };
     let checker = Checker::try_new(
         env::var("GITHUB_TOKEN")?,
-        Some(excludes),
+        excludes,
         opts.max_redirects,
         opts.user_agent,
         opts.insecure,
