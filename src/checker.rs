@@ -43,10 +43,8 @@ impl Status {
             if accepted.contains(&statuscode) {
                 return Status::Ok(statuscode);
             }
-        } else {
-            if statuscode.is_success() {
-                return Status::Ok(statuscode);
-            }
+        } else if statuscode.is_success() {
+            return Status::Ok(statuscode);
         };
         if statuscode.is_redirection() {
             Status::Redirected
@@ -119,6 +117,9 @@ pub(crate) struct Checker<'a> {
 
 impl<'a> Checker<'a> {
     /// Creates a new link checker
+    // we should consider adding a config struct for this, so that the list
+    // of arguments is short
+    #[allow(clippy::too_many_arguments)]
     pub fn try_new(
         token: String,
         excludes: Excludes,
@@ -215,7 +216,7 @@ impl<'a> Checker<'a> {
         status
     }
 
-    pub async fn valid_mail(&self, address: &String) -> bool {
+    pub async fn valid_mail(&self, address: &str) -> bool {
         let input = CheckEmailInput::new(vec![address.to_string()]);
         let results = check_email(&input).await;
         let result = results.get(0);
@@ -334,10 +335,8 @@ impl<'a> Checker<'a> {
             if let Some(message) = self.status_message(&ret, uri) {
                 pb.println(message);
             }
-        } else {
-            if let Some(message) = self.status_message(&ret, uri) {
-                println!("{}", message);
-            }
+        } else if let Some(message) = self.status_message(&ret, uri) {
+            println!("{}", message);
         }
 
         ret

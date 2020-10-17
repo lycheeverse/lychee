@@ -8,14 +8,32 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build_and_test:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - uses: actions-rs/cargo@v1
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
         with:
-          command: build
-          args: --release --all-features
+          command: test
+  lints:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy
+      - name: Run cargo fmt (check if all code is rustfmt-ed)
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+      - name: Run cargo clippy (deny warnings)
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings
