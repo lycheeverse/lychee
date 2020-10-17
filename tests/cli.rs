@@ -6,6 +6,7 @@ mod cli {
 
     #[test]
     fn test_exclude_all_private() {
+        // this gets the "main" binary name (e.g. `lychee`)
         let mut cmd =
             Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name");
 
