@@ -33,6 +33,6 @@ features = ["full"]
 version = "0.2"
 
 [dev-dependencies]
-wiremock = "0.2.4"
+wiremock = "0.3"
 assert_cmd = "1.0"
 predicates = "1.0"
