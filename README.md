@@ -18,6 +18,8 @@ TODO: Add screenshots here
 The existing link checkers were not flexible enough for my use-case. lychee
 runs all requests fully asynchronously and has a low memory/CPU footprint.
 
+## Features
+
 lychee can...
 
 - handle links inside Markdown, HTML, and other documents
@@ -41,15 +43,14 @@ lychee can...
 - accept a request timeout (`--timeout`) in seconds. Default is 20s. Set to 0 for no timeout.
 - check e-mail links using [check-if-mail-exists](https://github.com/amaurymartiny/check-if-email-exists)
 - show the progress interactively with progress bar and in-flight requests (`--progress`) by @xiaochuanyu
-
+- automatically retry failed links with exponential backoff
+- exclude private domains (https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go) thanks to @pawroman
 
 SOON:
 
 - report output in HTML, SQL, CSV, XML, JSON, YAML...
-- automatically retry and backoff
-- check relative (`base-url` to set project root)
+- check relative URLs (`base-url` to set project root)
 - usable as a library (https://github.com/raviqqe/liche/issues/13)
-- exclude private domains (https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go)
 - recursion
 - extended statistics: request latency
 - lychee.toml
