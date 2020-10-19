@@ -43,7 +43,7 @@ fn print_summary(found: &HashSet<Uri>, results: &[Status]) {
 fn main() -> Result<()> {
     pretty_env_logger::init();
     let mut opts = LycheeOptions::from_args();
-    let cfg = Config::load_from_file("./lychee.toml")?;
+    let cfg = Config::load_from_file(&opts.config_file)?;
 
     // Merge the config from file into the config from CLI
     if let Some(c) = cfg {

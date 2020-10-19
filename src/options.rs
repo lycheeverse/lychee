@@ -34,6 +34,10 @@ pub(crate) struct LycheeOptions {
     /// Input files
     pub inputs: Vec<String>,
 
+    /// Configuration file to use
+    #[structopt(short, long = "config", default_value = "./lychee.toml")]
+    pub config_file: String,
+
     #[structopt(flatten)]
     pub config: Config,
 }
@@ -134,7 +138,10 @@ impl Config {
             Ok(c) => c,
             Err(e) => {
                 return match e.kind() {
-                    ErrorKind::NotFound => Ok(None),
+                    ErrorKind::NotFound => {
+                        println!("[WARN] could not find configuration file, using arguments");
+                        Ok(None)
+                    }
                     _ => Err(Error::from(e)),
                 }
             }
