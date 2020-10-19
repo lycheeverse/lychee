@@ -9,4 +9,4 @@ Test file: "private" URLs (should all be excluded when using `-E` flag).
 
 IPv6:
 
-- Loopback: http://[::1]
+- Loopback: [IPV6 Address](http://[::1])

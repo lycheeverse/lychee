@@ -61,31 +61,15 @@ fn find_links(input: &str) -> Vec<linkify::Link> {
 // Extracting unparsed URL strings from a markdown string
 fn extract_links_from_markdown(input: &str) -> Vec<String> {
     let parser = Parser::new(input);
-    // Text splitting when using some punctuation marks.
-    // Using a buffer to store splitted texts.
-    let mut buf = String::new();
     parser
         .flat_map(|event| match event {
-            MDEvent::Start(tag) => {
-                buf.clear();
-                match tag {
-                    Tag::Link(_, url, _) | Tag::Image(_, url, _) => vec![url.to_string()],
-                    _ => vec![],
-                }
-            }
-            MDEvent::Text(txt) => {
-                let txt_str = &txt.to_string();
-                buf.push_str(txt_str);
-                extract_links_from_plaintext(&buf)
-            }
-            MDEvent::Html(html) => {
-                buf.clear();
-                extract_links_from_html(&html.to_string())
-            }
-            _ => {
-                buf.clear();
-                vec![]
-            }
+            MDEvent::Start(tag) => match tag {
+                Tag::Link(_, url, _) | Tag::Image(_, url, _) => vec![url.to_string()],
+                _ => vec![],
+            },
+            MDEvent::Text(txt) => extract_links_from_plaintext(&txt.to_string()),
+            MDEvent::Html(html) => extract_links_from_html(&html.to_string()),
+            _ => vec![],
         })
         .collect()
 }
