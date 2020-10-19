@@ -1,6 +1,8 @@
 use linkify::LinkFinder;
-
+use pulldown_cmark::{Event as MDEvent, Parser, Tag};
+use quick_xml::{events::Event as HTMLEvent, Reader};
 use std::net::IpAddr;
+use std::path::Path;
 use std::{collections::HashSet, fmt::Display};
 use url::Url;
 
@@ -8,6 +10,13 @@ use url::Url;
 pub(crate) enum Uri {
     Website(Url),
     Mail(String),
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum FileType {
+    HTML,
+    Markdown,
+    Plaintext,
 }
 
 impl Uri {
@@ -49,17 +58,125 @@ fn find_links(input: &str) -> Vec<linkify::Link> {
     finder.links(input).collect()
 }
 
-pub(crate) fn extract_links(input: &str) -> HashSet<Uri> {
-    let links = find_links(input);
+// Extracting unparsed URL strings from a markdown string
+fn extract_links_from_markdown(input: &str) -> Vec<String> {
+    let parser = Parser::new(input);
+    parser
+        .flat_map(|event| match event {
+            MDEvent::Start(tag) => match tag {
+                Tag::Link(_, url, _) | Tag::Image(_, url, _) => vec![url.to_string()],
+                _ => vec![],
+            },
+            MDEvent::Text(txt) => extract_links_from_plaintext(&txt.to_string()),
+            MDEvent::Html(html) => extract_links_from_html(&html.to_string()),
+            _ => vec![],
+        })
+        .collect()
+}
+
+// Extracting unparsed URL strings from a HTML string
+fn extract_links_from_html(input: &str) -> Vec<String> {
+    let mut reader = Reader::from_str(input);
+    let mut buf = Vec::new();
+    let mut urls = Vec::new();
+    while let Ok(e) = reader.read_event(&mut buf) {
+        match e {
+            HTMLEvent::Start(ref e) => {
+                for attr in e.attributes() {
+                    if let Ok(attr) = attr {
+                        match (attr.key, e.name()) {
+                            (b"href", b"a")
+                            | (b"href", b"area")
+                            | (b"href", b"base")
+                            | (b"href", b"link")
+                            | (b"src", b"audio")
+                            | (b"src", b"embed")
+                            | (b"src", b"iframe")
+                            | (b"src", b"img")
+                            | (b"src", b"input")
+                            | (b"src", b"script")
+                            | (b"src", b"source")
+                            | (b"src", b"track")
+                            | (b"src", b"video")
+                            | (b"srcset", b"img")
+                            | (b"srcset", b"source")
+                            | (b"cite", b"blockquote")
+                            | (b"cite", b"del")
+                            | (b"cite", b"ins")
+                            | (b"cite", b"q")
+                            | (b"data", b"object")
+                            | (b"onhashchange", b"body") => {
+                                urls.push(String::from_utf8_lossy(attr.value.as_ref()).to_string());
+                            }
+                            _ => {
+                                for link in extract_links_from_plaintext(
+                                    &String::from_utf8_lossy(attr.value.as_ref()).to_string(),
+                                ) {
+                                    urls.push(link);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            HTMLEvent::Text(txt) | HTMLEvent::Comment(txt) => {
+                for link in extract_links_from_plaintext(
+                    &String::from_utf8_lossy(txt.escaped()).to_string(),
+                ) {
+                    urls.push(link);
+                }
+            }
+            HTMLEvent::Eof => {
+                break;
+            }
+            _ => {}
+        }
+        buf.clear();
+    }
+    urls
+}
+
+// Extracting unparsed URL strings from a plaintext
+fn extract_links_from_plaintext(input: &str) -> Vec<String> {
+    find_links(input)
+        .iter()
+        .map(|l| String::from(l.as_str()))
+        .collect()
+}
+
+pub(crate) fn extract_links(
+    file_type: FileType,
+    input: &str,
+    base_url: Option<Url>,
+) -> HashSet<Uri> {
+    let links = match file_type {
+        FileType::Markdown => extract_links_from_markdown(input),
+        FileType::HTML => extract_links_from_html(input),
+        FileType::Plaintext => extract_links_from_plaintext(input),
+    };
+
     // Only keep legit URLs. This sorts out things like anchors.
     // Silently ignore the parse failures for now.
     let mut uris = HashSet::new();
     for link in links {
-        match Url::parse(link.as_str()) {
-            Ok(url) => uris.insert(Uri::Website(url)),
-            Err(_) => uris.insert(Uri::Mail(link.as_str().to_owned())),
+        match Url::parse(&link) {
+            Ok(url) => {
+                uris.insert(Uri::Website(url));
+            }
+            Err(_) => {
+                if link.contains("@") {
+                    uris.insert(Uri::Mail(link));
+                } else if !Path::new(&link).exists() {
+                    if let Some(base_url) = &base_url {
+                        if let Ok(new_url) = base_url.clone().join(&link) {
+                            uris.insert(Uri::Website(new_url));
+                        }
+                    }
+                }
+            }
         };
     }
+
     debug!("Found: {:#?}", uris);
     uris
 }
@@ -73,7 +190,7 @@ mod test {
     #[test]
     fn test_extract_markdown_links() {
         let input = "This is [a test](https://endler.dev).";
-        let links = extract_links(input);
+        let links = extract_links(FileType::Markdown, input, None);
         assert_eq!(
             links,
             HashSet::from_iter(
@@ -87,14 +204,14 @@ mod test {
     #[test]
     fn test_skip_markdown_anchors() {
         let input = "This is [a test](#lol).";
-        let links = extract_links(input);
+        let links = extract_links(FileType::Markdown, input, None);
         assert_eq!(links, HashSet::new())
     }
 
     #[test]
     fn test_skip_markdown_internal_urls() {
         let input = "This is [a test](./internal).";
-        let links = extract_links(input);
+        let links = extract_links(FileType::Markdown, input, None);
         assert_eq!(links, HashSet::new())
     }
 
@@ -102,7 +219,7 @@ mod test {
     fn test_non_markdown_links() {
         let input =
             "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.com";
-        let links = extract_links(input);
+        let links = extract_links(FileType::Plaintext, input, None);
         let expected = HashSet::from_iter(
             [
                 Uri::Website(Url::parse("https://endler.dev").unwrap()),

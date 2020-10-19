@@ -66,7 +66,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         None => None,
     };
     let timeout = parse_timeout(opts.timeout)?;
-    let links = collector::collect_links(opts.inputs).await?;
+    let links = collector::collect_links(opts.inputs, opts.base_url).await?;
     let progress_bar = if opts.progress {
         Some(
             ProgressBar::new(links.len() as u64)
