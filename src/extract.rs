@@ -164,7 +164,7 @@ pub(crate) fn extract_links(
                 uris.insert(Uri::Website(url));
             }
             Err(_) => {
-                if link.contains("@") {
+                if link.contains('@') {
                     uris.insert(Uri::Mail(link));
                 } else if !Path::new(&link).exists() {
                     if let Some(base_url) = &base_url {
