@@ -1,71 +1,83 @@
-use gumdrop::Options;
+use structopt::StructOpt;
 
-#[derive(Debug, Options)]
+#[derive(Debug, StructOpt)]
+#[structopt(
+    name = "lychee",
+    about = "A boring link checker for my projects (and maybe yours)"
+)]
 pub(crate) struct LycheeOptions {
-    #[options(free, help = "Input files")]
+    /// Input files
     pub inputs: Vec<String>,
 
-    #[options(help = "show help")]
-    pub help: bool,
+    #[structopt(flatten)]
+    pub config: Config,
+}
 
-    #[options(help = "Verbose program output")]
+#[derive(Debug, StructOpt)]
+pub(crate) struct Config {
+    /// Verbose program output
+    #[structopt(short, long)]
     pub verbose: bool,
 
-    #[options(help = "Show progress")]
+    /// Show progress
+    #[structopt(short, long)]
     pub progress: bool,
 
-    #[options(help = "Maximum number of allowed redirects", default = "10")]
+    /// Maximum number of allowed redirects
+    #[structopt(short, long, default_value = "10")]
     pub max_redirects: usize,
 
-    #[options(
-        help = "Number of threads to utilize (defaults to  number of cores available to the system"
-    )]
+    /// Number of threads to utilize.
+    /// Defaults to number of cores available to the system
+    #[structopt(short = "T", long)]
     pub threads: Option<usize>,
 
-    #[options(help = "User agent", default = "curl/7.71.1")]
+    /// User agent
+    #[structopt(short, long, default_value = "curl/7.71.1")]
     pub user_agent: String,
 
-    #[options(
-        help = "Proceed for server connections considered insecure (invalid TLS)",
-        default = "false"
-    )]
+    /// Proceed for server connections considered insecure (invalid TLS)
+    #[structopt(short, long)]
     pub insecure: bool,
 
-    #[options(help = "Only test links with given scheme (e.g. https)")]
+    /// Only test links with the given scheme (e.g. https)
+    #[structopt(short, long)]
     pub scheme: Option<String>,
 
-    // Accumulate all exclusions in a vector
-    #[options(help = "Exclude URLs from checking (supports regex)")]
+    /// Exclude URLs from checking (supports regex)
+    #[structopt(short, long)]
     pub exclude: Vec<String>,
 
-    #[options(
-        help = "Exclude all private IPs from checking, equivalent to `--exclude-private --exclude-link-local --exclude--loopback`",
-        short = "E"
-    )]
+    /// Exclude all private IPs from checking.
+    /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
+    #[structopt(short = "E", long)]
     pub exclude_all_private: bool,
 
-    #[options(help = "Exclude private IP address ranges from checking", no_short)]
+    /// Exclude private IP address ranges from checking
+    #[structopt(long)]
     pub exclude_private: bool,
 
-    #[options(help = "Exclude link-local IP address range from checking", no_short)]
+    /// Exclude link-local IP address range from checking
+    #[structopt(long)]
     pub exclude_link_local: bool,
 
-    #[options(help = "Exclude loopback IP address range from checking", no_short)]
+    /// Exclude loopback IP address range from checking
+    #[structopt(long)]
     pub exclude_loopback: bool,
 
-    // Accumulate all headers in a vector
-    #[options(help = "Custom request headers")]
+    /// Custom request headers
+    #[structopt(short, long)]
     pub headers: Vec<String>,
 
-    #[options(help = "Comma-separated list of accepted status codes for valid links")]
+    /// Comma-separated list of accepted status codes for valid links
+    #[structopt(short, long)]
     pub accept: Option<String>,
 
-    #[options(
-        help = "Website timeout from connect to response finished",
-        default = "20"
-    )]
+    /// Website timeout from connect to response finished
+    #[structopt(short, long, default_value = "20")]
     pub timeout: String,
 
-    #[options(help = "Request method", default = "get")]
+    /// Request method
+    #[structopt(short = "M", long, default_value = "get")]
     pub method: String,
 }

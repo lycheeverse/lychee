@@ -4,10 +4,10 @@ extern crate log;
 use anyhow::anyhow;
 use anyhow::Result;
 use futures::future::join_all;
-use gumdrop::Options;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::header::{HeaderMap, HeaderName};
 use std::{collections::HashSet, convert::TryInto, env, time::Duration};
+use structopt::StructOpt;
 
 mod checker;
 mod collector;
@@ -41,9 +41,9 @@ fn print_summary(found: &HashSet<Uri>, results: &[Status]) {
 
 fn main() -> Result<()> {
     pretty_env_logger::init();
-    let opts = LycheeOptions::parse_args_default_or_exit();
+    let opts = LycheeOptions::from_args();
 
-    let mut runtime = match opts.threads {
+    let mut runtime = match opts.config.threads {
         Some(threads) => {
             // We define our own runtime instead of the `tokio::main` attribute since we want to make the number of threads configurable
             tokio::runtime::Builder::new()
@@ -60,14 +60,14 @@ fn main() -> Result<()> {
 
 async fn run(opts: LycheeOptions) -> Result<i32> {
     let excludes = Excludes::from_options(&opts);
-    let headers = parse_headers(opts.headers)?;
-    let accepted = match opts.accept {
+    let headers = parse_headers(opts.config.headers)?;
+    let accepted = match opts.config.accept {
         Some(accept) => parse_statuscodes(accept)?,
         None => None,
     };
-    let timeout = parse_timeout(opts.timeout)?;
+    let timeout = parse_timeout(opts.config.timeout)?;
     let links = collector::collect_links(opts.inputs).await?;
-    let progress_bar = if opts.progress {
+    let progress_bar = if opts.config.progress {
         Some(
             ProgressBar::new(links.len() as u64)
             .with_style(
@@ -82,15 +82,15 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
     let checker = Checker::try_new(
         env::var("GITHUB_TOKEN")?,
         excludes,
-        opts.max_redirects,
-        opts.user_agent,
-        opts.insecure,
-        opts.scheme,
+        opts.config.max_redirects,
+        opts.config.user_agent,
+        opts.config.insecure,
+        opts.config.scheme,
         headers,
-        opts.method.try_into()?,
+        opts.config.method.try_into()?,
         accepted,
         Some(timeout),
-        opts.verbose,
+        opts.config.verbose,
         progress_bar.as_ref(),
     )?;
 
@@ -102,7 +102,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         progress_bar.finish_and_clear();
     }
 
-    if opts.verbose {
+    if opts.config.verbose {
         print_summary(&links, &results);
     }
 

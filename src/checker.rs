@@ -81,13 +81,13 @@ impl Excludes {
     pub fn from_options(options: &LycheeOptions) -> Self {
         // exclude_all_private option turns on all "private" excludes,
         // including private IPs, link-local IPs and loopback IPs
-        let enable_exclude = |opt| opt || options.exclude_all_private;
+        let enable_exclude = |opt| opt || options.config.exclude_all_private;
 
         Self {
-            regex: RegexSet::new(&options.exclude).ok(),
-            private_ips: enable_exclude(options.exclude_private),
-            link_local_ips: enable_exclude(options.exclude_link_local),
-            loopback_ips: enable_exclude(options.exclude_loopback),
+            regex: RegexSet::new(&options.config.exclude).ok(),
+            private_ips: enable_exclude(options.config.exclude_private),
+            link_local_ips: enable_exclude(options.config.exclude_link_local),
+            loopback_ips: enable_exclude(options.config.exclude_loopback),
         }
     }
 }
