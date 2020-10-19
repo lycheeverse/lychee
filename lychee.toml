@@ -1,0 +1,20 @@
+verbose = false
+progress = false
+
+# threads = 2  # Nullable field
+
+max_redirects = 10
+user_agent = "curl/7.71.1"
+timeout = "20"
+# accept = "text/html"  # Nullable field
+
+insecure = false
+# scheme = "https"  # Nullable field
+method = "get"
+headers = []
+
+exclude = []
+exclude_all_private = false
+exclude_private = false
+exclude_link_local = false
+exclude_loopback = false

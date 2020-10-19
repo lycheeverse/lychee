@@ -14,6 +14,7 @@ mod collector;
 mod extract;
 mod options;
 
+use crate::options::Config;
 use checker::{Checker, Excludes, Status};
 use extract::Uri;
 use options::LycheeOptions;
@@ -41,7 +42,13 @@ fn print_summary(found: &HashSet<Uri>, results: &[Status]) {
 
 fn main() -> Result<()> {
     pretty_env_logger::init();
-    let opts = LycheeOptions::from_args();
+    let mut opts = LycheeOptions::from_args();
+    let cfg = Config::load_from_file("./lychee.toml")?;
+
+    // Merge the config from file into the config from CLI
+    if let Some(c) = cfg {
+        opts.config.merge(c);
+    }
 
     let mut runtime = match opts.config.threads {
         Some(threads) => {

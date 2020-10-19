@@ -23,6 +23,8 @@ url = "2.1.1"
 check-if-email-exists = "0.8.13"
 indicatif = "0.15.0"
 structopt = "0.3"
+toml = "0.5.7"
+serde = { version = "1.0", features = ["derive"] }
 
 [dependencies.reqwest]
 features = ["gzip"]
