@@ -20,10 +20,10 @@ macro_rules! default_function {
 
 // Macro for merging configuration values
 macro_rules! fold_in {
-    ( $( $cli:expr , $toml:expr , $default:expr; )* ) => {
+    ( $cli:ident , $toml:ident ; $( $key:ident : $default:expr; )* ) => {
         $(
-            if $cli == $default && $toml != $default {
-                $cli = $toml;
+            if $cli.$key == $default && $toml.$key != $default {
+                $cli.$key = $toml.$key;
             }
         )*
     };
@@ -155,25 +155,31 @@ impl Config {
     }
 
     /// Merge the configuration from TOML into the CLI configuration
-    pub(crate) fn merge(&mut self, toml: Config) {
+    pub(crate) fn merge(mut self, toml: Config) -> Config {
         fold_in! {
-            self.verbose, toml.verbose, false;
-            self.progress, toml.progress, false;
-            self.max_redirects, toml.max_redirects, 10;
-            self.threads, toml.threads, None;
-            self.user_agent, toml.user_agent, "curl/7.71.1";
-            self.insecure, toml.insecure, false;
-            self.scheme, toml.scheme, None;
-            self.exclude, toml.exclude, Vec::<String>::new();
-            self.exclude_all_private, toml.exclude_all_private, false;
-            self.exclude_private, toml.exclude_private, false;
-            self.exclude_link_local, toml.exclude_link_local, false;
-            self.exclude_loopback, toml.exclude_loopback, false;
-            self.headers, toml.headers, Vec::<String>::new();
-            self.accept, toml.accept, None;
-            self.timeout, toml.timeout, "20";
-            self.method, toml.method, "get";
+            // Destination and source configs
+            self, toml;
+
+            // Keys with defaults to assign
+            verbose: false;
+            progress: false;
+            max_redirects: 10;
+            threads: None;
+            user_agent: USER_AGENT;
+            insecure: false;
+            scheme: None;
+            exclude: Vec::<String>::new();
+            exclude_all_private: false;
+            exclude_private: false;
+            exclude_link_local: false;
+            exclude_loopback: false;
+            headers: Vec::<String>::new();
+            accept: None;
+            timeout: TIMEOUT;
+            method: METHOD;
         }
+
+        self
     }
 }
 
