@@ -3,6 +3,10 @@ use serde::Deserialize;
 use std::{fs, io::ErrorKind};
 use structopt::StructOpt;
 
+const USER_AGENT: &str = "curl/7.71.1";
+const METHOD: &str = "get";
+const TIMEOUT: &str = "20";
+
 // Macro for generating default functions to be used by serde
 macro_rules! default_function {
     ( $( $name:ident : $T:ty = $e:expr; )* ) => {
@@ -66,7 +70,7 @@ pub(crate) struct Config {
     pub threads: Option<usize>,
 
     /// User agent
-    #[structopt(short, long, default_value = "curl/7.71.1")]
+    #[structopt(short, long, default_value = USER_AGENT)]
     #[serde(default = "user_agent")]
     pub user_agent: String,
 
@@ -117,13 +121,13 @@ pub(crate) struct Config {
     pub accept: Option<String>,
 
     /// Website timeout from connect to response finished
-    #[structopt(short, long, default_value = "20")]
+    #[structopt(short, long, default_value = TIMEOUT)]
     #[serde(default = "timeout")]
     pub timeout: String,
 
     /// Request method
-    #[structopt(short = "M", long, default_value = "get")]
-    #[serde(default = "get")]
+    #[structopt(short = "M", long, default_value = METHOD)]
+    #[serde(default = "method")]
     pub method: String,
 }
 
@@ -175,7 +179,7 @@ impl Config {
 
 // Generate the functions for serde defaults
 default_function! {
-    user_agent: String = "curl/7.71.1".to_string();
-    timeout: String = "20".to_string();
-    get: String = "get".to_string();
+    user_agent: String = USER_AGENT.to_string();
+    timeout: String = TIMEOUT.to_string();
+    method: String = METHOD.to_string();
 }
