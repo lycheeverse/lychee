@@ -23,6 +23,8 @@ regex = "1.3.9"
 url = "2.1.1"
 check-if-email-exists = "0.8.13"
 indicatif = "0.15.0"
+pulldown-cmark = "0.8.0"
+quick-xml = "0.20.0"
 
 [dependencies.reqwest]
 features = ["gzip"]

@@ -68,4 +68,7 @@ pub(crate) struct LycheeOptions {
 
     #[options(help = "Request method", default = "get")]
     pub method: String,
+
+    #[options(help = "Base URL to check relative URls")]
+    pub base_url: Option<String>,
 }
