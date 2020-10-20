@@ -157,7 +157,7 @@ impl Config {
             self.progress, toml.progress, false;
             self.max_redirects, toml.max_redirects, 10;
             self.threads, toml.threads, None;
-            self.user_agent, toml.user_agent, "curl/7.71.1".to_string();
+            self.user_agent, toml.user_agent, "curl/7.71.1";
             self.insecure, toml.insecure, false;
             self.scheme, toml.scheme, None;
             self.exclude, toml.exclude, Vec::<String>::new();
@@ -167,8 +167,8 @@ impl Config {
             self.exclude_loopback, toml.exclude_loopback, false;
             self.headers, toml.headers, Vec::<String>::new();
             self.accept, toml.accept, None;
-            self.timeout, toml.timeout, "20".to_string();
-            self.method, toml.method, "get".to_string();
+            self.timeout, toml.timeout, "20";
+            self.method, toml.method, "get";
         }
     }
 }
