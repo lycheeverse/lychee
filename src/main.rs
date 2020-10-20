@@ -41,15 +41,16 @@ fn print_summary(found: &HashSet<Uri>, results: &[Status]) {
 
 fn main() -> Result<()> {
     pretty_env_logger::init();
-    let mut opts = LycheeOptions::from_args();
-    let cfg = Config::load_from_file(&opts.config_file)?;
+    let opts = LycheeOptions::from_args();
 
-    // Merge the config from file into the config from CLI
-    if let Some(c) = cfg {
-        opts.config.merge(c);
-    }
+    // Load a potentially existing config file and merge it into the config from the CLI
+    let cfg = if let Some(c) = Config::load_from_file(&opts.config_file)? {
+        opts.config.merge(c)
+    } else {
+        opts.config
+    };
 
-    let mut runtime = match opts.config.threads {
+    let mut runtime = match cfg.threads {
         Some(threads) => {
             // We define our own runtime instead of the `tokio::main` attribute since we want to make the number of threads configurable
             tokio::runtime::Builder::new()
@@ -60,7 +61,7 @@ fn main() -> Result<()> {
         }
         None => tokio::runtime::Runtime::new()?,
     };
-    let errorcode = runtime.block_on(run(opts.config, opts.inputs))?;
+    let errorcode = runtime.block_on(run(cfg, opts.inputs))?;
     std::process::exit(errorcode);
 }
 
