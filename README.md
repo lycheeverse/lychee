@@ -20,39 +20,41 @@ runs all requests fully asynchronously and has a low memory/CPU footprint.
 
 ## Features
 
-|                                | lychee | awesome_bot | muffet | broken-link-checker | linkinator |
-| ------------------------------ | ------ | ----------- | ------ | ------------------- | ---------- |
-| Language                       | Rust   | Ruby        | Go     | JS                  | TypeScript |
-| Static binary                  | ✔️     | ✖️          | ✔️     | ✖️                  | ✖️         |
-| Async/Parallel                 | ✔️     | ✔️          | ✔️     | ✔️                  | ✔️         |
-| Markdown support               | ✔️     | ✔️          | ✖️     | ✖️                  | ✖️         |
-| HTML support                   | ✔️     | ✖️          | ✖️     | ✔️                  | ✔️         |
-| Plaintext support              | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         |
-| Website support                | ✔️     | ✖️          | ✔️     | ✔️                  | ✔️         |
-| Chunked encodings              | ✔️     | ?           | ?      | ?                   | ?          |
-| GZIP compression               | ✔️     | ?           | ?      | ✔️                  | ?          |
-| Basic Auth                     | ✖️     | ✖️          | ✖️     | ✔️                  | ✖️         |
-| Custom user agent              | ✔️     | ✖️          | ✖️     | ✔️                  | ✖️         |
-| Relative URLs                  | ✖️     | ✔️          | ✖️     | ✔️                  | ✔️         |
-| Skip relative URLs             | ✔️     | ✖️          | ✖️     | ?                   | ✖️         |
-| Include patterns               | ✖️     | ✔️          | ✖️     | ✔️                  | ✖️         |
-| Exclude patterns               | ✔️     | ✖️          | ✔️     | ✔️                  | ✔️         |
-| Handle redirects               | ✔️     | ✔️          | ✔️     | ✔️                  | ✔️         |
-| Ignore SSL                     | ✔️     | ✔️          | ✔️     | ✖️                  | ✖️         |
-| File globbing                  | ✔️     | ✔️          | ✖️     | ✖️                  | ✔️         |
-| Limit scheme (e.g. only HTTPS) | ✔️     | ✖️          | ✖️     | ✔️                  | ✖️         |
-| [Custom headers]               | ✔️     | ✖️          | ✔️     | ✖️                  | ✖️         |
-| Summary                        | ✔️     | ✔️          | ✔️     | ?                   | ✔️         |
-| `HEAD` requests                | ✔️     | ✔️          | ✖️     | ✔️                  | ✔️         |
-| Colored output                 | ✔️     | ?           | ✔️     | ?                   | ✔️         |
-| [Filter on status code]        | ✔️     | ✔️          | ✖️     | ✖️                  | ✖️         |
-| Custom request timeout         | ✔️     | ✔️          | ✔️     | ✖️                  | ✔️         |
-| E-mail links                   | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         |
-| Progress bar                   | ✔️     | ✔️          | ✖️     | ✖️                  | ✖️         |
-| Retry and backoff              | ✔️     | ✖️          | ✖️     | ✖️                  | ✔️         |
-| Exclude private domains        | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         |
-| [Usable as a library]          | ✖️     | ✔️          | ✖️     | ✔️                  | ✔️         |
-| Silent mode                    | ✔️     | ✖️          | ✖️     | ✖️                  | ✔️         |
+This comparison is made on a best-effort basis. Please create a PR to fix outdated information.
+
+|                      | lychee | awesome_bot | muffet | broken-link-checker | linkinator | linkchecker | markdown-link-check | fink |
+| -------------------- | ------ | ----------- | ------ | ------------------- | ---------- | ----------- | ------------------- | ---- |
+| Language             | Rust   | Ruby        | Go     | JS                  | TypeScript | Python      | JS                  | PHP  |
+| Static binary        | ✔️     | ✖️          | ✔️     | ✖️                  | ✖️         | ️ ✖️        | ✖️                  | ✖️   |
+| Async/Parallel       | ✔️     | ✔️          | ✔️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
+| Markdown files       | ✔️     | ✔️          | ✖️     | ✖️                  | ✖️         | ✖️          | ️ ✔️                | ✖️   |
+| HTML files           | ✔️     | ✖️          | ✖️     | ✔️                  | ✔️         | ✖️          | ✖️                  | ✖️   |
+| Txt files            | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         | ✖️          | ✖️                  | ✖️   |
+| Website support      | ✔️     | ✖️          | ✔️     | ✔️                  | ✔️         | ✔️          | ✖️                  | ✔️   |
+| Chunked encodings    | ✔️     | ?           | ?      | ?                   | ?          | ✖️          | ✔️                  | ✔️   |
+| GZIP compression     | ✔️     | ?           | ?      | ✔️                  | ?          | ✔️          | ?                   | ✖️   |
+| Basic Auth           | ✖️     | ✖️          | ✖️     | ✔️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
+| Custom user agent    | ✔️     | ✖️          | ✖️     | ✔️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
+| Relative URLs        | ✖️     | ✔️          | ✖️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
+| Skip relative URLs   | ✔️     | ✖️          | ✖️     | ?                   | ✖️         | ✖️          | ✖️                  | ✖️   |
+| Include patterns     | ✖️     | ✔️          | ✖️     | ✔️                  | ✖️         | ✖️          | ✖️                  | ✖️   |
+| Exclude patterns     | ✔️     | ✖️          | ✔️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
+| Handle redirects     | ✔️     | ✔️          | ✔️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
+| Ignore insecure SSL  | ✔️     | ✔️          | ✔️     | ✖️                  | ✖️         | ✔️          | ✖️                  | ✔️   |
+| File globbing        | ✔️     | ✔️          | ✖️     | ✖️                  | ✔️         | ✖️          | ✔️                  | ✖️   |
+| Limit scheme         | ✔️     | ✖️          | ✖️     | ✔️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
+| [Custom headers]     | ✔️     | ✖️          | ✔️     | ✖️                  | ✖️         | ✖️          | ✔️                  | ✔️   |
+| Summary              | ✔️     | ✔️          | ✔️     | ?                   | ✔️         | ✔️          | ✖️                  | ✔️   |
+| `HEAD` requests      | ✔️     | ✔️          | ✖️     | ✔️                  | ✔️         | ✔️          | ✖️                  | ✖️   |
+| Colored output       | ✔️     | ?           | ✔️     | ?                   | ✔️         | ✔️          | ✖️                  | ✔️   |
+| [Filter status code] | ✔️     | ✔️          | ✖️     | ✖️                  | ✖️         | ✖️          | ✔️                  | ✖️   |
+| Custom timeout       | ✔️     | ✔️          | ✔️     | ✖️                  | ✔️         | ✔️          | ✖️                  | ✔️   |
+| E-mail links         | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
+| Progress bar         | ✔️     | ✔️          | ✖️     | ✖️                  | ✖️         | ✔️          | ✔️                  | ✔️   |
+| Retry and backoff    | ✔️     | ✖️          | ✖️     | ✖️                  | ✔️         | ✖️          | ✔️                  | ✖️   |
+| Skip private domains | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         | ✖️          | ✖️                  | ✖️   |
+| [Use as lib]         | ✖️     | ✔️          | ✖️     | ✔️                  | ✔️         | ✖️          | ✔️                  | ✖️   |
+| Quiet mode           | ✔️     | ✖️          | ✖️     | ✖️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
 
 ## Planned features:
 
@@ -62,6 +64,7 @@ runs all requests fully asynchronously and has a low memory/CPU footprint.
 - recursion
 - use colored output (https://crates.io/crates/colored)
 - skip duplicate urls
+- request throttling
 
 ## Users
 
@@ -103,6 +106,6 @@ Collecting other link checkers here to crush them in comparison. :P
 you want to help out as well, [go here](https://github.com/sponsors/mre/).
 
 [custom headers]: https://github.com/rust-lang/crates.io/issues/788)
-[filter on status code]: https://github.com/tcort/markdown-link-check/issues/94
-[exclude private domains]: https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go
-[usable as library]: https://github.com/raviqqe/liche/issues/13
+[filter status code]: https://github.com/tcort/markdown-link-check/issues/94
+[skip private domains]: https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go
+[use as lib]: https://github.com/raviqqe/liche/issues/13
