@@ -23,36 +23,36 @@ runs all requests fully asynchronously and has a low memory/CPU footprint.
 |                                | lychee | awesome_bot | muffet | broken-link-checker | linkinator |
 | ------------------------------ | ------ | ----------- | ------ | ------------------- | ---------- |
 | Language                       | Rust   | Ruby        | Go     | JS                  | TypeScript |
-| Static binary                  | ☑      | ✖️          | ☑      | ✖️                  | ✖️         |
-| Async/Parallel                 | ☑      | ☑           | ☑      | ☑                   | ☑          |
-| Markdown support               | ☑      | ☑           | ✖️     | ✖️                  | ✖️         |
-| HTML support                   | ☑      | ✖️          | ✖️     | ☑                   | ☑          |
-| Plaintext support              | ☑      | ✖️          | ✖️     | ✖️                  | ✖️         |
-| Website support                | ☑      | ✖️          | ☑      | ☑                   | ☑          |
-| Chunked encodings              | ☑      | ?           | ?      | ?                   | ?          |
-| GZIP compression               | ☑      | ?           | ?      | ☑                   | ?          |
-| Basic Auth                     | ✖️     | ✖️          | ✖️     | ☑                   | ✖️         |
-| Custom user agent              | ☑      | ✖️          | ✖️     | ☑                   | ✖️         |
-| Relative URLs                  | ✖️     | ☑           | ✖️     | ☑                   | ☑          |
-| Skip relative URLs             | ☑      | ✖️          | ✖️     | ?                   | ✖️         |
-| Include patterns               | ✖️     | ☑           | ✖️     | ☑                   | ✖️         |
-| Exclude patterns               | ☑      | ✖️          | ☑      | ☑                   | ☑          |
-| Handle redirects               | ☑      | ☑           | ☑      | ☑                   | ☑          |
-| Ignore SSL                     | ☑      | ☑           | ☑      | ✖️                  | ✖️         |
-| File globbing                  | ☑      | ☑           | ✖️     | ✖️                  | ☑          |
-| Limit scheme (e.g. only HTTPS) | ☑      | ✖️          | ✖️     | ☑                   | ✖️         |
-| [Custom headers]               | ☑      | ✖️          | ☑      | ✖️                  | ✖️         |
-| Summary                        | ☑      | ☑           | ☑      | ?                   | ☑          |
-| `HEAD` requests                | ☑      | ☑           | ✖️     | ☑                   | ☑          |
-| Colored output                 | ☑      | ?           | ☑      | ?                   | ☑          |
-| [Filter on status code]        | ☑      | ☑           | ✖️     | ✖️                  | ✖️         |
-| Custom request timeout         | ☑      | ☑           | ☑      | ✖️                  | ☑          |
-| E-mail links                   | ☑      | ✖️          | ✖️     | ✖️                  | ✖️         |
-| Progress bar                   | ☑      | ☑           | ✖️     | ✖️                  | ✖️         |
-| Retry and backoff              | ☑      | ✖️          | ✖️     | ✖️                  | ☑          |
-| Exclude private domains        | ☑      | ✖️          | ✖️     | ✖️                  | ✖️         |
-| [Usable as a library]          | ✖️     | ☑           | ✖️     | ☑                   | ☑          |
-| Silent mode                    | ☑      | ✖️          | ✖️     | ✖️                  | ☑          |
+| Static binary                  | ✔️     | ✖️          | ✔️     | ✖️                  | ✖️         |
+| Async/Parallel                 | ✔️     | ✔️          | ✔️     | ✔️                  | ✔️         |
+| Markdown support               | ✔️     | ✔️          | ✖️     | ✖️                  | ✖️         |
+| HTML support                   | ✔️     | ✖️          | ✖️     | ✔️                  | ✔️         |
+| Plaintext support              | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         |
+| Website support                | ✔️     | ✖️          | ✔️     | ✔️                  | ✔️         |
+| Chunked encodings              | ✔️     | ?           | ?      | ?                   | ?          |
+| GZIP compression               | ✔️     | ?           | ?      | ✔️                  | ?          |
+| Basic Auth                     | ✖️     | ✖️          | ✖️     | ✔️                  | ✖️         |
+| Custom user agent              | ✔️     | ✖️          | ✖️     | ✔️                  | ✖️         |
+| Relative URLs                  | ✖️     | ✔️          | ✖️     | ✔️                  | ✔️         |
+| Skip relative URLs             | ✔️     | ✖️          | ✖️     | ?                   | ✖️         |
+| Include patterns               | ✖️     | ✔️          | ✖️     | ✔️                  | ✖️         |
+| Exclude patterns               | ✔️     | ✖️          | ✔️     | ✔️                  | ✔️         |
+| Handle redirects               | ✔️     | ✔️          | ✔️     | ✔️                  | ✔️         |
+| Ignore SSL                     | ✔️     | ✔️          | ✔️     | ✖️                  | ✖️         |
+| File globbing                  | ✔️     | ✔️          | ✖️     | ✖️                  | ✔️         |
+| Limit scheme (e.g. only HTTPS) | ✔️     | ✖️          | ✖️     | ✔️                  | ✖️         |
+| [Custom headers]               | ✔️     | ✖️          | ✔️     | ✖️                  | ✖️         |
+| Summary                        | ✔️     | ✔️          | ✔️     | ?                   | ✔️         |
+| `HEAD` requests                | ✔️     | ✔️          | ✖️     | ✔️                  | ✔️         |
+| Colored output                 | ✔️     | ?           | ✔️     | ?                   | ✔️         |
+| [Filter on status code]        | ✔️     | ✔️          | ✖️     | ✖️                  | ✖️         |
+| Custom request timeout         | ✔️     | ✔️          | ✔️     | ✖️                  | ✔️         |
+| E-mail links                   | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         |
+| Progress bar                   | ✔️     | ✔️          | ✖️     | ✖️                  | ✖️         |
+| Retry and backoff              | ✔️     | ✖️          | ✖️     | ✖️                  | ✔️         |
+| Exclude private domains        | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         |
+| [Usable as a library]          | ✖️     | ✔️          | ✖️     | ✔️                  | ✔️         |
+| Silent mode                    | ✔️     | ✖️          | ✖️     | ✖️                  | ✔️         |
 
 ## Planned features:
 
