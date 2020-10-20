@@ -189,16 +189,50 @@ mod test {
 
     #[test]
     fn test_extract_markdown_links() {
-        let input = "This is [a test](https://endler.dev).";
-        let links = extract_links(FileType::Markdown, input, None);
+        let input = "This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)";
+        let links = extract_links(
+            FileType::Markdown,
+            input,
+            Some(Url::parse("https://github.com/hello-rust/lychee/").unwrap()),
+        );
         assert_eq!(
             links,
             HashSet::from_iter(
-                [Uri::Website(Url::parse("https://endler.dev").unwrap())]
-                    .iter()
-                    .cloned()
+                [
+                    Uri::Website(Url::parse("https://endler.dev").unwrap()),
+                    Uri::Website(
+                        Url::parse("https://github.com/hello-rust/lychee/relative_link").unwrap()
+                    )
+                ]
+                .iter()
+                .cloned()
             )
         )
+    }
+
+    #[test]
+    fn test_extract_html_links() {
+        let input = r#"<html>
+                <div class="row">
+                    <a href="https://github.com/hello-rust/lychee/">
+                    <a href="blob/master/README.md">README</a>
+                </div>
+            </html>"#;
+
+        let links = extract_links(
+            FileType::HTML,
+            input,
+            Some(Url::parse("https://github.com/hello-rust/").unwrap()),
+        );
+
+        assert_eq!(
+            links
+                .get(&Uri::Website(
+                    Url::parse("https://github.com/hello-rust/blob/master/README.md").unwrap()
+                ))
+                .is_some(),
+            true
+        );
     }
 
     #[test]
