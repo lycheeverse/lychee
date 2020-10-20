@@ -129,6 +129,9 @@ pub(crate) struct Config {
     #[structopt(short = "M", long, default_value = METHOD)]
     #[serde(default = "method")]
     pub method: String,
+
+    #[options(help = "Base URL to check relative URls")]
+    pub base_url: Option<String>,
 }
 
 impl Config {

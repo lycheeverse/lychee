@@ -73,7 +73,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         None => None,
     };
     let timeout = parse_timeout(cfg.timeout)?;
-    let links = collector::collect_links(inputs).await?;
+    let links = collector::collect_links(inputs, cfg.base_url).await?;
     let progress_bar = if cfg.progress {
         Some(
             ProgressBar::new(links.len() as u64)
