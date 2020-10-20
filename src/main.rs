@@ -14,10 +14,9 @@ mod collector;
 mod extract;
 mod options;
 
-use crate::options::Config;
 use checker::{Checker, Excludes, Status};
 use extract::Uri;
-use options::LycheeOptions;
+use options::{Config, LycheeOptions};
 
 fn print_summary(found: &HashSet<Uri>, results: &[Status]) {
     let found = found.len();
@@ -61,20 +60,20 @@ fn main() -> Result<()> {
         }
         None => tokio::runtime::Runtime::new()?,
     };
-    let errorcode = runtime.block_on(run(opts))?;
+    let errorcode = runtime.block_on(run(opts.config, opts.inputs))?;
     std::process::exit(errorcode);
 }
 
-async fn run(opts: LycheeOptions) -> Result<i32> {
-    let excludes = Excludes::from_options(&opts);
-    let headers = parse_headers(opts.config.headers)?;
-    let accepted = match opts.config.accept {
+async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
+    let excludes = Excludes::from_options(&cfg);
+    let headers = parse_headers(cfg.headers)?;
+    let accepted = match cfg.accept {
         Some(accept) => parse_statuscodes(accept)?,
         None => None,
     };
-    let timeout = parse_timeout(opts.config.timeout)?;
-    let links = collector::collect_links(opts.inputs).await?;
-    let progress_bar = if opts.config.progress {
+    let timeout = parse_timeout(cfg.timeout)?;
+    let links = collector::collect_links(inputs).await?;
+    let progress_bar = if cfg.progress {
         Some(
             ProgressBar::new(links.len() as u64)
             .with_style(
@@ -89,15 +88,15 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
     let checker = Checker::try_new(
         env::var("GITHUB_TOKEN")?,
         excludes,
-        opts.config.max_redirects,
-        opts.config.user_agent,
-        opts.config.insecure,
-        opts.config.scheme,
+        cfg.max_redirects,
+        cfg.user_agent,
+        cfg.insecure,
+        cfg.scheme,
         headers,
-        opts.config.method.try_into()?,
+        cfg.method.try_into()?,
         accepted,
         Some(timeout),
-        opts.config.verbose,
+        cfg.verbose,
         progress_bar.as_ref(),
     )?;
 
@@ -109,7 +108,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         progress_bar.finish_and_clear();
     }
 
-    if opts.config.verbose {
+    if cfg.verbose {
         print_summary(&links, &results);
     }
 
