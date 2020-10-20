@@ -65,7 +65,8 @@ runs all requests fully asynchronously and has a low memory/CPU footprint.
 
 ## Users
 
-- SOON: https://github.com/analysis-tools-dev/static-analysis
+- https://github.com/analysis-tools-dev/static-analysis (soon)
+- https://github.com/mre/idiomatic-rust (soon)
 
 ## How?
 
