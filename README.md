@@ -11,7 +11,7 @@ This thing was created from [Hello Rust Episode
 specially by using a `GITHUB_TOKEN` to avoid getting blocked by the rate
 limiter.
 
-![Lychee demo](assets/lychee.gif)
+![Lychee demo](./assets/lychee.gif)
 
 ## Why?
 
