@@ -11,7 +11,7 @@ This thing was created from [Hello Rust Episode
 specially by using a `GITHUB_TOKEN` to avoid getting blocked by the rate
 limiter.
 
-TODO: Add screenshots here
+![Lychee demo](assets/lychee.gif)
 
 ## Why?
 
@@ -75,8 +75,7 @@ cargo install lychee
 
 Set an environment variable with your token like so `GITHUB_TOKEN=xxxx`.
 
-Run it inside a repository with a `README.md` or specify a different Markdown
-file with
+Run it inside a repository with a `README.md` or specify a file with
 
 ```
 lychee <yourfile>
