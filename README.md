@@ -55,6 +55,7 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 | Skip private domains | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         | ✖️          | ✖️                  | ✖️   |
 | [Use as lib]         | ✖️     | ✔️          | ✖️     | ✔️                  | ✔️         | ✖️          | ✔️                  | ✖️   |
 | Quiet mode           | ✔️     | ✖️          | ✖️     | ✖️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
+| Amazing lychee logo  | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         | ✖️          | ✖️                  | ✖️   |
 
 ## Planned features:
 
