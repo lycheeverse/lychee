@@ -35,7 +35,7 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 | GZIP compression     | ✔️     | **?**       | **?**  | ✔️                  | **?**      | ✔️          | **?**               | ✖️   |
 | Basic Auth           | ✖️     | ✖️          | ✖️     | ✔️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
 | Custom user agent    | ✔️     | ✖️          | ✖️     | ✔️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
-| Relative URLs        | ✖️     | ✔️          | ✖️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
+| Relative URLs        | ✔️     | ✔️          | ✖️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
 | Skip relative URLs   | ✔️     | ✖️          | ✖️     | **?**               | ✖️         | ✖️          | ✖️                  | ✖️   |
 | Include patterns     | ✖️     | ✔️          | ✖️     | ✔️                  | ✖️         | ✖️          | ✖️                  | ✖️   |
 | Exclude patterns     | ✔️     | ✖️          | ✔️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
