@@ -4,10 +4,10 @@ extern crate log;
 use anyhow::anyhow;
 use anyhow::Result;
 use futures::future::join_all;
-use gumdrop::Options;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::header::{HeaderMap, HeaderName};
 use std::{collections::HashSet, convert::TryInto, env, time::Duration};
+use structopt::StructOpt;
 
 mod checker;
 mod collector;
@@ -16,7 +16,7 @@ mod options;
 
 use checker::{Checker, Excludes, Status};
 use extract::Uri;
-use options::LycheeOptions;
+use options::{Config, LycheeOptions};
 
 fn print_summary(found: &HashSet<Uri>, results: &[Status]) {
     let found = found.len();
@@ -41,9 +41,16 @@ fn print_summary(found: &HashSet<Uri>, results: &[Status]) {
 
 fn main() -> Result<()> {
     pretty_env_logger::init();
-    let opts = LycheeOptions::parse_args_default_or_exit();
+    let opts = LycheeOptions::from_args();
 
-    let mut runtime = match opts.threads {
+    // Load a potentially existing config file and merge it into the config from the CLI
+    let cfg = if let Some(c) = Config::load_from_file(&opts.config_file)? {
+        opts.config.merge(c)
+    } else {
+        opts.config
+    };
+
+    let mut runtime = match cfg.threads {
         Some(threads) => {
             // We define our own runtime instead of the `tokio::main` attribute since we want to make the number of threads configurable
             tokio::runtime::Builder::new()
@@ -54,20 +61,20 @@ fn main() -> Result<()> {
         }
         None => tokio::runtime::Runtime::new()?,
     };
-    let errorcode = runtime.block_on(run(opts))?;
+    let errorcode = runtime.block_on(run(cfg, opts.inputs))?;
     std::process::exit(errorcode);
 }
 
-async fn run(opts: LycheeOptions) -> Result<i32> {
-    let excludes = Excludes::from_options(&opts);
-    let headers = parse_headers(opts.headers)?;
-    let accepted = match opts.accept {
+async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
+    let excludes = Excludes::from_options(&cfg);
+    let headers = parse_headers(cfg.headers)?;
+    let accepted = match cfg.accept {
         Some(accept) => parse_statuscodes(accept)?,
         None => None,
     };
-    let timeout = parse_timeout(opts.timeout)?;
-    let links = collector::collect_links(opts.inputs, opts.base_url).await?;
-    let progress_bar = if opts.progress {
+    let timeout = parse_timeout(cfg.timeout)?;
+    let links = collector::collect_links(inputs, cfg.base_url).await?;
+    let progress_bar = if cfg.progress {
         Some(
             ProgressBar::new(links.len() as u64)
             .with_style(
@@ -82,15 +89,15 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
     let checker = Checker::try_new(
         env::var("GITHUB_TOKEN")?,
         excludes,
-        opts.max_redirects,
-        opts.user_agent,
-        opts.insecure,
-        opts.scheme,
+        cfg.max_redirects,
+        cfg.user_agent,
+        cfg.insecure,
+        cfg.scheme,
         headers,
-        opts.method.try_into()?,
+        cfg.method.try_into()?,
         accepted,
         Some(timeout),
-        opts.verbose,
+        cfg.verbose,
         progress_bar.as_ref(),
     )?;
 
@@ -102,7 +109,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
         progress_bar.finish_and_clear();
     }
 
-    if opts.verbose {
+    if cfg.verbose {
         print_summary(&links, &results);
     }
 

@@ -1,5 +1,7 @@
-use crate::extract::{self, Uri};
-use crate::options::LycheeOptions;
+use crate::{
+    extract::{self, Uri},
+    options::Config,
+};
 use anyhow::anyhow;
 use anyhow::{Context, Result};
 use check_if_email_exists::{check_email, CheckEmailInput};
@@ -78,16 +80,16 @@ pub(crate) struct Excludes {
 }
 
 impl Excludes {
-    pub fn from_options(options: &LycheeOptions) -> Self {
+    pub fn from_options(config: &Config) -> Self {
         // exclude_all_private option turns on all "private" excludes,
         // including private IPs, link-local IPs and loopback IPs
-        let enable_exclude = |opt| opt || options.exclude_all_private;
+        let enable_exclude = |opt| opt || config.exclude_all_private;
 
         Self {
-            regex: RegexSet::new(&options.exclude).ok(),
-            private_ips: enable_exclude(options.exclude_private),
-            link_local_ips: enable_exclude(options.exclude_link_local),
-            loopback_ips: enable_exclude(options.exclude_loopback),
+            regex: RegexSet::new(&config.exclude).ok(),
+            private_ips: enable_exclude(config.exclude_private),
+            link_local_ips: enable_exclude(config.exclude_link_local),
+            loopback_ips: enable_exclude(config.exclude_loopback),
         }
     }
 }
