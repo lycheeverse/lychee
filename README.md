@@ -25,8 +25,8 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 |                      | lychee | awesome_bot | muffet | broken-link-checker | linkinator | linkchecker | markdown-link-check | fink |
 | -------------------- | ------ | ----------- | ------ | ------------------- | ---------- | ----------- | ------------------- | ---- |
 | Language             | Rust   | Ruby        | Go     | JS                  | TypeScript | Python      | JS                  | PHP  |
-| Static binary        | ✔️     | ✖️          | ✔️     | ✖️                  | ✖️         | ️ ✖️        | ✖️                  | ✖️   |
 | Async/Parallel       | ✔️     | ✔️          | ✔️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
+| Static binary        | ✔️     | ✖️          | ✔️     | ✖️                  | ✖️         | ️ ✖️        | ✖️                  | ✖️   |
 | Markdown files       | ✔️     | ✔️          | ✖️     | ✖️                  | ✖️         | ✖️          | ️ ✔️                | ✖️   |
 | HTML files           | ✔️     | ✖️          | ✖️     | ✔️                  | ✔️         | ✖️          | ✖️                  | ✖️   |
 | Txt files            | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         | ✖️          | ✖️                  | ✖️   |
