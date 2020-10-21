@@ -56,10 +56,10 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 | [Use as lib]         | ✖️     | ✔️          | ✖️     | ✔️                  | ✔️         | ✖️          | ✔️                  | ✖️   |
 | Quiet mode           | ✔️     | ✖️          | ✖️     | ✖️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
 | Amazing lychee logo  | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         | ✖️          | ✖️                  | ✖️   |
+| Config file          | ✔️     | ✖️          | ✖️     | ✖️                  | ✔️         | ✔️          | ✔️                  | ✖️   |
 
 ## Planned features:
 
-- lychee.toml
 - report output in HTML, SQL, CSV, XML, JSON, YAML... format
 - report extended statistics: request latency
 - recursion
