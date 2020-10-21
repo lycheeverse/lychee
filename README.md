@@ -31,12 +31,12 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 | HTML files           | ✔️     | ✖️          | ✖️     | ✔️                  | ✔️         | ✖️          | ✖️                  | ✖️   |
 | Txt files            | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         | ✖️          | ✖️                  | ✖️   |
 | Website support      | ✔️     | ✖️          | ✔️     | ✔️                  | ✔️         | ✔️          | ✖️                  | ✔️   |
-| Chunked encodings    | ✔️     | ?           | ?      | ?                   | ?          | ✖️          | ✔️                  | ✔️   |
-| GZIP compression     | ✔️     | ?           | ?      | ✔️                  | ?          | ✔️          | ?                   | ✖️   |
+| Chunked encodings    | ✔️     | **?**       | **?**  | **?**               | **?**      | ✖️          | ✔️                  | ✔️   |
+| GZIP compression     | ✔️     | **?**       | **?**  | ✔️                  | **?**      | ✔️          | **?**               | ✖️   |
 | Basic Auth           | ✖️     | ✖️          | ✖️     | ✔️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
 | Custom user agent    | ✔️     | ✖️          | ✖️     | ✔️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
 | Relative URLs        | ✖️     | ✔️          | ✖️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
-| Skip relative URLs   | ✔️     | ✖️          | ✖️     | ?                   | ✖️         | ✖️          | ✖️                  | ✖️   |
+| Skip relative URLs   | ✔️     | ✖️          | ✖️     | **?**               | ✖️         | ✖️          | ✖️                  | ✖️   |
 | Include patterns     | ✖️     | ✔️          | ✖️     | ✔️                  | ✖️         | ✖️          | ✖️                  | ✖️   |
 | Exclude patterns     | ✔️     | ✖️          | ✔️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
 | Handle redirects     | ✔️     | ✔️          | ✔️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
@@ -44,9 +44,9 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 | File globbing        | ✔️     | ✔️          | ✖️     | ✖️                  | ✔️         | ✖️          | ✔️                  | ✖️   |
 | Limit scheme         | ✔️     | ✖️          | ✖️     | ✔️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
 | [Custom headers]     | ✔️     | ✖️          | ✔️     | ✖️                  | ✖️         | ✖️          | ✔️                  | ✔️   |
-| Summary              | ✔️     | ✔️          | ✔️     | ?                   | ✔️         | ✔️          | ✖️                  | ✔️   |
+| Summary              | ✔️     | ✔️          | ✔️     | **?**               | ✔️         | ✔️          | ✖️                  | ✔️   |
 | `HEAD` requests      | ✔️     | ✔️          | ✖️     | ✔️                  | ✔️         | ✔️          | ✖️                  | ✖️   |
-| Colored output       | ✔️     | ?           | ✔️     | ?                   | ✔️         | ✔️          | ✖️                  | ✔️   |
+| Colored output       | ✔️     | **?**       | ✔️     | **?**               | ✔️         | ✔️          | ✖️                  | ✔️   |
 | [Filter status code] | ✔️     | ✔️          | ✖️     | ✖️                  | ✖️         | ✖️          | ✔️                  | ✖️   |
 | Custom timeout       | ✔️     | ✔️          | ✔️     | ✖️                  | ✔️         | ✔️          | ✖️                  | ✔️   |
 | E-mail links         | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
