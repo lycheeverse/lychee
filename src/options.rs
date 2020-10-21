@@ -130,7 +130,8 @@ pub(crate) struct Config {
     #[serde(default = "method")]
     pub method: String,
 
-    #[options(help = "Base URL to check relative URls")]
+    #[structopt(short, long, help = "Base URL to check relative URls")]
+    #[serde(default)]
     pub base_url: Option<String>,
 }
 
@@ -180,6 +181,7 @@ impl Config {
             accept: None;
             timeout: TIMEOUT;
             method: METHOD;
+            base_url: None;
         }
 
         self
