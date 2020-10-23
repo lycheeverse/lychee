@@ -27,6 +27,7 @@ toml = "0.5.7"
 serde = { version = "1.0", features = ["derive"] }
 pulldown-cmark = "0.8.0"
 quick-xml = "0.20.0"
+headers = "0.3.2"
 
 [dependencies.reqwest]
 features = ["gzip"]
