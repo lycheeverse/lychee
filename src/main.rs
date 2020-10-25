@@ -19,6 +19,8 @@ use checker::{Checker, Excludes, Status};
 use extract::Uri;
 use options::{Config, LycheeOptions};
 
+const GITHUB_TOKEN_ENV_VAR: &str = "GITHUB_TOKEN";
+
 fn print_summary(found: &HashSet<Uri>, results: &[Status]) {
     let found = found.len();
     let excluded: usize = results
@@ -88,8 +90,14 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     } else {
         None
     };
+
+    let github_token = match env::var(GITHUB_TOKEN_ENV_VAR) {
+        Ok(tkn) => tkn,
+        Err(e) => return Err(anyhow!("Couldn't access '{var}': {e}", var=GITHUB_TOKEN_ENV_VAR, e=e)),
+    };
+
     let checker = Checker::try_new(
-        env::var("GITHUB_TOKEN")?,
+        github_token,
         includes,
         excludes,
         cfg.max_redirects,
