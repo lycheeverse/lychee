@@ -93,7 +93,13 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
 
     let github_token = match env::var(GITHUB_TOKEN_ENV_VAR) {
         Ok(tkn) => tkn,
-        Err(e) => return Err(anyhow!("Couldn't access '{var}': {e}", var=GITHUB_TOKEN_ENV_VAR, e=e)),
+        Err(e) => {
+            return Err(anyhow!(
+                "Couldn't access '{var}': {e}",
+                var = GITHUB_TOKEN_ENV_VAR,
+                e = e
+            ))
+        }
     };
 
     let checker = Checker::try_new(
