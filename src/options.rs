@@ -84,8 +84,13 @@ pub(crate) struct Config {
     #[serde(default)]
     pub scheme: Option<String>,
 
+    /// URLs to check (supports regex). Has preference over all excludes.
+    #[structopt(long)]
+    #[serde(default)]
+    pub include: Vec<String>,
+
     /// Exclude URLs from checking (supports regex)
-    #[structopt(short, long)]
+    #[structopt(long)]
     #[serde(default)]
     pub exclude: Vec<String>,
 
@@ -172,6 +177,7 @@ impl Config {
             user_agent: USER_AGENT;
             insecure: false;
             scheme: None;
+            include: Vec::<String>::new();
             exclude: Vec::<String>::new();
             exclude_all_private: false;
             exclude_private: false;

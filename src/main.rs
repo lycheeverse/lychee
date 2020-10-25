@@ -5,6 +5,7 @@ use anyhow::anyhow;
 use anyhow::Result;
 use futures::future::join_all;
 use indicatif::{ProgressBar, ProgressStyle};
+use regex::RegexSet;
 use reqwest::header::{HeaderMap, HeaderName};
 use std::{collections::HashSet, convert::TryInto, env, time::Duration};
 use structopt::StructOpt;
@@ -66,6 +67,7 @@ fn main() -> Result<()> {
 }
 
 async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
+    let includes = RegexSet::new(&cfg.include).ok();
     let excludes = Excludes::from_options(&cfg);
     let headers = parse_headers(cfg.headers)?;
     let accepted = match cfg.accept {
@@ -88,6 +90,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     };
     let checker = Checker::try_new(
         env::var("GITHUB_TOKEN")?,
+        includes,
         excludes,
         cfg.max_redirects,
         cfg.user_agent,
