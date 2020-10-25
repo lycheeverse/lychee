@@ -8,7 +8,9 @@ use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::RegexSet;
+use reqwest::header::{HeaderMap, HeaderName};
 use std::{collections::HashSet, convert::TryInto, env, time::Duration};
+use std::{collections::HashSet, convert::TryInto, time::Duration};
 use structopt::StructOpt;
 
 mod checker;
@@ -19,6 +21,9 @@ mod options;
 use checker::{Checker, Excludes, Status};
 use extract::Uri;
 use options::{Config, LycheeOptions};
+
+const EXIT_SUCCESS: i32 = 0;
+const EXIT_FAILURE: i32 = 1;
 
 fn print_summary(found: &HashSet<Uri>, results: &[Status]) {
     let found = found.len();
@@ -96,7 +101,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         None
     };
     let checker = Checker::try_new(
-        env::var("GITHUB_TOKEN")?,
+        cfg.github_token,
         includes,
         excludes,
         cfg.max_redirects,
@@ -123,7 +128,12 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         print_summary(&links, &results);
     }
 
-    Ok(results.iter().all(|r| r.is_success()) as i32)
+    let success = results.iter().all(|r| r.is_success() || r.is_excluded());
+
+    match success {
+        true => Ok(EXIT_SUCCESS),
+        false => Ok(EXIT_FAILURE),
+    }
 }
 
 fn read_header(input: String) -> Result<(String, String)> {

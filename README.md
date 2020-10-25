@@ -7,8 +7,9 @@
 ## What?
 
 This thing was created from [Hello Rust Episode
-10](https://hello-rust.show/10/). It's a link checker that treats Github links
-specially by using a `GITHUB_TOKEN` to avoid getting blocked by the rate
+10](https://hello-rust.show/10/). It's a link checker.
+
+For GitHub links, it can optionally use a `GITHUB_TOKEN` to avoid getting blocked by the rate
 limiter.
 
 ![Lychee demo](./assets/lychee.gif)
@@ -78,13 +79,20 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 cargo install lychee
 ```
 
-Set an environment variable with your token like so `GITHUB_TOKEN=xxxx`.
+Optional (to avoid being rate limited for GitHub links): set an environment variable with your token
+like so `GITHUB_TOKEN=xxxx`, or use the `--github-token` CLI option. This can also be set in the
+config file.
 
 Run it inside a repository with a `README.md` or specify a file with
 
 ```
 lychee <yourfile>
 ```
+
+### CLI return codes
+
+- `0` for success (all links checked successfully or excluded/skipped as configured)
+- `1` for any failures
 
 ## Comparison
 
