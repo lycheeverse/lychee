@@ -37,7 +37,7 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 | Custom user agent    | ✔️     | ✖️          | ✖️     | ✔️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
 | Relative URLs        | ✔️     | ✔️          | ✖️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
 | Skip relative URLs   | ✔️     | ✖️          | ✖️     | **?**               | ✖️         | ✖️          | ✖️                  | ✖️   |
-| Include patterns     | ✖️     | ✔️          | ✖️     | ✔️                  | ✖️         | ✖️          | ✖️                  | ✖️   |
+| Include patterns     | ✔️️     | ✔️          | ✖️     | ✔️                  | ✖️         | ✖️          | ✖️                  | ✖️   |
 | Exclude patterns     | ✔️     | ✖️          | ✔️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
 | Handle redirects     | ✔️     | ✔️          | ✔️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
 | Ignore insecure SSL  | ✔️     | ✔️          | ✔️     | ✖️                  | ✖️         | ✔️          | ✖️                  | ✔️   |
