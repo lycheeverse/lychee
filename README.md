@@ -33,7 +33,7 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 | Website support      | ✔️     | ✖️          | ✔️     | ✔️                  | ✔️         | ✔️          | ✖️                  | ✔️   |
 | Chunked encodings    | ✔️     | **?**       | **?**  | **?**               | **?**      | ✖️          | ✔️                  | ✔️   |
 | GZIP compression     | ✔️     | **?**       | **?**  | ✔️                  | **?**      | ✔️          | **?**               | ✖️   |
-| Basic Auth           | ✖️     | ✖️          | ✖️     | ✔️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
+| Basic Auth           | ✔️     | ✖️          | ✖️     | ✔️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
 | Custom user agent    | ✔️     | ✖️          | ✖️     | ✔️                  | ✖️         | ✔️          | ✖️                  | ✖️   |
 | Relative URLs        | ✔️     | ✔️          | ✖️     | ✔️                  | ✔️         | ✔️          | ✔️                  | ✔️   |
 | Skip relative URLs   | ✔️     | ✖️          | ✖️     | **?**               | ✖️         | ✖️          | ✖️                  | ✖️   |
