@@ -111,6 +111,7 @@ impl Default for Excludes {
 pub(crate) struct Checker<'a> {
     reqwest_client: reqwest::Client,
     github: Github,
+    includes: Option<RegexSet>,
     excludes: Excludes,
     scheme: Option<String>,
     method: RequestMethod,
@@ -126,6 +127,7 @@ impl<'a> Checker<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn try_new(
         token: String,
+        includes: Option<RegexSet>,
         excludes: Excludes,
         max_redirects: usize,
         user_agent: String,
@@ -165,6 +167,7 @@ impl<'a> Checker<'a> {
         Ok(Checker {
             reqwest_client,
             github,
+            includes,
             excludes,
             scheme,
             method,
@@ -282,6 +285,18 @@ impl<'a> Checker<'a> {
     }
 
     pub fn excluded(&self, uri: &Uri) -> bool {
+        if let Some(includes) = &self.includes {
+            if includes.is_match(uri.as_str()) {
+                // Includes take precedence over excludes
+                return false;
+            } else {
+                // In case we have includes and no excludes,
+                // skip everything that was not included
+                if self.excludes.regex.is_none() {
+                    return true;
+                }
+            }
+        }
         if self.in_regex_excludes(uri.as_str()) {
             return true;
         }
@@ -347,7 +362,7 @@ impl<'a> Checker<'a> {
 
         if let Some(pb) = self.progress_bar {
             pb.inc(1);
-            // regular println! inteferes with progress bar
+            // regular println! interferes with progress bar
             if let Some(message) = self.status_message(&ret, uri) {
                 pb.println(message);
             }
@@ -390,6 +405,7 @@ mod test {
     fn get_checker(allow_insecure: bool, custom_headers: HeaderMap) -> Checker<'static> {
         let checker = Checker::try_new(
             "DUMMY_GITHUB_TOKEN".to_string(),
+            None,
             Excludes::default(),
             5,
             "curl/7.71.1".to_string(),
@@ -419,7 +435,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_exponetial_backoff() {
+    async fn test_exponential_backoff() {
         let start = Instant::now();
         let res = get_checker(false, HeaderMap::new())
             .check(&Uri::Website(
@@ -519,6 +535,7 @@ mod test {
 
         let checker = Checker::try_new(
             "DUMMY_GITHUB_TOKEN".to_string(),
+            None,
             Excludes::default(),
             5,
             "curl/7.71.1".to_string(),
@@ -540,6 +557,69 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_include_regex() {
+        let includes = Some(RegexSet::new(&[r"foo.github.com"]).unwrap());
+
+        let checker = Checker::try_new(
+            "DUMMY_GITHUB_TOKEN".to_string(),
+            includes,
+            Excludes::default(),
+            5,
+            "curl/7.71.1".to_string(),
+            true,
+            None,
+            HeaderMap::new(),
+            RequestMethod::GET,
+            None,
+            None,
+            false,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            checker.excluded(&website_url("https://foo.github.com")),
+            false
+        );
+        assert_eq!(
+            checker.excluded(&website_url("https://bar.github.com")),
+            true
+        );
+    }
+
+    #[tokio::test]
+    async fn test_exclude_include_regex() {
+        let mut excludes = Excludes::default();
+        excludes.regex = Some(RegexSet::new(&[r"github.com"]).unwrap());
+        let includes = Some(RegexSet::new(&[r"foo.github.com"]).unwrap());
+
+        let checker = Checker::try_new(
+            "DUMMY_GITHUB_TOKEN".to_string(),
+            includes,
+            excludes,
+            5,
+            "curl/7.71.1".to_string(),
+            true,
+            None,
+            HeaderMap::new(),
+            RequestMethod::GET,
+            None,
+            None,
+            false,
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            checker.excluded(&website_url("https://foo.github.com")),
+            false
+        );
+        assert_eq!(checker.excluded(&website_url("https://github.com")), true);
+        assert_eq!(
+            checker.excluded(&website_url("https://bar.github.com")),
+            true
+        );
+    }
+
+    #[tokio::test]
     async fn test_exclude_regex() {
         let mut excludes = Excludes::default();
         excludes.regex =
@@ -547,6 +627,7 @@ mod test {
 
         let checker = Checker::try_new(
             "DUMMY_GITHUB_TOKEN".to_string(),
+            None,
             excludes,
             5,
             "curl/7.71.1".to_string(),

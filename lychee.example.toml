@@ -52,6 +52,8 @@ headers = []
 # Exclude URLs from checking (supports regex)
 exclude = []
 
+include = []
+
 # Exclude all private IPs from checking
 # Equivalent to setting `exclude_private`, `exclude_link_local`, and `exclude_loopback` to true
 exclude_all_private = false
