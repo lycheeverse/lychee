@@ -60,6 +60,10 @@ impl Status {
     pub fn is_success(&self) -> bool {
         matches!(self, Status::Ok(_))
     }
+
+    pub fn is_excluded(&self) -> bool {
+        matches!(self, Status::Excluded)
+    }
 }
 
 impl From<reqwest::Error> for Status {
@@ -110,7 +114,7 @@ impl Default for Excludes {
 /// otherwise a normal HTTP client.
 pub(crate) struct Checker<'a> {
     reqwest_client: reqwest::Client,
-    github: Github,
+    github: Option<Github>,
     includes: Option<RegexSet>,
     excludes: Excludes,
     scheme: Option<String>,
@@ -126,7 +130,7 @@ impl<'a> Checker<'a> {
     // of arguments is short
     #[allow(clippy::too_many_arguments)]
     pub fn try_new(
-        token: String,
+        github_token: Option<String>,
         includes: Option<RegexSet>,
         excludes: Excludes,
         max_redirects: usize,
@@ -160,7 +164,13 @@ impl<'a> Checker<'a> {
 
         let reqwest_client = builder.build()?;
 
-        let github = Github::new(user_agent, Credentials::Token(token))?;
+        let github = match github_token {
+            Some(token) => {
+                let github = Github::new(user_agent, Credentials::Token(token))?;
+                Some(github)
+            }
+            None => None,
+        };
 
         let scheme = scheme.map(|s| s.to_lowercase());
 
@@ -178,11 +188,20 @@ impl<'a> Checker<'a> {
     }
 
     async fn check_github(&self, owner: String, repo: String) -> Status {
-        info!("Check Github: {}/{}", owner, repo);
-        let repo = self.github.repo(owner, repo).get().await;
-        match repo {
-            Err(e) => Status::Error(format!("{}", e)),
-            Ok(_) => Status::Ok(http::StatusCode::OK),
+        match &self.github {
+            Some(github) => {
+                info!("Check Github: {}/{}", owner, repo);
+                let repo = github.repo(owner, repo).get().await;
+                match repo {
+                    Err(e) => Status::Error(format!("{}", e)),
+                    Ok(_) => Status::Ok(http::StatusCode::OK),
+                }
+            }
+            None => Status::Error(
+                "GitHub token not specified. To check GitHub links reliably, \
+                use `--github-token` flag / `GITHUB_TOKEN` env var."
+                    .to_string(),
+            ),
         }
     }
 
@@ -232,6 +251,7 @@ impl<'a> Checker<'a> {
         if let Ok((owner, repo)) = self.extract_github(url.as_str()) {
             return self.check_github(owner, repo).await;
         }
+
         status
     }
 
@@ -404,7 +424,7 @@ mod test {
 
     fn get_checker(allow_insecure: bool, custom_headers: HeaderMap) -> Checker<'static> {
         let checker = Checker::try_new(
-            "DUMMY_GITHUB_TOKEN".to_string(),
+            None,
             None,
             Excludes::default(),
             5,
@@ -445,7 +465,10 @@ mod test {
         let end = start.elapsed();
 
         assert!(matches!(res, Status::Failed(_)));
-        assert!(matches!(end.as_secs(), 7));
+
+        // on slow connections, this might take a bit longer than nominal backed-off timeout (7 secs)
+        assert!(end.as_secs() >= 7);
+        assert!(end.as_secs() <= 8);
     }
 
     #[test]
@@ -534,7 +557,7 @@ mod test {
             .await;
 
         let checker = Checker::try_new(
-            "DUMMY_GITHUB_TOKEN".to_string(),
+            None,
             None,
             Excludes::default(),
             5,
@@ -561,7 +584,7 @@ mod test {
         let includes = Some(RegexSet::new(&[r"foo.github.com"]).unwrap());
 
         let checker = Checker::try_new(
-            "DUMMY_GITHUB_TOKEN".to_string(),
+            None,
             includes,
             Excludes::default(),
             5,
@@ -593,7 +616,7 @@ mod test {
         let includes = Some(RegexSet::new(&[r"foo.github.com"]).unwrap());
 
         let checker = Checker::try_new(
-            "DUMMY_GITHUB_TOKEN".to_string(),
+            None,
             includes,
             excludes,
             5,
@@ -626,7 +649,7 @@ mod test {
             Some(RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap());
 
         let checker = Checker::try_new(
-            "DUMMY_GITHUB_TOKEN".to_string(),
+            None,
             None,
             excludes,
             5,

@@ -142,6 +142,14 @@ pub(crate) struct Config {
     #[structopt(long, help = "Basic autentication support. Ex 'username:password'")]
     #[serde(default)]
     pub basic_auth: Option<String>,
+
+    #[structopt(
+        long,
+        help = "GitHub API token to use when checking github.com links, to avoid rate limiting",
+        env = "GITHUB_TOKEN"
+    )]
+    #[serde(default)]
+    pub github_token: Option<String>,
 }
 
 impl Config {
@@ -193,6 +201,7 @@ impl Config {
             method: METHOD;
             base_url: None;
             basic_auth: None;
+            github_token: None;
         }
 
         self

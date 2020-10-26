@@ -1,14 +1,13 @@
 #[macro_use]
 extern crate log;
 
-use anyhow::anyhow;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use futures::future::join_all;
 use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::RegexSet;
-use std::{collections::HashSet, convert::TryInto, env, time::Duration};
+use std::{collections::HashSet, convert::TryInto, time::Duration};
 use structopt::StructOpt;
 
 mod checker;
@@ -19,6 +18,17 @@ mod options;
 use checker::{Checker, Excludes, Status};
 use extract::Uri;
 use options::{Config, LycheeOptions};
+
+/// A C-like enum that can be cast to `i32` and used as process exit code.
+enum ExitCode {
+    Success = 0,
+    // NOTE: exit code 1 is used for any `Result::Err` bubbled up to `main()` using the `?` operator.
+    // For now, 1 acts as a catch-all for everything non-link related (including config errors),
+    // until we find a way to structure the error code handling better.
+    #[allow(unused)]
+    UnexpectedFailure = 1,
+    LinkCheckFailure = 2,
+}
 
 fn print_summary(found: &HashSet<Uri>, results: &[Status]) {
     let found = found.len();
@@ -96,7 +106,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         None
     };
     let checker = Checker::try_new(
-        env::var("GITHUB_TOKEN")?,
+        cfg.github_token,
         includes,
         excludes,
         cfg.max_redirects,
@@ -123,7 +133,12 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         print_summary(&links, &results);
     }
 
-    Ok(results.iter().all(|r| r.is_success()) as i32)
+    let success = results.iter().all(|r| r.is_success() || r.is_excluded());
+
+    match success {
+        true => Ok(ExitCode::Success as i32),
+        false => Ok(ExitCode::LinkCheckFailure as i32),
+    }
 }
 
 fn read_header(input: String) -> Result<(String, String)> {
