@@ -197,7 +197,11 @@ impl<'a> Checker<'a> {
                     Ok(_) => Status::Ok(http::StatusCode::OK),
                 }
             }
-            None => Status::Error("GitHub token not specified".to_string()),
+            None => Status::Error(
+                "GitHub token not specified. To check GitHub links reliably, \
+                use `--github-token` flag / `GITHUB_TOKEN` env var."
+                    .to_string(),
+            ),
         }
     }
 
@@ -244,10 +248,8 @@ impl<'a> Checker<'a> {
         };
         // Pull out the heavy weapons in case of a failed normal request.
         // This could be a Github URL and we run into the rate limiter.
-        if self.github.is_some() {
-            if let Ok((owner, repo)) = self.extract_github(url.as_str()) {
-                return self.check_github(owner, repo).await;
-            }
+        if let Ok((owner, repo)) = self.extract_github(url.as_str()) {
+            return self.check_github(owner, repo).await;
         }
 
         status
@@ -463,7 +465,10 @@ mod test {
         let end = start.elapsed();
 
         assert!(matches!(res, Status::Failed(_)));
-        assert!(matches!(end.as_secs(), 7));
+
+        // on slow connections, this might take a bit longer than nominal backed-off timeout (7 secs)
+        assert!(end.as_secs() >= 7);
+        assert!(end.as_secs() <= 8);
     }
 
     #[test]
@@ -492,7 +497,7 @@ mod test {
                 "https://github.com/mre/idiomatic-rust-doesnt-exist-man",
             ))
             .await;
-        assert!(matches!(res, Status::Failed(_)));
+        assert!(matches!(res, Status::Error(_)));
     }
 
     #[tokio::test]
@@ -579,7 +584,7 @@ mod test {
         let includes = Some(RegexSet::new(&[r"foo.github.com"]).unwrap());
 
         let checker = Checker::try_new(
-            "DUMMY_GITHUB_TOKEN".to_string(),
+            None,
             includes,
             Excludes::default(),
             5,
@@ -611,7 +616,7 @@ mod test {
         let includes = Some(RegexSet::new(&[r"foo.github.com"]).unwrap());
 
         let checker = Checker::try_new(
-            "DUMMY_GITHUB_TOKEN".to_string(),
+            None,
             includes,
             excludes,
             5,

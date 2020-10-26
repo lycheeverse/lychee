@@ -1,15 +1,12 @@
 #[macro_use]
 extern crate log;
 
-use anyhow::anyhow;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use futures::future::join_all;
 use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::RegexSet;
-use reqwest::header::{HeaderMap, HeaderName};
-use std::{collections::HashSet, convert::TryInto, env, time::Duration};
 use std::{collections::HashSet, convert::TryInto, time::Duration};
 use structopt::StructOpt;
 
@@ -22,8 +19,16 @@ use checker::{Checker, Excludes, Status};
 use extract::Uri;
 use options::{Config, LycheeOptions};
 
-const EXIT_SUCCESS: i32 = 0;
-const EXIT_FAILURE: i32 = 1;
+/// A C-like enum that can be cast to `i32` and used as process exit code.
+enum ExitCode {
+    Success = 0,
+    // NOTE: exit code 1 is used for any `Result::Err` bubbled up to `main()` using the `?` operator.
+    // For now, 1 acts as a catch-all for everything non-link related (including config errors),
+    // until we find a way to structure the error code handling better.
+    #[allow(unused)]
+    UnexpectedFailure = 1,
+    LinkCheckFailure = 2,
+}
 
 fn print_summary(found: &HashSet<Uri>, results: &[Status]) {
     let found = found.len();
@@ -131,8 +136,8 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     let success = results.iter().all(|r| r.is_success() || r.is_excluded());
 
     match success {
-        true => Ok(EXIT_SUCCESS),
-        false => Ok(EXIT_FAILURE),
+        true => Ok(ExitCode::Success as i32),
+        false => Ok(ExitCode::LinkCheckFailure as i32),
     }
 }
 

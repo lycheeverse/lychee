@@ -89,10 +89,11 @@ Run it inside a repository with a `README.md` or specify a file with
 lychee <yourfile>
 ```
 
-### CLI return codes
+### CLI exit codes
 
 - `0` for success (all links checked successfully or excluded/skipped as configured)
-- `1` for any failures
+- `1` for any unexpected runtime failures or config errors
+- `2` for link check failures (if any non-excluded link failed the check)
 
 ## Comparison
 
