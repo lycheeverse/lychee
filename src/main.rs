@@ -4,9 +4,10 @@ extern crate log;
 use anyhow::anyhow;
 use anyhow::Result;
 use futures::future::join_all;
+use headers::authorization::Basic;
+use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::RegexSet;
-use reqwest::header::{HeaderMap, HeaderName};
 use std::{collections::HashSet, convert::TryInto, env, time::Duration};
 use structopt::StructOpt;
 
@@ -69,7 +70,13 @@ fn main() -> Result<()> {
 async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     let includes = RegexSet::new(&cfg.include).ok();
     let excludes = Excludes::from_options(&cfg);
-    let headers = parse_headers(cfg.headers)?;
+    let mut headers = parse_headers(cfg.headers)?;
+
+    if let Some(auth) = cfg.basic_auth {
+        let auth_header = parse_basic_auth(&auth)?;
+        headers.typed_insert(auth_header);
+    }
+
     let accepted = match cfg.accept {
         Some(accept) => parse_statuscodes(accept)?,
         None => None,
@@ -155,6 +162,17 @@ fn parse_statuscodes(accept: String) -> Result<Option<HashSet<http::StatusCode>>
     Ok(Some(statuscodes))
 }
 
+fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
+    let params: Vec<_> = auth.split(':').collect();
+    if params.len() != 2 {
+        return Err(anyhow!(
+            "Basic auth value should be of the form username:password, got {}",
+            auth
+        ));
+    }
+    Ok(Authorization::basic(params[0], params[1]))
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -185,5 +203,19 @@ mod test {
             .collect(),
         );
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_basic_auth() {
+        let mut expected = HeaderMap::new();
+        expected.insert(
+            header::AUTHORIZATION,
+            "Basic YWxhZGluOmFicmV0ZXNlc2Ftbw==".parse().unwrap(),
+        );
+
+        let mut actual = HeaderMap::new();
+        let auth_header = parse_basic_auth("aladin:abretesesamo").unwrap();
+        actual.typed_insert(auth_header);
+        assert_eq!(expected, actual);
     }
 }

@@ -5,10 +5,11 @@ use crate::{
 use anyhow::anyhow;
 use anyhow::{Context, Result};
 use check_if_email_exists::{check_email, CheckEmailInput};
+use headers::{HeaderMap, HeaderValue};
 use hubcaps::{Credentials, Github};
 use indicatif::ProgressBar;
 use regex::{Regex, RegexSet};
-use reqwest::header::{self, HeaderMap, HeaderValue};
+use reqwest::header;
 use std::net::IpAddr;
 use std::{collections::HashSet, convert::TryFrom, time::Duration};
 use tokio::time::delay_for;
@@ -139,12 +140,11 @@ impl<'a> Checker<'a> {
         verbose: bool,
         progress_bar: Option<&'a ProgressBar>,
     ) -> Result<Self> {
-        let mut headers = header::HeaderMap::new();
+        let mut headers = HeaderMap::new();
         // Faking the user agent is necessary for some websites, unfortunately.
         // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
         headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
         headers.insert(header::TRANSFER_ENCODING, HeaderValue::from_str("chunked")?);
-
         headers.extend(custom_headers);
 
         let builder = reqwest::ClientBuilder::new()
