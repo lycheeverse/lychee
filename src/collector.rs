@@ -1,6 +1,6 @@
-use crate::extract::{self, extract_links, FileType};
+use crate::extract::{extract_links, FileType};
+use crate::types::Uri;
 use anyhow::Result;
-use extract::Uri;
 use glob::glob;
 use reqwest::Url;
 use std::path::Path;

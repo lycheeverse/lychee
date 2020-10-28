@@ -1,12 +1,9 @@
-use crate::{
-    extract::{self, Uri},
-    types::{Excludes, RequestMethod, Status},
-};
-use anyhow::{Context, Result};
+use crate::types::{Excludes, Response, Status, Uri};
+use anyhow::{anyhow, Context, Result};
 use check_if_email_exists::{check_email, CheckEmailInput};
+use derive_builder::Builder;
 use headers::{HeaderMap, HeaderValue};
 use hubcaps::{Credentials, Github};
-use indicatif::ProgressBar;
 use regex::{Regex, RegexSet};
 use reqwest::header;
 use std::net::IpAddr;
@@ -14,46 +11,59 @@ use std::{collections::HashSet, time::Duration};
 use tokio::time::delay_for;
 use url::Url;
 
-/// A link checker using an API token for Github links
-/// otherwise a normal HTTP client.
-pub(crate) struct Checker<'a> {
+const DEFAULT_MAX_REDIRECTS: usize = 5;
+
+pub struct CheckerClient {
     reqwest_client: reqwest::Client,
     github: Option<Github>,
     includes: Option<RegexSet>,
     excludes: Excludes,
     scheme: Option<String>,
-    method: RequestMethod,
+    method: reqwest::Method,
     accepted: Option<HashSet<reqwest::StatusCode>>,
-    verbose: bool,
-    progress_bar: Option<&'a ProgressBar>,
 }
 
-impl<'a> Checker<'a> {
-    /// Creates a new link checker
-    // we should consider adding a config struct for this, so that the list
-    // of arguments is short
-    #[allow(clippy::too_many_arguments)]
-    pub fn try_new(
-        github_token: Option<String>,
-        includes: Option<RegexSet>,
-        excludes: Excludes,
-        max_redirects: usize,
-        user_agent: String,
-        allow_insecure: bool,
-        scheme: Option<String>,
-        custom_headers: HeaderMap,
-        method: RequestMethod,
-        accepted: Option<HashSet<http::StatusCode>>,
-        timeout: Option<Duration>,
-        verbose: bool,
-        progress_bar: Option<&'a ProgressBar>,
-    ) -> Result<Self> {
+/// A link checker using an API token for Github links
+/// otherwise a normal HTTP client.
+#[derive(Builder, Debug)]
+#[builder(build_fn(skip))]
+#[builder(setter(into))]
+pub(crate) struct Checker {
+    pub github_token: Option<String>,
+    includes: Option<RegexSet>,
+    excludes: Excludes,
+    #[builder(default = "5")]
+    max_redirects: usize,
+    user_agent: String,
+    allow_insecure: bool,
+    scheme: Option<String>,
+    custom_headers: HeaderMap,
+    method: reqwest::Method,
+    accepted: Option<HashSet<http::StatusCode>>,
+    timeout: Option<Duration>,
+    verbose: bool,
+}
+
+impl CheckerBuilder {
+    pub fn build(&mut self) -> Result<CheckerClient> {
         let mut headers = HeaderMap::new();
+
         // Faking the user agent is necessary for some websites, unfortunately.
         // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
+        // let user_agent = self.user_agent.as_ref().unwrap_or(&"lychee/0.3.0".to_string());
+        let user_agent = match self.user_agent {
+            Some(ref u) => u.clone(),
+            None => String::from("lychee/0.3.0"),
+        };
+
         headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
         headers.insert(header::TRANSFER_ENCODING, HeaderValue::from_str("chunked")?);
-        headers.extend(custom_headers);
+        if let Some(custom) = &self.custom_headers {
+            headers.extend(custom.clone());
+        }
+
+        let allow_insecure = self.allow_insecure.unwrap_or(false);
+        let max_redirects = self.max_redirects.unwrap_or(DEFAULT_MAX_REDIRECTS);
 
         let builder = reqwest::ClientBuilder::new()
             .gzip(true)
@@ -61,36 +71,38 @@ impl<'a> Checker<'a> {
             .danger_accept_invalid_certs(allow_insecure)
             .redirect(reqwest::redirect::Policy::limited(max_redirects));
 
-        let builder = match timeout {
-            Some(timeout) => builder.timeout(timeout),
+        let builder = match self.timeout {
+            Some(t) => builder.timeout(t.ok_or(anyhow!("cannot read timeout"))?),
             None => builder,
         };
 
         let reqwest_client = builder.build()?;
 
-        let github = match github_token {
+        let github = match self.github_token.as_ref() {
             Some(token) => {
+                let token = token.clone().ok_or(anyhow!("token must be initialized"))?;
                 let github = Github::new(user_agent, Credentials::Token(token))?;
                 Some(github)
             }
             None => None,
         };
 
+        let scheme = self.scheme.clone().unwrap_or(None);
         let scheme = scheme.map(|s| s.to_lowercase());
 
-        Ok(Checker {
+        Ok(CheckerClient {
             reqwest_client,
             github,
-            includes,
-            excludes,
+            includes: self.includes.clone().unwrap_or(None),
+            excludes: self.excludes.clone().unwrap_or(Excludes::default()),
             scheme,
-            method,
-            accepted,
-            verbose,
-            progress_bar,
+            method: self.method.clone().unwrap_or(reqwest::Method::GET),
+            accepted: self.accepted.clone().unwrap_or(None),
         })
     }
+}
 
+impl CheckerClient {
     async fn check_github(&self, owner: String, repo: String) -> Status {
         match &self.github {
             Some(github) => {
@@ -110,10 +122,9 @@ impl<'a> Checker<'a> {
     }
 
     async fn check_normal(&self, url: &Url) -> Status {
-        let request = match self.method {
-            RequestMethod::GET => self.reqwest_client.get(url.as_str()),
-            RequestMethod::HEAD => self.reqwest_client.head(url.as_str()),
-        };
+        let request = self
+            .reqwest_client
+            .request(self.method.clone(), url.as_str());
         let res = request.send().await;
         match res {
             Ok(response) => Status::new(response.status(), self.accepted.clone()),
@@ -233,48 +244,14 @@ impl<'a> Checker<'a> {
         uri.scheme() != self.scheme
     }
 
-    fn status_message(&self, status: &Status, uri: &Uri) -> Option<String> {
-        match status {
-            Status::Ok(code) => {
-                if self.verbose {
-                    Some(format!("✅{} [{}]", uri, code))
-                } else {
-                    None
-                }
-            }
-            Status::Failed(code) => Some(format!("🚫{} [{}]", uri, code)),
-            Status::Redirected => {
-                if self.verbose {
-                    Some(format!("🔀️{}", uri))
-                } else {
-                    None
-                }
-            }
-            Status::Excluded => {
-                if self.verbose {
-                    Some(format!("👻{}", uri))
-                } else {
-                    None
-                }
-            }
-            Status::Error(e) => Some(format!("⚡ {} ({})", uri, e)),
-            Status::Timeout => Some(format!("⌛{}", uri)),
-        }
-    }
-
-    pub async fn check(&self, uri: &extract::Uri) -> Status {
+    pub async fn check(&self, uri: Uri) -> Response {
         if self.excluded(&uri) {
-            return Status::Excluded;
+            return Response::new(uri, Status::Excluded);
         }
-
-        if let Some(pb) = self.progress_bar {
-            pb.set_message(&uri.to_string());
-        }
-
-        let ret = match uri {
-            Uri::Website(url) => self.check_real(url).await,
-            Uri::Mail(address) => {
-                let valid = self.valid_mail(address).await;
+        let status = match uri {
+            Uri::Website(ref url) => self.check_real(&url).await,
+            Uri::Mail(ref address) => {
+                let valid = self.valid_mail(&address).await;
                 if valid {
                     // TODO: We should not be using a HTTP status code for mail
                     Status::Ok(http::StatusCode::OK)
@@ -283,18 +260,7 @@ impl<'a> Checker<'a> {
                 }
             }
         };
-
-        if let Some(pb) = self.progress_bar {
-            pb.inc(1);
-            // regular println! interferes with progress bar
-            if let Some(message) = self.status_message(&ret, uri) {
-                pb.println(message);
-            }
-        } else if let Some(message) = self.status_message(&ret, uri) {
-            println!("{}", message);
-        }
-
-        ret
+        Response::new(uri, status)
     }
 }
 
@@ -326,49 +292,28 @@ mod test {
     const V6_MAPPED_V4_PRIVATE_CLASS_A: &str = "http://[::ffff:10.0.0.1]";
     const V6_MAPPED_V4_LINK_LOCAL: &str = "http://[::ffff:169.254.0.1]";
 
-    fn get_checker(allow_insecure: bool, custom_headers: HeaderMap) -> Checker<'static> {
-        let checker = Checker::try_new(
-            None,
-            None,
-            Excludes::default(),
-            5,
-            "curl/7.71.1".to_string(),
-            allow_insecure,
-            None,
-            custom_headers,
-            RequestMethod::GET,
-            None,
-            None,
-            false,
-            None,
-        )
-        .unwrap();
-        checker
-    }
-
     fn website_url(s: &str) -> Uri {
         Uri::Website(Url::parse(s).expect("Expected valid Website Uri"))
     }
 
     #[tokio::test]
     async fn test_nonexistent() {
-        let res = get_checker(false, HeaderMap::new())
-            .check(&website_url("https://endler.dev/abcd"))
+        let res = CheckerBuilder::default()
+            .build()
+            .unwrap()
+            .check(website_url("https://endler.dev/abcd"))
             .await;
-        assert!(matches!(res, Status::Failed(_)));
+        assert!(matches!(res.status, Status::Failed(_)));
     }
 
     #[tokio::test]
     async fn test_exponential_backoff() {
         let start = Instant::now();
-        let res = get_checker(false, HeaderMap::new())
-            .check(&Uri::Website(
-                Url::parse("https://endler.dev/abcd").unwrap(),
-            ))
-            .await;
+        let uri = Uri::Website(Url::parse("https://endler.dev/abcd").unwrap());
+        let res = CheckerBuilder::default().build().unwrap().check(uri).await;
         let end = start.elapsed();
 
-        assert!(matches!(res, Status::Failed(_)));
+        assert!(matches!(res.status, Status::Failed(_)));
 
         // on slow connections, this might take a bit longer than nominal backed-off timeout (7 secs)
         assert!(end.as_secs() >= 7);
@@ -378,7 +323,9 @@ mod test {
     #[test]
     fn test_is_github() {
         assert_eq!(
-            get_checker(false, HeaderMap::new())
+            CheckerBuilder::default()
+                .build()
+                .unwrap()
                 .extract_github("https://github.com/mre/idiomatic-rust")
                 .unwrap(),
             ("mre".into(), "idiomatic-rust".into())
@@ -387,61 +334,80 @@ mod test {
     #[tokio::test]
     async fn test_github() {
         assert!(matches!(
-            get_checker(false, HeaderMap::new())
-                .check(&website_url("https://github.com/mre/idiomatic-rust"))
-                .await,
+            CheckerBuilder::default()
+                .build()
+                .unwrap()
+                .check(website_url("https://github.com/mre/idiomatic-rust"))
+                .await
+                .status,
             Status::Ok(_)
         ));
     }
 
     #[tokio::test]
     async fn test_github_nonexistent() {
-        let res = get_checker(false, HeaderMap::new())
-            .check(&website_url(
+        let res = CheckerBuilder::default()
+            .build()
+            .unwrap()
+            .check(website_url(
                 "https://github.com/mre/idiomatic-rust-doesnt-exist-man",
             ))
-            .await;
+            .await
+            .status;
         assert!(matches!(res, Status::Error(_)));
     }
 
     #[tokio::test]
     async fn test_non_github() {
-        let res = get_checker(false, HeaderMap::new())
-            .check(&website_url("https://endler.dev"))
-            .await;
+        let res = CheckerBuilder::default()
+            .build()
+            .unwrap()
+            .check(website_url("https://endler.dev"))
+            .await
+            .status;
         assert!(matches!(res, Status::Ok(_)));
     }
 
     #[tokio::test]
     async fn test_invalid_ssl() {
-        let res = get_checker(false, HeaderMap::new())
-            .check(&website_url("https://expired.badssl.com/"))
+        let res = CheckerBuilder::default()
+            .build()
+            .unwrap()
+            .check(website_url("https://expired.badssl.com/"))
             .await;
-        assert!(matches!(res, Status::Error(_)));
+        assert!(matches!(res.status, Status::Error(_)));
 
         // Same, but ignore certificate error
-        let res = get_checker(true, HeaderMap::new())
-            .check(&website_url("https://expired.badssl.com/"))
+        let res = CheckerBuilder::default()
+            .allow_insecure(true)
+            .build()
+            .unwrap()
+            .check(website_url("https://expired.badssl.com/"))
             .await;
-        assert!(matches!(res, Status::Ok(_)));
+        assert!(matches!(res.status, Status::Ok(_)));
     }
 
     #[tokio::test]
     async fn test_custom_headers() {
-        let res = get_checker(false, HeaderMap::new())
-            .check(&website_url("https://crates.io/keywords/cassandra"))
+        let res = CheckerBuilder::default()
+            .build()
+            .unwrap()
+            .check(website_url("https://crates.io/keywords/cassandra"))
             .await;
-        assert!(matches!(res, Status::Failed(StatusCode::NOT_FOUND)));
+        assert!(matches!(res.status, Status::Failed(StatusCode::NOT_FOUND)));
 
         // Try again, but with a custom header.
         // For example, crates.io requires a custom accept header.
         // See https://github.com/rust-lang/crates.io/issues/788
         let mut custom = HeaderMap::new();
         custom.insert(header::ACCEPT, "text/html".parse().unwrap());
-        let res = get_checker(true, custom)
-            .check(&website_url("https://crates.io/keywords/cassandra"))
+        let res = CheckerBuilder::default()
+            .custom_headers(custom)
+            .build()
+            .unwrap()
+            .check(website_url("https://crates.io/keywords/cassandra"))
             .await;
-        assert!(matches!(res, Status::Ok(_)));
+        assert!(matches!(res.status, Status::Ok(_)));
     }
 
     #[tokio::test]
@@ -460,49 +426,26 @@ mod test {
             .mount(&mock_server)
             .await;
 
-        let checker = Checker::try_new(
-            None,
-            None,
-            Excludes::default(),
-            5,
-            "curl/7.71.1".to_string(),
-            true,
-            None,
-            HeaderMap::new(),
-            RequestMethod::GET,
-            None,
-            Some(checker_timeout),
-            false,
-            None,
-        )
-        .expect("Expected successful instantiation");
+        let checker = CheckerBuilder::default()
+            .timeout(checker_timeout)
+            .build()
+            .unwrap();
 
         let resp = checker
-            .check(&Uri::Website(Url::parse(&mock_server.uri()).unwrap()))
+            .check(Uri::Website(Url::parse(&mock_server.uri()).unwrap()))
             .await;
-        assert!(matches!(resp, Status::Timeout));
+        assert!(matches!(resp.status, Status::Timeout));
     }
 
     #[tokio::test]
     async fn test_include_regex() {
-        let includes = Some(RegexSet::new(&[r"foo.github.com"]).unwrap());
+        let includes = RegexSet::new(&[r"foo.github.com"]).unwrap();
 
-        let checker = Checker::try_new(
-            None,
-            includes,
-            Excludes::default(),
-            5,
-            "curl/7.71.1".to_string(),
-            true,
-            None,
-            HeaderMap::new(),
-            RequestMethod::GET,
-            None,
-            None,
-            false,
-            None,
-        )
-        .unwrap();
+        let checker = CheckerBuilder::default()
+            .includes(includes)
+            .build()
+            .unwrap();
+
         assert_eq!(
             checker.excluded(&website_url("https://foo.github.com")),
             false
@@ -517,24 +460,14 @@ mod test {
     async fn test_exclude_include_regex() {
         let mut excludes = Excludes::default();
         excludes.regex = Some(RegexSet::new(&[r"github.com"]).unwrap());
-        let includes = Some(RegexSet::new(&[r"foo.github.com"]).unwrap());
+        let includes = RegexSet::new(&[r"foo.github.com"]).unwrap();
 
-        let checker = Checker::try_new(
-            None,
-            includes,
-            excludes,
-            5,
-            "curl/7.71.1".to_string(),
-            true,
-            None,
-            HeaderMap::new(),
-            RequestMethod::GET,
-            None,
-            None,
-            false,
-            None,
-        )
-        .unwrap();
+        let checker = CheckerBuilder::default()
+            .includes(includes)
+            .excludes(excludes)
+            .build()
+            .unwrap();
+
         assert_eq!(
             checker.excluded(&website_url("https://foo.github.com")),
             false
@@ -552,22 +485,11 @@ mod test {
         excludes.regex =
             Some(RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap());
 
-        let checker = Checker::try_new(
-            None,
-            None,
-            excludes,
-            5,
-            "curl/7.71.1".to_string(),
-            true,
-            None,
-            HeaderMap::new(),
-            RequestMethod::GET,
-            None,
-            None,
-            false,
-            None,
-        )
-        .unwrap();
+        let checker = CheckerBuilder::default()
+            .excludes(excludes)
+            .build()
+            .unwrap();
+
         assert_eq!(checker.excluded(&website_url("http://github.com")), true);
         assert_eq!(checker.excluded(&website_url("http://exclude.org")), true);
         assert_eq!(
@@ -610,7 +532,7 @@ mod test {
 
     #[test]
     fn test_excludes_no_private_ips_by_default() {
-        let checker = get_checker(false, HeaderMap::new());
+        let checker = CheckerBuilder::default().build().unwrap();
 
         assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_A)), false);
         assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_B)), false);
@@ -623,7 +545,7 @@ mod test {
 
     #[test]
     fn test_exclude_private() {
-        let mut checker = get_checker(false, HeaderMap::new());
+        let mut checker = CheckerBuilder::default().build().unwrap();
         checker.excludes.private_ips = true;
 
         assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_A)), true);
@@ -633,7 +555,7 @@ mod test {
 
     #[test]
     fn test_exclude_link_local() {
-        let mut checker = get_checker(false, HeaderMap::new());
+        let mut checker = CheckerBuilder::default().build().unwrap();
         checker.excludes.link_local_ips = true;
 
         assert_eq!(checker.excluded(&website_url(V4_LINK_LOCAL)), true);
@@ -641,7 +563,7 @@ mod test {
 
     #[test]
     fn test_exclude_loopback() {
-        let mut checker = get_checker(false, HeaderMap::new());
+        let mut checker = CheckerBuilder::default().build().unwrap();
         checker.excludes.loopback_ips = true;
 
         assert_eq!(checker.excluded(&website_url(V4_LOOPBACK)), true);
@@ -650,7 +572,7 @@ mod test {
 
     #[test]
     fn test_exclude_ip_v4_mapped_ip_v6_not_supported() {
-        let mut checker = get_checker(false, HeaderMap::new());
+        let mut checker = CheckerBuilder::default().build().unwrap();
         checker.excludes.private_ips = true;
         checker.excludes.link_local_ips = true;
 

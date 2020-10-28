@@ -30,10 +30,7 @@ macro_rules! fold_in {
 }
 
 #[derive(Debug, StructOpt)]
-#[structopt(
-    name = "lychee",
-    about = "A boring link checker for my projects (and maybe yours)"
-)]
+#[structopt(name = "lychee", about = "A glorious link checker")]
 pub(crate) struct LycheeOptions {
     /// Input files
     pub inputs: Vec<String>,
@@ -131,7 +128,8 @@ pub(crate) struct Config {
     pub timeout: String,
 
     /// Request method
-    #[structopt(short = "M", long, default_value = METHOD)]
+    // Using `-X` as a short param similar to curl
+    #[structopt(short = "X", long, default_value = METHOD)]
     #[serde(default = "method")]
     pub method: String,
 
@@ -139,7 +137,7 @@ pub(crate) struct Config {
     #[serde(default)]
     pub base_url: Option<String>,
 
-    #[structopt(long, help = "Basic autentication support. Ex 'username:password'")]
+    #[structopt(long, help = "Basic authentication support. Ex 'username:password'")]
     #[serde(default)]
     pub basic_auth: Option<String>,
 

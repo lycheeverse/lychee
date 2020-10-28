@@ -1,3 +1,4 @@
+use crate::types::Uri;
 use linkify::LinkFinder;
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
 use quick_xml::{events::Event as HTMLEvent, Reader};
@@ -5,12 +6,6 @@ use std::net::IpAddr;
 use std::path::Path;
 use std::{collections::HashSet, fmt::Display};
 use url::Url;
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Uri {
-    Website(Url),
-    Mail(String),
-}
 
 #[derive(Clone, Debug)]
 pub(crate) enum FileType {

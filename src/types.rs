@@ -4,6 +4,14 @@ use std::{collections::HashSet, convert::TryFrom};
 
 use regex::RegexSet;
 
+use url::Url;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Uri {
+    Website(Url),
+    Mail(String),
+}
+
 /// Specifies how requests to websites will be made
 pub(crate) enum RequestMethod {
     GET,
@@ -21,14 +29,32 @@ impl TryFrom<String> for RequestMethod {
     }
 }
 
+#[derive(Debug)]
+pub struct Response {
+    pub uri: Uri,
+    pub status: Status,
+}
+
+impl Response {
+    pub fn new(uri: Uri, status: Status) -> Self {
+        Response { uri, status }
+    }
+}
+
 /// Response status of the request
 #[derive(Debug)]
 pub enum Status {
+    /// Request was successful
     Ok(http::StatusCode),
+    /// Request failed with HTTP error code
     Failed(http::StatusCode),
+    /// Request timed out
     Timeout,
+    /// Got redirected to different resource
     Redirected,
+    /// Resource was excluded from checking
     Excluded,
+    /// Low-level error while loading resource
     Error(String),
 }
 
@@ -69,6 +95,7 @@ impl From<reqwest::Error> for Status {
 
 /// Exclude configuration for the link checker.
 /// You can ignore links based on
+#[derive(Clone, Debug)]
 pub(crate) struct Excludes {
     pub regex: Option<RegexSet>,
     /// Example: 192.168.0.1

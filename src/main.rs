@@ -2,24 +2,28 @@
 extern crate log;
 
 use anyhow::{anyhow, Result};
-use futures::future::join_all;
 use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::RegexSet;
-use std::{collections::HashSet, convert::TryInto, time::Duration};
+use std::str::FromStr;
+use std::{collections::HashSet, time::Duration};
 use structopt::StructOpt;
 
 mod checker;
 mod collector;
 mod extract;
 mod options;
+mod stats;
 mod types;
+mod worker;
 
-use checker::Checker;
-use extract::Uri;
+use checker::CheckerBuilder;
 use options::{Config, LycheeOptions};
+use stats::Stats;
 use types::{Excludes, Status};
+use types::{Response, Uri};
+use worker::Worker;
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
@@ -30,27 +34,6 @@ enum ExitCode {
     #[allow(unused)]
     UnexpectedFailure = 1,
     LinkCheckFailure = 2,
-}
-
-fn print_summary(found: &HashSet<Uri>, results: &[Status]) {
-    let found = found.len();
-    let excluded: usize = results
-        .iter()
-        .filter(|l| matches!(l, Status::Excluded))
-        .count();
-    let success: usize = results
-        .iter()
-        .filter(|l| matches!(l, Status::Ok(_)))
-        .count();
-    let errors: usize = found - excluded - success;
-
-    println!();
-    println!("📝Summary");
-    println!("-------------------");
-    println!("🔍Found: {}", found);
-    println!("👻Excluded: {}", excluded);
-    println!("✅Successful: {}", success);
-    println!("🚫Errors: {}", errors);
 }
 
 fn main() -> Result<()> {
@@ -80,7 +63,7 @@ fn main() -> Result<()> {
 }
 
 async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
-    let includes = RegexSet::new(&cfg.include).ok();
+    let includes = RegexSet::new(&cfg.include)?;
     let excludes = Excludes::from_options(&cfg);
     let mut headers = parse_headers(cfg.headers)?;
 
@@ -90,11 +73,11 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     }
 
     let accepted = match cfg.accept {
-        Some(accept) => parse_statuscodes(accept)?,
+        Some(accept) => Some(parse_statuscodes(accept)?),
         None => None,
     };
     let timeout = parse_timeout(cfg.timeout)?;
-    let links = collector::collect_links(inputs, cfg.base_url).await?;
+    let links = collector::collect_links(inputs, cfg.base_url.clone()).await?;
     let progress_bar = if cfg.progress {
         Some(
             ProgressBar::new(links.len() as u64)
@@ -107,24 +90,62 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     } else {
         None
     };
-    let checker = Checker::try_new(
-        cfg.github_token,
-        includes,
-        excludes,
-        cfg.max_redirects,
-        cfg.user_agent,
-        cfg.insecure,
-        cfg.scheme,
-        headers,
-        cfg.method.try_into()?,
-        accepted,
-        Some(timeout),
-        cfg.verbose,
-        progress_bar.as_ref(),
-    )?;
 
-    let futures: Vec<_> = links.iter().map(|l| checker.check(l)).collect();
-    let results = join_all(futures).await;
+    let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
+    let mut checker = CheckerBuilder::default();
+    checker
+        .includes(includes)
+        .excludes(excludes)
+        .max_redirects(cfg.max_redirects)
+        .user_agent(cfg.user_agent.clone())
+        .allow_insecure(cfg.insecure.clone())
+        .custom_headers(headers)
+        .method(method)
+        .timeout(timeout.clone())
+        .verbose(cfg.verbose.clone());
+
+    if let Some(github_token) = cfg.github_token {
+        checker.github_token(github_token);
+    }
+    if let Some(scheme) = cfg.scheme {
+        checker.scheme(scheme);
+    }
+    if let Some(accepted) = accepted {
+        checker.accepted(accepted);
+    }
+
+    let (send_req, recv_req) = async_channel::unbounded();
+    let (send_resp, recv_resp) = async_channel::unbounded();
+
+    let checker = checker.build()?;
+    let mut worker = Worker::new(recv_req, send_resp, checker);
+    let mut stats = Stats::new();
+
+    tokio::spawn(async move {
+        worker.listen().await;
+    });
+
+    let count = links.len();
+    for link in links {
+        if let Some(pb) = &progress_bar {
+            pb.set_message(&link.to_string());
+        };
+        send_req.send(link).await?
+    }
+
+    for _ in 0..count {
+        let r = recv_resp.recv().await?;
+        if let Some(pb) = &progress_bar {
+            pb.inc(1);
+            // regular println! interferes with progress bar
+            if let Some(message) = status_message(cfg.verbose, &r) {
+                pb.println(message);
+            }
+        } else if let Some(message) = status_message(cfg.verbose, &r) {
+            println!("{}", message);
+        };
+        stats.add(r);
+    }
 
     // note that prints may interfere progress bar so this must go before summary
     if let Some(progress_bar) = progress_bar {
@@ -132,12 +153,10 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     }
 
     if cfg.verbose {
-        print_summary(&links, &results);
+        stats.summary();
     }
 
-    let success = results.iter().all(|r| r.is_success() || r.is_excluded());
-
-    match success {
+    match stats.is_success() {
         true => Ok(ExitCode::Success as i32),
         false => Ok(ExitCode::LinkCheckFailure as i32),
     }
@@ -170,13 +189,13 @@ fn parse_headers(headers: Vec<String>) -> Result<HeaderMap> {
     Ok(out)
 }
 
-fn parse_statuscodes(accept: String) -> Result<Option<HashSet<http::StatusCode>>> {
+fn parse_statuscodes(accept: String) -> Result<HashSet<http::StatusCode>> {
     let mut statuscodes = HashSet::new();
     for code in accept.split(',').into_iter() {
         let code: reqwest::StatusCode = reqwest::StatusCode::from_bytes(code.as_bytes())?;
         statuscodes.insert(code);
     }
-    Ok(Some(statuscodes))
+    Ok(statuscodes)
 }
 
 fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
@@ -188,6 +207,35 @@ fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
         ));
     }
     Ok(Authorization::basic(params[0], params[1]))
+}
+
+fn status_message(verbose: bool, response: &Response) -> Option<String> {
+    match &response.status {
+        Status::Ok(code) => {
+            if verbose {
+                Some(format!("✅{} [{}]", response.uri, code))
+            } else {
+                None
+            }
+        }
+        Status::Failed(code) => Some(format!("🚫{} [{}]", response.uri, code)),
+        Status::Redirected => {
+            if verbose {
+                Some(format!("🔀️{}", response.uri))
+            } else {
+                None
+            }
+        }
+        Status::Excluded => {
+            if verbose {
+                Some(format!("👻{}", response.uri))
+            } else {
+                None
+            }
+        }
+        Status::Error(e) => Some(format!("⚡ {} ({})", response.uri, e)),
+        Status::Timeout => Some(format!("⌛{}", response.uri)),
+    }
 }
 
 #[cfg(test)]
@@ -209,16 +257,14 @@ mod test {
     #[test]
     fn test_parse_statuscodes() {
         let actual = parse_statuscodes("200,204,301".into()).unwrap();
-        let expected: Option<HashSet<StatusCode>> = Some(
-            [
-                StatusCode::OK,
-                StatusCode::NO_CONTENT,
-                StatusCode::MOVED_PERMANENTLY,
-            ]
-            .iter()
-            .cloned()
-            .collect(),
-        );
+        let expected: HashSet<StatusCode> = [
+            StatusCode::OK,
+            StatusCode::NO_CONTENT,
+            StatusCode::MOVED_PERMANENTLY,
+        ]
+        .iter()
+        .cloned()
+        .collect();
         assert_eq!(actual, expected);
     }
 
