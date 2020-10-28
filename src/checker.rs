@@ -11,7 +11,74 @@ use std::{collections::HashSet, time::Duration};
 use tokio::time::delay_for;
 use url::Url;
 
-const DEFAULT_MAX_REDIRECTS: usize = 5;
+#[derive(Debug)]
+pub enum Status {
+    Ok(http::StatusCode),
+    Failed(http::StatusCode),
+    Timeout,
+    Redirected,
+    Excluded,
+    Error(String),
+}
+
+impl Status {
+    pub fn new(statuscode: http::StatusCode, accepted: Option<HashSet<http::StatusCode>>) -> Self {
+        if let Some(accepted) = accepted {
+            if accepted.contains(&statuscode) {
+                return Status::Ok(statuscode);
+            }
+        } else if statuscode.is_success() {
+            return Status::Ok(statuscode);
+        };
+        if statuscode.is_redirection() {
+            Status::Redirected
+        } else {
+            Status::Failed(statuscode)
+        }
+    }
+
+    pub fn is_success(&self) -> bool {
+        matches!(self, Status::Ok(_))
+    }
+
+    pub fn is_excluded(&self) -> bool {
+        matches!(self, Status::Excluded)
+    }
+}
+
+impl From<reqwest::Error> for Status {
+    fn from(e: reqwest::Error) -> Self {
+        if e.is_timeout() {
+            Status::Timeout
+        } else {
+            Status::Error(e.to_string())
+        }
+    }
+}
+
+/// Exclude configuration for the link checker.
+#[derive(Debug, Clone)]
+pub struct Excludes {
+    regex: Option<RegexSet>,
+    private_ips: bool,
+    link_local_ips: bool,
+    loopback_ips: bool,
+}
+
+impl Excludes {
+    pub(crate) fn from_options(config: &Config) -> Self {
+        // exclude_all_private option turns on all "private" excludes,
+        // including private IPs, link-local IPs and loopback IPs
+        let enable_exclude = |opt| opt || config.exclude_all_private;
+
+        Self {
+            regex: RegexSet::new(&config.exclude).ok(),
+            private_ips: enable_exclude(config.exclude_private),
+            link_local_ips: enable_exclude(config.exclude_link_local),
+            loopback_ips: enable_exclude(config.exclude_loopback),
+        }
+    }
+}
 
 pub struct CheckerClient {
     reqwest_client: reqwest::Client,
@@ -28,8 +95,8 @@ pub struct CheckerClient {
 #[derive(Builder, Debug)]
 #[builder(build_fn(skip))]
 #[builder(setter(into))]
-pub(crate) struct Checker {
-    pub github_token: Option<String>,
+pub struct Checker {
+    github_token: Option<String>,
     includes: Option<RegexSet>,
     excludes: Excludes,
     #[builder(default = "5")]
@@ -44,23 +111,38 @@ pub(crate) struct Checker {
     verbose: bool,
 }
 
+pub struct CheckerClient {
+    reqwest_client: reqwest::Client,
+    github: Option<Github>,
+    includes: Option<RegexSet>,
+    excludes: Excludes,
+    scheme: Option<String>,
+    method: reqwest::Method,
+    accepted: Option<HashSet<reqwest::StatusCode>>,
+    verbose: bool,
+}
+
 impl CheckerBuilder {
+    /// Creates a new link checker
+    // we should consider adding a config struct for this, so that the list
+    // of arguments is short
+    #[allow(clippy::too_many_arguments)]
     pub fn build(&mut self) -> Result<CheckerClient> {
-        let mut headers = HeaderMap::new();
-
         // Faking the user agent is necessary for some websites, unfortunately.
-        // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
-        // let user_agent = self.user_agent.as_ref().unwrap_or(&"lychee/0.3.0".to_string());
-        let user_agent = match self.user_agent {
-            Some(ref u) => u.clone(),
-            None => String::from("lychee/0.3.0"),
-        };
+        let user_agent = Clone::clone(
+            self.user_agent
+                .as_ref()
+                .ok_or(anyhow!("user_agent must be initialized"))?,
+        );
 
+        let mut headers = HeaderMap::new();
         headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
         headers.insert(header::TRANSFER_ENCODING, HeaderValue::from_str("chunked")?);
-        if let Some(custom) = &self.custom_headers {
-            headers.extend(custom.clone());
-        }
+        // headers.extend(self.custom_headers);
+
+        let allow_insecure = self
+            .allow_insecure
+            .ok_or(anyhow!("allow_insecure must be initialized"))?;
 
         let allow_insecure = self.allow_insecure.unwrap_or(false);
         let max_redirects = self.max_redirects.unwrap_or(DEFAULT_MAX_REDIRECTS);
@@ -78,26 +160,64 @@ impl CheckerBuilder {
 
         let reqwest_client = builder.build()?;
 
-        let github = match self.github_token.as_ref() {
+        let github_token = Clone::clone(
+            self.github_token
+                .as_ref()
+                .ok_or(anyhow!("github_token must be initialized"))?,
+        );
+        let github = match github_token {
             Some(token) => {
-                let token = token.clone().ok_or(anyhow!("token must be initialized"))?;
                 let github = Github::new(user_agent, Credentials::Token(token))?;
                 Some(github)
             }
             None => None,
         };
 
-        let scheme = self.scheme.clone().unwrap_or(None);
+        let scheme = Clone::clone(
+            self.scheme
+                .as_ref()
+                .ok_or(anyhow!("schememust be initialized"))?,
+        );
         let scheme = scheme.map(|s| s.to_lowercase());
+
+        let includes = Clone::clone(
+            self.includes
+                .as_ref()
+                .ok_or(anyhow!("includes must be initialized"))?,
+        );
+
+        let excludes = Clone::clone(
+            self.excludes
+                .as_ref()
+                .ok_or(anyhow!("excludes must be initialized"))?,
+        );
+
+        let method = Clone::clone(
+            self.method
+                .as_ref()
+                .ok_or(anyhow!("method must be initialized"))?,
+        );
+
+        let accepted = Clone::clone(
+            self.accepted
+                .as_ref()
+                .ok_or(anyhow!("accepted must be initialized"))?,
+        );
+        let verbose = Clone::clone(
+            self.verbose
+                .as_ref()
+                .ok_or(anyhow!("verbosemust be initialized"))?,
+        );
 
         Ok(CheckerClient {
             reqwest_client,
             github,
-            includes: self.includes.clone().unwrap_or(None),
-            excludes: self.excludes.clone().unwrap_or(Excludes::default()),
+            includes,
+            excludes,
             scheme,
-            method: self.method.clone().unwrap_or(reqwest::Method::GET),
-            accepted: self.accepted.clone().unwrap_or(None),
+            method,
+            accepted,
+            verbose,
         })
     }
 }
@@ -246,12 +366,17 @@ impl CheckerClient {
 
     pub async fn check(&self, uri: Uri) -> Response {
         if self.excluded(&uri) {
-            return Response::new(uri, Status::Excluded);
+            return Status::Excluded;
         }
-        let status = match uri {
-            Uri::Website(ref url) => self.check_real(&url).await,
-            Uri::Mail(ref address) => {
-                let valid = self.valid_mail(&address).await;
+
+        // if let Some(pb) = self.progress_bar {
+        //     pb.set_message(&uri.to_string());
+        // }
+
+        let ret = match uri {
+            Uri::Website(url) => self.check_real(url).await,
+            Uri::Mail(address) => {
+                let valid = self.valid_mail(address).await;
                 if valid {
                     // TODO: We should not be using a HTTP status code for mail
                     Status::Ok(http::StatusCode::OK)
@@ -260,7 +385,8 @@ impl CheckerClient {
                 }
             }
         };
-        Response::new(uri, status)
+
+        ret
     }
 }
 

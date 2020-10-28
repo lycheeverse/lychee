@@ -7,8 +7,14 @@ use std::path::Path;
 use std::{collections::HashSet, fmt::Display};
 use url::Url;
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Uri {
+    Website(Url),
+    Mail(String),
+}
+
 #[derive(Clone, Debug)]
-pub(crate) enum FileType {
+pub enum FileType {
     HTML,
     Markdown,
     Plaintext,
