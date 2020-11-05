@@ -2,22 +2,11 @@
 
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
 
-...because who says I can't write yet another link checker?
-
-## What?
-
-This thing was created from [Hello Rust Episode
-10](https://hello-rust.show/10/). It's a link checker.
-
+A fast, async, resource-friendly link checker written in Rust.
 For GitHub links, it can optionally use a `GITHUB_TOKEN` to avoid getting blocked by the rate
 limiter.
 
 ![Lychee demo](./assets/lychee.gif)
-
-## Why?
-
-The existing link checkers were not flexible enough for my use-case. lychee
-runs all requests fully asynchronously and has a low memory/CPU footprint.
 
 ## Features
 
@@ -59,7 +48,7 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 | Amazing lychee logo  | ✔️     | ✖️          | ✖️     | ✖️                  | ✖️         | ✖️          | ✖️                  | ✖️   |
 | Config file          | ✔️     | ✖️          | ✖️     | ✖️                  | ✔️         | ✔️          | ✔️                  | ✖️   |
 
-## Planned features:
+## Planned features. Please help out!
 
 - report output in HTML, SQL, CSV, XML, JSON, YAML... format
 - report extended statistics: request latency
