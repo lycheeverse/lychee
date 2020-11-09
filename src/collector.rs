@@ -6,6 +6,7 @@ use reqwest::Url;
 use std::path::Path;
 use std::{collections::HashSet, fs};
 
+/// Detect if the given path points to a Markdown, HTML, or plaintext file.
 fn resolve_file_type_by_path<P: AsRef<Path>>(p: P) -> FileType {
     let path = p.as_ref();
     match path.extension() {
@@ -18,6 +19,8 @@ fn resolve_file_type_by_path<P: AsRef<Path>>(p: P) -> FileType {
     }
 }
 
+/// Fetch all unique links from a vector of inputs
+/// All relative URLs get prefixed with `base_url` if given.
 pub(crate) async fn collect_links(
     inputs: Vec<String>,
     base_url: Option<String>,

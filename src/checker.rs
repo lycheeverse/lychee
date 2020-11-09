@@ -1,8 +1,7 @@
 use crate::{
     extract::{self, Uri},
-    options::Config,
+    types::{Excludes, RequestMethod, Status},
 };
-use anyhow::anyhow;
 use anyhow::{Context, Result};
 use check_if_email_exists::{check_email, CheckEmailInput};
 use headers::{HeaderMap, HeaderValue};
@@ -11,104 +10,9 @@ use indicatif::ProgressBar;
 use regex::{Regex, RegexSet};
 use reqwest::header;
 use std::net::IpAddr;
-use std::{collections::HashSet, convert::TryFrom, time::Duration};
+use std::{collections::HashSet, time::Duration};
 use tokio::time::delay_for;
 use url::Url;
-
-pub(crate) enum RequestMethod {
-    GET,
-    HEAD,
-}
-
-impl TryFrom<String> for RequestMethod {
-    type Error = anyhow::Error;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        match value.to_lowercase().as_ref() {
-            "get" => Ok(RequestMethod::GET),
-            "head" => Ok(RequestMethod::HEAD),
-            _ => Err(anyhow!("Only `get` and `head` allowed, got {}", value)),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum Status {
-    Ok(http::StatusCode),
-    Failed(http::StatusCode),
-    Timeout,
-    Redirected,
-    Excluded,
-    Error(String),
-}
-
-impl Status {
-    pub fn new(statuscode: http::StatusCode, accepted: Option<HashSet<http::StatusCode>>) -> Self {
-        if let Some(accepted) = accepted {
-            if accepted.contains(&statuscode) {
-                return Status::Ok(statuscode);
-            }
-        } else if statuscode.is_success() {
-            return Status::Ok(statuscode);
-        };
-        if statuscode.is_redirection() {
-            Status::Redirected
-        } else {
-            Status::Failed(statuscode)
-        }
-    }
-
-    pub fn is_success(&self) -> bool {
-        matches!(self, Status::Ok(_))
-    }
-
-    pub fn is_excluded(&self) -> bool {
-        matches!(self, Status::Excluded)
-    }
-}
-
-impl From<reqwest::Error> for Status {
-    fn from(e: reqwest::Error) -> Self {
-        if e.is_timeout() {
-            Status::Timeout
-        } else {
-            Status::Error(e.to_string())
-        }
-    }
-}
-
-/// Exclude configuration for the link checker.
-pub(crate) struct Excludes {
-    regex: Option<RegexSet>,
-    private_ips: bool,
-    link_local_ips: bool,
-    loopback_ips: bool,
-}
-
-impl Excludes {
-    pub fn from_options(config: &Config) -> Self {
-        // exclude_all_private option turns on all "private" excludes,
-        // including private IPs, link-local IPs and loopback IPs
-        let enable_exclude = |opt| opt || config.exclude_all_private;
-
-        Self {
-            regex: RegexSet::new(&config.exclude).ok(),
-            private_ips: enable_exclude(config.exclude_private),
-            link_local_ips: enable_exclude(config.exclude_link_local),
-            loopback_ips: enable_exclude(config.exclude_loopback),
-        }
-    }
-}
-
-impl Default for Excludes {
-    fn default() -> Self {
-        Self {
-            regex: None,
-            private_ips: false,
-            link_local_ips: false,
-            loopback_ips: false,
-        }
-    }
-}
 
 /// A link checker using an API token for Github links
 /// otherwise a normal HTTP client.

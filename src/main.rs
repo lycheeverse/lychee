@@ -14,10 +14,12 @@ mod checker;
 mod collector;
 mod extract;
 mod options;
+mod types;
 
-use checker::{Checker, Excludes, Status};
+use checker::Checker;
 use extract::Uri;
 use options::{Config, LycheeOptions};
+use types::{Excludes, Status};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
