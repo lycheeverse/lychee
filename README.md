@@ -48,6 +48,10 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 | Amazing lychee logo  | ![yes]  | ![no]       | ![no]    | ![no]               | ![no]      | ![no]       | ![no]               | ![no]  |
 | Config file          | ![yes]  | ![no]       | ![no]    | ![no]               | ![yes]     | ![yes]      | ![yes]              | ![no]  |
 
+[yes]: ./assets/yes.svg
+[no]: ./assets/no.svg
+[maybe]: ./assets/maybe.svg
+
 ## Planned features. Please help out!
 
 - report output in HTML, SQL, CSV, XML, JSON, YAML... format
@@ -108,6 +112,4 @@ you want to help out as well, [go here](https://github.com/sponsors/mre/).
 [filter status code]: https://github.com/tcort/markdown-link-check/issues/94
 [skip private domains]: https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go
 [use as lib]: https://github.com/raviqqe/liche/issues/13
-[yes]: ./assets/yes.svg
-[no]: ./assets/no.svg
-[maybe]: ./assets/maybe.svg
+
