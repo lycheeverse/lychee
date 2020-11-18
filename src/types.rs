@@ -77,10 +77,6 @@ impl Status {
     pub fn is_success(&self) -> bool {
         matches!(self, Status::Ok(_))
     }
-
-    pub fn is_excluded(&self) -> bool {
-        matches!(self, Status::Excluded)
-    }
 }
 
 impl From<reqwest::Error> for Status {

@@ -21,8 +21,8 @@ mod worker;
 use checker::CheckerBuilder;
 use options::{Config, LycheeOptions};
 use stats::Stats;
+use types::Response;
 use types::{Excludes, Status};
-use types::{Response, Uri};
 use worker::Worker;
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
@@ -61,17 +61,6 @@ fn main() -> Result<()> {
     let errorcode = runtime.block_on(run(cfg, opts.inputs))?;
     std::process::exit(errorcode);
 }
-
-// TODO REACTIVATE
-// if let Some(pb) = self.progress_bar {
-//     pb.inc(1);
-//     // regular println! interferes with progress bar
-//     if let Some(message) = self.status_message(&ret, uri) {
-//         pb.println(message);
-//     }
-// } else if let Some(message) = self.status_message(&ret, uri) {
-//     println!("{}", message);
-// }
 
 async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     let includes = RegexSet::new(&cfg.include)?;
@@ -112,10 +101,21 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         .allow_insecure(cfg.insecure.clone())
         .custom_headers(headers)
         .method(method)
-        .accepted(accepted)
-        .timeout(Some(timeout))
-        .verbose(cfg.verbose)
-        .build()?;
+        .timeout(timeout.clone())
+        .verbose(cfg.verbose.clone());
+
+    if let Some(github_token) = cfg.github_token {
+        checker.github_token(github_token);
+    }
+    if let Some(scheme) = cfg.scheme {
+        checker.scheme(scheme);
+    }
+    if let Some(accepted) = accepted {
+        checker.accepted(accepted);
+    }
+
+    let (send_req, recv_req) = async_channel::unbounded();
+    let (send_resp, recv_resp) = async_channel::unbounded();
 
     let checker = checker.build()?;
     let mut worker = Worker::new(recv_req, send_resp, checker);
