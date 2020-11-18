@@ -111,11 +111,11 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         .excludes(excludes)
         .max_redirects(cfg.max_redirects)
         .user_agent(cfg.user_agent.clone())
-        .allow_insecure(cfg.insecure.clone())
+        .allow_insecure(cfg.insecure)
         .custom_headers(headers)
         .method(method)
-        .timeout(timeout.clone())
-        .verbose(cfg.verbose.clone());
+        .timeout(timeout)
+        .verbose(cfg.verbose);
 
     if let Some(github_token) = cfg.github_token {
         checker.github_token(github_token);
@@ -143,7 +143,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         if let Some(pb) = &progress_bar {
             pb.set_message(&link.to_string());
         };
-        send_req.send(link).await?
+        send_req.send(link).await?;
     }
 
     for _ in 0..count {

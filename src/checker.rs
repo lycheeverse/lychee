@@ -72,7 +72,7 @@ impl CheckerBuilder {
             .redirect(reqwest::redirect::Policy::limited(max_redirects));
 
         let builder = match self.timeout {
-            Some(t) => builder.timeout(t.ok_or(anyhow!("cannot read timeout"))?),
+            Some(t) => builder.timeout(t.ok_or_else(|| anyhow!("cannot read timeout"))?),
             None => builder,
         };
 
@@ -80,7 +80,7 @@ impl CheckerBuilder {
 
         let github = match self.github_token.as_ref() {
             Some(token) => {
-                let token = token.clone().ok_or(anyhow!("token must be initialized"))?;
+                let token = token.clone().ok_or_else(|| anyhow!("token must be initialized"))?;
                 let github = Github::new(user_agent, Credentials::Token(token))?;
                 Some(github)
             }
@@ -94,7 +94,7 @@ impl CheckerBuilder {
             reqwest_client,
             github,
             includes: self.includes.clone().unwrap_or(None),
-            excludes: self.excludes.clone().unwrap_or(Excludes::default()),
+            excludes: self.excludes.clone().unwrap_or_default(),
             scheme,
             method: self.method.clone().unwrap_or(reqwest::Method::GET),
             accepted: self.accepted.clone().unwrap_or(None),
