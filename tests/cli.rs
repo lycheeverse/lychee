@@ -22,7 +22,7 @@ mod cli {
             .arg(test_all_private_path)
             .assert()
             .success()
-            .stdout(contains("Found: 7"))
+            .stdout(contains("Total: 7"))
             .stdout(contains("Excluded: 7"))
             .stdout(contains("Successful: 0"))
             .stdout(contains("Errors: 0"));
@@ -44,7 +44,7 @@ mod cli {
             .arg(test_github_path)
             .assert()
             .success()
-            .stdout(contains("Found: 1"))
+            .stdout(contains("Total: 1"))
             .stdout(contains("Excluded: 0"))
             .stdout(contains("Successful: 1"))
             .stdout(contains("Errors: 0"));
