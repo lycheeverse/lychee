@@ -62,6 +62,18 @@ fn main() -> Result<()> {
     std::process::exit(errorcode);
 }
 
+fn show_progress(progress_bar: &Option<ProgressBar>, r: &Response, verbose: bool) {
+    if let Some(pb) = progress_bar {
+        pb.inc(1);
+        // regular println! interferes with progress bar
+        if let Some(message) = status_message(verbose, &r) {
+            pb.println(message);
+        }
+    } else if let Some(message) = status_message(verbose, &r) {
+        println!("{}", message);
+    };
+}
+
 async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     let includes = RegexSet::new(&cfg.include)?;
     let excludes = Excludes::from_options(&cfg);
@@ -91,6 +103,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         None
     };
 
+    println!("{}", &cfg.method.to_uppercase());
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
     let mut checker = CheckerBuilder::default();
     checker
@@ -135,15 +148,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
 
     for _ in 0..count {
         let r = recv_resp.recv().await?;
-        if let Some(pb) = &progress_bar {
-            pb.inc(1);
-            // regular println! interferes with progress bar
-            if let Some(message) = status_message(cfg.verbose, &r) {
-                pb.println(message);
-            }
-        } else if let Some(message) = status_message(cfg.verbose, &r) {
-            println!("{}", message);
-        };
+        show_progress(&progress_bar, &r, cfg.verbose);
         stats.add(r);
     }
 
