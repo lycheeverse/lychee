@@ -75,20 +75,35 @@ fn show_progress(progress_bar: &Option<ProgressBar>, r: &Response, verbose: bool
 }
 
 async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
-    let includes = RegexSet::new(&cfg.include)?;
-    let excludes = Excludes::from_options(&cfg);
-    let mut headers = parse_headers(cfg.headers)?;
+    let mut headers = parse_headers(&cfg.headers)?;
 
-    if let Some(auth) = cfg.basic_auth {
+    if let Some(auth) = &cfg.basic_auth {
         let auth_header = parse_basic_auth(&auth)?;
         headers.typed_insert(auth_header);
     }
 
-    let accepted = match cfg.accept {
-        Some(accept) => Some(parse_statuscodes(accept)?),
-        None => None,
-    };
-    let timeout = parse_timeout(cfg.timeout)?;
+    let accepted = cfg.accept.clone().and_then(|a| parse_statuscodes(a).ok());
+
+    let timeout = parse_timeout(&cfg.timeout)?;
+    let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
+    let includes = RegexSet::new(&cfg.include)?;
+    let excludes = Excludes::from_options(&cfg);
+
+    let checker = CheckerBuilder::default()
+        .includes(includes)
+        .excludes(excludes)
+        .max_redirects(cfg.max_redirects)
+        .user_agent(cfg.user_agent.clone())
+        .allow_insecure(cfg.insecure)
+        .custom_headers(headers)
+        .method(method)
+        .timeout(timeout)
+        .verbose(cfg.verbose)
+        .github_token(cfg.github_token)
+        .scheme(cfg.scheme)
+        .accepted(accepted)
+        .build()?;
+
     let links = collector::collect_links(inputs, cfg.base_url.clone()).await?;
     let progress_bar = if cfg.progress {
         Some(
@@ -103,34 +118,9 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         None
     };
 
-    println!("{}", &cfg.method.to_uppercase());
-    let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
-    let mut checker = CheckerBuilder::default();
-    checker
-        .includes(includes)
-        .excludes(excludes)
-        .max_redirects(cfg.max_redirects)
-        .user_agent(cfg.user_agent.clone())
-        .allow_insecure(cfg.insecure)
-        .custom_headers(headers)
-        .method(method)
-        .timeout(timeout)
-        .verbose(cfg.verbose);
-
-    if let Some(github_token) = cfg.github_token {
-        checker.github_token(github_token);
-    }
-    if let Some(scheme) = cfg.scheme {
-        checker.scheme(scheme);
-    }
-    if let Some(accepted) = accepted {
-        checker.accepted(accepted);
-    }
-
     let (send_req, recv_req) = async_channel::unbounded();
     let (send_resp, recv_resp) = async_channel::unbounded();
 
-    let checker = checker.build()?;
     let mut worker = Worker::new(recv_req, send_resp, checker);
     let mut stats = Stats::new();
 
@@ -167,7 +157,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     }
 }
 
-fn read_header(input: String) -> Result<(String, String)> {
+fn read_header(input: &str) -> Result<(String, String)> {
     let elements: Vec<_> = input.split('=').collect();
     if elements.len() != 2 {
         return Err(anyhow!(
@@ -178,11 +168,11 @@ fn read_header(input: String) -> Result<(String, String)> {
     Ok((elements[0].into(), elements[1].into()))
 }
 
-fn parse_timeout(timeout: String) -> Result<Duration> {
+fn parse_timeout(timeout: &String) -> Result<Duration> {
     Ok(Duration::from_secs(timeout.parse::<u64>()?))
 }
 
-fn parse_headers(headers: Vec<String>) -> Result<HeaderMap> {
+fn parse_headers(headers: &[String]) -> Result<HeaderMap> {
     let mut out = HeaderMap::new();
     for header in headers {
         let (key, val) = read_header(header)?;
@@ -254,7 +244,7 @@ mod test {
         let mut custom = HeaderMap::new();
         custom.insert(header::ACCEPT, "text/html".parse().unwrap());
         assert_eq!(
-            parse_headers(vec!["accept=text/html".into()]).unwrap(),
+            parse_headers(&["accept=text/html".into()]).unwrap(),
             custom
         );
     }
