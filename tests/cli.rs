@@ -51,20 +51,6 @@ mod cli {
     }
 
     #[test]
-    fn test_failure_invalid_method() {
-        let mut cmd =
-            Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name");
-
-        cmd.arg("--method=invalid-method")
-            .assert()
-            .failure()
-            .code(1)
-            .stderr(contains(
-                "Error: Only `get` and `head` allowed, got invalid-method",
-            ));
-    }
-
-    #[test]
     fn test_failure_404_link() {
         let mut cmd =
             Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name");
