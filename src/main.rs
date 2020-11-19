@@ -10,7 +10,7 @@ use std::str::FromStr;
 use std::{collections::HashSet, time::Duration};
 use structopt::StructOpt;
 
-mod checker;
+mod client;
 mod collector;
 mod extract;
 mod options;
@@ -18,7 +18,7 @@ mod stats;
 mod types;
 mod worker;
 
-use checker::CheckerBuilder;
+use client::ClientBuilder;
 use options::{Config, LycheeOptions};
 use stats::Stats;
 use types::Response;
@@ -89,7 +89,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     let includes = RegexSet::new(&cfg.include)?;
     let excludes = Excludes::from_options(&cfg);
 
-    let checker = CheckerBuilder::default()
+    let client = ClientBuilder::default()
         .includes(includes)
         .excludes(excludes)
         .max_redirects(cfg.max_redirects)
@@ -121,7 +121,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     let (send_req, recv_req) = async_channel::unbounded();
     let (send_resp, recv_resp) = async_channel::unbounded();
 
-    let mut worker = Worker::new(recv_req, send_resp, checker);
+    let mut worker = Worker::new(recv_req, send_resp, client);
     let mut stats = Stats::new();
 
     tokio::spawn(async move {
@@ -243,10 +243,7 @@ mod test {
     fn test_parse_custom_headers() {
         let mut custom = HeaderMap::new();
         custom.insert(header::ACCEPT, "text/html".parse().unwrap());
-        assert_eq!(
-            parse_headers(&["accept=text/html".into()]).unwrap(),
-            custom
-        );
+        assert_eq!(parse_headers(&["accept=text/html".into()]).unwrap(), custom);
     }
 
     #[test]

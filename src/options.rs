@@ -44,7 +44,7 @@ pub(crate) struct LycheeOptions {
 }
 
 #[derive(Debug, Deserialize, StructOpt)]
-pub(crate) struct Config {
+pub struct Config {
     /// Verbose program output
     #[structopt(short, long)]
     #[serde(default)]

@@ -1,25 +1,20 @@
-use crate::checker::CheckerClient;
-use crate::types::Response;
 use crate::types::Uri;
+use crate::{client::Client, types::Response};
 use anyhow::Result;
 use async_channel::{Receiver, Sender};
 
 pub struct Worker {
     requests: Receiver<Uri>,
     responses: Sender<Response>,
-    checker: CheckerClient,
+    client: Client,
 }
 
 impl Worker {
-    pub fn new(
-        requests: Receiver<Uri>,
-        responses: Sender<Response>,
-        checker: CheckerClient,
-    ) -> Self {
+    pub fn new(requests: Receiver<Uri>, responses: Sender<Response>, client: Client) -> Self {
         Worker {
             requests,
             responses,
-            checker,
+            client,
         }
     }
 
@@ -27,7 +22,7 @@ impl Worker {
         loop {
             let request = self.requests.recv().await?;
             self.responses
-                .send(self.checker.check(request).await)
+                .send(self.client.check(request).await)
                 .await?;
         }
     }

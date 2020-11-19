@@ -13,7 +13,7 @@ use url::Url;
 
 const DEFAULT_MAX_REDIRECTS: usize = 5;
 
-pub struct CheckerClient {
+pub struct Client {
     reqwest_client: reqwest::Client,
     github: Option<Github>,
     includes: Option<RegexSet>,
@@ -28,7 +28,8 @@ pub struct CheckerClient {
 #[derive(Builder, Debug)]
 #[builder(build_fn(skip))]
 #[builder(setter(into))]
-pub(crate) struct Checker {
+#[builder(name = "ClientBuilder")]
+pub struct ClientBuilderInternal {
     pub github_token: Option<String>,
     includes: Option<RegexSet>,
     excludes: Excludes,
@@ -44,8 +45,8 @@ pub(crate) struct Checker {
     verbose: bool,
 }
 
-impl CheckerBuilder {
-    pub fn build(&mut self) -> Result<CheckerClient> {
+impl ClientBuilder {
+    pub fn build(&mut self) -> Result<Client> {
         let mut headers = HeaderMap::new();
 
         // Faking the user agent is necessary for some websites, unfortunately.
@@ -80,7 +81,9 @@ impl CheckerBuilder {
 
         let github = match self.github_token.as_ref() {
             Some(token) => {
-                let token = token.clone().ok_or_else(|| anyhow!("token must be initialized"))?;
+                let token = token
+                    .clone()
+                    .ok_or_else(|| anyhow!("token must be initialized"))?;
                 let github = Github::new(user_agent, Credentials::Token(token))?;
                 Some(github)
             }
@@ -90,7 +93,7 @@ impl CheckerBuilder {
         let scheme = self.scheme.clone().unwrap_or(None);
         let scheme = scheme.map(|s| s.to_lowercase());
 
-        Ok(CheckerClient {
+        Ok(Client {
             reqwest_client,
             github,
             includes: self.includes.clone().unwrap_or(None),
@@ -102,7 +105,7 @@ impl CheckerBuilder {
     }
 }
 
-impl CheckerClient {
+impl Client {
     async fn check_github(&self, owner: String, repo: String) -> Status {
         match &self.github {
             Some(github) => {
@@ -298,7 +301,7 @@ mod test {
 
     #[tokio::test]
     async fn test_nonexistent() {
-        let res = CheckerBuilder::default()
+        let res = ClientBuilder::default()
             .build()
             .unwrap()
             .check(website_url("https://endler.dev/abcd"))
@@ -310,7 +313,7 @@ mod test {
     async fn test_exponential_backoff() {
         let start = Instant::now();
         let uri = Uri::Website(Url::parse("https://endler.dev/abcd").unwrap());
-        let res = CheckerBuilder::default().build().unwrap().check(uri).await;
+        let res = ClientBuilder::default().build().unwrap().check(uri).await;
         let end = start.elapsed();
 
         assert!(matches!(res.status, Status::Failed(_)));
@@ -323,7 +326,7 @@ mod test {
     #[test]
     fn test_is_github() {
         assert_eq!(
-            CheckerBuilder::default()
+            ClientBuilder::default()
                 .build()
                 .unwrap()
                 .extract_github("https://github.com/mre/idiomatic-rust")
@@ -334,7 +337,7 @@ mod test {
     #[tokio::test]
     async fn test_github() {
         assert!(matches!(
-            CheckerBuilder::default()
+            ClientBuilder::default()
                 .build()
                 .unwrap()
                 .check(website_url("https://github.com/mre/idiomatic-rust"))
@@ -346,7 +349,7 @@ mod test {
 
     #[tokio::test]
     async fn test_github_nonexistent() {
-        let res = CheckerBuilder::default()
+        let res = ClientBuilder::default()
             .build()
             .unwrap()
             .check(website_url(
@@ -359,7 +362,7 @@ mod test {
 
     #[tokio::test]
     async fn test_non_github() {
-        let res = CheckerBuilder::default()
+        let res = ClientBuilder::default()
             .build()
             .unwrap()
             .check(website_url("https://endler.dev"))
@@ -370,7 +373,7 @@ mod test {
 
     #[tokio::test]
     async fn test_invalid_ssl() {
-        let res = CheckerBuilder::default()
+        let res = ClientBuilder::default()
             .build()
             .unwrap()
             .check(website_url("https://expired.badssl.com/"))
@@ -378,7 +381,7 @@ mod test {
         assert!(matches!(res.status, Status::Error(_)));
 
         // Same, but ignore certificate error
-        let res = CheckerBuilder::default()
+        let res = ClientBuilder::default()
             .allow_insecure(true)
             .build()
             .unwrap()
@@ -389,7 +392,7 @@ mod test {
 
     #[tokio::test]
     async fn test_custom_headers() {
-        let res = CheckerBuilder::default()
+        let res = ClientBuilder::default()
             .build()
             .unwrap()
             .check(website_url("https://crates.io/keywords/cassandra"))
@@ -401,7 +404,7 @@ mod test {
         // See https://github.com/rust-lang/crates.io/issues/788
         let mut custom = HeaderMap::new();
         custom.insert(header::ACCEPT, "text/html".parse().unwrap());
-        let res = CheckerBuilder::default()
+        let res = ClientBuilder::default()
             .custom_headers(custom)
             .build()
             .unwrap()
@@ -426,12 +429,12 @@ mod test {
             .mount(&mock_server)
             .await;
 
-        let checker = CheckerBuilder::default()
+        let client = ClientBuilder::default()
             .timeout(checker_timeout)
             .build()
             .unwrap();
 
-        let resp = checker
+        let resp = client
             .check(Uri::Website(Url::parse(&mock_server.uri()).unwrap()))
             .await;
         assert!(matches!(resp.status, Status::Timeout));
@@ -441,17 +444,14 @@ mod test {
     async fn test_include_regex() {
         let includes = RegexSet::new(&[r"foo.github.com"]).unwrap();
 
-        let checker = CheckerBuilder::default()
-            .includes(includes)
-            .build()
-            .unwrap();
+        let client = ClientBuilder::default().includes(includes).build().unwrap();
 
         assert_eq!(
-            checker.excluded(&website_url("https://foo.github.com")),
+            client.excluded(&website_url("https://foo.github.com")),
             false
         );
         assert_eq!(
-            checker.excluded(&website_url("https://bar.github.com")),
+            client.excluded(&website_url("https://bar.github.com")),
             true
         );
     }
@@ -462,19 +462,19 @@ mod test {
         excludes.regex = Some(RegexSet::new(&[r"github.com"]).unwrap());
         let includes = RegexSet::new(&[r"foo.github.com"]).unwrap();
 
-        let checker = CheckerBuilder::default()
+        let client = ClientBuilder::default()
             .includes(includes)
             .excludes(excludes)
             .build()
             .unwrap();
 
         assert_eq!(
-            checker.excluded(&website_url("https://foo.github.com")),
+            client.excluded(&website_url("https://foo.github.com")),
             false
         );
-        assert_eq!(checker.excluded(&website_url("https://github.com")), true);
+        assert_eq!(client.excluded(&website_url("https://github.com")), true);
         assert_eq!(
-            checker.excluded(&website_url("https://bar.github.com")),
+            client.excluded(&website_url("https://bar.github.com")),
             true
         );
     }
@@ -485,19 +485,16 @@ mod test {
         excludes.regex =
             Some(RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap());
 
-        let checker = CheckerBuilder::default()
-            .excludes(excludes)
-            .build()
-            .unwrap();
+        let client = ClientBuilder::default().excludes(excludes).build().unwrap();
 
-        assert_eq!(checker.excluded(&website_url("http://github.com")), true);
-        assert_eq!(checker.excluded(&website_url("http://exclude.org")), true);
+        assert_eq!(client.excluded(&website_url("http://github.com")), true);
+        assert_eq!(client.excluded(&website_url("http://exclude.org")), true);
         assert_eq!(
-            checker.excluded(&Uri::Mail("mail@example.com".to_string())),
+            client.excluded(&Uri::Mail("mail@example.com".to_string())),
             true
         );
         assert_eq!(
-            checker.excluded(&Uri::Mail("foo@bar.dev".to_string())),
+            client.excluded(&Uri::Mail("foo@bar.dev".to_string())),
             false
         );
     }
@@ -532,57 +529,57 @@ mod test {
 
     #[test]
     fn test_excludes_no_private_ips_by_default() {
-        let checker = CheckerBuilder::default().build().unwrap();
+        let client = ClientBuilder::default().build().unwrap();
 
-        assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_A)), false);
-        assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_B)), false);
-        assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_C)), false);
-        assert_eq!(checker.excluded(&website_url(V4_LINK_LOCAL)), false);
-        assert_eq!(checker.excluded(&website_url(V4_LOOPBACK)), false);
+        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_A)), false);
+        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_B)), false);
+        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_C)), false);
+        assert_eq!(client.excluded(&website_url(V4_LINK_LOCAL)), false);
+        assert_eq!(client.excluded(&website_url(V4_LOOPBACK)), false);
 
-        assert_eq!(checker.excluded(&website_url(V6_LOOPBACK)), false);
+        assert_eq!(client.excluded(&website_url(V6_LOOPBACK)), false);
     }
 
     #[test]
     fn test_exclude_private() {
-        let mut checker = CheckerBuilder::default().build().unwrap();
-        checker.excludes.private_ips = true;
+        let mut client = ClientBuilder::default().build().unwrap();
+        client.excludes.private_ips = true;
 
-        assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_A)), true);
-        assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_B)), true);
-        assert_eq!(checker.excluded(&website_url(V4_PRIVATE_CLASS_C)), true);
+        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_A)), true);
+        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_B)), true);
+        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_C)), true);
     }
 
     #[test]
     fn test_exclude_link_local() {
-        let mut checker = CheckerBuilder::default().build().unwrap();
-        checker.excludes.link_local_ips = true;
+        let mut client = ClientBuilder::default().build().unwrap();
+        client.excludes.link_local_ips = true;
 
-        assert_eq!(checker.excluded(&website_url(V4_LINK_LOCAL)), true);
+        assert_eq!(client.excluded(&website_url(V4_LINK_LOCAL)), true);
     }
 
     #[test]
     fn test_exclude_loopback() {
-        let mut checker = CheckerBuilder::default().build().unwrap();
-        checker.excludes.loopback_ips = true;
+        let mut client = ClientBuilder::default().build().unwrap();
+        client.excludes.loopback_ips = true;
 
-        assert_eq!(checker.excluded(&website_url(V4_LOOPBACK)), true);
-        assert_eq!(checker.excluded(&website_url(V6_LOOPBACK)), true);
+        assert_eq!(client.excluded(&website_url(V4_LOOPBACK)), true);
+        assert_eq!(client.excluded(&website_url(V6_LOOPBACK)), true);
     }
 
     #[test]
     fn test_exclude_ip_v4_mapped_ip_v6_not_supported() {
-        let mut checker = CheckerBuilder::default().build().unwrap();
-        checker.excludes.private_ips = true;
-        checker.excludes.link_local_ips = true;
+        let mut client = ClientBuilder::default().build().unwrap();
+        client.excludes.private_ips = true;
+        client.excludes.link_local_ips = true;
 
         // if these were pure IPv4, we would exclude
         assert_eq!(
-            checker.excluded(&website_url(V6_MAPPED_V4_PRIVATE_CLASS_A)),
+            client.excluded(&website_url(V6_MAPPED_V4_PRIVATE_CLASS_A)),
             false
         );
         assert_eq!(
-            checker.excluded(&website_url(V6_MAPPED_V4_LINK_LOCAL)),
+            client.excluded(&website_url(V6_MAPPED_V4_LINK_LOCAL)),
             false
         );
     }

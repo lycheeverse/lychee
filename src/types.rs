@@ -92,7 +92,7 @@ impl From<reqwest::Error> for Status {
 /// Exclude configuration for the link checker.
 /// You can ignore links based on
 #[derive(Clone, Debug)]
-pub(crate) struct Excludes {
+pub struct Excludes {
     pub regex: Option<RegexSet>,
     /// Example: 192.168.0.1
     pub private_ips: bool,
