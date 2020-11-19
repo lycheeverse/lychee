@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt::{self, Display}};
 
 use crate::types::Response;
 use crate::types::Uri;
@@ -54,15 +54,18 @@ impl Stats {
             .iter()
             .all(|r| r.is_empty())
     }
+}
 
-    pub fn summary(&self) {
-        println!("📝 Summary");
-        println!("-------------------");
-        println!("🔍 Total: {}", self.total);
-        println!("✅ Successful: {}", self.successful);
-        println!("⏳ Timeout: {}", self.timeout.len());
-        println!("🔀 Redirected: {}", self.redirected.len());
-        println!("👻 Excluded: {}", self.excluded.len());
-        println!("🚫 Errors: {}", self.error.len() + self.failed.len());
+impl Display for Stats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "📝 Summary")?;
+        write!(f, "-------------------")?;
+        write!(f, "🔍 Total: {}", self.total)?;
+        write!(f, "✅ Successful: {}", self.successful)?;
+        write!(f, "⏳ Timeout: {}", self.timeout.len())?;
+        write!(f, "🔀 Redirected: {}", self.redirected.len())?;
+        write!(f, "👻 Excluded: {}", self.excluded.len())?;
+        write!(f, "🚫 Errors: {}", self.error.len() + self.failed.len())?;
+        Ok(())
     }
 }

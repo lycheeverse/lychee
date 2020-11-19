@@ -158,7 +158,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     }
 
     if cfg.verbose {
-        stats.summary();
+        println!("{}", stats);
     }
 
     match stats.is_success() {
