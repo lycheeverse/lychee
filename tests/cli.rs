@@ -76,6 +76,7 @@ mod cli {
             .join("TEST_GITHUB_404.md");
 
         cmd.arg(test_github_404_path)
+            .env_clear()
             .assert()
             .failure()
             .code(2)

@@ -30,7 +30,7 @@ pub struct Client {
 #[builder(setter(into))]
 #[builder(name = "ClientBuilder")]
 pub struct ClientBuilderInternal {
-    pub github_token: Option<String>,
+    github_token: Option<String>,
     includes: Option<RegexSet>,
     excludes: Excludes,
     #[builder(default = "5")]
@@ -79,16 +79,31 @@ impl ClientBuilder {
 
         let reqwest_client = builder.build()?;
 
-        let github = match self.github_token.as_ref() {
+        let token: Option<String> = self.github_token.clone().unwrap_or_default();
+        let github = match token {
             Some(token) => {
-                let token = token
-                    .clone()
-                    .ok_or_else(|| anyhow!("token must be initialized"))?;
-                let github = Github::new(user_agent, Credentials::Token(token))?;
-                Some(github)
+                if token.is_empty() {
+                    None
+                } else {
+                    let github = Github::new(user_agent, Credentials::Token(token))?;
+                    Some(github)
+                }
             }
             None => None,
         };
+
+        // let github = match self.github_token.as_ref() {
+        //     Some(token) => {
+        //         match token.is_empty() {
+        //             true => None,
+        //             false => {
+        //                 let github = Github::new(user_agent, Credentials::Token(token))?;
+        //                 Some(github)
+        //             }
+        //         }
+        //     }
+        //     None => None,
+        // };
 
         let scheme = self.scheme.clone().unwrap_or(None);
         let scheme = scheme.map(|s| s.to_lowercase());
