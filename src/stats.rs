@@ -1,4 +1,7 @@
-use std::{collections::HashSet, fmt::{self, Display}};
+use std::{
+    collections::HashSet,
+    fmt::{self, Display},
+};
 
 use crate::types::Response;
 use crate::types::Uri;
