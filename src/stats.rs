@@ -6,7 +6,7 @@ use std::{
 use crate::types::Response;
 use crate::types::Uri;
 
-pub struct Stats {
+pub struct ResponseStats {
     total: usize,
     successful: usize,
     failed: HashSet<Uri>,
@@ -16,9 +16,9 @@ pub struct Stats {
     error: HashSet<Uri>,
 }
 
-impl Stats {
+impl ResponseStats {
     pub fn new() -> Self {
-        Stats {
+        ResponseStats {
             total: 0,
             successful: 0,
             failed: HashSet::new(),
@@ -53,13 +53,11 @@ impl Stats {
     }
 
     pub fn is_success(&self) -> bool {
-        [&self.failed, &self.timeout, &self.redirected, &self.error]
-            .iter()
-            .all(|r| r.is_empty())
+        self.total == self.successful + self.excluded.len()
     }
 }
 
-impl Display for Stats {
+impl Display for ResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "📝 Summary")?;
         write!(f, "-------------------")?;

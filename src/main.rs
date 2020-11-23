@@ -2,6 +2,7 @@
 extern crate log;
 
 use anyhow::{anyhow, Result};
+use deadpool::unmanaged::Pool;
 use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -9,6 +10,7 @@ use regex::RegexSet;
 use std::str::FromStr;
 use std::{collections::HashSet, time::Duration};
 use structopt::StructOpt;
+use tokio::sync::mpsc;
 
 mod client;
 mod collector;
@@ -16,14 +18,12 @@ mod extract;
 mod options;
 mod stats;
 mod types;
-mod worker;
 
 use client::ClientBuilder;
 use options::{Config, LycheeOptions};
-use stats::Stats;
+use stats::ResponseStats;
 use types::Response;
 use types::{Excludes, Status};
-use worker::Worker;
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
@@ -62,14 +62,15 @@ fn main() -> Result<()> {
     std::process::exit(errorcode);
 }
 
-fn show_progress(progress_bar: &Option<ProgressBar>, r: &Response, verbose: bool) {
+fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
+    let message = status_message(&response, verbose);
     if let Some(pb) = progress_bar {
         pb.inc(1);
         // regular println! interferes with progress bar
-        if let Some(message) = status_message(verbose, &r) {
+        if let Some(message) = message {
             pb.println(message);
         }
-    } else if let Some(message) = status_message(verbose, &r) {
+    } else if let Some(message) = message {
         println!("{}", message);
     };
 }
@@ -89,23 +90,27 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     let includes = RegexSet::new(&cfg.include)?;
     let excludes = Excludes::from_options(&cfg);
 
-    let client = ClientBuilder::default()
-        .includes(includes)
-        .excludes(excludes)
-        .max_redirects(cfg.max_redirects)
-        .user_agent(cfg.user_agent.clone())
-        .allow_insecure(cfg.insecure)
-        .custom_headers(headers)
-        .method(method)
-        .timeout(timeout)
-        .verbose(cfg.verbose)
-        .github_token(cfg.github_token)
-        .scheme(cfg.scheme)
-        .accepted(accepted)
-        .build()?;
+    let pool = Pool::new(16);
+    for _ in 0..16 {
+        let client = ClientBuilder::default()
+            .includes(includes.clone())
+            .excludes(excludes.clone())
+            .max_redirects(cfg.max_redirects)
+            .user_agent(cfg.user_agent.clone())
+            .allow_insecure(cfg.insecure)
+            .custom_headers(headers.clone())
+            .method(method.clone())
+            .timeout(timeout)
+            .verbose(cfg.verbose)
+            .github_token(cfg.github_token.clone())
+            .scheme(cfg.scheme.clone())
+            .accepted(accepted.clone())
+            .build()?;
+        pool.add(client).await;
+    }
 
     let links = collector::collect_links(inputs, cfg.base_url.clone()).await?;
-    let progress_bar = if cfg.progress {
+    let pb = if cfg.progress {
         Some(
             ProgressBar::new(links.len() as u64)
             .with_style(
@@ -118,33 +123,42 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         None
     };
 
-    let (send_req, recv_req) = async_channel::unbounded();
-    let (send_resp, recv_resp) = async_channel::unbounded();
+    let (mut send_req, mut recv_req) = mpsc::channel(64);
+    let (send_resp, mut recv_resp) = mpsc::channel(64);
 
-    let mut worker = Worker::new(recv_req, send_resp, client);
-    let mut stats = Stats::new();
+    let mut stats = ResponseStats::new();
 
+    let bar = pb.clone();
     tokio::spawn(async move {
-        worker.listen().await;
+        for link in links {
+            if let Some(pb) = &bar {
+                pb.set_message(&link.to_string());
+            };
+            send_req.send(link).await.unwrap();
+        }
     });
 
-    let count = links.len();
-    for link in links {
-        if let Some(pb) = &progress_bar {
-            pb.set_message(&link.to_string());
-        };
-        send_req.send(link).await?;
+    tokio::spawn(async move {
+        // Start receiving requests
+        while let Some(req) = recv_req.recv().await {
+            let c = pool.get().await;
+            let mut send_resp = send_resp.clone();
+            tokio::spawn(async move {
+                let resp = c.check(req).await;
+                send_resp.send(resp).await.unwrap();
+            });
+        }
+    });
+
+    while let Some(response) = recv_resp.recv().await {
+        show_progress(&pb, &response, cfg.verbose);
+        stats.add(response);
     }
 
-    for _ in 0..count {
-        let r = recv_resp.recv().await?;
-        show_progress(&progress_bar, &r, cfg.verbose);
-        stats.add(r);
-    }
-
-    // note that prints may interfere progress bar so this must go before summary
-    if let Some(progress_bar) = progress_bar {
-        progress_bar.finish_and_clear();
+    // Note that print statements may interfere with the progress bar, so this
+    // must go before printing the stats
+    if let Some(pb) = &pb {
+        pb.finish_and_clear();
     }
 
     if cfg.verbose {
@@ -168,8 +182,8 @@ fn read_header(input: &str) -> Result<(String, String)> {
     Ok((elements[0].into(), elements[1].into()))
 }
 
-fn parse_timeout(timeout: &String) -> Result<Duration> {
-    Ok(Duration::from_secs(timeout.parse::<u64>()?))
+fn parse_timeout<S: AsRef<str>>(timeout: S) -> Result<Duration> {
+    Ok(Duration::from_secs(timeout.as_ref().parse::<u64>()?))
 }
 
 fn parse_headers(headers: &[String]) -> Result<HeaderMap> {
@@ -204,32 +218,15 @@ fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
     Ok(Authorization::basic(params[0], params[1]))
 }
 
-fn status_message(verbose: bool, response: &Response) -> Option<String> {
+fn status_message(response: &Response, verbose: bool) -> Option<String> {
     match &response.status {
-        Status::Ok(code) => {
-            if verbose {
-                Some(format!("✅{} [{}]", response.uri, code))
-            } else {
-                None
-            }
-        }
-        Status::Failed(code) => Some(format!("🚫{} [{}]", response.uri, code)),
-        Status::Redirected => {
-            if verbose {
-                Some(format!("🔀️{}", response.uri))
-            } else {
-                None
-            }
-        }
-        Status::Excluded => {
-            if verbose {
-                Some(format!("👻{}", response.uri))
-            } else {
-                None
-            }
-        }
+        Status::Ok(code) if verbose => Some(format!("✅ {} [{}]", response.uri, code)),
+        Status::Redirected if verbose => Some(format!("🔀️ {}", response.uri)),
+        Status::Excluded if verbose => Some(format!("👻 {}", response.uri)),
+        Status::Failed(code) => Some(format!("🚫 {} [{}]", response.uri, code)),
         Status::Error(e) => Some(format!("⚡ {} ({})", response.uri, e)),
-        Status::Timeout => Some(format!("⌛{}", response.uri)),
+        Status::Timeout => Some(format!("⌛ {}", response.uri)),
+        _ => None,
     }
 }
 

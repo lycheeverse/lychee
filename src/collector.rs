@@ -57,7 +57,7 @@ pub(crate) async fn collect_links(
                                 base_url.clone(),
                             ));
                         }
-                        Err(e) => println!("{:?}", e),
+                        Err(e) => println!("Error handling file pattern {}: {:?}", input, e),
                     }
                 }
             }

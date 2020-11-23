@@ -33,7 +33,6 @@ pub struct ClientBuilderInternal {
     github_token: Option<String>,
     includes: Option<RegexSet>,
     excludes: Excludes,
-    #[builder(default = "5")]
     max_redirects: usize,
     user_agent: String,
     allow_insecure: bool,
@@ -73,7 +72,8 @@ impl ClientBuilder {
             .redirect(reqwest::redirect::Policy::limited(max_redirects));
 
         let builder = match self.timeout {
-            Some(t) => builder.timeout(t.ok_or_else(|| anyhow!("cannot read timeout"))?),
+            Some(t) => builder
+                .timeout(t.ok_or_else(|| anyhow!("cannot parse timeout: {:?}", self.timeout))?),
             None => builder,
         };
 
@@ -91,19 +91,6 @@ impl ClientBuilder {
             }
             None => None,
         };
-
-        // let github = match self.github_token.as_ref() {
-        //     Some(token) => {
-        //         match token.is_empty() {
-        //             true => None,
-        //             false => {
-        //                 let github = Github::new(user_agent, Credentials::Token(token))?;
-        //                 Some(github)
-        //             }
-        //         }
-        //     }
-        //     None => None,
-        // };
 
         let scheme = self.scheme.clone().unwrap_or(None);
         let scheme = scheme.map(|s| s.to_lowercase());
