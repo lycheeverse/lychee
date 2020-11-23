@@ -16,10 +16,10 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 | -------------------- | ------- | ----------- | -------- | ------------------- | ---------- | ----------- | ------------------- | ------ |
 | Language             | Rust    | Ruby        | Go       | JS                  | TypeScript | Python      | JS                  | PHP    |
 | Async/Parallel       | ![yes]  | ![yes]      | ![yes]   | ![yes]              | ![yes]     | ![yes]      | ![yes]              | ![yes] |
-| Static binary        | ![yes]  | ![no]       | ![yes]   | ![no]               | ![no]      | ️ ![no]     | ![no]               | ![no]  |
-| Markdown files       | ![yes]  | ![yes]      | ![no]    | ![no]               | ![no]      | ![no]       | ️ ![yes]            | ![no]  |
+| Static binary        | ![yes]  | ![no]       | ![yes]   | ![no]               | ![no]      | ️ ![no]      | ![no]               | ![no]  |
+| Markdown files       | ![yes]  | ![yes]      | ![no]    | ![no]               | ![no]      | ![no]       | ️ ![yes]             | ![no]  |
 | HTML files           | ![yes]  | ![no]       | ![no]    | ![yes]              | ![yes]     | ![no]       | ![no]               | ![no]  |
-| Txt files            | ![yes]  | ![no]       | ![no]    | ![no]               | ![no]      | ![no]       | ![no]               | ![no]  |
+| Text files           | ![yes]  | ![no]       | ![no]    | ![no]               | ![no]      | ![no]       | ![no]               | ![no]  |
 | Website support      | ![yes]  | ![no]       | ![yes]   | ![yes]              | ![yes]     | ![yes]      | ![no]               | ![yes] |
 | Chunked encodings    | ![yes]  | ![maybe]    | ![maybe] | ![maybe]            | ![maybe]   | ![no]       | ![yes]              | ![yes] |
 | GZIP compression     | ![yes]  | ![maybe]    | ![maybe] | ![yes]              | ![maybe]   | ![yes]      | ![maybe]            | ![no]  |
@@ -27,7 +27,7 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 | Custom user agent    | ![yes]  | ![no]       | ![no]    | ![yes]              | ![no]      | ![yes]      | ![no]               | ![no]  |
 | Relative URLs        | ![yes]  | ![yes]      | ![no]    | ![yes]              | ![yes]     | ![yes]      | ![yes]              | ![yes] |
 | Skip relative URLs   | ![yes]  | ![no]       | ![no]    | ![maybe]            | ![no]      | ![no]       | ![no]               | ![no]  |
-| Include patterns     | ![yes]️ | ![yes]      | ![no]    | ![yes]              | ![no]      | ![no]       | ![no]               | ![no]  |
+| Include patterns     | ![yes]️  | ![yes]      | ![no]    | ![yes]              | ![no]      | ![no]       | ![no]               | ![no]  |
 | Exclude patterns     | ![yes]  | ![no]       | ![yes]   | ![yes]              | ![yes]     | ![yes]      | ![yes]              | ![yes] |
 | Handle redirects     | ![yes]  | ![yes]      | ![yes]   | ![yes]              | ![yes]     | ![yes]      | ![yes]              | ![yes] |
 | Ignore insecure SSL  | ![yes]  | ![yes]      | ![yes]   | ![no]               | ![no]      | ![yes]      | ![no]               | ![yes] |
@@ -65,12 +65,12 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 
 ## Planned features. Please help out!
 
-- report output in HTML, SQL, CSV, XML, JSON, YAML... format
-- report extended statistics: request latency
-- recursion
-- use colored output (https://crates.io/crates/colored)
-- skip duplicate urls
-- request throttling
+- Report output in HTML, SQL, CSV, XML, JSON, YAML... format
+- Report extended statistics: request latency
+- Recursion
+- Use colored output (https://crates.io/crates/colored)
+- Skip duplicate URLs
+- Request throttling
 
 ## Users
 
