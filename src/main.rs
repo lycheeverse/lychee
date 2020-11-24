@@ -177,10 +177,10 @@ fn parse_timeout<S: AsRef<str>>(timeout: S) -> Result<Duration> {
     Ok(Duration::from_secs(timeout.as_ref().parse::<u64>()?))
 }
 
-fn parse_headers(headers: &[String]) -> Result<HeaderMap> {
+fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {
     let mut out = HeaderMap::new();
     for header in headers {
-        let (key, val) = read_header(header)?;
+        let (key, val) = read_header(header.as_ref())?;
         out.insert(
             HeaderName::from_bytes(key.as_bytes())?,
             val.parse().unwrap(),
@@ -231,7 +231,7 @@ mod test {
     fn test_parse_custom_headers() {
         let mut custom = HeaderMap::new();
         custom.insert(header::ACCEPT, "text/html".parse().unwrap());
-        assert_eq!(parse_headers(&["accept=text/html".into()]).unwrap(), custom);
+        assert_eq!(parse_headers(&["accept=text/html"]).unwrap(), custom);
     }
 
     #[test]
