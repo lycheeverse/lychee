@@ -13,6 +13,7 @@ use url::Url;
 
 const DEFAULT_MAX_REDIRECTS: usize = 5;
 
+#[derive(Debug, Clone)]
 pub struct Client {
     reqwest_client: reqwest::Client,
     github: Option<Github>,

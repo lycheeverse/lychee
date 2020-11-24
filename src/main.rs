@@ -86,28 +86,28 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     let accepted = cfg.accept.clone().and_then(|a| parse_statuscodes(a).ok());
 
     let timeout = parse_timeout(&cfg.timeout)?;
+    let max_concurrency = cfg.max_concurrency.parse()?;
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
     let includes = RegexSet::new(&cfg.include)?;
     let excludes = Excludes::from_options(&cfg);
 
-    let pool = Pool::new(16);
-    for _ in 0..16 {
-        let client = ClientBuilder::default()
-            .includes(includes.clone())
-            .excludes(excludes.clone())
-            .max_redirects(cfg.max_redirects)
-            .user_agent(cfg.user_agent.clone())
-            .allow_insecure(cfg.insecure)
-            .custom_headers(headers.clone())
-            .method(method.clone())
-            .timeout(timeout)
-            .verbose(cfg.verbose)
-            .github_token(cfg.github_token.clone())
-            .scheme(cfg.scheme.clone())
-            .accepted(accepted.clone())
-            .build()?;
-        pool.add(client).await;
-    }
+    let client = ClientBuilder::default()
+        .includes(includes)
+        .excludes(excludes)
+        .max_redirects(cfg.max_redirects)
+        .user_agent(cfg.user_agent)
+        .allow_insecure(cfg.insecure)
+        .custom_headers(headers)
+        .method(method)
+        .timeout(timeout)
+        .verbose(cfg.verbose)
+        .github_token(cfg.github_token)
+        .scheme(cfg.scheme)
+        .accepted(accepted)
+        .build()?;
+
+    let clients: Vec<_> = (0..max_concurrency).map(|_| client.clone()).collect();
+    let pool = Pool::from(clients);
 
     let links = collector::collect_links(inputs, cfg.base_url.clone()).await?;
     let pb = if cfg.progress {
@@ -123,8 +123,8 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         None
     };
 
-    let (mut send_req, mut recv_req) = mpsc::channel(64);
-    let (send_resp, mut recv_resp) = mpsc::channel(64);
+    let (mut send_req, mut recv_req) = mpsc::channel(max_concurrency);
+    let (send_resp, mut recv_resp) = mpsc::channel(max_concurrency);
 
     let mut stats = ResponseStats::new();
 

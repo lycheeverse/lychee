@@ -6,6 +6,7 @@ use structopt::StructOpt;
 const USER_AGENT: &str = "curl/7.71.1";
 const METHOD: &str = "get";
 const TIMEOUT: &str = "20";
+const MAX_CONCURRENCY: &str = "128";
 
 // Macro for generating default functions to be used by serde
 macro_rules! default_function {
@@ -59,6 +60,11 @@ pub struct Config {
     #[structopt(short, long, default_value = "10")]
     #[serde(default)]
     pub max_redirects: usize,
+
+    /// Maximum number of concurrent network requests
+    #[structopt(long, default_value = MAX_CONCURRENCY)]
+    #[serde(default)]
+    pub max_concurrency: String,
 
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
@@ -183,6 +189,7 @@ impl Config {
             verbose: false;
             progress: false;
             max_redirects: 10;
+            max_concurrency: MAX_CONCURRENCY;
             threads: None;
             user_agent: USER_AGENT;
             insecure: false;
