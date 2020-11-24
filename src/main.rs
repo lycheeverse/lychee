@@ -78,14 +78,12 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
 
 async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     let mut headers = parse_headers(&cfg.headers)?;
-
     if let Some(auth) = &cfg.basic_auth {
         let auth_header = parse_basic_auth(&auth)?;
         headers.typed_insert(auth_header);
     }
 
     let accepted = cfg.accept.clone().and_then(|a| parse_statuscodes(a).ok());
-
     let timeout = parse_timeout(&cfg.timeout)?;
     let max_concurrency = cfg.max_concurrency.parse()?;
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
