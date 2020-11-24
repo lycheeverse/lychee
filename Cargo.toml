@@ -1,13 +1,13 @@
 [package]
 authors = ["Matthias Endler <matthias-endler.de>"]
-description = "A boring link checker for my projects (and maybe yours)"
-documentation = "https://github.com/hello-rust/lychee/blob/master/README.md"
+description = "A glorious link checker"
+documentation = "https://github.com/lycheeverse/lychee/blob/master/README.md"
 edition = "2018"
-homepage = "https://github.com/hello-rust/lychee"
+homepage = "https://github.com/lycheeverse/lychee"
 license = "Apache-2.0/MIT"
 name = "lychee"
-repository = "https://github.com/hello-rust/lychee"
-version = "0.3.0"
+repository = "https://github.com/lycheeverse/lychee"
+version = "0.3.1"
 
 [dependencies]
 anyhow = "1.0.32"

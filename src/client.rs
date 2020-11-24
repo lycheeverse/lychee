@@ -51,11 +51,10 @@ impl ClientBuilder {
 
         // Faking the user agent is necessary for some websites, unfortunately.
         // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
-        // let user_agent = self.user_agent.as_ref().unwrap_or(&"lychee/0.3.0".to_string());
-        let user_agent = match self.user_agent {
-            Some(ref u) => u.clone(),
-            None => String::from("lychee/0.3.0"),
-        };
+        let user_agent = self
+            .user_agent
+            .clone()
+            .ok_or_else(|| anyhow!("cannot read user_agent"))?;
 
         headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
         headers.insert(header::TRANSFER_ENCODING, HeaderValue::from_str("chunked")?);

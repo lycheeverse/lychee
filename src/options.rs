@@ -1,9 +1,9 @@
 use anyhow::{Error, Result};
 use serde::Deserialize;
 use std::{fs, io::ErrorKind};
-use structopt::StructOpt;
+use structopt::{clap::crate_version, StructOpt};
 
-const USER_AGENT: &str = "curl/7.71.1";
+pub(crate) const USER_AGENT: &str = concat!("lychee/", crate_version!());
 const METHOD: &str = "get";
 const TIMEOUT: &str = "20";
 const MAX_CONCURRENCY: &str = "128";
