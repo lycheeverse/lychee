@@ -59,14 +59,14 @@ impl ResponseStats {
 
 impl Display for ResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "📝 Summary")?;
-        write!(f, "-------------------")?;
-        write!(f, "🔍 Total: {}", self.total)?;
-        write!(f, "✅ Successful: {}", self.successful)?;
-        write!(f, "⏳ Timeout: {}", self.timeout.len())?;
-        write!(f, "🔀 Redirected: {}", self.redirected.len())?;
-        write!(f, "👻 Excluded: {}", self.excluded.len())?;
-        write!(f, "🚫 Errors: {}", self.error.len() + self.failed.len())?;
+        writeln!(f, "📝 Summary")?;
+        writeln!(f, "-------------------")?;
+        writeln!(f, "🔍 Total: {}", self.total)?;
+        writeln!(f, "✅ Successful: {}", self.successful)?;
+        writeln!(f, "⏳ Timeout: {}", self.timeout.len())?;
+        writeln!(f, "🔀 Redirected: {}", self.redirected.len())?;
+        writeln!(f, "👻 Excluded: {}", self.excluded.len())?;
+        writeln!(f, "🚫 Errors: {}", self.error.len() + self.failed.len())?;
         Ok(())
     }
 }
