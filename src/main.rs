@@ -83,7 +83,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         headers.typed_insert(auth_header);
     }
 
-    let accepted = cfg.accept.clone().and_then(|a| parse_statuscodes(a).ok());
+    let accepted = cfg.accept.clone().and_then(|a| parse_statuscodes(&a).ok());
     let timeout = parse_timeout(&cfg.timeout)?;
     let max_concurrency = cfg.max_concurrency.parse()?;
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
@@ -189,9 +189,9 @@ fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {
     Ok(out)
 }
 
-fn parse_statuscodes(accept: String) -> Result<HashSet<http::StatusCode>> {
+fn parse_statuscodes<T: AsRef<str>>(accept: T) -> Result<HashSet<http::StatusCode>> {
     let mut statuscodes = HashSet::new();
-    for code in accept.split(',').into_iter() {
+    for code in accept.as_ref().split(',').into_iter() {
         let code: reqwest::StatusCode = reqwest::StatusCode::from_bytes(code.as_bytes())?;
         statuscodes.insert(code);
     }
@@ -236,7 +236,7 @@ mod test {
 
     #[test]
     fn test_parse_statuscodes() {
-        let actual = parse_statuscodes("200,204,301".into()).unwrap();
+        let actual = parse_statuscodes("200,204,301").unwrap();
         let expected: HashSet<StatusCode> = [
             StatusCode::OK,
             StatusCode::NO_CONTENT,
