@@ -8,24 +8,24 @@ use crate::types::Uri;
 
 pub struct ResponseStats {
     total: usize,
-    successful: usize,
-    failed: HashSet<Uri>,
-    timeout: HashSet<Uri>,
-    redirected: HashSet<Uri>,
-    excluded: HashSet<Uri>,
-    error: HashSet<Uri>,
+    successes: usize,
+    failures: HashSet<Uri>,
+    timeouts: HashSet<Uri>,
+    redirects: HashSet<Uri>,
+    excludes: HashSet<Uri>,
+    errors: HashSet<Uri>,
 }
 
 impl ResponseStats {
     pub fn new() -> Self {
         ResponseStats {
             total: 0,
-            successful: 0,
-            failed: HashSet::new(),
-            timeout: HashSet::new(),
-            redirected: HashSet::new(),
-            excluded: HashSet::new(),
-            error: HashSet::new(),
+            successes: 0,
+            failures: HashSet::new(),
+            timeouts: HashSet::new(),
+            redirects: HashSet::new(),
+            excludes: HashSet::new(),
+            errors: HashSet::new(),
         }
     }
 
@@ -33,27 +33,27 @@ impl ResponseStats {
         self.total += 1;
         let uri = response.uri;
         match response.status {
-            crate::types::Status::Ok(_) => self.successful += 1,
+            crate::types::Status::Ok(_) => self.successes += 1,
             crate::types::Status::Failed(_) => {
-                self.failed.insert(uri);
+                self.failures.insert(uri);
             }
             crate::types::Status::Timeout => {
-                self.timeout.insert(uri);
+                self.timeouts.insert(uri);
             }
             crate::types::Status::Redirected => {
-                self.redirected.insert(uri);
+                self.redirects.insert(uri);
             }
             crate::types::Status::Excluded => {
-                self.excluded.insert(uri);
+                self.excludes.insert(uri);
             }
             crate::types::Status::Error(_) => {
-                self.error.insert(uri);
+                self.errors.insert(uri);
             }
         };
     }
 
     pub fn is_success(&self) -> bool {
-        self.total == self.successful + self.excluded.len()
+        self.total == self.successes + self.excludes.len()
     }
 }
 
@@ -62,11 +62,11 @@ impl Display for ResponseStats {
         writeln!(f, "📝 Summary")?;
         writeln!(f, "-------------------")?;
         writeln!(f, "🔍 Total: {}", self.total)?;
-        writeln!(f, "✅ Successful: {}", self.successful)?;
-        writeln!(f, "⏳ Timeout: {}", self.timeout.len())?;
-        writeln!(f, "🔀 Redirected: {}", self.redirected.len())?;
-        writeln!(f, "👻 Excluded: {}", self.excluded.len())?;
-        writeln!(f, "🚫 Errors: {}", self.error.len() + self.failed.len())?;
+        writeln!(f, "✅ successes: {}", self.successes)?;
+        writeln!(f, "⏳ timeouts: {}", self.timeouts.len())?;
+        writeln!(f, "🔀 redirects: {}", self.redirects.len())?;
+        writeln!(f, "👻 Excluded: {}", self.excludes.len())?;
+        writeln!(f, "🚫 Errors: {}", self.errors.len() + self.failures.len())?;
         Ok(())
     }
 }
