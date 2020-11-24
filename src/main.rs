@@ -2,7 +2,6 @@
 extern crate log;
 
 use anyhow::{anyhow, Result};
-use deadpool::unmanaged::Pool;
 use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -13,6 +12,7 @@ use structopt::StructOpt;
 use tokio::sync::mpsc;
 
 mod client;
+mod client_pool;
 mod collector;
 mod extract;
 mod options;
@@ -20,6 +20,7 @@ mod stats;
 mod types;
 
 use client::ClientBuilder;
+use client_pool::ClientPool;
 use options::{Config, LycheeOptions};
 use stats::ResponseStats;
 use types::Response;
@@ -106,9 +107,6 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         .accepted(accepted)
         .build()?;
 
-    let clients: Vec<_> = (0..max_concurrency).map(|_| client.clone()).collect();
-    let pool = Pool::from(clients);
-
     let links = collector::collect_links(inputs, cfg.base_url.clone()).await?;
     let pb = if cfg.progress {
         Some(
@@ -123,7 +121,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         None
     };
 
-    let (mut send_req, mut recv_req) = mpsc::channel(max_concurrency);
+    let (mut send_req, recv_req) = mpsc::channel(max_concurrency);
     let (send_resp, mut recv_resp) = mpsc::channel(max_concurrency);
 
     let mut stats = ResponseStats::new();
@@ -140,14 +138,9 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
 
     tokio::spawn(async move {
         // Start receiving requests
-        while let Some(req) = recv_req.recv().await {
-            let c = pool.get().await;
-            let mut send_resp = send_resp.clone();
-            tokio::spawn(async move {
-                let resp = c.check(req).await;
-                send_resp.send(resp).await.unwrap();
-            });
-        }
+        let clients: Vec<_> = (0..max_concurrency).map(|_| client.clone()).collect();
+        let mut clients = ClientPool::new(send_resp, recv_req, clients);
+        clients.listen().await;
     });
 
     while let Some(response) = recv_resp.recv().await {
