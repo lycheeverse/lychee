@@ -1,21 +1,17 @@
-use crate::extract::{self, extract_links, FileType};
+use crate::extract::{extract_links, FileType};
+use crate::types::Uri;
 use anyhow::Result;
-use extract::Uri;
 use glob::glob;
 use reqwest::Url;
-use std::path::Path;
 use std::{collections::HashSet, fs};
+use std::{ffi::OsStr, path::Path};
 
 /// Detect if the given path points to a Markdown, HTML, or plaintext file.
-fn resolve_file_type_by_path<P: AsRef<Path>>(p: P) -> FileType {
-    let path = p.as_ref();
-    match path.extension() {
-        Some(ext) => match ext.to_str().unwrap() {
-            "md" => FileType::Markdown,
-            "html" | "htm" => FileType::HTML,
-            _ => FileType::Plaintext,
-        },
-        None => FileType::Plaintext,
+fn resolve_file_type_by_path<P: AsRef<Path>>(path: P) -> FileType {
+    match path.as_ref().extension().and_then(OsStr::to_str) {
+        Some("md") => FileType::Markdown,
+        Some("html") => FileType::HTML,
+        _ => FileType::Plaintext,
     }
 }
 
@@ -57,7 +53,7 @@ pub(crate) async fn collect_links(
                                 base_url.clone(),
                             ));
                         }
-                        Err(e) => println!("{:?}", e),
+                        Err(e) => println!("Error handling file pattern {}: {:?}", input, e),
                     }
                 }
             }

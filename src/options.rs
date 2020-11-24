@@ -6,6 +6,7 @@ use structopt::StructOpt;
 const USER_AGENT: &str = "curl/7.71.1";
 const METHOD: &str = "get";
 const TIMEOUT: &str = "20";
+const MAX_CONCURRENCY: &str = "128";
 
 // Macro for generating default functions to be used by serde
 macro_rules! default_function {
@@ -30,10 +31,7 @@ macro_rules! fold_in {
 }
 
 #[derive(Debug, StructOpt)]
-#[structopt(
-    name = "lychee",
-    about = "A boring link checker for my projects (and maybe yours)"
-)]
+#[structopt(name = "lychee", about = "A glorious link checker")]
 pub(crate) struct LycheeOptions {
     /// Input files
     pub inputs: Vec<String>,
@@ -47,7 +45,7 @@ pub(crate) struct LycheeOptions {
 }
 
 #[derive(Debug, Deserialize, StructOpt)]
-pub(crate) struct Config {
+pub struct Config {
     /// Verbose program output
     #[structopt(short, long)]
     #[serde(default)]
@@ -62,6 +60,11 @@ pub(crate) struct Config {
     #[structopt(short, long, default_value = "10")]
     #[serde(default)]
     pub max_redirects: usize,
+
+    /// Maximum number of concurrent network requests
+    #[structopt(long, default_value = MAX_CONCURRENCY)]
+    #[serde(default)]
+    pub max_concurrency: String,
 
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
@@ -131,7 +134,8 @@ pub(crate) struct Config {
     pub timeout: String,
 
     /// Request method
-    #[structopt(short = "M", long, default_value = METHOD)]
+    // Using `-X` as a short param similar to curl
+    #[structopt(short = "X", long, default_value = METHOD)]
     #[serde(default = "method")]
     pub method: String,
 
@@ -139,7 +143,7 @@ pub(crate) struct Config {
     #[serde(default)]
     pub base_url: Option<String>,
 
-    #[structopt(long, help = "Basic autentication support. Ex 'username:password'")]
+    #[structopt(long, help = "Basic authentication support. Ex 'username:password'")]
     #[serde(default)]
     pub basic_auth: Option<String>,
 
@@ -185,6 +189,7 @@ impl Config {
             verbose: false;
             progress: false;
             max_redirects: 10;
+            max_concurrency: MAX_CONCURRENCY;
             threads: None;
             user_agent: USER_AGENT;
             insecure: false;

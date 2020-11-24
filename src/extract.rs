@@ -1,55 +1,16 @@
+use crate::types::Uri;
 use linkify::LinkFinder;
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
 use quick_xml::{events::Event as HTMLEvent, Reader};
-use std::net::IpAddr;
+use std::collections::HashSet;
 use std::path::Path;
-use std::{collections::HashSet, fmt::Display};
 use url::Url;
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum Uri {
-    Website(Url),
-    Mail(String),
-}
 
 #[derive(Clone, Debug)]
 pub(crate) enum FileType {
     HTML,
     Markdown,
     Plaintext,
-}
-
-impl Uri {
-    pub fn as_str(&self) -> &str {
-        match self {
-            Uri::Website(url) => url.as_str(),
-            Uri::Mail(address) => address.as_str(),
-        }
-    }
-
-    pub fn scheme(&self) -> Option<String> {
-        match self {
-            Uri::Website(url) => Some(url.scheme().to_string()),
-            Uri::Mail(_address) => None,
-        }
-    }
-
-    pub fn host_ip(&self) -> Option<IpAddr> {
-        match self {
-            Self::Website(url) => match url.host()? {
-                url::Host::Ipv4(v4_addr) => Some(v4_addr.into()),
-                url::Host::Ipv6(v6_addr) => Some(v6_addr.into()),
-                _ => None,
-            },
-            Self::Mail(_) => None,
-        }
-    }
-}
-
-impl Display for Uri {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
 }
 
 // Use LinkFinder here to offload the actual link searching
@@ -168,7 +129,7 @@ pub(crate) fn extract_links(
                     uris.insert(Uri::Mail(link));
                 } else if !Path::new(&link).exists() {
                     if let Some(base_url) = &base_url {
-                        if let Ok(new_url) = base_url.clone().join(&link) {
+                        if let Ok(new_url) = base_url.join(&link) {
                             uris.insert(Uri::Website(new_url));
                         }
                     }
@@ -176,8 +137,6 @@ pub(crate) fn extract_links(
             }
         };
     }
-
-    debug!("Found: {:#?}", uris);
     uris
 }
 
@@ -185,7 +144,6 @@ pub(crate) fn extract_links(
 mod test {
     use super::*;
     use std::iter::FromIterator;
-    use std::net::{Ipv4Addr, Ipv6Addr};
 
     #[test]
     fn test_extract_markdown_links() {
@@ -276,31 +234,5 @@ mod test {
         let expected = "http://msdn.microsoft.com/library/ie/ms535874(v=vs.85).aspx)";
         assert!(links.len() == 1);
         assert_eq!(links[0].as_str(), expected);
-    }
-
-    #[test]
-    fn test_uri_host_ip_v4() {
-        let uri =
-            Uri::Website(Url::parse("http://127.0.0.1").expect("Expected URI with valid IPv4"));
-        let ip = uri.host_ip().expect("Expected a valid IPv4");
-        assert_eq!(ip, IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
-    }
-
-    #[test]
-    fn test_uri_host_ip_v6() {
-        let uri =
-            Uri::Website(Url::parse("https://[2020::0010]").expect("Expected URI with valid IPv6"));
-        let ip = uri.host_ip().expect("Expected a valid IPv6");
-        assert_eq!(
-            ip,
-            IpAddr::V6(Ipv6Addr::new(0x2020, 0, 0, 0, 0, 0, 0, 0x10))
-        );
-    }
-
-    #[test]
-    fn test_uri_host_ip_no_ip() {
-        let uri = Uri::Website(Url::parse("https://some.cryptic/url").expect("Expected valid URI"));
-        let ip = uri.host_ip();
-        assert!(ip.is_none());
     }
 }

@@ -22,7 +22,7 @@ mod cli {
             .arg(test_all_private_path)
             .assert()
             .success()
-            .stdout(contains("Found: 7"))
+            .stdout(contains("Total: 7"))
             .stdout(contains("Excluded: 7"))
             .stdout(contains("Successful: 0"))
             .stdout(contains("Errors: 0"));
@@ -44,24 +44,10 @@ mod cli {
             .arg(test_github_path)
             .assert()
             .success()
-            .stdout(contains("Found: 1"))
+            .stdout(contains("Total: 1"))
             .stdout(contains("Excluded: 0"))
             .stdout(contains("Successful: 1"))
             .stdout(contains("Errors: 0"));
-    }
-
-    #[test]
-    fn test_failure_invalid_method() {
-        let mut cmd =
-            Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name");
-
-        cmd.arg("--method=invalid-method")
-            .assert()
-            .failure()
-            .code(1)
-            .stderr(contains(
-                "Error: Only `get` and `head` allowed, got invalid-method",
-            ));
     }
 
     #[test]
@@ -90,6 +76,7 @@ mod cli {
             .join("TEST_GITHUB_404.md");
 
         cmd.arg(test_github_404_path)
+            .env_clear()
             .assert()
             .failure()
             .code(2)
