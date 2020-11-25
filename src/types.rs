@@ -92,7 +92,7 @@ pub enum Status {
 
 impl Status {
     pub fn new(statuscode: http::StatusCode, accepted: Option<HashSet<http::StatusCode>>) -> Self {
-        if let Some(true) = accepted.and_then(|a| Some(a.contains(&statuscode))) {
+        if let Some(true) = accepted.map(|a| a.contains(&statuscode)) {
             Status::Ok(statuscode)
         } else if statuscode.is_success() {
             Status::Ok(statuscode)
