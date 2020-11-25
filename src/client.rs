@@ -1,4 +1,7 @@
-use crate::types::{Excludes, Response, Status, Uri};
+use crate::{
+    options::USER_AGENT,
+    types::{Excludes, Response, Status, Uri},
+};
 use anyhow::{anyhow, Context, Result};
 use check_if_email_exists::{check_email, CheckEmailInput};
 use derive_builder::Builder;
@@ -51,11 +54,10 @@ impl ClientBuilder {
 
         // Faking the user agent is necessary for some websites, unfortunately.
         // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
-        // let user_agent = self.user_agent.as_ref().unwrap_or(&"lychee/0.3.0".to_string());
-        let user_agent = match self.user_agent {
-            Some(ref u) => u.clone(),
-            None => String::from("lychee/0.3.0"),
-        };
+        let user_agent = self
+            .user_agent
+            .clone()
+            .unwrap_or_else(|| USER_AGENT.to_string());
 
         headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
         headers.insert(header::TRANSFER_ENCODING, HeaderValue::from_str("chunked")?);
@@ -280,11 +282,11 @@ mod test {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     // Note: the standard library as of Rust stable 1.47.0 does not expose
-    //       "link-local" or "private" IPv6 checks.  However, one might argue
-    //       that these concepts do exist in IPv6, albeit the naming is different.
-    //       See: https://en.wikipedia.org/wiki/Link-local_address#IPv6
-    //       See: https://en.wikipedia.org/wiki/Private_network#IPv6
-    //       See: https://doc.rust-lang.org/stable/std/net/struct.Ipv6Addr.html#method.is_unicast_link_local
+    // "link-local" or "private" IPv6 checks.  However, one might argue
+    // that these concepts do exist in IPv6, albeit the naming is different.
+    // See: https://en.wikipedia.org/wiki/Link-local_address#IPv6
+    // See: https://en.wikipedia.org/wiki/Private_network#IPv6
+    // See: https://doc.rust-lang.org/stable/std/net/struct.Ipv6Addr.html#method.is_unicast_link_local
     const V4_PRIVATE_CLASS_A: &str = "http://10.0.0.1";
     const V4_PRIVATE_CLASS_B: &str = "http://172.16.0.1";
     const V4_PRIVATE_CLASS_C: &str = "http://192.168.0.1";
@@ -299,24 +301,41 @@ mod test {
     const V6_MAPPED_V4_LINK_LOCAL: &str = "http://[::ffff:169.254.0.1]";
 
     fn website_url(s: &str) -> Uri {
-        Uri::Website(Url::parse(s).expect("Expected valid Website Uri"))
+        Uri::Website(Url::parse(s).expect("Expected valid Website URI"))
     }
 
     #[tokio::test]
     async fn test_nonexistent() {
+        let template = ResponseTemplate::new(404);
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(template)
+            .mount(&mock_server)
+            .await;
+
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url("https://endler.dev/abcd"))
+            .check(website_url(&mock_server.uri()))
             .await;
         assert!(matches!(res.status, Status::Failed(_)));
     }
 
     #[tokio::test]
     async fn test_exponential_backoff() {
+        let template = ResponseTemplate::new(404);
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(template)
+            .mount(&mock_server)
+            .await;
+
         let start = Instant::now();
-        let uri = Uri::Website(Url::parse("https://endler.dev/abcd").unwrap());
-        let res = ClientBuilder::default().build().unwrap().check(uri).await;
+        let res = ClientBuilder::default()
+            .build()
+            .unwrap()
+            .check(website_url(&mock_server.uri()))
+            .await;
         let end = start.elapsed();
 
         assert!(matches!(res.status, Status::Failed(_)));
@@ -332,9 +351,9 @@ mod test {
             ClientBuilder::default()
                 .build()
                 .unwrap()
-                .extract_github("https://github.com/mre/idiomatic-rust")
+                .extract_github("https://github.com/lycheeverse/lychee")
                 .unwrap(),
-            ("mre".into(), "idiomatic-rust".into())
+            ("lycheeverse".into(), "lychee".into())
         );
     }
     #[tokio::test]
@@ -343,7 +362,7 @@ mod test {
             ClientBuilder::default()
                 .build()
                 .unwrap()
-                .check(website_url("https://github.com/mre/idiomatic-rust"))
+                .check(website_url("https://github.com/lycheeverse/lychee"))
                 .await
                 .status,
             Status::Ok(_)
@@ -355,9 +374,7 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url(
-                "https://github.com/mre/idiomatic-rust-doesnt-exist-man",
-            ))
+            .check(website_url("https://github.com/lycheeverse/not-lychee"))
             .await
             .status;
         assert!(matches!(res, Status::Error(_)));
@@ -365,10 +382,17 @@ mod test {
 
     #[tokio::test]
     async fn test_non_github() {
+        let template = ResponseTemplate::new(200);
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(template)
+            .mount(&mock_server)
+            .await;
+
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url("https://endler.dev"))
+            .check(website_url(&mock_server.uri()))
             .await
             .status;
         assert!(matches!(res, Status::Ok(_)));
@@ -398,7 +422,7 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url("https://crates.io/keywords/cassandra"))
+            .check(website_url("https://crates.io/crates/lychee"))
             .await;
         assert!(matches!(res.status, Status::Failed(StatusCode::NOT_FOUND)));
 
@@ -411,7 +435,7 @@ mod test {
             .custom_headers(custom)
             .build()
             .unwrap()
-            .check(website_url("https://crates.io/keywords/cassandra"))
+            .check(website_url("https://crates.io/crates/lychee"))
             .await;
         assert!(matches!(res.status, Status::Ok(_)));
     }
@@ -425,8 +449,8 @@ mod test {
         let checker_timeout = Duration::from_millis(10);
         assert!(mock_delay > checker_timeout);
 
-        let mock_server = MockServer::start().await;
         let template = ResponseTemplate::new(200).set_delay(mock_delay);
+        let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .respond_with(template)
             .mount(&mock_server)
@@ -437,9 +461,7 @@ mod test {
             .build()
             .unwrap();
 
-        let resp = client
-            .check(Uri::Website(Url::parse(&mock_server.uri()).unwrap()))
-            .await;
+        let resp = client.check(website_url(&mock_server.uri())).await;
         assert!(matches!(resp.status, Status::Timeout));
     }
 
