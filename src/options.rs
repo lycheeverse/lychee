@@ -35,7 +35,9 @@ macro_rules! fold_in {
 #[derive(Debug, StructOpt)]
 #[structopt(name = "lychee", about = "A glorious link checker")]
 pub(crate) struct LycheeOptions {
-    /// TODO: Inputs
+    /// The inputs (where to get links to check from).
+    /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
+    /// remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`).
     #[structopt(default_value = "README.md", parse(from_str = Input::from))]
     pub inputs: Vec<Input>,
 
@@ -54,7 +56,7 @@ pub struct Config {
     #[serde(default)]
     pub verbose: bool,
 
-    /// TODO: Skip missing input files
+    /// Skip missing input files (default is to error if they don't exist)
     #[structopt(long)]
     #[serde(default)]
     pub skip_missing: bool,
@@ -147,19 +149,18 @@ pub struct Config {
     #[serde(default = "method")]
     pub method: String,
 
-    #[structopt(short, long, help = "Base URL to check relative URls")]
+    /// Base URL to check relative URLs
+    #[structopt(short, long)]
     #[serde(default)]
     pub base_url: Option<String>,
 
-    #[structopt(long, help = "Basic authentication support. Ex 'username:password'")]
+    /// Basic authentication support. E.g. `username:password`
+    #[structopt(long)]
     #[serde(default)]
     pub basic_auth: Option<String>,
 
-    #[structopt(
-        long,
-        help = "GitHub API token to use when checking github.com links, to avoid rate limiting",
-        env = "GITHUB_TOKEN"
-    )]
+    /// GitHub API token to use when checking github.com links, to avoid rate limiting
+    #[structopt(long, env = "GITHUB_TOKEN")]
     #[serde(default)]
     pub github_token: Option<String>,
 }
