@@ -1,7 +1,9 @@
+use crate::types::Input;
 use anyhow::{Error, Result};
 use serde::Deserialize;
 use std::{fs, io::ErrorKind};
 use structopt::{clap::crate_version, StructOpt};
+use url::Url;
 
 pub(crate) const USER_AGENT: &str = concat!("lychee/", crate_version!());
 const METHOD: &str = "get";
@@ -33,9 +35,9 @@ macro_rules! fold_in {
 #[derive(Debug, StructOpt)]
 #[structopt(name = "lychee", about = "A glorious link checker")]
 pub(crate) struct LycheeOptions {
-    /// Input files
-    #[structopt(default_value = "README.md")]
-    pub inputs: Vec<String>,
+    /// TODO: Inputs
+    #[structopt(default_value = "README.md", parse(from_str = Input::from))]
+    pub inputs: Vec<Input>,
 
     /// Configuration file to use
     #[structopt(short, long = "config", default_value = "./lychee.toml")]
@@ -51,6 +53,11 @@ pub struct Config {
     #[structopt(short, long)]
     #[serde(default)]
     pub verbose: bool,
+
+    /// TODO: Skip missing input files
+    #[structopt(long)]
+    #[serde(default)]
+    pub skip_missing: bool,
 
     /// Show progress
     #[structopt(short, long)]

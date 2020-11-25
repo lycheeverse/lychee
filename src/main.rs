@@ -59,7 +59,10 @@ fn main() -> Result<()> {
         }
         None => tokio::runtime::Runtime::new()?,
     };
-    let errorcode = runtime.block_on(run(cfg, opts.inputs))?;
+    let errorcode = runtime.block_on(run(
+        cfg,
+        opts.inputs.iter().map(|i| i.to_string()).collect(),
+    ))?;
     std::process::exit(errorcode);
 }
 

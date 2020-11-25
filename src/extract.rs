@@ -13,6 +13,21 @@ pub(crate) enum FileType {
     Plaintext,
 }
 
+impl<P: AsRef<Path>> From<P> for FileType {
+    /// Detect if the given path points to a Markdown, HTML, or plaintext file.
+    fn from(p: P) -> FileType {
+        let path = p.as_ref();
+        match path.extension() {
+            Some(ext) => match ext.to_str().unwrap() {
+                "md" => FileType::Markdown,
+                "html" | "htm" => FileType::HTML,
+                _ => FileType::Plaintext,
+            },
+            None => FileType::Plaintext,
+        }
+    }
+}
+
 // Use LinkFinder here to offload the actual link searching
 fn find_links(input: &str) -> Vec<linkify::Link> {
     let finder = LinkFinder::new();
