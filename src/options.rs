@@ -34,6 +34,7 @@ macro_rules! fold_in {
 #[structopt(name = "lychee", about = "A glorious link checker")]
 pub(crate) struct LycheeOptions {
     /// Input files
+    #[structopt(default_value = "README.md")]
     pub inputs: Vec<String>,
 
     /// Configuration file to use
@@ -167,10 +168,7 @@ impl Config {
             Ok(c) => c,
             Err(e) => {
                 return match e.kind() {
-                    ErrorKind::NotFound => {
-                        println!("[WARN] could not find configuration file, using arguments");
-                        Ok(None)
-                    }
+                    ErrorKind::NotFound => Ok(None),
                     _ => Err(Error::from(e)),
                 }
             }
