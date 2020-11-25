@@ -2,7 +2,7 @@
 
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
 
-A fast, async, resource-friendly link checker written in Rust.
+A fast, async, resource-friendly link checker written in Rust.  
 For GitHub links, it can optionally use a `GITHUB_TOKEN` to avoid getting blocked by the rate
 limiter.
 
@@ -72,26 +72,23 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 - Skip duplicate URLs
 - Request throttling
 
-## Users
-
-- https://github.com/analysis-tools-dev/static-analysis (soon)
-- https://github.com/mre/idiomatic-rust (soon)
-
-## How?
+## Installation
 
 ```
 cargo install lychee
 ```
 
-Optional (to avoid being rate limited for GitHub links): set an environment variable with your token
-like so `GITHUB_TOKEN=xxxx`, or use the `--github-token` CLI option. This can also be set in the
-config file.
+## Usage
 
-Run it inside a repository with a `README.md` or specify a file with
+Run it inside a repository with a `README.md`, or specify a file with
 
 ```
 lychee <yourfile>
 ```
+
+Optional (to avoid getting rate-limited): set an environment variable with your Github token
+like so `GITHUB_TOKEN=xxxx`, or use the `--github-token` CLI option. It can also be set in the
+config file.
 
 ### CLI exit codes
 
@@ -99,16 +96,13 @@ lychee <yourfile>
 - `1` for any unexpected runtime failures or config errors
 - `2` for link check failures (if any non-excluded link failed the check)
 
-## Comparison
+## Users
 
-Collecting more link checkers here for comparison:
+- https://github.com/analysis-tools-dev/static-analysis (soon)
+- https://github.com/mre/idiomatic-rust (soon)
 
-- https://github.com/bartdag/pylinkvalidator
-- https://github.com/victoriadrake/hydra-link-checker
+## Credits
 
-## Thanks
-
-...to my Github sponsors and Patreon sponsors for supporting these projects. If
-you want to help out as well, [go here](https://github.com/sponsors/mre/).
-
-
+The first prototype of lychee was built in [episode 10 of Hello Rust](https://hello-rust.show/10/).
+Thanks to all Github- and Patreon sponsors for supporting the development since the beginning.
+Also, thanks to all the great contributors who have since made this project more mature.
