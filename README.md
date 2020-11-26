@@ -93,7 +93,7 @@ cargo install lychee
 docker pull lycheeverse/lychee
 ```
 
-## Usage
+## Commandline usage
 
 Run it inside a repository with a `README.md`:
 
@@ -129,6 +129,8 @@ CLI option. It can also be set in the config file. There is an extensive list
 of commandline parameters to customize the behavior.
 
 ### Commandline Parameters
+
+<<<<<<< HEAD
 
 ```
 USAGE:
@@ -169,7 +171,61 @@ ARGS:
     <inputs>...    Input files
 ```
 
-- `0` for success (all links checked successfully or excluded/skipped as configured)
+=======
+
+> > > > > > > 133401c... Update docs
+
+```
+A glorious link checker.
+
+Project home page: https://github.com/lycheeverse/lychee
+
+USAGE:
+    lychee [FLAGS] [OPTIONS] [--] [inputs]...
+
+FLAGS:
+    -E, --exclude-all-private    Exclude all private IPs from checking. Equivalent to `--exclude-private --exclude-link-
+                                 local --exclude-loopback`
+        --exclude-link-local     Exclude link-local IP address range from checking
+        --exclude-loopback       Exclude loopback IP address range from checking
+        --exclude-private        Exclude private IP address ranges from checking
+        --glob-ignore-case       Ignore case when expanding filesystem path glob inputs
+        --help                   Prints help information
+    -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
+    -p, --progress               Show progress
+        --skip-missing           Skip missing input files (default is to error if they don't exist)
+    -V, --version                Prints version information
+    -v, --verbose                Verbose program output
+
+OPTIONS:
+    -a, --accept <accept>                      Comma-separated list of accepted status codes for valid links
+    -b, --base-url <base-url>                  Base URL to check relative URLs
+        --basic-auth <basic-auth>              Basic authentication support. E.g. `username:password`
+    -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
+        --exclude <exclude>...                 Exclude URLs from checking (supports regex)
+        --github-token <github-token>          GitHub API token to use when checking github.com links, to avoid rate
+                                               limiting [env: GITHUB_TOKEN=]
+    -h, --headers <headers>...                 Custom request headers
+        --include <include>...                 URLs to check (supports regex). Has preference over all excludes
+        --max-concurrency <max-concurrency>    Maximum number of concurrent network requests [default: 128]
+    -m, --max-redirects <max-redirects>        Maximum number of allowed redirects [default: 10]
+    -X, --method <method>                      Request method [default: get]
+    -s, --scheme <scheme>                      Only test links with the given scheme (e.g. https)
+    -T, --threads <threads>                    Number of threads to utilize. Defaults to number of cores available to
+                                               the system
+    -t, --timeout <timeout>                    Website timeout from connect to response finished [default: 20]
+    -u, --user-agent <user-agent>              User agent [default: lychee/0.3.1]
+
+ARGS:
+    <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
+                   (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard
+                   input (`-`) [default: README.md]
+```
+
+### Exit codes
+
+- `0` for success (all links checked successfully or excluded/skipped as
+  configured)
 - `1` for missing inputs and any unexpected runtime failures or config errors
 - `2` for link check failures (if any non-excluded link failed the check)
 
