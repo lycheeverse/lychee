@@ -1,16 +1,9 @@
-use crate::extract::FileType;
 use crate::options::Config;
 use anyhow::{anyhow, Result};
-use glob::glob;
 use regex::RegexSet;
 use std::net::IpAddr;
-use std::path::{Path, PathBuf};
 use std::{collections::HashSet, convert::TryFrom, fmt::Display};
-use tokio::fs::read_to_string;
-use tokio::io::{stdin, AsyncReadExt};
 use url::Url;
-
-const STDIN: &str = "-";
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Uri {
@@ -162,113 +155,6 @@ impl Default for Excludes {
             link_local_ips: false,
             loopback_ips: false,
         }
-    }
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub(crate) enum Input {
-    RemoteUrl(Url),
-    FsGlob(String),
-    FsPath(PathBuf),
-    Stdin,
-}
-
-impl ToString for Input {
-    fn to_string(&self) -> String {
-        match self {
-            Self::RemoteUrl(url) => url.to_string(),
-            Self::FsGlob(s) => s.clone(),
-            Self::FsPath(p) => p.to_str().unwrap_or_default().to_owned(),
-            Self::Stdin => STDIN.to_owned(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct InputContent {
-    input: Input,
-    file_type: FileType,
-    content: String,
-}
-
-impl From<&str> for Input {
-    fn from(value: &str) -> Self {
-        if value == STDIN {
-            Self::Stdin
-        } else {
-            match Url::parse(&value) {
-                Ok(url) => Self::RemoteUrl(url),
-                Err(_) => Self::FsGlob(value.to_owned()),
-            }
-        }
-    }
-}
-
-impl Input {
-    async fn get_contents(self) -> Result<Vec<InputContent>> {
-        use Input::*;
-
-        let contents = match self {
-            RemoteUrl(url) => vec![Self::url_contents(url).await?],
-            FsGlob(path_glob) => Self::glob_contents(path_glob).await?,
-            FsPath(path) => vec![Self::path_content(&path).await?],
-            Stdin => vec![Self::stdin_content().await?],
-        };
-
-        Ok(contents)
-    }
-
-    async fn url_contents(url: Url) -> Result<InputContent> {
-        let res = reqwest::get(url.clone()).await?;
-        let content = res.text().await?;
-        let input_content = InputContent {
-            file_type: FileType::from(&url.as_str()),
-            input: Input::RemoteUrl(url),
-            content,
-        };
-
-        Ok(input_content)
-    }
-
-    async fn glob_contents(path_glob: String) -> Result<Vec<InputContent>> {
-        let mut contents = vec![];
-
-        for entry in glob(&path_glob)? {
-            match entry {
-                Ok(path) => {
-                    let content = Self::path_content(&path).await?;
-                    contents.push(content);
-                }
-                Err(e) => println!("{:?}", e),
-            }
-        }
-
-        Ok(contents)
-    }
-
-    async fn path_content<P: Into<PathBuf> + AsRef<Path>>(path: P) -> Result<InputContent> {
-        let input_content = InputContent {
-            file_type: FileType::from(path.as_ref()),
-            content: read_to_string(&path).await?,
-            input: Input::FsPath(path.into()),
-        };
-
-        Ok(input_content)
-    }
-
-    async fn stdin_content() -> Result<InputContent> {
-        let mut content = String::new();
-        let mut stdin = stdin();
-        stdin.read_to_string(&mut content).await?;
-
-        let input_content = InputContent {
-            input: Input::Stdin,
-            content,
-            file_type: FileType::Plaintext,
-        };
-
-        Ok(input_content)
     }
 }
 

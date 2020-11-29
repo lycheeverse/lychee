@@ -1,9 +1,9 @@
-use crate::types::Input;
+use crate::collector::Input;
+
 use anyhow::{Error, Result};
 use serde::Deserialize;
 use std::{fs, io::ErrorKind};
 use structopt::{clap::crate_version, StructOpt};
-use url::Url;
 
 pub(crate) const USER_AGENT: &str = concat!("lychee/", crate_version!());
 const METHOD: &str = "get";
@@ -41,8 +41,8 @@ pub(crate) struct LycheeOptions {
     /// The inputs (where to get links to check from).
     /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
     /// remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`).
-    #[structopt(default_value = "README.md", parse(from_str = Input::from))]
-    pub inputs: Vec<Input>,
+    #[structopt(name = "inputs", default_value = "README.md")]
+    raw_inputs: Vec<String>,
 
     /// Configuration file to use
     #[structopt(short, long = "config", default_value = "./lychee.toml")]
@@ -52,17 +52,25 @@ pub(crate) struct LycheeOptions {
     pub config: Config,
 }
 
+impl LycheeOptions {
+    // This depends on config, which is why a method is required (we could
+    // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there,
+    // but we'd get no access to `glob_ignore_case`.
+    /// Get parsed inputs from options.
+    pub(crate) fn inputs(&self) -> Vec<Input> {
+        self.raw_inputs
+            .iter()
+            .map(|s| Input::new(s, self.config.glob_ignore_case))
+            .collect()
+    }
+}
+
 #[derive(Debug, Deserialize, StructOpt)]
 pub struct Config {
     /// Verbose program output
     #[structopt(short, long)]
     #[serde(default)]
     pub verbose: bool,
-
-    /// Skip missing input files (default is to error if they don't exist)
-    #[structopt(long)]
-    #[serde(default)]
-    pub skip_missing: bool,
 
     /// Show progress
     #[structopt(short, long)]
@@ -166,6 +174,16 @@ pub struct Config {
     #[structopt(long, env = "GITHUB_TOKEN")]
     #[serde(default)]
     pub github_token: Option<String>,
+
+    /// Skip missing input files (default is to error if they don't exist)
+    #[structopt(long)]
+    #[serde(default)]
+    pub skip_missing: bool,
+
+    /// Ignore case when expanding filesystem path glob inputs
+    #[structopt(long)]
+    #[serde(default)]
+    pub glob_ignore_case: bool,
 }
 
 impl Config {
@@ -189,7 +207,7 @@ impl Config {
     }
 
     /// Merge the configuration from TOML into the CLI configuration
-    pub(crate) fn merge(mut self, toml: Config) -> Config {
+    pub(crate) fn merge(&mut self, toml: Config) {
         fold_in! {
             // Destination and source configs
             self, toml;
@@ -216,9 +234,9 @@ impl Config {
             base_url: None;
             basic_auth: None;
             github_token: None;
+            skip_missing: false;
+            glob_ignore_case: false;
         }
-
-        self
     }
 }
 

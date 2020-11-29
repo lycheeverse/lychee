@@ -21,10 +21,10 @@ mod types;
 
 use client::ClientBuilder;
 use client_pool::ClientPool;
+use collector::Input;
 use options::{Config, LycheeOptions};
 use stats::ResponseStats;
-use types::Response;
-use types::{Excludes, Status};
+use types::{Excludes, Response, Status};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
@@ -39,14 +39,13 @@ enum ExitCode {
 
 fn main() -> Result<()> {
     pretty_env_logger::init();
-    let opts = LycheeOptions::from_args();
+    let mut opts = LycheeOptions::from_args();
 
     // Load a potentially existing config file and merge it into the config from the CLI
-    let cfg = if let Some(c) = Config::load_from_file(&opts.config_file)? {
+    if let Some(c) = Config::load_from_file(&opts.config_file)? {
         opts.config.merge(c)
-    } else {
-        opts.config
-    };
+    }
+    let cfg = &opts.config;
 
     let mut runtime = match cfg.threads {
         Some(threads) => {
@@ -59,10 +58,7 @@ fn main() -> Result<()> {
         }
         None => tokio::runtime::Runtime::new()?,
     };
-    let errorcode = runtime.block_on(run(
-        cfg,
-        opts.inputs.iter().map(|i| i.to_string()).collect(),
-    ))?;
+    let errorcode = runtime.block_on(run(cfg, opts.inputs()))?;
     std::process::exit(errorcode);
 }
 
@@ -79,7 +75,7 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
     };
 }
 
-async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
+async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let mut headers = parse_headers(&cfg.headers)?;
     if let Some(auth) = &cfg.basic_auth {
         let auth_header = parse_basic_auth(&auth)?;
@@ -97,18 +93,18 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         .includes(includes)
         .excludes(excludes)
         .max_redirects(cfg.max_redirects)
-        .user_agent(cfg.user_agent)
+        .user_agent(cfg.user_agent.clone())
         .allow_insecure(cfg.insecure)
         .custom_headers(headers)
         .method(method)
         .timeout(timeout)
         .verbose(cfg.verbose)
-        .github_token(cfg.github_token)
-        .scheme(cfg.scheme)
+        .github_token(cfg.github_token.clone())
+        .scheme(cfg.scheme.clone())
         .accepted(accepted)
         .build()?;
 
-    let links = collector::collect_links(inputs, cfg.base_url.clone()).await?;
+    let links = collector::collect_links(&inputs, cfg.base_url.clone()).await?;
     let pb = if cfg.progress {
         Some(
             ProgressBar::new(links.len() as u64)

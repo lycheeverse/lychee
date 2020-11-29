@@ -80,10 +80,32 @@ cargo install lychee
 
 ## Usage
 
-Run it inside a repository with a `README.md`, or specify a file with
+Run it inside a repository with a `README.md`:
 
 ```
-lychee <yourfile>
+lychee
+```
+
+You can also specify various types of inputs:
+
+```
+# check links on a website:
+lychee https://endler.dev/
+
+# check links in a remote file:
+lychee https://raw.githubusercontent.com/lycheeverse/lychee/master/README.md
+
+# check links in local file(s):
+lychee README.md
+lychee test.html info.txt
+
+# check links in local files (by shell glob):
+lychee ~/projects/*/README.md
+
+# check links in local files (lychee supports advanced globbing and ~ expansion):
+lychee "~/projects/big_project/**/README.*"
+# ignore case when globbing, displaying progress and check result for each link:
+lychee --glob-ignore-case --progress --verbose "~/projects/**/[r]eadme.*"
 ```
 
 Optional (to avoid getting rate-limited): set an environment variable with your Github token
