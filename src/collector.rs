@@ -12,7 +12,7 @@ use tokio::io::{stdin, AsyncReadExt};
 
 const STDIN: &str = "-";
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub(crate) enum Input {
     RemoteUrl(Url),
@@ -96,8 +96,6 @@ impl Input {
 
         match_opts.case_sensitive = !ignore_case;
 
-        println!("GLOB {:?} ignore case {:?}", path_glob, ignore_case);
-
         for entry in glob_with(&glob_expanded, match_opts)? {
             match entry {
                 Ok(path) => {
@@ -166,14 +164,43 @@ pub(crate) async fn collect_links(
         _ => None,
     };
 
-    let mut links = HashSet::new();
+    let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(32);
 
-    for input in inputs {
-        let input_contents = input.get_contents(None).await?;
+    // extract input contents
+    for input in inputs.iter().cloned() {
+        let mut sender = contents_tx.clone();
 
-        for input_content in input_contents {
-            links.extend(extract_links(&input_content, base_url.clone()));
+        tokio::spawn(async move {
+            let contents = input.get_contents(None).await;
+            sender.send(contents).await
+        });
+    }
+
+    // receiver will get None once all tasks are done
+    drop(contents_tx);
+
+    // extract links from input contents
+    let mut extract_links_handles = vec![];
+
+    while let Some(result) = contents_rx.recv().await {
+        for input_content in result? {
+            let base_url = base_url.clone();
+            let handle =
+                tokio::task::spawn_blocking(move || extract_links(&input_content, base_url));
+            extract_links_handles.push(handle);
         }
     }
-    Ok(links)
+
+    // Note: we could dispatch links to be checked as soon as we get them,
+    //       instead of building a HashSet will all links.
+    //       This optimization would speed up cases where there's
+    //       a lot of inputs and/or the inputs are large (e.g. big files).
+    let mut collected_links = HashSet::new();
+
+    for handle in extract_links_handles {
+        let links = handle.await?;
+        collected_links.extend(links);
+    }
+
+    Ok(collected_links)
 }
