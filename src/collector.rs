@@ -1,6 +1,6 @@
 use crate::extract::{extract_links, FileType};
 use crate::types::Uri;
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 use glob::glob_with;
 use reqwest::Url;
 use shellexpand::tilde;
@@ -47,12 +47,19 @@ impl Input {
         } else {
             match Url::parse(&value) {
                 Ok(url) => Self::RemoteUrl(url),
-                // we assume that it's cheaper to just do the globbing, without
-                // checking if the `value` actually is a glob pattern
-                Err(_) => Self::FsGlob {
-                    pattern: value.to_owned(),
-                    ignore_case: glob_ignore_case,
-                },
+                Err(_) => {
+                    // this seems to be the only way to determine if this is a glob pattern
+                    let is_glob = glob::Pattern::escape(value) != value;
+
+                    if is_glob {
+                        Self::FsGlob {
+                            pattern: value.to_owned(),
+                            ignore_case: glob_ignore_case,
+                        }
+                    } else {
+                        Self::FsPath(value.into())
+                    }
+                }
             }
         }
     }
@@ -60,21 +67,32 @@ impl Input {
     pub async fn get_contents(
         &self,
         file_type_hint: Option<FileType>,
+        skip_missing: bool,
     ) -> Result<Vec<InputContent>> {
         use Input::*;
 
-        let contents = match self {
-            RemoteUrl(url) => vec![Self::url_contents(url).await?],
+        match self {
+            RemoteUrl(url) => Ok(vec![Self::url_contents(url).await?]),
             FsGlob {
                 pattern,
                 ignore_case,
-            } => Self::glob_contents(pattern, *ignore_case).await?,
-            FsPath(path) => vec![Self::path_content(&path).await?],
-            Stdin => vec![Self::stdin_content(file_type_hint).await?],
-            String(s) => vec![Self::string_content(s, file_type_hint)?],
-        };
-
-        Ok(contents)
+            } => Ok(Self::glob_contents(pattern, *ignore_case).await?),
+            FsPath(path) => {
+                let content = Self::path_content(&path).await.with_context(|| {
+                    format!(
+                        "Failed to read file: `{}`",
+                        path.to_str().unwrap_or("<MALFORMED PATH>")
+                    )
+                });
+                match content {
+                    Ok(input_content) => Ok(vec![input_content]),
+                    Err(_) if skip_missing => Ok(vec![]),
+                    Err(arg) => Err(anyhow!(arg)),
+                }
+            }
+            Stdin => Ok(vec![Self::stdin_content(file_type_hint).await?]),
+            String(s) => Ok(vec![Self::string_content(s, file_type_hint)?]),
+        }
     }
 
     async fn url_contents(url: &Url) -> Result<InputContent> {
@@ -158,6 +176,7 @@ impl ToString for Input {
 pub(crate) async fn collect_links(
     inputs: &[Input],
     base_url: Option<String>,
+    skip_missing_inputs: bool,
 ) -> Result<HashSet<Uri>> {
     let base_url = match base_url {
         Some(url) => Some(Url::parse(&url)?),
@@ -171,7 +190,7 @@ pub(crate) async fn collect_links(
         let mut sender = contents_tx.clone();
 
         tokio::spawn(async move {
-            let contents = input.get_contents(None).await;
+            let contents = input.get_contents(None, skip_missing_inputs).await;
             sender.send(contents).await
         });
     }

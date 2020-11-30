@@ -104,7 +104,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .accepted(accepted)
         .build()?;
 
-    let links = collector::collect_links(&inputs, cfg.base_url.clone()).await?;
+    let links = collector::collect_links(&inputs, cfg.base_url.clone(), cfg.skip_missing).await?;
     let pb = if cfg.progress {
         Some(
             ProgressBar::new(links.len() as u64)
