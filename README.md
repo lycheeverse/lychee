@@ -96,6 +96,10 @@ config file.
 - `1` for any unexpected runtime failures or config errors
 - `2` for link check failures (if any non-excluded link failed the check)
 
+## Troubleshooting and workarounds
+
+We collect a list of common workarounds for various websites in our [troubleshooting guide](./TROUBLESHOOTING.md).
+
 ## Users
 
 - https://github.com/analysis-tools-dev/static-analysis (soon)
