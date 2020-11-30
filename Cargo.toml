@@ -37,7 +37,7 @@ version = "0.10"
 
 [dependencies.tokio]
 features = ["full"]
-version = "0.2"
+version = "0.3"
 
 [dev-dependencies]
 wiremock = "0.3"
