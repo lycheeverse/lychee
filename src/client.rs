@@ -14,7 +14,7 @@ use crate::excludes::Excludes;
 use crate::types::{Response, Status};
 use crate::uri::Uri;
 
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 const DEFAULT_MAX_REDIRECTS: usize = 5;
 
 #[derive(Debug, Clone)]
