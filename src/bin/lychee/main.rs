@@ -20,7 +20,11 @@ use lychee::{ClientBuilder, ClientPool, Response, Status};
 #[cfg(test)]
 mod test_utils;
 
-use collector::Input;
+use crate::options::{Config, LycheeOptions};
+use crate::stats::ResponseStats;
+use crate::collector::Input;
+
+use lychee::{ClientBuilder, ClientPool, Response, Status};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
