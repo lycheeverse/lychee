@@ -1,4 +1,4 @@
-use crate::types::Uri;
+use crate::uri::Uri;
 use linkify::LinkFinder;
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
 use quick_xml::{events::Event as HTMLEvent, Reader};
@@ -7,7 +7,7 @@ use std::path::Path;
 use url::Url;
 
 #[derive(Clone, Debug)]
-pub(crate) enum FileType {
+pub enum FileType {
     HTML,
     Markdown,
     Plaintext,
@@ -105,11 +105,7 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
         .collect()
 }
 
-pub(crate) fn extract_links(
-    file_type: FileType,
-    input: &str,
-    base_url: Option<Url>,
-) -> HashSet<Uri> {
+pub fn extract_links(file_type: FileType, input: &str, base_url: Option<Url>) -> HashSet<Uri> {
     let links = match file_type {
         FileType::Markdown => extract_links_from_markdown(input),
         FileType::HTML => extract_links_from_html(input),

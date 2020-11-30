@@ -1,7 +1,7 @@
-use crate::extract::{extract_links, FileType};
-use crate::types::Uri;
 use anyhow::Result;
 use glob::glob;
+use lychee::extract::{extract_links, FileType};
+use lychee::Uri;
 use reqwest::Url;
 use std::{collections::HashSet, fs};
 use std::{ffi::OsStr, path::Path};

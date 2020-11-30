@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate log;
-
 use anyhow::{anyhow, Result};
 use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
@@ -11,20 +8,14 @@ use std::{collections::HashSet, time::Duration};
 use structopt::StructOpt;
 use tokio::sync::mpsc;
 
-mod client;
-mod client_pool;
 mod collector;
-mod extract;
 mod options;
 mod stats;
-mod types;
 
-use client::ClientBuilder;
-use client_pool::ClientPool;
-use options::{Config, LycheeOptions};
-use stats::ResponseStats;
-use types::Response;
-use types::{Excludes, Status};
+use crate::options::{Config, LycheeOptions};
+use crate::stats::ResponseStats;
+
+use lychee::{ClientBuilder, ClientPool, Response, Status};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
@@ -38,7 +29,6 @@ enum ExitCode {
 }
 
 fn main() -> Result<()> {
-    pretty_env_logger::init();
     let opts = LycheeOptions::from_args();
 
     // Load a potentially existing config file and merge it into the config from the CLI
@@ -87,19 +77,22 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     let timeout = parse_timeout(&cfg.timeout)?;
     let max_concurrency = cfg.max_concurrency.parse()?;
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
-    let includes = RegexSet::new(&cfg.include)?;
-    let excludes = Excludes::from_options(&cfg);
+    let include = RegexSet::new(&cfg.include)?;
+    let exclude = RegexSet::new(&cfg.exclude)?;
 
     let client = ClientBuilder::default()
-        .includes(includes)
-        .excludes(excludes)
+        .includes(include)
+        .excludes(exclude)
+        .exclude_all_private(cfg.exclude_all_private)
+        .exclude_private_ips(cfg.exclude_private)
+        .exclude_link_local_ips(cfg.exclude_link_local)
+        .exclude_loopback_ips(cfg.exclude_loopback)
         .max_redirects(cfg.max_redirects)
         .user_agent(cfg.user_agent)
         .allow_insecure(cfg.insecure)
         .custom_headers(headers)
         .method(method)
         .timeout(timeout)
-        .verbose(cfg.verbose)
         .github_token(cfg.github_token)
         .scheme(cfg.scheme)
         .accepted(accepted)

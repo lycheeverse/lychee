@@ -44,8 +44,9 @@ outdated information.
 | Skip private domains | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
 | [Use as lib]         | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![no]         | ![yes]                | ![no]  |
 | Quiet mode           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]        | ![yes]                | ![yes] |
-| Amazing lychee logo  | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
 | Config file          | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]        | ![yes]                | ![no]  |
+| Use as library       | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
+| Amazing lychee logo  | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
 
 [awesome_bot]: https://github.com/dkhamsing/awesome_bot [muffet]:
 https://github.com/raviqqe/muffet [broken-link-checker]:
@@ -140,6 +141,40 @@ ARGS:
   configured)
 - `1` for any unexpected runtime failures or config errors
 - `2` for link check failures (if any non-excluded link failed the check)
+
+## Library usage
+
+You can use lychee as a library for your own projects.
+Simply add it as a dependency and build your client:
+
+```rust
+use lychee::ClientBuilder;
+use http::StatusCode
+
+let client = ClientBuilder::default().build()?;
+let status = client.check(website_url("https://github.com/lycheeverse/lychee")).await?;
+
+assert!(matches!(status, Status::Ok(_)));
+```
+
+The client is very customizable, e.g.
+
+```rust
+let client = ClientBuilder::default()
+    .includes(includes)
+    .excludes(excludes)
+    .max_redirects(cfg.max_redirects)
+    .user_agent(cfg.user_agent)
+    .allow_insecure(cfg.insecure)
+    .custom_headers(headers)
+    .method(method)
+    .timeout(timeout)
+    .verbose(cfg.verbose)
+    .github_token(cfg.github_token)
+    .scheme(cfg.scheme)
+    .accepted(accepted)
+    .build()?;
+```
 
 ## Users
 
