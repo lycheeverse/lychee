@@ -11,7 +11,7 @@ use regex::{Regex, RegexSet};
 use reqwest::header;
 use std::net::IpAddr;
 use std::{collections::HashSet, time::Duration};
-use tokio::time::delay_for;
+use tokio::time::sleep;
 use url::Url;
 
 const DEFAULT_MAX_REDIRECTS: usize = 5;
@@ -161,7 +161,7 @@ impl Client {
                 false => {
                     if retries > 0 {
                         retries -= 1;
-                        delay_for(Duration::from_secs(wait)).await;
+                        sleep(Duration::from_secs(wait)).await;
                         wait *= 2;
                     } else {
                         break res;

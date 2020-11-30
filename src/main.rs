@@ -48,12 +48,11 @@ fn main() -> Result<()> {
         opts.config
     };
 
-    let mut runtime = match cfg.threads {
+    let runtime = match cfg.threads {
         Some(threads) => {
             // We define our own runtime instead of the `tokio::main` attribute since we want to make the number of threads configurable
-            tokio::runtime::Builder::new()
-                .threaded_scheduler()
-                .core_threads(threads)
+            tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(threads)
                 .enable_all()
                 .build()?
         }
@@ -119,7 +118,7 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         None
     };
 
-    let (mut send_req, recv_req) = mpsc::channel(max_concurrency);
+    let (send_req, recv_req) = mpsc::channel(max_concurrency);
     let (send_resp, mut recv_resp) = mpsc::channel(max_concurrency);
 
     let mut stats = ResponseStats::new();
