@@ -2,7 +2,7 @@ FROM rust:1.48 as builder
 
 RUN USER=root cargo new --bin lychee
 WORKDIR /lychee
-COPY ./Cargo.toml ./Cargo.toml
+COPY Cargo.toml Cargo.toml
 RUN cargo build --release
 RUN rm src/*.rs
 
