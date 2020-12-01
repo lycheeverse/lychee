@@ -20,7 +20,7 @@ mod stats;
 mod types;
 
 #[cfg(test)]
-pub mod test_utils;
+mod test_utils;
 
 use client::ClientBuilder;
 use client_pool::ClientPool;
