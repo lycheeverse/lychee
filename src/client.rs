@@ -57,7 +57,9 @@ pub struct ClientBuilderInternal {
     user_agent: String,
     /// Ignore SSL errors
     allow_insecure: bool,
-    /// Valid URI schemes (e.g. https, http)
+    /// Allowed URI scheme (e.g. https, http).
+    /// This excludes all links from checking, which 
+    /// don't specify that scheme in the URL.
     scheme: Option<String>,
     /// Map of headers to send to each resource.
     /// This allows working around validation issues
