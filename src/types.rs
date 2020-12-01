@@ -1,5 +1,5 @@
 use crate::options::Config;
-use anyhow::{anyhow, Result};
+use anyhow::anyhow;
 use regex::RegexSet;
 use std::net::IpAddr;
 use std::{collections::HashSet, convert::TryFrom, fmt::Display};
