@@ -14,8 +14,8 @@ docker-build: ## Build Docker image
 docker-run: ## Run Docker image
 	docker run $(IMAGE_NAME)
 
-.PHONY: push
-push: ## Push image to Docker Hub
+.PHONY: docker-push
+docker-push: ## Push image to Docker Hub
 	docker push $(IMAGE_NAME)
 
 .PHONY: build-local
