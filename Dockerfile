@@ -12,6 +12,8 @@ RUN rm ./target/release/deps/lychee*
 RUN cargo build --release
 
 
+# Our production image starts here, which uses 
+# the files from the builder image above.
 FROM debian:buster-slim
 ARG APP=/usr/src/lychee
 
