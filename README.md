@@ -61,14 +61,14 @@ https://github.com/tcort/markdown-link-check/issues/94 [skip private domains]:
 https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go
 [use as lib]: https://github.com/raviqqe/liche/issues/13
 
-## Planned features. Please help out!
+## Contributing to lychee
 
-- Report output in HTML, SQL, CSV, XML, JSON, YAML... format
-- Report extended statistics: request latency
-- Recursion
-- Use colored output (https://crates.io/crates/colored)
-- Skip duplicate URLs
-- Request throttling
+We'd be thankful for any contribution.  
+We try keep the issue-tracker up-to-date so you can quickly find a task to work on.
+
+Try one of these links to get started:
+* [good first issues](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+* [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 
 ## Using the Commandline Client
 
@@ -175,6 +175,10 @@ let client = ClientBuilder::default()
     .accepted(accepted)
     .build()?;
 ```
+
+## Troubleshooting and workarounds
+
+We collect a list of common workarounds for various websites in our [troubleshooting guide](./TROUBLESHOOTING.md).
 
 ## Users
 
