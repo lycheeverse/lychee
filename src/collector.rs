@@ -224,3 +224,59 @@ pub(crate) async fn collect_links(
 
     Ok(collected_links)
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::test_utils::get_mock_server_with_content;
+    use std::fs::File;
+    use std::io::Write;
+    use std::str::FromStr;
+
+    const TEST_STRING: &str = "http://test-string.com";
+    const TEST_URL: &str = "https://test-url.org";
+    const TEST_FILE: &str = "https://test-file.io";
+    const TEST_GLOB_1: &str = "https://test-glob-1.io";
+    const TEST_GLOB_2_MAIL: &str = "test@glob-2.io";
+
+    #[tokio::test]
+    async fn test_collect_links() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let file_path = dir.path().join("f");
+        let file_glob_1_path = dir.path().join("glob-1");
+        let file_glob_2_path = dir.path().join("glob-2");
+
+        let mut file = File::create(&file_path)?;
+        let mut file_glob_1 = File::create(file_glob_1_path)?;
+        let mut file_glob_2 = File::create(file_glob_2_path)?;
+
+        writeln!(file, "{}", TEST_FILE)?;
+        writeln!(file_glob_1, "{}", TEST_GLOB_1)?;
+        writeln!(file_glob_2, "{}", TEST_GLOB_2_MAIL)?;
+
+        let mock_server = get_mock_server_with_content(http::StatusCode::OK, Some(TEST_URL)).await;
+
+        let inputs = vec![
+            Input::String(TEST_STRING.to_string()),
+            Input::RemoteUrl(Url::from_str(&mock_server.uri())?),
+            Input::FsPath(file_path),
+            Input::FsGlob {
+                pattern: dir.path().join("glob*").to_str().unwrap().to_string(),
+                ignore_case: true,
+            },
+        ];
+
+        let links = collect_links(&inputs, None, false).await?;
+
+        let mut expected_links = HashSet::new();
+        expected_links.insert(Uri::Website(Url::from_str(TEST_STRING)?));
+        expected_links.insert(Uri::Website(Url::from_str(TEST_URL)?));
+        expected_links.insert(Uri::Website(Url::from_str(TEST_FILE)?));
+        expected_links.insert(Uri::Website(Url::from_str(TEST_GLOB_1)?));
+        expected_links.insert(Uri::Mail(TEST_GLOB_2_MAIL.to_string()));
+
+        assert_eq!(links, expected_links);
+
+        Ok(())
+    }
+}
