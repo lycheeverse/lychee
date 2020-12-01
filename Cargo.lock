@@ -1845,9 +1845,11 @@ dependencies = [
  "serde",
  "shellexpand",
  "structopt",
+ "tempfile",
  "tokio 0.2.22",
  "toml",
  "url",
+ "uuid",
  "wiremock",
 ]
 

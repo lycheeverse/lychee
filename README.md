@@ -115,7 +115,7 @@ config file.
 ### CLI exit codes
 
 - `0` for success (all links checked successfully or excluded/skipped as configured)
-- `1` for any unexpected runtime failures or config errors
+- `1` for missing inputs and any unexpected runtime failures or config errors
 - `2` for link check failures (if any non-excluded link failed the check)
 
 ## Troubleshooting and workarounds

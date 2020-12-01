@@ -72,6 +72,7 @@ impl Input {
         use Input::*;
 
         match self {
+            // TODO: should skip_missing also affect URLs?
             RemoteUrl(url) => Ok(vec![Self::url_contents(url).await?]),
             FsGlob {
                 pattern,
@@ -211,7 +212,7 @@ pub(crate) async fn collect_links(
     }
 
     // Note: we could dispatch links to be checked as soon as we get them,
-    //       instead of building a HashSet will all links.
+    //       instead of building a HashSet with all links.
     //       This optimization would speed up cases where there's
     //       a lot of inputs and/or the inputs are large (e.g. big files).
     let mut collected_links = HashSet::new();
