@@ -1,4 +1,4 @@
-FROM rust:1.48 as builder
+FROM rust:latest as builder
 
 RUN USER=root cargo new --bin lychee
 WORKDIR /lychee
