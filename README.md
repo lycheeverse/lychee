@@ -2,7 +2,9 @@
 
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
 
-A fast, async, resource-friendly link checker written in Rust.
+A fast, async, resource-friendly link checker written in Rust. \
+For GitHub links, it can optionally use a `GITHUB_TOKEN` to avoid getting blocked by the rate
+limiter.
 
 ![Lychee demo](./assets/lychee.gif)
 
@@ -48,27 +50,30 @@ outdated information.
 | Use as library       | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
 | Amazing lychee logo  | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
 
-[awesome_bot]: https://github.com/dkhamsing/awesome_bot [muffet]:
-https://github.com/raviqqe/muffet [broken-link-checker]:
-https://github.com/stevenvachon/broken-link-checker [linkinator]:
-https://github.com/JustinBeckwith/linkinator [linkchecker]:
-https://github.com/linkchecker/linkchecker [markdown-link-check]:
-https://github.com/tcort/markdown-link-check [fink]:
-https://github.com/dantleech/fink [yes]: ./assets/yes.svg [no]: ./assets/no.svg
-[maybe]: ./assets/maybe.svg [custom headers]:
-https://github.com/rust-lang/crates.io/issues/788 [filter status code]:
-https://github.com/tcort/markdown-link-check/issues/94 [skip private domains]:
-https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go
+[awesome_bot]: https://github.com/dkhamsing/awesome_bot
+[muffet]: https://github.com/raviqqe/muffet
+[broken-link-checker]: https://github.com/stevenvachon/broken-link-checker
+[linkinator]: https://github.com/JustinBeckwith/linkinator
+[linkchecker]: https://github.com/linkchecker/linkchecker
+[markdown-link-check]: https://github.com/tcort/markdown-link-check
+[fink]: https://github.com/dantleech/fink
+[yes]: ./assets/yes.svg
+[no]: ./assets/no.svg
+[maybe]: ./assets/maybe.svg
+[custom headers]: https://github.com/rust-lang/crates.io/issues/788
+[filter status code]: https://github.com/tcort/markdown-link-check/issues/94
+[skip private domains]: https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go
 [use as lib]: https://github.com/raviqqe/liche/issues/13
 
 ## Contributing to lychee
 
-We'd be thankful for any contribution.  
+We'd be thankful for any contribution. \
 We try keep the issue-tracker up-to-date so you can quickly find a task to work on.
 
 Try one of these links to get started:
-* [good first issues](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
-* [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
+
+- [good first issues](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+- [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 
 ## Using the Commandline Client
 
