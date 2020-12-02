@@ -74,8 +74,17 @@ Try one of these links to get started:
 
 ## Installation
 
+
+### Using cargo
+
 ```
 cargo install lychee
+```
+
+### Using the official Docker image
+
+```
+docker pull lycheeverse/lychee
 ```
 
 ## Usage
