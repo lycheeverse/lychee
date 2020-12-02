@@ -81,11 +81,19 @@ You can run lychee directly from the commandline.
 
 ### Installation
 
+#### Using cargo
+
 ```
 cargo install lychee
 ```
 
-### Usage
+#### Using the official Docker image
+
+```
+docker pull lycheeverse/lychee
+```
+
+## Usage
 
 Run it inside a repository with a `README.md`:
 
