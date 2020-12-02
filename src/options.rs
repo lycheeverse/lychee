@@ -1,14 +1,24 @@
 use crate::collector::Input;
 
 use anyhow::{Error, Result};
+use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::{fs, io::ErrorKind};
 use structopt::{clap::crate_version, StructOpt};
 
 pub(crate) const USER_AGENT: &str = concat!("lychee/", crate_version!());
 const METHOD: &str = "get";
-const TIMEOUT: &str = "20";
-const MAX_CONCURRENCY: &str = "128";
+const TIMEOUT: usize = 20;
+const MAX_CONCURRENCY: usize = 128;
+const MAX_REDIRECTS: usize = 10;
+
+// this exists because structopt requires `&str` type values for defaults
+// (we can't use e.g. `TIMEOUT` or `timeout()` which gets created for serde)
+lazy_static! {
+    static ref TIMEOUT_STR: String = TIMEOUT.to_string();
+    static ref MAX_CONCURRENCY_STR: String = MAX_CONCURRENCY.to_string();
+    static ref MAX_REDIRECTS_STR: String = MAX_REDIRECTS.to_string();
+}
 
 // Macro for generating default functions to be used by serde
 macro_rules! default_function {
@@ -19,6 +29,15 @@ macro_rules! default_function {
             }
         )*
     };
+}
+
+// Generate the functions for serde defaults
+default_function! {
+    max_redirects: usize = MAX_REDIRECTS;
+    max_concurrency: usize = MAX_CONCURRENCY;
+    user_agent: String = USER_AGENT.to_string();
+    timeout: usize = TIMEOUT;
+    method: String = METHOD.to_string();
 }
 
 // Macro for merging configuration values
@@ -78,14 +97,14 @@ pub struct Config {
     pub progress: bool,
 
     /// Maximum number of allowed redirects
-    #[structopt(short, long, default_value = "10")]
-    #[serde(default)]
+    #[structopt(short, long, default_value = &MAX_REDIRECTS_STR)]
+    #[serde(default = "max_redirects")]
     pub max_redirects: usize,
 
     /// Maximum number of concurrent network requests
-    #[structopt(long, default_value = MAX_CONCURRENCY)]
-    #[serde(default)]
-    pub max_concurrency: String,
+    #[structopt(long, default_value = &MAX_CONCURRENCY_STR)]
+    #[serde(default = "max_concurrency")]
+    pub max_concurrency: usize,
 
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
@@ -150,9 +169,9 @@ pub struct Config {
     pub accept: Option<String>,
 
     /// Website timeout from connect to response finished
-    #[structopt(short, long, default_value = TIMEOUT)]
+    #[structopt(short, long, default_value = &TIMEOUT_STR)]
     #[serde(default = "timeout")]
-    pub timeout: String,
+    pub timeout: usize,
 
     /// Request method
     // Using `-X` as a short param similar to curl
@@ -215,7 +234,7 @@ impl Config {
             // Keys with defaults to assign
             verbose: false;
             progress: false;
-            max_redirects: 10;
+            max_redirects: MAX_REDIRECTS;
             max_concurrency: MAX_CONCURRENCY;
             threads: None;
             user_agent: USER_AGENT;
@@ -238,11 +257,4 @@ impl Config {
             glob_ignore_case: false;
         }
     }
-}
-
-// Generate the functions for serde defaults
-default_function! {
-    user_agent: String = USER_AGENT.to_string();
-    timeout: String = TIMEOUT.to_string();
-    method: String = METHOD.to_string();
 }

@@ -178,13 +178,14 @@ pub(crate) async fn collect_links(
     inputs: &[Input],
     base_url: Option<String>,
     skip_missing_inputs: bool,
+    max_concurrency: usize,
 ) -> Result<HashSet<Uri>> {
     let base_url = match base_url {
         Some(url) => Some(Url::parse(&url)?),
         _ => None,
     };
 
-    let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(32);
+    let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(max_concurrency);
 
     // extract input contents
     for input in inputs.iter().cloned() {
@@ -266,7 +267,7 @@ mod test {
             },
         ];
 
-        let links = collect_links(&inputs, None, false).await?;
+        let links = collect_links(&inputs, None, false, 8).await?;
 
         let mut expected_links = HashSet::new();
         expected_links.insert(Uri::Website(Url::from_str(TEST_STRING)?));

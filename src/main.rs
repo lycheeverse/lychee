@@ -86,8 +86,8 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     }
 
     let accepted = cfg.accept.clone().and_then(|a| parse_statuscodes(&a).ok());
-    let timeout = parse_timeout(&cfg.timeout)?;
-    let max_concurrency = cfg.max_concurrency.parse()?;
+    let timeout = parse_timeout(cfg.timeout);
+    let max_concurrency = cfg.max_concurrency;
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
     let includes = RegexSet::new(&cfg.include)?;
     let excludes = Excludes::from_options(&cfg);
@@ -107,7 +107,13 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .accepted(accepted)
         .build()?;
 
-    let links = collector::collect_links(&inputs, cfg.base_url.clone(), cfg.skip_missing).await?;
+    let links = collector::collect_links(
+        &inputs,
+        cfg.base_url.clone(),
+        cfg.skip_missing,
+        max_concurrency,
+    )
+    .await?;
     let pb = if cfg.progress {
         Some(
             ProgressBar::new(links.len() as u64)
@@ -175,8 +181,8 @@ fn read_header(input: &str) -> Result<(String, String)> {
     Ok((elements[0].into(), elements[1].into()))
 }
 
-fn parse_timeout<S: AsRef<str>>(timeout: S) -> Result<Duration> {
-    Ok(Duration::from_secs(timeout.as_ref().parse::<u64>()?))
+fn parse_timeout(timeout: usize) -> Duration {
+    Duration::from_secs(timeout as u64)
 }
 
 fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {

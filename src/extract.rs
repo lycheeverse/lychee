@@ -25,9 +25,9 @@ impl<P: AsRef<Path>> From<P> for FileType {
     fn from(p: P) -> FileType {
         let path = p.as_ref();
         match path.extension() {
-            Some(ext) => match ext.to_str().expect("Couldn't convert OsStr to str") {
-                "md" => FileType::Markdown,
-                "html" | "htm" => FileType::HTML,
+            Some(ext) => match ext {
+                _ if ext == "md" => FileType::Markdown,
+                _ if (ext == "htm" || ext == "html") => FileType::HTML,
                 _ => FileType::Plaintext,
             },
             None => FileType::Plaintext,

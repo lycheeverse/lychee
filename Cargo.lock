@@ -1834,6 +1834,7 @@ dependencies = [
  "http",
  "hubcaps",
  "indicatif",
+ "lazy_static",
  "linkify",
  "log",
  "predicates",
