@@ -2,7 +2,7 @@
 
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
 
-A fast, async, resource-friendly link checker written in Rust.  
+A fast, async, resource-friendly link checker written in Rust. \
 For GitHub links, it can optionally use a `GITHUB_TOKEN` to avoid getting blocked by the rate
 limiter.
 
@@ -65,7 +65,7 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 
 ## Contributing to lychee
 
-We'd be thankful for any contribution.  
+We'd be thankful for any contribution. \
 We try keep the issue-tracker up-to-date so you can quickly find a task to work on.
 
 Try one of these links to get started:
