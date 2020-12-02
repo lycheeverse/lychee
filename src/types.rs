@@ -119,7 +119,7 @@ impl From<reqwest::Error> for Status {
 }
 
 /// Exclude configuration for the link checker.
-/// You can ignore links based on
+/// You can ignore links based on regex patterns or pre-defined IP ranges.
 #[derive(Clone, Debug)]
 pub struct Excludes {
     pub regex: Option<RegexSet>,

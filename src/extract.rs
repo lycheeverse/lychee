@@ -1,3 +1,4 @@
+use crate::collector::InputContent;
 use crate::types::Uri;
 use linkify::LinkFinder;
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
@@ -11,6 +12,27 @@ pub(crate) enum FileType {
     HTML,
     Markdown,
     Plaintext,
+}
+
+impl Default for FileType {
+    fn default() -> Self {
+        Self::Plaintext
+    }
+}
+
+impl<P: AsRef<Path>> From<P> for FileType {
+    /// Detect if the given path points to a Markdown, HTML, or plaintext file.
+    fn from(p: P) -> FileType {
+        let path = p.as_ref();
+        match path.extension() {
+            Some(ext) => match ext {
+                _ if ext == "md" => FileType::Markdown,
+                _ if (ext == "htm" || ext == "html") => FileType::HTML,
+                _ => FileType::Plaintext,
+            },
+            None => FileType::Plaintext,
+        }
+    }
 }
 
 // Use LinkFinder here to offload the actual link searching
@@ -105,15 +127,11 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
         .collect()
 }
 
-pub(crate) fn extract_links(
-    file_type: FileType,
-    input: &str,
-    base_url: Option<Url>,
-) -> HashSet<Uri> {
-    let links = match file_type {
-        FileType::Markdown => extract_links_from_markdown(input),
-        FileType::HTML => extract_links_from_html(input),
-        FileType::Plaintext => extract_links_from_plaintext(input),
+pub(crate) fn extract_links(input_content: &InputContent, base_url: Option<Url>) -> HashSet<Uri> {
+    let links = match input_content.file_type {
+        FileType::Markdown => extract_links_from_markdown(&input_content.content),
+        FileType::HTML => extract_links_from_html(&input_content.content),
+        FileType::Plaintext => extract_links_from_plaintext(&input_content.content),
     };
 
     // Only keep legit URLs. This sorts out things like anchors.
@@ -149,8 +167,7 @@ mod test {
     fn test_extract_markdown_links() {
         let input = "This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)";
         let links = extract_links(
-            FileType::Markdown,
-            input,
+            &InputContent::from_string(input, FileType::Markdown),
             Some(Url::parse("https://github.com/hello-rust/lychee/").unwrap()),
         );
         assert_eq!(
@@ -178,8 +195,7 @@ mod test {
             </html>"#;
 
         let links = extract_links(
-            FileType::HTML,
-            input,
+            &InputContent::from_string(input, FileType::HTML),
             Some(Url::parse("https://github.com/hello-rust/").unwrap()),
         );
 
@@ -196,14 +212,14 @@ mod test {
     #[test]
     fn test_skip_markdown_anchors() {
         let input = "This is [a test](#lol).";
-        let links = extract_links(FileType::Markdown, input, None);
+        let links = extract_links(&InputContent::from_string(input, FileType::Markdown), None);
         assert_eq!(links, HashSet::new())
     }
 
     #[test]
     fn test_skip_markdown_internal_urls() {
         let input = "This is [a test](./internal).";
-        let links = extract_links(FileType::Markdown, input, None);
+        let links = extract_links(&InputContent::from_string(input, FileType::Markdown), None);
         assert_eq!(links, HashSet::new())
     }
 
@@ -211,7 +227,7 @@ mod test {
     fn test_non_markdown_links() {
         let input =
             "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.com";
-        let links = extract_links(FileType::Plaintext, input, None);
+        let links = extract_links(&InputContent::from_string(input, FileType::Plaintext), None);
         let expected = HashSet::from_iter(
             [
                 Uri::Website(Url::parse("https://endler.dev").unwrap()),
