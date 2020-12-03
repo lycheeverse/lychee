@@ -66,7 +66,7 @@ This comparison is made on a best-effort basis. Please create a PR to fix outdat
 ## Contributing to lychee
 
 We'd be thankful for any contribution. \
-We try keep the issue-tracker up-to-date so you can quickly find a task to work on.
+We try to keep the issue-tracker up-to-date so you can quickly find a task to work on.
 
 Try one of these links to get started:
 * [good first issues](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
