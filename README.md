@@ -83,7 +83,6 @@ You can run lychee directly from the commandline.
 
 #### Using cargo
 
-
 ### Using cargo
 
 ```
@@ -192,9 +191,9 @@ use lychee::ClientBuilder;
 use http::StatusCode
 
 let client = ClientBuilder::default().build()?;
-let status = client.check(website_url("https://github.com/lycheeverse/lychee")).await?;
-
-assert!(matches!(status, Status::Ok(_)));
+let url = Url::parse("https://github.com/lycheeverse/lychee")?;
+let response = client.check(Website(url)).await?;
+assert!(matches!(response.status, Status::Ok(_)));
 ```
 
 The client is very customizable, e.g.
@@ -219,40 +218,6 @@ let client = ClientBuilder::default()
 ## Troubleshooting and workarounds
 
 We collect a list of common workarounds for various websites in our [troubleshooting guide](./TROUBLESHOOTING.md).
-
-## Library usage
-
-You can use lychee as a library for your own projects.
-Simply add it as a dependency and build your client:
-
-```rust
-use lychee::ClientBuilder;
-use http::StatusCode
-
-let client = ClientBuilder::default().build()?;
-let url = Url::parse("https://github.com/lycheeverse/lychee")?;
-let response = client.check(Website(url)).await?;
-assert!(matches!(response.status, Status::Ok(_)));
-```
-
-The client is very customizable, e.g.
-
-```rust
-let client = ClientBuilder::default()
-    .includes(includes)
-    .excludes(excludes)
-    .max_redirects(cfg.max_redirects)
-    .user_agent(cfg.user_agent)
-    .allow_insecure(cfg.insecure)
-    .custom_headers(headers)
-    .method(method)
-    .timeout(timeout)
-    .verbose(cfg.verbose)
-    .github_token(cfg.github_token)
-    .scheme(cfg.scheme)
-    .accepted(accepted)
-    .build()?;
-```
 
 ## Users
 
