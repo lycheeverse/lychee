@@ -2,13 +2,11 @@
 mod cli {
     use anyhow::Result;
     use assert_cmd::Command;
-    use http::StatusCode;
+    use lychee::test_utils;
     use predicates::str::contains;
     use std::fs::File;
     use std::io::Write;
     use std::path::{Path, PathBuf};
-    use wiremock::matchers::path;
-    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn main_command() -> Command {
         // this gets the "main" binary name (e.g. `lychee`)
@@ -17,36 +15,6 @@ mod cli {
 
     fn fixtures_path() -> PathBuf {
         Path::new(module_path!()).parent().unwrap().join("fixtures")
-    }
-
-    // This code is duplicated from the `test_utils` module.
-    // TODO: Remove this duplication
-    async fn get_mock_server<S>(response_code: S) -> MockServer
-    where
-        S: Into<StatusCode>,
-    {
-        get_mock_server_with_content(response_code, None).await
-    }
-
-    async fn get_mock_server_with_content<S>(response_code: S, content: Option<&str>) -> MockServer
-    where
-        S: Into<StatusCode>,
-    {
-        let mock_server = MockServer::start().await;
-        let template = ResponseTemplate::new(response_code.into());
-
-        let template = if let Some(s) = content {
-            template.set_body_string(s)
-        } else {
-            template
-        };
-
-        Mock::given(path("/"))
-            .respond_with(template)
-            .mount(&mock_server)
-            .await;
-
-        mock_server
     }
 
     #[test]
@@ -86,7 +54,7 @@ mod cli {
     #[tokio::test]
     async fn test_failure_404_link() {
         let mut cmd = main_command();
-        let mock_server = get_mock_server(http::StatusCode::NOT_FOUND).await;
+        let mock_server = test_utils::get_mock_server(http::StatusCode::NOT_FOUND).await;
         let dir = tempfile::tempdir().expect("Failed to create tempdir");
         let file_path = dir.path().join("test.txt");
         let mut file = File::create(&file_path).expect("Failed to create tempfile");
@@ -117,7 +85,7 @@ mod cli {
     #[tokio::test]
     async fn test_stdin_input() {
         let mut cmd = main_command();
-        let mock_server = get_mock_server(http::StatusCode::OK).await;
+        let mock_server = test_utils::get_mock_server(http::StatusCode::OK).await;
 
         cmd.arg("-")
             .write_stdin(mock_server.uri())
@@ -128,7 +96,8 @@ mod cli {
     #[tokio::test]
     async fn test_stdin_input_failure() {
         let mut cmd = main_command();
-        let mock_server = get_mock_server(http::StatusCode::INTERNAL_SERVER_ERROR).await;
+        let mock_server =
+            test_utils::get_mock_server(http::StatusCode::INTERNAL_SERVER_ERROR).await;
 
         cmd.arg("-")
             .write_stdin(mock_server.uri())
@@ -140,8 +109,8 @@ mod cli {
     #[tokio::test]
     async fn test_stdin_input_multiple() {
         let mut cmd = main_command();
-        let mock_server_a = get_mock_server(http::StatusCode::OK).await;
-        let mock_server_b = get_mock_server(http::StatusCode::OK).await;
+        let mock_server_a = test_utils::get_mock_server(http::StatusCode::OK).await;
+        let mock_server_b = test_utils::get_mock_server(http::StatusCode::OK).await;
 
         // this behavior (treating multiple `-` as separate inputs) is the same as most CLI tools
         // that accept `-` as stdin, e.g. `cat`, `bat`, `grep` etc.
@@ -182,8 +151,8 @@ mod cli {
         let mut cmd = main_command();
 
         let dir = tempfile::tempdir()?;
-        let mock_server_a = get_mock_server(http::StatusCode::OK).await;
-        let mock_server_b = get_mock_server(http::StatusCode::OK).await;
+        let mock_server_a = test_utils::get_mock_server(http::StatusCode::OK).await;
+        let mock_server_b = test_utils::get_mock_server(http::StatusCode::OK).await;
         let mut file_a = File::create(dir.path().join("a.md"))?;
         let mut file_b = File::create(dir.path().join("b.md"))?;
 
@@ -205,8 +174,8 @@ mod cli {
         let mut cmd = main_command();
 
         let dir = tempfile::tempdir()?;
-        let mock_server_a = get_mock_server(http::StatusCode::OK).await;
-        let mock_server_b = get_mock_server(http::StatusCode::OK).await;
+        let mock_server_a = test_utils::get_mock_server(http::StatusCode::OK).await;
+        let mock_server_b = test_utils::get_mock_server(http::StatusCode::OK).await;
         let mut file_a = File::create(dir.path().join("README.md"))?;
         let mut file_b = File::create(dir.path().join("readme.md"))?;
 
@@ -231,7 +200,7 @@ mod cli {
         let subdir_level_1 = tempfile::tempdir_in(&dir)?;
         let subdir_level_2 = tempfile::tempdir_in(&subdir_level_1)?;
 
-        let mock_server = get_mock_server(http::StatusCode::OK).await;
+        let mock_server = test_utils::get_mock_server(http::StatusCode::OK).await;
         let mut file = File::create(subdir_level_2.path().join("test.md"))?;
 
         writeln!(file, "{}", mock_server.uri().as_str())?;
