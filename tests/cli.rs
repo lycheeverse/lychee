@@ -19,7 +19,8 @@ mod cli {
         Path::new(module_path!()).parent().unwrap().join("fixtures")
     }
 
-    // TODO: duplicate of test_utils
+    // This code is duplicated from the `test_utils` module.
+    // TODO: Remove this duplication
     async fn get_mock_server<S>(response_code: S) -> MockServer
     where
         S: Into<StatusCode>,

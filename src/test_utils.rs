@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use http::StatusCode;
 use wiremock::matchers::path;
 use wiremock::{Mock, MockServer, ResponseTemplate};

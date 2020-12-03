@@ -229,7 +229,7 @@ pub(crate) async fn collect_links(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::test_utils::get_mock_server_with_content;
+    use lychee::test_utils::get_mock_server_with_content;
     use std::fs::File;
     use std::io::Write;
     use std::str::FromStr;
