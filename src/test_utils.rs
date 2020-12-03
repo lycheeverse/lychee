@@ -2,7 +2,6 @@ use http::StatusCode;
 use wiremock::matchers::path;
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-// TODO: used in cli tests (as duplicate)
 #[allow(unused)]
 pub async fn get_mock_server<S>(response_code: S) -> MockServer
 where
