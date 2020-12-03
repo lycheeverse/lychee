@@ -8,15 +8,13 @@ use std::{collections::HashSet, time::Duration};
 use structopt::StructOpt;
 use tokio::sync::mpsc;
 
-mod collector;
-mod extract;
 mod options;
 mod stats;
 
-use crate::collector::Input;
 use crate::options::{Config, LycheeOptions};
 use crate::stats::ResponseStats;
 
+use lychee::collector::{self, Input};
 use lychee::{ClientBuilder, ClientPool, Response, Status};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.

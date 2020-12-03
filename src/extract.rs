@@ -1,6 +1,6 @@
 use crate::collector::InputContent;
+use crate::uri::Uri;
 use linkify::LinkFinder;
-use lychee::Uri;
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
 use quick_xml::{events::Event as HTMLEvent, Reader};
 use std::collections::HashSet;

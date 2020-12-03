@@ -26,9 +26,12 @@
 mod client;
 mod client_pool;
 mod excludes;
-pub mod test_utils;
 mod types;
 mod uri;
+
+pub mod collector;
+pub mod extract;
+pub mod test_utils;
 
 pub use client::ClientBuilder;
 pub use client_pool::ClientPool;
