@@ -10,8 +10,6 @@ use std::path::PathBuf;
 use tokio::fs::read_to_string;
 use tokio::io::{stdin, AsyncReadExt};
 
-use crate::extract::{extract_links, FileType};
-
 const STDIN: &str = "-";
 
 #[derive(Debug, Clone)]

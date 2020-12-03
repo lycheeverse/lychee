@@ -26,7 +26,6 @@
 mod client;
 mod client_pool;
 mod excludes;
-mod test_utils;
 mod types;
 mod uri;
 

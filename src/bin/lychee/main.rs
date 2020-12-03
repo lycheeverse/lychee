@@ -13,16 +13,9 @@ mod extract;
 mod options;
 mod stats;
 
-use crate::options::{Config, LycheeOptions};
-use crate::stats::ResponseStats;
-
-use lychee::{ClientBuilder, ClientPool, Response, Status};
-#[cfg(test)]
-mod test_utils;
-
-use crate::options::{Config, LycheeOptions};
-use crate::stats::ResponseStats;
 use crate::collector::Input;
+use crate::options::{Config, LycheeOptions};
+use crate::stats::ResponseStats;
 
 use lychee::{ClientBuilder, ClientPool, Response, Status};
 
