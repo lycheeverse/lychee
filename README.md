@@ -83,8 +83,6 @@ You can run lychee directly from the commandline.
 
 #### Using cargo
 
-### Using cargo
-
 ```
 cargo install lychee
 ```
@@ -125,12 +123,20 @@ lychee "~/projects/big_project/**/README.*"
 lychee --glob-ignore-case --progress --verbose "~/projects/**/[r]eadme.*"
 ```
 
-Optionally (to avoid getting rate-limited) you can set an environment variable
-with your Github token like so `GITHUB_TOKEN=xxxx`, or use the `--github-token`
-CLI option. It can also be set in the config file. There is an extensive list
-of commandline parameters to customize the behavior.
+### GitHub token
+
+Optionally, to avoid getting rate-limited while checking GitHub links, you can
+set an environment variable with your Github token like so `GITHUB_TOKEN=xxxx`,
+or use the `--github-token` CLI option. It can also be set in the config file.
+
+The token can be generated in your
+[GitHub account settings page](https://github.com/settings/tokens). A personal
+token with no extra permissions is enough to be able to check public repos links.
 
 ### Commandline Parameters
+
+There is an extensive list of commandline parameters to customize the behavior,
+see below for a full list.
 
 ```
 USAGE:
@@ -221,6 +227,7 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 
 ## Users
 
+- https://github.com/pawroman/links
 - https://github.com/analysis-tools-dev/static-analysis (soon)
 - https://github.com/mre/idiomatic-rust (soon)
 
