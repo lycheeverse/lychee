@@ -1,48 +1,6 @@
-use crate::options::Config;
+use crate::uri::Uri;
 use anyhow::anyhow;
-use regex::RegexSet;
-use std::net::IpAddr;
-use std::{collections::HashSet, convert::TryFrom, fmt::Display};
-use url::Url;
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Uri {
-    Website(Url),
-    Mail(String),
-}
-
-impl Uri {
-    pub fn as_str(&self) -> &str {
-        match self {
-            Uri::Website(url) => url.as_str(),
-            Uri::Mail(address) => address.as_str(),
-        }
-    }
-
-    pub fn scheme(&self) -> Option<String> {
-        match self {
-            Uri::Website(url) => Some(url.scheme().to_string()),
-            Uri::Mail(_address) => None,
-        }
-    }
-
-    pub fn host_ip(&self) -> Option<IpAddr> {
-        match self {
-            Self::Website(url) => match url.host()? {
-                url::Host::Ipv4(v4_addr) => Some(v4_addr.into()),
-                url::Host::Ipv6(v6_addr) => Some(v6_addr.into()),
-                _ => None,
-            },
-            Self::Mail(_) => None,
-        }
-    }
-}
-
-impl Display for Uri {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
+use std::{collections::HashSet, convert::TryFrom};
 
 /// Specifies how requests to websites will be made
 pub(crate) enum RequestMethod {
@@ -118,50 +76,11 @@ impl From<reqwest::Error> for Status {
     }
 }
 
-/// Exclude configuration for the link checker.
-/// You can ignore links based on regex patterns or pre-defined IP ranges.
-#[derive(Clone, Debug)]
-pub struct Excludes {
-    pub regex: Option<RegexSet>,
-    /// Example: 192.168.0.1
-    pub private_ips: bool,
-    /// Example: 169.254.0.0
-    pub link_local_ips: bool,
-    /// For IPv4: 127.0. 0.1/8
-    /// For IPv6: ::1/128
-    pub loopback_ips: bool,
-}
-
-impl Excludes {
-    pub fn from_options(config: &Config) -> Self {
-        // exclude_all_private option turns on all "private" excludes,
-        // including private IPs, link-local IPs and loopback IPs
-        let enable_exclude = |opt| opt || config.exclude_all_private;
-
-        Self {
-            regex: RegexSet::new(&config.exclude).ok(),
-            private_ips: enable_exclude(config.exclude_private),
-            link_local_ips: enable_exclude(config.exclude_link_local),
-            loopback_ips: enable_exclude(config.exclude_loopback),
-        }
-    }
-}
-
-impl Default for Excludes {
-    fn default() -> Self {
-        Self {
-            regex: None,
-            private_ips: false,
-            link_local_ips: false,
-            loopback_ips: false,
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::net::{Ipv4Addr, Ipv6Addr};
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+    use url::Url;
 
     #[test]
     fn test_uri_host_ip_v4() {

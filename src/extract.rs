@@ -1,5 +1,5 @@
 use crate::collector::InputContent;
-use crate::types::Uri;
+use crate::uri::Uri;
 use linkify::LinkFinder;
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
 use quick_xml::{events::Event as HTMLEvent, Reader};
@@ -8,7 +8,7 @@ use std::path::Path;
 use url::Url;
 
 #[derive(Clone, Debug)]
-pub(crate) enum FileType {
+pub enum FileType {
     HTML,
     Markdown,
     Plaintext,

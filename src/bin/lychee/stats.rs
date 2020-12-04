@@ -3,9 +3,7 @@ use std::{
     fmt::{self, Display},
 };
 
-use crate::types::Response;
-use crate::types::Status::*;
-use crate::types::Uri;
+use lychee::{Response, Status::*, Uri};
 
 pub struct ResponseStats {
     total: usize,

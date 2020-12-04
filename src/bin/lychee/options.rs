@@ -1,4 +1,4 @@
-use crate::collector::Input;
+use lychee::collector::Input;
 
 use anyhow::{Error, Result};
 use lazy_static::lazy_static;

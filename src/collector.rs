@@ -1,5 +1,5 @@
 use crate::extract::{extract_links, FileType};
-use crate::types::Uri;
+use crate::uri::Uri;
 use anyhow::{anyhow, Context, Result};
 use glob::glob_with;
 use reqwest::Url;
@@ -14,7 +14,7 @@ const STDIN: &str = "-";
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub(crate) enum Input {
+pub enum Input {
     RemoteUrl(Url),
     FsGlob { pattern: String, ignore_case: bool },
     FsPath(PathBuf),
@@ -23,7 +23,7 @@ pub(crate) enum Input {
 }
 
 #[derive(Debug)]
-pub(crate) struct InputContent {
+pub struct InputContent {
     pub input: Input,
     pub file_type: FileType,
     pub content: String,
@@ -41,7 +41,7 @@ impl InputContent {
 }
 
 impl Input {
-    pub(crate) fn new(value: &str, glob_ignore_case: bool) -> Self {
+    pub fn new(value: &str, glob_ignore_case: bool) -> Self {
         if value == STDIN {
             Self::Stdin
         } else {
@@ -174,7 +174,7 @@ impl ToString for Input {
 
 /// Fetch all unique links from a slice of inputs
 /// All relative URLs get prefixed with `base_url` if given.
-pub(crate) async fn collect_links(
+pub async fn collect_links(
     inputs: &[Input],
     base_url: Option<String>,
     skip_missing_inputs: bool,
