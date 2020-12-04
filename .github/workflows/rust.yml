@@ -47,7 +47,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
-      - name: Publish on crates.io
-        run: |
-          cargo login ${{ secrets.CARGO_TOKEN }}
-          cargo publish
+      - name: cargo publish
+        uses: actions-rs/cargo@v1
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        with:
+          command: publish
