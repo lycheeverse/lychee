@@ -19,7 +19,8 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-  lints:
+  
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -37,3 +38,16 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: 
+      - test
+      - lint  
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Publish on crates.io
+        run: |
+          cargo login ${{ secrets.CARGO_TOKEN }}
+          cargo publish
