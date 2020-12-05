@@ -19,8 +19,8 @@ outdated information.
 | Async/Parallel       | ![yes]  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]        | ![yes]                | ![yes] |
 | Static binary        | ![yes]  | ![no]         | ![yes]   | ![no]                 | ![no]        | ️ ![no]       | ![no]                 | ![no]  |
 | Markdown files       | ![yes]  | ![yes]        | ![no]    | ![no]                 | ![no]        | ![no]         | ️ ![yes]              | ![no]  |
-| HTML files           | ![yes]  | ![no]         | ![no]    | ![yes]                | ![yes]       | ![no]         | ![no]                 | ![no]  |
-| Text files           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
+| HTML files           | ![yes]  | ![no]         | ![no]    | ![yes]                | ![yes]       | ![no]         | ![yes]                 | ![no]  |
+| Text files           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                | ![no]  |
 | Website support      | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]        | ![no]                 | ![yes] |
 | Chunked encodings    | ![yes]  | ![maybe]      | ![maybe] | ![maybe]              | ![maybe]     | ![no]         | ![yes]                | ![yes] |
 | GZIP compression     | ![yes]  | ![maybe]      | ![maybe] | ![yes]                | ![maybe]     | ![yes]        | ![maybe]              | ![no]  |
