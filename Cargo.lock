@@ -613,9 +613,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "check-if-email-exists"
-version = "0.8.15"
+version = "0.8.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a249043792b6514edd5b887617ba443b3a4bb17471ff6efa82dd3ce93e04b41"
+checksum = "fa8642fa3484ab3fc21d6b011e397b26a8c46bea846ba4644b090c5fe2c667c9"
 dependencies = [
  "async-smtp",
  "async-std",
@@ -1847,9 +1847,9 @@ dependencies = [
 
 [[package]]
 name = "mailchecker"
-version = "3.3.12"
+version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e50e1556564c2d9513a95b6cc476c4b6aebb2064c4792666f5ad1e92e6d4267a"
+checksum = "da57b836d9f70ab939e1fc6e5f3d1d8cc373304c11eb0dd5398151e31440f88c"
 dependencies = [
  "fast_chemail",
 ]
