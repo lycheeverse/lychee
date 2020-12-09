@@ -52,3 +52,6 @@ assert_cmd = "1.0"
 predicates = "1.0"
 uuid = { version = "0.8", features = ["v4"] }
 tempfile = "3.1"
+
+[features]
+vendored-openssl = ["openssl-sys/vendored"]
