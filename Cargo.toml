@@ -38,6 +38,7 @@ deadpool = "0.6.0"
 shellexpand = "2.0"
 lazy_static = "1.1"
 wiremock = "0.3.0"
+openssl-sys = "0.9.58" 
 
 [dependencies.reqwest]
 features = ["gzip"]
