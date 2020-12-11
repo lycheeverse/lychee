@@ -14,7 +14,7 @@ keywords = [
 license = "Apache-2.0/MIT"
 name = "lychee"
 repository = "https://github.com/lycheeverse/lychee"
-version = "0.3.1"
+version = "0.4.0"
 
 [dependencies]
 anyhow = "1.0.35"
