@@ -38,6 +38,7 @@ deadpool = "0.6.0"
 shellexpand = "2.0"
 lazy_static = "1.1"
 wiremock = "0.3.0"
+openssl-sys = "0.9.58" 
 
 [dependencies.reqwest]
 features = ["gzip"]
@@ -52,3 +53,6 @@ assert_cmd = "1.0"
 predicates = "1.0"
 uuid = { version = "0.8", features = ["v4"] }
 tempfile = "3.1"
+
+[features]
+vendored-openssl = ["openssl-sys/vendored"]
