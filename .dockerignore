@@ -2,3 +2,5 @@
 target
 assets
 fixtures
+.github
+.vscode

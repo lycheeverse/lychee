@@ -23,24 +23,10 @@ RUN cargo build --release
 # Our production image starts here, which uses 
 # the files from the builder image above.
 FROM debian:buster-slim
-ARG APP=/usr/src/lychee
 
 RUN apt-get update \
     && apt-get install -y ca-certificates tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-ENV TZ=Etc/UTC \
-    APP_USER=lychee
-
-RUN groupadd $APP_USER \
-    && useradd -g $APP_USER $APP_USER \
-    && mkdir -p ${APP}
-
-COPY --from=builder /lychee/target/release/lychee ${APP}/lychee
-
-RUN chown -R $APP_USER:$APP_USER ${APP}
-
-USER $APP_USER
-WORKDIR ${APP}
-
-ENTRYPOINT [ "./lychee" ]
+COPY --from=builder /lychee/target/release/lychee /usr/local/bin/lychee
+ENTRYPOINT [ "lychee" ]
