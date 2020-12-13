@@ -4,9 +4,10 @@ mod cli {
     use assert_cmd::Command;
     use lychee::test_utils;
     use predicates::str::contains;
-    use std::fs::File;
+    use std::fs::{self, File};
     use std::io::Write;
     use std::path::{Path, PathBuf};
+    use uuid::Uuid;
 
     fn main_command() -> Command {
         // this gets the "main" binary name (e.g. `lychee`)
@@ -212,6 +213,28 @@ mod cli {
             .success()
             .stdout(contains("Total: 1"));
 
+        Ok(())
+    }
+
+    /// Test formatted file output
+    #[test]
+    fn test_formatted_file_output() -> Result<()> {
+        let mut cmd = main_command();
+        let test_path = fixtures_path().join("TEST.md");
+        let outfile = format!("{}.json", Uuid::new_v4());
+
+        cmd.arg("--output")
+            .arg(&outfile)
+            .arg("--format")
+            .arg("json")
+            .arg(test_path)
+            .assert()
+            .success();
+
+        let expected = r##"{"total":10,"successful":10,"failures":[],"timeouts":[],"redirects":[],"excludes":[],"errors":[]}"##;
+        let output = fs::read_to_string(&outfile)?;
+        assert_eq!(output, expected);
+        fs::remove_file(outfile)?;
         Ok(())
     }
 }
