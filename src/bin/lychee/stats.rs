@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use std::{
     collections::HashSet,
     fmt::{self, Display},
@@ -5,6 +7,7 @@ use std::{
 
 use lychee::{Response, Status::*, Uri};
 
+#[derive(Serialize, Deserialize)]
 pub struct ResponseStats {
     total: usize,
     successful: usize,

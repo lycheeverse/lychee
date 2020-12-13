@@ -1,8 +1,9 @@
 use lychee::collector::Input;
 
-use anyhow::{Error, Result};
+use anyhow::{anyhow, Error, Result};
 use lazy_static::lazy_static;
 use serde::Deserialize;
+use std::str::FromStr;
 use std::{fs, io::ErrorKind, path::PathBuf};
 use structopt::{clap::crate_version, StructOpt};
 
@@ -11,6 +12,29 @@ const METHOD: &str = "get";
 const TIMEOUT: usize = 20;
 const MAX_CONCURRENCY: usize = 128;
 const MAX_REDIRECTS: usize = 10;
+
+#[derive(Debug, Deserialize)]
+pub enum Format {
+    String,
+    JSON,
+}
+
+impl FromStr for Format {
+    type Err = Error;
+    fn from_str(format: &str) -> Result<Self, Self::Err> {
+        match format {
+            "string" => Ok(Format::String),
+            "json" => Ok(Format::JSON),
+            _ => Err(anyhow!("Could not parse format {}", format)),
+        }
+    }
+}
+
+impl Default for Format {
+    fn default() -> Self {
+        Format::String
+    }
+}
 
 // this exists because structopt requires `&str` type values for defaults
 // (we can't use e.g. `TIMEOUT` or `timeout()` which gets created for serde)
@@ -208,6 +232,11 @@ pub struct Config {
     #[structopt(short, long, parse(from_os_str))]
     #[serde(default)]
     pub output: Option<PathBuf>,
+
+    /// Output file format of status report
+    #[structopt(short, long, default_value = "string")]
+    #[serde(default)]
+    pub format: Format,
 }
 
 impl Config {

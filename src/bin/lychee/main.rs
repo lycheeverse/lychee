@@ -2,6 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
+use options::Format;
 use regex::RegexSet;
 use std::{collections::HashSet, time::Duration};
 use std::{fs, str::FromStr};
@@ -63,6 +64,13 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
     } else if let Some(message) = message {
         println!("{}", message);
     };
+}
+
+fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
+    Ok(match format {
+        Format::String => stats.to_string(),
+        Format::JSON => serde_json::to_string(&stats)?,
+    })
 }
 
 async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
@@ -155,7 +163,8 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     }
 
     if let Some(output) = &cfg.output {
-        fs::write(output, stats.to_string()).context("Cannot write status output to file")?;
+        fs::write(output, fmt(&stats, &cfg.format)?)
+            .context("Cannot write status output to file")?;
     }
 
     match stats.is_success() {

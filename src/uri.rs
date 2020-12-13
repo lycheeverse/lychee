@@ -1,10 +1,11 @@
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use std::{convert::TryFrom, fmt::Display};
 use url::Url;
 
 /// Lychee's own representation of a URI, which encapsulates all support formats
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Uri {
     /// Website URL
     Website(Url),
