@@ -1,10 +1,10 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
 use regex::RegexSet;
-use std::str::FromStr;
 use std::{collections::HashSet, time::Duration};
+use std::{fs, str::FromStr};
 use structopt::StructOpt;
 use tokio::sync::mpsc;
 
@@ -152,6 +152,10 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
 
     if cfg.verbose {
         println!("\n{}", stats);
+    }
+
+    if let Some(output) = &cfg.output {
+        fs::write(output, stats.to_string()).context("Cannot write status output to file")?;
     }
 
     match stats.is_success() {

@@ -3,7 +3,7 @@ use lychee::collector::Input;
 use anyhow::{Error, Result};
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use std::{fs, io::ErrorKind};
+use std::{fs, io::ErrorKind, path::PathBuf};
 use structopt::{clap::crate_version, StructOpt};
 
 pub(crate) const USER_AGENT: &str = concat!("lychee/", crate_version!());
@@ -203,6 +203,11 @@ pub struct Config {
     #[structopt(long)]
     #[serde(default)]
     pub glob_ignore_case: bool,
+
+    /// Output file of status report
+    #[structopt(short, long, parse(from_os_str))]
+    #[serde(default)]
+    pub output: Option<PathBuf>,
 }
 
 impl Config {
@@ -255,6 +260,7 @@ impl Config {
             github_token: None;
             skip_missing: false;
             glob_ignore_case: false;
+            output: None;
         }
     }
 }
