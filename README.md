@@ -235,6 +235,7 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 - https://github.com/analysis-tools-dev/static-analysis
 - https://github.com/analysis-tools-dev/dynamic-analysis
 - https://github.com/mre/idiomatic-rust
+- https://github.com/lycheeverse/lychee (yes, the lychee docs are checked with lychee 🤯)
 
 If you are using lychee for your project, we'd be delighted to hear about it.
 
