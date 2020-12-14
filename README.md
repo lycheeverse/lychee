@@ -233,8 +233,9 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 ## Users
 
 - https://github.com/pawroman/links
-- https://github.com/analysis-tools-dev/static-analysis (soon)
-- https://github.com/mre/idiomatic-rust (soon)
+- https://github.com/analysis-tools-dev/static-analysis
+- https://github.com/analysis-tools-dev/dynamic-analysis
+- https://github.com/mre/idiomatic-rust
 
 If you are using lychee for your project, we'd be delighted to hear about it.
 
