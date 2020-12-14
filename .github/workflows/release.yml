@@ -42,6 +42,9 @@ jobs:
           # - mipsel-unknown-linux-musl
       fail-fast: false
     steps:
+      - name: Install libssl-dev
+        run: sudo apt install libssl-dev
+      
       - name: Install musl tools
         if: contains(matrix.target, 'musl')
         run: sudo apt-get install -y musl-tools
