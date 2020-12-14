@@ -12,7 +12,7 @@ limiter.
 
 This comparison is made on a best-effort basis. Please create a PR to fix
 outdated information.
-
+use
 |                      | lychee  | [awesome_bot] | [muffet] | [broken-link-checker] | [linkinator] | [linkchecker] | [markdown-link-check] | [fink] |
 | -------------------- | ------- | ------------- | -------- | --------------------- | ------------ | ------------- | --------------------- | ------ |
 | Language             | Rust    | Ruby          | Go       | JS                    | TypeScript   | Python        | JS                    | PHP    |
@@ -62,7 +62,7 @@ outdated information.
 [custom headers]: https://github.com/rust-lang/crates.io/issues/788
 [filter status code]: https://github.com/tcort/markdown-link-check/issues/94
 [skip private domains]: https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go
-[use as lib]: https://github.com/raviqqe/liche/issues/13
+[use as library]: https://github.com/raviqqe/liche/issues/13
 
 ## Contributing to lychee
 
