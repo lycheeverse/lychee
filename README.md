@@ -92,7 +92,7 @@ cargo install lychee
 docker pull lycheeverse/lychee
 ```
 
-### Using pre-built binaries
+#### Using pre-built binaries
 
 We provide binaries for Linux, macOS, and Windows for every release. \
 You can download them from the [releases page](https://github.com/lycheeverse/lychee/releases).
