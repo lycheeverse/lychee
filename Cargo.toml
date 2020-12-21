@@ -17,7 +17,7 @@ repository = "https://github.com/lycheeverse/lychee"
 version = "0.4.0"
 
 [dependencies]
-anyhow = "1.0.35"
+anyhow = "1.0.36"
 futures = "0.3"
 glob = "0.3"
 http = "0.2"
