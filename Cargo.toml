@@ -28,7 +28,7 @@ url = "2.2.0"
 check-if-email-exists = "0.8.16"
 indicatif = "0.15.0"
 structopt = "0.3"
-toml = "0.5.7"
+toml = "0.5.8"
 serde = { version = "1.0", features = ["derive"] }
 pulldown-cmark = "0.8.0"
 quick-xml = "0.20.0"
