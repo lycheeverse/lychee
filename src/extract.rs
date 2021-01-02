@@ -60,11 +60,17 @@ fn extract_links_from_markdown(input: &str) -> Vec<String> {
 // Extracting unparsed URL strings from a HTML string
 fn extract_links_from_html(input: &str) -> Vec<String> {
     let mut reader = Reader::from_str(input);
+
+    // allow not well-formed XML documents, which contain non-closed elements
+    // (e.g. HTML5 which has things like `<link>`)
+    reader.check_end_names(false);
+
     let mut buf = Vec::new();
     let mut urls = Vec::new();
+
     while let Ok(e) = reader.read_event(&mut buf) {
         match e {
-            HTMLEvent::Start(ref e) => {
+            HTMLEvent::Start(ref e) | HTMLEvent::Empty(ref e) => {
                 for attr in e.attributes() {
                     if let Ok(attr) = attr {
                         match (attr.key, e.name()) {
@@ -161,6 +167,8 @@ pub(crate) fn extract_links(input_content: &InputContent, base_url: Option<Url>)
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::fs::File;
+    use std::io::{BufReader, Read};
     use std::iter::FromIterator;
 
     #[test]
@@ -250,5 +258,72 @@ mod test {
         let expected = "http://msdn.microsoft.com/library/ie/ms535874(v=vs.85).aspx)";
         assert!(links.len() == 1);
         assert_eq!(links[0].as_str(), expected);
+    }
+
+    #[test]
+    fn test_extract_html5_not_valid_xml() {
+        let test_html5 = Path::new(module_path!())
+            .parent()
+            .unwrap()
+            .join("fixtures")
+            .join("TEST_HTML5.html");
+
+        let file = File::open(test_html5).expect("Unable to open test file");
+        let mut buf_reader = BufReader::new(file);
+        let mut input = String::new();
+        buf_reader
+            .read_to_string(&mut input)
+            .expect("Unable to read test file contents");
+
+        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+        let expected_links = [
+            Uri::Website(Url::parse("https://example.com/head/home").unwrap()),
+            Uri::Website(Url::parse("https://example.com/css/style_full_url.css").unwrap()),
+            // the body link wouldn't be present if the file was parsed strictly as XML
+            Uri::Website(Url::parse("https://example.com/body/a").unwrap()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_html5_not_valid_xml_relative_links() {
+        let test_html5 = Path::new(module_path!())
+            .parent()
+            .unwrap()
+            .join("fixtures")
+            .join("TEST_HTML5.html");
+
+        let file = File::open(test_html5).expect("Unable to open test file");
+        let mut buf_reader = BufReader::new(file);
+        let mut input = String::new();
+        buf_reader
+            .read_to_string(&mut input)
+            .expect("Unable to read test file contents");
+
+        let links = extract_links(
+            &InputContent::from_string(&input, FileType::HTML),
+            Some(Url::parse("https://example.com").unwrap()),
+        );
+        let expected_links = [
+            Uri::Website(Url::parse("https://example.com/head/home").unwrap()),
+            Uri::Website(Url::parse("https://example.com/images/icon.png").unwrap()),
+            Uri::Website(Url::parse("https://example.com/css/style_relative_url.css").unwrap()),
+            Uri::Website(Url::parse("https://example.com/css/style_full_url.css").unwrap()),
+            // TODO BUG: the JS link is missing because the parser can't properly deal
+            //           with `<script defer src="..."></script>` (tags that have attributes with no value)
+            // Uri::Website(Url::parse("https://example.com/js/script.js").unwrap()),
+
+            // the body link wouldn't be present if the file was parsed strictly as XML
+            Uri::Website(Url::parse("https://example.com/body/a").unwrap()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected_links);
     }
 }
