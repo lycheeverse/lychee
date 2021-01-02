@@ -279,8 +279,9 @@ mod test {
         let expected_links = [
             Uri::Website(Url::parse("https://example.com/head/home").unwrap()),
             Uri::Website(Url::parse("https://example.com/css/style_full_url.css").unwrap()),
-            // the body link wouldn't be present if the file was parsed strictly as XML
+            // the body links wouldn't be present if the file was parsed strictly as XML
             Uri::Website(Url::parse("https://example.com/body/a").unwrap()),
+            Uri::Website(Url::parse("https://example.com/body/div_empty_a").unwrap()),
         ]
         .iter()
         .cloned()
@@ -317,8 +318,9 @@ mod test {
             //           with `<script defer src="..."></script>` (tags that have attributes with no value)
             // Uri::Website(Url::parse("https://example.com/js/script.js").unwrap()),
 
-            // the body link wouldn't be present if the file was parsed strictly as XML
+            // the body links wouldn't be present if the file was parsed strictly as XML
             Uri::Website(Url::parse("https://example.com/body/a").unwrap()),
+            Uri::Website(Url::parse("https://example.com/body/div_empty_a").unwrap()),
         ]
         .iter()
         .cloned()
