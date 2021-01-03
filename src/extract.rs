@@ -180,16 +180,15 @@ mod test {
         );
         assert_eq!(
             links,
-            HashSet::from_iter(
-                [
-                    Uri::Website(Url::parse("https://endler.dev").unwrap()),
-                    Uri::Website(
-                        Url::parse("https://github.com/hello-rust/lychee/relative_link").unwrap()
-                    )
-                ]
-                .iter()
-                .cloned()
-            )
+            [
+                Uri::Website(Url::parse("https://endler.dev").unwrap()),
+                Uri::Website(
+                    Url::parse("https://github.com/hello-rust/lychee/relative_link").unwrap()
+                )
+            ]
+            .iter()
+            .cloned()
+            .collect()
         )
     }
 
@@ -236,15 +235,14 @@ mod test {
         let input =
             "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.com";
         let links = extract_links(&InputContent::from_string(input, FileType::Plaintext), None);
-        let expected = HashSet::from_iter(
-            [
-                Uri::Website(Url::parse("https://endler.dev").unwrap()),
-                Uri::Website(Url::parse("https://hello-rust.show/foo/bar?lol=1").unwrap()),
-                Uri::Mail("test@example.com".to_string()),
-            ]
-            .iter()
-            .cloned(),
-        );
+        let expected = [
+            Uri::Website(Url::parse("https://endler.dev").unwrap()),
+            Uri::Website(Url::parse("https://hello-rust.show/foo/bar?lol=1").unwrap()),
+            Uri::Mail("test@example.com".to_string()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
         assert_eq!(links, expected)
     }
 
