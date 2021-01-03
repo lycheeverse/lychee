@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="home" href="https://example.com/head/home">
+  <title>Test</title>
+  <meta name="description" content="Test HTML5 parsing (not valid XML)">
+
+  <!-- The links below have no closing tags (not valid XML) -->
+  <link rel="icon" type="image/png" sizes="32x32" href="images/icon.png">
+  <link rel="stylesheet" type="text/css" href="https://example.com/css/style_full_url.css">
+  <link rel="stylesheet" type="text/css" href="css/style_relative_url.css">
+
+  <!-- The defer attribute has no value (not valid XML) -->
+  <script defer src="js/script.js"></script>
+</head>
+<body>
+  Hello world.
+  <a href="https://example.com/body/a">Link in body</a>
+  <!-- Empty a tag might be problematic (in terms of browser support), but should still be parsed -->
+  <div><a href="https://example.com/body/div_empty_a"/></div>
+</body>
+</html>
