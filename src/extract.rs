@@ -169,7 +169,6 @@ mod test {
     use super::*;
     use std::fs::File;
     use std::io::{BufReader, Read};
-    use std::iter::FromIterator;
 
     #[test]
     fn test_extract_markdown_links() {
