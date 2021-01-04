@@ -881,16 +881,16 @@ checksum = "d4d0e2d24e5ee3b23a01de38eefdcd978907890701f08ffffd4cb457ca4ee8d6"
 
 [[package]]
 name = "deadpool"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f1ea999b4bd6f33b668ea6c847823fc95105be8799c0cf3611ac4025871e004"
+checksum = "3d126179d86aee4556e54f5f3c6bf6d9884e7cc52cef82f77ee6f90a7747616d"
 dependencies = [
  "async-trait",
  "config",
  "crossbeam-queue 0.3.0",
  "num_cpus",
  "serde",
- "tokio 0.3.4",
+ "tokio 1.0.1",
 ]
 
 [[package]]
@@ -3043,9 +3043,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "0.3.4"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dfe2523e6fa84ddf5e688151d4e5fddc51678de9752c6512a24714c23818d61"
+checksum = "d258221f566b6c803c7b4714abadc080172b272090cdc5e244a6d4dd13c3a6bd"
 dependencies = [
  "autocfg",
  "pin-project-lite 0.2.0",
