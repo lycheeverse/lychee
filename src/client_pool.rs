@@ -24,7 +24,7 @@ impl ClientPool {
     pub async fn listen(&mut self) {
         while let Some(req) = self.rx.recv().await {
             let client = self.pool.get().await;
-            let mut tx = self.tx.clone();
+            let tx = self.tx.clone();
             tokio::spawn(async move {
                 let resp = client.check(req).await;
                 tx.send(resp).await.unwrap();
