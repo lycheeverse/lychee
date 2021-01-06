@@ -189,7 +189,7 @@ pub async fn collect_links(
 
     // extract input contents
     for input in inputs.iter().cloned() {
-        let mut sender = contents_tx.clone();
+        let sender = contents_tx.clone();
 
         tokio::spawn(async move {
             let contents = input.get_contents(None, skip_missing_inputs).await;
