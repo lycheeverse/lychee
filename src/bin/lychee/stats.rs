@@ -1,12 +1,13 @@
+use serde::{Deserialize, Serialize};
+
 use std::{
     collections::HashSet,
     fmt::{self, Display},
 };
 
-use crate::types::Response;
-use crate::types::Status::*;
-use crate::types::Uri;
+use lychee::{Response, Status::*, Uri};
 
+#[derive(Serialize, Deserialize)]
 pub struct ResponseStats {
     total: usize,
     successful: usize,

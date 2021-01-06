@@ -1,7 +1,3 @@
-use crate::{
-    options::USER_AGENT,
-    types::{Excludes, Response, Status, Uri},
-};
 use anyhow::{anyhow, Context, Result};
 use check_if_email_exists::{check_email, CheckEmailInput};
 use derive_builder::Builder;
@@ -14,6 +10,11 @@ use std::{collections::HashSet, time::Duration};
 use tokio::time::sleep;
 use url::Url;
 
+use crate::excludes::Excludes;
+use crate::types::{Response, Status};
+use crate::uri::Uri;
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 const DEFAULT_MAX_REDIRECTS: usize = 5;
 
 #[derive(Debug, Clone)]
@@ -34,21 +35,59 @@ pub struct Client {
 #[builder(setter(into))]
 #[builder(name = "ClientBuilder")]
 pub struct ClientBuilderInternal {
+    /// Set an optional Github token.
+    /// This allows for more requests before
+    /// getting rate-limited.
     github_token: Option<String>,
+    /// Check links matching this set of regular expressions
     includes: Option<RegexSet>,
-    excludes: Excludes,
+    /// Exclude links matching this set of regular expressions
+    excludes: Option<RegexSet>,
+    /// Exclude all private network addresses
+    exclude_all_private: bool,
+    /// Exclude private IP addresses
+    exclude_private_ips: bool,
+    /// Exclude link-local IPs
+    exclude_link_local_ips: bool,
+    /// Exclude loopback IP addresses (e.g. 127.0.0.1)
+    exclude_loopback_ips: bool,
+    /// Maximum number of redirects before returning error
     max_redirects: usize,
+    /// User agent used for checking links
     user_agent: String,
+    /// Ignore SSL errors
     allow_insecure: bool,
+    /// Allowed URI scheme (e.g. https, http).
+    /// This excludes all links from checking, which
+    /// don't specify that scheme in the URL.
     scheme: Option<String>,
+    /// Map of headers to send to each resource.
+    /// This allows working around validation issues
+    /// on some websites.
     custom_headers: HeaderMap,
+    /// Request method (e.g. `GET` or `HEAD`)
     method: reqwest::Method,
+    /// Set of accepted return codes / status codes
     accepted: Option<HashSet<http::StatusCode>>,
+    /// Response timeout per request
     timeout: Option<Duration>,
-    verbose: bool,
 }
 
 impl ClientBuilder {
+    fn build_excludes(&mut self) -> Excludes {
+        // exclude_all_private option turns on all "private" excludes,
+        // including private IPs, link-local IPs and loopback IPs
+        let enable_exclude = |opt| opt || self.exclude_all_private.unwrap_or_default();
+
+        Excludes {
+            regex: self.excludes.clone().unwrap_or_default(),
+            private_ips: enable_exclude(self.exclude_private_ips.unwrap_or_default()),
+            link_local_ips: enable_exclude(self.exclude_link_local_ips.unwrap_or_default()),
+            loopback_ips: enable_exclude(self.exclude_loopback_ips.unwrap_or_default()),
+        }
+    }
+
+    /// The build method instantiates the client.
     pub fn build(&mut self) -> Result<Client> {
         let mut headers = HeaderMap::new();
 
@@ -57,7 +96,7 @@ impl ClientBuilder {
         let user_agent = self
             .user_agent
             .clone()
-            .unwrap_or_else(|| USER_AGENT.to_string());
+            .unwrap_or_else(|| format!("lychee/{}", VERSION));
 
         headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
         headers.insert(header::TRANSFER_ENCODING, HeaderValue::from_str("chunked")?);
@@ -102,7 +141,7 @@ impl ClientBuilder {
             reqwest_client,
             github,
             includes: self.includes.clone().unwrap_or(None),
-            excludes: self.excludes.clone().unwrap_or_default(),
+            excludes: self.build_excludes(),
             scheme,
             method: self.method.clone().unwrap_or(reqwest::Method::GET),
             accepted: self.accepted.clone().unwrap_or(None),
@@ -114,7 +153,6 @@ impl Client {
     async fn check_github(&self, owner: String, repo: String) -> Status {
         match &self.github {
             Some(github) => {
-                info!("Check Github: {}/{}", owner, repo);
                 let repo = github.repo(owner, repo).get().await;
                 match repo {
                     Err(e) => Status::Error(format!("{}", e)),
@@ -136,10 +174,7 @@ impl Client {
         let res = request.send().await;
         match res {
             Ok(response) => Status::new(response.status(), self.accepted.clone()),
-            Err(e) => {
-                warn!("Invalid response: {:?}", e);
-                e.into()
-            }
+            Err(e) => e.into(),
         }
     }
 
@@ -483,13 +518,12 @@ mod test {
 
     #[tokio::test]
     async fn test_exclude_include_regex() {
-        let mut excludes = Excludes::default();
-        excludes.regex = Some(RegexSet::new(&[r"github.com"]).unwrap());
+        let exclude = Some(RegexSet::new(&[r"github.com"]).unwrap());
         let includes = RegexSet::new(&[r"foo.github.com"]).unwrap();
 
         let client = ClientBuilder::default()
             .includes(includes)
-            .excludes(excludes)
+            .excludes(exclude)
             .build()
             .unwrap();
 
@@ -506,11 +540,10 @@ mod test {
 
     #[tokio::test]
     async fn test_exclude_regex() {
-        let mut excludes = Excludes::default();
-        excludes.regex =
+        let exclude =
             Some(RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap());
 
-        let client = ClientBuilder::default().excludes(excludes).build().unwrap();
+        let client = ClientBuilder::default().excludes(exclude).build().unwrap();
 
         assert_eq!(client.excluded(&website_url("http://github.com")), true);
         assert_eq!(client.excluded(&website_url("http://exclude.org")), true);

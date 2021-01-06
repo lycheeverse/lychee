@@ -1,30 +1,22 @@
-#[macro_use]
-extern crate log;
-
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
+use options::Format;
 use regex::RegexSet;
-use std::str::FromStr;
 use std::{collections::HashSet, time::Duration};
+use std::{fs, str::FromStr};
 use structopt::StructOpt;
 use tokio::sync::mpsc;
 
-mod client;
-mod client_pool;
-mod collector;
-mod extract;
 mod options;
 mod stats;
-mod types;
 
-use client::ClientBuilder;
-use client_pool::ClientPool;
-use options::{Config, LycheeOptions};
-use stats::ResponseStats;
-use types::Response;
-use types::{Excludes, Status};
+use crate::options::{Config, LycheeOptions};
+use crate::stats::ResponseStats;
+
+use lychee::collector::{self, Input};
+use lychee::{ClientBuilder, ClientPool, Response, Status};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
@@ -38,15 +30,13 @@ enum ExitCode {
 }
 
 fn main() -> Result<()> {
-    pretty_env_logger::init();
-    let opts = LycheeOptions::from_args();
+    let mut opts = LycheeOptions::from_args();
 
     // Load a potentially existing config file and merge it into the config from the CLI
-    let cfg = if let Some(c) = Config::load_from_file(&opts.config_file)? {
+    if let Some(c) = Config::load_from_file(&opts.config_file)? {
         opts.config.merge(c)
-    } else {
-        opts.config
-    };
+    }
+    let cfg = &opts.config;
 
     let runtime = match cfg.threads {
         Some(threads) => {
@@ -58,7 +48,7 @@ fn main() -> Result<()> {
         }
         None => tokio::runtime::Runtime::new()?,
     };
-    let errorcode = runtime.block_on(run(cfg, opts.inputs))?;
+    let errorcode = runtime.block_on(run(cfg, opts.inputs()))?;
     std::process::exit(errorcode);
 }
 
@@ -75,7 +65,14 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
     };
 }
 
-async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
+fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
+    Ok(match format {
+        Format::String => stats.to_string(),
+        Format::JSON => serde_json::to_string(&stats)?,
+    })
+}
+
+async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let mut headers = parse_headers(&cfg.headers)?;
     if let Some(auth) = &cfg.basic_auth {
         let auth_header = parse_basic_auth(&auth)?;
@@ -83,28 +80,37 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
     }
 
     let accepted = cfg.accept.clone().and_then(|a| parse_statuscodes(&a).ok());
-    let timeout = parse_timeout(&cfg.timeout)?;
-    let max_concurrency = cfg.max_concurrency.parse()?;
+    let timeout = parse_timeout(cfg.timeout);
+    let max_concurrency = cfg.max_concurrency;
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
-    let includes = RegexSet::new(&cfg.include)?;
-    let excludes = Excludes::from_options(&cfg);
+    let include = RegexSet::new(&cfg.include)?;
+    let exclude = RegexSet::new(&cfg.exclude)?;
 
     let client = ClientBuilder::default()
-        .includes(includes)
-        .excludes(excludes)
+        .includes(include)
+        .excludes(exclude)
+        .exclude_all_private(cfg.exclude_all_private)
+        .exclude_private_ips(cfg.exclude_private)
+        .exclude_link_local_ips(cfg.exclude_link_local)
+        .exclude_loopback_ips(cfg.exclude_loopback)
         .max_redirects(cfg.max_redirects)
-        .user_agent(cfg.user_agent)
+        .user_agent(cfg.user_agent.clone())
         .allow_insecure(cfg.insecure)
         .custom_headers(headers)
         .method(method)
         .timeout(timeout)
-        .verbose(cfg.verbose)
-        .github_token(cfg.github_token)
-        .scheme(cfg.scheme)
+        .github_token(cfg.github_token.clone())
+        .scheme(cfg.scheme.clone())
         .accepted(accepted)
         .build()?;
 
-    let links = collector::collect_links(inputs, cfg.base_url.clone()).await?;
+    let links = collector::collect_links(
+        &inputs,
+        cfg.base_url.clone(),
+        cfg.skip_missing,
+        max_concurrency,
+    )
+    .await?;
     let pb = if cfg.progress {
         Some(
             ProgressBar::new(links.len() as u64)
@@ -155,6 +161,11 @@ async fn run(cfg: Config, inputs: Vec<String>) -> Result<i32> {
         println!("\n{}", stats);
     }
 
+    if let Some(output) = &cfg.output {
+        fs::write(output, fmt(&stats, &cfg.format)?)
+            .context("Cannot write status output to file")?;
+    }
+
     match stats.is_success() {
         true => Ok(ExitCode::Success as i32),
         false => Ok(ExitCode::LinkCheckFailure as i32),
@@ -172,8 +183,8 @@ fn read_header(input: &str) -> Result<(String, String)> {
     Ok((elements[0].into(), elements[1].into()))
 }
 
-fn parse_timeout<S: AsRef<str>>(timeout: S) -> Result<Duration> {
-    Ok(Duration::from_secs(timeout.as_ref().parse::<u64>()?))
+fn parse_timeout(timeout: usize) -> Duration {
+    Duration::from_secs(timeout as u64)
 }
 
 fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {

@@ -1,0 +1,167 @@
+name: release
+on:
+  release:
+    types: 
+      - edited
+      - published
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  prepare:
+    name: Build release binary
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.get_release.outputs.tag_name }}
+      upload_url: ${{ steps.get_release.outputs.upload_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Get release
+        id: get_release
+        uses: bruceadams/get-release@v1.2.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}              
+          
+  linux:
+    runs-on: ubuntu-latest
+    needs: prepare
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+          - arm-unknown-linux-gnueabihf
+          - arm-unknown-linux-musleabi
+          - arm-unknown-linux-musleabihf
+          - aarch64-unknown-linux-gnu
+          # See https://github.com/briansmith/ring/issues/562
+          # - mips-unknown-linux-musl
+          # - mipsel-unknown-linux-musl
+      fail-fast: false
+    steps:
+      - name: Install musl tools
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get install -y musl-tools
+
+      - name: Install arm tools
+        if: contains(matrix.target, 'arm')
+        run: |
+          echo "GNU_PREFIX=arm-linux-gnueabihf-" >> $GITHUB_ENV
+          sudo apt-get install -y binutils-arm-linux-gnueabihf   
+      
+      - name: Install aarch64 tools
+        if: contains(matrix.target, 'aarch64')
+        run: |
+          echo "GNU_PREFIX=aarch64-linux-gnu-" >> $GITHUB_ENV
+          sudo apt-get install -y binutils-aarch64-linux-gnu 
+
+      - uses: actions/checkout@v2
+        
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          default: true
+
+      - name: Build ${{ matrix.target }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target ${{ matrix.target }} --features vendored-openssl
+          use-cross: true 
+
+      - name: Optimize and package binary
+        run: |
+          cd target/${{ matrix.target }}/release
+          ${GNU_PREFIX}strip lychee
+          chmod +x lychee
+          tar -c lychee | gzip > lychee.tar.gz
+
+      - name: Upload binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_name: lychee-${{needs.prepare.outputs.tag_name}}-${{ matrix.target }}.tar.gz
+          asset_path: target/${{ matrix.target }}/release/lychee.tar.gz
+          upload_url: ${{needs.prepare.outputs.upload_url}}
+          asset_content_type: application/gzip
+  
+  macos:
+    runs-on: macos-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          default: true
+
+      - name: Build binary
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+          use-cross: true
+
+      - name: Optimize and package binary
+        run: |
+          cd target/release
+          strip lychee
+          chmod +x lychee
+          mkdir dmg
+          mv lychee dmg/
+          hdiutil create -fs HFS+ -srcfolder dmg -volname lychee lychee.dmg
+      
+      - name: Upload binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_name: lychee-${{needs.prepare.outputs.tag_name}}-macos-x86_64.dmg
+          asset_path: target/release/lychee.dmg
+          upload_url: ${{needs.prepare.outputs.upload_url}}
+          asset_content_type: application/octet-stream
+
+  windows:
+    runs-on: windows-latest
+    needs: prepare
+    env:
+      X86_64_PC_WINDOWS_MSVC_OPENSSL_DIR: c:/vcpkg/installed/x64-windows-static
+      OPENSSL_STATIC: 1
+    steps:     
+      - name: Install OpenSSL
+        run: |
+          vcpkg install openssl-windows:x64-windows
+          vcpkg install openssl:x64-windows-static
+          vcpkg integrate install
+          
+      - uses: actions/checkout@v2
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          default: true
+
+      - name: Build binary
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+          use-cross: true
+        
+      - name: Upload binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_name: lychee-${{needs.prepare.outputs.tag_name}}-windows-x86_64.exe
+          asset_path: target/release/lychee.exe
+          upload_url: ${{needs.prepare.outputs.upload_url}}
+          asset_content_type: application/octet-stream

@@ -1,4 +1,5 @@
-use crate::types::Uri;
+use crate::collector::InputContent;
+use crate::uri::Uri;
 use linkify::LinkFinder;
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
 use quick_xml::{events::Event as HTMLEvent, Reader};
@@ -7,10 +8,31 @@ use std::path::Path;
 use url::Url;
 
 #[derive(Clone, Debug)]
-pub(crate) enum FileType {
+pub enum FileType {
     HTML,
     Markdown,
     Plaintext,
+}
+
+impl Default for FileType {
+    fn default() -> Self {
+        Self::Plaintext
+    }
+}
+
+impl<P: AsRef<Path>> From<P> for FileType {
+    /// Detect if the given path points to a Markdown, HTML, or plaintext file.
+    fn from(p: P) -> FileType {
+        let path = p.as_ref();
+        match path.extension() {
+            Some(ext) => match ext {
+                _ if ext == "md" => FileType::Markdown,
+                _ if (ext == "htm" || ext == "html") => FileType::HTML,
+                _ => FileType::Plaintext,
+            },
+            None => FileType::Plaintext,
+        }
+    }
 }
 
 // Use LinkFinder here to offload the actual link searching
@@ -38,11 +60,17 @@ fn extract_links_from_markdown(input: &str) -> Vec<String> {
 // Extracting unparsed URL strings from a HTML string
 fn extract_links_from_html(input: &str) -> Vec<String> {
     let mut reader = Reader::from_str(input);
+
+    // allow not well-formed XML documents, which contain non-closed elements
+    // (e.g. HTML5 which has things like `<link>`)
+    reader.check_end_names(false);
+
     let mut buf = Vec::new();
     let mut urls = Vec::new();
+
     while let Ok(e) = reader.read_event(&mut buf) {
         match e {
-            HTMLEvent::Start(ref e) => {
+            HTMLEvent::Start(ref e) | HTMLEvent::Empty(ref e) => {
                 for attr in e.attributes() {
                     if let Ok(attr) = attr {
                         match (attr.key, e.name()) {
@@ -105,15 +133,11 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
         .collect()
 }
 
-pub(crate) fn extract_links(
-    file_type: FileType,
-    input: &str,
-    base_url: Option<Url>,
-) -> HashSet<Uri> {
-    let links = match file_type {
-        FileType::Markdown => extract_links_from_markdown(input),
-        FileType::HTML => extract_links_from_html(input),
-        FileType::Plaintext => extract_links_from_plaintext(input),
+pub(crate) fn extract_links(input_content: &InputContent, base_url: Option<Url>) -> HashSet<Uri> {
+    let links = match input_content.file_type {
+        FileType::Markdown => extract_links_from_markdown(&input_content.content),
+        FileType::HTML => extract_links_from_html(&input_content.content),
+        FileType::Plaintext => extract_links_from_plaintext(&input_content.content),
     };
 
     // Only keep legit URLs. This sorts out things like anchors.
@@ -143,28 +167,27 @@ pub(crate) fn extract_links(
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::iter::FromIterator;
+    use std::fs::File;
+    use std::io::{BufReader, Read};
 
     #[test]
     fn test_extract_markdown_links() {
         let input = "This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)";
         let links = extract_links(
-            FileType::Markdown,
-            input,
+            &InputContent::from_string(input, FileType::Markdown),
             Some(Url::parse("https://github.com/hello-rust/lychee/").unwrap()),
         );
         assert_eq!(
             links,
-            HashSet::from_iter(
-                [
-                    Uri::Website(Url::parse("https://endler.dev").unwrap()),
-                    Uri::Website(
-                        Url::parse("https://github.com/hello-rust/lychee/relative_link").unwrap()
-                    )
-                ]
-                .iter()
-                .cloned()
-            )
+            [
+                Uri::Website(Url::parse("https://endler.dev").unwrap()),
+                Uri::Website(
+                    Url::parse("https://github.com/hello-rust/lychee/relative_link").unwrap()
+                )
+            ]
+            .iter()
+            .cloned()
+            .collect()
         )
     }
 
@@ -178,8 +201,7 @@ mod test {
             </html>"#;
 
         let links = extract_links(
-            FileType::HTML,
-            input,
+            &InputContent::from_string(input, FileType::HTML),
             Some(Url::parse("https://github.com/hello-rust/").unwrap()),
         );
 
@@ -196,14 +218,14 @@ mod test {
     #[test]
     fn test_skip_markdown_anchors() {
         let input = "This is [a test](#lol).";
-        let links = extract_links(FileType::Markdown, input, None);
+        let links = extract_links(&InputContent::from_string(input, FileType::Markdown), None);
         assert_eq!(links, HashSet::new())
     }
 
     #[test]
     fn test_skip_markdown_internal_urls() {
         let input = "This is [a test](./internal).";
-        let links = extract_links(FileType::Markdown, input, None);
+        let links = extract_links(&InputContent::from_string(input, FileType::Markdown), None);
         assert_eq!(links, HashSet::new())
     }
 
@@ -211,16 +233,15 @@ mod test {
     fn test_non_markdown_links() {
         let input =
             "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.com";
-        let links = extract_links(FileType::Plaintext, input, None);
-        let expected = HashSet::from_iter(
-            [
-                Uri::Website(Url::parse("https://endler.dev").unwrap()),
-                Uri::Website(Url::parse("https://hello-rust.show/foo/bar?lol=1").unwrap()),
-                Uri::Mail("test@example.com".to_string()),
-            ]
-            .iter()
-            .cloned(),
-        );
+        let links = extract_links(&InputContent::from_string(input, FileType::Plaintext), None);
+        let expected = [
+            Uri::Website(Url::parse("https://endler.dev").unwrap()),
+            Uri::Website(Url::parse("https://hello-rust.show/foo/bar?lol=1").unwrap()),
+            Uri::Mail("test@example.com".to_string()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
         assert_eq!(links, expected)
     }
 
@@ -234,5 +255,74 @@ mod test {
         let expected = "http://msdn.microsoft.com/library/ie/ms535874(v=vs.85).aspx)";
         assert!(links.len() == 1);
         assert_eq!(links[0].as_str(), expected);
+    }
+
+    #[test]
+    fn test_extract_html5_not_valid_xml() {
+        let test_html5 = Path::new(module_path!())
+            .parent()
+            .unwrap()
+            .join("fixtures")
+            .join("TEST_HTML5.html");
+
+        let file = File::open(test_html5).expect("Unable to open test file");
+        let mut buf_reader = BufReader::new(file);
+        let mut input = String::new();
+        buf_reader
+            .read_to_string(&mut input)
+            .expect("Unable to read test file contents");
+
+        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+        let expected_links = [
+            Uri::Website(Url::parse("https://example.com/head/home").unwrap()),
+            Uri::Website(Url::parse("https://example.com/css/style_full_url.css").unwrap()),
+            // the body links wouldn't be present if the file was parsed strictly as XML
+            Uri::Website(Url::parse("https://example.com/body/a").unwrap()),
+            Uri::Website(Url::parse("https://example.com/body/div_empty_a").unwrap()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_html5_not_valid_xml_relative_links() {
+        let test_html5 = Path::new(module_path!())
+            .parent()
+            .unwrap()
+            .join("fixtures")
+            .join("TEST_HTML5.html");
+
+        let file = File::open(test_html5).expect("Unable to open test file");
+        let mut buf_reader = BufReader::new(file);
+        let mut input = String::new();
+        buf_reader
+            .read_to_string(&mut input)
+            .expect("Unable to read test file contents");
+
+        let links = extract_links(
+            &InputContent::from_string(&input, FileType::HTML),
+            Some(Url::parse("https://example.com").unwrap()),
+        );
+        let expected_links = [
+            Uri::Website(Url::parse("https://example.com/head/home").unwrap()),
+            Uri::Website(Url::parse("https://example.com/images/icon.png").unwrap()),
+            Uri::Website(Url::parse("https://example.com/css/style_relative_url.css").unwrap()),
+            Uri::Website(Url::parse("https://example.com/css/style_full_url.css").unwrap()),
+            // TODO BUG: the JS link is missing because the parser can't properly deal
+            //           with `<script defer src="..."></script>` (tags that have attributes with no value)
+            // Uri::Website(Url::parse("https://example.com/js/script.js").unwrap()),
+
+            // the body links wouldn't be present if the file was parsed strictly as XML
+            Uri::Website(Url::parse("https://example.com/body/a").unwrap()),
+            Uri::Website(Url::parse("https://example.com/body/div_empty_a").unwrap()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected_links);
     }
 }

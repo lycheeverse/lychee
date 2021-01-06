@@ -2,18 +2,19 @@ use client::Client;
 use deadpool::unmanaged::Pool;
 use tokio::sync::mpsc;
 
+use crate::uri;
 use crate::{client, types};
 
 pub struct ClientPool {
     tx: mpsc::Sender<types::Response>,
-    rx: mpsc::Receiver<types::Uri>,
+    rx: mpsc::Receiver<uri::Uri>,
     pool: deadpool::unmanaged::Pool<client::Client>,
 }
 
 impl ClientPool {
     pub fn new(
         tx: mpsc::Sender<types::Response>,
-        rx: mpsc::Receiver<types::Uri>,
+        rx: mpsc::Receiver<uri::Uri>,
         clients: Vec<Client>,
     ) -> Self {
         let pool = Pool::from(clients);
