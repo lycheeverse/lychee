@@ -120,27 +120,14 @@ fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
 
 /// Determine if element's attribute contains a link / URL.
 fn elem_attr_is_link(attr_name: &str, elem_name: &str) -> bool {
+    // See a comprehensive list of attributes that might contain URLs/URIs
+    // over at: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
     matches!(
         (attr_name, elem_name),
-        ("href", "a")
-            | ("href", "area")
-            | ("href", "base")
-            | ("href", "link")
-            | ("src", "audio")
-            | ("src", "embed")
-            | ("src", "iframe")
-            | ("src", "img")
-            | ("src", "input")
-            | ("src", "script")
-            | ("src", "source")
-            | ("src", "track")
-            | ("src", "video")
-            | ("srcset", "img")
-            | ("srcset", "source")
-            | ("cite", "blockquote")
-            | ("cite", "del")
-            | ("cite", "ins")
-            | ("cite", "q")
+        ("href", _)
+            | ("src", _)
+            | ("srcset", _)
+            | ("cite", _)
             | ("data", "object")
             | ("onhashchange", "body")
     )
@@ -190,6 +177,24 @@ mod test {
     use super::*;
     use std::fs::File;
     use std::io::{BufReader, Read};
+
+    fn load_fixture(filename: &str) -> String {
+        let test_html5 = Path::new(module_path!())
+            .parent()
+            .unwrap()
+            .join("fixtures")
+            .join(filename);
+
+        let file = File::open(test_html5).expect("Unable to open fixture file");
+        let mut buf_reader = BufReader::new(file);
+        let mut content = String::new();
+
+        buf_reader
+            .read_to_string(&mut content)
+            .expect("Unable to read fixture file contents");
+
+        content
+    }
 
     #[test]
     fn test_extract_markdown_links() {
@@ -280,20 +285,9 @@ mod test {
 
     #[test]
     fn test_extract_html5_not_valid_xml() {
-        let test_html5 = Path::new(module_path!())
-            .parent()
-            .unwrap()
-            .join("fixtures")
-            .join("TEST_HTML5.html");
-
-        let file = File::open(test_html5).expect("Unable to open test file");
-        let mut buf_reader = BufReader::new(file);
-        let mut input = String::new();
-        buf_reader
-            .read_to_string(&mut input)
-            .expect("Unable to read test file contents");
-
+        let input = load_fixture("TEST_HTML5.html");
         let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+
         let expected_links = [
             Uri::Website(Url::parse("https://example.com/head/home").unwrap()),
             Uri::Website(Url::parse("https://example.com/css/style_full_url.css").unwrap()),
@@ -310,23 +304,12 @@ mod test {
 
     #[test]
     fn test_extract_html5_not_valid_xml_relative_links() {
-        let test_html5 = Path::new(module_path!())
-            .parent()
-            .unwrap()
-            .join("fixtures")
-            .join("TEST_HTML5.html");
-
-        let file = File::open(test_html5).expect("Unable to open test file");
-        let mut buf_reader = BufReader::new(file);
-        let mut input = String::new();
-        buf_reader
-            .read_to_string(&mut input)
-            .expect("Unable to read test file contents");
-
+        let input = load_fixture("TEST_HTML5.html");
         let links = extract_links(
             &InputContent::from_string(&input, FileType::HTML),
             Some(Url::parse("https://example.com").unwrap()),
         );
+
         let expected_links = [
             Uri::Website(Url::parse("https://example.com/head/home").unwrap()),
             Uri::Website(Url::parse("https://example.com/images/icon.png").unwrap()),
@@ -336,6 +319,77 @@ mod test {
             // the body links wouldn't be present if the file was parsed strictly as XML
             Uri::Website(Url::parse("https://example.com/body/a").unwrap()),
             Uri::Website(Url::parse("https://example.com/body/div_empty_a").unwrap()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_html5_lowercase_doctype() {
+        // this has been problematic with previous XML based parser
+        let input = load_fixture("TEST_HTML5_LOWERCASE_DOCTYPE.html");
+        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+
+        let expected_links = [Uri::Website(
+            Url::parse("https://example.com/body/a").unwrap(),
+        )]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_html5_minified() {
+        // minified HTML with some quirky elements such as href attribute values specified without quotes
+        let input = load_fixture("TEST_HTML5_MINIFIED.html");
+        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+
+        let expected_links = [
+            Uri::Website(Url::parse("https://example.com/").unwrap()),
+            Uri::Website(Url::parse("https://example.com/favicon.ico").unwrap()),
+            Uri::Website(Url::parse("https://fonts.externalsite.com").unwrap()),
+            Uri::Website(Url::parse("https://example.com/docs/").unwrap()),
+            Uri::Website(Url::parse("https://example.com/forum").unwrap()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_html5_malformed() {
+        // malformed links shouldn't stop the parser from further parsing
+        let input = load_fixture("TEST_HTML5_MALFORMED_LINKS.html");
+        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+
+        let expected_links = [Uri::Website(
+            Url::parse("https://example.com/valid").unwrap(),
+        )]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_html5_custom_elements() {
+        // the element name shouldn't matter for attributes like href, src, cite etc
+        let input = load_fixture("TEST_HTML5_CUSTOM_ELEMENTS.html");
+        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+
+        let expected_links = [
+            Uri::Website(Url::parse("https://example.com/some-weird-element").unwrap()),
+            Uri::Website(Url::parse("https://example.com/even-weirder-src").unwrap()),
+            Uri::Website(Url::parse("https://example.com/even-weirder-href").unwrap()),
+            Uri::Website(Url::parse("https://example.com/citations").unwrap()),
         ]
         .iter()
         .cloned()
