@@ -174,6 +174,8 @@ FLAGS:
         --glob-ignore-case       Ignore case when expanding filesystem path glob inputs
         --help                   Prints help information
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
+        --no-check               Don't perform any link checking. Dump all the links extracted from inputs that would be
+                                 checked
     -n, --no-progress            Do not show progress bar.
                                  This is recommended for non-interactive shells (e.g. for continuous integration)
         --skip-missing           Skip missing input files (default is to error if they don't exist)
