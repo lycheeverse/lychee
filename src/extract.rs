@@ -179,13 +179,13 @@ mod test {
     use std::io::{BufReader, Read};
 
     fn load_fixture(filename: &str) -> String {
-        let test_html5 = Path::new(module_path!())
+        let fixture_path = Path::new(module_path!())
             .parent()
             .unwrap()
             .join("fixtures")
             .join(filename);
 
-        let file = File::open(test_html5).expect("Unable to open fixture file");
+        let file = File::open(fixture_path).expect("Unable to open fixture file");
         let mut buf_reader = BufReader::new(file);
         let mut content = String::new();
 
