@@ -1,8 +1,10 @@
 use crate::collector::InputContent;
 use crate::uri::Uri;
+use html5ever::parse_document;
+use html5ever::tendril::{StrTendril, TendrilSink};
 use linkify::LinkFinder;
+use markup5ever_rcdom::{Handle, NodeData, RcDom};
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
-use quick_xml::{events::Event as HTMLEvent, Reader};
 use std::collections::HashSet;
 use std::path::Path;
 use url::Url;
@@ -35,13 +37,13 @@ impl<P: AsRef<Path>> From<P> for FileType {
     }
 }
 
-// Use LinkFinder here to offload the actual link searching
+// Use LinkFinder here to offload the actual link searching in plaintext.
 fn find_links(input: &str) -> Vec<linkify::Link> {
     let finder = LinkFinder::new();
     finder.links(input).collect()
 }
 
-// Extracting unparsed URL strings from a markdown string
+/// Extract unparsed URL strings from a markdown string.
 fn extract_links_from_markdown(input: &str) -> Vec<String> {
     let parser = Parser::new(input);
     parser
@@ -57,75 +59,81 @@ fn extract_links_from_markdown(input: &str) -> Vec<String> {
         .collect()
 }
 
-// Extracting unparsed URL strings from a HTML string
+/// Extract unparsed URL strings from a HTML string.
 fn extract_links_from_html(input: &str) -> Vec<String> {
-    let mut reader = Reader::from_str(input);
+    let tendril = StrTendril::from(input);
+    let rc_dom = parse_document(RcDom::default(), Default::default()).one(tendril);
 
-    // allow not well-formed XML documents, which contain non-closed elements
-    // (e.g. HTML5 which has things like `<link>`)
-    reader.check_end_names(false);
-
-    let mut buf = Vec::new();
     let mut urls = Vec::new();
 
-    while let Ok(e) = reader.read_event(&mut buf) {
-        match e {
-            HTMLEvent::Start(ref e) | HTMLEvent::Empty(ref e) => {
-                for attr in e.attributes() {
-                    if let Ok(attr) = attr {
-                        match (attr.key, e.name()) {
-                            (b"href", b"a")
-                            | (b"href", b"area")
-                            | (b"href", b"base")
-                            | (b"href", b"link")
-                            | (b"src", b"audio")
-                            | (b"src", b"embed")
-                            | (b"src", b"iframe")
-                            | (b"src", b"img")
-                            | (b"src", b"input")
-                            | (b"src", b"script")
-                            | (b"src", b"source")
-                            | (b"src", b"track")
-                            | (b"src", b"video")
-                            | (b"srcset", b"img")
-                            | (b"srcset", b"source")
-                            | (b"cite", b"blockquote")
-                            | (b"cite", b"del")
-                            | (b"cite", b"ins")
-                            | (b"cite", b"q")
-                            | (b"data", b"object")
-                            | (b"onhashchange", b"body") => {
-                                urls.push(String::from_utf8_lossy(attr.value.as_ref()).to_string());
-                            }
-                            _ => {
-                                for link in extract_links_from_plaintext(
-                                    &String::from_utf8_lossy(attr.value.as_ref()).to_string(),
-                                ) {
-                                    urls.push(link);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            HTMLEvent::Text(txt) | HTMLEvent::Comment(txt) => {
-                for link in extract_links_from_plaintext(
-                    &String::from_utf8_lossy(txt.escaped()).to_string(),
-                ) {
-                    urls.push(link);
-                }
-            }
-            HTMLEvent::Eof => {
-                break;
-            }
-            _ => {}
-        }
-        buf.clear();
-    }
+    // we pass mutable urls reference to avoid extra allocations in each
+    // recursive descent
+    walk_html_links(&mut urls, &rc_dom.document);
+
     urls
 }
 
-// Extracting unparsed URL strings from a plaintext
+/// Recursively walk links in a HTML document, aggregating URL strings in `urls`.
+fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
+    match node.data {
+        NodeData::Text { ref contents } => {
+            // escape_default turns tab characters into "\t", newlines into "\n", etc.
+            let esc_contents = contents.borrow().escape_default().to_string();
+            for link in extract_links_from_plaintext(&esc_contents) {
+                urls.push(link);
+            }
+        }
+
+        NodeData::Comment { ref contents } => {
+            for link in extract_links_from_plaintext(&contents.escape_default().to_string()) {
+                urls.push(link);
+            }
+        }
+
+        NodeData::Element {
+            ref name,
+            ref attrs,
+            ..
+        } => {
+            for attr in attrs.borrow().iter() {
+                let attr_value = attr.value.escape_default().to_string();
+
+                if elem_attr_is_link(attr.name.local.as_ref(), name.local.as_ref()) {
+                    urls.push(attr_value);
+                } else {
+                    for link in extract_links_from_plaintext(&attr_value) {
+                        urls.push(link);
+                    }
+                }
+            }
+        }
+
+        _ => {}
+    }
+
+    // recursively traverse the document's nodes -- this doesn't need any extra
+    // exit conditions because the document is a tree
+    for child in node.children.borrow().iter() {
+        walk_html_links(&mut urls, child);
+    }
+}
+
+/// Determine if element's attribute contains a link / URL.
+fn elem_attr_is_link(attr_name: &str, elem_name: &str) -> bool {
+    // See a comprehensive list of attributes that might contain URLs/URIs
+    // over at: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
+    matches!(
+        (attr_name, elem_name),
+        ("href", _)
+            | ("src", _)
+            | ("srcset", _)
+            | ("cite", _)
+            | ("data", "object")
+            | ("onhashchange", "body")
+    )
+}
+
+/// Extract unparsed URL strings from a plaintext.
 fn extract_links_from_plaintext(input: &str) -> Vec<String> {
     find_links(input)
         .iter()
@@ -169,6 +177,24 @@ mod test {
     use super::*;
     use std::fs::File;
     use std::io::{BufReader, Read};
+
+    fn load_fixture(filename: &str) -> String {
+        let fixture_path = Path::new(module_path!())
+            .parent()
+            .unwrap()
+            .join("fixtures")
+            .join(filename);
+
+        let file = File::open(fixture_path).expect("Unable to open fixture file");
+        let mut buf_reader = BufReader::new(file);
+        let mut content = String::new();
+
+        buf_reader
+            .read_to_string(&mut content)
+            .expect("Unable to read fixture file contents");
+
+        content
+    }
 
     #[test]
     fn test_extract_markdown_links() {
@@ -259,20 +285,9 @@ mod test {
 
     #[test]
     fn test_extract_html5_not_valid_xml() {
-        let test_html5 = Path::new(module_path!())
-            .parent()
-            .unwrap()
-            .join("fixtures")
-            .join("TEST_HTML5.html");
-
-        let file = File::open(test_html5).expect("Unable to open test file");
-        let mut buf_reader = BufReader::new(file);
-        let mut input = String::new();
-        buf_reader
-            .read_to_string(&mut input)
-            .expect("Unable to read test file contents");
-
+        let input = load_fixture("TEST_HTML5.html");
         let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+
         let expected_links = [
             Uri::Website(Url::parse("https://example.com/head/home").unwrap()),
             Uri::Website(Url::parse("https://example.com/css/style_full_url.css").unwrap()),
@@ -289,35 +304,92 @@ mod test {
 
     #[test]
     fn test_extract_html5_not_valid_xml_relative_links() {
-        let test_html5 = Path::new(module_path!())
-            .parent()
-            .unwrap()
-            .join("fixtures")
-            .join("TEST_HTML5.html");
-
-        let file = File::open(test_html5).expect("Unable to open test file");
-        let mut buf_reader = BufReader::new(file);
-        let mut input = String::new();
-        buf_reader
-            .read_to_string(&mut input)
-            .expect("Unable to read test file contents");
-
+        let input = load_fixture("TEST_HTML5.html");
         let links = extract_links(
             &InputContent::from_string(&input, FileType::HTML),
             Some(Url::parse("https://example.com").unwrap()),
         );
+
         let expected_links = [
             Uri::Website(Url::parse("https://example.com/head/home").unwrap()),
             Uri::Website(Url::parse("https://example.com/images/icon.png").unwrap()),
             Uri::Website(Url::parse("https://example.com/css/style_relative_url.css").unwrap()),
             Uri::Website(Url::parse("https://example.com/css/style_full_url.css").unwrap()),
-            // TODO BUG: the JS link is missing because the parser can't properly deal
-            //           with `<script defer src="..."></script>` (tags that have attributes with no value)
-            // Uri::Website(Url::parse("https://example.com/js/script.js").unwrap()),
-
+            Uri::Website(Url::parse("https://example.com/js/script.js").unwrap()),
             // the body links wouldn't be present if the file was parsed strictly as XML
             Uri::Website(Url::parse("https://example.com/body/a").unwrap()),
             Uri::Website(Url::parse("https://example.com/body/div_empty_a").unwrap()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_html5_lowercase_doctype() {
+        // this has been problematic with previous XML based parser
+        let input = load_fixture("TEST_HTML5_LOWERCASE_DOCTYPE.html");
+        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+
+        let expected_links = [Uri::Website(
+            Url::parse("https://example.com/body/a").unwrap(),
+        )]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_html5_minified() {
+        // minified HTML with some quirky elements such as href attribute values specified without quotes
+        let input = load_fixture("TEST_HTML5_MINIFIED.html");
+        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+
+        let expected_links = [
+            Uri::Website(Url::parse("https://example.com/").unwrap()),
+            Uri::Website(Url::parse("https://example.com/favicon.ico").unwrap()),
+            Uri::Website(Url::parse("https://fonts.externalsite.com").unwrap()),
+            Uri::Website(Url::parse("https://example.com/docs/").unwrap()),
+            Uri::Website(Url::parse("https://example.com/forum").unwrap()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_html5_malformed() {
+        // malformed links shouldn't stop the parser from further parsing
+        let input = load_fixture("TEST_HTML5_MALFORMED_LINKS.html");
+        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+
+        let expected_links = [Uri::Website(
+            Url::parse("https://example.com/valid").unwrap(),
+        )]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_html5_custom_elements() {
+        // the element name shouldn't matter for attributes like href, src, cite etc
+        let input = load_fixture("TEST_HTML5_CUSTOM_ELEMENTS.html");
+        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+
+        let expected_links = [
+            Uri::Website(Url::parse("https://example.com/some-weird-element").unwrap()),
+            Uri::Website(Url::parse("https://example.com/even-weirder-src").unwrap()),
+            Uri::Website(Url::parse("https://example.com/even-weirder-href").unwrap()),
+            Uri::Website(Url::parse("https://example.com/citations").unwrap()),
         ]
         .iter()
         .cloned()
