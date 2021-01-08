@@ -1,6 +1,7 @@
 ![lychee](assets/banner.png)
 
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
+[![docs.rs](https://docs.rs/lychee/badge.svg)](https://docs.rs/lychee)
 
 A fast, async, resource-friendly link checker written in Rust. \
 For GitHub links, it can optionally use a `GITHUB_TOKEN` to avoid getting blocked by the rate
@@ -203,10 +204,9 @@ You can use lychee as a library for your own projects.
 Simply add it as a dependency and build your client:
 
 ```rust
-use lychee::ClientBuilder;
 use http::StatusCode
 
-let client = ClientBuilder::default().build()?;
+let client = lychee::ClientBuilder::default().build()?;
 let url = Url::parse("https://github.com/lycheeverse/lychee")?;
 let response = client.check(Website(url)).await?;
 assert!(matches!(response.status, Status::Ok(_)));
@@ -215,7 +215,7 @@ assert!(matches!(response.status, Status::Ok(_)));
 The client is very customizable, e.g.
 
 ```rust
-let client = ClientBuilder::default()
+let client = lychee::ClientBuilder::default()
     .includes(includes)
     .excludes(excludes)
     .max_redirects(cfg.max_redirects)
@@ -230,6 +230,8 @@ let client = ClientBuilder::default()
     .accepted(accepted)
     .build()?;
 ```
+
+See the [builder documentation](https://docs.rs/lychee/latest/lychee/struct.ClientBuilder.html) for all options.
 
 ## Troubleshooting and workarounds
 
