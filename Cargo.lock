@@ -436,9 +436,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "check-if-email-exists"
-version = "0.8.17"
+version = "0.8.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b0ad57233b755f4f0f1bd1c3619eff443cabd4607c0f4f773988319be0c5b17"
+checksum = "00ff0e4ae34ab3bd0661d72af17918461bbd4ed2890a787b35277717af95eacd"
 dependencies = [
  "async-smtp",
  "async-std",
