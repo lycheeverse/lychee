@@ -54,7 +54,7 @@ version = "1.0.1"
 [dev-dependencies]
 assert_cmd = "1.0.2"
 predicates = "1.0.6"
-uuid = { version = "0.8.1", features = ["v4"] }
+uuid = { version = "0.8.2", features = ["v4"] }
 tempfile = "3.1.0"
 
 [features]
