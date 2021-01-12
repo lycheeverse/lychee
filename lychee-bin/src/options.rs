@@ -125,7 +125,7 @@ pub(crate) struct Config {
     pub(crate) no_progress: bool,
 
     /// Don't perform any link checking.
-    /// Dump all the links extracted from inputs that would be checked
+    /// Instead, dump all the links extracted from inputs that would be checked
     #[structopt(long)]
     #[serde(default)]
     pub(crate) no_check: bool,
