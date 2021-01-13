@@ -3469,22 +3469,22 @@ dependencies = [
 
 [[package]]
 name = "wiremock"
-version = "0.4.3"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf2221f97b96123960906b457fd816b0013f3a8b018e60d778c128a5592de85a"
+checksum = "26d66bd56d9e05909963026d61497f39c7790ca30edaa07222acf073c4e742e7"
 dependencies = [
  "async-trait",
  "deadpool 0.6.0",
  "futures",
  "futures-timer",
  "http-types",
- "hyper 0.13.9",
+ "hyper 0.14.2",
  "log",
  "once_cell",
  "regex",
  "serde",
  "serde_json",
- "tokio 0.2.22",
+ "tokio 1.0.1",
 ]
 
 [[package]]
