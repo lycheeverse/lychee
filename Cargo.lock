@@ -634,20 +634,6 @@ checksum = "d4d0e2d24e5ee3b23a01de38eefdcd978907890701f08ffffd4cb457ca4ee8d6"
 
 [[package]]
 name = "deadpool"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f1ea999b4bd6f33b668ea6c847823fc95105be8799c0cf3611ac4025871e004"
-dependencies = [
- "async-trait",
- "config",
- "crossbeam-queue",
- "num_cpus",
- "serde",
- "tokio 0.3.6",
-]
-
-[[package]]
-name = "deadpool"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d126179d86aee4556e54f5f3c6bf6d9884e7cc52cef82f77ee6f90a7747616d"
@@ -1579,7 +1565,7 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "check-if-email-exists",
- "deadpool 0.7.0",
+ "deadpool",
  "derive_builder",
  "futures",
  "glob",
@@ -2950,16 +2936,6 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "720ba21c25078711bf456d607987d95bce90f7c3bea5abe1db587862e7a1e87c"
-dependencies = [
- "autocfg",
- "pin-project-lite 0.2.4",
-]
-
-[[package]]
-name = "tokio"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d258221f566b6c803c7b4714abadc080172b272090cdc5e244a6d4dd13c3a6bd"
@@ -3469,12 +3445,12 @@ dependencies = [
 
 [[package]]
 name = "wiremock"
-version = "0.4.5"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26d66bd56d9e05909963026d61497f39c7790ca30edaa07222acf073c4e742e7"
+checksum = "a5cb4fb12a3feb97521a5a09031ef4ba84d9d177a6e6382f8b788d88bc231b12"
 dependencies = [
  "async-trait",
- "deadpool 0.6.0",
+ "deadpool",
  "futures",
  "futures-timer",
  "http-types",
