@@ -92,7 +92,7 @@ impl Input {
                 }
             }
             Stdin => Ok(vec![Self::stdin_content(file_type_hint).await?]),
-            String(s) => Ok(vec![Self::string_content(s, file_type_hint)?]),
+            String(s) => Ok(vec![Self::string_content(s, file_type_hint)]),
         }
     }
 
@@ -152,11 +152,8 @@ impl Input {
         Ok(input_content)
     }
 
-    fn string_content(s: &str, file_type_hint: Option<FileType>) -> Result<InputContent> {
-        Ok(InputContent::from_string(
-            s,
-            file_type_hint.unwrap_or_default(),
-        ))
+    fn string_content(s: &str, file_type_hint: Option<FileType>) -> InputContent {
+        InputContent::from_string(s, file_type_hint.unwrap_or_default())
     }
 }
 
