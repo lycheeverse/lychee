@@ -29,7 +29,7 @@ check-if-email-exists = "0.8.19"
 indicatif = "0.15.0"
 structopt = "0.3.21"
 toml = "0.5.8"
-serde = { version = "1.0.119", features = ["derive"] }
+serde = { version = "1.0.120", features = ["derive"] }
 pulldown-cmark = "0.8.0"
 html5ever = "0.25"
 markup5ever = "0.10"
