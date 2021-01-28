@@ -169,7 +169,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
             let bar = pb.clone();
             let sr = send_req.clone();
             let real_url = url.clone();
-            task::spawn_blocking(|| async move {
+            tokio::spawn(async move {
                 println!("Adding {} links from {}", links.len(), real_url);
                 for link in links {
                     if let Some(pb) = &bar {
