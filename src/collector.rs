@@ -198,14 +198,14 @@ pub async fn collect_links(
     drop(contents_tx);
 
     // extract links from input contents
-    let mut extract_links_handles = vec![];
+    let mut extract_link_handles = vec![];
 
     while let Some(result) = contents_rx.recv().await {
         for input_content in result? {
             let base_url = base_url.clone();
             let handle =
                 tokio::task::spawn_blocking(move || extract_links(&input_content, base_url));
-            extract_links_handles.push(handle);
+            extract_link_handles.push(handle);
         }
     }
 
@@ -215,7 +215,7 @@ pub async fn collect_links(
     //       a lot of inputs and/or the inputs are large (e.g. big files).
     let mut collected_links = HashSet::new();
 
-    for handle in extract_links_handles {
+    for handle in extract_link_handles {
         let links = handle.await?;
         collected_links.extend(links);
     }

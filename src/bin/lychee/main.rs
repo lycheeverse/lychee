@@ -7,7 +7,7 @@ use regex::RegexSet;
 use std::{collections::HashSet, time::Duration};
 use std::{fs, str::FromStr};
 use structopt::StructOpt;
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, task};
 
 mod options;
 mod stats;
@@ -130,12 +130,13 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let mut stats = ResponseStats::new();
 
     let bar = pb.clone();
+    let sr = send_req.clone();
     tokio::spawn(async move {
         for link in links {
             if let Some(pb) = &bar {
                 pb.set_message(&link.to_string());
             };
-            send_req.send(link).await.unwrap();
+            sr.send(link).await.unwrap();
         }
     });
 
@@ -148,9 +149,39 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
 
     while let Some(response) = recv_resp.recv().await {
         show_progress(&pb, &response, cfg.verbose);
-        stats.add(response);
-    }
+        stats.add(response.clone());
 
+        if !response.status.is_success() {
+            continue;
+        }
+        if let lychee::Uri::Website(url) = response.uri {
+            println!("add url: {}", &url);
+            let input = collector::Input::RemoteUrl(url.clone());
+            // TODO: Check recursion level
+            let links = collector::collect_links(
+                &[input],
+                cfg.base_url.clone(),
+                cfg.skip_missing,
+                max_concurrency,
+            )
+            .await?;
+
+            let bar = pb.clone();
+            let sr = send_req.clone();
+            let real_url = url.clone();
+            task::spawn_blocking(|| async move {
+                println!("Adding {} links from {}", links.len(), real_url);
+                for link in links {
+                    if let Some(pb) = &bar {
+                        pb.inc_length(1);
+                        pb.set_message(&link.to_string());
+                    };
+                    sr.send(link).await.unwrap();
+                }
+                println!("Done with all links from {}", real_url);
+            });
+        }
+    }
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
     if let Some(pb) = &pb {

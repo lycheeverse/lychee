@@ -19,7 +19,7 @@ impl TryFrom<String> for RequestMethod {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Response {
     pub uri: Uri,
     pub status: Status,
@@ -32,7 +32,7 @@ impl Response {
 }
 
 /// Response status of the request
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Status {
     /// Request was successful
     Ok(http::StatusCode),
