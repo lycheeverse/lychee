@@ -53,7 +53,7 @@ version = "1.1.1"
 
 [dev-dependencies]
 assert_cmd = "1.0.2"
-predicates = "1.0.6"
+predicates = "1.0.7"
 uuid = { version = "0.8.2", features = ["v4"] }
 tempfile = "3.2.0"
 
