@@ -7,11 +7,13 @@ use regex::RegexSet;
 use std::{collections::HashSet, time::Duration};
 use std::{fs, str::FromStr};
 use structopt::StructOpt;
-use tokio::{sync::mpsc, task};
+use tokio::sync::mpsc;
 
+mod cache;
 mod options;
 mod stats;
 
+use crate::cache::Cache;
 use crate::options::{Config, LycheeOptions};
 use crate::stats::ResponseStats;
 
@@ -104,6 +106,9 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .accepted(accepted)
         .build()?;
 
+    // Create link cache to keep track of seen links
+    let mut cache = Cache::new();
+
     let links = collector::collect_links(
         &inputs,
         cfg.base_url.clone(),
@@ -154,6 +159,11 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         if !response.status.is_success() {
             continue;
         }
+        if cache.contains(&response.uri) {
+            continue;
+        }
+        cache.add(response.uri.clone());
+
         if let lychee::Uri::Website(url) = response.uri {
             println!("add url: {}", &url);
             let input = collector::Input::RemoteUrl(url.clone());
