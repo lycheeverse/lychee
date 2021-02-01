@@ -49,7 +49,7 @@ version = "0.11.0"
 
 [dependencies.tokio]
 features = ["full"]
-version = "1.1.0"
+version = "1.1.1"
 
 [dev-dependencies]
 assert_cmd = "1.0.2"
