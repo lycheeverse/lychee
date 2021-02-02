@@ -248,6 +248,16 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 
 If you are using lychee for your project, we'd be delighted to hear about it.
 
+## License
+
+lychee is licensed under either of
+
+- Apache License, Version 2.0, (LICENSE-APACHE or
+  http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license (LICENSE-MIT or http://opensource.org/licenses/MIT)
+
+at your option.
+
 ## Credits
 
 The first prototype of lychee was built in [episode 10 of Hello
