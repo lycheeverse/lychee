@@ -30,6 +30,15 @@ enum ExitCode {
 }
 
 fn main() -> Result<()> {
+    // std::process::exit doesn't guarantee that all destructors will be ran,
+    // therefore we wrap "main" code in another function to guarantee that.
+    // See: https://doc.rust-lang.org/stable/std/process/fn.exit.html
+    // Also see: https://www.youtube.com/watch?v=zQC8T71Y8e4
+    let exit_code = run_main()?;
+    std::process::exit(exit_code);
+}
+
+fn run_main() -> Result<i32> {
     let mut opts = LycheeOptions::from_args();
 
     // Load a potentially existing config file and merge it into the config from the CLI
@@ -48,8 +57,8 @@ fn main() -> Result<()> {
         }
         None => tokio::runtime::Runtime::new()?,
     };
-    let errorcode = runtime.block_on(run(cfg, opts.inputs()))?;
-    std::process::exit(errorcode);
+
+    runtime.block_on(run(cfg, opts.inputs()))
 }
 
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
