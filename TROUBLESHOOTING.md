@@ -3,6 +3,20 @@
 This document describes common edge-cases and workarounds for checking links to various sites. \
 Please add your own findings and send us a pull request if you can.
 
+## GitHub Rate Limiting
+
+GitHub has a quite aggressive rate limiter. \
+If you're seeing errors like:
+
+```
+GitHub token not specified. To check GitHub links reliably, use `--github-token` flag / `GITHUB_TOKEN` env var.
+```
+
+That means you're getting rate-limited. As per the message, you can make lychee \
+use a GitHub personal access token to circumvent this.
+
+For more details, see ["GitHub token" section in README.md](https://github.com/lycheeverse/lychee#github-token).
+
 ## Unexpected Status Codes
 
 Some websites don't respond with a `200` (OK) status code. \
