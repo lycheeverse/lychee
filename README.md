@@ -4,8 +4,10 @@
 [![docs.rs](https://docs.rs/lychee/badge.svg)](https://docs.rs/lychee)
 
 A fast, async, resource-friendly link checker written in Rust. \
-For GitHub links, it can optionally use a `GITHUB_TOKEN` to avoid getting blocked by the rate
-limiter.
+For GitHub links, it can optionally use a [`GITHUB_TOKEN`](#github-token)
+to avoid getting blocked by GitHub's rate limiter.
+
+Available as a CLI utility and as a GitHub Action: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action).
 
 ![Lychee demo](./assets/lychee.gif)
 
@@ -233,6 +235,11 @@ let client = lychee::ClientBuilder::default()
 ```
 
 See the [builder documentation](https://docs.rs/lychee/latest/lychee/struct.ClientBuilder.html) for all options.
+
+## GitHub Action usage
+
+GitHub Action is available as a separate repository: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action)
+which includes usage instructions.
 
 ## Troubleshooting and workarounds
 
