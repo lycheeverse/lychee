@@ -12,6 +12,8 @@ pub struct Excludes {
     /// For IPv4: 127.0. 0.1/8
     /// For IPv6: ::1/128
     pub loopback_ips: bool,
+    /// Example: octocat@github.com
+    pub mail: bool,
 }
 
 impl Default for Excludes {
@@ -21,6 +23,7 @@ impl Default for Excludes {
             private_ips: false,
             link_local_ips: false,
             loopback_ips: false,
+            mail: false,
         }
     }
 }
