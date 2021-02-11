@@ -44,13 +44,13 @@ impl TryFrom<&str> for Uri {
     type Error = anyhow::Error;
 
     fn try_from(s: &str) -> Result<Self> {
+        // Remove the `mailto` scheme if it exists
+        // to avoid parsing it as a website URL.
+        let s = s.trim_start_matches("mailto:");
         if let Ok(uri) = Url::parse(s) {
-            if uri.scheme() != "mailto" {
-                return Ok(Uri::Website(uri));
-            }
+            return Ok(Uri::Website(uri));
         };
         if s.contains('@') {
-            let s = s.trim_start_matches("mailto:");
             return Ok(Uri::Mail(s.to_string()));
         };
         bail!("Cannot convert to Uri")
