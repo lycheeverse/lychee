@@ -51,6 +51,8 @@ pub struct ClientBuilderInternal {
     exclude_link_local_ips: bool,
     /// Exclude loopback IP addresses (e.g. 127.0.0.1)
     exclude_loopback_ips: bool,
+    /// Don't check mail addresses
+    exclude_mail: bool,
     /// Maximum number of redirects before returning error
     max_redirects: usize,
     /// User agent used for checking links
@@ -84,6 +86,7 @@ impl ClientBuilder {
             private_ips: enable_exclude(self.exclude_private_ips.unwrap_or_default()),
             link_local_ips: enable_exclude(self.exclude_link_local_ips.unwrap_or_default()),
             loopback_ips: enable_exclude(self.exclude_loopback_ips.unwrap_or_default()),
+            mail: enable_exclude(self.exclude_mail.unwrap_or_default()),
         }
     }
 
@@ -262,6 +265,10 @@ impl Client {
         false
     }
 
+    pub fn is_mail_excluded(&self) -> bool {
+        self.excludes.mail
+    }
+
     pub fn excluded(&self, uri: &Uri) -> bool {
         if let Some(includes) = &self.includes {
             if includes.is_match(uri.as_str()) {
@@ -277,6 +284,9 @@ impl Client {
         }
         if self.in_regex_excludes(uri.as_str()) {
             return true;
+        }
+        if matches!(uri, Uri::Mail(_)) {
+            return self.is_mail_excluded();
         }
         if self.in_ip_excludes(&uri) {
             return true;
