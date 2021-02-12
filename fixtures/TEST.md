@@ -22,3 +22,4 @@ https://example.com
 https://www.peerlyst.com/posts/a-list-of-static-analysis-tools-for-c-c-peerlyst
 
 test@example.com
+mailto:test2@example.com

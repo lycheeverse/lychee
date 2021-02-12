@@ -231,7 +231,7 @@ mod cli {
             .assert()
             .success();
 
-        let expected = r##"{"total":10,"successful":10,"failures":[],"timeouts":[],"redirects":[],"excludes":[],"errors":[]}"##;
+        let expected = r##"{"total":11,"successful":11,"failures":[],"timeouts":[],"redirects":[],"excludes":[],"errors":[]}"##;
         let output = fs::read_to_string(&outfile)?;
         assert_eq!(output, expected);
         fs::remove_file(outfile)?;

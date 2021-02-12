@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use std::{convert::TryFrom, fmt::Display};
@@ -44,7 +44,16 @@ impl TryFrom<&str> for Uri {
     type Error = anyhow::Error;
 
     fn try_from(s: &str) -> Result<Self> {
-        Ok(Uri::Website(Url::parse(s)?))
+        // Remove the `mailto` scheme if it exists
+        // to avoid parsing it as a website URL.
+        let s = s.trim_start_matches("mailto:");
+        if let Ok(uri) = Url::parse(s) {
+            return Ok(Uri::Website(uri));
+        };
+        if s.contains('@') {
+            return Ok(Uri::Mail(s.to_string()));
+        };
+        bail!("Cannot convert to Uri")
     }
 }
 
@@ -60,6 +69,23 @@ mod test {
 
     use super::*;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+    #[test]
+    fn test_uri_from_str() {
+        assert!(matches!(Uri::try_from(""), Err(_)));
+        assert_eq!(
+            Uri::try_from("http://example.com").unwrap(),
+            Uri::Website(url::Url::parse("http://example.com").unwrap())
+        );
+        assert_eq!(
+            Uri::try_from("mail@example.com").unwrap(),
+            Uri::Mail("mail@example.com".to_string())
+        );
+        assert_eq!(
+            Uri::try_from("mailto:mail@example.com").unwrap(),
+            Uri::Mail("mail@example.com".to_string())
+        );
+    }
 
     #[test]
     fn test_uri_host_ip_v4() {
@@ -85,5 +111,13 @@ mod test {
         let uri = Uri::Website(Url::parse("https://some.cryptic/url").expect("Expected valid URI"));
         let ip = uri.host_ip();
         assert!(ip.is_none());
+    }
+
+    #[test]
+    fn test_mail() {
+        let uri =
+            Uri::Website(Url::parse("http://127.0.0.1").expect("Expected URI with valid IPv4"));
+        let ip = uri.host_ip().expect("Expected a valid IPv4");
+        assert_eq!(ip, IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
     }
 }
