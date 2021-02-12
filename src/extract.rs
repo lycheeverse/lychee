@@ -5,8 +5,8 @@ use html5ever::tendril::{StrTendril, TendrilSink};
 use linkify::LinkFinder;
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
-use std::collections::HashSet;
 use std::path::Path;
+use std::{collections::HashSet, convert::TryFrom};
 use url::Url;
 
 #[derive(Clone, Debug)]
@@ -152,14 +152,12 @@ pub(crate) fn extract_links(input_content: &InputContent, base_url: Option<Url>)
     // Silently ignore the parse failures for now.
     let mut uris = HashSet::new();
     for link in links {
-        match Url::parse(&link) {
-            Ok(url) => {
-                uris.insert(Uri::Website(url));
+        match Uri::try_from(link.as_str()) {
+            Ok(uri) => {
+                uris.insert(uri);
             }
             Err(_) => {
-                if link.contains('@') {
-                    uris.insert(Uri::Mail(link));
-                } else if !Path::new(&link).exists() {
+                if !Path::new(&link).exists() {
                     if let Some(base_url) = &base_url {
                         if let Ok(new_url) = base_url.join(&link) {
                             uris.insert(Uri::Website(new_url));
