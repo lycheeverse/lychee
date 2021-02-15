@@ -188,7 +188,7 @@ mod cli {
             .arg("--glob-ignore-case")
             .assert()
             .success()
-            .stdout(contains("Total: 2"));
+            .stdout(contains("Total............2"));
 
         Ok(())
     }

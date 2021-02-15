@@ -85,7 +85,7 @@ impl Display for ResponseStats {
         write_stat(f, "🚫 Errors", self.errors + self.failures)?;
 
         if !&self.fail_map.is_empty() {
-            writeln!(f, "")?;
+            writeln!(f)?;
         }
         for (input, uris) in &self.fail_map {
             writeln!(f, "❯❯ {}", input)?;
@@ -93,6 +93,6 @@ impl Display for ResponseStats {
                 writeln!(f, "  {}", uri)?
             }
         }
-        writeln!(f, "")
+        writeln!(f)
     }
 }
