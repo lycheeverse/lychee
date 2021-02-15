@@ -208,12 +208,19 @@ You can use lychee as a library for your own projects.
 Simply add it as a dependency and build your client:
 
 ```rust
-use http::StatusCode
+use lychee::{Request, Input, ClientBuilder, Status};
+use lychee::Uri::Website;
+use url::Url;
+use std::error::Error;
 
-let client = lychee::ClientBuilder::default().build()?;
-let url = Url::parse("https://github.com/lycheeverse/lychee")?;
-let response = client.check(Website(url)).await?;
-assert!(matches!(response.status, Status::Ok(_)));
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+  let client = ClientBuilder::default().build()?;
+  let url = Url::parse("https://github.com/lycheeverse/lychee")?;
+  let response = client.check(Request::new(Website(url), Input::Stdin)).await;
+  assert!(matches!(response.status, Status::Ok(_)));
+  Ok(())
+}
 ```
 
 The client is very customizable, e.g.

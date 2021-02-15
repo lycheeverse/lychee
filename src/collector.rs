@@ -242,7 +242,10 @@ pub async fn collect_links(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{test_utils::get_mock_server_with_content, Uri};
+    use crate::{
+        test_utils::{get_mock_server_with_content, website},
+        Uri,
+    };
     use std::fs::File;
     use std::io::Write;
     use std::str::FromStr;
@@ -287,10 +290,10 @@ mod test {
             .collect::<HashSet<Uri>>();
 
         let mut expected_links: HashSet<Uri> = HashSet::new();
-        expected_links.insert(Uri::Website(Url::from_str(TEST_STRING)?));
-        expected_links.insert(Uri::Website(Url::from_str(TEST_URL)?));
-        expected_links.insert(Uri::Website(Url::from_str(TEST_FILE)?));
-        expected_links.insert(Uri::Website(Url::from_str(TEST_GLOB_1)?));
+        expected_links.insert(website(TEST_STRING));
+        expected_links.insert(website(TEST_URL));
+        expected_links.insert(website(TEST_FILE));
+        expected_links.insert(website(TEST_GLOB_1));
         expected_links.insert(Uri::Mail(TEST_GLOB_2_MAIL.to_string()));
 
         assert_eq!(links, expected_links);

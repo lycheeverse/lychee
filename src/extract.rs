@@ -178,6 +178,8 @@ pub(crate) fn extract_links(
 
 #[cfg(test)]
 mod test {
+    use crate::test_utils::website;
+
     use super::*;
     use std::fs::File;
     use std::io::{BufReader, Read};
@@ -213,10 +215,8 @@ mod test {
         assert_eq!(
             links,
             [
-                Uri::Website(Url::parse("https://endler.dev").unwrap()),
-                Uri::Website(
-                    Url::parse("https://github.com/hello-rust/lychee/relative_link").unwrap()
-                )
+                website("https://endler.dev"),
+                website("https://github.com/hello-rust/lychee/relative_link"),
             ]
             .iter()
             .cloned()
@@ -244,10 +244,8 @@ mod test {
         assert_eq!(
             links,
             [
-                Uri::Website(Url::parse("https://github.com/lycheeverse/lychee/").unwrap()),
-                Uri::Website(
-                    Url::parse("https://github.com/lycheeverse/blob/master/README.md").unwrap()
-                )
+                website("https://github.com/lycheeverse/lychee/"),
+                website("https://github.com/lycheeverse/blob/master/README.md"),
             ]
             .iter()
             .cloned()
@@ -280,8 +278,8 @@ mod test {
                 .collect();
 
         let expected = [
-            Uri::Website(Url::parse("https://endler.dev").unwrap()),
-            Uri::Website(Url::parse("https://hello-rust.show/foo/bar?lol=1").unwrap()),
+            website("https://endler.dev"),
+            website("https://hello-rust.show/foo/bar?lol=1"),
             Uri::Mail("test@example.com".to_string()),
         ]
         .iter()
@@ -313,11 +311,11 @@ mod test {
                 .collect();
 
         let expected_links = [
-            Uri::Website(Url::parse("https://example.com/head/home").unwrap()),
-            Uri::Website(Url::parse("https://example.com/css/style_full_url.css").unwrap()),
+            website("https://example.com/head/home"),
+            website("https://example.com/css/style_full_url.css"),
             // the body links wouldn't be present if the file was parsed strictly as XML
-            Uri::Website(Url::parse("https://example.com/body/a").unwrap()),
-            Uri::Website(Url::parse("https://example.com/body/div_empty_a").unwrap()),
+            website("https://example.com/body/a"),
+            website("https://example.com/body/div_empty_a"),
         ]
         .iter()
         .cloned()
@@ -338,14 +336,14 @@ mod test {
         .collect();
 
         let expected_links = [
-            Uri::Website(Url::parse("https://example.com/head/home").unwrap()),
-            Uri::Website(Url::parse("https://example.com/images/icon.png").unwrap()),
-            Uri::Website(Url::parse("https://example.com/css/style_relative_url.css").unwrap()),
-            Uri::Website(Url::parse("https://example.com/css/style_full_url.css").unwrap()),
-            Uri::Website(Url::parse("https://example.com/js/script.js").unwrap()),
+            website("https://example.com/head/home"),
+            website("https://example.com/images/icon.png"),
+            website("https://example.com/css/style_relative_url.css"),
+            website("https://example.com/css/style_full_url.css"),
+            website("https://example.com/js/script.js"),
             // the body links wouldn't be present if the file was parsed strictly as XML
-            Uri::Website(Url::parse("https://example.com/body/a").unwrap()),
-            Uri::Website(Url::parse("https://example.com/body/div_empty_a").unwrap()),
+            website("https://example.com/body/a"),
+            website("https://example.com/body/div_empty_a"),
         ]
         .iter()
         .cloned()
@@ -364,12 +362,10 @@ mod test {
                 .map(|r| r.uri)
                 .collect();
 
-        let expected_links = [Uri::Website(
-            Url::parse("https://example.com/body/a").unwrap(),
-        )]
-        .iter()
-        .cloned()
-        .collect();
+        let expected_links = [website("https://example.com/body/a")]
+            .iter()
+            .cloned()
+            .collect();
 
         assert_eq!(links, expected_links);
     }
@@ -385,11 +381,11 @@ mod test {
                 .collect();
 
         let expected_links = [
-            Uri::Website(Url::parse("https://example.com/").unwrap()),
-            Uri::Website(Url::parse("https://example.com/favicon.ico").unwrap()),
-            Uri::Website(Url::parse("https://fonts.externalsite.com").unwrap()),
-            Uri::Website(Url::parse("https://example.com/docs/").unwrap()),
-            Uri::Website(Url::parse("https://example.com/forum").unwrap()),
+            website("https://example.com/"),
+            website("https://example.com/favicon.ico"),
+            website("https://fonts.externalsite.com"),
+            website("https://example.com/docs/"),
+            website("https://example.com/forum"),
         ]
         .iter()
         .cloned()
@@ -429,10 +425,10 @@ mod test {
                 .collect();
 
         let expected_links = [
-            Uri::Website(Url::parse("https://example.com/some-weird-element").unwrap()),
-            Uri::Website(Url::parse("https://example.com/even-weirder-src").unwrap()),
-            Uri::Website(Url::parse("https://example.com/even-weirder-href").unwrap()),
-            Uri::Website(Url::parse("https://example.com/citations").unwrap()),
+            website("https://example.com/some-weird-element"),
+            website("https://example.com/even-weirder-src"),
+            website("https://example.com/even-weirder-href"),
+            website("https://example.com/citations"),
         ]
         .iter()
         .cloned()
