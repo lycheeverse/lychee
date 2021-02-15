@@ -1411,6 +1411,7 @@ dependencies = [
  "markup5ever",
  "markup5ever_rcdom",
  "openssl-sys",
+ "pad",
  "predicates",
  "pulldown-cmark",
  "regex",
@@ -1688,6 +1689,15 @@ dependencies = [
  "openssl-src",
  "pkg-config",
  "vcpkg",
+]
+
+[[package]]
+name = "pad"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2ad9b889f1b12e0b9ee24db044b5129150d5eada288edc800f789928dc8c0e3"
+dependencies = [
+ "unicode-width",
 ]
 
 [[package]]

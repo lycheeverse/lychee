@@ -1,6 +1,24 @@
-use crate::uri::Uri;
+use crate::{collector::Input, uri::Uri};
 use anyhow::anyhow;
-use std::{collections::HashSet, convert::TryFrom};
+use std::{collections::HashSet, convert::TryFrom, fmt::Display};
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub struct Request {
+    pub uri: Uri,
+    pub source: Input,
+}
+
+impl Request {
+    pub fn new(uri: Uri, source: Input) -> Self {
+        Request { uri, source }
+    }
+}
+
+impl Display for Request {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", self.uri, self.source)
+    }
+}
 
 /// Specifies how requests to websites will be made
 pub(crate) enum RequestMethod {
@@ -23,11 +41,16 @@ impl TryFrom<String> for RequestMethod {
 pub struct Response {
     pub uri: Uri,
     pub status: Status,
+    pub source: Input,
 }
 
 impl Response {
-    pub fn new(uri: Uri, status: Status) -> Self {
-        Response { uri, status }
+    pub fn new(uri: Uri, status: Status, source: Input) -> Self {
+        Response {
+            uri,
+            status,
+            source,
+        }
     }
 }
 
@@ -39,9 +62,9 @@ pub enum Status {
     /// Request failed with HTTP error code
     Failed(http::StatusCode),
     /// Request timed out
-    Timeout,
+    Timeout(Option<http::StatusCode>),
     /// Got redirected to different resource
-    Redirected,
+    Redirected(http::StatusCode),
     /// Resource was excluded from checking
     Excluded,
     /// Low-level error while loading resource
@@ -55,7 +78,7 @@ impl Status {
         } else if statuscode.is_success() {
             Status::Ok(statuscode)
         } else if statuscode.is_redirection() {
-            Status::Redirected
+            Status::Redirected(statuscode)
         } else {
             Status::Failed(statuscode)
         }
@@ -69,7 +92,7 @@ impl Status {
 impl From<reqwest::Error> for Status {
     fn from(e: reqwest::Error) -> Self {
         if e.is_timeout() {
-            Status::Timeout
+            Status::Timeout(e.status())
         } else {
             Status::Error(e.to_string())
         }

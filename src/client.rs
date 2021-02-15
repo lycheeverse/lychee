@@ -10,9 +10,9 @@ use std::{collections::HashSet, time::Duration};
 use tokio::time::sleep;
 use url::Url;
 
-use crate::excludes::Excludes;
 use crate::types::{Response, Status};
 use crate::uri::Uri;
+use crate::{excludes::Excludes, Request};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const DEFAULT_MAX_REDIRECTS: usize = 5;
@@ -269,9 +269,9 @@ impl Client {
         self.excludes.mail
     }
 
-    pub fn excluded(&self, uri: &Uri) -> bool {
+    pub fn excluded(&self, request: &Request) -> bool {
         if let Some(includes) = &self.includes {
-            if includes.is_match(uri.as_str()) {
+            if includes.is_match(request.uri.as_str()) {
                 // Includes take precedence over excludes
                 return false;
             } else {
@@ -282,26 +282,26 @@ impl Client {
                 }
             }
         }
-        if self.in_regex_excludes(uri.as_str()) {
+        if self.in_regex_excludes(request.uri.as_str()) {
             return true;
         }
-        if matches!(uri, Uri::Mail(_)) {
+        if matches!(request.uri, Uri::Mail(_)) {
             return self.is_mail_excluded();
         }
-        if self.in_ip_excludes(&uri) {
+        if self.in_ip_excludes(&request.uri) {
             return true;
         }
         if self.scheme.is_none() {
             return false;
         }
-        uri.scheme() != self.scheme
+        request.uri.scheme() != self.scheme
     }
 
-    pub async fn check(&self, uri: Uri) -> Response {
-        if self.excluded(&uri) {
-            return Response::new(uri, Status::Excluded);
+    pub async fn check(&self, request: Request) -> Response {
+        if self.excluded(&request) {
+            return Response::new(request.uri, Status::Excluded, request.source);
         }
-        let status = match uri {
+        let status = match request.uri {
             Uri::Website(ref url) => self.check_real(&url).await,
             Uri::Mail(ref address) => {
                 let valid = self.valid_mail(&address).await;
@@ -313,12 +313,14 @@ impl Client {
                 }
             }
         };
-        Response::new(uri, status)
+        Response::new(request.uri, status, request.source)
     }
 }
 
 #[cfg(test)]
 mod test {
+    use crate::collector::Input;
+
     use super::*;
     use http::StatusCode;
     use std::time::{Duration, Instant};
@@ -345,8 +347,11 @@ mod test {
     const V6_MAPPED_V4_PRIVATE_CLASS_A: &str = "http://[::ffff:10.0.0.1]";
     const V6_MAPPED_V4_LINK_LOCAL: &str = "http://[::ffff:169.254.0.1]";
 
-    fn website_url(s: &str) -> Uri {
-        Uri::Website(Url::parse(s).expect("Expected valid Website URI"))
+    fn website_url(s: &str) -> Request {
+        Request::new(
+            Uri::Website(Url::parse(s).expect("Expected valid Website URI")),
+            Input::Stdin,
+        )
     }
 
     #[tokio::test]
@@ -507,7 +512,7 @@ mod test {
             .unwrap();
 
         let resp = client.check(website_url(&mock_server.uri())).await;
-        assert!(matches!(resp.status, Status::Timeout));
+        assert!(matches!(resp.status, Status::Timeout(_)));
     }
 
     #[tokio::test]
@@ -558,11 +563,17 @@ mod test {
         assert_eq!(client.excluded(&website_url("http://github.com")), true);
         assert_eq!(client.excluded(&website_url("http://exclude.org")), true);
         assert_eq!(
-            client.excluded(&Uri::Mail("mail@example.com".to_string())),
+            client.excluded(&Request::new(
+                Uri::Mail("mail@example.com".to_string()),
+                Input::Stdin,
+            )),
             true
         );
         assert_eq!(
-            client.excluded(&Uri::Mail("foo@bar.dev".to_string())),
+            client.excluded(&Request::new(
+                Uri::Mail("foo@bar.dev".to_string()),
+                Input::Stdin,
+            )),
             false
         );
     }

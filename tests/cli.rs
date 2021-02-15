@@ -30,10 +30,10 @@ mod cli {
             .arg(test_all_private_path)
             .assert()
             .success()
-            .stdout(contains("Total: 7"))
-            .stdout(contains("Excluded: 7"))
-            .stdout(contains("Successful: 0"))
-            .stdout(contains("Errors: 0"));
+            .stdout(contains("Total............7"))
+            .stdout(contains("Excluded.........7"))
+            .stdout(contains("Successful.......0"))
+            .stdout(contains("Errors...........0"));
     }
 
     /// Test that a GitHub link can be checked without specifying the token.
@@ -46,10 +46,10 @@ mod cli {
             .arg(test_github_path)
             .assert()
             .success()
-            .stdout(contains("Total: 1"))
-            .stdout(contains("Excluded: 0"))
-            .stdout(contains("Successful: 1"))
-            .stdout(contains("Errors: 0"));
+            .stdout(contains("Total............1"))
+            .stdout(contains("Excluded.........0"))
+            .stdout(contains("Successful.......1"))
+            .stdout(contains("Errors...........0"));
     }
 
     #[tokio::test]
@@ -164,7 +164,7 @@ mod cli {
             .arg("--verbose")
             .assert()
             .success()
-            .stdout(contains("Total: 2"));
+            .stdout(contains("Total............2"));
 
         Ok(())
     }
@@ -211,7 +211,7 @@ mod cli {
             .arg("--verbose")
             .assert()
             .success()
-            .stdout(contains("Total: 1"));
+            .stdout(contains("Total............1"));
 
         Ok(())
     }
@@ -231,7 +231,7 @@ mod cli {
             .assert()
             .success();
 
-        let expected = r##"{"total":11,"successful":11,"failures":[],"timeouts":[],"redirects":[],"excludes":[],"errors":[]}"##;
+        let expected = r##"{"total":11,"successful":11,"failures":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"fail_map":{}}"##;
         let output = fs::read_to_string(&outfile)?;
         assert_eq!(output, expected);
         fs::remove_file(outfile)?;

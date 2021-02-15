@@ -231,11 +231,14 @@ fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
 fn status_message(response: &Response, verbose: bool) -> Option<String> {
     match &response.status {
         Status::Ok(code) if verbose => Some(format!("✅ {} [{}]", response.uri, code)),
-        Status::Redirected if verbose => Some(format!("🔀️ {}", response.uri)),
+        Status::Redirected(code) if verbose => Some(format!("🔀️ {} [{}]", response.uri, code)),
         Status::Excluded if verbose => Some(format!("👻 {}", response.uri)),
         Status::Failed(code) => Some(format!("🚫 {} [{}]", response.uri, code)),
         Status::Error(e) => Some(format!("⚡ {} ({})", response.uri, e)),
-        Status::Timeout => Some(format!("⌛ {}", response.uri)),
+        Status::Timeout(code) => match code {
+            Some(c) => Some(format!("⌛ {} [{}]", response.uri, c)),
+            None => Some(format!("⌛ {}", response.uri)),
+        },
         _ => None,
     }
 }
