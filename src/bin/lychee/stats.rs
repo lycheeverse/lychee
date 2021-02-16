@@ -49,7 +49,10 @@ impl ResponseStats {
             _ => self.successful += 1,
         }
 
-        if matches!(response.status, Failed(_)) {
+        if matches!(
+            response.status,
+            Failed(_) | Timeout(_) | Redirected(_) | Error(_)
+        ) {
             let fail = self.fail_map.entry(response.source).or_default();
             fail.push(response.uri);
         };
@@ -94,5 +97,41 @@ impl Display for ResponseStats {
             }
         }
         writeln!(f)
+    }
+}
+
+#[cfg(test)]
+mod test_super {
+    use lychee::{test_utils::website, Status};
+
+    use super::*;
+
+    #[test]
+    fn test_stats() {
+        let mut stats = ResponseStats::new();
+        stats.add(Response {
+            uri: website("http://example.com/ok"),
+            status: Status::Ok(http::StatusCode::OK),
+            source: Input::Stdin,
+        });
+        stats.add(Response {
+            uri: website("http://example.com/failed"),
+            status: Status::Failed(http::StatusCode::BAD_GATEWAY),
+            source: Input::Stdin,
+        });
+        stats.add(Response {
+            uri: website("http://example.com/redirect"),
+            status: Status::Redirected(http::StatusCode::PERMANENT_REDIRECT),
+            source: Input::Stdin,
+        });
+        let mut expected_map = HashMap::new();
+        expected_map.insert(
+            Input::Stdin,
+            vec![
+                website("http://example.com/failed"),
+                website("http://example.com/redirect"),
+            ],
+        );
+        assert_eq!(stats.fail_map, expected_map);
     }
 }
