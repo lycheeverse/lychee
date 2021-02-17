@@ -72,7 +72,7 @@ impl Display for Response {
 }
 
 /// Response status of the request
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub enum Status {
     /// Request was successful
     Ok(http::StatusCode),
@@ -86,6 +86,30 @@ pub enum Status {
     Excluded,
     /// Low-level error while loading resource
     Error(String),
+}
+
+impl Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let out = match self {
+            Status::Ok(c) => format!("OK ({})", c),
+            Status::Redirected(c) => format!("Redirect ({})", c),
+            Status::Excluded => "Excluded".to_string(),
+            Status::Failed(c) => format!("Failed ({})", c),
+            Status::Error(e) => format!("Runtime error ({})", e),
+            Status::Timeout(Some(c)) => format!("Timeout ({})", c),
+            Status::Timeout(None) => "Timeout".to_string(),
+        };
+        write!(f, "{}", out)
+    }
+}
+
+impl Serialize for Status {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(self)
+    }
 }
 
 impl Status {
