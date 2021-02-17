@@ -15,7 +15,7 @@ use tokio::io::{stdin, AsyncReadExt};
 
 const STDIN: &str = "-";
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Input {
     RemoteUrl(Url),
@@ -23,6 +23,15 @@ pub enum Input {
     FsPath(PathBuf),
     Stdin,
     String(String),
+}
+
+impl Serialize for Input {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_str(self)
+    }
 }
 
 impl Display for Input {
