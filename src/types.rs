@@ -104,6 +104,21 @@ impl Status {
     pub fn is_success(&self) -> bool {
         matches!(self, Status::Ok(_))
     }
+
+    pub fn is_excluded(&self) -> bool {
+        matches!(self, Status::Excluded)
+    }
+
+    pub fn icon(&self) -> &str {
+        match self {
+            Status::Ok(_) => "✅",
+            Status::Redirected(_) => "🔀️",
+            Status::Excluded => "👻",
+            Status::Failed(_) => "🚫",
+            Status::Error(_) => "⚡",
+            Status::Timeout(_) => "⌛",
+        }
+    }
 }
 
 impl From<reqwest::Error> for Status {
