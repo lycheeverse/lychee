@@ -1,17 +1,17 @@
 use pad::{Alignment, PadStr};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{self, Display},
 };
 
-use lychee::{collector::Input, Response, Status::*, Uri};
+use lychee::{collector::Input, Response, Status::*};
 
 // Maximum padding for each entry in the final statistics output
 const MAX_PADDING: usize = 20;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize)]
 pub struct ResponseStats {
     total: usize,
     successful: usize,
@@ -20,7 +20,7 @@ pub struct ResponseStats {
     redirects: usize,
     excludes: usize,
     errors: usize,
-    fail_map: HashMap<Input, Vec<Uri>>,
+    fail_map: HashMap<Input, HashSet<Response>>,
 }
 
 impl ResponseStats {
@@ -53,8 +53,8 @@ impl ResponseStats {
             response.status,
             Failed(_) | Timeout(_) | Redirected(_) | Error(_)
         ) {
-            let fail = self.fail_map.entry(response.source).or_default();
-            fail.push(response.uri);
+            let fail = self.fail_map.entry(response.source.clone()).or_default();
+            fail.insert(response);
         };
     }
 
@@ -90,10 +90,16 @@ impl Display for ResponseStats {
         if !&self.fail_map.is_empty() {
             writeln!(f)?;
         }
-        for (input, uris) in &self.fail_map {
-            writeln!(f, "❯❯ {}", input)?;
-            for uri in uris {
-                writeln!(f, "  {}", uri)?
+        for (input, responses) in &self.fail_map {
+            writeln!(f, "Input: {}", input)?;
+            for response in responses {
+                writeln!(
+                    f,
+                    "   {} {}\n      {}",
+                    response.status.icon(),
+                    response.uri,
+                    response.status
+                )?
             }
         }
         writeln!(f)
