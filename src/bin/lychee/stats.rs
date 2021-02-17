@@ -128,9 +128,19 @@ mod test_super {
         expected_map.insert(
             Input::Stdin,
             vec![
-                website("http://example.com/failed"),
-                website("http://example.com/redirect"),
-            ],
+                Response {
+                    uri: website("http://example.com/failed"),
+                    status: Status::Failed(http::StatusCode::BAD_GATEWAY),
+                    source: Input::Stdin,
+                },
+                Response {
+                    uri: website("http://example.com/redirect"),
+                    status: Status::Redirected(http::StatusCode::PERMANENT_REDIRECT),
+                    source: Input::Stdin,
+                },
+            ]
+            .into_iter()
+            .collect::<HashSet<_>>(),
         );
         assert_eq!(stats.fail_map, expected_map);
     }
