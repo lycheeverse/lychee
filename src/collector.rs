@@ -5,7 +5,7 @@ use crate::{
 use anyhow::{anyhow, Context, Result};
 use glob::glob_with;
 use reqwest::Url;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use shellexpand::tilde;
 use std::path::Path;
 use std::path::PathBuf;
