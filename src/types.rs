@@ -1,5 +1,6 @@
 use crate::{collector::Input, uri::Uri};
 use anyhow::anyhow;
+use serde::{Serialize, Serializer};
 use std::{collections::HashSet, convert::TryFrom, fmt::Display};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -37,10 +38,12 @@ impl TryFrom<String> for RequestMethod {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct Response {
+    #[serde(flatten)]
     pub uri: Uri,
     pub status: Status,
+    #[serde(skip)]
     pub source: Input,
 }
 
@@ -51,6 +54,20 @@ impl Response {
             status,
             source,
         }
+    }
+}
+
+impl Display for Response {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let metadata = match &self.status {
+            Status::Ok(code) | Status::Redirected(code) | Status::Failed(code) => {
+                format!(" [{}]", code)
+            }
+            Status::Timeout(code) if code.is_some() => format!(" [{}]", code.unwrap()),
+            Status::Error(e) => format!(" ({})", e),
+            _ => "".to_string(),
+        };
+        write!(f, "{} {}{}", self.status.icon(), self.uri, metadata)
     }
 }
 
