@@ -153,6 +153,52 @@ impl ClientBuilder {
 }
 
 impl Client {
+    pub async fn check(&self, request: Request) -> Response {
+        if self.excluded(&request) {
+            return Response::new(request.uri, Status::Excluded, request.source);
+        }
+        let status = match request.uri {
+            Uri::Website(ref url) => self.check_website(&url).await,
+            Uri::Mail(ref address) => {
+                let valid = self.valid_mail(&address).await;
+                if valid {
+                    // TODO: We should not be using a HTTP status code for mail
+                    Status::Ok(http::StatusCode::OK)
+                } else {
+                    Status::Error(format!("Invalid mail address: {}", address))
+                }
+            }
+        };
+        Response::new(request.uri, status, request.source)
+    }
+
+    pub async fn check_website(&self, url: &Url) -> Status {
+        let mut retries: i64 = 3;
+        let mut wait: u64 = 1;
+        let status = loop {
+            let res = self.check_normal(&url).await;
+            match res.is_success() {
+                true => return res,
+                false => {
+                    if retries > 0 {
+                        retries -= 1;
+                        sleep(Duration::from_secs(wait)).await;
+                        wait *= 2;
+                    } else {
+                        break res;
+                    }
+                }
+            }
+        };
+        // Pull out the heavy weapons in case of a failed normal request.
+        // This could be a Github URL and we run into the rate limiter.
+        if let Ok((owner, repo)) = self.extract_github(url.as_str()) {
+            return self.check_github(owner, repo).await;
+        }
+
+        status
+    }
+
     async fn check_github(&self, owner: String, repo: String) -> Status {
         match &self.github {
             Some(github) => {
@@ -187,33 +233,6 @@ impl Client {
         let owner = caps.get(1).context("Cannot capture owner")?;
         let repo = caps.get(2).context("Cannot capture repo")?;
         Ok((owner.as_str().into(), repo.as_str().into()))
-    }
-
-    pub async fn check_real(&self, url: &Url) -> Status {
-        let mut retries: i64 = 3;
-        let mut wait: u64 = 1;
-        let status = loop {
-            let res = self.check_normal(&url).await;
-            match res.is_success() {
-                true => return res,
-                false => {
-                    if retries > 0 {
-                        retries -= 1;
-                        sleep(Duration::from_secs(wait)).await;
-                        wait *= 2;
-                    } else {
-                        break res;
-                    }
-                }
-            }
-        };
-        // Pull out the heavy weapons in case of a failed normal request.
-        // This could be a Github URL and we run into the rate limiter.
-        if let Ok((owner, repo)) = self.extract_github(url.as_str()) {
-            return self.check_github(owner, repo).await;
-        }
-
-        status
     }
 
     pub async fn valid_mail(&self, address: &str) -> bool {
@@ -295,25 +314,6 @@ impl Client {
             return false;
         }
         request.uri.scheme() != self.scheme
-    }
-
-    pub async fn check(&self, request: Request) -> Response {
-        if self.excluded(&request) {
-            return Response::new(request.uri, Status::Excluded, request.source);
-        }
-        let status = match request.uri {
-            Uri::Website(ref url) => self.check_real(&url).await,
-            Uri::Mail(ref address) => {
-                let valid = self.valid_mail(&address).await;
-                if valid {
-                    // TODO: We should not be using a HTTP status code for mail
-                    Status::Ok(http::StatusCode::OK)
-                } else {
-                    Status::Error(format!("Invalid mail address: {}", address))
-                }
-            }
-        };
-        Response::new(request.uri, status, request.source)
     }
 }
 
