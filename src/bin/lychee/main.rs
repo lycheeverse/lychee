@@ -62,22 +62,24 @@ fn run_main() -> Result<i32> {
 }
 
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
-    let message = status_message(&response, verbose);
+    if response.status.is_success() || response.status.is_excluded() {
+        if !verbose {
+            return;
+        }
+    }
+    // Regular println! interferes with progress bar
     if let Some(pb) = progress_bar {
         pb.inc(1);
-        // regular println! interferes with progress bar
-        if let Some(message) = message {
-            pb.println(message);
-        }
-    } else if let Some(message) = message {
-        println!("{}", message);
-    };
+        pb.println(response.to_string());
+    } else {
+        println!("{}", response);
+    }
 }
 
 fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
     Ok(match format {
         Format::String => stats.to_string(),
-        Format::JSON => serde_json::to_string(&stats)?,
+        Format::JSON => serde_json::to_string_pretty(&stats)?,
     })
 }
 
@@ -120,6 +122,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         max_concurrency,
     )
     .await?;
+
     let pb = if cfg.progress {
         Some(
             ProgressBar::new(links.len() as u64)
@@ -226,21 +229,6 @@ fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
         ));
     }
     Ok(Authorization::basic(params[0], params[1]))
-}
-
-fn status_message(response: &Response, verbose: bool) -> Option<String> {
-    match &response.status {
-        Status::Ok(code) if verbose => Some(format!("✅ {} [{}]", response.uri, code)),
-        Status::Redirected(code) if verbose => Some(format!("🔀️ {} [{}]", response.uri, code)),
-        Status::Excluded if verbose => Some(format!("👻 {}", response.uri)),
-        Status::Failed(code) => Some(format!("🚫 {} [{}]", response.uri, code)),
-        Status::Error(e) => Some(format!("⚡ {} ({})", response.uri, e)),
-        Status::Timeout(code) => match code {
-            Some(c) => Some(format!("⌛ {} [{}]", response.uri, c)),
-            None => Some(format!("⌛ {}", response.uri)),
-        },
-        _ => None,
-    }
 }
 
 #[cfg(test)]
