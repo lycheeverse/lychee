@@ -10,9 +10,9 @@ use std::{collections::HashSet, time::Duration};
 use tokio::time::sleep;
 use url::Url;
 
-use crate::excludes::Excludes;
 use crate::types::{Response, Status};
 use crate::uri::Uri;
+use crate::{excludes::Excludes, Request};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const DEFAULT_MAX_REDIRECTS: usize = 5;
@@ -153,6 +153,52 @@ impl ClientBuilder {
 }
 
 impl Client {
+    pub async fn check(&self, request: Request) -> Response {
+        if self.excluded(&request) {
+            return Response::new(request.uri, Status::Excluded, request.source);
+        }
+        let status = match request.uri {
+            Uri::Website(ref url) => self.check_website(&url).await,
+            Uri::Mail(ref address) => {
+                let valid = self.valid_mail(&address).await;
+                if valid {
+                    // TODO: We should not be using a HTTP status code for mail
+                    Status::Ok(http::StatusCode::OK)
+                } else {
+                    Status::Error(format!("Invalid mail address: {}", address))
+                }
+            }
+        };
+        Response::new(request.uri, status, request.source)
+    }
+
+    pub async fn check_website(&self, url: &Url) -> Status {
+        let mut retries: i64 = 3;
+        let mut wait: u64 = 1;
+        let status = loop {
+            let res = self.check_normal(&url).await;
+            match res.is_success() {
+                true => return res,
+                false => {
+                    if retries > 0 {
+                        retries -= 1;
+                        sleep(Duration::from_secs(wait)).await;
+                        wait *= 2;
+                    } else {
+                        break res;
+                    }
+                }
+            }
+        };
+        // Pull out the heavy weapons in case of a failed normal request.
+        // This could be a Github URL and we run into the rate limiter.
+        if let Ok((owner, repo)) = self.extract_github(url.as_str()) {
+            return self.check_github(owner, repo).await;
+        }
+
+        status
+    }
+
     async fn check_github(&self, owner: String, repo: String) -> Status {
         match &self.github {
             Some(github) => {
@@ -187,33 +233,6 @@ impl Client {
         let owner = caps.get(1).context("Cannot capture owner")?;
         let repo = caps.get(2).context("Cannot capture repo")?;
         Ok((owner.as_str().into(), repo.as_str().into()))
-    }
-
-    pub async fn check_real(&self, url: &Url) -> Status {
-        let mut retries: i64 = 3;
-        let mut wait: u64 = 1;
-        let status = loop {
-            let res = self.check_normal(&url).await;
-            match res.is_success() {
-                true => return res,
-                false => {
-                    if retries > 0 {
-                        retries -= 1;
-                        sleep(Duration::from_secs(wait)).await;
-                        wait *= 2;
-                    } else {
-                        break res;
-                    }
-                }
-            }
-        };
-        // Pull out the heavy weapons in case of a failed normal request.
-        // This could be a Github URL and we run into the rate limiter.
-        if let Ok((owner, repo)) = self.extract_github(url.as_str()) {
-            return self.check_github(owner, repo).await;
-        }
-
-        status
     }
 
     pub async fn valid_mail(&self, address: &str) -> bool {
@@ -269,9 +288,9 @@ impl Client {
         self.excludes.mail
     }
 
-    pub fn excluded(&self, uri: &Uri) -> bool {
+    pub fn excluded(&self, request: &Request) -> bool {
         if let Some(includes) = &self.includes {
-            if includes.is_match(uri.as_str()) {
+            if includes.is_match(request.uri.as_str()) {
                 // Includes take precedence over excludes
                 return false;
             } else {
@@ -282,43 +301,26 @@ impl Client {
                 }
             }
         }
-        if self.in_regex_excludes(uri.as_str()) {
+        if self.in_regex_excludes(request.uri.as_str()) {
             return true;
         }
-        if matches!(uri, Uri::Mail(_)) {
+        if matches!(request.uri, Uri::Mail(_)) {
             return self.is_mail_excluded();
         }
-        if self.in_ip_excludes(&uri) {
+        if self.in_ip_excludes(&request.uri) {
             return true;
         }
         if self.scheme.is_none() {
             return false;
         }
-        uri.scheme() != self.scheme
-    }
-
-    pub async fn check(&self, uri: Uri) -> Response {
-        if self.excluded(&uri) {
-            return Response::new(uri, Status::Excluded);
-        }
-        let status = match uri {
-            Uri::Website(ref url) => self.check_real(&url).await,
-            Uri::Mail(ref address) => {
-                let valid = self.valid_mail(&address).await;
-                if valid {
-                    // TODO: We should not be using a HTTP status code for mail
-                    Status::Ok(http::StatusCode::OK)
-                } else {
-                    Status::Error(format!("Invalid mail address: {}", address))
-                }
-            }
-        };
-        Response::new(uri, status)
+        request.uri.scheme() != self.scheme
     }
 }
 
 #[cfg(test)]
 mod test {
+    use crate::collector::Input;
+
     use super::*;
     use http::StatusCode;
     use std::time::{Duration, Instant};
@@ -345,8 +347,11 @@ mod test {
     const V6_MAPPED_V4_PRIVATE_CLASS_A: &str = "http://[::ffff:10.0.0.1]";
     const V6_MAPPED_V4_LINK_LOCAL: &str = "http://[::ffff:169.254.0.1]";
 
-    fn website_url(s: &str) -> Uri {
-        Uri::Website(Url::parse(s).expect("Expected valid Website URI"))
+    fn website_url(s: &str) -> Request {
+        Request::new(
+            Uri::Website(Url::parse(s).expect("Expected valid Website URI")),
+            Input::Stdin,
+        )
     }
 
     #[tokio::test]
@@ -507,7 +512,7 @@ mod test {
             .unwrap();
 
         let resp = client.check(website_url(&mock_server.uri())).await;
-        assert!(matches!(resp.status, Status::Timeout));
+        assert!(matches!(resp.status, Status::Timeout(_)));
     }
 
     #[tokio::test]
@@ -558,11 +563,17 @@ mod test {
         assert_eq!(client.excluded(&website_url("http://github.com")), true);
         assert_eq!(client.excluded(&website_url("http://exclude.org")), true);
         assert_eq!(
-            client.excluded(&Uri::Mail("mail@example.com".to_string())),
+            client.excluded(&Request::new(
+                Uri::Mail("mail@example.com".to_string()),
+                Input::Stdin,
+            )),
             true
         );
         assert_eq!(
-            client.excluded(&Uri::Mail("foo@bar.dev".to_string())),
+            client.excluded(&Request::new(
+                Uri::Mail("foo@bar.dev".to_string()),
+                Input::Stdin,
+            )),
             false
         );
     }

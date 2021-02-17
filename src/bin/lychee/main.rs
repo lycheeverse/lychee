@@ -16,7 +16,7 @@ use crate::options::{Config, LycheeOptions};
 use crate::stats::ResponseStats;
 
 use lychee::collector::{self, Input};
-use lychee::{ClientBuilder, ClientPool, Response, Status};
+use lychee::{ClientBuilder, ClientPool, Response};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
@@ -62,22 +62,22 @@ fn run_main() -> Result<i32> {
 }
 
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
-    let message = status_message(&response, verbose);
+    if (response.status.is_success() || response.status.is_excluded()) && !verbose {
+        return;
+    }
+    // Regular println! interferes with progress bar
     if let Some(pb) = progress_bar {
         pb.inc(1);
-        // regular println! interferes with progress bar
-        if let Some(message) = message {
-            pb.println(message);
-        }
-    } else if let Some(message) = message {
-        println!("{}", message);
-    };
+        pb.println(response.to_string());
+    } else {
+        println!("{}", response);
+    }
 }
 
 fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
     Ok(match format {
         Format::String => stats.to_string(),
-        Format::JSON => serde_json::to_string(&stats)?,
+        Format::JSON => serde_json::to_string_pretty(&stats)?,
     })
 }
 
@@ -120,6 +120,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         max_concurrency,
     )
     .await?;
+
     let pb = if cfg.progress {
         Some(
             ProgressBar::new(links.len() as u64)
@@ -166,13 +167,11 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         pb.finish_and_clear();
     }
 
-    if cfg.verbose {
-        println!("\n{}", stats);
-    }
-
+    let stats_formatted = fmt(&stats, &cfg.format)?;
     if let Some(output) = &cfg.output {
-        fs::write(output, fmt(&stats, &cfg.format)?)
-            .context("Cannot write status output to file")?;
+        fs::write(output, stats_formatted).context("Cannot write status output to file")?;
+    } else {
+        println!("\n{}", stats_formatted);
     }
 
     match stats.is_success() {
@@ -226,18 +225,6 @@ fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
         ));
     }
     Ok(Authorization::basic(params[0], params[1]))
-}
-
-fn status_message(response: &Response, verbose: bool) -> Option<String> {
-    match &response.status {
-        Status::Ok(code) if verbose => Some(format!("✅ {} [{}]", response.uri, code)),
-        Status::Redirected if verbose => Some(format!("🔀️ {}", response.uri)),
-        Status::Excluded if verbose => Some(format!("👻 {}", response.uri)),
-        Status::Failed(code) => Some(format!("🚫 {} [{}]", response.uri, code)),
-        Status::Error(e) => Some(format!("⚡ {} ({})", response.uri, e)),
-        Status::Timeout => Some(format!("⌛ {}", response.uri)),
-        _ => None,
-    }
 }
 
 #[cfg(test)]

@@ -65,7 +65,7 @@ impl Display for Uri {
 
 #[cfg(test)]
 mod test {
-    use reqwest::Url;
+    use crate::test_utils::website;
 
     use super::*;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -75,7 +75,7 @@ mod test {
         assert!(matches!(Uri::try_from(""), Err(_)));
         assert_eq!(
             Uri::try_from("http://example.com").unwrap(),
-            Uri::Website(url::Url::parse("http://example.com").unwrap())
+            website("http://example.com")
         );
         assert_eq!(
             Uri::try_from("mail@example.com").unwrap(),
@@ -89,16 +89,14 @@ mod test {
 
     #[test]
     fn test_uri_host_ip_v4() {
-        let uri =
-            Uri::Website(Url::parse("http://127.0.0.1").expect("Expected URI with valid IPv4"));
+        let uri = website("http://127.0.0.1");
         let ip = uri.host_ip().expect("Expected a valid IPv4");
         assert_eq!(ip, IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
     }
 
     #[test]
     fn test_uri_host_ip_v6() {
-        let uri =
-            Uri::Website(Url::parse("https://[2020::0010]").expect("Expected URI with valid IPv6"));
+        let uri = website("https://[2020::0010]");
         let ip = uri.host_ip().expect("Expected a valid IPv6");
         assert_eq!(
             ip,
@@ -108,15 +106,14 @@ mod test {
 
     #[test]
     fn test_uri_host_ip_no_ip() {
-        let uri = Uri::Website(Url::parse("https://some.cryptic/url").expect("Expected valid URI"));
+        let uri = website("https://some.cryptic/url");
         let ip = uri.host_ip();
         assert!(ip.is_none());
     }
 
     #[test]
     fn test_mail() {
-        let uri =
-            Uri::Website(Url::parse("http://127.0.0.1").expect("Expected URI with valid IPv4"));
+        let uri = website("http://127.0.0.1");
         let ip = uri.host_ip().expect("Expected a valid IPv4");
         assert_eq!(ip, IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
     }

@@ -1,6 +1,9 @@
 use http::StatusCode;
+use reqwest::Url;
 use wiremock::matchers::path;
 use wiremock::{Mock, MockServer, ResponseTemplate};
+
+use crate::Uri;
 
 #[allow(unused)]
 pub async fn get_mock_server<S>(response_code: S) -> MockServer
@@ -29,4 +32,8 @@ where
         .await;
 
     mock_server
+}
+
+pub fn website(url: &str) -> Uri {
+    Uri::Website(Url::parse(url).unwrap())
 }

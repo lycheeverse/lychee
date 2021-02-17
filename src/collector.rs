@@ -1,18 +1,21 @@
-use crate::extract::{extract_links, FileType};
-use crate::uri::Uri;
+use crate::{
+    extract::{extract_links, FileType},
+    Request,
+};
 use anyhow::{anyhow, Context, Result};
 use glob::glob_with;
 use reqwest::Url;
+use serde::Serialize;
 use shellexpand::tilde;
-use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
+use std::{collections::HashSet, fmt::Display};
 use tokio::fs::read_to_string;
 use tokio::io::{stdin, AsyncReadExt};
 
 const STDIN: &str = "-";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Input {
     RemoteUrl(Url),
@@ -20,6 +23,40 @@ pub enum Input {
     FsPath(PathBuf),
     Stdin,
     String(String),
+}
+
+impl Serialize for Input {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_str(self)
+    }
+}
+
+impl Display for Input {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Input::RemoteUrl(url) => {
+                write!(f, "{}", url)
+            }
+            Input::FsGlob {
+                pattern,
+                ignore_case: _,
+            } => {
+                write!(f, "{}", pattern)
+            }
+            Input::FsPath(path) => {
+                write!(f, "{}", path.to_str().unwrap_or_default())
+            }
+            Input::Stdin => {
+                write!(f, "stdin")
+            }
+            Input::String(_) => {
+                write!(f, "raw input string")
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -157,18 +194,6 @@ impl Input {
     }
 }
 
-impl ToString for Input {
-    fn to_string(&self) -> String {
-        match self {
-            Self::RemoteUrl(url) => url.to_string(),
-            Self::FsGlob { pattern, .. } => pattern.clone(),
-            Self::FsPath(p) => p.to_str().unwrap_or_default().to_owned(),
-            Self::Stdin => STDIN.to_owned(),
-            Self::String(s) => s.clone(),
-        }
-    }
-}
-
 /// Fetch all unique links from a slice of inputs
 /// All relative URLs get prefixed with `base_url` if given.
 pub async fn collect_links(
@@ -176,7 +201,7 @@ pub async fn collect_links(
     base_url: Option<String>,
     skip_missing_inputs: bool,
     max_concurrency: usize,
-) -> Result<HashSet<Uri>> {
+) -> Result<HashSet<Request>> {
     let base_url = match base_url {
         Some(url) => Some(Url::parse(&url)?),
         _ => None,
@@ -213,7 +238,7 @@ pub async fn collect_links(
     //       instead of building a HashSet with all links.
     //       This optimization would speed up cases where there's
     //       a lot of inputs and/or the inputs are large (e.g. big files).
-    let mut collected_links = HashSet::new();
+    let mut collected_links: HashSet<Request> = HashSet::new();
 
     for handle in extract_links_handles {
         let links = handle.await?;
@@ -226,7 +251,10 @@ pub async fn collect_links(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::test_utils::get_mock_server_with_content;
+    use crate::{
+        test_utils::{get_mock_server_with_content, website},
+        Uri,
+    };
     use std::fs::File;
     use std::io::Write;
     use std::str::FromStr;
@@ -264,13 +292,17 @@ mod test {
             },
         ];
 
-        let links = collect_links(&inputs, None, false, 8).await?;
+        let responses = collect_links(&inputs, None, false, 8).await?;
+        let links = responses
+            .into_iter()
+            .map(|r| r.uri)
+            .collect::<HashSet<Uri>>();
 
-        let mut expected_links = HashSet::new();
-        expected_links.insert(Uri::Website(Url::from_str(TEST_STRING)?));
-        expected_links.insert(Uri::Website(Url::from_str(TEST_URL)?));
-        expected_links.insert(Uri::Website(Url::from_str(TEST_FILE)?));
-        expected_links.insert(Uri::Website(Url::from_str(TEST_GLOB_1)?));
+        let mut expected_links: HashSet<Uri> = HashSet::new();
+        expected_links.insert(website(TEST_STRING));
+        expected_links.insert(website(TEST_URL));
+        expected_links.insert(website(TEST_FILE));
+        expected_links.insert(website(TEST_GLOB_1));
         expected_links.insert(Uri::Mail(TEST_GLOB_2_MAIL.to_string()));
 
         assert_eq!(links, expected_links);
