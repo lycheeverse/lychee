@@ -239,7 +239,7 @@ pub struct Config {
     #[serde(default)]
     pub output: Option<PathBuf>,
 
-    /// Output file format of status report
+    /// Output file format of status report (json, string)
     #[structopt(short, long, default_value = "string")]
     #[serde(default)]
     pub format: Format,
