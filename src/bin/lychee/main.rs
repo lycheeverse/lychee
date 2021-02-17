@@ -16,7 +16,7 @@ use crate::options::{Config, LycheeOptions};
 use crate::stats::ResponseStats;
 
 use lychee::collector::{self, Input};
-use lychee::{ClientBuilder, ClientPool, Response, Status};
+use lychee::{ClientBuilder, ClientPool, Response};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
@@ -169,13 +169,11 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         pb.finish_and_clear();
     }
 
-    if cfg.verbose {
-        println!("\n{}", stats);
-    }
-
+    let stats_formatted = fmt(&stats, &cfg.format)?;
     if let Some(output) = &cfg.output {
-        fs::write(output, fmt(&stats, &cfg.format)?)
-            .context("Cannot write status output to file")?;
+        fs::write(output, stats_formatted).context("Cannot write status output to file")?;
+    } else {
+        println!("\n{}", stats_formatted);
     }
 
     match stats.is_success() {
