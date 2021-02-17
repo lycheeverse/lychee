@@ -62,10 +62,8 @@ fn run_main() -> Result<i32> {
 }
 
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
-    if response.status.is_success() || response.status.is_excluded() {
-        if !verbose {
-            return;
-        }
+    if (response.status.is_success() || response.status.is_excluded()) && !verbose {
+        return;
     }
     // Regular println! interferes with progress bar
     if let Some(pb) = progress_bar {
