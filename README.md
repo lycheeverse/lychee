@@ -174,7 +174,7 @@ OPTIONS:
         --basic-auth <basic-auth>              Basic authentication support. E.g. `username:password`
     -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
         --exclude <exclude>...                 Exclude URLs from checking (supports regex)
-    -f, --format <format>                      Output file format of status report [default: string]
+    -f, --format <format>                      Output file format of status report (json, string) [default: string]
         --github-token <github-token>          GitHub API token to use when checking github.com links, to avoid rate
                                                limiting [env: GITHUB_TOKEN=]
     -h, --headers <headers>...                 Custom request headers
@@ -187,7 +187,7 @@ OPTIONS:
     -T, --threads <threads>                    Number of threads to utilize. Defaults to number of cores available to
                                                the system
     -t, --timeout <timeout>                    Website timeout from connect to response finished [default: 20]
-    -u, --user-agent <user-agent>              User agent [default: lychee/0.5.0]
+    -u, --user-agent <user-agent>              User agent [default: lychee/0.6.0]
 
 ARGS:
     <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
