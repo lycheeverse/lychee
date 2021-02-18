@@ -1,12 +1,12 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use check_if_email_exists::{check_email, CheckEmailInput};
 use derive_builder::Builder;
 use headers::{HeaderMap, HeaderValue};
 use hubcaps::{Credentials, Github};
 use regex::{Regex, RegexSet};
 use reqwest::header;
-use std::net::IpAddr;
 use std::{collections::HashSet, time::Duration};
+use std::{convert::TryInto, net::IpAddr};
 use tokio::time::sleep;
 use url::Url;
 
@@ -153,30 +153,32 @@ impl ClientBuilder {
 }
 
 impl Client {
-    pub async fn check(&self, request: Request) -> Response {
+    pub async fn check<T: TryInto<Request>>(&self, request: T) -> Result<Response> {
+        let request: Request = match request.try_into() {
+            Ok(request) => request,
+            Err(_e) => bail!("Invalid URI:"),
+        };
         if self.excluded(&request) {
-            return Response::new(request.uri, Status::Excluded, request.source);
+            return Ok(Response::new(request.uri, Status::Excluded, request.source));
         }
         let status = match request.uri {
             Uri::Website(ref url) => self.check_website(&url).await,
             Uri::Mail(ref address) => {
-                let valid = self.valid_mail(&address).await;
-                if valid {
-                    // TODO: We should not be using a HTTP status code for mail
-                    Status::Ok(http::StatusCode::OK)
-                } else {
-                    Status::Error(format!("Invalid mail address: {}", address))
+                // TODO: We should not be using a HTTP status code for mail
+                match self.valid_mail(&address).await {
+                    true => Status::Ok(http::StatusCode::OK),
+                    false => Status::Error(format!("Invalid mail address: {}", address)),
                 }
             }
         };
-        Response::new(request.uri, status, request.source)
+        Ok(Response::new(request.uri, status, request.source))
     }
 
     pub async fn check_website(&self, url: &Url) -> Status {
         let mut retries: i64 = 3;
         let mut wait: u64 = 1;
         let status = loop {
-            let res = self.check_normal(&url).await;
+            let res = self.check_default(&url).await;
             match res.is_success() {
                 true => return res,
                 false => {
@@ -216,7 +218,7 @@ impl Client {
         }
     }
 
-    async fn check_normal(&self, url: &Url) -> Status {
+    async fn check_default(&self, url: &Url) -> Status {
         let request = self
             .reqwest_client
             .request(self.method.clone(), url.as_str());
@@ -317,6 +319,14 @@ impl Client {
     }
 }
 
+/// A convenience function to check a single URI
+/// This is the most simple link check and avoids having to create a client manually.
+/// For more complex scenarios, look into using the `ClientBuilder` instead.
+pub async fn check<T: TryInto<Request>>(request: T) -> Result<Response> {
+    let client = ClientBuilder::default().build()?;
+    Ok(client.check(request).await?)
+}
+
 #[cfg(test)]
 mod test {
     use crate::collector::Input;
@@ -366,8 +376,9 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url(&mock_server.uri()))
-            .await;
+            .check(mock_server.uri())
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Failed(_)));
     }
 
@@ -385,7 +396,8 @@ mod test {
             .build()
             .unwrap()
             .check(website_url(&mock_server.uri()))
-            .await;
+            .await
+            .unwrap();
         let end = start.elapsed();
 
         assert!(matches!(res.status, Status::Failed(_)));
@@ -414,6 +426,7 @@ mod test {
                 .unwrap()
                 .check(website_url("https://github.com/lycheeverse/lychee"))
                 .await
+                .unwrap()
                 .status,
             Status::Ok(_)
         ));
@@ -424,8 +437,9 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url("https://github.com/lycheeverse/not-lychee"))
+            .check("https://github.com/lycheeverse/not-lychee")
             .await
+            .unwrap()
             .status;
         assert!(matches!(res, Status::Error(_)));
     }
@@ -444,6 +458,7 @@ mod test {
             .unwrap()
             .check(website_url(&mock_server.uri()))
             .await
+            .unwrap()
             .status;
         assert!(matches!(res, Status::Ok(_)));
     }
@@ -453,8 +468,9 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url("https://expired.badssl.com/"))
-            .await;
+            .check("https://expired.badssl.com/")
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Error(_)));
 
         // Same, but ignore certificate error
@@ -462,8 +478,9 @@ mod test {
             .allow_insecure(true)
             .build()
             .unwrap()
-            .check(website_url("https://expired.badssl.com/"))
-            .await;
+            .check("https://expired.badssl.com/")
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Ok(_)));
     }
 
@@ -473,7 +490,8 @@ mod test {
             .build()
             .unwrap()
             .check(website_url("https://crates.io/crates/lychee"))
-            .await;
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Failed(StatusCode::NOT_FOUND)));
 
         // Try again, but with a custom header.
@@ -486,7 +504,8 @@ mod test {
             .build()
             .unwrap()
             .check(website_url("https://crates.io/crates/lychee"))
-            .await;
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Ok(_)));
     }
 
@@ -511,7 +530,7 @@ mod test {
             .build()
             .unwrap();
 
-        let resp = client.check(website_url(&mock_server.uri())).await;
+        let resp = client.check(website_url(&mock_server.uri())).await.unwrap();
         assert!(matches!(resp.status, Status::Timeout(_)));
     }
 

@@ -77,7 +77,7 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
 fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
     Ok(match format {
         Format::String => stats.to_string(),
-        Format::JSON => serde_json::to_string_pretty(&stats)?,
+        Format::Json => serde_json::to_string_pretty(&stats)?,
     })
 }
 
