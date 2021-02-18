@@ -66,12 +66,13 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
     if let Some(pb) = progress_bar {
         pb.inc(1);
         pb.set_message(&response.to_string());
-        // pb.println(response.to_string());
-        return;
-    }
-    if (response.status.is_success() || response.status.is_excluded()) && !verbose {
-        return;
+        if verbose {
+            pb.println(response.to_string());
+        }
     } else {
+        if (response.status.is_success() || response.status.is_excluded()) && !verbose {
+            return;
+        }
         println!("{}", response);
     }
 }
@@ -124,14 +125,10 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     .await?;
 
     let pb = if cfg.progress {
-        let bar = ProgressBar::new(links.len() as u64)
-            .with_style(
-                ProgressStyle::default_bar()
-                    .template("{spinner:.blue.bright} Checking:.bold {bar:40} {wide_msg:.dim}")
-            //         .template("{prefix:.bold.dim} {spinner} {msg}")
-                    // .template("{spinner:.green} [{elapsed_precise}] [{bar:40.yellow/green}] {pos}/{len} ({eta}) {wide_message}")
-                    // .progress_chars("#>-"),
-            );
+        let bar =
+            ProgressBar::new(links.len() as u64).with_style(ProgressStyle::default_bar().template(
+                "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
+            ));
         bar.enable_steady_tick(100);
         Some(bar)
     } else {
@@ -168,7 +165,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
     if let Some(pb) = &pb {
-        pb.finish_and_clear();
+        pb.finish_with_message("Done");
     }
 
     let stats_formatted = fmt(&stats, &cfg.format)?;
