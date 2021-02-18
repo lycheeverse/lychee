@@ -31,6 +31,14 @@
 * }
 * ```
 */
+
+#[cfg(doctest)]
+#[macro_use]
+extern crate doc_comment;
+
+#[cfg(doctest)]
+doctest!("../README.md");
+
 mod client;
 mod client_pool;
 mod excludes;

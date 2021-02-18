@@ -89,13 +89,13 @@ You can run lychee directly from the commandline.
 
 #### Using cargo
 
-```
+```sh
 cargo install lychee
 ```
 
 #### Using the official Docker image
 
-```
+```sh
 docker pull lycheeverse/lychee
 ```
 
@@ -108,13 +108,13 @@ You can download them from the [releases page](https://github.com/lycheeverse/ly
 
 Run it inside a repository with a `README.md`:
 
-```
+```sh
 lychee
 ```
 
 You can also specify various types of inputs:
 
-```
+```sh
 # check links on a website:
 lychee https://endler.dev/
 
@@ -149,7 +149,7 @@ token with no extra permissions is enough to be able to check public repos links
 There is an extensive list of commandline parameters to customize the behavior,
 see below for a full list.
 
-```
+```sh
 USAGE:
     lychee [FLAGS] [OPTIONS] [--] [inputs]...
 
@@ -235,7 +235,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 The client builder is very customizable:
 
-```rust
+```rust,ignore
 let client = lychee::ClientBuilder::default()
     .includes(includes)
     .excludes(excludes)

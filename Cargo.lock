@@ -1399,6 +1399,7 @@ dependencies = [
  "check-if-email-exists",
  "deadpool",
  "derive_builder",
+ "doc-comment",
  "futures",
  "glob",
  "headers",
