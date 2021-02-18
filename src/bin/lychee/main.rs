@@ -49,7 +49,8 @@ fn run_main() -> Result<i32> {
 
     let runtime = match cfg.threads {
         Some(threads) => {
-            // We define our own runtime instead of the `tokio::main` attribute since we want to make the number of threads configurable
+            // We define our own runtime instead of the `tokio::main` attribute
+            // since we want to make the number of threads configurable
             tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(threads)
                 .enable_all()
@@ -62,13 +63,14 @@ fn run_main() -> Result<i32> {
 }
 
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
-    if (response.status.is_success() || response.status.is_excluded()) && !verbose {
-        return;
-    }
-    // Regular println! interferes with progress bar
     if let Some(pb) = progress_bar {
         pb.inc(1);
-        pb.println(response.to_string());
+        pb.set_message(&response.to_string());
+        // pb.println(response.to_string());
+        return;
+    }
+    if (response.status.is_success() || response.status.is_excluded()) && !verbose {
+        return;
     } else {
         println!("{}", response);
     }
@@ -122,14 +124,16 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     .await?;
 
     let pb = if cfg.progress {
-        Some(
-            ProgressBar::new(links.len() as u64)
+        let bar = ProgressBar::new(links.len() as u64)
             .with_style(
                 ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta}) {wide_msg}")
-                .progress_chars("#>-")
-            )
-        )
+                    .template("{spinner:.blue.bright} Checking:.bold {bar:40} {wide_msg:.dim}")
+            //         .template("{prefix:.bold.dim} {spinner} {msg}")
+                    // .template("{spinner:.green} [{elapsed_precise}] [{bar:40.yellow/green}] {pos}/{len} ({eta}) {wide_message}")
+                    // .progress_chars("#>-"),
+            );
+        bar.enable_steady_tick(100);
+        Some(bar)
     } else {
         None
     };
