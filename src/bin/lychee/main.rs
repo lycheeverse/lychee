@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context, Result};
+use console::style;
 use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -15,7 +16,10 @@ mod stats;
 use crate::options::{Config, LycheeOptions};
 use crate::stats::ResponseStats;
 
-use lychee::collector::{self, Input};
+use lychee::{
+    collector::{self, Input},
+    Status,
+};
 use lychee::{ClientBuilder, ClientPool, Response};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
@@ -49,7 +53,8 @@ fn run_main() -> Result<i32> {
 
     let runtime = match cfg.threads {
         Some(threads) => {
-            // We define our own runtime instead of the `tokio::main` attribute since we want to make the number of threads configurable
+            // We define our own runtime instead of the `tokio::main` attribute
+            // since we want to make the number of threads configurable
             tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(threads)
                 .enable_all()
@@ -61,23 +66,37 @@ fn run_main() -> Result<i32> {
     runtime.block_on(run(cfg, opts.inputs()))
 }
 
+fn color_response(response: &Response) -> String {
+    let out = match response.status {
+        Status::Ok(_) => style(response).green().bright(),
+        Status::Redirected(_) => style(response),
+        Status::Excluded => style(response).dim(),
+        Status::Error(_) => style(response).yellow().bright(),
+        Status::Timeout(_) => style(response).yellow().bright(),
+        Status::Failed(_) => style(response).red().bright(),
+    };
+    out.to_string()
+}
+
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
-    if (response.status.is_success() || response.status.is_excluded()) && !verbose {
-        return;
-    }
-    // Regular println! interferes with progress bar
     if let Some(pb) = progress_bar {
         pb.inc(1);
-        pb.println(response.to_string());
+        pb.set_message(&response.to_string());
+        if verbose {
+            pb.println(color_response(response));
+        }
     } else {
-        println!("{}", response);
+        if (response.status.is_success() || response.status.is_excluded()) && !verbose {
+            return;
+        }
+        println!("{}", color_response(response));
     }
 }
 
 fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
     Ok(match format {
         Format::String => stats.to_string(),
-        Format::JSON => serde_json::to_string_pretty(&stats)?,
+        Format::Json => serde_json::to_string_pretty(&stats)?,
     })
 }
 
@@ -122,14 +141,12 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     .await?;
 
     let pb = if cfg.progress {
-        Some(
-            ProgressBar::new(links.len() as u64)
-            .with_style(
-                ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta}) {wide_msg}")
-                .progress_chars("#>-")
-            )
-        )
+        let bar =
+            ProgressBar::new(links.len() as u64).with_style(ProgressStyle::default_bar().template(
+                "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
+            ));
+        bar.enable_steady_tick(100);
+        Some(bar)
     } else {
         None
     };
@@ -164,7 +181,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
     if let Some(pb) = &pb {
-        pb.finish_and_clear();
+        pb.finish_with_message("Done");
     }
 
     let stats_formatted = fmt(&stats, &cfg.format)?;

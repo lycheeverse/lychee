@@ -11,7 +11,7 @@ use url::Url;
 
 #[derive(Clone, Debug)]
 pub enum FileType {
-    HTML,
+    Html,
     Markdown,
     Plaintext,
 }
@@ -29,7 +29,7 @@ impl<P: AsRef<Path>> From<P> for FileType {
         match path.extension() {
             Some(ext) => match ext {
                 _ if ext == "md" => FileType::Markdown,
-                _ if (ext == "htm" || ext == "html") => FileType::HTML,
+                _ if (ext == "htm" || ext == "html") => FileType::Html,
                 _ => FileType::Plaintext,
             },
             None => FileType::Plaintext,
@@ -147,7 +147,7 @@ pub(crate) fn extract_links(
 ) -> HashSet<Request> {
     let links = match input_content.file_type {
         FileType::Markdown => extract_links_from_markdown(&input_content.content),
-        FileType::HTML => extract_links_from_html(&input_content.content),
+        FileType::Html => extract_links_from_html(&input_content.content),
         FileType::Plaintext => extract_links_from_plaintext(&input_content.content),
     };
 
@@ -234,7 +234,7 @@ mod test {
             </html>"#;
 
         let links: HashSet<Uri> = extract_links(
-            &InputContent::from_string(input, FileType::HTML),
+            &InputContent::from_string(input, FileType::Html),
             Some(Url::parse("https://github.com/lycheeverse/").unwrap()),
         )
         .into_iter()
@@ -305,7 +305,7 @@ mod test {
     fn test_extract_html5_not_valid_xml() {
         let input = load_fixture("TEST_HTML5.html");
         let links: HashSet<Uri> =
-            extract_links(&InputContent::from_string(&input, FileType::HTML), None)
+            extract_links(&InputContent::from_string(&input, FileType::Html), None)
                 .into_iter()
                 .map(|r| r.uri)
                 .collect();
@@ -328,7 +328,7 @@ mod test {
     fn test_extract_html5_not_valid_xml_relative_links() {
         let input = load_fixture("TEST_HTML5.html");
         let links: HashSet<Uri> = extract_links(
-            &InputContent::from_string(&input, FileType::HTML),
+            &InputContent::from_string(&input, FileType::Html),
             Some(Url::parse("https://example.com").unwrap()),
         )
         .into_iter()
@@ -357,7 +357,7 @@ mod test {
         // this has been problematic with previous XML based parser
         let input = load_fixture("TEST_HTML5_LOWERCASE_DOCTYPE.html");
         let links: HashSet<Uri> =
-            extract_links(&InputContent::from_string(&input, FileType::HTML), None)
+            extract_links(&InputContent::from_string(&input, FileType::Html), None)
                 .into_iter()
                 .map(|r| r.uri)
                 .collect();
@@ -375,7 +375,7 @@ mod test {
         // minified HTML with some quirky elements such as href attribute values specified without quotes
         let input = load_fixture("TEST_HTML5_MINIFIED.html");
         let links: HashSet<Uri> =
-            extract_links(&InputContent::from_string(&input, FileType::HTML), None)
+            extract_links(&InputContent::from_string(&input, FileType::Html), None)
                 .into_iter()
                 .map(|r| r.uri)
                 .collect();
@@ -399,7 +399,7 @@ mod test {
         // malformed links shouldn't stop the parser from further parsing
         let input = load_fixture("TEST_HTML5_MALFORMED_LINKS.html");
         let links: HashSet<Uri> =
-            extract_links(&InputContent::from_string(&input, FileType::HTML), None)
+            extract_links(&InputContent::from_string(&input, FileType::Html), None)
                 .into_iter()
                 .map(|r| r.uri)
                 .collect();
@@ -419,7 +419,7 @@ mod test {
         // the element name shouldn't matter for attributes like href, src, cite etc
         let input = load_fixture("TEST_HTML5_CUSTOM_ELEMENTS.html");
         let links: HashSet<Uri> =
-            extract_links(&InputContent::from_string(&input, FileType::HTML), None)
+            extract_links(&InputContent::from_string(&input, FileType::Html), None)
                 .into_iter()
                 .map(|r| r.uri)
                 .collect();

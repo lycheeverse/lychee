@@ -76,7 +76,7 @@ fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize) -> fmt::Result {
 
 impl Display for ResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let separator = "-".repeat(MAX_PADDING);
+        let separator = "-".repeat(MAX_PADDING + 1);
 
         writeln!(f, "📝 Summary")?;
         writeln!(f, "{}", separator)?;

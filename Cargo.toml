@@ -52,6 +52,7 @@ serde_json = "1.0.62"
 # https://github.com/Homebrew/homebrew-core/pull/70216
 ring = "0.16.19"
 pad = "0.1.6"
+console = "0.14.0"
 
 [dependencies.reqwest]
 features = ["gzip"]
@@ -66,6 +67,7 @@ assert_cmd = "1.0.3"
 predicates = "1.0.7"
 uuid = { version = "0.8.2", features = ["v4"] }
 tempfile = "3.2.0"
+doc-comment = "0.3.3"
 
 [features]
 vendored-openssl = ["openssl-sys/vendored"]

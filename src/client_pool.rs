@@ -25,8 +25,10 @@ impl ClientPool {
             let client = self.pool.get().await;
             let tx = self.tx.clone();
             tokio::spawn(async move {
-                let resp = client.check(req).await;
-                tx.send(resp).await.unwrap();
+                let resp = client.check(req).await.expect("Invalid URI");
+                tx.send(resp)
+                    .await
+                    .expect("Cannot send response to channel");
             });
         }
     }

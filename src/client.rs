@@ -1,11 +1,11 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use check_if_email_exists::{check_email, CheckEmailInput};
 use derive_builder::Builder;
 use headers::{HeaderMap, HeaderValue};
 use hubcaps::{Credentials, Github};
 use regex::{Regex, RegexSet};
 use reqwest::header;
-use std::net::IpAddr;
+use std::convert::TryInto;
 use std::{collections::HashSet, time::Duration};
 use tokio::time::sleep;
 use url::Url;
@@ -153,30 +153,32 @@ impl ClientBuilder {
 }
 
 impl Client {
-    pub async fn check(&self, request: Request) -> Response {
+    pub async fn check<T: TryInto<Request>>(&self, request: T) -> Result<Response> {
+        let request: Request = match request.try_into() {
+            Ok(request) => request,
+            Err(_e) => bail!("Invalid URI:"),
+        };
         if self.excluded(&request) {
-            return Response::new(request.uri, Status::Excluded, request.source);
+            return Ok(Response::new(request.uri, Status::Excluded, request.source));
         }
         let status = match request.uri {
             Uri::Website(ref url) => self.check_website(&url).await,
             Uri::Mail(ref address) => {
-                let valid = self.valid_mail(&address).await;
-                if valid {
-                    // TODO: We should not be using a HTTP status code for mail
-                    Status::Ok(http::StatusCode::OK)
-                } else {
-                    Status::Error(format!("Invalid mail address: {}", address))
+                // TODO: We should not be using a HTTP status code for mail
+                match self.valid_mail(&address).await {
+                    true => Status::Ok(http::StatusCode::OK),
+                    false => Status::Error(format!("Invalid mail address: {}", address)),
                 }
             }
         };
-        Response::new(request.uri, status, request.source)
+        Ok(Response::new(request.uri, status, request.source))
     }
 
     pub async fn check_website(&self, url: &Url) -> Status {
         let mut retries: i64 = 3;
         let mut wait: u64 = 1;
         let status = loop {
-            let res = self.check_normal(&url).await;
+            let res = self.check_default(&url).await;
             match res.is_success() {
                 true => return res,
                 false => {
@@ -216,7 +218,7 @@ impl Client {
         }
     }
 
-    async fn check_normal(&self, url: &Url) -> Status {
+    async fn check_default(&self, url: &Url) -> Status {
         let request = self
             .reqwest_client
             .request(self.method.clone(), url.as_str());
@@ -251,63 +253,29 @@ impl Client {
         }
     }
 
-    fn in_regex_excludes(&self, input: &str) -> bool {
-        if let Some(excludes) = &self.excludes.regex {
-            if excludes.is_match(input) {
-                return true;
-            }
-        }
-        false
-    }
-
-    fn in_ip_excludes(&self, uri: &Uri) -> bool {
-        if let Some(ipaddr) = uri.host_ip() {
-            if self.excludes.loopback_ips && ipaddr.is_loopback() {
-                return true;
-            }
-
-            // Note: in a pathological case, an IPv6 address can be IPv4-mapped
-            //       (IPv4 address embedded in a IPv6).  We purposefully
-            //       don't deal with it here, and assume if an address is IPv6,
-            //       we shouldn't attempt to map it to IPv4.
-            //       See: https://tools.ietf.org/html/rfc4291#section-2.5.5.2
-            if let IpAddr::V4(v4addr) = ipaddr {
-                if self.excludes.private_ips && v4addr.is_private() {
-                    return true;
-                }
-                if self.excludes.link_local_ips && v4addr.is_link_local() {
-                    return true;
-                }
-            }
-        }
-
-        false
-    }
-
-    pub fn is_mail_excluded(&self) -> bool {
-        self.excludes.mail
-    }
-
     pub fn excluded(&self, request: &Request) -> bool {
+        if matches!(request.uri, Uri::Mail(_)) && self.excludes.is_mail_excluded() {
+            return true;
+        }
+        if self.excludes.ip(&request.uri) {
+            return true;
+        }
         if let Some(includes) = &self.includes {
+            if includes.is_empty() {
+                return false;
+            }
             if includes.is_match(request.uri.as_str()) {
                 // Includes take precedence over excludes
                 return false;
             } else {
                 // In case we have includes and no excludes,
                 // skip everything that was not included
-                if self.excludes.regex.is_none() {
+                if self.excludes.is_empty() {
                     return true;
                 }
             }
         }
-        if self.in_regex_excludes(request.uri.as_str()) {
-            return true;
-        }
-        if matches!(request.uri, Uri::Mail(_)) {
-            return self.is_mail_excluded();
-        }
-        if self.in_ip_excludes(&request.uri) {
+        if self.excludes.regex(request.uri.as_str()) {
             return true;
         }
         if self.scheme.is_none() {
@@ -315,6 +283,14 @@ impl Client {
         }
         request.uri.scheme() != self.scheme
     }
+}
+
+/// A convenience function to check a single URI
+/// This is the most simple link check and avoids having to create a client manually.
+/// For more complex scenarios, look into using the `ClientBuilder` instead.
+pub async fn check<T: TryInto<Request>>(request: T) -> Result<Response> {
+    let client = ClientBuilder::default().build()?;
+    Ok(client.check(request).await?)
 }
 
 #[cfg(test)]
@@ -366,8 +342,9 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url(&mock_server.uri()))
-            .await;
+            .check(mock_server.uri())
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Failed(_)));
     }
 
@@ -385,7 +362,8 @@ mod test {
             .build()
             .unwrap()
             .check(website_url(&mock_server.uri()))
-            .await;
+            .await
+            .unwrap();
         let end = start.elapsed();
 
         assert!(matches!(res.status, Status::Failed(_)));
@@ -414,6 +392,7 @@ mod test {
                 .unwrap()
                 .check(website_url("https://github.com/lycheeverse/lychee"))
                 .await
+                .unwrap()
                 .status,
             Status::Ok(_)
         ));
@@ -424,8 +403,9 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url("https://github.com/lycheeverse/not-lychee"))
+            .check("https://github.com/lycheeverse/not-lychee")
             .await
+            .unwrap()
             .status;
         assert!(matches!(res, Status::Error(_)));
     }
@@ -444,6 +424,7 @@ mod test {
             .unwrap()
             .check(website_url(&mock_server.uri()))
             .await
+            .unwrap()
             .status;
         assert!(matches!(res, Status::Ok(_)));
     }
@@ -453,8 +434,9 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url("https://expired.badssl.com/"))
-            .await;
+            .check("https://expired.badssl.com/")
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Error(_)));
 
         // Same, but ignore certificate error
@@ -462,8 +444,9 @@ mod test {
             .allow_insecure(true)
             .build()
             .unwrap()
-            .check(website_url("https://expired.badssl.com/"))
-            .await;
+            .check("https://expired.badssl.com/")
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Ok(_)));
     }
 
@@ -473,7 +456,8 @@ mod test {
             .build()
             .unwrap()
             .check(website_url("https://crates.io/crates/lychee"))
-            .await;
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Failed(StatusCode::NOT_FOUND)));
 
         // Try again, but with a custom header.
@@ -486,7 +470,8 @@ mod test {
             .build()
             .unwrap()
             .check(website_url("https://crates.io/crates/lychee"))
-            .await;
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Ok(_)));
     }
 
@@ -511,7 +496,7 @@ mod test {
             .build()
             .unwrap();
 
-        let resp = client.check(website_url(&mock_server.uri())).await;
+        let resp = client.check(website_url(&mock_server.uri())).await.unwrap();
         assert!(matches!(resp.status, Status::Timeout(_)));
     }
 
@@ -525,6 +510,49 @@ mod test {
             client.excluded(&website_url("https://foo.github.com")),
             false
         );
+        assert_eq!(
+            client.excluded(&website_url("https://bar.github.com")),
+            true
+        );
+    }
+
+    #[tokio::test]
+    async fn test_includes_and_excludes_empty() {
+        // This is the pre-configured, empty set of excludes for a client
+        // In this case, only the requests matching the include set will be checked
+        let exclude = Some(RegexSet::empty());
+        let includes = RegexSet::empty();
+
+        let client = ClientBuilder::default()
+            .includes(includes)
+            .excludes(exclude)
+            .build()
+            .unwrap();
+
+        assert_eq!(
+            client.excluded(&website_url("https://foo.github.com")),
+            false
+        );
+    }
+
+    #[tokio::test]
+    async fn test_include_with_empty_exclude() {
+        // This is the pre-configured, empty set of excludes for a client
+        // In this case, only the requests matching the include set will be checked
+        let exclude = Some(RegexSet::empty());
+        let includes = RegexSet::new(&[r"foo.github.com"]).unwrap();
+
+        let client = ClientBuilder::default()
+            .includes(includes)
+            .excludes(exclude)
+            .build()
+            .unwrap();
+
+        assert_eq!(
+            client.excluded(&website_url("https://foo.github.com")),
+            false
+        );
+        assert_eq!(client.excluded(&website_url("https://github.com")), true);
         assert_eq!(
             client.excluded(&website_url("https://bar.github.com")),
             true

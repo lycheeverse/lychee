@@ -21,18 +21,36 @@ impl Display for Request {
     }
 }
 
+impl TryFrom<String> for Request {
+    type Error = anyhow::Error;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        let uri = Uri::try_from(s.as_str())?;
+        Ok(Request::new(uri, Input::String(s)))
+    }
+}
+
+impl TryFrom<&str> for Request {
+    type Error = anyhow::Error;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        let uri = Uri::try_from(s)?;
+        Ok(Request::new(uri, Input::String(s.to_owned())))
+    }
+}
+
 /// Specifies how requests to websites will be made
 pub(crate) enum RequestMethod {
-    GET,
-    HEAD,
+    Get,
+    Head,
 }
 
 impl TryFrom<String> for RequestMethod {
     type Error = anyhow::Error;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.to_lowercase().as_ref() {
-            "get" => Ok(RequestMethod::GET),
-            "head" => Ok(RequestMethod::HEAD),
+            "get" => Ok(RequestMethod::Get),
+            "head" => Ok(RequestMethod::Head),
             _ => Err(anyhow!("Only `get` and `head` allowed, got {}", value)),
         }
     }

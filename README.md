@@ -89,13 +89,13 @@ You can run lychee directly from the commandline.
 
 #### Using cargo
 
-```
+```sh
 cargo install lychee
 ```
 
 #### Using the official Docker image
 
-```
+```sh
 docker pull lycheeverse/lychee
 ```
 
@@ -108,13 +108,13 @@ You can download them from the [releases page](https://github.com/lycheeverse/ly
 
 Run it inside a repository with a `README.md`:
 
-```
+```sh
 lychee
 ```
 
 You can also specify various types of inputs:
 
-```
+```sh
 # check links on a website:
 lychee https://endler.dev/
 
@@ -149,7 +149,7 @@ token with no extra permissions is enough to be able to check public repos links
 There is an extensive list of commandline parameters to customize the behavior,
 see below for a full list.
 
-```
+```sh
 USAGE:
     lychee [FLAGS] [OPTIONS] [--] [inputs]...
 
@@ -205,27 +205,37 @@ ARGS:
 ## Library usage
 
 You can use lychee as a library for your own projects.
-Simply add it as a dependency and build your client:
+Here is a "hello world" example:
 
 ```rust
-use lychee::{Request, Input, ClientBuilder, Status};
-use lychee::Uri::Website;
-use url::Url;
+use std::error::Error;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+  let response = lychee::check("https://github.com/lycheeverse/lychee").await?;
+  println!("{}", response);
+  Ok(())
+}
+```
+
+This is equivalent to the following snippet, in which we build our own client:
+
+```rust
+use lychee::{ClientBuilder, Status};
 use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
   let client = ClientBuilder::default().build()?;
-  let url = Url::parse("https://github.com/lycheeverse/lychee")?;
-  let response = client.check(Request::new(Website(url), Input::Stdin)).await;
+  let response = client.check("https://github.com/lycheeverse/lychee").await?;
   assert!(matches!(response.status, Status::Ok(_)));
   Ok(())
 }
 ```
 
-The client is very customizable, e.g.
+The client builder is very customizable:
 
-```rust
+```rust,ignore
 let client = lychee::ClientBuilder::default()
     .includes(includes)
     .excludes(excludes)
@@ -242,11 +252,12 @@ let client = lychee::ClientBuilder::default()
     .build()?;
 ```
 
+All options that you set will be used for all link checks.
 See the [builder documentation](https://docs.rs/lychee/latest/lychee/struct.ClientBuilder.html) for all options.
 
 ## GitHub Action usage
 
-GitHub Action is available as a separate repository: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action)
+A GitHub Action that uses lychee is available as a separate repository: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action)
 which includes usage instructions.
 
 ## Troubleshooting and workarounds

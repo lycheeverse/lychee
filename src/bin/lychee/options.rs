@@ -16,7 +16,7 @@ const MAX_REDIRECTS: usize = 10;
 #[derive(Debug, Deserialize)]
 pub enum Format {
     String,
-    JSON,
+    Json,
 }
 
 impl FromStr for Format {
@@ -24,7 +24,7 @@ impl FromStr for Format {
     fn from_str(format: &str) -> Result<Self, Self::Err> {
         match format {
             "string" => Ok(Format::String),
-            "json" => Ok(Format::JSON),
+            "json" => Ok(Format::Json),
             _ => Err(anyhow!("Could not parse format {}", format)),
         }
     }
