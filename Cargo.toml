@@ -55,7 +55,7 @@ pad = "0.1.6"
 
 [dependencies.reqwest]
 features = ["gzip"]
-version = "0.11.0"
+version = "0.11.1"
 
 [dependencies.tokio]
 features = ["full"]
