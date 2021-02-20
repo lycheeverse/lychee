@@ -44,14 +44,17 @@ impl TryFrom<&str> for Uri {
     type Error = anyhow::Error;
 
     fn try_from(s: &str) -> Result<Self> {
+        // We want to check for internal links
+        // For example., links to other internal Markdown
+        let is_internal_link = s.ends_with(".md");
         // Remove the `mailto` scheme if it exists
         // to avoid parsing it as a website URL.
         let s = s.trim_start_matches("mailto:");
+        if s.contains('@') & !is_internal_link {
+            return Ok(Uri::Mail(s.to_string()))
+        }
         if let Ok(uri) = Url::parse(s) {
             return Ok(Uri::Website(uri));
-        };
-        if s.contains('@') {
-            return Ok(Uri::Mail(s.to_string()));
         };
         bail!("Cannot convert to Uri")
     }

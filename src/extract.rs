@@ -268,6 +268,43 @@ mod test {
     }
 
     #[test]
+    fn test_markdown_internal_url() {
+        let input = "This is [an internal url](@/internal.md).";
+        let links: HashSet<Uri> = match Url::parse("https://localhost.com/") {
+            Ok(base_url) => extract_links(&InputContent::from_string(input, FileType::Markdown), Some(base_url)),
+            Err(_) => extract_links(&InputContent::from_string(input, FileType::Markdown), None),
+        }.into_iter()
+            .map(|r| r.uri)
+            .collect();
+        assert_eq!(
+            links,
+            [
+                website("https://localhost.com/@/internal.md")
+            ]
+                .iter()
+                .cloned()
+                .collect::<HashSet<Uri>>(),
+        )
+    }
+
+    #[test]
+    fn test_skip_markdown_email() {
+        let input = "Get in touch - [Contact Us](mailto:test@test.com)";
+        let links: HashSet<Uri> =
+            extract_links(&InputContent::from_string(input, FileType::Markdown), None)
+                .into_iter()
+                .map(|r| r.uri)
+                .collect();
+        let expected: HashSet<Uri> = [
+            Uri::Mail("test@test.com".to_string()),
+        ]
+            .iter()
+            .cloned()
+            .collect();
+        assert_eq!(links, expected)
+    }
+
+    #[test]
     fn test_non_markdown_links() {
         let input =
             "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.com";
