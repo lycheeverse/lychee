@@ -51,7 +51,7 @@ impl TryFrom<&str> for Uri {
         // to avoid parsing it as a website URL.
         let s = s.trim_start_matches("mailto:");
         if s.contains('@') & !is_internal_link {
-            return Ok(Uri::Mail(s.to_string()))
+            return Ok(Uri::Mail(s.to_string()));
         }
         if let Ok(uri) = Url::parse(s) {
             return Ok(Uri::Website(uri));

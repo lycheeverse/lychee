@@ -271,16 +271,18 @@ mod test {
     fn test_markdown_internal_url() {
         let input = "This is [an internal url](@/internal.md).";
         let links: HashSet<Uri> = match Url::parse("https://localhost.com/") {
-            Ok(base_url) => extract_links(&InputContent::from_string(input, FileType::Markdown), Some(base_url)),
+            Ok(base_url) => extract_links(
+                &InputContent::from_string(input, FileType::Markdown),
+                Some(base_url),
+            ),
             Err(_) => extract_links(&InputContent::from_string(input, FileType::Markdown), None),
-        }.into_iter()
-            .map(|r| r.uri)
-            .collect();
+        }
+        .into_iter()
+        .map(|r| r.uri)
+        .collect();
         assert_eq!(
             links,
-            [
-                website("https://localhost.com/@/internal.md")
-            ]
+            [website("https://localhost.com/@/internal.md")]
                 .iter()
                 .cloned()
                 .collect::<HashSet<Uri>>(),
@@ -295,9 +297,7 @@ mod test {
                 .into_iter()
                 .map(|r| r.uri)
                 .collect();
-        let expected: HashSet<Uri> = [
-            Uri::Mail("test@test.com".to_string()),
-        ]
+        let expected: HashSet<Uri> = [Uri::Mail("test@test.com".to_string())]
             .iter()
             .cloned()
             .collect();
