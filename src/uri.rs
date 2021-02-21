@@ -40,17 +40,23 @@ impl Uri {
     }
 }
 
+fn is_internal_link(link: &str) -> bool {
+    // The first element should contain the Markdown file link
+    // @see https://www.markdownguide.org/basic-syntax/#links
+    let anchor_links = link.split("#").next().unwrap_or("");
+    return anchor_links.ends_with(".md") | anchor_links.ends_with(".markdown");
+}
+
 impl TryFrom<&str> for Uri {
     type Error = anyhow::Error;
 
     fn try_from(s: &str) -> Result<Self> {
-        // We want to check for internal links
-        // For example., links to other internal Markdown
-        let is_internal_link = s.ends_with(".md");
+        // Check for internal Markdown links
+        let is_link_internal = is_internal_link(s);
         // Remove the `mailto` scheme if it exists
         // to avoid parsing it as a website URL.
         let s = s.trim_start_matches("mailto:");
-        if s.contains('@') & !is_internal_link {
+        if s.contains('@') & !is_link_internal {
             return Ok(Uri::Mail(s.to_string()));
         }
         if let Ok(uri) = Url::parse(s) {

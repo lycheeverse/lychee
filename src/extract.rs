@@ -269,24 +269,30 @@ mod test {
 
     #[test]
     fn test_markdown_internal_url() {
-        let input = "This is [an internal url](@/internal.md).";
-        let links: HashSet<Uri> = match Url::parse("https://localhost.com/") {
-            Ok(base_url) => extract_links(
-                &InputContent::from_string(input, FileType::Markdown),
-                Some(base_url),
-            ),
-            Err(_) => extract_links(&InputContent::from_string(input, FileType::Markdown), None),
-        }
+        let base_url = "https://localhost.com/";
+        let input = "This is [an internal url](@/internal.md) \
+        This is [an internal url](@/internal.markdown) \
+        This is [an internal url](@/internal.markdown#example) \
+        This is [an internal url](@/internal.md#example)";
+        let links: HashSet<Uri> = extract_links(
+            &InputContent::from_string(input, FileType::Markdown),
+            Some(Url::parse(base_url).unwrap()),
+        )
         .into_iter()
         .map(|r| r.uri)
         .collect();
-        assert_eq!(
-            links,
-            [website("https://localhost.com/@/internal.md")]
-                .iter()
-                .cloned()
-                .collect::<HashSet<Uri>>(),
-        )
+
+        let expected = [
+            website("https://localhost.com/@/internal.md"),
+            website("https://localhost.com/@/internal.markdown"),
+            website("https://localhost.com/@/internal.md#example"),
+            website("https://localhost.com/@/internal.markdown#example"),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected)
     }
 
     #[test]
