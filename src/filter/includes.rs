@@ -14,10 +14,6 @@ impl Default for Includes {
 }
 
 impl Includes {
-    pub fn new(regex: Option<RegexSet>) -> Self {
-        Self { regex }
-    }
-
     pub fn regex(&self, input: &str) -> bool {
         if let Some(includes) = &self.regex {
             if includes.is_match(input) {
