@@ -175,7 +175,7 @@ impl Client {
             Uri::Website(ref url) => self.check_website(&url).await,
             Uri::Mail(ref address) => {
                 // TODO: We should not be using a HTTP status code for mail
-                match self.valid_mail(&address).await {
+                match self.check_mail(&address).await {
                     true => Status::Ok(http::StatusCode::OK),
                     false => Status::Error(format!("Invalid mail address: {}", address)),
                 }
@@ -247,7 +247,7 @@ impl Client {
         Ok((owner.as_str().into(), repo.as_str().into()))
     }
 
-    pub async fn valid_mail(&self, address: &str) -> bool {
+    pub async fn check_mail(&self, address: &str) -> bool {
         let input = CheckEmailInput::new(vec![address.to_string()]);
         let results = check_email(&input).await;
         let result = results.get(0);
