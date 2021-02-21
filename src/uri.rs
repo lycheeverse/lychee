@@ -74,16 +74,16 @@ mod test {
     fn test_uri_from_str() {
         assert!(matches!(Uri::try_from(""), Err(_)));
         assert_eq!(
-            Uri::try_from("http://example.com").unwrap(),
-            website("http://example.com")
+            Uri::try_from("http://example.org").unwrap(),
+            website("http://example.org")
         );
         assert_eq!(
-            Uri::try_from("mail@example.com").unwrap(),
-            Uri::Mail("mail@example.com".to_string())
+            Uri::try_from("mail@example.org").unwrap(),
+            Uri::Mail("mail@example.org".to_string())
         );
         assert_eq!(
-            Uri::try_from("mailto:mail@example.com").unwrap(),
-            Uri::Mail("mail@example.com".to_string())
+            Uri::try_from("mailto:mail@example.org").unwrap(),
+            Uri::Mail("mail@example.org".to_string())
         );
     }
 

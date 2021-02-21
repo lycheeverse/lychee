@@ -140,15 +140,16 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     )
     .await?;
 
-    let pb = if cfg.progress {
-        let bar =
-            ProgressBar::new(links.len() as u64).with_style(ProgressStyle::default_bar().template(
+    let pb = match cfg.no_progress {
+        true => None,
+        false => {
+            let bar = ProgressBar::new(links.len() as u64)
+                .with_style(ProgressStyle::default_bar().template(
                 "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
             ));
-        bar.enable_steady_tick(100);
-        Some(bar)
-    } else {
-        None
+            bar.enable_steady_tick(100);
+            Some(bar)
+        }
     };
 
     let (send_req, recv_req) = mpsc::channel(max_concurrency);

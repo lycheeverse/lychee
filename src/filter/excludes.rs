@@ -1,6 +1,5 @@
-use std::net::IpAddr;
-
 use regex::RegexSet;
+use std::net::IpAddr;
 
 use crate::Uri;
 
