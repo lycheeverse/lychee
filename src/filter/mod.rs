@@ -175,8 +175,11 @@ mod test {
         let includes = Some(Includes {
             regex: Some(RegexSet::new(&[r"foo.example.org"]).unwrap()),
         });
-        let mut excludes = Excludes::default();
-        excludes.regex = Some(RegexSet::new(&[r"example.org"]).unwrap());
+        let excludes = Excludes {
+            regex: Some(RegexSet::new(&[r"example.org"]).unwrap()),
+            ..Default::default()
+        };
+
         let filter = Filter::new(includes, Some(excludes), None);
 
         assert_eq!(filter.excluded(&request("https://foo.example.org")), false);
@@ -186,9 +189,12 @@ mod test {
 
     #[test]
     fn test_exclude_regex() {
-        let mut excludes = Excludes::default();
-        excludes.regex =
-            Some(RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.org"]).unwrap());
+        let excludes = Excludes {
+            regex: Some(
+                RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.org"]).unwrap(),
+            ),
+            ..Default::default()
+        };
         let filter = Filter::new(None, Some(excludes), None);
 
         assert_eq!(filter.excluded(&request("http://github.com")), true);
