@@ -135,17 +135,6 @@ mod test {
     }
 
     #[test]
-    fn test_include_regex() {
-        let includes = Some(Includes {
-            regex: Some(RegexSet::new(&[r"foo.example.org"]).unwrap()),
-        });
-        let filter = Filter::new(includes, None, None);
-
-        assert_eq!(filter.excluded(&request("https://foo.example.org")), false);
-        assert_eq!(filter.excluded(&request("https://bar.example.org")), true);
-    }
-
-    #[test]
     fn test_includes_and_excludes_empty() {
         // This is the pre-configured, empty set of excludes for a client
         // In this case, only the requests matching the include set will be checked
@@ -156,35 +145,16 @@ mod test {
     }
 
     #[test]
-    fn test_include_with_empty_exclude() {
+    fn test_include_regex() {
         let includes = Some(Includes {
             regex: Some(RegexSet::new(&[r"foo.example.org"]).unwrap()),
         });
-        // This is the pre-configured, empty set of excludes for a client
-        let excludes = Some(Excludes::default());
-        let filter = Filter::new(includes, excludes, None);
+        let filter = Filter::new(includes, None, None);
 
-        // In this case, only the requests matching the include set will be checked
+        // Only the requests matching the include set will be checked
         assert_eq!(filter.excluded(&request("https://foo.example.org")), false);
-        assert_eq!(filter.excluded(&request("https://example.org")), true);
         assert_eq!(filter.excluded(&request("https://bar.example.org")), true);
-    }
-
-    #[test]
-    fn test_exclude_include_regex() {
-        let includes = Some(Includes {
-            regex: Some(RegexSet::new(&[r"foo.example.org"]).unwrap()),
-        });
-        let excludes = Excludes {
-            regex: Some(RegexSet::new(&[r"example.org"]).unwrap()),
-            ..Default::default()
-        };
-
-        let filter = Filter::new(includes, Some(excludes), None);
-
-        assert_eq!(filter.excluded(&request("https://foo.example.org")), false);
         assert_eq!(filter.excluded(&request("https://example.org")), true);
-        assert_eq!(filter.excluded(&request("https://bar.example.org")), true);
     }
 
     #[test]
@@ -206,6 +176,8 @@ mod test {
             )),
             true
         );
+
+        assert_eq!(filter.excluded(&request("http://bar.dev")), false);
         assert_eq!(
             filter.excluded(&Request::new(
                 Uri::Mail("foo@bar.dev".to_string()),
@@ -213,6 +185,24 @@ mod test {
             )),
             false
         );
+    }
+    #[test]
+    fn test_exclude_include_regex() {
+        let includes = Some(Includes {
+            regex: Some(RegexSet::new(&[r"foo.example.org"]).unwrap()),
+        });
+        let excludes = Excludes {
+            regex: Some(RegexSet::new(&[r"example.org"]).unwrap()),
+            ..Default::default()
+        };
+
+        let filter = Filter::new(includes, Some(excludes), None);
+
+        // Includes take preference over excludes
+        assert_eq!(filter.excluded(&request("https://foo.example.org")), false);
+
+        assert_eq!(filter.excluded(&request("https://example.org")), true);
+        assert_eq!(filter.excluded(&request("https://bar.example.org")), true);
     }
 
     #[test]
@@ -228,7 +218,7 @@ mod test {
     }
 
     #[test]
-    fn test_exclude_private() {
+    fn test_exclude_private_ips() {
         let mut filter = Filter::new(None, None, None);
         filter.excludes.private_ips = true;
 
