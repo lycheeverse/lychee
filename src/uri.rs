@@ -49,7 +49,7 @@ fn is_internal_link(link: &str) -> bool {
 
 impl TryFrom<&str> for Uri {
     type Error = anyhow::Error;
-
+    
     fn try_from(s: &str) -> Result<Self> {
         // Check for internal Markdown links
         let is_link_internal = is_internal_link(s);
@@ -64,6 +64,7 @@ impl TryFrom<&str> for Uri {
         };
         bail!("Cannot convert to Uri")
     }
+
 }
 
 impl Display for Uri {
