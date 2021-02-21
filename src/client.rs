@@ -10,9 +10,12 @@ use std::{collections::HashSet, time::Duration};
 use tokio::time::sleep;
 use url::Url;
 
+use crate::filter::Excludes;
+use crate::filter::Filter;
+use crate::filter::Includes;
 use crate::types::{Response, Status};
 use crate::uri::Uri;
-use crate::{excludes::Excludes, Request};
+use crate::Request;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const DEFAULT_MAX_REDIRECTS: usize = 5;
@@ -21,9 +24,7 @@ const DEFAULT_MAX_REDIRECTS: usize = 5;
 pub struct Client {
     reqwest_client: reqwest::Client,
     github: Option<Github>,
-    includes: Option<RegexSet>,
-    excludes: Excludes,
-    scheme: Option<String>,
+    filter: Filter,
     method: reqwest::Method,
     accepted: Option<HashSet<reqwest::StatusCode>>,
 }
@@ -90,6 +91,12 @@ impl ClientBuilder {
         }
     }
 
+    fn build_includes(&mut self) -> Includes {
+        Includes {
+            regex: self.includes.clone().unwrap_or_default(),
+        }
+    }
+
     /// The build method instantiates the client.
     pub fn build(&mut self) -> Result<Client> {
         let mut headers = HeaderMap::new();
@@ -140,12 +147,15 @@ impl ClientBuilder {
         let scheme = self.scheme.clone().unwrap_or(None);
         let scheme = scheme.map(|s| s.to_lowercase());
 
+        let includes = self.build_includes();
+        let excludes = self.build_excludes();
+
+        let filter = Filter::new(Some(includes), Some(excludes), scheme);
+
         Ok(Client {
             reqwest_client,
             github,
-            includes: self.includes.clone().unwrap_or(None),
-            excludes: self.build_excludes(),
-            scheme,
+            filter,
             method: self.method.clone().unwrap_or(reqwest::Method::GET),
             accepted: self.accepted.clone().unwrap_or(None),
         })
@@ -156,9 +166,9 @@ impl Client {
     pub async fn check<T: TryInto<Request>>(&self, request: T) -> Result<Response> {
         let request: Request = match request.try_into() {
             Ok(request) => request,
-            Err(_e) => bail!("Invalid URI:"),
+            Err(_e) => bail!("Invalid URI"),
         };
-        if self.excluded(&request) {
+        if self.filter.excluded(&request) {
             return Ok(Response::new(request.uri, Status::Excluded, request.source));
         }
         let status = match request.uri {
@@ -252,37 +262,6 @@ impl Client {
             }
         }
     }
-
-    pub fn excluded(&self, request: &Request) -> bool {
-        if matches!(request.uri, Uri::Mail(_)) && self.excludes.is_mail_excluded() {
-            return true;
-        }
-        if self.excludes.ip(&request.uri) {
-            return true;
-        }
-        if let Some(includes) = &self.includes {
-            if includes.is_empty() {
-                return false;
-            }
-            if includes.is_match(request.uri.as_str()) {
-                // Includes take precedence over excludes
-                return false;
-            } else {
-                // In case we have includes and no excludes,
-                // skip everything that was not included
-                if self.excludes.is_empty() {
-                    return true;
-                }
-            }
-        }
-        if self.excludes.regex(request.uri.as_str()) {
-            return true;
-        }
-        if self.scheme.is_none() {
-            return false;
-        }
-        request.uri.scheme() != self.scheme
-    }
 }
 
 /// A convenience function to check a single URI
@@ -295,40 +274,11 @@ pub async fn check<T: TryInto<Request>>(request: T) -> Result<Response> {
 
 #[cfg(test)]
 mod test {
-    use crate::collector::Input;
-
     use super::*;
     use http::StatusCode;
     use std::time::{Duration, Instant};
-    use url::Url;
     use wiremock::matchers::method;
     use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    // Note: the standard library as of Rust stable 1.47.0 does not expose
-    // "link-local" or "private" IPv6 checks.  However, one might argue
-    // that these concepts do exist in IPv6, albeit the naming is different.
-    // See: https://en.wikipedia.org/wiki/Link-local_address#IPv6
-    // See: https://en.wikipedia.org/wiki/Private_network#IPv6
-    // See: https://doc.rust-lang.org/stable/std/net/struct.Ipv6Addr.html#method.is_unicast_link_local
-    const V4_PRIVATE_CLASS_A: &str = "http://10.0.0.1";
-    const V4_PRIVATE_CLASS_B: &str = "http://172.16.0.1";
-    const V4_PRIVATE_CLASS_C: &str = "http://192.168.0.1";
-
-    const V4_LOOPBACK: &str = "http://127.0.0.1";
-    const V6_LOOPBACK: &str = "http://[::1]";
-
-    const V4_LINK_LOCAL: &str = "http://169.254.0.1";
-
-    // IPv4-Mapped IPv6 addresses (IPv4 embedded in IPv6)
-    const V6_MAPPED_V4_PRIVATE_CLASS_A: &str = "http://[::ffff:10.0.0.1]";
-    const V6_MAPPED_V4_LINK_LOCAL: &str = "http://[::ffff:169.254.0.1]";
-
-    fn website_url(s: &str) -> Request {
-        Request::new(
-            Uri::Website(Url::parse(s).expect("Expected valid Website URI")),
-            Input::Stdin,
-        )
-    }
 
     #[tokio::test]
     async fn test_nonexistent() {
@@ -361,7 +311,7 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url(&mock_server.uri()))
+            .check(mock_server.uri())
             .await
             .unwrap();
         let end = start.elapsed();
@@ -390,7 +340,7 @@ mod test {
             ClientBuilder::default()
                 .build()
                 .unwrap()
-                .check(website_url("https://github.com/lycheeverse/lychee"))
+                .check("https://github.com/lycheeverse/lychee")
                 .await
                 .unwrap()
                 .status,
@@ -422,7 +372,7 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url(&mock_server.uri()))
+            .check(mock_server.uri())
             .await
             .unwrap()
             .status;
@@ -455,7 +405,7 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url("https://crates.io/crates/lychee"))
+            .check("https://crates.io/crates/lychee")
             .await
             .unwrap();
         assert!(matches!(res.status, Status::Failed(StatusCode::NOT_FOUND)));
@@ -469,7 +419,7 @@ mod test {
             .custom_headers(custom)
             .build()
             .unwrap()
-            .check(website_url("https://crates.io/crates/lychee"))
+            .check("https://crates.io/crates/lychee")
             .await
             .unwrap();
         assert!(matches!(res.status, Status::Ok(_)));
@@ -496,198 +446,7 @@ mod test {
             .build()
             .unwrap();
 
-        let resp = client.check(website_url(&mock_server.uri())).await.unwrap();
+        let resp = client.check(mock_server.uri()).await.unwrap();
         assert!(matches!(resp.status, Status::Timeout(_)));
-    }
-
-    #[tokio::test]
-    async fn test_include_regex() {
-        let includes = RegexSet::new(&[r"foo.github.com"]).unwrap();
-
-        let client = ClientBuilder::default().includes(includes).build().unwrap();
-
-        assert_eq!(
-            client.excluded(&website_url("https://foo.github.com")),
-            false
-        );
-        assert_eq!(
-            client.excluded(&website_url("https://bar.github.com")),
-            true
-        );
-    }
-
-    #[tokio::test]
-    async fn test_includes_and_excludes_empty() {
-        // This is the pre-configured, empty set of excludes for a client
-        // In this case, only the requests matching the include set will be checked
-        let exclude = Some(RegexSet::empty());
-        let includes = RegexSet::empty();
-
-        let client = ClientBuilder::default()
-            .includes(includes)
-            .excludes(exclude)
-            .build()
-            .unwrap();
-
-        assert_eq!(
-            client.excluded(&website_url("https://foo.github.com")),
-            false
-        );
-    }
-
-    #[tokio::test]
-    async fn test_include_with_empty_exclude() {
-        // This is the pre-configured, empty set of excludes for a client
-        // In this case, only the requests matching the include set will be checked
-        let exclude = Some(RegexSet::empty());
-        let includes = RegexSet::new(&[r"foo.github.com"]).unwrap();
-
-        let client = ClientBuilder::default()
-            .includes(includes)
-            .excludes(exclude)
-            .build()
-            .unwrap();
-
-        assert_eq!(
-            client.excluded(&website_url("https://foo.github.com")),
-            false
-        );
-        assert_eq!(client.excluded(&website_url("https://github.com")), true);
-        assert_eq!(
-            client.excluded(&website_url("https://bar.github.com")),
-            true
-        );
-    }
-
-    #[tokio::test]
-    async fn test_exclude_include_regex() {
-        let exclude = Some(RegexSet::new(&[r"github.com"]).unwrap());
-        let includes = RegexSet::new(&[r"foo.github.com"]).unwrap();
-
-        let client = ClientBuilder::default()
-            .includes(includes)
-            .excludes(exclude)
-            .build()
-            .unwrap();
-
-        assert_eq!(
-            client.excluded(&website_url("https://foo.github.com")),
-            false
-        );
-        assert_eq!(client.excluded(&website_url("https://github.com")), true);
-        assert_eq!(
-            client.excluded(&website_url("https://bar.github.com")),
-            true
-        );
-    }
-
-    #[tokio::test]
-    async fn test_exclude_regex() {
-        let exclude =
-            Some(RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap());
-
-        let client = ClientBuilder::default().excludes(exclude).build().unwrap();
-
-        assert_eq!(client.excluded(&website_url("http://github.com")), true);
-        assert_eq!(client.excluded(&website_url("http://exclude.org")), true);
-        assert_eq!(
-            client.excluded(&Request::new(
-                Uri::Mail("mail@example.com".to_string()),
-                Input::Stdin,
-            )),
-            true
-        );
-        assert_eq!(
-            client.excluded(&Request::new(
-                Uri::Mail("foo@bar.dev".to_string()),
-                Input::Stdin,
-            )),
-            false
-        );
-    }
-
-    #[test]
-    fn test_const_sanity() {
-        let get_host = |s| {
-            Url::parse(s)
-                .expect("Expected valid URL")
-                .host()
-                .expect("Expected host address")
-                .to_owned()
-        };
-        let into_v4 = |host| match host {
-            url::Host::Ipv4(ipv4) => ipv4,
-            _ => panic!("Not IPv4"),
-        };
-        let into_v6 = |host| match host {
-            url::Host::Ipv6(ipv6) => ipv6,
-            _ => panic!("Not IPv6"),
-        };
-
-        assert!(into_v4(get_host(V4_PRIVATE_CLASS_A)).is_private());
-        assert!(into_v4(get_host(V4_PRIVATE_CLASS_B)).is_private());
-        assert!(into_v4(get_host(V4_PRIVATE_CLASS_C)).is_private());
-
-        assert!(into_v4(get_host(V4_LOOPBACK)).is_loopback());
-        assert!(into_v6(get_host(V6_LOOPBACK)).is_loopback());
-
-        assert!(into_v4(get_host(V4_LINK_LOCAL)).is_link_local());
-    }
-
-    #[test]
-    fn test_excludes_no_private_ips_by_default() {
-        let client = ClientBuilder::default().build().unwrap();
-
-        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_A)), false);
-        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_B)), false);
-        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_C)), false);
-        assert_eq!(client.excluded(&website_url(V4_LINK_LOCAL)), false);
-        assert_eq!(client.excluded(&website_url(V4_LOOPBACK)), false);
-
-        assert_eq!(client.excluded(&website_url(V6_LOOPBACK)), false);
-    }
-
-    #[test]
-    fn test_exclude_private() {
-        let mut client = ClientBuilder::default().build().unwrap();
-        client.excludes.private_ips = true;
-
-        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_A)), true);
-        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_B)), true);
-        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_C)), true);
-    }
-
-    #[test]
-    fn test_exclude_link_local() {
-        let mut client = ClientBuilder::default().build().unwrap();
-        client.excludes.link_local_ips = true;
-
-        assert_eq!(client.excluded(&website_url(V4_LINK_LOCAL)), true);
-    }
-
-    #[test]
-    fn test_exclude_loopback() {
-        let mut client = ClientBuilder::default().build().unwrap();
-        client.excludes.loopback_ips = true;
-
-        assert_eq!(client.excluded(&website_url(V4_LOOPBACK)), true);
-        assert_eq!(client.excluded(&website_url(V6_LOOPBACK)), true);
-    }
-
-    #[test]
-    fn test_exclude_ip_v4_mapped_ip_v6_not_supported() {
-        let mut client = ClientBuilder::default().build().unwrap();
-        client.excludes.private_ips = true;
-        client.excludes.link_local_ips = true;
-
-        // if these were pure IPv4, we would exclude
-        assert_eq!(
-            client.excluded(&website_url(V6_MAPPED_V4_PRIVATE_CLASS_A)),
-            false
-        );
-        assert_eq!(
-            client.excluded(&website_url(V6_MAPPED_V4_LINK_LOCAL)),
-            false
-        );
     }
 }

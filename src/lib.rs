@@ -41,7 +41,7 @@ doctest!("../README.md");
 
 mod client;
 mod client_pool;
-mod excludes;
+mod filter;
 mod types;
 mod uri;
 
@@ -53,6 +53,5 @@ pub use client::check;
 pub use client::ClientBuilder;
 pub use client_pool::ClientPool;
 pub use collector::Input;
-pub use excludes::Excludes;
 pub use types::*;
 pub use uri::Uri;
