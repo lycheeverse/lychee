@@ -171,7 +171,12 @@ impl Client {
         if self.filter.excluded(&request) {
             return Ok(Response::new(request.uri, Status::Excluded, request.source));
         }
-        let status = match request.uri {
+        let status = self.check_main(&request).await?;
+        Ok(Response::new(request.uri, status, request.source))
+    }
+
+    async fn check_main(&self, request: &Request) -> Result<Status> {
+        Ok(match request.uri {
             Uri::Website(ref url) => self.check_website(&url).await,
             Uri::Mail(ref address) => {
                 // TODO: We should not be using a HTTP status code for mail
@@ -180,8 +185,7 @@ impl Client {
                     false => Status::Error(format!("Invalid mail address: {}", address)),
                 }
             }
-        };
-        Ok(Response::new(request.uri, status, request.source))
+        })
     }
 
     pub async fn check_website(&self, url: &Url) -> Status {
