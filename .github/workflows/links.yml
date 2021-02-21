@@ -15,7 +15,7 @@ jobs:
       - name: Link Checker
         uses: lycheeverse/lychee-action@master
         with:
-          args: --verbose --no-progress --exclude 'https://example.org/README.md'
+          args: --verbose --no-progress --exclude example.org
 
       - name: Create Issue From File
         uses: peter-evans/create-issue-from-file@v2
