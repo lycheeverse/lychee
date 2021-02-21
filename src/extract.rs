@@ -9,7 +9,7 @@ use std::path::Path;
 use std::{collections::HashSet, convert::TryFrom};
 use url::Url;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FileType {
     Html,
     Markdown,
@@ -28,7 +28,7 @@ impl<P: AsRef<Path>> From<P> for FileType {
         let path = p.as_ref();
         match path.extension() {
             Some(ext) => match ext {
-                _ if ext == "md" => FileType::Markdown,
+                _ if (ext == "md" || ext == "markdown") => FileType::Markdown,
                 _ if (ext == "htm" || ext == "html") => FileType::Html,
                 _ => FileType::Plaintext,
             },
@@ -200,6 +200,25 @@ mod test {
             .expect("Unable to read fixture file contents");
 
         content
+    }
+
+    #[test]
+    fn test_file_type() {
+        assert_eq!(FileType::from(Path::new("test.md")), FileType::Markdown);
+        assert_eq!(
+            FileType::from(Path::new("test.markdown")),
+            FileType::Markdown
+        );
+        assert_eq!(FileType::from(Path::new("test.html")), FileType::Html);
+        assert_eq!(FileType::from(Path::new("test.txt")), FileType::Plaintext);
+        assert_eq!(
+            FileType::from(Path::new("test.something")),
+            FileType::Plaintext
+        );
+        assert_eq!(
+            FileType::from(Path::new("/absolute/path/to/test.something")),
+            FileType::Plaintext
+        );
     }
 
     #[test]
