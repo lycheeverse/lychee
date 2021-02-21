@@ -75,6 +75,7 @@ mod cli {
         let test_github_404_path = fixtures_path().join("TEST_GITHUB_404.md");
 
         cmd.arg(test_github_404_path)
+            .arg("--no-progress")
             .env_clear()
             .assert()
             .failure()

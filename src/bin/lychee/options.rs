@@ -116,10 +116,12 @@ pub struct Config {
     #[serde(default)]
     pub verbose: bool,
 
-    /// Show progress
+    /// Do not show progress bar.
+    /// This is recommended for non-interactive shells (e.g. for continuos
+    /// integration)
     #[structopt(short, long)]
     #[serde(default)]
-    pub progress: bool,
+    pub no_progress: bool,
 
     /// Maximum number of allowed redirects
     #[structopt(short, long, default_value = &MAX_REDIRECTS_STR)]
@@ -273,7 +275,7 @@ impl Config {
 
             // Keys with defaults to assign
             verbose: false;
-            progress: false;
+            no_progress: false;
             max_redirects: MAX_REDIRECTS;
             max_concurrency: MAX_CONCURRENCY;
             threads: None;
