@@ -179,7 +179,7 @@ dependencies = [
 [[package]]
 name = "async-smtp"
 version = "0.3.4"
-source = "git+https://github.com/amaurymartiny/async-smtp?branch=am-fast-socks#eac57391b68a144d7dfb8b74ee49827164f46d9b"
+source = "git+https://github.com/amaurym/async-smtp?branch=am-fast-socks#eac57391b68a144d7dfb8b74ee49827164f46d9b"
 dependencies = [
  "async-native-tls",
  "async-std",
@@ -402,7 +402,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "check-if-email-exists"
 version = "0.8.19"
-source = "git+https://github.com/reacherhq/check-if-email-exists.git#346a85ad184039e6ce5c9c3402888379c1b9e4ee"
+source = "git+https://github.com/reacherhq/check-if-email-exists.git#aac0586fb078f429856f6f34b6bb36ae0a237fb8"
 dependencies = [
  "async-smtp",
  "async-std",
