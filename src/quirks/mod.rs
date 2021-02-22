@@ -30,7 +30,7 @@ pub struct Quirk {
     pub pattern: Regex,
     pub method: Option<reqwest::Method>,
     pub headers: Option<HeaderMap>,
-    pub url: Option<fn(Url) -> Url>,
+    pub rewrite: Option<fn(Url) -> Url>,
 }
 
 #[derive(Debug, Clone)]
@@ -49,14 +49,14 @@ impl Quirks {
                         .parse()
                         .unwrap(),
                 )),
-                url: None,
+                rewrite: None,
             },
             Quirk {
                 // https://stackoverflow.com/a/19377429/270334
                 pattern: Regex::new(r"^(https?://)?(www\.)?(youtube\.com|youtu\.?be)").unwrap(),
                 method: Some(Method::HEAD),
                 headers: None,
-                url: Some(|orig_url| {
+                rewrite: Some(|orig_url| {
                     let mut url = Url::parse("https://www.youtube.com/oembed?").unwrap();
                     url.set_query(Some(&format!("url={}", orig_url.as_str())));
                     url
@@ -67,12 +67,13 @@ impl Quirks {
         Self { quirks }
     }
 
-    pub fn rewrite(&self, url: &Url) -> Option<Quirk> {
+    pub fn matching(&self, url: &Url) -> Vec<Quirk> {
+        let mut matching = vec![];
         for quirk in &self.quirks {
             if quirk.pattern.is_match(url.as_str()) {
-                return Some(quirk.clone());
+                matching.push(quirk.clone());
             }
         }
-        None
+        matching
     }
 }

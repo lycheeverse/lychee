@@ -249,11 +249,10 @@ impl Client {
         let mut final_url = url.to_owned();
         let mut additional_headers = None;
 
-        let quirk = self.quirks.rewrite(url);
-        if let Some(quirk) = quirk {
+        for quirk in self.quirks.matching(url) {
             println!("Applying quirk: {:?}", quirk);
-            if let Some(url_func) = quirk.url {
-                final_url = url_func(url.to_owned());
+            if let Some(rewrite) = quirk.rewrite {
+                final_url = rewrite(url.to_owned());
             }
             additional_headers = quirk.headers;
         }
