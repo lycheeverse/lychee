@@ -287,6 +287,49 @@ mod test {
     }
 
     #[test]
+    fn test_markdown_internal_url() {
+        let base_url = "https://localhost.com/";
+        let input = "This is [an internal url](@/internal.md) \
+        This is [an internal url](@/internal.markdown) \
+        This is [an internal url](@/internal.markdown#example) \
+        This is [an internal url](@/internal.md#example)";
+        let links: HashSet<Uri> = extract_links(
+            &InputContent::from_string(input, FileType::Markdown),
+            Some(Url::parse(base_url).unwrap()),
+        )
+        .into_iter()
+        .map(|r| r.uri)
+        .collect();
+
+        let expected = [
+            website("https://localhost.com/@/internal.md"),
+            website("https://localhost.com/@/internal.markdown"),
+            website("https://localhost.com/@/internal.md#example"),
+            website("https://localhost.com/@/internal.markdown#example"),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected)
+    }
+
+    #[test]
+    fn test_skip_markdown_email() {
+        let input = "Get in touch - [Contact Us](mailto:test@test.com)";
+        let links: HashSet<Uri> =
+            extract_links(&InputContent::from_string(input, FileType::Markdown), None)
+                .into_iter()
+                .map(|r| r.uri)
+                .collect();
+        let expected: HashSet<Uri> = [Uri::Mail("test@test.com".to_string())]
+            .iter()
+            .cloned()
+            .collect();
+        assert_eq!(links, expected)
+    }
+
+    #[test]
     fn test_non_markdown_links() {
         let input =
             "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.org";
