@@ -42,6 +42,7 @@ doctest!("../README.md");
 mod client;
 mod client_pool;
 mod filter;
+mod quirks;
 mod types;
 mod uri;
 

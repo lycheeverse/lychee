@@ -13,6 +13,7 @@ use url::Url;
 use crate::filter::Excludes;
 use crate::filter::Filter;
 use crate::filter::Includes;
+use crate::quirks::Quirks;
 use crate::types::{Response, Status};
 use crate::uri::Uri;
 use crate::Request;
@@ -22,11 +23,18 @@ const DEFAULT_MAX_REDIRECTS: usize = 5;
 
 #[derive(Debug, Clone)]
 pub struct Client {
+    /// The underlying reqwest client instance that handles the HTTP requests
     reqwest_client: reqwest::Client,
+    /// Github API client
     github: Option<Github>,
+    /// Filtered domain handling
     filter: Filter,
+    /// The default request HTTP method to use
     method: reqwest::Method,
+    /// The set of accepted HTTP status codes for valid URIs
     accepted: Option<HashSet<reqwest::StatusCode>>,
+    /// Override behavior for certain known issues with URIs
+    quirks: Quirks,
 }
 
 /// A link checker using an API token for Github links
@@ -152,10 +160,13 @@ impl ClientBuilder {
 
         let filter = Filter::new(Some(includes), Some(excludes), scheme);
 
+        let quirks = Quirks::init();
+
         Ok(Client {
             reqwest_client,
             github,
             filter,
+            quirks,
             method: self.method.clone().unwrap_or(reqwest::Method::GET),
             accepted: self.accepted.clone().unwrap_or(None),
         })
@@ -171,6 +182,7 @@ impl Client {
         if self.filter.excluded(&request) {
             return Ok(Response::new(request.uri, Status::Excluded, request.source));
         }
+
         let status = self.check_main(&request).await?;
         Ok(Response::new(request.uri, status, request.source))
     }
@@ -233,9 +245,27 @@ impl Client {
     }
 
     async fn check_default(&self, url: &Url) -> Status {
-        let request = self
+        let final_method = self.method.clone();
+        let mut final_url = url.to_owned();
+        let mut additional_headers = None;
+
+        let quirk = self.quirks.rewrite(url);
+        if let Some(quirk) = quirk {
+            println!("Applying quirk: {:?}", quirk);
+            if let Some(url_func) = quirk.url {
+                final_url = url_func(url.to_owned());
+            }
+            additional_headers = quirk.headers;
+        }
+
+        println!("Final url: {:?}", final_url);
+        let mut request = self
             .reqwest_client
-            .request(self.method.clone(), url.as_str());
+            .request(final_method, final_url.as_str());
+        if let Some(headers) = additional_headers {
+            request = request.headers(headers);
+        }
+
         let res = request.send().await;
         match res {
             Ok(response) => Status::new(response.status(), self.accepted.clone()),
