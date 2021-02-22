@@ -16,10 +16,10 @@ Some more complex formatting to test that Markdown parsing works.
 [![CC0](https://i.creativecommons.org/p/zero/1.0/88x31.png)](https://creativecommons.org/publicdomain/zero/1.0/)
 
 Test HTTP and HTTPS for the same site.
-http://example.com
-https://example.com
+http://example.org
+https://example.org
 
 https://www.peerlyst.com/posts/a-list-of-static-analysis-tools-for-c-c-peerlyst
 
-test@example.com
-mailto:test2@example.com
+test@example.org
+mailto:test2@example.org

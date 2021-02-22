@@ -9,7 +9,7 @@ use std::path::Path;
 use std::{collections::HashSet, convert::TryFrom};
 use url::Url;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FileType {
     Html,
     Markdown,
@@ -28,7 +28,7 @@ impl<P: AsRef<Path>> From<P> for FileType {
         let path = p.as_ref();
         match path.extension() {
             Some(ext) => match ext {
-                _ if ext == "md" => FileType::Markdown,
+                _ if (ext == "md" || ext == "markdown") => FileType::Markdown,
                 _ if (ext == "htm" || ext == "html") => FileType::Html,
                 _ => FileType::Plaintext,
             },
@@ -203,6 +203,25 @@ mod test {
     }
 
     #[test]
+    fn test_file_type() {
+        assert_eq!(FileType::from(Path::new("test.md")), FileType::Markdown);
+        assert_eq!(
+            FileType::from(Path::new("test.markdown")),
+            FileType::Markdown
+        );
+        assert_eq!(FileType::from(Path::new("test.html")), FileType::Html);
+        assert_eq!(FileType::from(Path::new("test.txt")), FileType::Plaintext);
+        assert_eq!(
+            FileType::from(Path::new("test.something")),
+            FileType::Plaintext
+        );
+        assert_eq!(
+            FileType::from(Path::new("/absolute/path/to/test.something")),
+            FileType::Plaintext
+        );
+    }
+
+    #[test]
     fn test_extract_markdown_links() {
         let input = "This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)";
         let links: HashSet<Uri> = extract_links(
@@ -313,7 +332,7 @@ mod test {
     #[test]
     fn test_non_markdown_links() {
         let input =
-            "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.com";
+            "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.org";
         let links: HashSet<Uri> =
             extract_links(&InputContent::from_string(input, FileType::Plaintext), None)
                 .into_iter()
@@ -323,7 +342,7 @@ mod test {
         let expected = [
             website("https://endler.dev"),
             website("https://hello-rust.show/foo/bar?lol=1"),
-            Uri::Mail("test@example.com".to_string()),
+            Uri::Mail("test@example.org".to_string()),
         ]
         .iter()
         .cloned()
@@ -354,11 +373,11 @@ mod test {
                 .collect();
 
         let expected_links = [
-            website("https://example.com/head/home"),
-            website("https://example.com/css/style_full_url.css"),
+            website("https://example.org/head/home"),
+            website("https://example.org/css/style_full_url.css"),
             // the body links wouldn't be present if the file was parsed strictly as XML
-            website("https://example.com/body/a"),
-            website("https://example.com/body/div_empty_a"),
+            website("https://example.org/body/a"),
+            website("https://example.org/body/div_empty_a"),
         ]
         .iter()
         .cloned()
@@ -372,21 +391,21 @@ mod test {
         let input = load_fixture("TEST_HTML5.html");
         let links: HashSet<Uri> = extract_links(
             &InputContent::from_string(&input, FileType::Html),
-            Some(Url::parse("https://example.com").unwrap()),
+            Some(Url::parse("https://example.org").unwrap()),
         )
         .into_iter()
         .map(|r| r.uri)
         .collect();
 
         let expected_links = [
-            website("https://example.com/head/home"),
-            website("https://example.com/images/icon.png"),
-            website("https://example.com/css/style_relative_url.css"),
-            website("https://example.com/css/style_full_url.css"),
-            website("https://example.com/js/script.js"),
+            website("https://example.org/head/home"),
+            website("https://example.org/images/icon.png"),
+            website("https://example.org/css/style_relative_url.css"),
+            website("https://example.org/css/style_full_url.css"),
+            website("https://example.org/js/script.js"),
             // the body links wouldn't be present if the file was parsed strictly as XML
-            website("https://example.com/body/a"),
-            website("https://example.com/body/div_empty_a"),
+            website("https://example.org/body/a"),
+            website("https://example.org/body/div_empty_a"),
         ]
         .iter()
         .cloned()
@@ -405,7 +424,7 @@ mod test {
                 .map(|r| r.uri)
                 .collect();
 
-        let expected_links = [website("https://example.com/body/a")]
+        let expected_links = [website("https://example.org/body/a")]
             .iter()
             .cloned()
             .collect();
@@ -424,11 +443,11 @@ mod test {
                 .collect();
 
         let expected_links = [
-            website("https://example.com/"),
-            website("https://example.com/favicon.ico"),
+            website("https://example.org/"),
+            website("https://example.org/favicon.ico"),
             website("https://fonts.externalsite.com"),
-            website("https://example.com/docs/"),
-            website("https://example.com/forum"),
+            website("https://example.org/docs/"),
+            website("https://example.org/forum"),
         ]
         .iter()
         .cloned()
@@ -448,7 +467,7 @@ mod test {
                 .collect();
 
         let expected_links = [Uri::Website(
-            Url::parse("https://example.com/valid").unwrap(),
+            Url::parse("https://example.org/valid").unwrap(),
         )]
         .iter()
         .cloned()
@@ -468,10 +487,10 @@ mod test {
                 .collect();
 
         let expected_links = [
-            website("https://example.com/some-weird-element"),
-            website("https://example.com/even-weirder-src"),
-            website("https://example.com/even-weirder-href"),
-            website("https://example.com/citations"),
+            website("https://example.org/some-weird-element"),
+            website("https://example.org/even-weirder-src"),
+            website("https://example.org/even-weirder-href"),
+            website("https://example.org/citations"),
         ]
         .iter()
         .cloned()

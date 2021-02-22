@@ -163,7 +163,8 @@ FLAGS:
         --glob-ignore-case       Ignore case when expanding filesystem path glob inputs
         --help                   Prints help information
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
-    -p, --progress               Show progress
+    -n, --no-progress            Do not show progress bar. This is recommended for non-interactive shells (e.g. for
+                                 continuos integration)
         --skip-missing           Skip missing input files (default is to error if they don't exist)
     -V, --version                Prints version information
     -v, --verbose                Verbose program output
@@ -191,7 +192,7 @@ OPTIONS:
 
 ARGS:
     <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
-                   (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard
+                   (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.org/README.md`) or standard
                    input (`-`). Prefix with `--` to separate inputs from options that allow multiple arguments
                    [default: README.md]
 ```

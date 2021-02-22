@@ -83,7 +83,7 @@ macro_rules! fold_in {
 pub(crate) struct LycheeOptions {
     /// The inputs (where to get links to check from).
     /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
-    /// remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`).
+    /// remote URLs (e.g. `https://example.org/README.md`) or standard input (`-`).
     /// Prefix with `--` to separate inputs from options that allow multiple arguments.
     #[structopt(name = "inputs", default_value = "README.md")]
     raw_inputs: Vec<String>,
@@ -116,10 +116,12 @@ pub struct Config {
     #[serde(default)]
     pub verbose: bool,
 
-    /// Show progress
+    /// Do not show progress bar.
+    /// This is recommended for non-interactive shells (e.g. for continuos
+    /// integration)
     #[structopt(short, long)]
     #[serde(default)]
-    pub progress: bool,
+    pub no_progress: bool,
 
     /// Maximum number of allowed redirects
     #[structopt(short, long, default_value = &MAX_REDIRECTS_STR)]
@@ -273,7 +275,7 @@ impl Config {
 
             // Keys with defaults to assign
             verbose: false;
-            progress: false;
+            no_progress: false;
             max_redirects: MAX_REDIRECTS;
             max_concurrency: MAX_CONCURRENCY;
             threads: None;

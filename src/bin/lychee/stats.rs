@@ -116,17 +116,17 @@ mod test_super {
     fn test_stats() {
         let mut stats = ResponseStats::new();
         stats.add(Response {
-            uri: website("http://example.com/ok"),
+            uri: website("http://example.org/ok"),
             status: Status::Ok(http::StatusCode::OK),
             source: Input::Stdin,
         });
         stats.add(Response {
-            uri: website("http://example.com/failed"),
+            uri: website("http://example.org/failed"),
             status: Status::Failed(http::StatusCode::BAD_GATEWAY),
             source: Input::Stdin,
         });
         stats.add(Response {
-            uri: website("http://example.com/redirect"),
+            uri: website("http://example.org/redirect"),
             status: Status::Redirected(http::StatusCode::PERMANENT_REDIRECT),
             source: Input::Stdin,
         });
@@ -135,12 +135,12 @@ mod test_super {
             Input::Stdin,
             vec![
                 Response {
-                    uri: website("http://example.com/failed"),
+                    uri: website("http://example.org/failed"),
                     status: Status::Failed(http::StatusCode::BAD_GATEWAY),
                     source: Input::Stdin,
                 },
                 Response {
-                    uri: website("http://example.com/redirect"),
+                    uri: website("http://example.org/redirect"),
                     status: Status::Redirected(http::StatusCode::PERMANENT_REDIRECT),
                     source: Input::Stdin,
                 },
