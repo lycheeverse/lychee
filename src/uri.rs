@@ -43,8 +43,8 @@ impl Uri {
 fn is_internal_link(link: &str) -> bool {
     // The first element should contain the Markdown file link
     // @see https://www.markdownguide.org/basic-syntax/#links
-    let anchor_links = link.split("#").next().unwrap_or("");
-    return anchor_links.ends_with(".md") | anchor_links.ends_with(".markdown");
+    let anchor_links = link.split('#').next().unwrap_or("");
+    anchor_links.ends_with(".md") | anchor_links.ends_with(".markdown")
 }
 
 impl TryFrom<&str> for Uri {
