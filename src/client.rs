@@ -245,28 +245,27 @@ impl Client {
     }
 
     async fn check_default(&self, url: &Url) -> Status {
-        let final_method = self.method.clone();
-        let mut final_url = url.to_owned();
-        let mut additional_headers = None;
+        let mut req_method = self.method.clone();
+        let mut req_url = url.to_owned();
+        let mut req_headers = None;
 
         for quirk in self.quirks.matching(url) {
             println!("Applying quirk: {:?}", quirk);
             if let Some(rewrite) = quirk.rewrite {
-                final_url = rewrite(url.to_owned());
+                req_url = rewrite(url.to_owned());
             }
-            additional_headers = quirk.headers;
+            if let Some(method) = quirk.method {
+                req_method = method;
+            }
+            req_headers = quirk.headers;
         }
 
-        println!("Final url: {:?}", final_url);
-        let mut request = self
-            .reqwest_client
-            .request(final_method, final_url.as_str());
-        if let Some(headers) = additional_headers {
+        let mut request = self.reqwest_client.request(req_method, req_url);
+        if let Some(headers) = req_headers {
             request = request.headers(headers);
         }
 
-        let res = request.send().await;
-        match res {
+        match request.send().await {
             Ok(response) => Status::new(response.status(), self.accepted.clone()),
             Err(e) => e.into(),
         }
