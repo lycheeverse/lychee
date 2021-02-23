@@ -1,3 +1,6 @@
+#[macro_use]
+mod headers_macro;
+
 use headers::HeaderMap;
 use http::{header::USER_AGENT, Method};
 use regex::Regex;
@@ -6,24 +9,6 @@ use reqwest::Url;
 /// Sadly some pages only return plaintext results if Google is trying to crawl them.
 const GOOGLEBOT: &'static str =
     "Mozilla/5.0 (compatible; Googlebot/2.1; +http://google.com/bot.html)";
-
-// Adapted from https://github.com/bluss/maplit for HeaderMaps
-macro_rules! headers {
-    (@single $($x:tt)*) => (());
-    (@count $($rest:expr),*) => (<[()]>::len(&[$(headers!(@single $rest)),*]));
-
-    ($($key:expr => $value:expr,)+) => { headers!($($key => $value),+) };
-    ($($key:expr => $value:expr),*) => {
-        {
-            let _cap = headers!(@count $($key),*);
-            let mut _map = headers::HeaderMap::with_capacity(_cap);
-            $(
-                let _ = _map.insert($key, $value);
-            )*
-            _map
-        }
-    };
-}
 
 #[derive(Debug, Clone)]
 pub struct Quirk {
@@ -63,7 +48,6 @@ impl Quirks {
                 }),
             },
         ];
-
         Self { quirks }
     }
 
