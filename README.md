@@ -130,8 +130,8 @@ lychee ~/projects/*/README.md
 
 # check links in local files (lychee supports advanced globbing and ~ expansion):
 lychee "~/projects/big_project/**/README.*"
-# ignore case when globbing, displaying progress and check result for each link:
-lychee --glob-ignore-case --progress --verbose "~/projects/**/[r]eadme.*"
+# ignore case when globbing and check result for each link:
+lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
 ```
 
 ### GitHub token
