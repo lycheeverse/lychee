@@ -4,7 +4,7 @@ mod headers_macro;
 use headers::HeaderMap;
 use http::{header::USER_AGENT, Method};
 use regex::Regex;
-use reqwest::Url;
+use reqwest::{Request, Url};
 
 /// Sadly some pages only return plaintext results if Google is trying to crawl them.
 const GOOGLEBOT: &'static str =
@@ -17,6 +17,17 @@ pub struct Quirk {
     pub headers: Option<HeaderMap>,
     pub rewrite: Option<fn(Url) -> Url>,
 }
+
+impl Quirk {
+    fn matches(&self, url: &Url) -> bool {
+            self.pattern.is_match(url.as_str())
+    }
+
+    fn apply(&self, request: &mut Request) -> &mut Request {
+        &mut request
+    }
+}
+
 
 #[derive(Debug, Clone)]
 pub struct Quirks {
@@ -51,7 +62,7 @@ impl Quirks {
         Self { quirks }
     }
 
-    pub fn matching(&self, url: &Url) -> Vec<Quirk> {
+    fn matches(&self, url: &Url) -> Vec<Quirk> {
         let mut matching = vec![];
         for quirk in &self.quirks {
             if quirk.pattern.is_match(url.as_str()) {
@@ -59,5 +70,29 @@ impl Quirks {
             }
         }
         matching
+    }
+
+    pub fn apply(&self, request: Request) -> Request {
+        let mut request = request.clone();
+        // let mut req_method = self.method.clone();
+        // let mut req_url = url.to_owned();
+        // let mut req_headers = None;
+
+        for quirk in self.matches(request.url()) {
+            println!("Applying quirk: {:?}", quirk);
+            request = quirk.apply(request);
+            // if let Some(rewrite) = quirk.rewrite {
+            //     req_url = rewrite(url.to_owned());
+            // }
+            // if let Some(method) = quirk.method {
+            //     req_method = method;
+            // }
+            // req_headers = quirk.headers;
+        }
+
+        // if let Some(headers) = req_headers {
+        //     request = request.headers(headers);
+        // }
+        request
     }
 }
