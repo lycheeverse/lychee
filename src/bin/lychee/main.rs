@@ -1,10 +1,10 @@
 use anyhow::{anyhow, Context, Result};
-use console::style;
 use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
 use options::Format;
 use regex::RegexSet;
+use stats::color_response;
 use std::{collections::HashSet, time::Duration};
 use std::{fs, str::FromStr};
 use structopt::StructOpt;
@@ -16,10 +16,7 @@ mod stats;
 use crate::options::{Config, LycheeOptions};
 use crate::stats::ResponseStats;
 
-use lychee::{
-    collector::{self, Input},
-    Status,
-};
+use lychee::collector::{self, Input};
 use lychee::{ClientBuilder, ClientPool, Response};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
@@ -66,30 +63,19 @@ fn run_main() -> Result<i32> {
     runtime.block_on(run(cfg, opts.inputs()))
 }
 
-fn color_response(response: &Response) -> String {
-    let out = match response.status {
-        Status::Ok(_) => style(response).green().bright(),
-        Status::Redirected(_) => style(response),
-        Status::Excluded => style(response).dim(),
-        Status::Error(_) => style(response).yellow().bright(),
-        Status::Timeout(_) => style(response).yellow().bright(),
-        Status::Failed(_) => style(response).red().bright(),
-    };
-    out.to_string()
-}
-
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
+    let out = color_response(response);
     if let Some(pb) = progress_bar {
         pb.inc(1);
-        pb.set_message(&response.to_string());
+        pb.set_message(&out);
         if verbose {
-            pb.println(color_response(response));
+            pb.println(out);
         }
     } else {
         if (response.status.is_success() || response.status.is_excluded()) && !verbose {
             return;
         }
-        println!("{}", color_response(response));
+        println!("{}", out);
     }
 }
 
@@ -182,7 +168,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
     if let Some(pb) = &pb {
-        pb.finish_with_message("Done");
+        pb.finish_and_clear();
     }
 
     let stats_formatted = fmt(&stats, &cfg.format)?;
