@@ -1,3 +1,4 @@
+use console::style;
 use pad::{Alignment, PadStr};
 use serde::Serialize;
 
@@ -6,10 +7,22 @@ use std::{
     fmt::{self, Display},
 };
 
-use lychee::{collector::Input, Response, Status::*};
+use lychee::{self, collector::Input, Response, Status};
 
 // Maximum padding for each entry in the final statistics output
 const MAX_PADDING: usize = 20;
+
+pub fn color_response(response: &Response) -> String {
+    let out = match response.status {
+        Status::Ok(_) => style(response).green().bright(),
+        Status::Redirected(_) => style(response),
+        Status::Excluded => style(response).dim(),
+        Status::Error(_) => style(response).yellow().bright(),
+        Status::Timeout(_) => style(response).yellow().bright(),
+        Status::Failed(_) => style(response).red().bright(),
+    };
+    out.to_string()
+}
 
 #[derive(Serialize)]
 pub struct ResponseStats {
@@ -41,17 +54,17 @@ impl ResponseStats {
     pub fn add(&mut self, response: Response) {
         self.total += 1;
         match response.status {
-            Failed(_) => self.failures += 1,
-            Timeout(_) => self.timeouts += 1,
-            Redirected(_) => self.redirects += 1,
-            Excluded => self.excludes += 1,
-            Error(_) => self.errors += 1,
+            Status::Failed(_) => self.failures += 1,
+            Status::Timeout(_) => self.timeouts += 1,
+            Status::Redirected(_) => self.redirects += 1,
+            Status::Excluded => self.excludes += 1,
+            Status::Error(_) => self.errors += 1,
             _ => self.successful += 1,
         }
 
         if matches!(
             response.status,
-            Failed(_) | Timeout(_) | Redirected(_) | Error(_)
+            Status::Failed(_) | Status::Timeout(_) | Status::Redirected(_) | Status::Error(_)
         ) {
             let fail = self.fail_map.entry(response.source.clone()).or_default();
             fail.insert(response);
@@ -91,16 +104,11 @@ impl Display for ResponseStats {
             writeln!(f)?;
         }
         for (input, responses) in &self.fail_map {
-            writeln!(f, "Input: {}", input)?;
+            writeln!(f, "Errors in {}", input)?;
             for response in responses {
-                writeln!(
-                    f,
-                    "   {} {}\n      {}",
-                    response.status.icon(),
-                    response.uri,
-                    response.status
-                )?
+                writeln!(f, "{}", color_response(response))?
             }
+            writeln!(f)?;
         }
         writeln!(f)
     }
