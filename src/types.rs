@@ -153,12 +153,12 @@ impl Status {
 
     pub fn icon(&self) -> &str {
         match self {
-            Status::Ok(_) => "✅",
-            Status::Redirected(_) => "🔀️",
-            Status::Excluded => "👻",
-            Status::Failed(_) => "🚫",
-            Status::Error(_) => "⚡",
-            Status::Timeout(_) => "⌛",
+            Status::Ok(_) => "✔",
+            Status::Redirected(_) => "⇄️",
+            Status::Excluded => "?",
+            Status::Failed(_) => "✗",
+            Status::Error(_) => "↯",
+            Status::Timeout(_) => "⧖",
         }
     }
 }
