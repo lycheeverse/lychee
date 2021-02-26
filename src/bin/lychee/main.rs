@@ -4,6 +4,7 @@ use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
 use options::Format;
 use regex::RegexSet;
+use reqwest::Url;
 use std::{collections::HashSet, time::Duration};
 use std::{fs, str::FromStr};
 use structopt::StructOpt;
@@ -152,6 +153,14 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         clients.listen().await;
     });
 
+    let original_domains: Vec<_> = inputs
+        .iter()
+        .filter_map(|i| match i {
+            Input::RemoteUrl(url) => Some(url.domain()),
+            _ => None,
+        })
+        .collect();
+
     while let Some(response) = recv_resp.recv().await {
         show_progress(&pb, &response, cfg.verbose);
         stats.add(response.clone());
@@ -159,14 +168,20 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         if !response.status.is_success() {
             continue;
         }
-        if cache.contains(&response.uri) {
+        if cache.contains(response.uri.as_str().to_string()) {
             continue;
         }
-        cache.add(response.uri.clone());
+        cache.add(response.uri.as_str().to_string());
+
+        println!("cache {:?}", cache);
 
         if let lychee::Uri::Website(url) = response.uri {
-            println!("add url: {}", &url);
             let input = collector::Input::RemoteUrl(url.clone());
+            
+            if !original_domains.contains(&url.domain()) {
+                continue;
+            }
+
             // TODO: Check recursion level
             let links = collector::collect_links(
                 &[input],

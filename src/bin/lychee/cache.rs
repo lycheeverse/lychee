@@ -1,23 +1,24 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use lychee::Uri;
 
 /// Link cache for recursion and to avoid checking a link multiple times
+#[derive(Debug)]
 pub struct Cache {
-    pub cache: HashMap<Uri, usize>,
+    pub cache: HashSet<String>,
 }
 
 impl Cache {
     pub fn new() -> Self {
-        let cache = HashMap::new();
+        let cache = HashSet::new();
         Cache { cache }
     }
 
-    pub fn add(&mut self, uri: Uri) {
-        *self.cache.entry(uri).or_insert(0) += 1;
+    pub fn add(&mut self, uri: String) {
+        self.cache.insert(uri);
     }
 
-    pub fn contains(&self, uri: &Uri) -> bool {
-        self.cache.contains_key(uri)
+    pub fn contains(&self, uri: String) -> bool {
+        self.cache.contains(&uri)
     }
 }

@@ -12,7 +12,7 @@ use tokio::io::{stdin, AsyncReadExt};
 
 const STDIN: &str = "-";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Input {
     RemoteUrl(Url),
