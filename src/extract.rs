@@ -318,13 +318,16 @@ mod test {
 
     #[test]
     fn test_skip_markdown_email() {
-        let input = "Get in touch - [Contact Us](mailto:test@test.com)";
+        let input = "Get in touch - [Contact Us](mailto:test@test.com)\
+        Get in touch once again - [Contact Us](mailto:foo.com@bar.com)\
+        Do not get in touch - [Contact Us](mailto:medium.com/@bretdoucette)\
+        One last try - [Contact Us](mailto:someone at invalid.com)";
         let links: HashSet<Uri> =
             extract_links(&InputContent::from_string(input, FileType::Markdown), None)
                 .into_iter()
                 .map(|r| r.uri)
                 .collect();
-        let expected: HashSet<Uri> = [Uri::Mail("test@test.com".to_string())]
+        let expected: HashSet<Uri> = [Uri::Mail("test@test.com".to_string()), Uri::Mail("foo.com@bar.com".to_string())]
             .iter()
             .cloned()
             .collect();
