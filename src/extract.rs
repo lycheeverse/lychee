@@ -40,9 +40,7 @@ impl<P: AsRef<Path>> From<P> for FileType {
 // Use LinkFinder here to offload the actual link searching in plaintext.
 fn find_links(input: &str) -> Vec<linkify::Link> {
     let finder = LinkFinder::new();
-    let res = finder.links(input).collect();
-    println!("{:?}", res);
-    return res;
+    finder.links(input).collect()
 }
 
 /// Extract unparsed URL strings from a markdown string.
@@ -327,10 +325,13 @@ mod test {
                 .into_iter()
                 .map(|r| r.uri)
                 .collect();
-        let expected: HashSet<Uri> = [Uri::Mail("test@test.com".to_string()), Uri::Mail("foo.com@bar.com".to_string())]
-            .iter()
-            .cloned()
-            .collect();
+        let expected: HashSet<Uri> = [
+            Uri::Mail("test@test.com".to_string()),
+            Uri::Mail("foo.com@bar.com".to_string()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
         assert_eq!(links, expected)
     }
 
