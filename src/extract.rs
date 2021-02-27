@@ -40,7 +40,9 @@ impl<P: AsRef<Path>> From<P> for FileType {
 // Use LinkFinder here to offload the actual link searching in plaintext.
 fn find_links(input: &str) -> Vec<linkify::Link> {
     let finder = LinkFinder::new();
-    finder.links(input).collect()
+    let res = finder.links(input).collect();
+    println!("{:?}", res);
+    return res;
 }
 
 /// Extract unparsed URL strings from a markdown string.
@@ -327,6 +329,17 @@ mod test {
             .cloned()
             .collect();
         assert_eq!(links, expected)
+    }
+
+    #[test]
+    fn test_markdown_skip_url_without_scheme() {
+        let input = "medium.com/@bretdoucette/n-1-queries-and-guides-avoid-them-a12f02345be5";
+        let links: HashSet<Uri> =
+            extract_links(&InputContent::from_string(input, FileType::Markdown), None)
+                .into_iter()
+                .map(|r| r.uri)
+                .collect();
+        assert_eq!(links, HashSet::new())
     }
 
     #[test]

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use std::{convert::TryFrom, fmt::Display};
 use url::Url;
+use regex::Regex;
 
 /// Lychee's own representation of a URI, which encapsulates all support formats
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -56,7 +57,8 @@ impl TryFrom<&str> for Uri {
         // Remove the `mailto` scheme if it exists
         // to avoid parsing it as a website URL.
         let s = s.trim_start_matches("mailto:");
-        if s.contains('@') & !is_link_internal {
+        let email_regex = Regex::new(r"^([a-z0-9_+]([a-z0-9_+.]*[a-z0-9_+])?)@([a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,6})").unwrap();
+        if email_regex.is_match(s) & !is_link_internal {
             return Ok(Uri::Mail(s.to_string()));
         }
         if let Ok(uri) = Url::parse(s) {
