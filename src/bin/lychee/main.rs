@@ -8,7 +8,7 @@ use stats::color_response;
 use std::{collections::HashSet, time::Duration};
 use std::{fs, str::FromStr};
 use structopt::StructOpt;
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, Sender};
 
 mod options;
 mod stats;
@@ -16,7 +16,10 @@ mod stats;
 use crate::options::{Config, LycheeOptions};
 use crate::stats::ResponseStats;
 
-use lychee::{Cache, collector::{self, Input}};
+use lychee::{
+    collector::{self, Input},
+    Cache, Request,
+};
 use lychee::{ClientBuilder, ClientPool, Response};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
@@ -164,7 +167,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         clients.listen().await;
     });
 
-    let original_domains: Vec<_> = inputs
+    let input_domains: Vec<_> = inputs
         .iter()
         .filter_map(|i| match i {
             Input::RemoteUrl(url) => Some(url.domain()),
@@ -176,47 +179,15 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         show_progress(&pb, &response, cfg.verbose);
         stats.add(response.clone());
 
-        if !response.status.is_success() {
-            continue;
-        }
-        if cache.contains(response.uri.as_str()) {
-            continue;
-        }
-        cache.insert(response.uri.to_string());
-
-        println!("cache {:?}", cache);
-
-        if let lychee::Uri::Website(url) = response.uri {
-            let input = collector::Input::RemoteUrl(url.clone());
-            
-            if !original_domains.contains(&url.domain()) {
-                continue;
-            }
-
-            // TODO: Check recursion level
-            let links = collector::collect_links(
-                &[input],
-                cfg.base_url.clone(),
-                cfg.skip_missing,
-                max_concurrency,
-            )
-            .await?;
-
-            let bar = pb.clone();
-            let sr = send_req.clone();
-            let real_url = url.clone();
-            tokio::spawn(async move {
-                println!("Adding {} links from {}", links.len(), real_url);
-                for link in links {
-                    if let Some(pb) = &bar {
-                        pb.inc_length(1);
-                        pb.set_message(&link.to_string());
-                    };
-                    sr.send(link).await.unwrap();
-                }
-                println!("Done with all links from {}", real_url);
-            });
-        }
+        recurse(
+            response,
+            &mut cache,
+            &input_domains,
+            &cfg,
+            &pb,
+            send_req.clone(),
+        )
+        .await?;
     }
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
@@ -235,6 +206,56 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         true => Ok(ExitCode::Success as i32),
         false => Ok(ExitCode::LinkCheckFailure as i32),
     }
+}
+
+async fn recurse(
+    response: Response,
+    cache: &mut Cache,
+    input_domains: &[Option<&str>],
+    cfg: &Config,
+    pb: &Option<ProgressBar>,
+    send_req: Sender<Request>,
+) -> Result<()> {
+    if !response.status.is_success() {
+        return Ok(());
+    }
+    if cache.contains(response.uri.as_str()) {
+        return Ok(());
+    }
+    cache.insert(response.uri.to_string());
+
+    if let lychee::Uri::Website(url) = response.uri {
+        let input = collector::Input::RemoteUrl(url.clone());
+
+        if !input_domains.contains(&url.domain()) {
+            return Ok(());
+        }
+
+        // TODO: Check recursion level
+        let links = collector::collect_links(
+            &[input],
+            cfg.base_url.clone(),
+            cfg.skip_missing,
+            cfg.max_concurrency,
+        )
+        .await?;
+
+        let bar = pb.clone();
+        let real_url = url.clone();
+        tokio::spawn(async move {
+            println!("Adding {} links from {}", links.len(), real_url);
+            for link in links {
+                if let Some(pb) = &bar {
+                    pb.inc_length(1);
+                    pb.set_message(&link.to_string());
+                };
+                send_req.send(link).await.unwrap();
+            }
+            println!("Done with all links from {}", real_url);
+        });
+    };
+
+    Ok(())
 }
 
 fn read_header(input: &str) -> Result<(String, String)> {
