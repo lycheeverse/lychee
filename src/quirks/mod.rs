@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn test_youtube_request() {
         let orig = Url::parse("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").unwrap();
-        let request = Request::new(Method::GET, orig.clone());
+        let request = Request::new(Method::GET, orig);
         let quirks = Quirks::init();
         let modified = quirks.apply(request);
         let expected_url = Url::parse("https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNlKuICiT470%26list%3DPLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ%26index%3D7").unwrap();
