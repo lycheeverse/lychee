@@ -36,7 +36,9 @@ impl Quirks {
                 rewrite: |request| {
                     let mut out = request;
                     let original_url = out.url();
-                    let urlencoded: String = url::form_urlencoded::byte_serialize(original_url.as_str().as_bytes()).collect();
+                    let urlencoded: String =
+                        url::form_urlencoded::byte_serialize(original_url.as_str().as_bytes())
+                            .collect();
                     *out.method_mut() = Method::HEAD;
                     let mut url = Url::parse("https://www.youtube.com/oembed").unwrap();
                     url.set_query(Some(&format!("url={}", urlencoded)));
