@@ -3,6 +3,8 @@ use anyhow::anyhow;
 use serde::{Serialize, Serializer};
 use std::{collections::HashSet, convert::TryFrom, fmt::Display};
 
+pub type Cache = HashSet<String>;
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Request {
     pub uri: Uri,

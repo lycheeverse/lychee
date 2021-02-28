@@ -10,15 +10,13 @@ use std::{fs, str::FromStr};
 use structopt::StructOpt;
 use tokio::sync::mpsc;
 
-mod cache;
 mod options;
 mod stats;
 
-use crate::cache::Cache;
 use crate::options::{Config, LycheeOptions};
 use crate::stats::ResponseStats;
 
-use lychee::collector::{self, Input};
+use lychee::{Cache, collector::{self, Input}};
 use lychee::{ClientBuilder, ClientPool, Response};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
@@ -181,10 +179,10 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         if !response.status.is_success() {
             continue;
         }
-        if cache.contains(response.uri.as_str().to_string()) {
+        if cache.contains(response.uri.as_str()) {
             continue;
         }
-        cache.add(response.uri.as_str().to_string());
+        cache.insert(response.uri.to_string());
 
         println!("cache {:?}", cache);
 
