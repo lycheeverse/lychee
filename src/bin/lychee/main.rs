@@ -179,15 +179,17 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         show_progress(&pb, &response, cfg.verbose);
         stats.add(response.clone());
 
-        recurse(
-            response,
-            &mut cache,
-            &input_domains,
-            &cfg,
-            &pb,
-            send_req.clone(),
-        )
-        .await?;
+        if cfg.recursion {
+            recurse(
+                response,
+                &mut cache,
+                &input_domains,
+                &cfg,
+                &pb,
+                send_req.clone(),
+            )
+            .await?;
+        }
     }
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats

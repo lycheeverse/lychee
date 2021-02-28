@@ -245,6 +245,11 @@ pub struct Config {
     #[structopt(short, long, default_value = "string")]
     #[serde(default)]
     pub format: Format,
+
+    /// Enable recursion (make sub-requests for detected links)
+    #[structopt(short, long)]
+    #[serde(default)]
+    pub recursion: bool,
 }
 
 impl Config {
@@ -299,6 +304,7 @@ impl Config {
             skip_missing: false;
             glob_ignore_case: false;
             output: None;
+            recursion: false;
         }
     }
 }
