@@ -264,7 +264,7 @@ impl Client {
     }
 }
 
-/// A convenience function to check a single URI
+/// A convenience function to check a single URI.
 /// This is the most simple link check and avoids having to create a client manually.
 /// For more complex scenarios, look into using the `ClientBuilder` instead.
 pub async fn check<T: TryInto<Request>>(request: T) -> Result<Response> {
