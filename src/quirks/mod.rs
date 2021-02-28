@@ -55,7 +55,6 @@ impl Quirks {
     pub fn apply(&self, request: Request) -> Request {
         for quirk in &self.quirks {
             if quirk.pattern.is_match(request.url().as_str()) {
-                println!("Applying quirk: {:?}", quirk);
                 return (quirk.rewrite)(request);
             }
         }
