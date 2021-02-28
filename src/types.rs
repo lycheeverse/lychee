@@ -56,7 +56,7 @@ impl TryFrom<String> for RequestMethod {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Serialize, Clone)]
 pub struct Response {
     #[serde(flatten)]
     pub uri: Uri,
@@ -90,7 +90,7 @@ impl Display for Response {
 }
 
 /// Response status of the request
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub enum Status {
     /// Request was successful
     Ok(http::StatusCode),

@@ -1,5 +1,3 @@
-use crate::uri;
-use crate::{client, types};
 use client::Client;
 use deadpool::unmanaged::Pool;
 use tokio::sync::mpsc;
@@ -27,7 +25,7 @@ impl ClientPool {
             let client = self.pool.get().await;
             let tx = self.tx.clone();
             tokio::spawn(async move {
-                let resp = client.check(req).await.expect("Invalid URI");
+                let resp = client.check(uri).await.expect("Invalid URI");
                 tx.send(resp)
                     .await
                     .expect("Cannot send response to channel");

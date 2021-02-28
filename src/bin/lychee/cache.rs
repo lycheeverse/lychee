@@ -1,7 +1,5 @@
 use std::collections::HashSet;
 
-use lychee::Uri;
-
 /// Link cache for recursion and to avoid checking a link multiple times
 #[derive(Debug)]
 pub struct Cache {
