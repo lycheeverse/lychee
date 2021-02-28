@@ -1,17 +1,17 @@
-use crate::collector::InputContent;
 use crate::uri::Uri;
+use crate::{collector::InputContent, Request};
 use html5ever::parse_document;
 use html5ever::tendril::{StrTendril, TendrilSink};
 use linkify::LinkFinder;
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
-use std::collections::HashSet;
 use std::path::Path;
+use std::{collections::HashSet, convert::TryFrom};
 use url::Url;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FileType {
-    HTML,
+    Html,
     Markdown,
     Plaintext,
 }
@@ -28,8 +28,8 @@ impl<P: AsRef<Path>> From<P> for FileType {
         let path = p.as_ref();
         match path.extension() {
             Some(ext) => match ext {
-                _ if ext == "md" => FileType::Markdown,
-                _ if (ext == "htm" || ext == "html") => FileType::HTML,
+                _ if (ext == "md" || ext == "markdown") => FileType::Markdown,
+                _ if (ext == "htm" || ext == "html") => FileType::Html,
                 _ => FileType::Plaintext,
             },
             None => FileType::Plaintext,
@@ -141,39 +141,45 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
         .collect()
 }
 
-pub(crate) fn extract_links(input_content: &InputContent, base_url: Option<Url>) -> HashSet<Uri> {
+pub(crate) fn extract_links(
+    input_content: &InputContent,
+    base_url: Option<Url>,
+) -> HashSet<Request> {
     let links = match input_content.file_type {
         FileType::Markdown => extract_links_from_markdown(&input_content.content),
-        FileType::HTML => extract_links_from_html(&input_content.content),
+        FileType::Html => extract_links_from_html(&input_content.content),
         FileType::Plaintext => extract_links_from_plaintext(&input_content.content),
     };
 
     // Only keep legit URLs. This sorts out things like anchors.
     // Silently ignore the parse failures for now.
-    let mut uris = HashSet::new();
+    let mut requests: HashSet<Request> = HashSet::new();
     for link in links {
-        match Url::parse(&link) {
-            Ok(url) => {
-                uris.insert(Uri::Website(url));
+        match Uri::try_from(link.as_str()) {
+            Ok(uri) => {
+                requests.insert(Request::new(uri, input_content.input.clone()));
             }
             Err(_) => {
-                if link.contains('@') {
-                    uris.insert(Uri::Mail(link));
-                } else if !Path::new(&link).exists() {
+                if !Path::new(&link).exists() {
                     if let Some(base_url) = &base_url {
                         if let Ok(new_url) = base_url.join(&link) {
-                            uris.insert(Uri::Website(new_url));
+                            requests.insert(Request::new(
+                                Uri::Website(new_url),
+                                input_content.input.clone(),
+                            ));
                         }
                     }
                 }
             }
         };
     }
-    uris
+    requests
 }
 
 #[cfg(test)]
 mod test {
+    use crate::test_utils::website;
+
     use super::*;
     use std::fs::File;
     use std::io::{BufReader, Read};
@@ -197,19 +203,39 @@ mod test {
     }
 
     #[test]
+    fn test_file_type() {
+        assert_eq!(FileType::from(Path::new("test.md")), FileType::Markdown);
+        assert_eq!(
+            FileType::from(Path::new("test.markdown")),
+            FileType::Markdown
+        );
+        assert_eq!(FileType::from(Path::new("test.html")), FileType::Html);
+        assert_eq!(FileType::from(Path::new("test.txt")), FileType::Plaintext);
+        assert_eq!(
+            FileType::from(Path::new("test.something")),
+            FileType::Plaintext
+        );
+        assert_eq!(
+            FileType::from(Path::new("/absolute/path/to/test.something")),
+            FileType::Plaintext
+        );
+    }
+
+    #[test]
     fn test_extract_markdown_links() {
         let input = "This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)";
-        let links = extract_links(
+        let links: HashSet<Uri> = extract_links(
             &InputContent::from_string(input, FileType::Markdown),
             Some(Url::parse("https://github.com/hello-rust/lychee/").unwrap()),
-        );
+        )
+        .into_iter()
+        .map(|r| r.uri)
+        .collect();
         assert_eq!(
             links,
             [
-                Uri::Website(Url::parse("https://endler.dev").unwrap()),
-                Uri::Website(
-                    Url::parse("https://github.com/hello-rust/lychee/relative_link").unwrap()
-                )
+                website("https://endler.dev"),
+                website("https://github.com/hello-rust/lychee/relative_link"),
             ]
             .iter()
             .cloned()
@@ -221,23 +247,28 @@ mod test {
     fn test_extract_html_links() {
         let input = r#"<html>
                 <div class="row">
-                    <a href="https://github.com/hello-rust/lychee/">
+                    <a href="https://github.com/lycheeverse/lychee/">
                     <a href="blob/master/README.md">README</a>
                 </div>
             </html>"#;
 
-        let links = extract_links(
-            &InputContent::from_string(input, FileType::HTML),
-            Some(Url::parse("https://github.com/hello-rust/").unwrap()),
-        );
+        let links: HashSet<Uri> = extract_links(
+            &InputContent::from_string(input, FileType::Html),
+            Some(Url::parse("https://github.com/lycheeverse/").unwrap()),
+        )
+        .into_iter()
+        .map(|r| r.uri)
+        .collect();
 
         assert_eq!(
-            links
-                .get(&Uri::Website(
-                    Url::parse("https://github.com/hello-rust/blob/master/README.md").unwrap()
-                ))
-                .is_some(),
-            true
+            links,
+            [
+                website("https://github.com/lycheeverse/lychee/"),
+                website("https://github.com/lycheeverse/blob/master/README.md"),
+            ]
+            .iter()
+            .cloned()
+            .collect::<HashSet<Uri>>(),
         );
     }
 
@@ -256,18 +287,67 @@ mod test {
     }
 
     #[test]
-    fn test_non_markdown_links() {
-        let input =
-            "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.com";
-        let links = extract_links(&InputContent::from_string(input, FileType::Plaintext), None);
+    fn test_markdown_internal_url() {
+        let base_url = "https://localhost.com/";
+        let input = "This is [an internal url](@/internal.md) \
+        This is [an internal url](@/internal.markdown) \
+        This is [an internal url](@/internal.markdown#example) \
+        This is [an internal url](@/internal.md#example)";
+        let links: HashSet<Uri> = extract_links(
+            &InputContent::from_string(input, FileType::Markdown),
+            Some(Url::parse(base_url).unwrap()),
+        )
+        .into_iter()
+        .map(|r| r.uri)
+        .collect();
+
         let expected = [
-            Uri::Website(Url::parse("https://endler.dev").unwrap()),
-            Uri::Website(Url::parse("https://hello-rust.show/foo/bar?lol=1").unwrap()),
-            Uri::Mail("test@example.com".to_string()),
+            website("https://localhost.com/@/internal.md"),
+            website("https://localhost.com/@/internal.markdown"),
+            website("https://localhost.com/@/internal.md#example"),
+            website("https://localhost.com/@/internal.markdown#example"),
         ]
         .iter()
         .cloned()
         .collect();
+
+        assert_eq!(links, expected)
+    }
+
+    #[test]
+    fn test_skip_markdown_email() {
+        let input = "Get in touch - [Contact Us](mailto:test@test.com)";
+        let links: HashSet<Uri> =
+            extract_links(&InputContent::from_string(input, FileType::Markdown), None)
+                .into_iter()
+                .map(|r| r.uri)
+                .collect();
+        let expected: HashSet<Uri> = [Uri::Mail("test@test.com".to_string())]
+            .iter()
+            .cloned()
+            .collect();
+        assert_eq!(links, expected)
+    }
+
+    #[test]
+    fn test_non_markdown_links() {
+        let input =
+            "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.org";
+        let links: HashSet<Uri> =
+            extract_links(&InputContent::from_string(input, FileType::Plaintext), None)
+                .into_iter()
+                .map(|r| r.uri)
+                .collect();
+
+        let expected = [
+            website("https://endler.dev"),
+            website("https://hello-rust.show/foo/bar?lol=1"),
+            Uri::Mail("test@example.org".to_string()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
         assert_eq!(links, expected)
     }
 
@@ -286,14 +366,18 @@ mod test {
     #[test]
     fn test_extract_html5_not_valid_xml() {
         let input = load_fixture("TEST_HTML5.html");
-        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+        let links: HashSet<Uri> =
+            extract_links(&InputContent::from_string(&input, FileType::Html), None)
+                .into_iter()
+                .map(|r| r.uri)
+                .collect();
 
         let expected_links = [
-            Uri::Website(Url::parse("https://example.com/head/home").unwrap()),
-            Uri::Website(Url::parse("https://example.com/css/style_full_url.css").unwrap()),
+            website("https://example.org/head/home"),
+            website("https://example.org/css/style_full_url.css"),
             // the body links wouldn't be present if the file was parsed strictly as XML
-            Uri::Website(Url::parse("https://example.com/body/a").unwrap()),
-            Uri::Website(Url::parse("https://example.com/body/div_empty_a").unwrap()),
+            website("https://example.org/body/a"),
+            website("https://example.org/body/div_empty_a"),
         ]
         .iter()
         .cloned()
@@ -305,20 +389,23 @@ mod test {
     #[test]
     fn test_extract_html5_not_valid_xml_relative_links() {
         let input = load_fixture("TEST_HTML5.html");
-        let links = extract_links(
-            &InputContent::from_string(&input, FileType::HTML),
-            Some(Url::parse("https://example.com").unwrap()),
-        );
+        let links: HashSet<Uri> = extract_links(
+            &InputContent::from_string(&input, FileType::Html),
+            Some(Url::parse("https://example.org").unwrap()),
+        )
+        .into_iter()
+        .map(|r| r.uri)
+        .collect();
 
         let expected_links = [
-            Uri::Website(Url::parse("https://example.com/head/home").unwrap()),
-            Uri::Website(Url::parse("https://example.com/images/icon.png").unwrap()),
-            Uri::Website(Url::parse("https://example.com/css/style_relative_url.css").unwrap()),
-            Uri::Website(Url::parse("https://example.com/css/style_full_url.css").unwrap()),
-            Uri::Website(Url::parse("https://example.com/js/script.js").unwrap()),
+            website("https://example.org/head/home"),
+            website("https://example.org/images/icon.png"),
+            website("https://example.org/css/style_relative_url.css"),
+            website("https://example.org/css/style_full_url.css"),
+            website("https://example.org/js/script.js"),
             // the body links wouldn't be present if the file was parsed strictly as XML
-            Uri::Website(Url::parse("https://example.com/body/a").unwrap()),
-            Uri::Website(Url::parse("https://example.com/body/div_empty_a").unwrap()),
+            website("https://example.org/body/a"),
+            website("https://example.org/body/div_empty_a"),
         ]
         .iter()
         .cloned()
@@ -331,14 +418,16 @@ mod test {
     fn test_extract_html5_lowercase_doctype() {
         // this has been problematic with previous XML based parser
         let input = load_fixture("TEST_HTML5_LOWERCASE_DOCTYPE.html");
-        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+        let links: HashSet<Uri> =
+            extract_links(&InputContent::from_string(&input, FileType::Html), None)
+                .into_iter()
+                .map(|r| r.uri)
+                .collect();
 
-        let expected_links = [Uri::Website(
-            Url::parse("https://example.com/body/a").unwrap(),
-        )]
-        .iter()
-        .cloned()
-        .collect();
+        let expected_links = [website("https://example.org/body/a")]
+            .iter()
+            .cloned()
+            .collect();
 
         assert_eq!(links, expected_links);
     }
@@ -347,14 +436,18 @@ mod test {
     fn test_extract_html5_minified() {
         // minified HTML with some quirky elements such as href attribute values specified without quotes
         let input = load_fixture("TEST_HTML5_MINIFIED.html");
-        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+        let links: HashSet<Uri> =
+            extract_links(&InputContent::from_string(&input, FileType::Html), None)
+                .into_iter()
+                .map(|r| r.uri)
+                .collect();
 
         let expected_links = [
-            Uri::Website(Url::parse("https://example.com/").unwrap()),
-            Uri::Website(Url::parse("https://example.com/favicon.ico").unwrap()),
-            Uri::Website(Url::parse("https://fonts.externalsite.com").unwrap()),
-            Uri::Website(Url::parse("https://example.com/docs/").unwrap()),
-            Uri::Website(Url::parse("https://example.com/forum").unwrap()),
+            website("https://example.org/"),
+            website("https://example.org/favicon.ico"),
+            website("https://fonts.externalsite.com"),
+            website("https://example.org/docs/"),
+            website("https://example.org/forum"),
         ]
         .iter()
         .cloned()
@@ -367,10 +460,14 @@ mod test {
     fn test_extract_html5_malformed() {
         // malformed links shouldn't stop the parser from further parsing
         let input = load_fixture("TEST_HTML5_MALFORMED_LINKS.html");
-        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+        let links: HashSet<Uri> =
+            extract_links(&InputContent::from_string(&input, FileType::Html), None)
+                .into_iter()
+                .map(|r| r.uri)
+                .collect();
 
         let expected_links = [Uri::Website(
-            Url::parse("https://example.com/valid").unwrap(),
+            Url::parse("https://example.org/valid").unwrap(),
         )]
         .iter()
         .cloned()
@@ -383,13 +480,17 @@ mod test {
     fn test_extract_html5_custom_elements() {
         // the element name shouldn't matter for attributes like href, src, cite etc
         let input = load_fixture("TEST_HTML5_CUSTOM_ELEMENTS.html");
-        let links = extract_links(&InputContent::from_string(&input, FileType::HTML), None);
+        let links: HashSet<Uri> =
+            extract_links(&InputContent::from_string(&input, FileType::Html), None)
+                .into_iter()
+                .map(|r| r.uri)
+                .collect();
 
         let expected_links = [
-            Uri::Website(Url::parse("https://example.com/some-weird-element").unwrap()),
-            Uri::Website(Url::parse("https://example.com/even-weirder-src").unwrap()),
-            Uri::Website(Url::parse("https://example.com/even-weirder-href").unwrap()),
-            Uri::Website(Url::parse("https://example.com/citations").unwrap()),
+            website("https://example.org/some-weird-element"),
+            website("https://example.org/even-weirder-src"),
+            website("https://example.org/even-weirder-href"),
+            website("https://example.org/citations"),
         ]
         .iter()
         .cloned()

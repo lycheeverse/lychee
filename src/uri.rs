@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use std::{convert::TryFrom, fmt::Display};
@@ -40,11 +40,29 @@ impl Uri {
     }
 }
 
+fn is_internal_link(link: &str) -> bool {
+    // The first element should contain the Markdown file link
+    // @see https://www.markdownguide.org/basic-syntax/#links
+    let anchor_links = link.split('#').next().unwrap_or("");
+    anchor_links.ends_with(".md") | anchor_links.ends_with(".markdown")
+}
+
 impl TryFrom<&str> for Uri {
     type Error = anyhow::Error;
 
     fn try_from(s: &str) -> Result<Self> {
-        Ok(Uri::Website(Url::parse(s)?))
+        // Check for internal Markdown links
+        let is_link_internal = is_internal_link(s);
+        // Remove the `mailto` scheme if it exists
+        // to avoid parsing it as a website URL.
+        let s = s.trim_start_matches("mailto:");
+        if s.contains('@') & !is_link_internal {
+            return Ok(Uri::Mail(s.to_string()));
+        }
+        if let Ok(uri) = Url::parse(s) {
+            return Ok(Uri::Website(uri));
+        };
+        bail!("Cannot convert to Uri")
     }
 }
 
@@ -56,23 +74,38 @@ impl Display for Uri {
 
 #[cfg(test)]
 mod test {
-    use reqwest::Url;
+    use crate::test_utils::website;
 
     use super::*;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
     #[test]
+    fn test_uri_from_str() {
+        assert!(matches!(Uri::try_from(""), Err(_)));
+        assert_eq!(
+            Uri::try_from("http://example.org").unwrap(),
+            website("http://example.org")
+        );
+        assert_eq!(
+            Uri::try_from("mail@example.org").unwrap(),
+            Uri::Mail("mail@example.org".to_string())
+        );
+        assert_eq!(
+            Uri::try_from("mailto:mail@example.org").unwrap(),
+            Uri::Mail("mail@example.org".to_string())
+        );
+    }
+
+    #[test]
     fn test_uri_host_ip_v4() {
-        let uri =
-            Uri::Website(Url::parse("http://127.0.0.1").expect("Expected URI with valid IPv4"));
+        let uri = website("http://127.0.0.1");
         let ip = uri.host_ip().expect("Expected a valid IPv4");
         assert_eq!(ip, IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
     }
 
     #[test]
     fn test_uri_host_ip_v6() {
-        let uri =
-            Uri::Website(Url::parse("https://[2020::0010]").expect("Expected URI with valid IPv6"));
+        let uri = website("https://[2020::0010]");
         let ip = uri.host_ip().expect("Expected a valid IPv6");
         assert_eq!(
             ip,
@@ -82,8 +115,15 @@ mod test {
 
     #[test]
     fn test_uri_host_ip_no_ip() {
-        let uri = Uri::Website(Url::parse("https://some.cryptic/url").expect("Expected valid URI"));
+        let uri = website("https://some.cryptic/url");
         let ip = uri.host_ip();
         assert!(ip.is_none());
+    }
+
+    #[test]
+    fn test_mail() {
+        let uri = website("http://127.0.0.1");
+        let ip = uri.host_ip().expect("Expected a valid IPv4");
+        assert_eq!(ip, IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
     }
 }

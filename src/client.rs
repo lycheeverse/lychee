@@ -1,18 +1,21 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use check_if_email_exists::{check_email, CheckEmailInput};
 use derive_builder::Builder;
 use headers::{HeaderMap, HeaderValue};
 use hubcaps::{Credentials, Github};
 use regex::{Regex, RegexSet};
 use reqwest::header;
-use std::net::IpAddr;
+use std::convert::TryInto;
 use std::{collections::HashSet, time::Duration};
 use tokio::time::sleep;
 use url::Url;
 
-use crate::excludes::Excludes;
+use crate::filter::Excludes;
+use crate::filter::Filter;
+use crate::filter::Includes;
 use crate::types::{Response, Status};
 use crate::uri::Uri;
+use crate::Request;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const DEFAULT_MAX_REDIRECTS: usize = 5;
@@ -21,9 +24,7 @@ const DEFAULT_MAX_REDIRECTS: usize = 5;
 pub struct Client {
     reqwest_client: reqwest::Client,
     github: Option<Github>,
-    includes: Option<RegexSet>,
-    excludes: Excludes,
-    scheme: Option<String>,
+    filter: Filter,
     method: reqwest::Method,
     accepted: Option<HashSet<reqwest::StatusCode>>,
 }
@@ -51,6 +52,8 @@ pub struct ClientBuilderInternal {
     exclude_link_local_ips: bool,
     /// Exclude loopback IP addresses (e.g. 127.0.0.1)
     exclude_loopback_ips: bool,
+    /// Don't check mail addresses
+    exclude_mail: bool,
     /// Maximum number of redirects before returning error
     max_redirects: usize,
     /// User agent used for checking links
@@ -84,6 +87,13 @@ impl ClientBuilder {
             private_ips: enable_exclude(self.exclude_private_ips.unwrap_or_default()),
             link_local_ips: enable_exclude(self.exclude_link_local_ips.unwrap_or_default()),
             loopback_ips: enable_exclude(self.exclude_loopback_ips.unwrap_or_default()),
+            mail: enable_exclude(self.exclude_mail.unwrap_or_default()),
+        }
+    }
+
+    fn build_includes(&mut self) -> Includes {
+        Includes {
+            regex: self.includes.clone().unwrap_or_default(),
         }
     }
 
@@ -137,12 +147,15 @@ impl ClientBuilder {
         let scheme = self.scheme.clone().unwrap_or(None);
         let scheme = scheme.map(|s| s.to_lowercase());
 
+        let includes = self.build_includes();
+        let excludes = self.build_excludes();
+
+        let filter = Filter::new(Some(includes), Some(excludes), scheme);
+
         Ok(Client {
             reqwest_client,
             github,
-            includes: self.includes.clone().unwrap_or(None),
-            excludes: self.build_excludes(),
-            scheme,
+            filter,
             method: self.method.clone().unwrap_or(reqwest::Method::GET),
             accepted: self.accepted.clone().unwrap_or(None),
         })
@@ -150,47 +163,32 @@ impl ClientBuilder {
 }
 
 impl Client {
-    async fn check_github(&self, owner: String, repo: String) -> Status {
-        match &self.github {
-            Some(github) => {
-                let repo = github.repo(owner, repo).get().await;
-                match repo {
-                    Err(e) => Status::Error(format!("{}", e)),
-                    Ok(_) => Status::Ok(http::StatusCode::OK),
+    pub async fn check<T: TryInto<Request>>(&self, request: T) -> Result<Response> {
+        let request: Request = match request.try_into() {
+            Ok(request) => request,
+            Err(_e) => bail!("Invalid URI"),
+        };
+        if self.filter.excluded(&request) {
+            return Ok(Response::new(request.uri, Status::Excluded, request.source));
+        }
+        let status = match request.uri {
+            Uri::Website(ref url) => self.check_website(&url).await,
+            Uri::Mail(ref address) => {
+                // TODO: We should not be using a HTTP status code for mail
+                match self.valid_mail(&address).await {
+                    true => Status::Ok(http::StatusCode::OK),
+                    false => Status::Error(format!("Invalid mail address: {}", address)),
                 }
             }
-            None => Status::Error(
-                "GitHub token not specified. To check GitHub links reliably, \
-                use `--github-token` flag / `GITHUB_TOKEN` env var."
-                    .to_string(),
-            ),
-        }
+        };
+        Ok(Response::new(request.uri, status, request.source))
     }
 
-    async fn check_normal(&self, url: &Url) -> Status {
-        let request = self
-            .reqwest_client
-            .request(self.method.clone(), url.as_str());
-        let res = request.send().await;
-        match res {
-            Ok(response) => Status::new(response.status(), self.accepted.clone()),
-            Err(e) => e.into(),
-        }
-    }
-
-    fn extract_github(&self, url: &str) -> Result<(String, String)> {
-        let re = Regex::new(r"github\.com/([^/]*)/([^/]*)")?;
-        let caps = re.captures(&url).context("Invalid capture")?;
-        let owner = caps.get(1).context("Cannot capture owner")?;
-        let repo = caps.get(2).context("Cannot capture repo")?;
-        Ok((owner.as_str().into(), repo.as_str().into()))
-    }
-
-    pub async fn check_real(&self, url: &Url) -> Status {
+    pub async fn check_website(&self, url: &Url) -> Status {
         let mut retries: i64 = 3;
         let mut wait: u64 = 1;
         let status = loop {
-            let res = self.check_normal(&url).await;
+            let res = self.check_default(&url).await;
             match res.is_success() {
                 true => return res,
                 false => {
@@ -213,6 +211,42 @@ impl Client {
         status
     }
 
+    async fn check_github(&self, owner: String, repo: String) -> Status {
+        match &self.github {
+            Some(github) => {
+                let repo = github.repo(owner, repo).get().await;
+                match repo {
+                    Err(e) => Status::Error(format!("{}", e)),
+                    Ok(_) => Status::Ok(http::StatusCode::OK),
+                }
+            }
+            None => Status::Error(
+                "GitHub token not specified. To check GitHub links reliably, \
+                use `--github-token` flag / `GITHUB_TOKEN` env var."
+                    .to_string(),
+            ),
+        }
+    }
+
+    async fn check_default(&self, url: &Url) -> Status {
+        let request = self
+            .reqwest_client
+            .request(self.method.clone(), url.as_str());
+        let res = request.send().await;
+        match res {
+            Ok(response) => Status::new(response.status(), self.accepted.clone()),
+            Err(e) => e.into(),
+        }
+    }
+
+    fn extract_github(&self, url: &str) -> Result<(String, String)> {
+        let re = Regex::new(r"github\.com/([^/]*)/([^/]*)")?;
+        let caps = re.captures(&url).context("Invalid capture")?;
+        let owner = caps.get(1).context("Cannot capture owner")?;
+        let repo = caps.get(2).context("Cannot capture repo")?;
+        Ok((owner.as_str().into(), repo.as_str().into()))
+    }
+
     pub async fn valid_mail(&self, address: &str) -> bool {
         let input = CheckEmailInput::new(vec![address.to_string()]);
         let results = check_email(&input).await;
@@ -228,83 +262,14 @@ impl Client {
             }
         }
     }
+}
 
-    fn in_regex_excludes(&self, input: &str) -> bool {
-        if let Some(excludes) = &self.excludes.regex {
-            if excludes.is_match(input) {
-                return true;
-            }
-        }
-        false
-    }
-
-    fn in_ip_excludes(&self, uri: &Uri) -> bool {
-        if let Some(ipaddr) = uri.host_ip() {
-            if self.excludes.loopback_ips && ipaddr.is_loopback() {
-                return true;
-            }
-
-            // Note: in a pathological case, an IPv6 address can be IPv4-mapped
-            //       (IPv4 address embedded in a IPv6).  We purposefully
-            //       don't deal with it here, and assume if an address is IPv6,
-            //       we shouldn't attempt to map it to IPv4.
-            //       See: https://tools.ietf.org/html/rfc4291#section-2.5.5.2
-            if let IpAddr::V4(v4addr) = ipaddr {
-                if self.excludes.private_ips && v4addr.is_private() {
-                    return true;
-                }
-                if self.excludes.link_local_ips && v4addr.is_link_local() {
-                    return true;
-                }
-            }
-        }
-
-        false
-    }
-
-    pub fn excluded(&self, uri: &Uri) -> bool {
-        if let Some(includes) = &self.includes {
-            if includes.is_match(uri.as_str()) {
-                // Includes take precedence over excludes
-                return false;
-            } else {
-                // In case we have includes and no excludes,
-                // skip everything that was not included
-                if self.excludes.regex.is_none() {
-                    return true;
-                }
-            }
-        }
-        if self.in_regex_excludes(uri.as_str()) {
-            return true;
-        }
-        if self.in_ip_excludes(&uri) {
-            return true;
-        }
-        if self.scheme.is_none() {
-            return false;
-        }
-        uri.scheme() != self.scheme
-    }
-
-    pub async fn check(&self, uri: Uri) -> Response {
-        if self.excluded(&uri) {
-            return Response::new(uri, Status::Excluded);
-        }
-        let status = match uri {
-            Uri::Website(ref url) => self.check_real(&url).await,
-            Uri::Mail(ref address) => {
-                let valid = self.valid_mail(&address).await;
-                if valid {
-                    // TODO: We should not be using a HTTP status code for mail
-                    Status::Ok(http::StatusCode::OK)
-                } else {
-                    Status::Error(format!("Invalid mail address: {}", address))
-                }
-            }
-        };
-        Response::new(uri, status)
-    }
+/// A convenience function to check a single URI
+/// This is the most simple link check and avoids having to create a client manually.
+/// For more complex scenarios, look into using the `ClientBuilder` instead.
+pub async fn check<T: TryInto<Request>>(request: T) -> Result<Response> {
+    let client = ClientBuilder::default().build()?;
+    Ok(client.check(request).await?)
 }
 
 #[cfg(test)]
@@ -312,32 +277,8 @@ mod test {
     use super::*;
     use http::StatusCode;
     use std::time::{Duration, Instant};
-    use url::Url;
     use wiremock::matchers::method;
     use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    // Note: the standard library as of Rust stable 1.47.0 does not expose
-    // "link-local" or "private" IPv6 checks.  However, one might argue
-    // that these concepts do exist in IPv6, albeit the naming is different.
-    // See: https://en.wikipedia.org/wiki/Link-local_address#IPv6
-    // See: https://en.wikipedia.org/wiki/Private_network#IPv6
-    // See: https://doc.rust-lang.org/stable/std/net/struct.Ipv6Addr.html#method.is_unicast_link_local
-    const V4_PRIVATE_CLASS_A: &str = "http://10.0.0.1";
-    const V4_PRIVATE_CLASS_B: &str = "http://172.16.0.1";
-    const V4_PRIVATE_CLASS_C: &str = "http://192.168.0.1";
-
-    const V4_LOOPBACK: &str = "http://127.0.0.1";
-    const V6_LOOPBACK: &str = "http://[::1]";
-
-    const V4_LINK_LOCAL: &str = "http://169.254.0.1";
-
-    // IPv4-Mapped IPv6 addresses (IPv4 embedded in IPv6)
-    const V6_MAPPED_V4_PRIVATE_CLASS_A: &str = "http://[::ffff:10.0.0.1]";
-    const V6_MAPPED_V4_LINK_LOCAL: &str = "http://[::ffff:169.254.0.1]";
-
-    fn website_url(s: &str) -> Uri {
-        Uri::Website(Url::parse(s).expect("Expected valid Website URI"))
-    }
 
     #[tokio::test]
     async fn test_nonexistent() {
@@ -351,8 +292,9 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url(&mock_server.uri()))
-            .await;
+            .check(mock_server.uri())
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Failed(_)));
     }
 
@@ -369,8 +311,9 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url(&mock_server.uri()))
-            .await;
+            .check(mock_server.uri())
+            .await
+            .unwrap();
         let end = start.elapsed();
 
         assert!(matches!(res.status, Status::Failed(_)));
@@ -397,8 +340,9 @@ mod test {
             ClientBuilder::default()
                 .build()
                 .unwrap()
-                .check(website_url("https://github.com/lycheeverse/lychee"))
+                .check("https://github.com/lycheeverse/lychee")
                 .await
+                .unwrap()
                 .status,
             Status::Ok(_)
         ));
@@ -409,8 +353,9 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url("https://github.com/lycheeverse/not-lychee"))
+            .check("https://github.com/lycheeverse/not-lychee")
             .await
+            .unwrap()
             .status;
         assert!(matches!(res, Status::Error(_)));
     }
@@ -427,8 +372,9 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url(&mock_server.uri()))
+            .check(mock_server.uri())
             .await
+            .unwrap()
             .status;
         assert!(matches!(res, Status::Ok(_)));
     }
@@ -438,8 +384,9 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url("https://expired.badssl.com/"))
-            .await;
+            .check("https://expired.badssl.com/")
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Error(_)));
 
         // Same, but ignore certificate error
@@ -447,8 +394,9 @@ mod test {
             .allow_insecure(true)
             .build()
             .unwrap()
-            .check(website_url("https://expired.badssl.com/"))
-            .await;
+            .check("https://expired.badssl.com/")
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Ok(_)));
     }
 
@@ -457,8 +405,9 @@ mod test {
         let res = ClientBuilder::default()
             .build()
             .unwrap()
-            .check(website_url("https://crates.io/crates/lychee"))
-            .await;
+            .check("https://crates.io/crates/lychee")
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Failed(StatusCode::NOT_FOUND)));
 
         // Try again, but with a custom header.
@@ -470,8 +419,9 @@ mod test {
             .custom_headers(custom)
             .build()
             .unwrap()
-            .check(website_url("https://crates.io/crates/lychee"))
-            .await;
+            .check("https://crates.io/crates/lychee")
+            .await
+            .unwrap();
         assert!(matches!(res.status, Status::Ok(_)));
     }
 
@@ -496,149 +446,7 @@ mod test {
             .build()
             .unwrap();
 
-        let resp = client.check(website_url(&mock_server.uri())).await;
-        assert!(matches!(resp.status, Status::Timeout));
-    }
-
-    #[tokio::test]
-    async fn test_include_regex() {
-        let includes = RegexSet::new(&[r"foo.github.com"]).unwrap();
-
-        let client = ClientBuilder::default().includes(includes).build().unwrap();
-
-        assert_eq!(
-            client.excluded(&website_url("https://foo.github.com")),
-            false
-        );
-        assert_eq!(
-            client.excluded(&website_url("https://bar.github.com")),
-            true
-        );
-    }
-
-    #[tokio::test]
-    async fn test_exclude_include_regex() {
-        let exclude = Some(RegexSet::new(&[r"github.com"]).unwrap());
-        let includes = RegexSet::new(&[r"foo.github.com"]).unwrap();
-
-        let client = ClientBuilder::default()
-            .includes(includes)
-            .excludes(exclude)
-            .build()
-            .unwrap();
-
-        assert_eq!(
-            client.excluded(&website_url("https://foo.github.com")),
-            false
-        );
-        assert_eq!(client.excluded(&website_url("https://github.com")), true);
-        assert_eq!(
-            client.excluded(&website_url("https://bar.github.com")),
-            true
-        );
-    }
-
-    #[tokio::test]
-    async fn test_exclude_regex() {
-        let exclude =
-            Some(RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap());
-
-        let client = ClientBuilder::default().excludes(exclude).build().unwrap();
-
-        assert_eq!(client.excluded(&website_url("http://github.com")), true);
-        assert_eq!(client.excluded(&website_url("http://exclude.org")), true);
-        assert_eq!(
-            client.excluded(&Uri::Mail("mail@example.com".to_string())),
-            true
-        );
-        assert_eq!(
-            client.excluded(&Uri::Mail("foo@bar.dev".to_string())),
-            false
-        );
-    }
-
-    #[test]
-    fn test_const_sanity() {
-        let get_host = |s| {
-            Url::parse(s)
-                .expect("Expected valid URL")
-                .host()
-                .expect("Expected host address")
-                .to_owned()
-        };
-        let into_v4 = |host| match host {
-            url::Host::Ipv4(ipv4) => ipv4,
-            _ => panic!("Not IPv4"),
-        };
-        let into_v6 = |host| match host {
-            url::Host::Ipv6(ipv6) => ipv6,
-            _ => panic!("Not IPv6"),
-        };
-
-        assert!(into_v4(get_host(V4_PRIVATE_CLASS_A)).is_private());
-        assert!(into_v4(get_host(V4_PRIVATE_CLASS_B)).is_private());
-        assert!(into_v4(get_host(V4_PRIVATE_CLASS_C)).is_private());
-
-        assert!(into_v4(get_host(V4_LOOPBACK)).is_loopback());
-        assert!(into_v6(get_host(V6_LOOPBACK)).is_loopback());
-
-        assert!(into_v4(get_host(V4_LINK_LOCAL)).is_link_local());
-    }
-
-    #[test]
-    fn test_excludes_no_private_ips_by_default() {
-        let client = ClientBuilder::default().build().unwrap();
-
-        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_A)), false);
-        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_B)), false);
-        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_C)), false);
-        assert_eq!(client.excluded(&website_url(V4_LINK_LOCAL)), false);
-        assert_eq!(client.excluded(&website_url(V4_LOOPBACK)), false);
-
-        assert_eq!(client.excluded(&website_url(V6_LOOPBACK)), false);
-    }
-
-    #[test]
-    fn test_exclude_private() {
-        let mut client = ClientBuilder::default().build().unwrap();
-        client.excludes.private_ips = true;
-
-        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_A)), true);
-        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_B)), true);
-        assert_eq!(client.excluded(&website_url(V4_PRIVATE_CLASS_C)), true);
-    }
-
-    #[test]
-    fn test_exclude_link_local() {
-        let mut client = ClientBuilder::default().build().unwrap();
-        client.excludes.link_local_ips = true;
-
-        assert_eq!(client.excluded(&website_url(V4_LINK_LOCAL)), true);
-    }
-
-    #[test]
-    fn test_exclude_loopback() {
-        let mut client = ClientBuilder::default().build().unwrap();
-        client.excludes.loopback_ips = true;
-
-        assert_eq!(client.excluded(&website_url(V4_LOOPBACK)), true);
-        assert_eq!(client.excluded(&website_url(V6_LOOPBACK)), true);
-    }
-
-    #[test]
-    fn test_exclude_ip_v4_mapped_ip_v6_not_supported() {
-        let mut client = ClientBuilder::default().build().unwrap();
-        client.excludes.private_ips = true;
-        client.excludes.link_local_ips = true;
-
-        // if these were pure IPv4, we would exclude
-        assert_eq!(
-            client.excluded(&website_url(V6_MAPPED_V4_PRIVATE_CLASS_A)),
-            false
-        );
-        assert_eq!(
-            client.excluded(&website_url(V6_MAPPED_V4_LINK_LOCAL)),
-            false
-        );
+        let resp = client.check(mock_server.uri()).await.unwrap();
+        assert!(matches!(resp.status, Status::Timeout(_)));
     }
 }

@@ -11,12 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-        
+
       - name: Link Checker
-        uses: lycheeverse/lychee-action@v1
+        uses: lycheeverse/lychee-action@master
         with:
-          args: --exclude https://example.com/README.md
-      
+          args: --verbose --no-progress --exclude example.org
+
       - name: Create Issue From File
         uses: peter-evans/create-issue-from-file@v2
         with:

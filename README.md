@@ -4,8 +4,10 @@
 [![docs.rs](https://docs.rs/lychee/badge.svg)](https://docs.rs/lychee)
 
 A fast, async, resource-friendly link checker written in Rust. \
-For GitHub links, it can optionally use a `GITHUB_TOKEN` to avoid getting blocked by the rate
-limiter.
+For GitHub links, it can optionally use a [`GITHUB_TOKEN`](#github-token)
+to avoid getting blocked by GitHub's rate limiter.
+
+Available as a CLI utility and as a GitHub Action: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action).
 
 ![Lychee demo](./assets/lychee.gif)
 
@@ -87,13 +89,13 @@ You can run lychee directly from the commandline.
 
 #### Using cargo
 
-```
+```sh
 cargo install lychee
 ```
 
 #### Using the official Docker image
 
-```
+```sh
 docker pull lycheeverse/lychee
 ```
 
@@ -106,13 +108,13 @@ You can download them from the [releases page](https://github.com/lycheeverse/ly
 
 Run it inside a repository with a `README.md`:
 
-```
+```sh
 lychee
 ```
 
 You can also specify various types of inputs:
 
-```
+```sh
 # check links on a website:
 lychee https://endler.dev/
 
@@ -128,8 +130,8 @@ lychee ~/projects/*/README.md
 
 # check links in local files (lychee supports advanced globbing and ~ expansion):
 lychee "~/projects/big_project/**/README.*"
-# ignore case when globbing, displaying progress and check result for each link:
-lychee --glob-ignore-case --progress --verbose "~/projects/**/[r]eadme.*"
+# ignore case when globbing and check result for each link:
+lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
 ```
 
 ### GitHub token
@@ -147,7 +149,7 @@ token with no extra permissions is enough to be able to check public repos links
 There is an extensive list of commandline parameters to customize the behavior,
 see below for a full list.
 
-```
+```sh
 USAGE:
     lychee [FLAGS] [OPTIONS] [--] [inputs]...
 
@@ -156,11 +158,13 @@ FLAGS:
                                  local --exclude-loopback`
         --exclude-link-local     Exclude link-local IP address range from checking
         --exclude-loopback       Exclude loopback IP address range from checking
+        --exclude-mail           Exclude all mail addresses from checking
         --exclude-private        Exclude private IP address ranges from checking
         --glob-ignore-case       Ignore case when expanding filesystem path glob inputs
         --help                   Prints help information
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
-    -p, --progress               Show progress
+    -n, --no-progress            Do not show progress bar. This is recommended for non-interactive shells (e.g. for
+                                 continuos integration)
         --skip-missing           Skip missing input files (default is to error if they don't exist)
     -V, --version                Prints version information
     -v, --verbose                Verbose program output
@@ -171,7 +175,7 @@ OPTIONS:
         --basic-auth <basic-auth>              Basic authentication support. E.g. `username:password`
     -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
         --exclude <exclude>...                 Exclude URLs from checking (supports regex)
-    -f, --format <format>                      Output file format of status report [default: string]
+    -f, --format <format>                      Output file format of status report (json, string) [default: string]
         --github-token <github-token>          GitHub API token to use when checking github.com links, to avoid rate
                                                limiting [env: GITHUB_TOKEN=]
     -h, --headers <headers>...                 Custom request headers
@@ -184,11 +188,11 @@ OPTIONS:
     -T, --threads <threads>                    Number of threads to utilize. Defaults to number of cores available to
                                                the system
     -t, --timeout <timeout>                    Website timeout from connect to response finished [default: 20]
-    -u, --user-agent <user-agent>              User agent [default: lychee/0.5.0]
+    -u, --user-agent <user-agent>              User agent [default: lychee/0.6.0]
 
 ARGS:
     <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
-                   (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard
+                   (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.org/README.md`) or standard
                    input (`-`). Prefix with `--` to separate inputs from options that allow multiple arguments
                    [default: README.md]
 ```
@@ -202,20 +206,37 @@ ARGS:
 ## Library usage
 
 You can use lychee as a library for your own projects.
-Simply add it as a dependency and build your client:
+Here is a "hello world" example:
 
 ```rust
-use http::StatusCode
+use std::error::Error;
 
-let client = lychee::ClientBuilder::default().build()?;
-let url = Url::parse("https://github.com/lycheeverse/lychee")?;
-let response = client.check(Website(url)).await?;
-assert!(matches!(response.status, Status::Ok(_)));
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+  let response = lychee::check("https://github.com/lycheeverse/lychee").await?;
+  println!("{}", response);
+  Ok(())
+}
 ```
 
-The client is very customizable, e.g.
+This is equivalent to the following snippet, in which we build our own client:
 
 ```rust
+use lychee::{ClientBuilder, Status};
+use std::error::Error;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+  let client = ClientBuilder::default().build()?;
+  let response = client.check("https://github.com/lycheeverse/lychee").await?;
+  assert!(matches!(response.status, Status::Ok(_)));
+  Ok(())
+}
+```
+
+The client builder is very customizable:
+
+```rust,ignore
 let client = lychee::ClientBuilder::default()
     .includes(includes)
     .excludes(excludes)
@@ -232,7 +253,13 @@ let client = lychee::ClientBuilder::default()
     .build()?;
 ```
 
+All options that you set will be used for all link checks.
 See the [builder documentation](https://docs.rs/lychee/latest/lychee/struct.ClientBuilder.html) for all options.
+
+## GitHub Action usage
+
+A GitHub Action that uses lychee is available as a separate repository: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action)
+which includes usage instructions.
 
 ## Troubleshooting and workarounds
 
@@ -247,6 +274,16 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 - https://github.com/lycheeverse/lychee (yes, the lychee docs are checked with lychee 🤯)
 
 If you are using lychee for your project, we'd be delighted to hear about it.
+
+## License
+
+lychee is licensed under either of
+
+- Apache License, Version 2.0, (LICENSE-APACHE or
+  http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license (LICENSE-MIT or http://opensource.org/licenses/MIT)
+
+at your option.
 
 ## Credits
 

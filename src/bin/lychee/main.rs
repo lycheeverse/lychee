@@ -4,7 +4,7 @@ use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
 use options::Format;
 use regex::RegexSet;
-use reqwest::Url;
+use stats::color_response;
 use std::{collections::HashSet, time::Duration};
 use std::{fs, str::FromStr};
 use structopt::StructOpt;
@@ -19,7 +19,7 @@ use crate::options::{Config, LycheeOptions};
 use crate::stats::ResponseStats;
 
 use lychee::collector::{self, Input};
-use lychee::{ClientBuilder, ClientPool, Response, Status};
+use lychee::{ClientBuilder, ClientPool, Response};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
@@ -33,6 +33,15 @@ enum ExitCode {
 }
 
 fn main() -> Result<()> {
+    // std::process::exit doesn't guarantee that all destructors will be ran,
+    // therefore we wrap "main" code in another function to guarantee that.
+    // See: https://doc.rust-lang.org/stable/std/process/fn.exit.html
+    // Also see: https://www.youtube.com/watch?v=zQC8T71Y8e4
+    let exit_code = run_main()?;
+    std::process::exit(exit_code);
+}
+
+fn run_main() -> Result<i32> {
     let mut opts = LycheeOptions::from_args();
 
     // Load a potentially existing config file and merge it into the config from the CLI
@@ -43,7 +52,8 @@ fn main() -> Result<()> {
 
     let runtime = match cfg.threads {
         Some(threads) => {
-            // We define our own runtime instead of the `tokio::main` attribute since we want to make the number of threads configurable
+            // We define our own runtime instead of the `tokio::main` attribute
+            // since we want to make the number of threads configurable
             tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(threads)
                 .enable_all()
@@ -51,27 +61,30 @@ fn main() -> Result<()> {
         }
         None => tokio::runtime::Runtime::new()?,
     };
-    let errorcode = runtime.block_on(run(cfg, opts.inputs()))?;
-    std::process::exit(errorcode);
+
+    runtime.block_on(run(cfg, opts.inputs()))
 }
 
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
-    let message = status_message(&response, verbose);
+    let out = color_response(response);
     if let Some(pb) = progress_bar {
         pb.inc(1);
-        // regular println! interferes with progress bar
-        if let Some(message) = message {
-            pb.println(message);
+        pb.set_message(&out);
+        if verbose {
+            pb.println(out);
         }
-    } else if let Some(message) = message {
-        println!("{}", message);
-    };
+    } else {
+        if (response.status.is_success() || response.status.is_excluded()) && !verbose {
+            return;
+        }
+        println!("{}", out);
+    }
 }
 
 fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
     Ok(match format {
         Format::String => stats.to_string(),
-        Format::JSON => serde_json::to_string(&stats)?,
+        Format::Json => serde_json::to_string_pretty(&stats)?,
     })
 }
 
@@ -117,17 +130,17 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         max_concurrency,
     )
     .await?;
-    let pb = if cfg.progress {
-        Some(
-            ProgressBar::new(links.len() as u64)
-            .with_style(
-                ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta}) {wide_msg}")
-                .progress_chars("#>-")
-            )
-        )
-    } else {
-        None
+
+    let pb = match cfg.no_progress {
+        true => None,
+        false => {
+            let bar = ProgressBar::new(links.len() as u64)
+                .with_style(ProgressStyle::default_bar().template(
+                "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
+            ));
+            bar.enable_steady_tick(100);
+            Some(bar)
+        }
     };
 
     let (send_req, recv_req) = mpsc::channel(max_concurrency);
@@ -213,13 +226,11 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         pb.finish_and_clear();
     }
 
-    if cfg.verbose {
-        println!("\n{}", stats);
-    }
-
+    let stats_formatted = fmt(&stats, &cfg.format)?;
     if let Some(output) = &cfg.output {
-        fs::write(output, fmt(&stats, &cfg.format)?)
-            .context("Cannot write status output to file")?;
+        fs::write(output, stats_formatted).context("Cannot write status output to file")?;
+    } else {
+        println!("\n{}", stats_formatted);
     }
 
     match stats.is_success() {
@@ -273,18 +284,6 @@ fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
         ));
     }
     Ok(Authorization::basic(params[0], params[1]))
-}
-
-fn status_message(response: &Response, verbose: bool) -> Option<String> {
-    match &response.status {
-        Status::Ok(code) if verbose => Some(format!("✅ {} [{}]", response.uri, code)),
-        Status::Redirected if verbose => Some(format!("🔀️ {}", response.uri)),
-        Status::Excluded if verbose => Some(format!("👻 {}", response.uri)),
-        Status::Failed(code) => Some(format!("🚫 {} [{}]", response.uri, code)),
-        Status::Error(e) => Some(format!("⚡ {} ({})", response.uri, e)),
-        Status::Timeout => Some(format!("⌛ {}", response.uri)),
-        _ => None,
-    }
 }
 
 #[cfg(test)]
