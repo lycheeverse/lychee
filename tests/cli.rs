@@ -52,6 +52,23 @@ mod cli {
             .stdout(contains("Errors...........0"));
     }
 
+    #[test]
+    #[ignore]
+    // Youtube oembed doesn't work at the moment. Getting a 404 instead of a 200
+    fn test_quirks() {
+        let mut cmd = main_command();
+        let test_quirks_path = fixtures_path().join("TEST_QUIRKS.txt");
+
+        cmd.arg("--verbose")
+            .arg(test_quirks_path)
+            .assert()
+            .success()
+            .stdout(contains("Total............2"))
+            .stdout(contains("Excluded.........0"))
+            .stdout(contains("Successful.......2"))
+            .stdout(contains("Errors...........0"));
+    }
+
     #[tokio::test]
     async fn test_failure_404_link() {
         let mut cmd = main_command();

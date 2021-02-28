@@ -35,9 +35,11 @@ impl Quirks {
                 pattern: Regex::new(r"^(https?://)?(www\.)?(youtube\.com|youtu\.?be)").unwrap(),
                 rewrite: |request| {
                     let mut out = request;
+                    let original_url = out.url();
+                    let urlencoded: String = url::form_urlencoded::byte_serialize(original_url.as_str().as_bytes()).collect();
                     *out.method_mut() = Method::HEAD;
-                    let mut url = Url::parse("https://www.youtube.com/oembed?").unwrap();
-                    url.set_query(Some(&format!("url={}", out.url().as_str())));
+                    let mut url = Url::parse("https://www.youtube.com/oembed").unwrap();
+                    url.set_query(Some(&format!("url={}", urlencoded)));
                     *out.url_mut() = url;
                     out
                 },
@@ -85,7 +87,7 @@ mod tests {
         let request = Request::new(Method::GET, orig.clone());
         let quirks = Quirks::init();
         let modified = quirks.apply(request);
-        let expected_url = Url::parse("https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").unwrap();
+        let expected_url = Url::parse("https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNlKuICiT470%26list%3DPLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ%26index%3D7").unwrap();
         assert_eq!(modified.url(), &expected_url);
         assert_eq!(modified.method(), Method::HEAD);
     }
