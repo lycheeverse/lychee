@@ -3,8 +3,7 @@ use regex::Regex;
 use reqwest::{Request, Url};
 
 /// Sadly some pages only return plaintext results if Google is trying to crawl them.
-const GOOGLEBOT: &'static str =
-    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://google.com/bot.html)";
+const GOOGLEBOT: &str = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://google.com/bot.html)";
 
 #[derive(Debug, Clone)]
 pub struct Quirk {
