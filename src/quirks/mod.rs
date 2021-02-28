@@ -1,8 +1,4 @@
-#[macro_use]
-mod headers_macro;
-
-use headers::HeaderMap;
-use http::{header::USER_AGENT, Method};
+use http::{header, Method};
 use regex::Regex;
 use reqwest::{Request, Url};
 
@@ -13,21 +9,8 @@ const GOOGLEBOT: &'static str =
 #[derive(Debug, Clone)]
 pub struct Quirk {
     pub pattern: Regex,
-    pub method: Option<reqwest::Method>,
-    pub headers: Option<HeaderMap>,
-    pub rewrite: Option<fn(Url) -> Url>,
+    pub rewrite: fn(Request) -> Request,
 }
-
-impl Quirk {
-    fn matches(&self, url: &Url) -> bool {
-            self.pattern.is_match(url.as_str())
-    }
-
-    fn apply(&self, request: &mut Request) -> &mut Request {
-        &mut request
-    }
-}
-
 
 #[derive(Debug, Clone)]
 pub struct Quirks {
@@ -39,60 +22,82 @@ impl Quirks {
         let quirks = vec![
             Quirk {
                 pattern: Regex::new(r"^(https?://)?(www\.)?twitter.com").unwrap(),
-                method: Some(Method::HEAD),
-                headers: Some(headers!(
-                    USER_AGENT => GOOGLEBOT
-                        .parse()
-                        .unwrap(),
-                )),
-                rewrite: None,
+                rewrite: |request| {
+                    let mut out = request;
+                    *out.method_mut() = Method::HEAD;
+                    out.headers_mut()
+                        .insert(header::USER_AGENT, GOOGLEBOT.parse().unwrap());
+                    out
+                },
             },
             Quirk {
                 // https://stackoverflow.com/a/19377429/270334
                 pattern: Regex::new(r"^(https?://)?(www\.)?(youtube\.com|youtu\.?be)").unwrap(),
-                method: Some(Method::HEAD),
-                headers: None,
-                rewrite: Some(|orig_url| {
+                rewrite: |request| {
+                    let mut out = request;
+                    *out.method_mut() = Method::HEAD;
                     let mut url = Url::parse("https://www.youtube.com/oembed?").unwrap();
-                    url.set_query(Some(&format!("url={}", orig_url.as_str())));
-                    url
-                }),
+                    url.set_query(Some(&format!("url={}", out.url().as_str())));
+                    *out.url_mut() = url;
+                    out
+                },
             },
         ];
         Self { quirks }
     }
 
-    fn matches(&self, url: &Url) -> Vec<Quirk> {
-        let mut matching = vec![];
+    /// Apply quirks to a given request.
+    /// Only the first quirk matching regex pattern will be applied.
+    /// The rest will be discarded for simplicity reasons.
+    /// This limitation might be lifted in the future.
+    pub fn apply(&self, request: Request) -> Request {
         for quirk in &self.quirks {
-            if quirk.pattern.is_match(url.as_str()) {
-                matching.push(quirk.clone());
+            if quirk.pattern.is_match(request.url().as_str()) {
+                println!("Applying quirk: {:?}", quirk);
+                return (quirk.rewrite)(request);
             }
         }
-        matching
+        // Request was not modified
+        request
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_twitter_request() {
+        let orig = Url::parse("https://twitter.com/zarfeblong/status/1339742840142872577").unwrap();
+        let request = Request::new(Method::GET, orig.clone());
+        let quirks = Quirks::init();
+        let modified = quirks.apply(request);
+        assert_eq!(modified.url(), &orig);
+        assert_eq!(modified.method(), Method::HEAD);
+        assert_eq!(
+            modified.headers().get(header::USER_AGENT).unwrap(),
+            &GOOGLEBOT
+        );
     }
 
-    pub fn apply(&self, request: Request) -> Request {
-        let mut request = request.clone();
-        // let mut req_method = self.method.clone();
-        // let mut req_url = url.to_owned();
-        // let mut req_headers = None;
+    #[test]
+    fn test_youtube_request() {
+        let orig = Url::parse("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").unwrap();
+        let request = Request::new(Method::GET, orig.clone());
+        let quirks = Quirks::init();
+        let modified = quirks.apply(request);
+        let expected_url = Url::parse("https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").unwrap();
+        assert_eq!(modified.url(), &expected_url);
+        assert_eq!(modified.method(), Method::HEAD);
+    }
 
-        for quirk in self.matches(request.url()) {
-            println!("Applying quirk: {:?}", quirk);
-            request = quirk.apply(request);
-            // if let Some(rewrite) = quirk.rewrite {
-            //     req_url = rewrite(url.to_owned());
-            // }
-            // if let Some(method) = quirk.method {
-            //     req_method = method;
-            // }
-            // req_headers = quirk.headers;
-        }
-
-        // if let Some(headers) = req_headers {
-        //     request = request.headers(headers);
-        // }
-        request
+    #[test]
+    fn test_no_quirk_applied() {
+        let orig = Url::parse("https://endler.dev").unwrap();
+        let request = Request::new(Method::GET, orig.clone());
+        let quirks = Quirks::init();
+        let modified = quirks.apply(request);
+        assert_eq!(modified.url(), &orig);
+        assert_eq!(modified.method(), Method::GET);
     }
 }
