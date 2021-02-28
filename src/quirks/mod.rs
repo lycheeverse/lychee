@@ -46,10 +46,9 @@ impl Quirks {
         Self { quirks }
     }
 
-    /// Apply quirks to a given request.
-    /// Only the first quirk matching regex pattern will be applied.
-    /// The rest will be discarded for simplicity reasons.
-    /// This limitation might be lifted in the future.
+    /// Apply quirks to a given request. Only the first quirk regex pattern
+    /// matching the URL will be applied. The rest will be discarded for
+    /// simplicity reasons. This limitation might be lifted in the future.
     pub fn apply(&self, request: Request) -> Request {
         for quirk in &self.quirks {
             if quirk.pattern.is_match(request.url().as_str()) {
