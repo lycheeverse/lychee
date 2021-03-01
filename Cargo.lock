@@ -402,7 +402,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "check-if-email-exists"
 version = "0.8.19"
-source = "git+https://github.com/reacherhq/check-if-email-exists.git#aac0586fb078f429856f6f34b6bb36ae0a237fb8"
+source = "git+https://github.com/reacherhq/check-if-email-exists.git#c61a1ea4279e19fdfbaf71c105b03bdfcd5ee204"
 dependencies = [
  "async-smtp",
  "async-std",
@@ -2251,9 +2251,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.63"
+version = "1.0.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43535db9747a4ba938c0ce0a98cc631a46ebf943c9e1d604e091df6007620bf6"
+checksum = "799e97dc9fdae36a5c8b8f2cae9ce2ee9fdce2058c57a93e6099d919fd982f79"
 dependencies = [
  "itoa",
  "ryu",
