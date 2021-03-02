@@ -249,7 +249,7 @@ pub struct Config {
     /// Enable recursion (make sub-requests for detected links)
     #[structopt(short, long)]
     #[serde(default)]
-    pub recursion: bool,
+    pub recursive: bool,
 }
 
 impl Config {
@@ -304,7 +304,7 @@ impl Config {
             skip_missing: false;
             glob_ignore_case: false;
             output: None;
-            recursion: false;
+            recursive: false;
         }
     }
 }

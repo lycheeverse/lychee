@@ -150,7 +150,7 @@ There is an extensive list of commandline parameters to customize the behavior,
 see below for a full list.
 
 ```sh
-USAGE:
+iUSAGE:
     lychee [FLAGS] [OPTIONS] [--] [inputs]...
 
 FLAGS:
@@ -165,6 +165,7 @@ FLAGS:
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
     -n, --no-progress            Do not show progress bar. This is recommended for non-interactive shells (e.g. for
                                  continuos integration)
+    -r, --recursive              Enable recursion (make sub-requests for detected links)
         --skip-missing           Skip missing input files (default is to error if they don't exist)
     -V, --version                Prints version information
     -v, --verbose                Verbose program output

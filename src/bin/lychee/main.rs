@@ -205,7 +205,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         show_progress(&pb, &response, cfg.verbose);
         stats.add(response.clone());
 
-        if cfg.recursion {
+        if cfg.recursive {
             let count = recurse(
                 response,
                 &mut cache,
