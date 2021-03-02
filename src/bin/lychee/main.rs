@@ -185,14 +185,12 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let input_domains: HashSet<String> = input_domains(inputs);
 
     // We keep track of the total number of requests
-    // and exit the loop once we are done.
+    // and exit the loop once we reach it.
     // Otherwise the sender would never be dropped and
     // we'd be stuck indefinitely.
     let mut curr = 0;
-    loop {
-        if curr == total_requests {
-            break;
-        }
+
+    while curr < total_requests {
         curr += 1;
         let response = recv_resp.recv().await;
 
