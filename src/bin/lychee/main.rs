@@ -242,6 +242,7 @@ async fn recurse(
 
     if let Some(max_recursion) = cfg.max_recursion {
         if recursion_level > max_recursion {
+            // Maximum recursion depth reached; stop link checking.
             return Ok(0);
         }
     }
@@ -266,7 +267,6 @@ async fn recurse(
             }
         }
 
-        // TODO: Check recursion level
         let links = collector::collect_links(
             &[input],
             cfg.base_url.clone(),
