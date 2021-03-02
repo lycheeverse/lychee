@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -89,6 +89,20 @@ fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
     })
 }
 
+// Get the set of input domains
+// This is needed for supporting recursion
+fn input_domains(inputs: Vec<Input>) -> HashSet<String> {
+    let mut domains = HashSet::new();
+    for input in inputs {
+        if let Input::RemoteUrl(url) = input {
+            if let Some(domain) = url.domain() {
+                domains.insert(domain.to_string());
+            }
+        }
+    }
+    return domains;
+}
+
 async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let mut headers = parse_headers(&cfg.headers)?;
     if let Some(auth) = &cfg.basic_auth {
@@ -131,6 +145,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         max_concurrency,
     )
     .await?;
+    let mut total_requests = links.len();
 
     let pb = match cfg.no_progress {
         true => None,
@@ -167,20 +182,31 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         clients.listen().await;
     });
 
-    let input_domains: Vec<_> = inputs
-        .iter()
-        .filter_map(|i| match i {
-            Input::RemoteUrl(url) => Some(url.domain()),
-            _ => None,
-        })
-        .collect();
+    let input_domains: HashSet<String> = input_domains(inputs);
 
-    while let Some(response) = recv_resp.recv().await {
+    // We keep track of the total number of requests
+    // and exit the loop once we are done.
+    // Otherwise the sender would never be dropped and
+    // we'd be stuck indefinitely.
+    let mut curr = 0;
+    loop {
+        if curr == total_requests {
+            break;
+        }
+        curr += 1;
+        let response = recv_resp.recv().await;
+
+        if response.is_none() {
+            // receiver was dropped
+            break;
+        }
+        let response = response.unwrap();
+
         show_progress(&pb, &response, cfg.verbose);
         stats.add(response.clone());
 
         if cfg.recursion {
-            recurse(
+            let count = recurse(
                 response,
                 &mut cache,
                 &input_domains,
@@ -189,8 +215,10 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
                 send_req.clone(),
             )
             .await?;
+            total_requests += count;
         }
     }
+
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
     if let Some(pb) = &pb {
@@ -213,24 +241,29 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
 async fn recurse(
     response: Response,
     cache: &mut Cache,
-    input_domains: &[Option<&str>],
+    input_domains: &HashSet<String>,
     cfg: &Config,
     pb: &Option<ProgressBar>,
     send_req: Sender<Request>,
-) -> Result<()> {
+) -> Result<usize> {
     if !response.status.is_success() {
-        return Ok(());
+        return Ok(0);
     }
     if cache.contains(response.uri.as_str()) {
-        return Ok(());
+        return Ok(0);
     }
     cache.insert(response.uri.to_string());
 
     if let lychee::Uri::Website(url) = response.uri {
         let input = collector::Input::RemoteUrl(url.clone());
 
-        if !input_domains.contains(&url.domain()) {
-            return Ok(());
+        match url.domain() {
+            None => bail!("Cannot find domain in url: {}", url),
+            Some(domain) => {
+                if !input_domains.contains(domain) {
+                    return Ok(0);
+                }
+            }
         }
 
         // TODO: Check recursion level
@@ -241,11 +274,10 @@ async fn recurse(
             cfg.max_concurrency,
         )
         .await?;
+        let count = links.len();
 
         let bar = pb.clone();
-        let real_url = url.clone();
         tokio::spawn(async move {
-            println!("Adding {} links from {}", links.len(), real_url);
             for link in links {
                 if let Some(pb) = &bar {
                     pb.inc_length(1);
@@ -253,11 +285,10 @@ async fn recurse(
                 };
                 send_req.send(link).await.unwrap();
             }
-            println!("Done with all links from {}", real_url);
         });
+        return Ok(count);
     };
-
-    Ok(())
+    Ok(0)
 }
 
 fn read_header(input: &str) -> Result<(String, String)> {
