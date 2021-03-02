@@ -100,7 +100,7 @@ fn input_domains(inputs: Vec<Input>) -> HashSet<String> {
             }
         }
     }
-    return domains;
+    domains
 }
 
 async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
@@ -192,13 +192,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
 
     while curr < total_requests {
         curr += 1;
-        let response = recv_resp.recv().await;
-
-        if response.is_none() {
-            // receiver was dropped
-            break;
-        }
-        let response = response.unwrap();
+        let response = recv_resp.recv().await.context("Receive channel closed")?;
 
         show_progress(&pb, &response, cfg.verbose);
         stats.add(response.clone());
