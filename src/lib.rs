@@ -1,6 +1,6 @@
 //!
 //! `lychee` is a library for checking links.  
-//! It is asynchronous and supports multiple input formats like Markdown and HTML. 
+//! It is asynchronous and supports multiple input formats like Markdown and HTML.
 //! Here is a basic usage example:
 //!
 //! ```
@@ -32,7 +32,6 @@
 //! ```
 
 #[deny(missing_docs)]
-
 #[cfg(doctest)]
 #[macro_use]
 extern crate doc_comment;
