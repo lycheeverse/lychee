@@ -127,16 +127,19 @@ mod test_super {
             uri: website("http://example.org/ok"),
             status: Status::Ok(http::StatusCode::OK),
             source: Input::Stdin,
+            recursion_level: 0,
         });
         stats.add(Response {
             uri: website("http://example.org/failed"),
             status: Status::Failed(http::StatusCode::BAD_GATEWAY),
             source: Input::Stdin,
+            recursion_level: 0,
         });
         stats.add(Response {
             uri: website("http://example.org/redirect"),
             status: Status::Redirected(http::StatusCode::PERMANENT_REDIRECT),
             source: Input::Stdin,
+            recursion_level: 0,
         });
         let mut expected_map = HashMap::new();
         expected_map.insert(
@@ -146,11 +149,13 @@ mod test_super {
                     uri: website("http://example.org/failed"),
                     status: Status::Failed(http::StatusCode::BAD_GATEWAY),
                     source: Input::Stdin,
+                    recursion_level: 0,
                 },
                 Response {
                     uri: website("http://example.org/redirect"),
                     status: Status::Redirected(http::StatusCode::PERMANENT_REDIRECT),
                     source: Input::Stdin,
+                    recursion_level: 0,
                 },
             ]
             .into_iter()

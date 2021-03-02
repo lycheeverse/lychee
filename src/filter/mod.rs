@@ -103,7 +103,7 @@ mod test {
     /// Helper method to convert a string into a Request
     /// Note: This panics on error, so it should only be used for testing
     pub fn request(url: &str) -> Request {
-        Request::new(website(url), Input::Stdin)
+        Request::new(website(url), Input::Stdin, 0)
     }
 
     #[test]
@@ -173,6 +173,7 @@ mod test {
             filter.excluded(&Request::new(
                 Uri::Mail("mail@example.org".to_string()),
                 Input::Stdin,
+                0,
             )),
             true
         );
@@ -182,6 +183,7 @@ mod test {
             filter.excluded(&Request::new(
                 Uri::Mail("foo@bar.dev".to_string()),
                 Input::Stdin,
+                0,
             )),
             false
         );

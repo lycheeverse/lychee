@@ -150,7 +150,7 @@ There is an extensive list of commandline parameters to customize the behavior,
 see below for a full list.
 
 ```sh
-iUSAGE:
+USAGE:
     lychee [FLAGS] [OPTIONS] [--] [inputs]...
 
 FLAGS:
@@ -182,6 +182,7 @@ OPTIONS:
     -h, --headers <headers>...                 Custom request headers
         --include <include>...                 URLs to check (supports regex). Has preference over all excludes
         --max-concurrency <max-concurrency>    Maximum number of concurrent network requests [default: 128]
+        --max-recursion <max-recursion>        Set maximum recursion depth (recommended for big inputs)
     -m, --max-redirects <max-redirects>        Maximum number of allowed redirects [default: 10]
     -X, --method <method>                      Request method [default: get]
     -o, --output <output>                      Output file of status report

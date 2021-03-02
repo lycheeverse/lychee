@@ -250,6 +250,11 @@ pub struct Config {
     #[structopt(short, long)]
     #[serde(default)]
     pub recursive: bool,
+
+    /// Set maximum recursion depth (recommended for big inputs)
+    #[structopt(long)]
+    pub max_recursion: Option<usize>,
+
 }
 
 impl Config {

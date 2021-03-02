@@ -157,7 +157,7 @@ pub(crate) fn extract_links(
     for link in links {
         match Uri::try_from(link.as_str()) {
             Ok(uri) => {
-                requests.insert(Request::new(uri, input_content.input.clone()));
+                requests.insert(Request::new(uri, input_content.input.clone(), 0));
             }
             Err(_) => {
                 if !Path::new(&link).exists() {
@@ -165,7 +165,7 @@ pub(crate) fn extract_links(
                         if let Ok(new_url) = base_url.join(&link) {
                             requests.insert(Request::new(
                                 Uri::Website(new_url),
-                                input_content.input.clone(),
+                                input_content.input.clone(), 0
                             ));
                         }
                     }

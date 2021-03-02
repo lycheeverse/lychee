@@ -246,6 +246,14 @@ async fn recurse(
     pb: &Option<ProgressBar>,
     send_req: Sender<Request>,
 ) -> Result<usize> {
+    let recursion_level = response.recursion_level + 1;
+
+    if let Some(max_recursion) = cfg.max_recursion {
+        if recursion_level > max_recursion {
+            return Ok(0);
+        }
+    }
+
     if !response.status.is_success() {
         return Ok(0);
     }
@@ -278,7 +286,8 @@ async fn recurse(
 
         let bar = pb.clone();
         tokio::spawn(async move {
-            for link in links {
+            for mut link in links {
+                link.recursion_level = recursion_level;
                 if let Some(pb) = &bar {
                     pb.inc_length(1);
                     pb.set_message(&link.to_string());

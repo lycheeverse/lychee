@@ -169,7 +169,7 @@ impl Client {
             Err(_e) => bail!("Invalid URI"),
         };
         if self.filter.excluded(&request) {
-            return Ok(Response::new(request.uri, Status::Excluded, request.source));
+            return Ok(Response::new(request.uri, Status::Excluded, request.source, request.recursion_level));
         }
         let status = match request.uri {
             Uri::Website(ref url) => self.check_website(&url).await,
@@ -181,7 +181,7 @@ impl Client {
                 }
             }
         };
-        Ok(Response::new(request.uri, status, request.source))
+        Ok(Response::new(request.uri, status, request.source, request.recursion_level))
     }
 
     pub async fn check_website(&self, url: &Url) -> Status {
