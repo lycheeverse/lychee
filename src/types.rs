@@ -14,7 +14,11 @@ pub struct Request {
 
 impl Request {
     pub fn new(uri: Uri, source: Input, recursion_level: usize) -> Self {
-        Request { uri, source, recursion_level }
+        Request {
+            uri,
+            source,
+            recursion_level,
+        }
     }
 }
 
