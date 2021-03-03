@@ -251,9 +251,9 @@ pub struct Config {
     #[serde(default)]
     pub recursive: bool,
 
-    /// Set maximum recursion depth (recommended for big inputs)
+    /// Stop link checking beyond this maximum recursion depth. (Recommended for large inputs.)
     #[structopt(long)]
-    pub max_recursion: Option<usize>,
+    pub depth: Option<usize>,
 }
 
 impl Config {

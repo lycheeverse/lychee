@@ -240,8 +240,8 @@ async fn recurse(
 ) -> Result<usize> {
     let recursion_level = response.recursion_level + 1;
 
-    if let Some(max_recursion) = cfg.max_recursion {
-        if recursion_level > max_recursion {
+    if let Some(depth) = cfg.depth {
+        if recursion_level > depth {
             // Maximum recursion depth reached; stop link checking.
             return Ok(0);
         }

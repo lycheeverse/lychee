@@ -175,6 +175,8 @@ OPTIONS:
     -b, --base-url <base-url>                  Base URL to check relative URLs
         --basic-auth <basic-auth>              Basic authentication support. E.g. `username:password`
     -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
+        --depth <depth>                        Stop link checking beyond this maximum recursion depth. (Recommended for
+                                               large inputs.)
         --exclude <exclude>...                 Exclude URLs from checking (supports regex)
     -f, --format <format>                      Output file format of status report (json, string) [default: string]
         --github-token <github-token>          GitHub API token to use when checking github.com links, to avoid rate
@@ -182,7 +184,6 @@ OPTIONS:
     -h, --headers <headers>...                 Custom request headers
         --include <include>...                 URLs to check (supports regex). Has preference over all excludes
         --max-concurrency <max-concurrency>    Maximum number of concurrent network requests [default: 128]
-        --max-recursion <max-recursion>        Set maximum recursion depth (recommended for big inputs)
     -m, --max-redirects <max-redirects>        Maximum number of allowed redirects [default: 10]
     -X, --method <method>                      Request method [default: get]
     -o, --output <output>                      Output file of status report
