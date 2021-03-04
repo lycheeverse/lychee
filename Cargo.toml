@@ -1,5 +1,5 @@
 [package]
-authors = ["Matthias Endler <matthias-endler.de>"]
+authors = ["Matthias Endler <matthias@endler.dev>"]
 description = "A glorious link checker"
 documentation = "https://github.com/lycheeverse/lychee/blob/master/README.md"
 edition = "2018"
