@@ -3,9 +3,8 @@
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
 [![docs.rs](https://docs.rs/lychee/badge.svg)](https://docs.rs/lychee)
 
-A fast, async, resource-friendly link checker written in Rust. \
-For GitHub links, it can optionally use a [`GITHUB_TOKEN`](#github-token)
-to avoid getting blocked by GitHub's rate limiter.
+⚡ A fast, async, resource-friendly link checker written in Rust.  
+Finds broken hyperlinks and mail addresses inside Markdown, HTML, reStructuredText, or any other text file or website!  
 
 Available as a CLI utility and as a GitHub Action: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action).
 
