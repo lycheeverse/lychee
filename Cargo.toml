@@ -33,7 +33,7 @@ check-if-email-exists = { git="https://github.com/reacherhq/check-if-email-exist
 indicatif = "0.15.0"
 structopt = "0.3.21"
 toml = "0.5.8"
-serde = { version = "1.0.123", features = ["derive"] }
+serde = { version = "1.0.124", features = ["derive"] }
 pulldown-cmark = "0.8.0"
 html5ever = "0.25.1"
 markup5ever = "0.10.0"
