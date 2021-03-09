@@ -152,8 +152,9 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         false => {
             let bar = ProgressBar::new(links.len() as u64)
                 .with_style(ProgressStyle::default_bar().template(
-                "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
-            ));
+                "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25.magenta.bright/white} {wide_msg}",
+            )
+            .progress_chars("██"));
             bar.enable_steady_tick(100);
             Some(bar)
         }
