@@ -163,7 +163,7 @@ FLAGS:
         --help                   Prints help information
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
     -n, --no-progress            Do not show progress bar. This is recommended for non-interactive shells (e.g. for
-                                 continuos integration)
+                                 continuous integration)
         --skip-missing           Skip missing input files (default is to error if they don't exist)
     -V, --version                Prints version information
     -v, --verbose                Verbose program output
