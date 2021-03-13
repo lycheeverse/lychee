@@ -498,4 +498,27 @@ mod test {
 
         assert_eq!(links, expected_links);
     }
+
+    #[test]
+    fn test_extract_urls_with_at_sign_properly() {
+        // the element name shouldn't matter for attributes like href, src, cite etc
+        let input = "https://example.com/@test/test http://otherdomain.com/test/@test".to_string();
+        let links: HashSet<Uri> = extract_links(
+            &InputContent::from_string(&input, FileType::Plaintext),
+            None,
+        )
+        .into_iter()
+        .map(|r| r.uri)
+        .collect();
+
+        let expected_links = [
+            website("https://example.com/@test/test"),
+            website("http://otherdomain.com/test/@test"),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
+        assert_eq!(links, expected_links);
+    }
 }
