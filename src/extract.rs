@@ -501,7 +501,7 @@ mod test {
 
     #[test]
     fn test_extract_urls_with_at_sign_properly() {
-        // the element name shouldn't matter for attributes like href, src, cite etc
+        // note that these used to parse as emails
         let input = "https://example.com/@test/test http://otherdomain.com/test/@test".to_string();
         let links: HashSet<Uri> = extract_links(
             &InputContent::from_string(&input, FileType::Plaintext),
