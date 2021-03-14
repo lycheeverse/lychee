@@ -1381,6 +1381,7 @@ dependencies = [
  "deadpool",
  "derive_builder",
  "doc-comment",
+ "fast_chemail",
  "futures",
  "glob",
  "headers",
