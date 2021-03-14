@@ -175,7 +175,12 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     if let Some(output) = &cfg.output {
         fs::write(output, stats_formatted).context("Cannot write status output to file")?;
     } else {
-        println!("\n{}", stats_formatted);
+        if cfg.verbose && !stats.is_empty() {
+            // separate summary from the verbose list of links above
+            println!();
+        }
+        // we assume that the formatted stats don't have a final newline
+        println!("{}", stats_formatted);
     }
 
     match stats.is_success() {
