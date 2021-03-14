@@ -117,7 +117,7 @@ pub struct Config {
     pub verbose: bool,
 
     /// Do not show progress bar.
-    /// This is recommended for non-interactive shells (e.g. for continuos
+    /// This is recommended for non-interactive shells (e.g. for continuous
     /// integration)
     #[structopt(short, long)]
     #[serde(default)]

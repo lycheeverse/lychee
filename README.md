@@ -3,9 +3,8 @@
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
 [![docs.rs](https://docs.rs/lychee/badge.svg)](https://docs.rs/lychee)
 
-A fast, async, resource-friendly link checker written in Rust. \
-For GitHub links, it can optionally use a [`GITHUB_TOKEN`](#github-token)
-to avoid getting blocked by GitHub's rate limiter.
+⚡ A fast, async, resource-friendly link checker written in Rust.  
+Finds broken hyperlinks and mail addresses inside Markdown, HTML, reStructuredText, or any other text file or website!  
 
 Available as a CLI utility and as a GitHub Action: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action).
 
@@ -164,7 +163,7 @@ FLAGS:
         --help                   Prints help information
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
     -n, --no-progress            Do not show progress bar. This is recommended for non-interactive shells (e.g. for
-                                 continuos integration)
+                                 continuous integration)
     -r, --recursive              Enable recursion (make sub-requests for detected links)
         --skip-missing           Skip missing input files (default is to error if they don't exist)
     -V, --version                Prints version information

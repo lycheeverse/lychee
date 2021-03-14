@@ -1,5 +1,5 @@
 [package]
-authors = ["Matthias Endler <matthias-endler.de>"]
+authors = ["Matthias Endler <matthias@endler.dev>"]
 description = "A glorious link checker"
 documentation = "https://github.com/lycheeverse/lychee/blob/master/README.md"
 edition = "2018"
@@ -24,9 +24,9 @@ http = "0.2.3"
 # Switch back to version on crates.io after 0.6.3+ is released
 hubcaps = { git="https://github.com/softprops/hubcaps.git" }
 linkify = "0.5.0"
-regex = "1.4.3"
+regex = "1.4.4"
 url = "2.2.1"
-# Switch back to version on crates.io after 
+# Switch back to version on crates.io after
 # https://github.com/async-email/async-smtp/pull/36
 # is merged and a new version of check-if-email-exists is released
 check-if-email-exists = { git="https://github.com/reacherhq/check-if-email-exists.git" }
@@ -38,14 +38,14 @@ pulldown-cmark = "0.8.0"
 html5ever = "0.25.1"
 markup5ever = "0.10.0"
 markup5ever_rcdom = "0.1.0"
-headers = "0.3.3"
+headers = "0.3.4"
 derive_builder = "0.9.0"
 deadpool = "0.7.0"
 shellexpand = "2.1.0"
 lazy_static = "1.4.0"
 wiremock = "0.5.1"
 openssl-sys = "0.9.60"
-serde_json = "1.0.63"
+serde_json = "1.0.64"
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
@@ -53,14 +53,15 @@ serde_json = "1.0.63"
 ring = "0.16.19"
 pad = "0.1.6"
 console = "0.14.0"
+fast_chemail = "0.9.6"
 
 [dependencies.reqwest]
 features = ["gzip"]
-version = "0.11.1"
+version = "0.11.2"
 
 [dependencies.tokio]
 features = ["full"]
-version = "1.2.0"
+version = "1.3.0"
 
 [dev-dependencies]
 assert_cmd = "1.0.3"
