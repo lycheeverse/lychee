@@ -24,7 +24,7 @@ http = "0.2.3"
 # Switch back to version on crates.io after 0.6.3+ is released
 hubcaps = { git="https://github.com/softprops/hubcaps.git" }
 linkify = "0.5.0"
-regex = "1.4.4"
+regex = "1.4.5"
 url = "2.2.1"
 # Switch back to version on crates.io after
 # https://github.com/async-email/async-smtp/pull/36
