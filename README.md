@@ -1,4 +1,4 @@
-![lychee](assets/banner.png)
+![lychee](assets/banner.svg)
 
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
 [![docs.rs](https://docs.rs/lychee/badge.svg)](https://docs.rs/lychee)
