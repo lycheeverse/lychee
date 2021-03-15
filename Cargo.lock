@@ -384,7 +384,7 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 [[package]]
 name = "check-if-email-exists"
 version = "0.8.19"
-source = "git+https://github.com/reacherhq/check-if-email-exists.git#1b0ecfcbe12e5cc74d30e235b72f0bf0941660f8"
+source = "git+https://github.com/reacherhq/check-if-email-exists.git#387ce62aeb998de9f82724d2e09f510fc6bd043e"
 dependencies = [
  "async-smtp",
  "async-std",
