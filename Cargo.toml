@@ -52,7 +52,7 @@ serde_json = "1.0.64"
 # https://github.com/Homebrew/homebrew-core/pull/70216
 ring = "0.16.19"
 pad = "0.1.6"
-console = "0.14.0"
+console = "0.14.1"
 fast_chemail = "0.9.6"
 
 [dependencies.reqwest]
