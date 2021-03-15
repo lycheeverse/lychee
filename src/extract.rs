@@ -223,6 +223,26 @@ mod test {
     }
 
     #[test]
+    fn test_extract_local_links() {
+        let input = "http://127.0.0.1/ and http://127.0.0.1:8888/ are local links.";
+        let links: HashSet<Uri> =
+            extract_links(&InputContent::from_string(input, FileType::Plaintext), None)
+                .into_iter()
+                .map(|r| r.uri)
+                .collect();
+        assert_eq!(
+            links,
+            [
+                website("http://127.0.0.1/"),
+                website("http://127.0.0.1:8888/")
+            ]
+            .iter()
+            .cloned()
+            .collect()
+        )
+    }
+
+    #[test]
     fn test_extract_markdown_links() {
         let input = "This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)";
         let links: HashSet<Uri> = extract_links(
