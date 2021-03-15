@@ -44,7 +44,7 @@ deadpool = "0.7.0"
 shellexpand = "2.1.0"
 lazy_static = "1.4.0"
 wiremock = "0.5.1"
-openssl-sys = "0.9.60"
+openssl-sys = "0.9.61"
 serde_json = "1.0.64"
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
