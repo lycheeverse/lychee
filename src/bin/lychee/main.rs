@@ -122,7 +122,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         &inputs,
         cfg.base_url.clone(),
         cfg.skip_missing,
-        max_concurrency,
+        cfg.max_concurrency,
     )
     .await?;
 
