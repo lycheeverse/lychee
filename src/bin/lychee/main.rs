@@ -119,7 +119,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .build()?;
 
     let links = collector::collect_links(
-        &inputs,
+        inputs,
         cfg.base_url.clone(),
         cfg.skip_missing,
         cfg.max_concurrency,

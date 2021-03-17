@@ -197,7 +197,7 @@ impl Input {
 /// Fetch all unique links from a slice of inputs
 /// All relative URLs get prefixed with `base_url` if given.
 pub async fn collect_links(
-    inputs: &[Input],
+    inputs: Vec<Input>,
     base_url: Option<String>,
     skip_missing_inputs: bool,
     max_concurrency: usize,
@@ -210,7 +210,7 @@ pub async fn collect_links(
     let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(max_concurrency);
 
     // extract input contents
-    for input in inputs.iter().cloned() {
+    for input in inputs {
         let sender = contents_tx.clone();
 
         tokio::spawn(async move {
@@ -292,7 +292,7 @@ mod test {
             },
         ];
 
-        let responses = collect_links(&inputs, None, false, 8).await?;
+        let responses = collect_links(inputs, None, false, 8).await?;
         let links = responses
             .into_iter()
             .map(|r| r.uri)
