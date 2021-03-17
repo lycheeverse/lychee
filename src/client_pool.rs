@@ -7,7 +7,7 @@ use crate::{client, types};
 pub struct ClientPool {
     tx: mpsc::Sender<types::Response>,
     rx: mpsc::Receiver<types::Request>,
-    pool: deadpool::unmanaged::Pool<client::Client>,
+    pool: deadpool::unmanaged::Pool<Client>,
 }
 
 impl ClientPool {
