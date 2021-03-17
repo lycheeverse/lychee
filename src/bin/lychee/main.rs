@@ -96,7 +96,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let accepted = cfg.accept.clone().and_then(|a| parse_statuscodes(&a).ok());
     let timeout = parse_timeout(cfg.timeout);
     let max_concurrency = cfg.max_concurrency;
-    let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
+    let method: http::Method = http::Method::from_str(&cfg.method.to_uppercase())?;
     let include = RegexSet::new(&cfg.include)?;
     let exclude = RegexSet::new(&cfg.exclude)?;
 
@@ -219,7 +219,7 @@ fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {
 fn parse_statuscodes<T: AsRef<str>>(accept: T) -> Result<HashSet<http::StatusCode>> {
     let mut statuscodes = HashSet::new();
     for code in accept.as_ref().split(',').into_iter() {
-        let code: reqwest::StatusCode = reqwest::StatusCode::from_bytes(code.as_bytes())?;
+        let code: http::StatusCode = http::StatusCode::from_bytes(code.as_bytes())?;
         statuscodes.insert(code);
     }
     Ok(statuscodes)
