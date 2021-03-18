@@ -201,7 +201,7 @@ pub async fn collect_links(
     base_url: Option<String>,
     skip_missing_inputs: bool,
     max_concurrency: usize,
-) -> Result<HashSet<Request>> {
+) -> Result<tokio::sync::mpsc::Receiver<Request>> {
     let base_url = match base_url {
         Some(url) => Some(Url::parse(&url)?),
         _ => None,
@@ -234,18 +234,32 @@ pub async fn collect_links(
         }
     }
 
-    // Note: we could dispatch links to be checked as soon as we get them,
-    //       instead of building a HashSet with all links.
-    //       This optimization would speed up cases where there's
-    //       a lot of inputs and/or the inputs are large (e.g. big files).
-    let mut collected_links: HashSet<Request> = HashSet::new();
+    let (links_tx, links_rx) = tokio::sync::mpsc::channel(max_concurrency);
+    tokio::spawn(async move {
+        let mut collected_links = HashSet::new();
 
-    for handle in extract_links_handles {
-        let links = handle.await?;
-        collected_links.extend(links);
-    }
+        for handle in extract_links_handles {
+            // Unwrap should be fine because joining fails:
+            // * if the Task was dropped (which we don't do)
+            // * if the Task panicked. Propagating panics is correct here.
+            let requests = handle
+                .await
+                .expect("Awaiting termination of link handle failed");
+            for request in requests {
+                if !collected_links.contains(&request) {
+                    collected_links.insert(request.clone());
+                    // Unwrap should be fine because sending fails
+                    // if the receiver was closed - in which case we can't continue anyway
+                    links_tx
+                        .send(request)
+                        .await
+                        .expect("Extractor could not send link to channel");
+                }
+            }
+        }
+    });
 
-    Ok(collected_links)
+    Ok(links_rx)
 }
 
 #[cfg(test)]
@@ -292,11 +306,11 @@ mod test {
             },
         ];
 
-        let responses = collect_links(inputs, None, false, 8).await?;
-        let links = responses
-            .into_iter()
-            .map(|r| r.uri)
-            .collect::<HashSet<Uri>>();
+        let mut responses = collect_links(inputs, None, false, 8).await?;
+        let mut links = HashSet::new();
+        while let Some(request) = responses.recv().await {
+            links.insert(request.uri);
+        }
 
         let mut expected_links: HashSet<Uri> = HashSet::new();
         expected_links.insert(website(TEST_STRING));

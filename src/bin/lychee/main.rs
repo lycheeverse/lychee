@@ -118,7 +118,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .accepted(accepted)
         .build()?;
 
-    let links = collector::collect_links(
+    let mut links = collector::collect_links(
         inputs,
         cfg.base_url.clone(),
         cfg.skip_missing,
@@ -129,10 +129,11 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let pb = match cfg.no_progress {
         true => None,
         false => {
-            let bar = ProgressBar::new(links.len() as u64)
-                .with_style(ProgressStyle::default_bar().template(
+            let bar = ProgressBar::new_spinner().with_style(ProgressStyle::default_bar().template(
                 "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
             ));
+            bar.set_length(0);
+            bar.set_message("Extracting links");
             bar.enable_steady_tick(100);
             Some(bar)
         }
@@ -145,8 +146,9 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
 
     let bar = pb.clone();
     tokio::spawn(async move {
-        for link in links {
+        while let Some(link) = links.recv().await {
             if let Some(pb) = &bar {
+                pb.inc_length(1);
                 pb.set_message(&link.to_string());
             };
             send_req.send(link).await.unwrap();
