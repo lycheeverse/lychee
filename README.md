@@ -1,4 +1,4 @@
-![lychee](assets/banner.png)
+![lychee](assets/banner.svg)
 
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
 [![docs.rs](https://docs.rs/lychee/badge.svg)](https://docs.rs/lychee)
@@ -148,7 +148,7 @@ token with no extra permissions is enough to be able to check public repos links
 There is an extensive list of commandline parameters to customize the behavior,
 see below for a full list.
 
-```sh
+```
 USAGE:
     lychee [FLAGS] [OPTIONS] [--] [inputs]...
 
