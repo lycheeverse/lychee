@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use http::StatusCode;
 use reqwest::Url;
 use wiremock::matchers::path;
@@ -30,6 +32,30 @@ where
         .respond_with(template)
         .mount(&mock_server)
         .await;
+
+    mock_server
+}
+
+pub async fn get_mock_server_map<S>(pages: HashMap<&str, (S, Option<&str>)>) -> MockServer
+where
+    S: Into<StatusCode>,
+{
+    let mock_server = MockServer::start().await;
+
+    for (route, (response_code, content)) in pages {
+        let template = ResponseTemplate::new(response_code.into());
+
+        let template = if let Some(s) = content {
+            template.set_body_string(s)
+        } else {
+            template
+        };
+
+        Mock::given(path(route))
+            .respond_with(template)
+            .mount(&mock_server)
+            .await;
+    }
 
     mock_server
 }
