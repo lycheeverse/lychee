@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, Context, Result};
 use headers::authorization::Basic;
 use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -264,12 +264,12 @@ async fn recurse(
     if let lychee::Uri::Website(url) = response.uri {
         let input = collector::Input::RemoteUrl(url.clone());
 
-        match url.domain() {
-            None => bail!("Cannot find domain in url: {}", url),
-            Some(domain) => {
-                if !input_domains.contains(domain) {
-                    return Ok(0);
-                }
+        // Check domain against known domains
+        // If no domain is given, it might be a local link (e.g. 127.0.0.1),
+        // which we accept
+        if let Some(domain) = url.domain() {
+            if !input_domains.contains(domain) {
+                return Ok(0);
             }
         }
 
