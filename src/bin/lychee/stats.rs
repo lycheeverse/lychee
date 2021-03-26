@@ -17,9 +17,8 @@ pub fn color_response(response: &Response) -> String {
         Status::Ok(_) => style(response).green().bright(),
         Status::Redirected(_) => style(response),
         Status::Excluded => style(response).dim(),
-        Status::Error(_) => style(response).yellow().bright(),
         Status::Timeout(_) => style(response).yellow().bright(),
-        Status::Failed(_) => style(response).red().bright(),
+        Status::Error(_, _) => style(response).red().bright(),
     };
     out.to_string()
 }
@@ -54,17 +53,16 @@ impl ResponseStats {
     pub fn add(&mut self, response: Response) {
         self.total += 1;
         match response.status {
-            Status::Failed(_) => self.failures += 1,
+            Status::Error(_, _) => self.failures += 1,
             Status::Timeout(_) => self.timeouts += 1,
             Status::Redirected(_) => self.redirects += 1,
             Status::Excluded => self.excludes += 1,
-            Status::Error(_) => self.errors += 1,
             _ => self.successful += 1,
         }
 
         if matches!(
             response.status,
-            Status::Failed(_) | Status::Timeout(_) | Status::Redirected(_) | Status::Error(_)
+            Status::Error(_, _) | Status::Timeout(_) | Status::Redirected(_)
         ) {
             let fail = self.fail_map.entry(response.source.clone()).or_default();
             fail.insert(response);
@@ -152,7 +150,7 @@ mod test_super {
         });
         stats.add(Response {
             uri: website("http://example.org/failed"),
-            status: Status::Failed(http::StatusCode::BAD_GATEWAY),
+            status: Status::Error("".to_string(), Some(http::StatusCode::BAD_GATEWAY)),
             source: Input::Stdin,
         });
         stats.add(Response {
@@ -166,7 +164,7 @@ mod test_super {
             vec![
                 Response {
                     uri: website("http://example.org/failed"),
-                    status: Status::Failed(http::StatusCode::BAD_GATEWAY),
+                    status: Status::Error("".to_string(), Some(http::StatusCode::BAD_GATEWAY)),
                     source: Input::Stdin,
                 },
                 Response {

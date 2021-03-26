@@ -78,11 +78,17 @@ impl Response {
 impl Display for Response {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let metadata = match &self.status {
-            Status::Ok(code) | Status::Redirected(code) | Status::Failed(code) => {
+            Status::Ok(code) | Status::Redirected(code) => {
                 format!(" [{}]", code)
             }
             Status::Timeout(code) if code.is_some() => format!(" [{}]", code.unwrap()),
-            Status::Error(e) => format!(" ({})", e),
+            Status::Error(e, code) => {
+                if let Some(code) = code {
+                    format!(" ({})", code)
+                } else {
+                    format!(" ({})", e)
+                }
+            }
             _ => "".to_string(),
         };
         write!(f, "{} {}{}", self.status.icon(), self.uri, metadata)
@@ -95,15 +101,13 @@ pub enum Status {
     /// Request was successful
     Ok(http::StatusCode),
     /// Request failed with HTTP error code
-    Failed(http::StatusCode),
+    Error(String, Option<http::StatusCode>),
     /// Request timed out
     Timeout(Option<http::StatusCode>),
     /// Got redirected to different resource
     Redirected(http::StatusCode),
     /// Resource was excluded from checking
     Excluded,
-    /// Low-level error while loading resource
-    Error(String),
 }
 
 impl Display for Status {
@@ -112,8 +116,13 @@ impl Display for Status {
             Status::Ok(c) => format!("OK ({})", c),
             Status::Redirected(c) => format!("Redirect ({})", c),
             Status::Excluded => "Excluded".to_string(),
-            Status::Failed(c) => format!("Failed ({})", c),
-            Status::Error(e) => format!("Runtime error ({})", e),
+            Status::Error(err, code) => {
+                if let Some(code) = code {
+                    format!("Failed: {} ({})", err, code)
+                } else {
+                    format!("Failed: {}", err)
+                }
+            }
             Status::Timeout(Some(c)) => format!("Timeout ({})", c),
             Status::Timeout(None) => "Timeout".to_string(),
         };
@@ -139,12 +148,16 @@ impl Status {
         } else if statuscode.is_redirection() {
             Status::Redirected(statuscode)
         } else {
-            Status::Failed(statuscode)
+            Status::Error("".into(), Some(statuscode))
         }
     }
 
     pub fn is_success(&self) -> bool {
         matches!(self, Status::Ok(_))
+    }
+
+    pub fn is_failure(&self) -> bool {
+        matches!(self, Status::Error(_, _))
     }
 
     pub fn is_excluded(&self) -> bool {
@@ -156,8 +169,7 @@ impl Status {
             Status::Ok(_) => "✔",
             Status::Redirected(_) => "⇄️",
             Status::Excluded => "?",
-            Status::Failed(_) => "✗",
-            Status::Error(_) => "↯",
+            Status::Error(_, _) => "✗",
             Status::Timeout(_) => "⧖",
         }
     }
@@ -168,7 +180,7 @@ impl From<reqwest::Error> for Status {
         if e.is_timeout() {
             Status::Timeout(e.status())
         } else {
-            Status::Error(e.to_string())
+            Status::Error(e.to_string(), e.status())
         }
     }
 }
