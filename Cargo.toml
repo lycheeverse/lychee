@@ -26,9 +26,9 @@ hubcaps = { git="https://github.com/softprops/hubcaps.git" }
 linkify = "0.5.0"
 regex = "1.4.5"
 url = "2.2.1"
-# Switch back to version on crates.io after
-# https://github.com/async-email/async-smtp/pull/36
-# is merged and a new version of check-if-email-exists is released
+# Switch to version on crates.io after resolving
+# https://github.com/async-email/async-smtp/issues/40 and new version of
+# check-if-email-exists is released
 check-if-email-exists = { git="https://github.com/reacherhq/check-if-email-exists.git" }
 indicatif = "0.15.0"
 structopt = "0.3.21"
