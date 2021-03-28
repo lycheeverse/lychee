@@ -392,6 +392,20 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_youtube() {
+        // This is applying a quirk. See the quirks module.
+        let client: Client = ClientBuilder::default().build().unwrap();
+        assert!(client.check("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7")
+            .await
+            .unwrap()
+            .status.is_success());
+        assert!(client.check("https://www.youtube.com/watch?v=invalidNlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7")
+            .await
+            .unwrap()
+            .status.is_failure());
+    }
+
+    #[tokio::test]
     async fn test_non_github() {
         let template = ResponseTemplate::new(200);
         let mock_server = MockServer::start().await;

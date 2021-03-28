@@ -38,7 +38,6 @@ impl Default for Quirks {
                     let urlencoded: String =
                         url::form_urlencoded::byte_serialize(original_url.as_str().as_bytes())
                             .collect();
-                    *out.method_mut() = Method::HEAD;
                     let mut url = Url::parse("https://www.youtube.com/oembed").unwrap();
                     url.set_query(Some(&format!("url={}", urlencoded)));
                     *out.url_mut() = url;
@@ -91,7 +90,7 @@ mod tests {
         let modified = quirks.apply(request);
         let expected_url = Url::parse("https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNlKuICiT470%26list%3DPLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ%26index%3D7").unwrap();
         assert_eq!(modified.url(), &expected_url);
-        assert_eq!(modified.method(), Method::HEAD);
+        assert_eq!(modified.method(), Method::GET);
     }
 
     #[test]
