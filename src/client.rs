@@ -13,6 +13,7 @@ use url::Url;
 use crate::filter::Excludes;
 use crate::filter::Filter;
 use crate::filter::Includes;
+use crate::quirks::Quirks;
 use crate::types::{Response, Status};
 use crate::uri::Uri;
 use crate::Request;
@@ -22,11 +23,18 @@ const DEFAULT_MAX_REDIRECTS: usize = 5;
 
 #[derive(Debug, Clone)]
 pub struct Client {
+    /// The underlying reqwest client instance that handles the HTTP requests
     reqwest_client: reqwest::Client,
+    /// Github API client
     github: Option<Github>,
+    /// Filtered domain handling
     filter: Filter,
+    /// The default request HTTP method to use
     method: reqwest::Method,
+    /// The set of accepted HTTP status codes for valid URIs
     accepted: Option<HashSet<reqwest::StatusCode>>,
+    /// Override behavior for certain known issues with URIs
+    quirks: Quirks,
 }
 
 /// A link checker using an API token for Github links
@@ -152,10 +160,13 @@ impl ClientBuilder {
 
         let filter = Filter::new(Some(includes), Some(excludes), scheme);
 
+        let quirks = Quirks::default();
+
         Ok(Client {
             reqwest_client,
             github,
             filter,
+            quirks,
             method: self.method.clone().unwrap_or(reqwest::Method::GET),
             accepted: self.accepted.clone().unwrap_or(None),
         })
@@ -171,17 +182,22 @@ impl Client {
         if self.filter.excluded(&request) {
             return Ok(Response::new(request.uri, Status::Excluded, request.source));
         }
-        let status = match request.uri {
+
+        let status = self.check_main(&request).await?;
+        Ok(Response::new(request.uri, status, request.source))
+    }
+
+    async fn check_main(&self, request: &Request) -> Result<Status> {
+        Ok(match request.uri {
             Uri::Website(ref url) => self.check_website(&url).await,
             Uri::Mail(ref address) => {
                 // TODO: We should not be using a HTTP status code for mail
-                match self.valid_mail(&address).await {
+                match self.check_mail(&address).await {
                     true => Status::Ok(http::StatusCode::OK),
                     false => Status::Error(format!("Invalid mail address: {}", address), None),
                 }
             }
-        };
-        Ok(Response::new(request.uri, status, request.source))
+        })
     }
 
     pub async fn check_website(&self, url: &Url) -> Status {
@@ -230,11 +246,17 @@ impl Client {
     }
 
     async fn check_default(&self, url: &Url) -> Status {
-        let request = self
+        let request = match self
             .reqwest_client
-            .request(self.method.clone(), url.as_str());
-        let res = request.send().await;
-        match res {
+            .request(self.method.clone(), url.to_owned())
+            .build()
+        {
+            Ok(r) => r,
+            Err(e) => return e.into(),
+        };
+        let request = self.quirks.apply(request);
+
+        match self.reqwest_client.execute(request).await {
             Ok(response) => Status::new(response.status(), self.accepted.clone()),
             Err(e) => e.into(),
         }
@@ -248,7 +270,7 @@ impl Client {
         Ok((owner.as_str().into(), repo.as_str().into()))
     }
 
-    pub async fn valid_mail(&self, address: &str) -> bool {
+    pub async fn check_mail(&self, address: &str) -> bool {
         let input = CheckEmailInput::new(vec![address.to_string()]);
         let results = check_email(&input).await;
         let result = results.get(0);
@@ -367,6 +389,20 @@ mod test {
             .unwrap()
             .status;
         assert!(res.is_failure());
+    }
+
+    #[tokio::test]
+    async fn test_youtube() {
+        // This is applying a quirk. See the quirks module.
+        let client: Client = ClientBuilder::default().build().unwrap();
+        assert!(client.check("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7")
+            .await
+            .unwrap()
+            .status.is_success());
+        assert!(client.check("https://www.youtube.com/watch?v=invalidNlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7")
+            .await
+            .unwrap()
+            .status.is_failure());
     }
 
     #[tokio::test]
