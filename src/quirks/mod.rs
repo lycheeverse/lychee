@@ -21,7 +21,7 @@ impl Default for Quirks {
         let quirks = vec![
             Quirk {
                 // Twitter cut off the ability to read a tweet by fetching its
-                // URL with a normal HTTP GET.  Only Googlebot will get a plain
+                // URL with a normal HTTP GET. Only Googlebot will get a plain
                 // HTML response.
                 // See https://twitter.com/zarfeblong/status/1339742840142872577
                 pattern: Regex::new(r"^(https?://)?(www\.)?twitter.com").unwrap(),
