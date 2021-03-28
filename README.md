@@ -148,7 +148,7 @@ token with no extra permissions is enough to be able to check public repos links
 There is an extensive list of commandline parameters to customize the behavior,
 see below for a full list.
 
-```
+```ignore
 USAGE:
     lychee [FLAGS] [OPTIONS] [--] [inputs]...
 
