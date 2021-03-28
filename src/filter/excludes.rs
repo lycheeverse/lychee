@@ -1,18 +1,23 @@
 use regex::RegexSet;
 use std::net::IpAddr;
+use lazy_static::lazy_static;
 
 use crate::Uri;
+
+/// Pre-defined exclusions for known false-positives
+static FALSE_POSITIVE_REGEX: &'static [&str] = &[r"http://www.w3.org/1999/xhtml"];
 
 /// Exclude configuration for the link checker.
 /// You can ignore links based on regex patterns or pre-defined IP ranges.
 #[derive(Clone, Debug)]
 pub struct Excludes {
+    /// User-defined set of excluded regex patterns
     pub regex: Option<RegexSet>,
     /// Example: 192.168.0.1
     pub private_ips: bool,
     /// Example: 169.254.0.0
     pub link_local_ips: bool,
-    /// For IPv4: 127.0. 0.1/8
+    /// For IPv4: 127.0.0.1/8
     /// For IPv6: ::1/128
     pub loopback_ips: bool,
     /// Example: octocat@github.com
@@ -39,6 +44,13 @@ impl Excludes {
             }
         }
         false
+    }
+
+    pub fn false_positive(&self, input: &str) -> bool {
+        lazy_static! {
+            static ref FALSE_POSITIVES: RegexSet = RegexSet::new(FALSE_POSITIVE_REGEX).unwrap();
+        }
+        FALSE_POSITIVES.is_match(input)
     }
 
     pub fn ip(&self, uri: &Uri) -> bool {
