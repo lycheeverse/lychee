@@ -5,7 +5,7 @@ use std::net::IpAddr;
 use crate::Uri;
 
 /// Pre-defined exclusions for known false-positives
-static FALSE_POSITIVE_REGEX: &'static [&str] = &[r"http://www.w3.org/1999/xhtml"];
+static FALSE_POSITIVE_REGEX: &[&str] = &[r"http://www.w3.org/1999/xhtml"];
 
 /// Exclude configuration for the link checker.
 /// You can ignore links based on regex patterns or pre-defined IP ranges.
