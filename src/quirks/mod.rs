@@ -16,8 +16,8 @@ pub struct Quirks {
     quirks: Vec<Quirk>,
 }
 
-impl Quirks {
-    pub fn init() -> Self {
+impl Default for Quirks {
+    fn default() -> Self {
         let quirks = vec![
             Quirk {
                 pattern: Regex::new(r"^(https?://)?(www\.)?twitter.com").unwrap(),
@@ -48,7 +48,9 @@ impl Quirks {
         ];
         Self { quirks }
     }
+}
 
+impl Quirks {
     /// Apply quirks to a given request. Only the first quirk regex pattern
     /// matching the URL will be applied. The rest will be discarded for
     /// simplicity reasons. This limitation might be lifted in the future.
@@ -71,7 +73,7 @@ mod tests {
     fn test_twitter_request() {
         let orig = Url::parse("https://twitter.com/zarfeblong/status/1339742840142872577").unwrap();
         let request = Request::new(Method::GET, orig.clone());
-        let quirks = Quirks::init();
+        let quirks = Quirks::default();
         let modified = quirks.apply(request);
         assert_eq!(modified.url(), &orig);
         assert_eq!(modified.method(), Method::HEAD);
@@ -85,7 +87,7 @@ mod tests {
     fn test_youtube_request() {
         let orig = Url::parse("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").unwrap();
         let request = Request::new(Method::GET, orig);
-        let quirks = Quirks::init();
+        let quirks = Quirks::default();
         let modified = quirks.apply(request);
         let expected_url = Url::parse("https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNlKuICiT470%26list%3DPLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ%26index%3D7").unwrap();
         assert_eq!(modified.url(), &expected_url);
@@ -96,7 +98,7 @@ mod tests {
     fn test_no_quirk_applied() {
         let orig = Url::parse("https://endler.dev").unwrap();
         let request = Request::new(Method::GET, orig.clone());
-        let quirks = Quirks::init();
+        let quirks = Quirks::default();
         let modified = quirks.apply(request);
         assert_eq!(modified.url(), &orig);
         assert_eq!(modified.method(), Method::GET);

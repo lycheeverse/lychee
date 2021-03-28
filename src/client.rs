@@ -160,7 +160,7 @@ impl ClientBuilder {
 
         let filter = Filter::new(Some(includes), Some(excludes), scheme);
 
-        let quirks = Quirks::init();
+        let quirks = Quirks::default();
 
         Ok(Client {
             reqwest_client,
