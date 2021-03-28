@@ -53,8 +53,6 @@ mod cli {
     }
 
     #[test]
-    #[ignore]
-    // Youtube oembed doesn't work at the moment. Getting a 404 instead of a 200
     fn test_quirks() {
         let mut cmd = main_command();
         let test_quirks_path = fixtures_path().join("TEST_QUIRKS.txt");

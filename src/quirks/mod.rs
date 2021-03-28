@@ -20,6 +20,10 @@ impl Default for Quirks {
     fn default() -> Self {
         let quirks = vec![
             Quirk {
+                // Twitter cut off the ability to read a tweet by fetching its
+                // URL with a normal HTTP GET.  Only Googlebot will get a plain
+                // HTML response.
+                // See https://twitter.com/zarfeblong/status/1339742840142872577
                 pattern: Regex::new(r"^(https?://)?(www\.)?twitter.com").unwrap(),
                 rewrite: |request| {
                     let mut out = request;
@@ -30,7 +34,9 @@ impl Default for Quirks {
                 },
             },
             Quirk {
-                // https://stackoverflow.com/a/19377429/270334
+                // The https://www.youtube.com/oembed API will return 404 for
+                // missing videos and can be used to check youtube links.
+                // See https://stackoverflow.com/a/19377429/270334
                 pattern: Regex::new(r"^(https?://)?(www\.)?(youtube\.com|youtu\.?be)").unwrap(),
                 rewrite: |request| {
                     let mut out = request;
