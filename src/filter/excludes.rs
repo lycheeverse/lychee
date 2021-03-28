@@ -1,6 +1,6 @@
+use lazy_static::lazy_static;
 use regex::RegexSet;
 use std::net::IpAddr;
-use lazy_static::lazy_static;
 
 use crate::Uri;
 
