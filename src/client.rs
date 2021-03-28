@@ -194,7 +194,7 @@ impl Client {
                 // TODO: We should not be using a HTTP status code for mail
                 match self.check_mail(&address).await {
                     true => Status::Ok(http::StatusCode::OK),
-                    false => Status::Error(format!("Invalid mail address: {}", address)),
+                    false => Status::Error(format!("Invalid mail address: {}", address), None),
                 }
             }
         })
@@ -232,7 +232,7 @@ impl Client {
             Some(github) => {
                 let repo = github.repo(owner, repo).get().await;
                 match repo {
-                    Err(e) => Status::Error(format!("{}", e)),
+                    Err(e) => Status::Error(e.to_string(), None),
                     Ok(_) => Status::Ok(http::StatusCode::OK),
                 }
             }
@@ -240,6 +240,7 @@ impl Client {
                 "GitHub token not specified. To check GitHub links reliably, \
                 use `--github-token` flag / `GITHUB_TOKEN` env var."
                     .to_string(),
+                None,
             ),
         }
     }
@@ -297,7 +298,6 @@ pub async fn check<T: TryInto<Request>>(request: T) -> Result<Response> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use http::StatusCode;
     use std::time::{Duration, Instant};
     use wiremock::matchers::method;
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -317,7 +317,18 @@ mod test {
             .check(mock_server.uri())
             .await
             .unwrap();
-        assert!(matches!(res.status, Status::Failed(_)));
+        assert!(res.status.is_failure());
+    }
+
+    #[tokio::test]
+    async fn test_nonexistent_with_path() {
+        let res = ClientBuilder::default()
+            .build()
+            .unwrap()
+            .check("http://127.0.0.1/invalid")
+            .await
+            .unwrap();
+        assert!(res.status.is_failure());
     }
 
     #[tokio::test]
@@ -338,7 +349,7 @@ mod test {
             .unwrap();
         let end = start.elapsed();
 
-        assert!(matches!(res.status, Status::Failed(_)));
+        assert!(matches!(res.status, Status::Error(_, _)));
 
         // on slow connections, this might take a bit longer than nominal backed-off timeout (7 secs)
         assert!(end.as_secs() >= 7);
@@ -358,16 +369,14 @@ mod test {
     }
     #[tokio::test]
     async fn test_github() {
-        assert!(matches!(
-            ClientBuilder::default()
-                .build()
-                .unwrap()
-                .check("https://github.com/lycheeverse/lychee")
-                .await
-                .unwrap()
-                .status,
-            Status::Ok(_)
-        ));
+        assert!(ClientBuilder::default()
+            .build()
+            .unwrap()
+            .check("https://github.com/lycheeverse/lychee")
+            .await
+            .unwrap()
+            .status
+            .is_success());
     }
 
     #[tokio::test]
@@ -379,7 +388,7 @@ mod test {
             .await
             .unwrap()
             .status;
-        assert!(matches!(res, Status::Error(_)));
+        assert!(res.is_failure());
     }
 
     #[tokio::test]
@@ -398,7 +407,7 @@ mod test {
             .await
             .unwrap()
             .status;
-        assert!(matches!(res, Status::Ok(_)));
+        assert!(res.is_success());
     }
 
     #[tokio::test]
@@ -409,7 +418,7 @@ mod test {
             .check("https://expired.badssl.com/")
             .await
             .unwrap();
-        assert!(matches!(res.status, Status::Error(_)));
+        assert!(res.status.is_failure());
 
         // Same, but ignore certificate error
         let res = ClientBuilder::default()
@@ -419,7 +428,7 @@ mod test {
             .check("https://expired.badssl.com/")
             .await
             .unwrap();
-        assert!(matches!(res.status, Status::Ok(_)));
+        assert!(res.status.is_success());
     }
 
     #[tokio::test]
@@ -430,7 +439,7 @@ mod test {
             .check("https://crates.io/crates/lychee")
             .await
             .unwrap();
-        assert!(matches!(res.status, Status::Failed(StatusCode::NOT_FOUND)));
+        assert!(res.status.is_failure());
 
         // Try again, but with a custom header.
         // For example, crates.io requires a custom accept header.
@@ -444,7 +453,7 @@ mod test {
             .check("https://crates.io/crates/lychee")
             .await
             .unwrap();
-        assert!(matches!(res.status, Status::Ok(_)));
+        assert!(res.status.is_success());
     }
 
     #[tokio::test]

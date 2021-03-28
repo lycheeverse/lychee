@@ -17,9 +17,8 @@ pub fn color_response(response: &Response) -> String {
         Status::Ok(_) => style(response).green().bright(),
         Status::Redirected(_) => style(response),
         Status::Excluded => style(response).dim(),
-        Status::Error(_) => style(response).yellow().bright(),
         Status::Timeout(_) => style(response).yellow().bright(),
-        Status::Failed(_) => style(response).red().bright(),
+        Status::Error(_, _) => style(response).red().bright(),
     };
     out.to_string()
 }
@@ -54,17 +53,16 @@ impl ResponseStats {
     pub fn add(&mut self, response: Response) {
         self.total += 1;
         match response.status {
-            Status::Failed(_) => self.failures += 1,
+            Status::Error(_, _) => self.failures += 1,
             Status::Timeout(_) => self.timeouts += 1,
             Status::Redirected(_) => self.redirects += 1,
             Status::Excluded => self.excludes += 1,
-            Status::Error(_) => self.errors += 1,
             _ => self.successful += 1,
         }
 
         if matches!(
             response.status,
-            Status::Failed(_) | Status::Timeout(_) | Status::Redirected(_) | Status::Error(_)
+            Status::Error(_, _) | Status::Timeout(_) | Status::Redirected(_)
         ) {
             let fail = self.fail_map.entry(response.source.clone()).or_default();
             fail.insert(response);
@@ -74,9 +72,13 @@ impl ResponseStats {
     pub fn is_success(&self) -> bool {
         self.total == self.successful + self.excludes
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.total == 0
+    }
 }
 
-fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize) -> fmt::Result {
+fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -> fmt::Result {
     let fill = title.chars().count();
     f.write_str(title)?;
     f.write_str(
@@ -84,7 +86,12 @@ fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize) -> fmt::Result {
             .to_string()
             .pad(MAX_PADDING - fill, '.', Alignment::Right, false),
     )?;
-    f.write_str("\n")
+
+    if newline {
+        f.write_str("\n")?;
+    }
+
+    Ok(())
 }
 
 impl Display for ResponseStats {
@@ -93,24 +100,23 @@ impl Display for ResponseStats {
 
         writeln!(f, "📝 Summary")?;
         writeln!(f, "{}", separator)?;
-        write_stat(f, "🔍 Total", self.total)?;
-        write_stat(f, "✅ Successful", self.successful)?;
-        write_stat(f, "⏳ Timeouts", self.timeouts)?;
-        write_stat(f, "🔀 Redirected", self.redirects)?;
-        write_stat(f, "👻 Excluded", self.excludes)?;
-        write_stat(f, "🚫 Errors", self.errors + self.failures)?;
+        write_stat(f, "🔍 Total", self.total, true)?;
+        write_stat(f, "✅ Successful", self.successful, true)?;
+        write_stat(f, "⏳ Timeouts", self.timeouts, true)?;
+        write_stat(f, "🔀 Redirected", self.redirects, true)?;
+        write_stat(f, "👻 Excluded", self.excludes, true)?;
+        write_stat(f, "🚫 Errors", self.errors + self.failures, false)?;
 
-        if !&self.fail_map.is_empty() {
-            writeln!(f)?;
-        }
         for (input, responses) in &self.fail_map {
-            writeln!(f, "Errors in {}", input)?;
+            // Using leading newlines over trailing ones (e.g. `writeln!`)
+            // lets us avoid extra newlines without any additional logic.
+            write!(f, "\n\nErrors in {}", input)?;
             for response in responses {
-                writeln!(f, "{}", color_response(response))?
+                write!(f, "\n{}", color_response(response))?
             }
-            writeln!(f)?;
         }
-        writeln!(f)
+
+        Ok(())
     }
 }
 
@@ -119,6 +125,20 @@ mod test_super {
     use lychee::{test_utils::website, Status};
 
     use super::*;
+
+    #[test]
+    fn test_stats_is_empty() {
+        let mut stats = ResponseStats::new();
+        assert!(stats.is_empty());
+
+        stats.add(Response {
+            uri: website("http://example.org/ok"),
+            status: Status::Ok(http::StatusCode::OK),
+            source: Input::Stdin,
+        });
+
+        assert!(!stats.is_empty());
+    }
 
     #[test]
     fn test_stats() {
@@ -130,7 +150,7 @@ mod test_super {
         });
         stats.add(Response {
             uri: website("http://example.org/failed"),
-            status: Status::Failed(http::StatusCode::BAD_GATEWAY),
+            status: Status::Error("".to_string(), Some(http::StatusCode::BAD_GATEWAY)),
             source: Input::Stdin,
         });
         stats.add(Response {
@@ -144,7 +164,7 @@ mod test_super {
             vec![
                 Response {
                     uri: website("http://example.org/failed"),
-                    status: Status::Failed(http::StatusCode::BAD_GATEWAY),
+                    status: Status::Error("".to_string(), Some(http::StatusCode::BAD_GATEWAY)),
                     source: Input::Stdin,
                 },
                 Response {

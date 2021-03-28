@@ -39,7 +39,7 @@ impl Filter {
 
     pub fn excluded(&self, request: &Request) -> bool {
         // Skip mail?
-        if matches!(request.uri, Uri::Mail(_)) && self.excludes.is_mail_excluded() {
+        if self.excludes.is_mail_excluded() && matches!(request.uri, Uri::Mail(_)) {
             return true;
         }
         // Skip specific IP address?
@@ -48,23 +48,29 @@ impl Filter {
         }
         // No regex includes/excludes at all?
         if self.includes.is_empty() && self.excludes.is_empty() {
+            // Not excluded unless it's a known false positive
+            return self.excludes.false_positive(request.uri.as_str());
+        }
+        // Includes take precedence over excludes
+        if self.includes.regex(request.uri.as_str()) {
             return false;
         }
-        if self.includes.regex(request.uri.as_str()) {
-            // Includes take precedence over excludes
-            return false;
+        // Exclude well-known false-positives.
+        // This is done after checking includes to allow for user overwrites.
+        if self.excludes.false_positive(request.uri.as_str()) {
+            return true;
         }
         // In case we have includes and no excludes,
         // skip everything that was not included
         if !self.includes.is_empty() && self.excludes.is_empty() {
             return true;
         }
-
-        // We have no includes. Check regex excludes
+        // We have no includes. Check regex excludes.
+        // This includes well-known false positives.
         if self.excludes.regex(request.uri.as_str()) {
             return true;
         }
-
+        // URI scheme excluded?
         if self.scheme.is_none() {
             return false;
         }
@@ -142,6 +148,31 @@ mod test {
         let excludes = Some(Excludes::default());
         let filter = Filter::new(includes, excludes, None);
         assert_eq!(filter.excluded(&request("https://example.org")), false);
+    }
+
+    #[test]
+    fn test_false_positives() {
+        let includes = Some(Includes::default());
+        let excludes = Some(Excludes::default());
+        let filter = Filter::new(includes, excludes, None);
+        assert_eq!(
+            filter.excluded(&request("http://www.w3.org/1999/xhtml")),
+            true
+        );
+        assert_eq!(filter.excluded(&request("https://example.org")), false);
+    }
+
+    #[test]
+    fn test_overwrite_false_positives() {
+        let includes = Some(Includes {
+            regex: Some(RegexSet::new(&[r"http://www.w3.org/1999/xhtml"]).unwrap()),
+        });
+        let excludes = Some(Excludes::default());
+        let filter = Filter::new(includes, excludes, None);
+        assert_eq!(
+            filter.excluded(&request("http://www.w3.org/1999/xhtml")),
+            false
+        );
     }
 
     #[test]

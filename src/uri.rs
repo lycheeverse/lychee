@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use fast_chemail::is_valid_email;
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use std::{convert::TryFrom, fmt::Display};
@@ -56,12 +57,12 @@ impl TryFrom<&str> for Uri {
         // Remove the `mailto` scheme if it exists
         // to avoid parsing it as a website URL.
         let s = s.trim_start_matches("mailto:");
-        if s.contains('@') & !is_link_internal {
-            return Ok(Uri::Mail(s.to_string()));
-        }
+
         if let Ok(uri) = Url::parse(s) {
             return Ok(Uri::Website(uri));
-        };
+        } else if !is_link_internal && is_valid_email(&s) {
+            return Ok(Uri::Mail(s.to_string()));
+        }
         bail!("Cannot convert to Uri")
     }
 }
@@ -85,6 +86,10 @@ mod test {
         assert_eq!(
             Uri::try_from("http://example.org").unwrap(),
             website("http://example.org")
+        );
+        assert_eq!(
+            Uri::try_from("http://example.org/@test/testing").unwrap(),
+            website("http://example.org/@test/testing")
         );
         assert_eq!(
             Uri::try_from("mail@example.org").unwrap(),
