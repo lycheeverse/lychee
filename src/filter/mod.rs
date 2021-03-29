@@ -189,6 +189,31 @@ mod test {
     }
 
     #[test]
+    fn test_exclude_mail() {
+        let excludes = Excludes {
+            mail: true,
+            ..Default::default()
+        };
+        let filter = Filter::new(None, Some(excludes), None);
+
+        assert_eq!(
+            filter.excluded(&Request::new(
+                Uri::Mail("mail@example.org".to_string()),
+                Input::Stdin,
+            )),
+            true
+        );
+        assert_eq!(
+            filter.excluded(&Request::new(
+                Uri::Mail("foo@bar.dev".to_string()),
+                Input::Stdin,
+            )),
+            true
+        );
+        assert_eq!(filter.excluded(&request("http://bar.dev")), false);
+    }
+
+    #[test]
     fn test_exclude_regex() {
         let excludes = Excludes {
             regex: Some(

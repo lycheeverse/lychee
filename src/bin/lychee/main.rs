@@ -107,6 +107,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .exclude_private_ips(cfg.exclude_private)
         .exclude_link_local_ips(cfg.exclude_link_local)
         .exclude_loopback_ips(cfg.exclude_loopback)
+        .exclude_mail(cfg.exclude_mail)
         .max_redirects(cfg.max_redirects)
         .user_agent(cfg.user_agent.clone())
         .allow_insecure(cfg.insecure)
