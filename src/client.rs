@@ -95,7 +95,7 @@ impl ClientBuilder {
             private_ips: enable_exclude(self.exclude_private_ips.unwrap_or_default()),
             link_local_ips: enable_exclude(self.exclude_link_local_ips.unwrap_or_default()),
             loopback_ips: enable_exclude(self.exclude_loopback_ips.unwrap_or_default()),
-            mail: enable_exclude(self.exclude_mail.unwrap_or_default()),
+            mail: self.exclude_mail.unwrap_or_default(),
         }
     }
 
