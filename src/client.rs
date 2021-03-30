@@ -263,7 +263,7 @@ impl Client {
     }
 
     fn extract_github(&self, url: &str) -> Result<(String, String)> {
-        let re = Regex::new(r"github\.com/([^/]*)/([^/]*)")?;
+        let re = Regex::new(r"^(https?:\/\/)?(www\.)?github\.com/([^/]*)/([^/]*)")?;
         let caps = re.captures(&url).context("Invalid capture")?;
         let owner = caps.get(1).context("Cannot capture owner")?;
         let repo = caps.get(2).context("Cannot capture repo")?;
