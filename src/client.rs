@@ -382,12 +382,11 @@ mod test {
                 .unwrap(),
             ("lycheeverse".into(), "lychee".into())
         );
-        assert!(
-            ClientBuilder::default()
-                .build()
-                .unwrap()
-                .extract_github("https://pkg.go.dev/github.com/Debian/pkg-go-tools/cmd/pgt-gopath").is_err()
-        );
+        assert!(ClientBuilder::default()
+            .build()
+            .unwrap()
+            .extract_github("https://pkg.go.dev/github.com/Debian/pkg-go-tools/cmd/pgt-gopath")
+            .is_err());
     }
     #[tokio::test]
     async fn test_github() {
