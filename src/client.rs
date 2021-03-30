@@ -263,10 +263,10 @@ impl Client {
     }
 
     fn extract_github(&self, url: &str) -> Result<(String, String)> {
-        let re = Regex::new(r"github\.com/([^/]*)/([^/]*)")?;
+        let re = Regex::new(r#"^(https?://)?(www.)?github.com/(?P<owner>[^/]*)/(?P<repo>[^/]*)"#)?;
         let caps = re.captures(&url).context("Invalid capture")?;
-        let owner = caps.get(1).context("Cannot capture owner")?;
-        let repo = caps.get(2).context("Cannot capture repo")?;
+        let owner = caps.name("owner").context("Cannot capture owner")?;
+        let repo = caps.name("repo").context("Cannot capture repo")?;
         Ok((owner.as_str().into(), repo.as_str().into()))
     }
 
@@ -362,10 +362,31 @@ mod test {
             ClientBuilder::default()
                 .build()
                 .unwrap()
+                .extract_github("github.com/lycheeverse/lychee")
+                .unwrap(),
+            ("lycheeverse".into(), "lychee".into())
+        );
+        assert_eq!(
+            ClientBuilder::default()
+                .build()
+                .unwrap()
+                .extract_github("www.github.com/lycheeverse/lychee")
+                .unwrap(),
+            ("lycheeverse".into(), "lychee".into())
+        );
+        assert_eq!(
+            ClientBuilder::default()
+                .build()
+                .unwrap()
                 .extract_github("https://github.com/lycheeverse/lychee")
                 .unwrap(),
             ("lycheeverse".into(), "lychee".into())
         );
+        assert!(ClientBuilder::default()
+            .build()
+            .unwrap()
+            .extract_github("https://pkg.go.dev/github.com/Debian/pkg-go-tools/cmd/pgt-gopath")
+            .is_err());
     }
     #[tokio::test]
     async fn test_github() {
