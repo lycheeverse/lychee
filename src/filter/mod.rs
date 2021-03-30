@@ -56,7 +56,7 @@ impl Filter {
             return false;
         }
         // Exclude well-known false-positives.
-        // This is done after checking includes to allow for user overwrites.
+        // This is done after checking includes to allow for user-overwrites.
         if self.excludes.false_positive(request.uri.as_str()) {
             return true;
         }
@@ -65,8 +65,7 @@ impl Filter {
         if !self.includes.is_empty() && self.excludes.is_empty() {
             return true;
         }
-        // We have no includes. Check regex excludes.
-        // This includes well-known false positives.
+        // We have no includes. Check regex excludes
         if self.excludes.regex(request.uri.as_str()) {
             return true;
         }
