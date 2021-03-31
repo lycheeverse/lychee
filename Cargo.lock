@@ -178,20 +178,21 @@ dependencies = [
 
 [[package]]
 name = "async-smtp"
-version = "0.3.4"
-source = "git+https://github.com/async-email/async-smtp?branch=master#0f1c4c6a565833f8c7fc314de84c4cbbc8da2b4a"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "472a081e9e3a92f9201237f07b51c0bab657336ca6600fd2f243c9cc3c9c81ff"
 dependencies = [
  "async-native-tls",
  "async-std",
  "async-trait",
- "base64 0.12.3",
+ "base64 0.13.0",
  "bufstream",
  "fast-socks5",
  "fast_chemail",
  "hostname 0.1.5",
  "log",
  "nom",
- "pin-project 0.4.28",
+ "pin-project",
  "pin-utils",
  "serde",
  "serde_derive",
@@ -377,8 +378,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "check-if-email-exists"
-version = "0.8.19"
-source = "git+https://github.com/reacherhq/check-if-email-exists.git#bbf218ab5e8f379312d922763ce4c87dd66f4a69"
+version = "0.8.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15b49002367a1ad21d122bb14b70176acf3b2ab402aa2feafce84fcac86a571c"
 dependencies = [
  "async-smtp",
  "async-std",
@@ -1142,7 +1144,7 @@ dependencies = [
  "httparse",
  "httpdate",
  "itoa",
- "pin-project 1.0.6",
+ "pin-project",
  "socket2 0.4.0",
  "tokio",
  "tower-service",
@@ -1764,31 +1766,11 @@ dependencies = [
 
 [[package]]
 name = "pin-project"
-version = "0.4.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "918192b5c59119d51e0cd221f4d49dde9112824ba717369e903c97d076083d0f"
-dependencies = [
- "pin-project-internal 0.4.28",
-]
-
-[[package]]
-name = "pin-project"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc174859768806e91ae575187ada95c91a29e96a98dc5d2cd9a1fed039501ba6"
 dependencies = [
- "pin-project-internal 1.0.6",
-]
-
-[[package]]
-name = "pin-project-internal"
-version = "0.4.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3be26700300be6d9d23264c73211d8190e755b6b5ca7a1b28230025511b52a5e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
+ "pin-project-internal",
 ]
 
 [[package]]
