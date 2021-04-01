@@ -39,16 +39,11 @@ impl Default for Quirks {
                 // See https://stackoverflow.com/a/19377429/270334
                 pattern: Regex::new(r"^(https?://)?(www\.)?(youtube\.com|youtu\.?be)").unwrap(),
                 rewrite: |request| {
+                    if request.url().path() != "/watch" {
+                        return request;
+                    }
                     let mut out = request;
                     let original_url = out.url();
-                    if original_url.path() != "/watch" {
-                        return out;
-                    }
-                    // let pairs: HashMap<_, _> = original_url.query_pairs().collect();
-                    // // Leave non-video links untouched. These can be links to YouTube channels
-                    // if !pairs.contains_key("v") {
-                    //     return out;
-                    // }
                     let urlencoded: String =
                         url::form_urlencoded::byte_serialize(original_url.as_str().as_bytes())
                             .collect();
