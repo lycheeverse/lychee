@@ -41,6 +41,14 @@ impl Default for Quirks {
                 rewrite: |request| {
                     let mut out = request;
                     let original_url = out.url();
+                    if original_url.path() != "/watch" {
+                        return out;
+                    }
+                    // let pairs: HashMap<_, _> = original_url.query_pairs().collect();
+                    // // Leave non-video links untouched. These can be links to YouTube channels
+                    // if !pairs.contains_key("v") {
+                    //     return out;
+                    // }
                     let urlencoded: String =
                         url::form_urlencoded::byte_serialize(original_url.as_str().as_bytes())
                             .collect();
@@ -89,13 +97,23 @@ mod tests {
     }
 
     #[test]
-    fn test_youtube_request() {
+    fn test_youtube_video_request() {
         let orig = Url::parse("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").unwrap();
         let request = Request::new(Method::GET, orig);
         let quirks = Quirks::default();
         let modified = quirks.apply(request);
         let expected_url = Url::parse("https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNlKuICiT470%26list%3DPLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ%26index%3D7").unwrap();
         assert_eq!(modified.url(), &expected_url);
+        assert_eq!(modified.method(), Method::GET);
+    }
+
+    #[test]
+    fn test_non_video_youtube_url_untouched() {
+        let orig = Url::parse("https://www.youtube.com/channel/UCaYhcUwRBNscFNUKTjgPFiA").unwrap();
+        let request = Request::new(Method::GET, orig.clone());
+        let quirks = Quirks::default();
+        let modified = quirks.apply(request);
+        assert_eq!(modified.url(), &orig);
         assert_eq!(modified.method(), Method::GET);
     }
 
