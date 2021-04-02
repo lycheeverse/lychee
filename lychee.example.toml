@@ -66,3 +66,6 @@ exclude_link_local = false
 
 # Exclude loopback IP address range from checking
 exclude_loopback = false
+
+# Exclude all mail addresses from checking
+exclude_mail = false
