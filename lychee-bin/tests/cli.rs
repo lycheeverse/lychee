@@ -1,15 +1,27 @@
 #[cfg(test)]
 mod cli {
-    use pretty_assertions::assert_eq;
+    use std::{
+        fs::{self, File},
+        io::Write,
+        path::{Path, PathBuf},
+    };
 
-    use anyhow::Result;
     use assert_cmd::Command;
-    use lychee::test_utils;
+    use http::StatusCode;
+    use lychee_lib::Result;
     use predicates::str::contains;
-    use std::fs::{self, File};
-    use std::io::Write;
-    use std::path::{Path, PathBuf};
+    use pretty_assertions::assert_eq;
     use uuid::Uuid;
+
+    macro_rules! mock_server {
+        ($status:expr $(, $func:tt ($($arg:expr),*))*) => {{
+            let mock_server = wiremock::MockServer::start().await;
+            let template = wiremock::ResponseTemplate::new(http::StatusCode::from($status));
+            let template = template$(.$func($($arg),*))*;
+            wiremock::Mock::given(wiremock::matchers::method("GET")).respond_with(template).mount(&mock_server).await;
+            mock_server
+        }};
+    }
 
     fn main_command() -> Command {
         // this gets the "main" binary name (e.g. `lychee`)
@@ -17,90 +29,133 @@ mod cli {
     }
 
     fn fixtures_path() -> PathBuf {
-        Path::new(module_path!()).parent().unwrap().join("fixtures")
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("fixtures")
+    }
+
+    #[derive(Default)]
+    struct MockResponseStats {
+        total: usize,
+        successful: usize,
+        failures: usize,
+        timeouts: usize,
+        redirects: usize,
+        excludes: usize,
+        errors: usize,
+    }
+
+    impl MockResponseStats {
+        fn to_json_str(&self) -> String {
+            format!(
+                r#"{{
+  "total": {},
+  "successful": {},
+  "failures": {},
+  "timeouts": {},
+  "redirects": {},
+  "excludes": {},
+  "errors": {},
+  "fail_map": {{}}
+}}"#,
+                self.total,
+                self.successful,
+                self.failures,
+                self.timeouts,
+                self.redirects,
+                self.excludes,
+                self.errors
+            )
+        }
+    }
+
+    macro_rules! test_json_output {
+        ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
+            let mut cmd = main_command();
+            let test_path = fixtures_path().join($test_file);
+            let outfile = format!("{}.json", uuid::Uuid::new_v4());
+
+            let expected = $expected.to_json_str();
+
+            cmd$(.arg($arg))*.arg("--output").arg(&outfile).arg("--format").arg("json").arg(test_path).assert().success();
+
+            let output = std::fs::read_to_string(&outfile)?;
+            assert_eq!(output, expected);
+            std::fs::remove_file(outfile)?;
+            Ok(())
+        }};
     }
 
     #[test]
-    fn test_exclude_all_private() {
-        let mut cmd = main_command();
-
-        let test_all_private_path = fixtures_path().join("TEST_ALL_PRIVATE.md");
-
-        // assert that the command runs OK, and that it excluded all the links
-        cmd.arg("--exclude-all-private")
-            .arg("--verbose")
-            .arg(test_all_private_path)
-            .assert()
-            .success()
-            .stdout(contains("Total............7"))
-            .stdout(contains("Excluded.........7"))
-            .stdout(contains("Successful.......0"))
-            .stdout(contains("Errors...........0"));
+    fn test_exclude_all_private() -> Result<()> {
+        test_json_output!(
+            "TEST_ALL_PRIVATE.md",
+            MockResponseStats {
+                total: 7,
+                excludes: 7,
+                ..MockResponseStats::default()
+            },
+            "--exclude-all-private",
+            "--verbose"
+        )
     }
 
     #[test]
-    fn test_exclude_email() {
-        let mut cmd = main_command();
-
-        let test_path = fixtures_path().join("TEST_EMAIL.md");
-
-        // assert that the command runs OK, and that it excluded all the links
-        cmd.arg("--exclude-mail")
-            .arg(test_path)
-            .assert()
-            .success()
-            .stdout(contains("Total............6"))
-            .stdout(contains("Excluded.........4"))
-            .stdout(contains("Successful.......2"))
-            .stdout(contains("Errors...........0"));
+    fn test_exclude_email() -> Result<()> {
+        test_json_output!(
+            "TEST_EMAIL.md",
+            MockResponseStats {
+                total: 6,
+                excludes: 4,
+                successful: 2,
+                ..MockResponseStats::default()
+            },
+            "--exclude-mail"
+        )
     }
 
     /// Test that a GitHub link can be checked without specifying the token.
     #[test]
-    fn test_check_github_no_token() {
-        let mut cmd = main_command();
-        let test_github_path = fixtures_path().join("TEST_GITHUB.md");
-
-        cmd.arg("--verbose")
-            .arg(test_github_path)
-            .assert()
-            .success()
-            .stdout(contains("Total............1"))
-            .stdout(contains("Excluded.........0"))
-            .stdout(contains("Successful.......1"))
-            .stdout(contains("Errors...........0"));
+    fn test_check_github_no_token() -> Result<()> {
+        test_json_output!(
+            "TEST_GITHUB.md",
+            MockResponseStats {
+                total: 1,
+                successful: 1,
+                ..MockResponseStats::default()
+            }
+        )
     }
 
     #[test]
-    fn test_quirks() {
-        let mut cmd = main_command();
-        let test_quirks_path = fixtures_path().join("TEST_QUIRKS.txt");
-
-        cmd.arg("--verbose")
-            .arg(test_quirks_path)
-            .assert()
-            .success()
-            .stdout(contains("Total............2"))
-            .stdout(contains("Excluded.........0"))
-            .stdout(contains("Successful.......2"))
-            .stdout(contains("Errors...........0"));
+    fn test_quirks() -> Result<()> {
+        test_json_output!(
+            "TEST_QUIRKS.txt",
+            MockResponseStats {
+                total: 2,
+                successful: 2,
+                ..MockResponseStats::default()
+            }
+        )
     }
 
     #[tokio::test]
-    async fn test_failure_404_link() {
-        let mut cmd = main_command();
-        let mock_server = test_utils::get_mock_server(http::StatusCode::NOT_FOUND).await;
-        let dir = tempfile::tempdir().expect("Failed to create tempdir");
+    async fn test_failure_404_link() -> Result<()> {
+        let mock_server = mock_server!(StatusCode::NOT_FOUND);
+        let dir = tempfile::tempdir()?;
         let file_path = dir.path().join("test.txt");
-        let mut file = File::create(&file_path).expect("Failed to create tempfile");
+        let mut file = File::create(&file_path)?;
+        writeln!(file, "{}", mock_server.uri())?;
 
-        writeln!(file, "{}", mock_server.uri()).expect("Failed to write to file");
-
+        let mut cmd = main_command();
         cmd.arg(file_path)
             .write_stdin(mock_server.uri())
             .assert()
             .failure()
             .code(2);
+
+        Ok(())
     }
 
     #[test]
@@ -121,7 +176,7 @@ mod cli {
     #[tokio::test]
     async fn test_stdin_input() {
         let mut cmd = main_command();
-        let mock_server = test_utils::get_mock_server(http::StatusCode::OK).await;
+        let mock_server = mock_server!(StatusCode::OK);
 
         cmd.arg("-")
             .write_stdin(mock_server.uri())
@@ -132,8 +187,7 @@ mod cli {
     #[tokio::test]
     async fn test_stdin_input_failure() {
         let mut cmd = main_command();
-        let mock_server =
-            test_utils::get_mock_server(http::StatusCode::INTERNAL_SERVER_ERROR).await;
+        let mock_server = mock_server!(StatusCode::INTERNAL_SERVER_ERROR);
 
         cmd.arg("-")
             .write_stdin(mock_server.uri())
@@ -145,8 +199,8 @@ mod cli {
     #[tokio::test]
     async fn test_stdin_input_multiple() {
         let mut cmd = main_command();
-        let mock_server_a = test_utils::get_mock_server(http::StatusCode::OK).await;
-        let mock_server_b = test_utils::get_mock_server(http::StatusCode::OK).await;
+        let mock_server_a = mock_server!(StatusCode::OK);
+        let mock_server_b = mock_server!(StatusCode::OK);
 
         // this behavior (treating multiple `-` as separate inputs) is the same as most CLI tools
         // that accept `-` as stdin, e.g. `cat`, `bat`, `grep` etc.
@@ -168,7 +222,7 @@ mod cli {
             .failure()
             .code(1)
             .stderr(contains(format!(
-                "Error: Failed to read file: `{}`",
+                "Error: Failed to read file: `{}`, reason: No such file or directory (os error 2)",
                 filename
             )));
     }
@@ -187,8 +241,8 @@ mod cli {
         let mut cmd = main_command();
 
         let dir = tempfile::tempdir()?;
-        let mock_server_a = test_utils::get_mock_server(http::StatusCode::OK).await;
-        let mock_server_b = test_utils::get_mock_server(http::StatusCode::OK).await;
+        let mock_server_a = mock_server!(StatusCode::OK);
+        let mock_server_b = mock_server!(StatusCode::OK);
         let mut file_a = File::create(dir.path().join("a.md"))?;
         let mut file_b = File::create(dir.path().join("b.md"))?;
 
@@ -210,8 +264,8 @@ mod cli {
         let mut cmd = main_command();
 
         let dir = tempfile::tempdir()?;
-        let mock_server_a = test_utils::get_mock_server(http::StatusCode::OK).await;
-        let mock_server_b = test_utils::get_mock_server(http::StatusCode::OK).await;
+        let mock_server_a = mock_server!(StatusCode::OK);
+        let mock_server_b = mock_server!(StatusCode::OK);
         let mut file_a = File::create(dir.path().join("README.md"))?;
         let mut file_b = File::create(dir.path().join("readme.md"))?;
 
@@ -236,7 +290,7 @@ mod cli {
         let subdir_level_1 = tempfile::tempdir_in(&dir)?;
         let subdir_level_2 = tempfile::tempdir_in(&subdir_level_1)?;
 
-        let mock_server = test_utils::get_mock_server(http::StatusCode::OK).await;
+        let mock_server = mock_server!(StatusCode::OK);
         let mut file = File::create(subdir_level_2.path().join("test.md"))?;
 
         writeln!(file, "{}", mock_server.uri().as_str())?;
@@ -266,7 +320,7 @@ mod cli {
             .assert()
             .success();
 
-        let expected = r##"{"total":11,"successful":11,"failures":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"fail_map":{}}"##;
+        let expected = r#"{"total":11,"successful":11,"failures":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"fail_map":{}}"#;
         let output = fs::read_to_string(&outfile)?;
         assert_eq!(output.split_whitespace().collect::<String>(), expected);
         fs::remove_file(outfile)?;

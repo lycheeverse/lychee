@@ -1,32 +1,42 @@
-use crate::{
-    extract::{extract_links, FileType},
-    Request,
+use std::{
+    collections::HashSet,
+    fmt::Display,
+    path::{Path, PathBuf},
 };
-use anyhow::{anyhow, Context, Result};
+
 use glob::glob_with;
 use reqwest::Url;
 use serde::Serialize;
 use shellexpand::tilde;
-use std::path::Path;
-use std::path::PathBuf;
-use std::{collections::HashSet, fmt::Display};
-use tokio::fs::read_to_string;
-use tokio::io::{stdin, AsyncReadExt};
+use tokio::{
+    fs::read_to_string,
+    io::{stdin, AsyncReadExt},
+};
+
+use crate::{
+    extract::{extract_links, FileType},
+    Request, Result,
+};
 
 const STDIN: &str = "-";
-
+/// Links which need to be validated.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Input {
+    /// URL (of HTTP/HTTPS scheme).
     RemoteUrl(Url),
+    /// Unix shell style glob pattern.
     FsGlob { pattern: String, ignore_case: bool },
+    /// File path.
     FsPath(PathBuf),
+    /// Standard Input.
     Stdin,
+    /// Raw string input.
     String(String),
 }
 
 impl Serialize for Input {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -36,26 +46,13 @@ impl Serialize for Input {
 
 impl Display for Input {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Input::RemoteUrl(url) => {
-                write!(f, "{}", url)
-            }
-            Input::FsGlob {
-                pattern,
-                ignore_case: _,
-            } => {
-                write!(f, "{}", pattern)
-            }
-            Input::FsPath(path) => {
-                write!(f, "{}", path.to_str().unwrap_or_default())
-            }
-            Input::Stdin => {
-                write!(f, "stdin")
-            }
-            Input::String(_) => {
-                write!(f, "raw input string")
-            }
-        }
+        f.write_str(match self {
+            Input::RemoteUrl(url) => url.as_str(),
+            Input::FsGlob { pattern, .. } => pattern,
+            Input::FsPath(path) => path.to_str().unwrap_or_default(),
+            Input::Stdin => "stdin",
+            Input::String(_) => "raw input string",
+        })
     }
 }
 
@@ -67,6 +64,7 @@ pub struct InputContent {
 }
 
 impl InputContent {
+    #[must_use]
     pub fn from_string(s: &str, file_type: FileType) -> Self {
         // TODO: consider using Cow (to avoid one .clone() for String types)
         Self {
@@ -78,25 +76,23 @@ impl InputContent {
 }
 
 impl Input {
+    #[must_use]
     pub fn new(value: &str, glob_ignore_case: bool) -> Self {
         if value == STDIN {
             Self::Stdin
+        } else if let Ok(url) = Url::parse(&value) {
+            Self::RemoteUrl(url)
         } else {
-            match Url::parse(&value) {
-                Ok(url) => Self::RemoteUrl(url),
-                Err(_) => {
-                    // this seems to be the only way to determine if this is a glob pattern
-                    let is_glob = glob::Pattern::escape(value) != value;
+            // this seems to be the only way to determine if this is a glob pattern
+            let is_glob = glob::Pattern::escape(value) != value;
 
-                    if is_glob {
-                        Self::FsGlob {
-                            pattern: value.to_owned(),
-                            ignore_case: glob_ignore_case,
-                        }
-                    } else {
-                        Self::FsPath(value.into())
-                    }
+            if is_glob {
+                Self::FsGlob {
+                    pattern: value.to_owned(),
+                    ignore_case: glob_ignore_case,
                 }
+            } else {
+                Self::FsPath(value.into())
             }
         }
     }
@@ -106,30 +102,23 @@ impl Input {
         file_type_hint: Option<FileType>,
         skip_missing: bool,
     ) -> Result<Vec<InputContent>> {
-        use Input::*;
-
-        match self {
+        match *self {
             // TODO: should skip_missing also affect URLs?
-            RemoteUrl(url) => Ok(vec![Self::url_contents(url).await?]),
-            FsGlob {
-                pattern,
+            Input::RemoteUrl(ref url) => Ok(vec![Self::url_contents(url).await?]),
+            Input::FsGlob {
+                ref pattern,
                 ignore_case,
-            } => Ok(Self::glob_contents(pattern, *ignore_case).await?),
-            FsPath(path) => {
-                let content = Self::path_content(&path).await.with_context(|| {
-                    format!(
-                        "Failed to read file: `{}`",
-                        path.to_str().unwrap_or("<MALFORMED PATH>")
-                    )
-                });
+            } => Ok(Self::glob_contents(pattern, ignore_case).await?),
+            Input::FsPath(ref path) => {
+                let content = Self::path_content(path).await;
                 match content {
                     Ok(input_content) => Ok(vec![input_content]),
                     Err(_) if skip_missing => Ok(vec![]),
-                    Err(arg) => Err(anyhow!(arg)),
+                    Err(e) => Err(e),
                 }
             }
-            Stdin => Ok(vec![Self::stdin_content(file_type_hint).await?]),
-            String(s) => Ok(vec![Self::string_content(s, file_type_hint)]),
+            Input::Stdin => Ok(vec![Self::stdin_content(file_type_hint).await?]),
+            Input::String(ref s) => Ok(vec![Self::string_content(s, file_type_hint)]),
         }
     }
 
@@ -142,11 +131,10 @@ impl Input {
         };
 
         let res = reqwest::get(url.clone()).await?;
-        let content = res.text().await?;
         let input_content = InputContent {
             input: Input::RemoteUrl(url.clone()),
             file_type,
-            content,
+            content: res.text().await?,
         };
 
         Ok(input_content)
@@ -172,10 +160,13 @@ impl Input {
         Ok(contents)
     }
 
-    async fn path_content<P: Into<PathBuf> + AsRef<Path>>(path: P) -> Result<InputContent> {
+    async fn path_content<P: Into<PathBuf> + AsRef<Path> + Clone>(path: P) -> Result<InputContent> {
+        let content = read_to_string(&path)
+            .await
+            .map_err(|e| (path.clone().into(), e))?;
         let input_content = InputContent {
             file_type: FileType::from(path.as_ref()),
-            content: read_to_string(&path).await?,
+            content,
             input: Input::FsPath(path.into()),
         };
 
@@ -209,9 +200,10 @@ pub async fn collect_links(
     skip_missing_inputs: bool,
     max_concurrency: usize,
 ) -> Result<HashSet<Request>> {
-    let base_url = match base_url {
-        Some(url) => Some(Url::parse(&url)?),
-        _ => None,
+    let base_url = if let Some(url) = base_url {
+        Some(Url::parse(&url).map_err(|e| (url, e))?)
+    } else {
+        None
     };
 
     let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(max_concurrency);
@@ -236,7 +228,7 @@ pub async fn collect_links(
         for input_content in result? {
             let base_url = base_url.clone();
             let handle =
-                tokio::task::spawn_blocking(move || extract_links(&input_content, base_url));
+                tokio::task::spawn_blocking(move || extract_links(&input_content, &base_url));
             extract_links_handles.push(handle);
         }
     }
@@ -257,16 +249,19 @@ pub async fn collect_links(
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use pretty_assertions::assert_eq;
+    use std::{fs::File, io::Write};
 
+    use http::StatusCode;
+    use pretty_assertions::assert_eq;
+    use reqwest::Url;
+
+    use super::{collect_links, Input};
     use crate::{
-        test_utils::{get_mock_server_with_content, website},
-        Uri,
+        extract::FileType,
+        mock_server,
+        test_utils::{mail, website},
+        Result, Uri,
     };
-    use std::fs::File;
-    use std::io::Write;
-    use std::str::FromStr;
 
     #[tokio::test]
     #[ignore]
@@ -294,17 +289,38 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_collect_links() -> Result<()> {
-        const TEST_STRING: &str = "http://test-string.com";
-        const TEST_URL: &str = "https://test-url.org";
-        const TEST_FILE: &str = "https://test-file.io";
-        const TEST_GLOB_1: &str = "https://test-glob-1.io";
-        const TEST_GLOB_2_MAIL: &str = "test@glob-2.io";
+    #[ignore]
+    async fn test_file_without_extension_is_plaintext() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        // Treat as plaintext file (no extension)
+        let file_path = temp_dir.path().join("README");
+        let _file = File::create(&file_path)?;
+        let input = Input::new(&file_path.as_path().display().to_string(), true);
+        let contents = input.get_contents(None, true).await?;
 
-        let dir = tempfile::tempdir()?;
-        let file_path = dir.path().join("f");
-        let file_glob_1_path = dir.path().join("glob-1");
-        let file_glob_2_path = dir.path().join("glob-2");
+        assert_eq!(contents.len(), 1);
+        assert_eq!(contents[0].file_type, FileType::Plaintext);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_url_without_extension_is_html() -> Result<()> {
+        let input = Input::new("https://example.org/", true);
+        let contents = input.get_contents(None, true).await?;
+
+        assert_eq!(contents.len(), 1);
+        assert_eq!(contents[0].file_type, FileType::Html);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_collect_links() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let temp_dir_path = temp_dir.path();
+
+        let file_path = temp_dir_path.join("f");
+        let file_glob_1_path = temp_dir_path.join("glob-1");
+        let file_glob_2_path = temp_dir_path.join("glob-2");
 
         let mut file = File::create(&file_path)?;
         let mut file_glob_1 = File::create(file_glob_1_path)?;
@@ -314,14 +330,14 @@ mod test {
         writeln!(file_glob_1, "{}", TEST_GLOB_1)?;
         writeln!(file_glob_2, "{}", TEST_GLOB_2_MAIL)?;
 
-        let mock_server = get_mock_server_with_content(http::StatusCode::OK, Some(TEST_URL)).await;
+        let mock_server = mock_server!(StatusCode::OK, set_body_string(TEST_URL));
 
         let inputs = vec![
-            Input::String(TEST_STRING.to_string()),
-            Input::RemoteUrl(Url::from_str(&mock_server.uri())?),
+            Input::String(TEST_STRING.to_owned()),
+            Input::RemoteUrl(Url::parse(&mock_server.uri()).map_err(|e| (mock_server.uri(), e))?),
             Input::FsPath(file_path),
             Input::FsGlob {
-                pattern: dir.path().join("glob*").to_str().unwrap().to_string(),
+                pattern: temp_dir_path.join("glob*").to_str().unwrap().to_owned(),
                 ignore_case: true,
             },
         ];
@@ -329,12 +345,12 @@ mod test {
         let responses = collect_links(&inputs, None, false, 8).await?;
         let mut links = responses.into_iter().map(|r| r.uri).collect::<Vec<Uri>>();
 
-        let mut expected_links: Vec<Uri> = vec![
+        let mut expected_links = vec![
             website(TEST_STRING),
             website(TEST_URL),
             website(TEST_FILE),
             website(TEST_GLOB_1),
-            Uri::Mail(TEST_GLOB_2_MAIL.to_string()),
+            mail(TEST_GLOB_2_MAIL),
         ];
 
         links.sort();

@@ -3,8 +3,8 @@
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
 [![docs.rs](https://docs.rs/lychee/badge.svg)](https://docs.rs/lychee)
 
-⚡ A fast, async, resource-friendly link checker written in Rust.  
-Finds broken hyperlinks and mail addresses inside Markdown, HTML, reStructuredText, or any other text file or website!  
+⚡ A fast, async, resource-friendly link checker written in Rust.\\
+Finds broken hyperlinks and mail addresses inside Markdown, HTML, reStructuredText, or any other text file or website!
 
 Available as a CLI utility and as a GitHub Action: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action).
 
@@ -208,11 +208,11 @@ You can use lychee as a library for your own projects.
 Here is a "hello world" example:
 
 ```rust
-use std::error::Error;
+use lychee_lib::Result;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-  let response = lychee::check("https://github.com/lycheeverse/lychee").await?;
+async fn main() -> Result<()> {
+  let response = lychee_lib::check("https://github.com/lycheeverse/lychee").await?;
   println!("{}", response);
   Ok(())
 }
@@ -221,22 +221,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
 This is equivalent to the following snippet, in which we build our own client:
 
 ```rust
-use lychee::{ClientBuilder, Status};
-use std::error::Error;
+use lychee_lib::{ClientBuilder, Result, Status};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<()> {
   let client = ClientBuilder::default().build()?;
   let response = client.check("https://github.com/lycheeverse/lychee").await?;
-  assert!(matches!(response.status, Status::Ok(_)));
+  assert!(response.status().is_success());
   Ok(())
 }
 ```
 
 The client builder is very customizable:
 
-```rust,ignore
-let client = lychee::ClientBuilder::default()
+```rust, ignore
+let client = lychee_lib::ClientBuilder::default()
     .includes(includes)
     .excludes(excludes)
     .max_redirects(cfg.max_redirects)

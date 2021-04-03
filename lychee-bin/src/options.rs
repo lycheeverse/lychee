@@ -1,17 +1,24 @@
-use lychee::collector::Input;
+use std::{fs, io::ErrorKind, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, Error, Result};
 use lazy_static::lazy_static;
+use lychee_lib::collector::Input;
 use serde::Deserialize;
-use std::str::FromStr;
-use std::{fs, io::ErrorKind, path::PathBuf};
 use structopt::{clap::crate_version, StructOpt};
 
-pub(crate) const USER_AGENT: &str = concat!("lychee/", crate_version!());
 const METHOD: &str = "get";
 const TIMEOUT: usize = 20;
 const MAX_CONCURRENCY: usize = 128;
 const MAX_REDIRECTS: usize = 10;
+const USER_AGENT: &str = concat!("lychee/", crate_version!());
+
+// this exists because structopt requires `&str` type values for defaults
+// (we can't use e.g. `TIMEOUT` or `timeout()` which gets created for serde)
+lazy_static! {
+    static ref TIMEOUT_STR: String = TIMEOUT.to_string();
+    static ref MAX_CONCURRENCY_STR: String = MAX_CONCURRENCY.to_string();
+    static ref MAX_REDIRECTS_STR: String = MAX_REDIRECTS.to_string();
+}
 
 #[derive(Debug, Deserialize)]
 pub enum Format {
@@ -34,14 +41,6 @@ impl Default for Format {
     fn default() -> Self {
         Format::String
     }
-}
-
-// this exists because structopt requires `&str` type values for defaults
-// (we can't use e.g. `TIMEOUT` or `timeout()` which gets created for serde)
-lazy_static! {
-    static ref TIMEOUT_STR: String = TIMEOUT.to_string();
-    static ref MAX_CONCURRENCY_STR: String = MAX_CONCURRENCY.to_string();
-    static ref MAX_REDIRECTS_STR: String = MAX_REDIRECTS.to_string();
 }
 
 // Macro for generating default functions to be used by serde
