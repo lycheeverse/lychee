@@ -1338,9 +1338,9 @@ checksum = "7fb9b38af92608140b86b693604b9ffcc5824240a484d1ecd4795bacb2fe88f3"
 
 [[package]]
 name = "linkify"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78d59d732ba6d7eeefc418aab8057dc8e3da4374bd5802ffa95bebc04b4d1dfb"
+checksum = "1986921c3c13e81df623c66a298d4b130c061bcb98a01f5b2d3ac402b1649a7f"
 dependencies = [
  "memchr",
 ]
