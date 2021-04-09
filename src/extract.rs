@@ -77,9 +77,7 @@ fn extract_links_from_html(input: &str) -> Vec<String> {
 fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
     match node.data {
         NodeData::Text { ref contents } => {
-            // escape_default turns tab characters into "\t", newlines into "\n", etc.
-            let esc_contents = contents.borrow().escape_default().to_string();
-            for link in extract_links_from_plaintext(&esc_contents) {
+            for link in extract_links_from_plaintext(&contents.borrow()) {
                 urls.push(link);
             }
         }
@@ -223,6 +221,21 @@ mod test {
             FileType::from(Path::new("/absolute/path/to/test.something")),
             FileType::Plaintext
         );
+    }
+
+    #[test]
+    fn test_extract_link_at_end_of_line() {
+        let link = "http://www.apache.org/licenses/LICENSE-2.0";
+        let input = format!("{}\n", link);
+
+        let found = extract_links_from_markdown(&input);
+        assert_eq!(vec![link], found);
+
+        let found = extract_links_from_plaintext(&input);
+        assert_eq!(vec![link], found);
+
+        let found = extract_links_from_html(&input);
+        assert_eq!(vec![link], found);
     }
 
     #[test]
