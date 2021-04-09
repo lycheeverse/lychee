@@ -103,6 +103,7 @@ mod test {
     use reqwest::Url;
 
     use super::*;
+    use pretty_assertions::assert_eq;
 
     use crate::{test_utils::website, Input};
 

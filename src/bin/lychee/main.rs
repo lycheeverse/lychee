@@ -239,6 +239,8 @@ fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use pretty_assertions::assert_eq;
+
     use http::StatusCode;
     use reqwest::header;
 

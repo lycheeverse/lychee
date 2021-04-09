@@ -125,6 +125,7 @@ mod test_super {
     use lychee::{test_utils::website, Status};
 
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_stats_is_empty() {

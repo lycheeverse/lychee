@@ -181,6 +181,7 @@ mod test {
     use crate::test_utils::website;
 
     use super::*;
+    use pretty_assertions::assert_eq;
     use std::fs::File;
     use std::io::{BufReader, Read};
 

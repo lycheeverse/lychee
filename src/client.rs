@@ -298,6 +298,7 @@ pub async fn check<T: TryInto<Request>>(request: T) -> Result<Response> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use pretty_assertions::assert_eq;
     use std::time::{Duration, Instant};
     use wiremock::matchers::method;
     use wiremock::{Mock, MockServer, ResponseTemplate};
