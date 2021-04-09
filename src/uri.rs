@@ -6,7 +6,7 @@ use std::{convert::TryFrom, fmt::Display};
 use url::Url;
 
 /// Lychee's own representation of a URI, which encapsulates all support formats
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialOrd, Ord, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Uri {
     /// Website URL
     Website(Url),
