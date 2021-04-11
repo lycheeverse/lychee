@@ -32,7 +32,7 @@ impl<P: AsRef<Path>> From<P> for FileType {
                 _ if (ext == "htm" || ext == "html") => FileType::Html,
                 _ => FileType::Plaintext,
             },
-            None => FileType::Html,
+            None => FileType::Plaintext,
         }
     }
 }
@@ -203,9 +203,8 @@ mod test {
 
     #[test]
     fn test_file_type() {
-        // Assume HTML in case there is no extension (that's including URLs
-        // without a path)
-        assert_eq!(FileType::from(Path::new("/")), FileType::Html);
+        // Assume Plaintext in case there is no extension
+        assert_eq!(FileType::from(Path::new("/")), FileType::Plaintext);
         assert_eq!(FileType::from(Path::new("test.md")), FileType::Markdown);
         assert_eq!(
             FileType::from(Path::new("test.markdown")),
