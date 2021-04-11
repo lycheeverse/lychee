@@ -297,12 +297,13 @@ mod test {
         let responses = collect_links(&inputs, None, false, 8).await?;
         let mut links = responses.into_iter().map(|r| r.uri).collect::<Vec<Uri>>();
 
-        let mut expected_links: Vec<Uri> = Vec::new();
-        expected_links.push(website(TEST_STRING));
-        expected_links.push(website(TEST_URL));
-        expected_links.push(website(TEST_FILE));
-        expected_links.push(website(TEST_GLOB_1));
-        expected_links.push(Uri::Mail(TEST_GLOB_2_MAIL.to_string()));
+        let mut expected_links: Vec<Uri> = vec![
+            website(TEST_STRING),
+            website(TEST_URL),
+            website(TEST_FILE),
+            website(TEST_GLOB_1),
+            Uri::Mail(TEST_GLOB_2_MAIL.to_string()),
+        ];
 
         links.sort();
         expected_links.sort();
