@@ -20,12 +20,12 @@ version = "0.6.0"
 anyhow = "1.0.38"
 futures = "0.3.13"
 glob = "0.3.0"
-http = "0.2.3"
+http = "0.2.4"
 hubcaps = "0.6.2"
-linkify = "0.5.0"
+linkify = "0.6.0"
 regex = "1.4.5"
 url = "2.2.1"
-check-if-email-exists = "0.8.19"
+check-if-email-exists = "0.8.21"
 indicatif = "0.15.0"
 structopt = "0.3.21"
 toml = "0.5.8"
@@ -35,7 +35,7 @@ html5ever = "0.25.1"
 markup5ever = "0.10.0"
 markup5ever_rcdom = "0.1.0"
 headers = "0.3.4"
-derive_builder = "0.9.0"
+derive_builder = "0.10.0"
 deadpool = "0.7.0"
 shellexpand = "2.1.0"
 lazy_static = "1.4.0"
@@ -60,10 +60,6 @@ features = ["full"]
 version = "1.3.0"
 
 [patch.crates-io]
-# Switch to version on crates.io after resolving
-# https://github.com/async-email/async-smtp/issues/40 and new version of
-# check-if-email-exists is released
-check-if-email-exists = { git = "https://github.com/reacherhq/check-if-email-exists.git" }
 # Switch back to version on crates.io after 0.6.3+ is released
 hubcaps = { git="https://github.com/softprops/hubcaps.git" }
 

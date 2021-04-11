@@ -56,7 +56,7 @@ impl Filter {
             return false;
         }
         // Exclude well-known false-positives.
-        // This is done after checking includes to allow for user overwrites.
+        // This is done after checking includes to allow for user-overwrites.
         if self.excludes.false_positive(request.uri.as_str()) {
             return true;
         }
@@ -65,8 +65,7 @@ impl Filter {
         if !self.includes.is_empty() && self.excludes.is_empty() {
             return true;
         }
-        // We have no includes. Check regex excludes.
-        // This includes well-known false positives.
+        // We have no includes. Check regex excludes
         if self.excludes.regex(request.uri.as_str()) {
             return true;
         }
@@ -187,6 +186,31 @@ mod test {
         assert_eq!(filter.excluded(&request("https://foo.example.org")), false);
         assert_eq!(filter.excluded(&request("https://bar.example.org")), true);
         assert_eq!(filter.excluded(&request("https://example.org")), true);
+    }
+
+    #[test]
+    fn test_exclude_mail() {
+        let excludes = Excludes {
+            mail: true,
+            ..Default::default()
+        };
+        let filter = Filter::new(None, Some(excludes), None);
+
+        assert_eq!(
+            filter.excluded(&Request::new(
+                Uri::Mail("mail@example.org".to_string()),
+                Input::Stdin,
+            )),
+            true
+        );
+        assert_eq!(
+            filter.excluded(&Request::new(
+                Uri::Mail("foo@bar.dev".to_string()),
+                Input::Stdin,
+            )),
+            true
+        );
+        assert_eq!(filter.excluded(&request("http://bar.dev")), false);
     }
 
     #[test]

@@ -39,6 +39,9 @@ impl Default for Quirks {
                 // See https://stackoverflow.com/a/19377429/270334
                 pattern: Regex::new(r"^(https?://)?(www\.)?(youtube\.com|youtu\.?be)").unwrap(),
                 rewrite: |request| {
+                    if request.url().path() != "/watch" {
+                        return request;
+                    }
                     let mut out = request;
                     let original_url = out.url();
                     let urlencoded: String =
@@ -90,13 +93,23 @@ mod tests {
     }
 
     #[test]
-    fn test_youtube_request() {
+    fn test_youtube_video_request() {
         let orig = Url::parse("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").unwrap();
         let request = Request::new(Method::GET, orig);
         let quirks = Quirks::default();
         let modified = quirks.apply(request);
         let expected_url = Url::parse("https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNlKuICiT470%26list%3DPLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ%26index%3D7").unwrap();
         assert_eq!(modified.url(), &expected_url);
+        assert_eq!(modified.method(), Method::GET);
+    }
+
+    #[test]
+    fn test_non_video_youtube_url_untouched() {
+        let orig = Url::parse("https://www.youtube.com/channel/UCaYhcUwRBNscFNUKTjgPFiA").unwrap();
+        let request = Request::new(Method::GET, orig.clone());
+        let quirks = Quirks::default();
+        let modified = quirks.apply(request);
+        assert_eq!(modified.url(), &orig);
         assert_eq!(modified.method(), Method::GET);
     }
 

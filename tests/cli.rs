@@ -36,6 +36,23 @@ mod cli {
             .stdout(contains("Errors...........0"));
     }
 
+    #[test]
+    fn test_exclude_email() {
+        let mut cmd = main_command();
+
+        let test_path = fixtures_path().join("TEST_EMAIL.md");
+
+        // assert that the command runs OK, and that it excluded all the links
+        cmd.arg("--exclude-mail")
+            .arg(test_path)
+            .assert()
+            .success()
+            .stdout(contains("Total............6"))
+            .stdout(contains("Excluded.........4"))
+            .stdout(contains("Successful.......2"))
+            .stdout(contains("Errors...........0"));
+    }
+
     /// Test that a GitHub link can be checked without specifying the token.
     #[test]
     fn test_check_github_no_token() {
