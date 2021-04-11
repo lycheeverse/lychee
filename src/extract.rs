@@ -83,7 +83,7 @@ fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
         }
 
         NodeData::Comment { ref contents } => {
-            for link in extract_links_from_plaintext(&contents.escape_default().to_string()) {
+            for link in extract_links_from_plaintext(contents) {
                 urls.push(link);
             }
         }
@@ -94,7 +94,7 @@ fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
             ..
         } => {
             for attr in attrs.borrow().iter() {
-                let attr_value = attr.value.escape_default().to_string();
+                let attr_value = attr.value.to_string();
 
                 if elem_attr_is_link(attr.name.local.as_ref(), name.local.as_ref()) {
                     urls.push(attr_value);
