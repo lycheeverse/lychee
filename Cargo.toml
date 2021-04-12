@@ -18,7 +18,7 @@ version = "0.6.0"
 
 [dependencies]
 anyhow = "1.0.38"
-futures = "0.3.13"
+futures = "0.3.14"
 glob = "0.3.0"
 http = "0.2.4"
 hubcaps = "0.6.2"
