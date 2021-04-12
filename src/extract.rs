@@ -77,15 +77,13 @@ fn extract_links_from_html(input: &str) -> Vec<String> {
 fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
     match node.data {
         NodeData::Text { ref contents } => {
-            // escape_default turns tab characters into "\t", newlines into "\n", etc.
-            let esc_contents = contents.borrow().escape_default().to_string();
-            for link in extract_links_from_plaintext(&esc_contents) {
+            for link in extract_links_from_plaintext(&contents.borrow()) {
                 urls.push(link);
             }
         }
 
         NodeData::Comment { ref contents } => {
-            for link in extract_links_from_plaintext(&contents.escape_default().to_string()) {
+            for link in extract_links_from_plaintext(contents) {
                 urls.push(link);
             }
         }
@@ -96,7 +94,7 @@ fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
             ..
         } => {
             for attr in attrs.borrow().iter() {
-                let attr_value = attr.value.escape_default().to_string();
+                let attr_value = attr.value.to_string();
 
                 if elem_attr_is_link(attr.name.local.as_ref(), name.local.as_ref()) {
                     urls.push(attr_value);
@@ -181,6 +179,7 @@ mod test {
     use crate::test_utils::website;
 
     use super::*;
+    use pretty_assertions::assert_eq;
     use std::fs::File;
     use std::io::{BufReader, Read};
 
@@ -204,6 +203,8 @@ mod test {
 
     #[test]
     fn test_file_type() {
+        // Assume Plaintext in case there is no extension
+        assert_eq!(FileType::from(Path::new("/")), FileType::Plaintext);
         assert_eq!(FileType::from(Path::new("test.md")), FileType::Markdown);
         assert_eq!(
             FileType::from(Path::new("test.markdown")),
@@ -219,6 +220,21 @@ mod test {
             FileType::from(Path::new("/absolute/path/to/test.something")),
             FileType::Plaintext
         );
+    }
+
+    #[test]
+    fn test_extract_link_at_end_of_line() {
+        let link = "http://www.apache.org/licenses/LICENSE-2.0";
+        let input = format!("{}\n", link);
+
+        let found = extract_links_from_markdown(&input);
+        assert_eq!(vec![link], found);
+
+        let found = extract_links_from_plaintext(&input);
+        assert_eq!(vec![link], found);
+
+        let found = extract_links_from_html(&input);
+        assert_eq!(vec![link], found);
     }
 
     #[test]

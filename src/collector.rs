@@ -134,11 +134,18 @@ impl Input {
     }
 
     async fn url_contents(url: &Url) -> Result<InputContent> {
+        // Assume HTML for default paths
+        let file_type = if url.path().is_empty() || url.path() == "/" {
+            FileType::Html
+        } else {
+            FileType::from(url.as_str())
+        };
+
         let res = reqwest::get(url.clone()).await?;
         let content = res.text().await?;
         let input_content = InputContent {
             input: Input::RemoteUrl(url.clone()),
-            file_type: FileType::from(url.as_str()),
+            file_type,
             content,
         };
 
@@ -251,6 +258,8 @@ pub async fn collect_links(
 #[cfg(test)]
 mod test {
     use super::*;
+    use pretty_assertions::assert_eq;
+
     use crate::{
         test_utils::{get_mock_server_with_content, website},
         Uri,
@@ -259,14 +268,39 @@ mod test {
     use std::io::Write;
     use std::str::FromStr;
 
-    const TEST_STRING: &str = "http://test-string.com";
-    const TEST_URL: &str = "https://test-url.org";
-    const TEST_FILE: &str = "https://test-file.io";
-    const TEST_GLOB_1: &str = "https://test-glob-1.io";
-    const TEST_GLOB_2_MAIL: &str = "test@glob-2.io";
+    #[tokio::test]
+    async fn test_file_without_extension_is_plaintext() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        // Treat as plaintext file (no extension)
+        let file_path = dir.path().join("README");
+        let _file = File::create(&file_path)?;
+        let input = Input::new(&file_path.as_path().display().to_string(), true);
+        let contents = input.get_contents(None, true).await?;
+
+        assert_eq!(contents.len(), 1);
+        assert_eq!(contents[0].file_type, FileType::Plaintext);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_url_without_extension_is_html() -> Result<()> {
+        let input = Input::new("https://example.org/", true);
+        let contents = input.get_contents(None, true).await?;
+
+        println!("{:?}", contents);
+        assert_eq!(contents.len(), 1);
+        assert_eq!(contents[0].file_type, FileType::Html);
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_collect_links() -> Result<()> {
+        const TEST_STRING: &str = "http://test-string.com";
+        const TEST_URL: &str = "https://test-url.org";
+        const TEST_FILE: &str = "https://test-file.io";
+        const TEST_GLOB_1: &str = "https://test-glob-1.io";
+        const TEST_GLOB_2_MAIL: &str = "test@glob-2.io";
+
         let dir = tempfile::tempdir()?;
         let file_path = dir.path().join("f");
         let file_glob_1_path = dir.path().join("glob-1");
@@ -293,18 +327,18 @@ mod test {
         ];
 
         let responses = collect_links(&inputs, None, false, 8).await?;
-        let links = responses
-            .into_iter()
-            .map(|r| r.uri)
-            .collect::<HashSet<Uri>>();
+        let mut links = responses.into_iter().map(|r| r.uri).collect::<Vec<Uri>>();
 
-        let mut expected_links: HashSet<Uri> = HashSet::new();
-        expected_links.insert(website(TEST_STRING));
-        expected_links.insert(website(TEST_URL));
-        expected_links.insert(website(TEST_FILE));
-        expected_links.insert(website(TEST_GLOB_1));
-        expected_links.insert(Uri::Mail(TEST_GLOB_2_MAIL.to_string()));
+        let mut expected_links: Vec<Uri> = vec![
+            website(TEST_STRING),
+            website(TEST_URL),
+            website(TEST_FILE),
+            website(TEST_GLOB_1),
+            Uri::Mail(TEST_GLOB_2_MAIL.to_string()),
+        ];
 
+        links.sort();
+        expected_links.sort();
         assert_eq!(links, expected_links);
 
         Ok(())

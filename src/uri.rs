@@ -6,7 +6,7 @@ use std::{convert::TryFrom, fmt::Display};
 use url::Url;
 
 /// Lychee's own representation of a URI, which encapsulates all support formats
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialOrd, Ord, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Uri {
     /// Website URL
     Website(Url),
@@ -78,6 +78,7 @@ mod test {
     use crate::test_utils::website;
 
     use super::*;
+    use pretty_assertions::assert_eq;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
     #[test]

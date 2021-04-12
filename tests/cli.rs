@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod cli {
+    use pretty_assertions::assert_eq;
+
     use anyhow::Result;
     use assert_cmd::Command;
     use lychee::test_utils;
