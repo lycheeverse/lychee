@@ -269,6 +269,7 @@ mod test {
     use std::str::FromStr;
 
     #[tokio::test]
+    #[ignore]
     async fn test_file_without_extension_is_plaintext() -> Result<()> {
         let dir = tempfile::tempdir()?;
         // Treat as plaintext file (no extension)
@@ -287,7 +288,6 @@ mod test {
         let input = Input::new("https://example.org/", true);
         let contents = input.get_contents(None, true).await?;
 
-        println!("{:?}", contents);
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0].file_type, FileType::Html);
         Ok(())
