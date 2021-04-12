@@ -141,7 +141,14 @@ fn elem_attr_is_link(attr_name: &str, elem_name: &str) -> bool {
     TODO: reenable once `or-patterns` become stable in Rust 1.53
     matches!(
         (attr_name, elem_name),
-        ("href" | "src" | "srcset" | "cite", _) | ("data", "object") | ("onhashchange", "body")
+        // TODO: re-enable this once `or-patterns` become stable:
+        // ("href" | "src" | "srcset" | "cite", _) | ("data", "object") | ("onhashchange", "body")
+        ("href", _)
+            | ("src", _)
+            | ("srcset", _)
+            | ("cite", _)
+            | ("data", "object")
+            | ("onhashchange", "body")
     )
     */
 }
