@@ -82,7 +82,8 @@ fn extract_links_from_html(input: &str) -> Vec<String> {
     urls
 }
 
-/// Recursively walk links in a HTML document, aggregating URL strings in `urls`.
+/// Recursively walk links in a HTML document, aggregating URL strings in
+/// `urls`.
 fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
     match node.data {
         NodeData::Text { ref contents } => {
@@ -125,12 +126,7 @@ fn elem_attr_is_link(attr_name: &str, elem_name: &str) -> bool {
     // over at: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
     matches!(
         (attr_name, elem_name),
-        ("href", _)
-            | ("src", _)
-            | ("srcset", _)
-            | ("cite", _)
-            | ("data", "object")
-            | ("onhashchange", "body")
+        ("href" | "src" | "srcset" | "cite", _) | ("data", "object") | ("onhashchange", "body")
     )
 }
 
@@ -142,6 +138,7 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
         .collect()
 }
 
+#[allow(clippy::needless_pass_by_value)]
 pub(crate) fn extract_links(
     input_content: &InputContent,
     base_url: &Option<Url>,
@@ -405,7 +402,8 @@ mod test {
 
     #[test]
     fn test_extract_html5_minified() {
-        // minified HTML with some quirky elements such as href attribute values specified without quotes
+        // minified HTML with some quirky elements such as href attribute values
+        // specified without quotes
         let input = load_fixture("TEST_HTML5_MINIFIED.html");
         let links = extract_uris(&input, FileType::Html, None);
 

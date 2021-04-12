@@ -89,9 +89,9 @@ use crate::{
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
     Success = 0,
-    // NOTE: exit code 1 is used for any `Result::Err` bubbled up to `main()` using the `?` operator.
-    // For now, 1 acts as a catch-all for everything non-link related (including config errors),
-    // until we find a way to structure the error code handling better.
+    // NOTE: exit code 1 is used for any `Result::Err` bubbled up to `main()` using the `?`
+    // operator. For now, 1 acts as a catch-all for everything non-link related (including
+    // config errors), until we find a way to structure the error code handling better.
     #[allow(unused)]
     UnexpectedFailure = 1,
     LinkCheckFailure = 2,
@@ -109,7 +109,8 @@ fn main() -> Result<()> {
 fn run_main() -> Result<i32> {
     let mut opts = LycheeOptions::from_args();
 
-    // Load a potentially existing config file and merge it into the config from the CLI
+    // Load a potentially existing config file and merge it into the config from the
+    // CLI
     if let Some(c) = Config::load_from_file(&opts.config_file)? {
         opts.config.merge(c)
     }
