@@ -62,6 +62,7 @@
 use ring as _;
 
 use std::iter::FromIterator;
+use std::ops::Not;
 use std::{collections::HashSet, fs, str::FromStr, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
@@ -123,10 +124,10 @@ fn run_main() -> Result<i32> {
             tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(threads)
                 .enable_all()
-                .build()?
+                .build()
         }
-        None => tokio::runtime::Runtime::new()?,
-    };
+        None => tokio::runtime::Runtime::new(),
+    }?;
 
     runtime.block_on(run(cfg, opts.inputs()))
 }
@@ -198,16 +199,14 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     .await
     .map_err(|e| anyhow!(e))?;
 
-    let pb = if cfg.no_progress {
-        None
-    } else {
+    let pb = cfg.no_progress.not().then(|| {
         let bar =
             ProgressBar::new(links.len() as u64).with_style(ProgressStyle::default_bar().template(
                 "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
             ));
         bar.enable_steady_tick(100);
-        Some(bar)
-    };
+        bar
+    });
 
     let (send_req, recv_req) = mpsc::channel(max_concurrency);
     let (send_resp, mut recv_resp) = mpsc::channel(max_concurrency);
@@ -254,11 +253,13 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         println!("{}", stats_formatted);
     }
 
-    if stats.is_success() {
-        Ok(ExitCode::Success as i32)
+    let exit_code = if stats.is_success() {
+        ExitCode::Success
     } else {
-        Ok(ExitCode::LinkCheckFailure as i32)
-    }
+        ExitCode::LinkCheckFailure
+    };
+
+    Ok(exit_code as i32)
 }
 
 fn read_header(input: &str) -> Result<(String, String)> {

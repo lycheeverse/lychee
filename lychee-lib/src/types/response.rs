@@ -64,7 +64,7 @@ impl Display for ResponseBody {
             }
             Status::Timeout(Some(code)) => format!(" [{}]", code),
             Status::Error(e) => format!(" ({})", e),
-            _ => "".to_owned(),
+            _ => "".into(),
         };
         write!(f, "{} {}{}", status.icon(), uri, metadata)
     }

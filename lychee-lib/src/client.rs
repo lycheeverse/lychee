@@ -4,6 +4,7 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
+use std::ops::Not;
 use std::{collections::HashSet, convert::TryFrom, time::Duration};
 
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
@@ -141,13 +142,15 @@ impl ClientBuilder {
         })
         .build()?;
 
-        let github_token = match self.github_token {
-            Some(ref token) if !token.is_empty() => Some(Github::new(
-                self.user_agent.clone(),
-                Credentials::Token(token.clone()),
-            )?),
-            _ => None,
-        };
+        let github_token = self
+            .github_token
+            .as_ref()
+            .and_then(|token| {
+                token.is_empty().not().then(|| {
+                    Github::new(self.user_agent.clone(), Credentials::Token(token.clone()))
+                })
+            })
+            .transpose()?;
 
         let filter = self.build_filter();
 
@@ -236,6 +239,11 @@ impl Client {
 
     pub async fn check_mail(&self, uri: &Uri) -> Status {
         let input = CheckEmailInput::new(vec![uri.as_str().to_owned()]);
+
+        // REVIEW: This panics with an out-of-bounds error
+        // if there are no results from check_email
+        // (previous versions returned false)
+        // these parenthesis also seem unnecesary
         let result = &(check_email(&input).await)[0];
 
         if let Reachable::Invalid = result.is_reachable {

@@ -30,19 +30,22 @@ impl Default for FileType {
 
 impl<P: AsRef<Path>> From<P> for FileType {
     /// Detect if the given path points to a Markdown, HTML, or plaintext file.
+    #[allow(clippy::match_same_arms)]
     fn from(p: P) -> FileType {
         let path = p.as_ref();
-        // Assume HTML in case of no extension.
-        // Note: this is only reasonable for URLs; not paths on disk.
-        // For example, `README` without an extension is more likely to be a plaintext file.
-        // A better solution would be to also implement `From<Url> for FileType`.
-        // Unfortunately that's not possible without refactoring, as
-        // `AsRef<Path>` could be implemented for `Url` in the future, which is why
-        // `From<Url> for FileType` is not allowed.
-        match path.extension().and_then(std::ffi::OsStr::to_str) {
-            Some("md") | Some("markdown") => FileType::Markdown,
-            Some("htm") | Some("html") | None => FileType::Html,
+        match path.extension().map(std::ffi::OsStr::to_str) {
+            Some(Some("md")) | Some(Some("markdown")) => FileType::Markdown,
+            Some(Some("htm")) | Some(Some("html")) => FileType::Html,
             Some(_) => FileType::Plaintext,
+
+            // Assume HTML in case of no extension.
+            // Note: this is only reasonable for URLs; not paths on disk.
+            // For example, `README` without an extension is more likely to be a plaintext file.
+            // A better solution would be to also implement `From<Url> for FileType`.
+            // Unfortunately that's not possible without refactoring, as
+            // `AsRef<Path>` could be implemented for `Url` in the future, which is why
+            // `From<Url> for FileType` is not allowed.
+            None => FileType::Html,
         }
     }
 }
@@ -124,10 +127,23 @@ fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
 fn elem_attr_is_link(attr_name: &str, elem_name: &str) -> bool {
     // See a comprehensive list of attributes that might contain URLs/URIs
     // over at: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
+
+    matches!(
+        (attr_name, elem_name),
+        ("href", _)
+            | ("src", _)
+            | ("srcset", _)
+            | ("cite", _)
+            | ("data", "object")
+            | ("onhashchange", "body")
+    )
+    /*
+    TODO: reenable once `or-patterns` become stable in Rust 1.53
     matches!(
         (attr_name, elem_name),
         ("href" | "src" | "srcset" | "cite", _) | ("data", "object") | ("onhashchange", "body")
     )
+    */
 }
 
 /// Extract unparsed URL strings from a plaintext.

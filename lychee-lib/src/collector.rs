@@ -222,7 +222,9 @@ pub async fn collect_links(
     skip_missing_inputs: bool,
     max_concurrency: usize,
 ) -> Result<HashSet<Request>> {
-    let base_url = base_url.map(|url| Url::parse(&url)).transpose()?;
+    let base_url = base_url
+        .map(|url| Url::parse(&url).map_err(|e| (url, e)))
+        .transpose()?;
 
     let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(max_concurrency);
 

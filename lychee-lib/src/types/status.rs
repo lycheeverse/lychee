@@ -13,6 +13,8 @@ const ICON_UNSUPPORTED: &str = "\u{003f}"; // ? (using same icon, but under diff
 const ICON_ERROR: &str = "\u{2717}"; // ✗
 const ICON_TIMEOUT: &str = "\u{29d6}"; // ⧖
 
+// TODO: is there a reasonable impl for std::ops::Try
+// for this once it becomes stable?
 /// Response status of the request.
 #[allow(variant_size_differences)]
 #[derive(Debug, Hash, PartialEq, Eq)]
