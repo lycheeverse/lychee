@@ -57,7 +57,7 @@ version = "0.11.3"
 
 [dependencies.tokio]
 features = ["full"]
-version = "1.3.0"
+version = "1.5.0"
 
 [patch.crates-io]
 # Switch back to version on crates.io after 0.6.3+ is released
