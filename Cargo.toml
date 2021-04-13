@@ -53,7 +53,7 @@ fast_chemail = "0.9.6"
 
 [dependencies.reqwest]
 features = ["gzip"]
-version = "0.11.2"
+version = "0.11.3"
 
 [dependencies.tokio]
 features = ["full"]
