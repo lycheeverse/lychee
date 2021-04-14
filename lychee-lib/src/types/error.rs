@@ -12,7 +12,8 @@ use crate::Uri;
 pub enum ErrorKind {
     // TODO: maybe need to be splitted; currently first slot is Some only for reading files
     IoError(Option<PathBuf>, std::io::Error),
-    HttpError(reqwest::Error),
+    ReqwestError(reqwest::Error),
+    HubcapsError(hubcaps::Error),
     UrlParseError(String, (url::ParseError, Option<fast_chemail::ParseError>)),
     UnreachableEmailAddress(Uri),
     InvalidHeader(InvalidHeaderValue),
@@ -24,7 +25,8 @@ impl PartialEq for ErrorKind {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::IoError(p1, e1), Self::IoError(p2, e2)) => p1 == p2 && e1.kind() == e2.kind(),
-            (Self::HttpError(e1), Self::HttpError(e2)) => e1.to_string() == e2.to_string(),
+            (Self::ReqwestError(e1), Self::ReqwestError(e2)) => e1.to_string() == e2.to_string(),
+            (Self::HubcapsError(e1), Self::HubcapsError(e2)) => e1.to_string() == e2.to_string(),
             (Self::UrlParseError(s1, e1), Self::UrlParseError(s2, e2)) => s1 == s2 && e1 == e2,
             (Self::UnreachableEmailAddress(u1), Self::UnreachableEmailAddress(u2)) => u1 == u2,
             (Self::InvalidGlobPattern(e1), Self::InvalidGlobPattern(e2)) => {
@@ -46,7 +48,8 @@ impl Hash for ErrorKind {
     {
         match self {
             Self::IoError(p, e) => (p, e.kind()).hash(state),
-            Self::HttpError(e) => e.to_string().hash(state),
+            Self::ReqwestError(e) => e.to_string().hash(state),
+            Self::HubcapsError(e) => e.to_string().hash(state),
             Self::UrlParseError(s, e) => (s, e.type_id()).hash(state),
             Self::UnreachableEmailAddress(u) => u.hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
@@ -66,7 +69,8 @@ impl Display for ErrorKind {
                 e
             ),
             Self::IoError(None, e) => e.fmt(f),
-            Self::HttpError(e) => e.fmt(f),
+            Self::ReqwestError(e) => e.fmt(f),
+            Self::HubcapsError(e) => e.fmt(f),
             Self::UrlParseError(s, (url_err, Some(mail_err))) => {
                 write!(
                     f,
@@ -117,17 +121,13 @@ impl From<tokio::task::JoinError> for ErrorKind {
 
 impl From<reqwest::Error> for ErrorKind {
     fn from(e: reqwest::Error) -> Self {
-        Self::HttpError(e)
+        Self::ReqwestError(e)
     }
 }
 
-impl From<hubcaps::Error> for ErrorKind {
+impl From<hubcaps::errors::Error> for ErrorKind {
     fn from(e: hubcaps::Error) -> Self {
-        match e {
-            hubcaps::Error::Reqwest(e) => e.into(),
-            // only deal with error from hubcaps::GitHub::Error
-            _ => unreachable!(),
-        }
+        Self::HubcapsError(e)
     }
 }
 

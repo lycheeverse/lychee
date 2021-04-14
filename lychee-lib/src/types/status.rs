@@ -115,7 +115,7 @@ impl From<reqwest::Error> for Status {
         if e.is_timeout() {
             Self::Timeout(e.status())
         } else {
-            Self::Error(Box::new(ErrorKind::HttpError(e)))
+            Self::Error(Box::new(ErrorKind::ReqwestError(e)))
         }
     }
 }
