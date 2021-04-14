@@ -1,23 +1,43 @@
+#![warn(clippy::all, clippy::pedantic)]
+#![warn(
+    absolute_paths_not_starting_with_crate,
+    invalid_html_tags,
+    missing_copy_implementations,
+    missing_debug_implementations,
+    semicolon_in_expressions_from_macros,
+    unreachable_pub,
+    unused_extern_crates,
+    variant_size_differences,
+    clippy::missing_const_for_fn
+)]
+#![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
+
+// required for apple silicon
+use ring as _;
+
+use std::{collections::HashSet, fs, str::FromStr, time::Duration};
+
 use anyhow::{anyhow, Context, Result};
-use headers::authorization::Basic;
-use headers::{Authorization, HeaderMap, HeaderMapExt, HeaderName};
+use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, HeaderName};
+use http::StatusCode;
 use indicatif::{ProgressBar, ProgressStyle};
-use options::Format;
+use lychee_lib::{
+    collector::{collect_links, Input},
+    ClientBuilder, ClientPool, Response,
+};
+use openssl_sys as _; // required for vendored-openssl feature
 use regex::RegexSet;
-use stats::color_response;
-use std::{collections::HashSet, time::Duration};
-use std::{fs, str::FromStr};
+use ring as _; // required for apple silicon
 use structopt::StructOpt;
 use tokio::sync::mpsc;
 
 mod options;
 mod stats;
 
-use crate::options::{Config, LycheeOptions};
-use crate::stats::ResponseStats;
-
-use lychee::collector::{self, Input};
-use lychee::{ClientBuilder, ClientPool, Response};
+use crate::{
+    options::{Config, Format, LycheeOptions},
+    stats::{color_response, ResponseStats},
+};
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
@@ -64,7 +84,7 @@ fn run_main() -> Result<i32> {
 }
 
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
-    let out = color_response(response);
+    let out = color_response(&response.1);
     if let Some(pb) = progress_bar {
         pb.inc(1);
         pb.set_message(&out);
@@ -72,7 +92,7 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
             pb.println(out);
         }
     } else {
-        if (response.status.is_success() || response.status.is_excluded()) && !verbose {
+        if (response.status().is_success() || response.status().is_excluded()) && !verbose {
             return;
         }
         println!("{}", out);
@@ -117,26 +137,27 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .github_token(cfg.github_token.clone())
         .scheme(cfg.scheme.clone())
         .accepted(accepted)
-        .build()?;
+        .build()
+        .map_err(|e| anyhow!(e))?;
 
-    let links = collector::collect_links(
+    let links = collect_links(
         &inputs,
         cfg.base_url.clone(),
         cfg.skip_missing,
         max_concurrency,
     )
-    .await?;
+    .await
+    .map_err(|e| anyhow!(e))?;
 
-    let pb = match cfg.no_progress {
-        true => None,
-        false => {
-            let bar = ProgressBar::new(links.len() as u64)
-                .with_style(ProgressStyle::default_bar().template(
+    let pb = if cfg.no_progress {
+        None
+    } else {
+        let bar =
+            ProgressBar::new(links.len() as u64).with_style(ProgressStyle::default_bar().template(
                 "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
             ));
-            bar.enable_steady_tick(100);
-            Some(bar)
-        }
+        bar.enable_steady_tick(100);
+        Some(bar)
     };
 
     let (send_req, recv_req) = mpsc::channel(max_concurrency);
@@ -154,9 +175,9 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         }
     });
 
+    // Start receiving requests
     tokio::spawn(async move {
-        // Start receiving requests
-        let clients: Vec<_> = (0..max_concurrency).map(|_| client.clone()).collect();
+        let clients = vec![client; max_concurrency];
         let mut clients = ClientPool::new(send_resp, recv_req, clients);
         clients.listen().await;
     });
@@ -184,9 +205,10 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         println!("{}", stats_formatted);
     }
 
-    match stats.is_success() {
-        true => Ok(ExitCode::Success as i32),
-        false => Ok(ExitCode::LinkCheckFailure as i32),
+    if stats.is_success() {
+        Ok(ExitCode::Success as i32)
+    } else {
+        Ok(ExitCode::LinkCheckFailure as i32)
     }
 }
 
@@ -201,7 +223,7 @@ fn read_header(input: &str) -> Result<(String, String)> {
     Ok((elements[0].into(), elements[1].into()))
 }
 
-fn parse_timeout(timeout: usize) -> Duration {
+const fn parse_timeout(timeout: usize) -> Duration {
     Duration::from_secs(timeout as u64)
 }
 
@@ -217,10 +239,10 @@ fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {
     Ok(out)
 }
 
-fn parse_statuscodes<T: AsRef<str>>(accept: T) -> Result<HashSet<http::StatusCode>> {
+fn parse_statuscodes<T: AsRef<str>>(accept: T) -> Result<HashSet<StatusCode>> {
     let mut statuscodes = HashSet::new();
-    for code in accept.as_ref().split(',').into_iter() {
-        let code: reqwest::StatusCode = reqwest::StatusCode::from_bytes(code.as_bytes())?;
+    for code in accept.as_ref().split(',') {
+        let code: StatusCode = StatusCode::from_bytes(code.as_bytes())?;
         statuscodes.insert(code);
     }
     Ok(statuscodes)
@@ -239,11 +261,14 @@ fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use pretty_assertions::assert_eq;
+    use std::{array, collections::HashSet};
 
+    use headers::{HeaderMap, HeaderMapExt};
     use http::StatusCode;
+    use pretty_assertions::assert_eq;
     use reqwest::header;
+
+    use super::{parse_basic_auth, parse_headers, parse_statuscodes};
 
     #[test]
     fn test_parse_custom_headers() {
@@ -255,14 +280,13 @@ mod test {
     #[test]
     fn test_parse_statuscodes() {
         let actual = parse_statuscodes("200,204,301").unwrap();
-        let expected: HashSet<StatusCode> = [
+        let expected = array::IntoIter::new([
             StatusCode::OK,
             StatusCode::NO_CONTENT,
             StatusCode::MOVED_PERMANENTLY,
-        ]
-        .iter()
-        .cloned()
-        .collect();
+        ])
+        .collect::<HashSet<_>>();
+
         assert_eq!(actual, expected);
     }
 
@@ -277,6 +301,7 @@ mod test {
         let mut actual = HeaderMap::new();
         let auth_header = parse_basic_auth("aladin:abretesesamo").unwrap();
         actual.typed_insert(auth_header);
+
         assert_eq!(expected, actual);
     }
 }

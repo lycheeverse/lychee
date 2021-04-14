@@ -1,11 +1,13 @@
 #[cfg(test)]
 mod readme {
-    use pretty_assertions::assert_eq;
+    use std::{
+        fs::File,
+        io::{BufReader, Read},
+        path::Path,
+    };
 
     use assert_cmd::Command;
-    use std::fs::File;
-    use std::io::{BufReader, Read};
-    use std::path::Path;
+    use pretty_assertions::assert_eq;
 
     fn main_command() -> Command {
         // this gets the "main" binary name (e.g. `lychee`)
@@ -13,7 +15,7 @@ mod readme {
     }
 
     fn load_readme_text() -> String {
-        let readme_path = Path::new(module_path!())
+        let readme_path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
             .join("README.md");
@@ -38,7 +40,7 @@ mod readme {
     fn test_readme_usage_up_to_date() {
         let mut cmd = main_command();
 
-        let result = cmd.arg("--help").assert().success();
+        let result = cmd.env_clear().arg("--help").assert().success();
         let help_output = std::str::from_utf8(&result.get_output().stdout)
             .expect("Invalid utf8 output for `--help`");
         let readme = load_readme_text();

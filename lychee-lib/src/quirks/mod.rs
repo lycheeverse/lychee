@@ -6,13 +6,13 @@ use reqwest::{Request, Url};
 const GOOGLEBOT: &str = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://google.com/bot.html)";
 
 #[derive(Debug, Clone)]
-pub struct Quirk {
-    pub pattern: Regex,
-    pub rewrite: fn(Request) -> Request,
+pub(crate) struct Quirk {
+    pub(crate) pattern: Regex,
+    pub(crate) rewrite: fn(Request) -> Request,
 }
 
 #[derive(Debug, Clone)]
-pub struct Quirks {
+pub(crate) struct Quirks {
     quirks: Vec<Quirk>,
 }
 
@@ -62,7 +62,7 @@ impl Quirks {
     /// Apply quirks to a given request. Only the first quirk regex pattern
     /// matching the URL will be applied. The rest will be discarded for
     /// simplicity reasons. This limitation might be lifted in the future.
-    pub fn apply(&self, request: Request) -> Request {
+    pub(crate) fn apply(&self, request: Request) -> Request {
         for quirk in &self.quirks {
             if quirk.pattern.is_match(request.url().as_str()) {
                 return (quirk.rewrite)(request);
@@ -75,51 +75,68 @@ impl Quirks {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use http::{header, Method};
     use pretty_assertions::assert_eq;
+    use reqwest::{Request, Url};
+
+    use super::{Quirks, GOOGLEBOT};
+
+    #[derive(Debug)]
+    struct MockRequest(Request);
+
+    impl MockRequest {
+        fn new(method: Method, url: Url) -> Self {
+            Self(Request::new(method, url))
+        }
+    }
+
+    impl PartialEq for MockRequest {
+        fn eq(&self, other: &Self) -> bool {
+            self.0.url() == other.0.url() && self.0.method() == other.0.method()
+        }
+    }
 
     #[test]
     fn test_twitter_request() {
-        let orig = Url::parse("https://twitter.com/zarfeblong/status/1339742840142872577").unwrap();
-        let request = Request::new(Method::GET, orig.clone());
-        let quirks = Quirks::default();
-        let modified = quirks.apply(request);
-        assert_eq!(modified.url(), &orig);
-        assert_eq!(modified.method(), Method::HEAD);
+        let url = Url::parse("https://twitter.com/zarfeblong/status/1339742840142872577").unwrap();
+        let request = Request::new(Method::GET, url.clone());
+        let modified = Quirks::default().apply(request);
+
         assert_eq!(
             modified.headers().get(header::USER_AGENT).unwrap(),
             &GOOGLEBOT
         );
+        assert_eq!(MockRequest(modified), MockRequest::new(Method::HEAD, url));
     }
 
     #[test]
     fn test_youtube_video_request() {
-        let orig = Url::parse("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").unwrap();
-        let request = Request::new(Method::GET, orig);
-        let quirks = Quirks::default();
-        let modified = quirks.apply(request);
+        let url = Url::parse("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").unwrap();
+        let request = Request::new(Method::GET, url);
+        let modified = Quirks::default().apply(request);
         let expected_url = Url::parse("https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNlKuICiT470%26list%3DPLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ%26index%3D7").unwrap();
-        assert_eq!(modified.url(), &expected_url);
-        assert_eq!(modified.method(), Method::GET);
+
+        assert_eq!(
+            MockRequest(modified),
+            MockRequest::new(Method::GET, expected_url)
+        );
     }
 
     #[test]
     fn test_non_video_youtube_url_untouched() {
-        let orig = Url::parse("https://www.youtube.com/channel/UCaYhcUwRBNscFNUKTjgPFiA").unwrap();
-        let request = Request::new(Method::GET, orig.clone());
-        let quirks = Quirks::default();
-        let modified = quirks.apply(request);
-        assert_eq!(modified.url(), &orig);
-        assert_eq!(modified.method(), Method::GET);
+        let url = Url::parse("https://www.youtube.com/channel/UCaYhcUwRBNscFNUKTjgPFiA").unwrap();
+        let request = Request::new(Method::GET, url.clone());
+        let modified = Quirks::default().apply(request);
+
+        assert_eq!(MockRequest(modified), MockRequest::new(Method::GET, url));
     }
 
     #[test]
     fn test_no_quirk_applied() {
-        let orig = Url::parse("https://endler.dev").unwrap();
-        let request = Request::new(Method::GET, orig.clone());
-        let quirks = Quirks::default();
-        let modified = quirks.apply(request);
-        assert_eq!(modified.url(), &orig);
-        assert_eq!(modified.method(), Method::GET);
+        let url = Url::parse("https://endler.dev").unwrap();
+        let request = Request::new(Method::GET, url.clone());
+        let modified = Quirks::default().apply(request);
+
+        assert_eq!(MockRequest(modified), MockRequest::new(Method::GET, url));
     }
 }
