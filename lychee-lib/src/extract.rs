@@ -11,7 +11,7 @@ use url::Url;
 
 use crate::{collector::InputContent, Request, Uri};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum FileType {
     Html,
     Markdown,

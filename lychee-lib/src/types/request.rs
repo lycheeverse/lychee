@@ -11,7 +11,7 @@ pub struct Request {
 impl Request {
     #[inline]
     #[must_use]
-    pub fn new(uri: Uri, source: Input) -> Self {
+    pub const fn new(uri: Uri, source: Input) -> Self {
         Request { uri, source }
     }
 }

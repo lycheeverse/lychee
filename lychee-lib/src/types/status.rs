@@ -13,12 +13,13 @@ const ICON_ERROR: &str = "\u{2717}"; // ✗
 const ICON_TIMEOUT: &str = "\u{29d6}"; // ⧖
 
 /// Response status of the request.
+#[allow(variant_size_differences)]
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum Status {
     /// Request was successful
     Ok(StatusCode),
     /// Failed request
-    Error(ErrorKind),
+    Error(Box<ErrorKind>),
     /// Request timed out
     Timeout(Option<StatusCode>),
     /// Got redirected to different resource
@@ -50,6 +51,7 @@ impl Serialize for Status {
 }
 
 impl Status {
+    #[allow(clippy::missing_panics_doc)]
     #[must_use]
     pub fn new(response: &Response, accepted: Option<HashSet<StatusCode>>) -> Self {
         let code = response.status();
@@ -68,30 +70,30 @@ impl Status {
 
     #[inline]
     #[must_use]
-    pub fn is_success(&self) -> bool {
+    pub const fn is_success(&self) -> bool {
         matches!(self, Status::Ok(_))
     }
 
     #[inline]
     #[must_use]
-    pub fn is_failure(&self) -> bool {
+    pub const fn is_failure(&self) -> bool {
         matches!(self, Status::Error(_))
     }
 
     #[inline]
     #[must_use]
-    pub fn is_excluded(&self) -> bool {
+    pub const fn is_excluded(&self) -> bool {
         matches!(self, Status::Excluded)
     }
 
     #[inline]
     #[must_use]
-    pub fn is_timeout(&self) -> bool {
+    pub const fn is_timeout(&self) -> bool {
         matches!(self, Status::Timeout(_))
     }
 
     #[must_use]
-    pub fn icon(&self) -> &str {
+    pub const fn icon(&self) -> &str {
         match self {
             Status::Ok(_) => ICON_OK,
             Status::Redirected(_) => ICON_REDIRECTED,
@@ -104,7 +106,7 @@ impl Status {
 
 impl From<ErrorKind> for Status {
     fn from(e: ErrorKind) -> Self {
-        Self::Error(e)
+        Self::Error(Box::new(e))
     }
 }
 
@@ -113,13 +115,13 @@ impl From<reqwest::Error> for Status {
         if e.is_timeout() {
             Self::Timeout(e.status())
         } else {
-            Self::Error(ErrorKind::HttpError(e))
+            Self::Error(Box::new(ErrorKind::HttpError(e)))
         }
     }
 }
 
 impl From<hubcaps::Error> for Status {
     fn from(e: hubcaps::Error) -> Self {
-        Self::Error(e.into())
+        Self::Error(Box::new(e.into()))
     }
 }

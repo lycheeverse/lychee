@@ -6,6 +6,7 @@ use serde::{Serialize, Serializer};
 use crate::Uri;
 
 /// Kinds of status errors.
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {

@@ -1,3 +1,8 @@
+#![allow(
+    clippy::module_name_repetitions,
+    clippy::struct_excessive_bools,
+    clippy::default_trait_access
+)]
 use std::{collections::HashSet, convert::TryFrom, time::Duration};
 
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
@@ -39,6 +44,7 @@ pub struct Client {
 
 /// A link checker using an API token for Github links
 /// otherwise a normal HTTP client.
+#[allow(unreachable_pub)]
 #[derive(Builder, Debug)]
 #[builder(build_fn(skip))]
 #[builder(setter(into))]
@@ -106,6 +112,7 @@ impl ClientBuilder {
     }
 
     /// The build method instantiates the client.
+    #[allow(clippy::missing_errors_doc)]
     pub fn build(&self) -> Result<Client> {
         // Faking the user agent is necessary for some websites, unfortunately.
         // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
@@ -249,6 +256,7 @@ impl Client {
 /// A convenience function to check a single URI
 /// This is the most simple link check and avoids having to create a client manually.
 /// For more complex scenarios, look into using the [`ClientBuilder`] instead.
+#[allow(clippy::missing_errors_doc)]
 pub async fn check<T, E>(request: T) -> Result<Response>
 where
     Request: TryFrom<T, Error = E>,

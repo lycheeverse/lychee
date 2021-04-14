@@ -21,7 +21,7 @@ lazy_static! {
 }
 
 #[derive(Debug, Deserialize)]
-pub enum Format {
+pub(crate) enum Format {
     String,
     Json,
 }
@@ -47,6 +47,7 @@ impl Default for Format {
 macro_rules! default_function {
     ( $( $name:ident : $T:ty = $e:expr; )* ) => {
         $(
+            #[allow(clippy::missing_const_for_fn)]
             fn $name() -> $T {
                 $e
             }
@@ -89,10 +90,10 @@ pub(crate) struct LycheeOptions {
 
     /// Configuration file to use
     #[structopt(short, long = "config", default_value = "./lychee.toml")]
-    pub config_file: String,
+    pub(crate) config_file: String,
 
     #[structopt(flatten)]
-    pub config: Config,
+    pub(crate) config: Config,
 }
 
 impl LycheeOptions {
@@ -108,142 +109,143 @@ impl LycheeOptions {
     }
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Deserialize, StructOpt)]
-pub struct Config {
+pub(crate) struct Config {
     /// Verbose program output
     #[structopt(short, long)]
     #[serde(default)]
-    pub verbose: bool,
+    pub(crate) verbose: bool,
 
     /// Do not show progress bar.
     /// This is recommended for non-interactive shells (e.g. for continuous
     /// integration)
     #[structopt(short, long)]
     #[serde(default)]
-    pub no_progress: bool,
+    pub(crate) no_progress: bool,
 
     /// Maximum number of allowed redirects
     #[structopt(short, long, default_value = &MAX_REDIRECTS_STR)]
     #[serde(default = "max_redirects")]
-    pub max_redirects: usize,
+    pub(crate) max_redirects: usize,
 
     /// Maximum number of concurrent network requests
     #[structopt(long, default_value = &MAX_CONCURRENCY_STR)]
     #[serde(default = "max_concurrency")]
-    pub max_concurrency: usize,
+    pub(crate) max_concurrency: usize,
 
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
     #[structopt(short = "T", long)]
     #[serde(default)]
-    pub threads: Option<usize>,
+    pub(crate) threads: Option<usize>,
 
     /// User agent
     #[structopt(short, long, default_value = USER_AGENT)]
     #[serde(default = "user_agent")]
-    pub user_agent: String,
+    pub(crate) user_agent: String,
 
     /// Proceed for server connections considered insecure (invalid TLS)
     #[structopt(short, long)]
     #[serde(default)]
-    pub insecure: bool,
+    pub(crate) insecure: bool,
 
     /// Only test links with the given scheme (e.g. https)
     #[structopt(short, long)]
     #[serde(default)]
-    pub scheme: Option<String>,
+    pub(crate) scheme: Option<String>,
 
     /// URLs to check (supports regex). Has preference over all excludes.
     #[structopt(long)]
     #[serde(default)]
-    pub include: Vec<String>,
+    pub(crate) include: Vec<String>,
 
     /// Exclude URLs from checking (supports regex)
     #[structopt(long)]
     #[serde(default)]
-    pub exclude: Vec<String>,
+    pub(crate) exclude: Vec<String>,
 
     /// Exclude all private IPs from checking.
     /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
     #[structopt(short = "E", long)]
     #[serde(default)]
-    pub exclude_all_private: bool,
+    pub(crate) exclude_all_private: bool,
 
     /// Exclude private IP address ranges from checking
     #[structopt(long)]
     #[serde(default)]
-    pub exclude_private: bool,
+    pub(crate) exclude_private: bool,
 
     /// Exclude link-local IP address range from checking
     #[structopt(long)]
     #[serde(default)]
-    pub exclude_link_local: bool,
+    pub(crate) exclude_link_local: bool,
 
     /// Exclude loopback IP address range from checking
     #[structopt(long)]
     #[serde(default)]
-    pub exclude_loopback: bool,
+    pub(crate) exclude_loopback: bool,
 
     /// Exclude all mail addresses from checking
     #[structopt(long)]
     #[serde(default)]
-    pub exclude_mail: bool,
+    pub(crate) exclude_mail: bool,
 
     /// Custom request headers
     #[structopt(short, long)]
     #[serde(default)]
-    pub headers: Vec<String>,
+    pub(crate) headers: Vec<String>,
 
     /// Comma-separated list of accepted status codes for valid links
     #[structopt(short, long)]
     #[serde(default)]
-    pub accept: Option<String>,
+    pub(crate) accept: Option<String>,
 
     /// Website timeout from connect to response finished
     #[structopt(short, long, default_value = &TIMEOUT_STR)]
     #[serde(default = "timeout")]
-    pub timeout: usize,
+    pub(crate) timeout: usize,
 
     /// Request method
     // Using `-X` as a short param similar to curl
     #[structopt(short = "X", long, default_value = METHOD)]
     #[serde(default = "method")]
-    pub method: String,
+    pub(crate) method: String,
 
     /// Base URL to check relative URLs
     #[structopt(short, long)]
     #[serde(default)]
-    pub base_url: Option<String>,
+    pub(crate) base_url: Option<String>,
 
     /// Basic authentication support. E.g. `username:password`
     #[structopt(long)]
     #[serde(default)]
-    pub basic_auth: Option<String>,
+    pub(crate) basic_auth: Option<String>,
 
     /// GitHub API token to use when checking github.com links, to avoid rate limiting
     #[structopt(long, env = "GITHUB_TOKEN")]
     #[serde(default)]
-    pub github_token: Option<String>,
+    pub(crate) github_token: Option<String>,
 
     /// Skip missing input files (default is to error if they don't exist)
     #[structopt(long)]
     #[serde(default)]
-    pub skip_missing: bool,
+    pub(crate) skip_missing: bool,
 
     /// Ignore case when expanding filesystem path glob inputs
     #[structopt(long)]
     #[serde(default)]
-    pub glob_ignore_case: bool,
+    pub(crate) glob_ignore_case: bool,
 
     /// Output file of status report
     #[structopt(short, long, parse(from_os_str))]
     #[serde(default)]
-    pub output: Option<PathBuf>,
+    pub(crate) output: Option<PathBuf>,
 
     /// Output file format of status report (json, string)
     #[structopt(short, long, default_value = "string")]
     #[serde(default)]
-    pub format: Format,
+    pub(crate) format: Format,
 }
 
 impl Config {

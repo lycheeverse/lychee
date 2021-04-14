@@ -8,6 +8,7 @@ static FALSE_POSITIVE_PAT: &[&str] = &[r"http://www.w3.org/1999/xhtml"];
 
 /// Exclude configuration for the link checker.
 /// You can ignore links based on regex patterns or pre-defined IP ranges.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug)]
 pub struct Excludes {
     /// User-defined set of excluded regex patterns
@@ -37,14 +38,17 @@ impl Default for Excludes {
 
 impl Excludes {
     #[inline]
+    #[must_use]
     pub fn regex(&self, input: &str) -> bool {
         self.regex.as_ref().map_or(false, |re| re.is_match(input))
     }
 
+    #[must_use]
     pub fn is_false_positive(input: &str) -> bool {
         input == FALSE_POSITIVE_PAT[0]
     }
 
+    #[must_use]
     pub fn ip(&self, uri: &Uri) -> bool {
         match uri.host_ip() {
             Some(ip_addr) if self.loopback_ips && ip_addr.is_loopback() => true,
@@ -60,7 +64,8 @@ impl Excludes {
     }
 
     #[inline]
-    pub fn is_mail_excluded(&self) -> bool {
+    #[must_use]
+    pub const fn is_mail_excluded(&self) -> bool {
         self.mail
     }
 

@@ -63,12 +63,12 @@ impl ResponseStats {
     }
 
     #[inline]
-    pub(crate) fn is_success(&self) -> bool {
+    pub(crate) const fn is_success(&self) -> bool {
         self.total == self.successful + self.excludes
     }
 
     #[inline]
-    pub(crate) fn is_empty(&self) -> bool {
+    pub(crate) const fn is_empty(&self) -> bool {
         self.total == 0
     }
 }

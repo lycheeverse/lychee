@@ -26,6 +26,20 @@
 //!   Ok(())
 //! }
 //! ```
+#![warn(clippy::all, clippy::pedantic)]
+#![warn(
+    absolute_paths_not_starting_with_crate,
+    invalid_html_tags,
+    missing_copy_implementations,
+    missing_debug_implementations,
+    semicolon_in_expressions_from_macros,
+    unreachable_pub,
+    unused_crate_dependencies,
+    unused_extern_crates,
+    variant_size_differences,
+    clippy::missing_const_for_fn
+)]
+#![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 // #![deny(missing_docs)]
 
 #[cfg(doctest)]
@@ -33,20 +47,25 @@ doc_comment::doctest!("../../README.md");
 
 mod client;
 mod client_pool;
-mod filter;
 mod quirks;
 mod types;
 mod uri;
 
 pub mod collector;
 pub mod extract;
+pub mod filter;
 #[cfg(test)]
 #[macro_use]
 pub mod test_utils;
 
-pub use client::check;
-pub use client::ClientBuilder;
-pub use client_pool::ClientPool;
-pub use collector::Input;
-pub use types::*;
-pub use uri::Uri;
+use openssl_sys as _; // required for vendored-openssl feature
+use ring as _; // required for apple silicon
+
+pub use crate::{
+    client::{check, ClientBuilder},
+    client_pool::ClientPool,
+    collector::Input,
+    filter::{Excludes, Filter, Includes},
+    types::{ErrorKind, Request, Response, ResponseBody, Result, Status},
+    uri::Uri,
+};

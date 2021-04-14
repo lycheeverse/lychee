@@ -6,13 +6,13 @@ use reqwest::{Request, Url};
 const GOOGLEBOT: &str = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://google.com/bot.html)";
 
 #[derive(Debug, Clone)]
-pub struct Quirk {
-    pub pattern: Regex,
-    pub rewrite: fn(Request) -> Request,
+pub(crate) struct Quirk {
+    pub(crate) pattern: Regex,
+    pub(crate) rewrite: fn(Request) -> Request,
 }
 
 #[derive(Debug, Clone)]
-pub struct Quirks {
+pub(crate) struct Quirks {
     quirks: Vec<Quirk>,
 }
 
@@ -62,7 +62,7 @@ impl Quirks {
     /// Apply quirks to a given request. Only the first quirk regex pattern
     /// matching the URL will be applied. The rest will be discarded for
     /// simplicity reasons. This limitation might be lifted in the future.
-    pub fn apply(&self, request: Request) -> Request {
+    pub(crate) fn apply(&self, request: Request) -> Request {
         for quirk in &self.quirks {
             if quirk.pattern.is_match(request.url().as_str()) {
                 return (quirk.rewrite)(request);

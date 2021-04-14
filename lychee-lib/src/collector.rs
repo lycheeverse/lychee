@@ -24,7 +24,7 @@ const STDIN: &str = "-";
 #[non_exhaustive]
 pub enum Input {
     /// URL (of HTTP/HTTPS scheme).
-    RemoteUrl(Url),
+    RemoteUrl(Box<Url>),
     /// Unix shell style glob pattern.
     FsGlob { pattern: String, ignore_case: bool },
     /// File path.
@@ -81,7 +81,7 @@ impl Input {
         if value == STDIN {
             Self::Stdin
         } else if let Ok(url) = Url::parse(&value) {
-            Self::RemoteUrl(url)
+            Self::RemoteUrl(Box::new(url))
         } else {
             // this seems to be the only way to determine if this is a glob pattern
             let is_glob = glob::Pattern::escape(value) != value;
@@ -97,6 +97,7 @@ impl Input {
         }
     }
 
+    #[allow(clippy::missing_panics_doc, clippy::missing_errors_doc)]
     pub async fn get_contents(
         &self,
         file_type_hint: Option<FileType>,
@@ -132,7 +133,7 @@ impl Input {
 
         let res = reqwest::get(url.clone()).await?;
         let input_content = InputContent {
-            input: Input::RemoteUrl(url.clone()),
+            input: Input::RemoteUrl(Box::new(url.clone())),
             file_type,
             content: res.text().await?,
         };
@@ -194,6 +195,7 @@ impl Input {
 
 /// Fetch all unique links from a slice of inputs
 /// All relative URLs get prefixed with `base_url` if given.
+#[allow(clippy::missing_errors_doc)]
 pub async fn collect_links(
     inputs: &[Input],
     base_url: Option<String>,
@@ -263,30 +265,11 @@ mod test {
         Result, Uri,
     };
 
-    #[tokio::test]
-    #[ignore]
-    async fn test_file_without_extension_is_plaintext() -> Result<()> {
-        let dir = tempfile::tempdir()?;
-        // Treat as plaintext file (no extension)
-        let file_path = dir.path().join("README");
-        let _file = File::create(&file_path)?;
-        let input = Input::new(&file_path.as_path().display().to_string(), true);
-        let contents = input.get_contents(None, true).await?;
-
-        assert_eq!(contents.len(), 1);
-        assert_eq!(contents[0].file_type, FileType::Plaintext);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_url_without_extension_is_html() -> Result<()> {
-        let input = Input::new("https://example.org/", true);
-        let contents = input.get_contents(None, true).await?;
-
-        assert_eq!(contents.len(), 1);
-        assert_eq!(contents[0].file_type, FileType::Html);
-        Ok(())
-    }
+    const TEST_STRING: &str = "http://test-string.com";
+    const TEST_URL: &str = "https://test-url.org";
+    const TEST_FILE: &str = "https://test-file.io";
+    const TEST_GLOB_1: &str = "https://test-glob-1.io";
+    const TEST_GLOB_2_MAIL: &str = "test@glob-2.io";
 
     #[tokio::test]
     #[ignore]
@@ -334,7 +317,9 @@ mod test {
 
         let inputs = vec![
             Input::String(TEST_STRING.to_owned()),
-            Input::RemoteUrl(Url::parse(&mock_server.uri()).map_err(|e| (mock_server.uri(), e))?),
+            Input::RemoteUrl(Box::new(
+                Url::parse(&mock_server.uri()).map_err(|e| (mock_server.uri(), e))?,
+            )),
             Input::FsPath(file_path),
             Input::FsGlob {
                 pattern: temp_dir_path.join("glob*").to_str().unwrap().to_owned(),

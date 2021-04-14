@@ -10,13 +10,13 @@ pub struct Response(pub Input, pub ResponseBody);
 impl Response {
     #[inline]
     #[must_use]
-    pub fn new(uri: Uri, status: Status, source: Input) -> Self {
+    pub const fn new(uri: Uri, status: Status, source: Input) -> Self {
         Response(source, ResponseBody { uri, status })
     }
 
     #[inline]
     #[must_use]
-    pub fn status(&self) -> &Status {
+    pub const fn status(&self) -> &Status {
         &self.1.status
     }
 }
@@ -36,6 +36,7 @@ impl Serialize for Response {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Serialize, Hash, PartialEq, Eq)]
 pub struct ResponseBody {
     #[serde(flatten)]

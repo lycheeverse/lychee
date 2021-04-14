@@ -16,6 +16,7 @@ pub struct Filter {
 }
 
 impl Filter {
+    #[must_use]
     pub fn new(
         includes: Option<Includes>,
         excludes: Option<Excludes>,
@@ -28,6 +29,7 @@ impl Filter {
         }
     }
 
+    #[must_use]
     pub fn is_excluded(&self, uri: &Uri) -> bool {
         // Skip mail?
         if self.excludes.is_mail_excluded() && uri.scheme() == "mailto" {

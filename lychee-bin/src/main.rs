@@ -1,3 +1,20 @@
+#![warn(clippy::all, clippy::pedantic)]
+#![warn(
+    absolute_paths_not_starting_with_crate,
+    invalid_html_tags,
+    missing_copy_implementations,
+    missing_debug_implementations,
+    semicolon_in_expressions_from_macros,
+    unreachable_pub,
+    unused_extern_crates,
+    variant_size_differences,
+    clippy::missing_const_for_fn
+)]
+#![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
+
+// required for apple silicon
+use ring as _;
+
 use std::{collections::HashSet, fs, str::FromStr, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
@@ -8,7 +25,9 @@ use lychee_lib::{
     collector::{collect_links, Input},
     ClientBuilder, ClientPool, Response,
 };
+use openssl_sys as _; // required for vendored-openssl feature
 use regex::RegexSet;
+use ring as _; // required for apple silicon
 use structopt::StructOpt;
 use tokio::sync::mpsc;
 
@@ -204,7 +223,7 @@ fn read_header(input: &str) -> Result<(String, String)> {
     Ok((elements[0].into(), elements[1].into()))
 }
 
-fn parse_timeout(timeout: usize) -> Duration {
+const fn parse_timeout(timeout: usize) -> Duration {
     Duration::from_secs(timeout as u64)
 }
 

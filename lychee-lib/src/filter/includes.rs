@@ -9,6 +9,7 @@ pub struct Includes {
 
 impl Includes {
     #[inline]
+    #[must_use]
     pub fn regex(&self, input: &str) -> bool {
         self.regex.as_ref().map_or(false, |re| re.is_match(input))
     }

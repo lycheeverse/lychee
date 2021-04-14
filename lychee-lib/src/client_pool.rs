@@ -4,6 +4,7 @@ use tokio::sync::mpsc;
 
 use crate::{client, types};
 
+#[allow(missing_debug_implementations)]
 pub struct ClientPool {
     tx: mpsc::Sender<types::Response>,
     rx: mpsc::Receiver<types::Request>,
@@ -21,6 +22,7 @@ impl ClientPool {
         ClientPool { tx, rx, pool }
     }
 
+    #[allow(clippy::missing_panics_doc)]
     pub async fn listen(&mut self) {
         while let Some(req) = self.rx.recv().await {
             let client = self.pool.get().await;

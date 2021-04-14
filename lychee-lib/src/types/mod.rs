@@ -1,3 +1,5 @@
+#![allow(unreachable_pub)]
+
 mod error;
 mod request;
 mod response;
