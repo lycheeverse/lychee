@@ -58,6 +58,8 @@ pub mod filter;
 #[macro_use]
 pub mod test_utils;
 
+#[cfg(test)]
+use doc_comment as _; // required for doctest
 use openssl_sys as _; // required for vendored-openssl feature
 use ring as _; // required for apple silicon
 
