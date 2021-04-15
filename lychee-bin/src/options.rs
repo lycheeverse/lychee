@@ -118,9 +118,8 @@ pub(crate) struct Config {
     pub(crate) verbose: bool,
 
     /// Do not show progress bar.
-    /// This is recommended for non-interactive shells (e.g. for continuous
-    /// integration)
-    #[structopt(short, long)]
+    /// This is recommended for non-interactive shells (e.g. for continuous integration)
+    #[structopt(short, long, verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) no_progress: bool,
 

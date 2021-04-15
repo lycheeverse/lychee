@@ -153,8 +153,8 @@ USAGE:
     lychee [FLAGS] [OPTIONS] [--] [inputs]...
 
 FLAGS:
-    -E, --exclude-all-private    Exclude all private IPs from checking. Equivalent to `--exclude-private --exclude-link-
-                                 local --exclude-loopback`
+    -E, --exclude-all-private    Exclude all private IPs from checking.
+                                 Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
         --exclude-link-local     Exclude link-local IP address range from checking
         --exclude-loopback       Exclude loopback IP address range from checking
         --exclude-mail           Exclude all mail addresses from checking
@@ -162,8 +162,8 @@ FLAGS:
         --glob-ignore-case       Ignore case when expanding filesystem path glob inputs
         --help                   Prints help information
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
-    -n, --no-progress            Do not show progress bar. This is recommended for non-interactive shells (e.g. for
-                                 continuous integration)
+    -n, --no-progress            Do not show progress bar.
+                                 This is recommended for non-interactive shells (e.g. for continuous integration)
         --skip-missing           Skip missing input files (default is to error if they don't exist)
     -V, --version                Prints version information
     -v, --verbose                Verbose program output
