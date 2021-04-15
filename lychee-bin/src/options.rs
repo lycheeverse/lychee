@@ -167,7 +167,7 @@ pub(crate) struct Config {
 
     /// Exclude all private IPs from checking.
     /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
-    #[structopt(short = "E", long)]
+    #[structopt(short = "E", long, verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) exclude_all_private: bool,
 

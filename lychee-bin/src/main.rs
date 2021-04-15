@@ -120,7 +120,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let include = RegexSet::new(&cfg.include)?;
     let exclude = RegexSet::new(&cfg.exclude)?;
 
-    let client = ClientBuilder::default()
+    let client = ClientBuilder::builder()
         .includes(include)
         .excludes(exclude)
         .exclude_all_private(cfg.exclude_all_private)
@@ -138,6 +138,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .scheme(cfg.scheme.clone())
         .accepted(accepted)
         .build()
+        .client()
         .map_err(|e| anyhow!(e))?;
 
     let links = collect_links(

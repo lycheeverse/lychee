@@ -2,20 +2,22 @@ use regex::RegexSet;
 
 /// Include configuration for the link checker.
 /// You can include links based on regex patterns
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Includes {
-    pub regex: Option<RegexSet>,
+    /// User-defined set of included regex patterns
+    pub regex: RegexSet,
 }
 
 impl Includes {
     #[inline]
     #[must_use]
-    pub fn regex(&self, input: &str) -> bool {
-        self.regex.as_ref().map_or(false, |re| re.is_match(input))
+    pub fn is_match(&self, input: &str) -> bool {
+        self.regex.is_match(input)
     }
 
     #[inline]
+    #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.regex.as_ref().map_or(true, RegexSet::is_empty)
+        self.regex.is_empty()
     }
 }

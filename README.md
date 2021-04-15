@@ -225,7 +225,7 @@ use lychee_lib::{ClientBuilder, Result, Status};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-  let client = ClientBuilder::default().build()?;
+  let client = ClientBuilder::default().client()?;
   let response = client.check("https://github.com/lycheeverse/lychee").await?;
   assert!(response.status().is_success());
   Ok(())
@@ -235,7 +235,7 @@ async fn main() -> Result<()> {
 The client builder is very customizable:
 
 ```rust, ignore
-let client = lychee_lib::ClientBuilder::default()
+let client = lychee_lib::ClientBuilder::builder()
     .includes(includes)
     .excludes(excludes)
     .max_redirects(cfg.max_redirects)
@@ -248,7 +248,8 @@ let client = lychee_lib::ClientBuilder::default()
     .github_token(cfg.github_token)
     .scheme(cfg.scheme)
     .accepted(accepted)
-    .build()?;
+    .build()
+    .client()?;
 ```
 
 All options that you set will be used for all link checks.

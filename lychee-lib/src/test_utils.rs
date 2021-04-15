@@ -21,7 +21,7 @@ where
     ErrorKind: From<E>,
 {
     ClientBuilder::default()
-        .build()
+        .client()
         .unwrap()
         .check(request)
         .await

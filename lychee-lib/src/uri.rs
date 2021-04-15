@@ -56,10 +56,7 @@ impl Uri {
 
     // TODO: Support GitLab etc.
     pub(crate) fn extract_github(&self) -> Option<(&str, &str)> {
-        debug_assert!(
-            !matches!(self.scheme(), "mailto"),
-            "Should only be called on a Website type!"
-        );
+        debug_assert!(!self.is_mail(), "Should only be called on a Website type!");
 
         // TODO: Support more patterns
         if matches!(
@@ -73,6 +70,11 @@ impl Uri {
         }
 
         None
+    }
+
+    #[inline]
+    pub(crate) fn is_mail(&self) -> bool {
+        self.scheme() == "mailto"
     }
 }
 
