@@ -253,7 +253,7 @@ let client = lychee_lib::ClientBuilder::default()
 ```
 
 All options that you set will be used for all link checks.
-See the [builder documentation](https://docs.rs/lychee/latest/lychee/struct.ClientBuilder.html) for all options.
+See the [builder documentation](https://docs.rs/lychee-lib/latest/lychee_lib/struct.ClientBuilder.html) for all options.
 
 ## GitHub Action usage
 
