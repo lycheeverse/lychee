@@ -1,24 +1,20 @@
 use std::{fs, io::ErrorKind, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, Error, Result};
-use lazy_static::lazy_static;
 use lychee_lib::collector::Input;
 use serde::Deserialize;
 use structopt::{clap::crate_version, StructOpt};
 
 const METHOD: &str = "get";
+const USER_AGENT: &str = concat!("lychee/", crate_version!());
 const TIMEOUT: usize = 20;
 const MAX_CONCURRENCY: usize = 128;
 const MAX_REDIRECTS: usize = 10;
-const USER_AGENT: &str = concat!("lychee/", crate_version!());
-
 // this exists because structopt requires `&str` type values for defaults
 // (we can't use e.g. `TIMEOUT` or `timeout()` which gets created for serde)
-lazy_static! {
-    static ref TIMEOUT_STR: String = TIMEOUT.to_string();
-    static ref MAX_CONCURRENCY_STR: String = MAX_CONCURRENCY.to_string();
-    static ref MAX_REDIRECTS_STR: String = MAX_REDIRECTS.to_string();
-}
+const TIMEOUT_STR: &str = "20";
+const MAX_CONCURRENCY_STR: &str = "128";
+const MAX_REDIRECTS_STR: &str = "10";
 
 #[derive(Debug, Deserialize)]
 pub(crate) enum Format {
@@ -124,12 +120,12 @@ pub(crate) struct Config {
     pub(crate) no_progress: bool,
 
     /// Maximum number of allowed redirects
-    #[structopt(short, long, default_value = &MAX_REDIRECTS_STR)]
+    #[structopt(short, long, default_value = MAX_REDIRECTS_STR)]
     #[serde(default = "max_redirects")]
     pub(crate) max_redirects: usize,
 
     /// Maximum number of concurrent network requests
-    #[structopt(long, default_value = &MAX_CONCURRENCY_STR)]
+    #[structopt(long, default_value = MAX_CONCURRENCY_STR)]
     #[serde(default = "max_concurrency")]
     pub(crate) max_concurrency: usize,
 
@@ -201,7 +197,7 @@ pub(crate) struct Config {
     pub(crate) accept: Option<String>,
 
     /// Website timeout from connect to response finished
-    #[structopt(short, long, default_value = &TIMEOUT_STR)]
+    #[structopt(short, long, default_value = TIMEOUT_STR)]
     #[serde(default = "timeout")]
     pub(crate) timeout: usize,
 

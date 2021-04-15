@@ -3,6 +3,7 @@ use std::{collections::HashSet, convert::TryFrom, path::Path};
 use html5ever::{
     parse_document,
     tendril::{StrTendril, TendrilSink},
+    ParseOpts,
 };
 use linkify::LinkFinder;
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
@@ -67,7 +68,7 @@ fn extract_links_from_markdown(input: &str) -> Vec<String> {
 /// Extract unparsed URL strings from a HTML string.
 fn extract_links_from_html(input: &str) -> Vec<String> {
     let tendril = StrTendril::from(input);
-    let rc_dom = parse_document(RcDom::default(), html5ever::ParseOpts::default()).one(tendril);
+    let rc_dom = parse_document(RcDom::default(), ParseOpts::default()).one(tendril);
 
     let mut urls = Vec::new();
 

@@ -1,11 +1,11 @@
 use std::{
+    borrow::Borrow,
     collections::{HashMap, HashSet},
     fmt::{self, Display},
 };
 
-use console::style;
+use console::{pad_str_with, style, Alignment};
 use lychee_lib::{Input, Response, ResponseBody, Status};
-use pad::{Alignment, PadStr};
 use serde::Serialize;
 
 // Maximum padding for each entry in the final statistics output
@@ -77,9 +77,14 @@ fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -
     let fill = title.chars().count();
     f.write_str(title)?;
     f.write_str(
-        &stat
-            .to_string()
-            .pad(MAX_PADDING - fill, '.', Alignment::Right, false),
+        pad_str_with(
+            &stat.to_string(),
+            MAX_PADDING - fill,
+            Alignment::Right,
+            None,
+            '.',
+        )
+        .borrow(),
     )?;
 
     if newline {

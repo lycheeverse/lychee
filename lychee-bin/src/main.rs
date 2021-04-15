@@ -12,9 +12,6 @@
 )]
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 
-// required for apple silicon
-use ring as _;
-
 use std::{collections::HashSet, fs, str::FromStr, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
