@@ -1,7 +1,8 @@
 ![lychee](assets/banner.svg)
 
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
-[![docs.rs](https://docs.rs/lychee/badge.svg)](https://docs.rs/lychee)
+[![docs.rs](https://docs.rs/lychee/badge.svg)](https://docs.rs/lychee-lib)
+
 
 ⚡ A fast, async, resource-friendly link checker written in Rust.\\
 Finds broken hyperlinks and mail addresses inside Markdown, HTML, reStructuredText, or any other text file or website!
