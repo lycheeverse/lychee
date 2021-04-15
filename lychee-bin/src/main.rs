@@ -57,9 +57,14 @@ fn main() -> Result<()> {
 }
 
 fn run_main() -> Result<i32> {
+    #[cfg(feature = "serde")]
     let mut opts = LycheeOptions::from_args();
+    #[cfg(not(feature = "serde"))]
+    let opts = LycheeOptions::from_args();
 
     // Load a potentially existing config file and merge it into the config from the CLI
+    // Requires `serde` feature
+    #[cfg(feature = "serde")]
     if let Some(c) = Config::load_from_file(&opts.config_file)? {
         opts.config.merge(c)
     }
@@ -97,10 +102,15 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
 }
 
 fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
-    Ok(match format {
-        Format::String => stats.to_string(),
-        Format::Json => serde_json::to_string_pretty(&stats)?,
-    })
+    match format {
+        Format::String => Ok(stats.to_string()),
+        #[cfg(feature = "serde")]
+        Format::Json => serde_json::to_string_pretty(&stats).map_err(|e| e.into()),
+        #[cfg(not(feature = "serde"))]
+        Format::Json => Err(anyhow!(
+            "`serde` feature is not enabled. Cannot output JSON format."
+        )),
+    }
 }
 
 async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {

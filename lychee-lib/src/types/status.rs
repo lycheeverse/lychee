@@ -2,6 +2,7 @@ use std::{collections::HashSet, fmt::Display};
 
 use http::StatusCode;
 use reqwest::Response;
+#[cfg(feature = "serde")]
 use serde::{Serialize, Serializer};
 
 use crate::ErrorKind;
@@ -41,6 +42,7 @@ impl Display for Status {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for Status {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

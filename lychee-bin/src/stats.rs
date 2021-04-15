@@ -6,6 +6,7 @@ use std::{
 
 use console::{pad_str_with, style, Alignment};
 use lychee_lib::{Input, Response, ResponseBody, Status};
+#[cfg(feature = "serde")]
 use serde::Serialize;
 
 // Maximum padding for each entry in the final statistics output
@@ -22,7 +23,8 @@ pub(crate) fn color_response(response: &ResponseBody) -> String {
     out.to_string()
 }
 
-#[derive(Default, Serialize)]
+#[derive(Default)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub(crate) struct ResponseStats {
     total: usize,
     successful: usize,

@@ -1,6 +1,7 @@
 use std::{convert::TryFrom, fmt::Display, net::IpAddr};
 
 use fast_chemail::parse_email;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -10,7 +11,8 @@ use crate::{ErrorKind, Result};
 ///
 /// If the scheme is `mailto`, it's a mail address.
 /// Otherwise it's treated as a website URL.
-#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Uri {
     /// Website URL or mail address
     pub(crate) url: Url,

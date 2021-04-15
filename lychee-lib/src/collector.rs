@@ -6,6 +6,7 @@ use std::{
 
 use glob::glob_with;
 use reqwest::Url;
+#[cfg(feature = "serde")]
 use serde::Serialize;
 use shellexpand::tilde;
 use tokio::{
@@ -35,6 +36,7 @@ pub enum Input {
     String(String),
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for Input {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where

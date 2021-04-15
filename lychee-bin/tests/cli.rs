@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod cli {
     use std::{
-        fs::{self, File},
+        fs::File,
         io::Write,
         path::{Path, PathBuf},
     };
@@ -10,7 +10,9 @@ mod cli {
     use http::StatusCode;
     use lychee_lib::Result;
     use predicates::str::contains;
+    #[cfg(feature = "serde")]
     use pretty_assertions::assert_eq;
+    #[cfg(feature = "serde")]
     use uuid::Uuid;
 
     macro_rules! mock_server {
@@ -35,6 +37,7 @@ mod cli {
             .join("fixtures")
     }
 
+    #[cfg(feature = "serde")]
     #[derive(Default)]
     struct MockResponseStats {
         total: usize,
@@ -46,6 +49,7 @@ mod cli {
         errors: usize,
     }
 
+    #[cfg(feature = "serde")]
     impl MockResponseStats {
         fn to_json_str(&self) -> String {
             format!(
@@ -70,6 +74,7 @@ mod cli {
         }
     }
 
+    #[cfg(feature = "serde")]
     macro_rules! test_json_output {
         ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
             let mut cmd = main_command();
@@ -88,6 +93,7 @@ mod cli {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_exclude_all_private() -> Result<()> {
         test_json_output!(
             "TEST_ALL_PRIVATE.md",
@@ -102,6 +108,7 @@ mod cli {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_exclude_email() -> Result<()> {
         test_json_output!(
             "TEST_EMAIL.md",
@@ -117,6 +124,7 @@ mod cli {
 
     /// Test that a GitHub link can be checked without specifying the token.
     #[test]
+    #[cfg(feature = "serde")]
     fn test_check_github_no_token() -> Result<()> {
         test_json_output!(
             "TEST_GITHUB.md",
@@ -129,6 +137,7 @@ mod cli {
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_quirks() -> Result<()> {
         test_json_output!(
             "TEST_QUIRKS.txt",
@@ -307,6 +316,7 @@ mod cli {
 
     /// Test formatted file output
     #[test]
+    #[cfg(feature = "serde")]
     fn test_formatted_file_output() -> Result<()> {
         let mut cmd = main_command();
         let test_path = fixtures_path().join("TEST.md");
@@ -321,9 +331,9 @@ mod cli {
             .success();
 
         let expected = r#"{"total":11,"successful":11,"failures":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"fail_map":{}}"#;
-        let output = fs::read_to_string(&outfile)?;
+        let output = std::fs::read_to_string(&outfile)?;
         assert_eq!(output.split_whitespace().collect::<String>(), expected);
-        fs::remove_file(outfile)?;
+        std::fs::remove_file(outfile)?;
         Ok(())
     }
 }

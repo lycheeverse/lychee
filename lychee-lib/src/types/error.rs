@@ -1,6 +1,7 @@
 use std::{any::Any, convert::Infallible, fmt::Display, hash::Hash, path::PathBuf};
 
 use http::header::InvalidHeaderValue;
+#[cfg(feature = "serde")]
 use serde::{Serialize, Serializer};
 
 use crate::Uri;
@@ -92,6 +93,7 @@ impl Display for ErrorKind {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for ErrorKind {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where

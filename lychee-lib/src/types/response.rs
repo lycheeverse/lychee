@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+#[cfg(feature = "serde")]
 use serde::Serialize;
 
 use crate::{Input, Status, Uri};
@@ -27,6 +28,7 @@ impl Display for Response {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for Response {
     fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
@@ -37,9 +39,10 @@ impl Serialize for Response {
 }
 
 #[allow(clippy::module_name_repetitions)]
-#[derive(Debug, Serialize, Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct ResponseBody {
-    #[serde(flatten)]
+    #[cfg_attr(feature = "serde", serde(flatten))]
     pub uri: Uri,
     pub status: Status,
 }
