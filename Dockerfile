@@ -3,12 +3,13 @@ FROM rust:latest as builder
 RUN USER=root cargo new --bin lychee
 WORKDIR /lychee
 
-# Just copy the Cargo.toml and trigger a build so 
-# that we compile our dependencies only.
+# Just copy the Cargo.toml files and trigger 
+# a build so that we compile our dependencies only.
 # This way we avoid layer cache invalidation
 # if our dependencies haven't changed,
 # resulting in faster builds.
-COPY Cargo.toml Cargo.toml
+COPY lychee-bin/Cargo.toml lychee-bin/Cargo.toml
+COPY lychee-lib/Cargo.toml lychee-lib/Cargo.toml
 RUN cargo build --release
 RUN rm src/*.rs
 
