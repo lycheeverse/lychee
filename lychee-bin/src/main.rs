@@ -126,26 +126,10 @@ fn print_stats(cfg: &Config, stats: &ResponseStats) -> Result<()> {
     Ok(())
 }
 
-    let client = ClientBuilder::builder()
-        .includes(include)
-        .excludes(exclude)
-        .exclude_all_private(cfg.exclude_all_private)
-        .exclude_private_ips(cfg.exclude_private)
-        .exclude_link_local_ips(cfg.exclude_link_local)
-        .exclude_loopback_ips(cfg.exclude_loopback)
-        .exclude_mail(cfg.exclude_mail)
-        .max_redirects(cfg.max_redirects)
-        .user_agent(cfg.user_agent.clone())
-        .allow_insecure(cfg.insecure)
-        .custom_headers(headers)
-        .method(method)
-        .timeout(timeout)
-        .github_token(cfg.github_token.clone())
-        .scheme(cfg.scheme.clone())
-        .accepted(accepted)
-        .build()
-        .client()
-        .map_err(|e| anyhow!(e))?;
+async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
+    let client = cfg.build()?;
+
+    let max_concurrency = cfg.max_concurrency;
 
     let links = collect_links(
         &inputs,

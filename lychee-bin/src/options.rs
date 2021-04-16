@@ -92,8 +92,8 @@ pub(crate) struct Config {
 
     /// Do not show progress bar.
     /// This is recommended for non-interactive shells (e.g. for continuous integration)
+    #[cfg(feature = "indicatif")]
     #[structopt(short, long, verbatim_doc_comment)]
-    #[serde(default)]
     pub(crate) no_progress: bool,
 
     /// Maximum number of allowed redirects
@@ -132,7 +132,6 @@ pub(crate) struct Config {
     /// Exclude all private IPs from checking.
     /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
     #[structopt(short = "E", long, verbatim_doc_comment)]
-    #[serde(default)]
     pub(crate) exclude_all_private: bool,
 
     /// Exclude private IP address ranges from checking
