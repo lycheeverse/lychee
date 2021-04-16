@@ -43,7 +43,7 @@ url = { version = "2.2.1", features = ["serde"] }
 
 [dev-dependencies]
 doc-comment = "0.3.3"
-pretty_assertions = "0.7.1"
+pretty_assertions = "0.7.2"
 tempfile = "3.2.0"
 tokio = { version = "1.5.0", features = ["macros"] }
 wiremock = "0.5.2"
