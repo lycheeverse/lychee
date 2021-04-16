@@ -154,8 +154,8 @@ USAGE:
     lychee [FLAGS] [OPTIONS] [--] [inputs]...
 
 FLAGS:
-    -E, --exclude-all-private    Exclude all private IPs from checking. Equivalent to `--exclude-private --exclude-link-
-                                 local --exclude-loopback`
+    -E, --exclude-all-private    Exclude all private IPs from checking.
+                                 Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
         --exclude-link-local     Exclude link-local IP address range from checking
         --exclude-loopback       Exclude loopback IP address range from checking
         --exclude-mail           Exclude all mail addresses from checking
@@ -163,8 +163,8 @@ FLAGS:
         --glob-ignore-case       Ignore case when expanding filesystem path glob inputs
         --help                   Prints help information
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
-    -n, --no-progress            Do not show progress bar. This is recommended for non-interactive shells (e.g. for
-                                 continuous integration)
+    -n, --no-progress            Do not show progress bar.
+                                 This is recommended for non-interactive shells (e.g. for continuous integration)
         --skip-missing           Skip missing input files (default is to error if they don't exist)
     -V, --version                Prints version information
     -v, --verbose                Verbose program output
@@ -226,7 +226,7 @@ use lychee_lib::{ClientBuilder, Result, Status};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-  let client = ClientBuilder::default().build()?;
+  let client = ClientBuilder::default().client()?;
   let response = client.check("https://github.com/lycheeverse/lychee").await?;
   assert!(response.status().is_success());
   Ok(())
@@ -236,7 +236,7 @@ async fn main() -> Result<()> {
 The client builder is very customizable:
 
 ```rust, ignore
-let client = lychee_lib::ClientBuilder::default()
+let client = lychee_lib::ClientBuilder::builder()
     .includes(includes)
     .excludes(excludes)
     .max_redirects(cfg.max_redirects)
@@ -249,7 +249,8 @@ let client = lychee_lib::ClientBuilder::default()
     .github_token(cfg.github_token)
     .scheme(cfg.scheme)
     .accepted(accepted)
-    .build()?;
+    .build()
+    .client()?;
 ```
 
 All options that you set will be used for all link checks.

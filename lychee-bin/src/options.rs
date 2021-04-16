@@ -118,9 +118,8 @@ pub(crate) struct Config {
     pub(crate) verbose: bool,
 
     /// Do not show progress bar.
-    /// This is recommended for non-interactive shells (e.g. for continuous
-    /// integration)
-    #[structopt(short, long)]
+    /// This is recommended for non-interactive shells (e.g. for continuous integration)
+    #[structopt(short, long, verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) no_progress: bool,
 
@@ -167,7 +166,7 @@ pub(crate) struct Config {
 
     /// Exclude all private IPs from checking.
     /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
-    #[structopt(short = "E", long)]
+    #[structopt(short = "E", long, verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) exclude_all_private: bool,
 

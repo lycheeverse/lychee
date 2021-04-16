@@ -20,7 +20,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
-//!   let client = ClientBuilder::default().build()?;
+//!   let client = ClientBuilder::default().client()?;
 //!   let response = client.check("https://github.com/lycheeverse/lychee").await?;
 //!   assert!(response.status().is_success());
 //!   Ok(())
@@ -63,6 +63,7 @@ use doc_comment as _; // required for doctest
 use openssl_sys as _; // required for vendored-openssl feature
 use ring as _; // required for apple silicon
 
+#[doc(inline)]
 pub use crate::{
     client::{check, ClientBuilder},
     client_pool::ClientPool,

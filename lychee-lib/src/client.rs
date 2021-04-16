@@ -1,12 +1,12 @@
 #![allow(
     clippy::module_name_repetitions,
     clippy::struct_excessive_bools,
-    clippy::default_trait_access
+    clippy::default_trait_access,
+    clippy::used_underscore_binding
 )]
 use std::{collections::HashSet, convert::TryFrom, time::Duration};
 
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
-use derive_builder::Builder;
 use http::{
     header::{HeaderMap, HeaderValue},
     StatusCode,
@@ -15,6 +15,7 @@ use hubcaps::{Credentials, Github};
 use regex::RegexSet;
 use reqwest::header;
 use tokio::time::sleep;
+use typed_builder::TypedBuilder;
 
 use crate::{
     filter::{Excludes, Filter, Includes},
@@ -45,11 +46,9 @@ pub struct Client {
 /// A link checker using an API token for Github links
 /// otherwise a normal HTTP client.
 #[allow(unreachable_pub)]
-#[derive(Builder, Debug)]
-#[builder(build_fn(skip))]
-#[builder(setter(into))]
-#[builder(name = "ClientBuilder")]
-pub struct ClientBuilderInternal {
+#[derive(TypedBuilder, Debug)]
+#[builder(field_defaults(default, setter(into)))]
+pub struct ClientBuilder {
     /// Set an optional Github token.
     /// This allows for more requests before
     /// getting rate-limited.
@@ -69,8 +68,12 @@ pub struct ClientBuilderInternal {
     /// Don't check mail addresses
     exclude_mail: bool,
     /// Maximum number of redirects before returning error
+    #[builder(default = DEFAULT_MAX_REDIRECTS)]
     max_redirects: usize,
     /// User agent used for checking links
+    // Faking the user agent is necessary for some websites, unfortunately.
+    // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
+    #[builder(default_code = "String::from(DEFAULT_USER_AGENT)")]
     user_agent: String,
     /// Ignore SSL errors
     allow_insecure: bool,
@@ -83,6 +86,7 @@ pub struct ClientBuilderInternal {
     /// on some websites.
     custom_headers: HeaderMap,
     /// Request method (e.g. `GET` or `HEAD`)
+    #[builder(default = reqwest::Method::GET)]
     method: reqwest::Method,
     /// Set of accepted return codes / status codes
     accepted: Option<HashSet<StatusCode>>,
@@ -90,73 +94,62 @@ pub struct ClientBuilderInternal {
     timeout: Option<Duration>,
 }
 
-impl ClientBuilder {
-    fn build_excludes(&self) -> Excludes {
-        // exclude_all_private option turns on all "private" excludes,
-        // including private IPs, link-local IPs and loopback IPs
-        let exclude_all_private = matches!(self.exclude_all_private, Some(true));
-        let enable_exclude = |opt| exclude_all_private || matches!(opt, Some(true));
-
-        Excludes {
-            regex: self.excludes.clone().unwrap_or_default(),
-            private_ips: enable_exclude(self.exclude_private_ips),
-            link_local_ips: enable_exclude(self.exclude_link_local_ips),
-            loopback_ips: enable_exclude(self.exclude_loopback_ips),
-            mail: self.exclude_mail.unwrap_or_default(),
-        }
+impl Default for ClientBuilder {
+    fn default() -> Self {
+        Self::builder().build()
     }
+}
 
-    fn build_includes(&self) -> Includes {
-        let regex = self.includes.clone().flatten();
-        Includes { regex }
+impl ClientBuilder {
+    fn build_filter(&self) -> Filter {
+        let includes = self.includes.clone().map(|regex| Includes { regex });
+        let excludes = self.excludes.clone().map(|regex| Excludes { regex });
+        let scheme = self.scheme.clone().map(|s| s.to_lowercase());
+
+        Filter {
+            includes,
+            excludes,
+            scheme,
+            // exclude_all_private option turns on all "private" excludes,
+            // including private IPs, link-local IPs and loopback IPs
+            exclude_private_ips: self.exclude_all_private || self.exclude_private_ips,
+            exclude_link_local_ips: self.exclude_all_private || self.exclude_link_local_ips,
+            exclude_loopback_ips: self.exclude_all_private || self.exclude_loopback_ips,
+            exclude_mail: self.exclude_all_private || self.exclude_mail,
+        }
     }
 
     /// The build method instantiates the client.
     #[allow(clippy::missing_errors_doc)]
-    pub fn build(&self) -> Result<Client> {
-        // Faking the user agent is necessary for some websites, unfortunately.
-        // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
-        let user_agent = self
-            .user_agent
-            .clone()
-            .unwrap_or_else(|| DEFAULT_USER_AGENT.to_owned());
-
-        let mut headers = self.custom_headers.clone().unwrap_or_default();
-        headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
+    pub fn client(&self) -> Result<Client> {
+        let mut headers = self.custom_headers.clone();
+        headers.insert(header::USER_AGENT, HeaderValue::from_str(&self.user_agent)?);
         headers.insert(
             header::TRANSFER_ENCODING,
             HeaderValue::from_static("chunked"),
         );
 
-        let allow_insecure = self.allow_insecure.unwrap_or(false);
-        let max_redirects = self.max_redirects.unwrap_or(DEFAULT_MAX_REDIRECTS);
-
         let builder = reqwest::ClientBuilder::new()
             .gzip(true)
             .default_headers(headers)
-            .danger_accept_invalid_certs(allow_insecure)
-            .redirect(reqwest::redirect::Policy::limited(max_redirects));
+            .danger_accept_invalid_certs(self.allow_insecure)
+            .redirect(reqwest::redirect::Policy::limited(self.max_redirects));
 
-        let timeout = self.timeout.flatten();
-
-        let reqwest_client = (match timeout {
+        let reqwest_client = (match self.timeout {
             Some(t) => builder.timeout(t),
             None => builder,
         })
         .build()?;
 
-        let github_token = match self.github_token.clone().flatten() {
-            Some(token) if !token.is_empty() => {
-                Some(Github::new(user_agent, Credentials::Token(token))?)
-            }
+        let github_token = match self.github_token {
+            Some(ref token) if !token.is_empty() => Some(Github::new(
+                self.user_agent.clone(),
+                Credentials::Token(token.clone()),
+            )?),
             _ => None,
         };
 
-        let includes = self.build_includes();
-        let excludes = self.build_excludes();
-        let scheme = self.scheme.clone().flatten().map(|s| s.to_lowercase());
-
-        let filter = Filter::new(Some(includes), Some(excludes), scheme);
+        let filter = self.build_filter();
 
         let quirks = Quirks::default();
 
@@ -164,9 +157,9 @@ impl ClientBuilder {
             reqwest_client,
             github_client: github_token,
             filter,
+            method: self.method.clone(),
+            accepted: self.accepted.clone(),
             quirks,
-            method: self.method.clone().unwrap_or(reqwest::Method::GET),
-            accepted: self.accepted.clone().unwrap_or_default(),
         })
     }
 }
@@ -180,7 +173,7 @@ impl Client {
         let Request { uri, source } = Request::try_from(request)?;
         let status = if self.filter.is_excluded(&uri) {
             Status::Excluded
-        } else if uri.scheme() == "mailto" {
+        } else if uri.is_mail() {
             self.check_mail(&uri).await
         } else {
             self.check_website(&uri).await
@@ -262,7 +255,7 @@ where
     Request: TryFrom<T, Error = E>,
     ErrorKind: From<E>,
 {
-    let client = ClientBuilder::default().build()?;
+    let client = ClientBuilder::builder().build().client()?;
     Ok(client.check(request).await?)
 }
 
@@ -345,9 +338,10 @@ mod test {
         assert!(res.status().is_failure());
 
         // Same, but ignore certificate error
-        let res = ClientBuilder::default()
+        let res = ClientBuilder::builder()
             .allow_insecure(true)
             .build()
+            .client()
             .unwrap()
             .check("https://expired.badssl.com/")
             .await
@@ -366,9 +360,10 @@ mod test {
         // See https://github.com/rust-lang/crates.io/issues/788
         let mut custom = HeaderMap::new();
         custom.insert(header::ACCEPT, "text/html".parse().unwrap());
-        let res = ClientBuilder::default()
+        let res = ClientBuilder::builder()
             .custom_headers(custom)
             .build()
+            .client()
             .unwrap()
             .check("https://crates.io/crates/lychee")
             .await
@@ -387,9 +382,10 @@ mod test {
 
         let mock_server = mock_server!(StatusCode::OK, set_delay(mock_delay));
 
-        let client = ClientBuilder::default()
+        let client = ClientBuilder::builder()
             .timeout(checker_timeout)
             .build()
+            .client()
             .unwrap();
 
         let res = client.check(mock_server.uri()).await.unwrap();
