@@ -10,9 +10,7 @@ mod cli {
     use http::StatusCode;
     use lychee_lib::Result;
     use predicates::str::contains;
-    #[cfg(feature = "serde")]
     use pretty_assertions::assert_eq;
-    #[cfg(feature = "serde")]
     use uuid::Uuid;
 
     macro_rules! mock_server {
@@ -37,7 +35,6 @@ mod cli {
             .join("fixtures")
     }
 
-    #[cfg(feature = "serde")]
     #[derive(Default)]
     struct MockResponseStats {
         total: usize,
@@ -49,7 +46,6 @@ mod cli {
         errors: usize,
     }
 
-    #[cfg(feature = "serde")]
     impl MockResponseStats {
         fn to_json_str(&self) -> String {
             format!(
@@ -74,7 +70,6 @@ mod cli {
         }
     }
 
-    #[cfg(feature = "serde")]
     macro_rules! test_json_output {
         ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
             let mut cmd = main_command();
@@ -92,9 +87,9 @@ mod cli {
         }};
     }
 
-    #[test]
-    #[cfg(feature = "serde")]
-    fn test_exclude_all_private() -> Result<()> {
+    #[tokio::test]
+    #[cfg_attr(not(feature = "json_output"), ignore)]
+    async fn test_exclude_all_private() -> Result<()> {
         test_json_output!(
             "TEST_ALL_PRIVATE.md",
             MockResponseStats {
@@ -107,9 +102,9 @@ mod cli {
         )
     }
 
-    #[test]
-    #[cfg(feature = "serde")]
-    fn test_exclude_email() -> Result<()> {
+    #[tokio::test]
+    #[cfg_attr(not(feature = "json_output"), ignore)]
+    async fn test_exclude_email() -> Result<()> {
         test_json_output!(
             "TEST_EMAIL.md",
             MockResponseStats {
@@ -123,9 +118,9 @@ mod cli {
     }
 
     /// Test that a GitHub link can be checked without specifying the token.
-    #[test]
-    #[cfg(feature = "serde")]
-    fn test_check_github_no_token() -> Result<()> {
+    #[tokio::test]
+    #[cfg_attr(not(feature = "json_output"), ignore)]
+    async fn test_check_github_no_token() -> Result<()> {
         test_json_output!(
             "TEST_GITHUB.md",
             MockResponseStats {
@@ -136,9 +131,9 @@ mod cli {
         )
     }
 
-    #[test]
-    #[cfg(feature = "serde")]
-    fn test_quirks() -> Result<()> {
+    #[tokio::test]
+    #[cfg_attr(not(feature = "json_output"), ignore)]
+    async fn test_quirks() -> Result<()> {
         test_json_output!(
             "TEST_QUIRKS.txt",
             MockResponseStats {
@@ -167,13 +162,14 @@ mod cli {
         Ok(())
     }
 
-    #[test]
-    fn test_failure_github_404_no_token() {
+    #[tokio::test]
+    async fn test_failure_github_404_no_token() {
         let mut cmd = main_command();
         let test_github_404_path = fixtures_path().join("TEST_GITHUB_404.md");
 
+        #[cfg(feature = "indicatif")]
+        cmd.arg("--no-progress");
         cmd.arg(test_github_404_path)
-            .arg("--no-progress")
             .env_clear()
             .assert()
             .failure()
@@ -221,8 +217,8 @@ mod cli {
             .success();
     }
 
-    #[test]
-    fn test_missing_file_error() {
+    #[tokio::test]
+    async fn test_missing_file_error() {
         let mut cmd = main_command();
         let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4().to_string());
 
@@ -236,8 +232,8 @@ mod cli {
             )));
     }
 
-    #[test]
-    fn test_missing_file_ok_if_skip_missing() {
+    #[tokio::test]
+    async fn test_missing_file_ok_if_skip_missing() {
         let mut cmd = main_command();
         let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4().to_string());
 
@@ -315,9 +311,9 @@ mod cli {
     }
 
     /// Test formatted file output
-    #[test]
-    #[cfg(feature = "serde")]
-    fn test_formatted_file_output() -> Result<()> {
+    #[tokio::test]
+    #[cfg_attr(not(feature = "json_output"), ignore)]
+    async fn test_formatted_file_output() -> Result<()> {
         let mut cmd = main_command();
         let test_path = fixtures_path().join("TEST.md");
         let outfile = format!("{}.json", Uuid::new_v4());

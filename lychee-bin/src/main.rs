@@ -12,34 +12,35 @@
 )]
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 
-use std::{collections::HashSet, fs, str::FromStr, time::Duration};
-
-use anyhow::{anyhow, Context, Result};
-use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, HeaderName};
-use http::StatusCode;
+#[cfg(feature = "json_output")]
+use anyhow::Context;
+use anyhow::{anyhow, Result};
+#[cfg(feature = "indicatif")]
 use indicatif::{ProgressBar, ProgressStyle};
 use lychee_lib::{
     collector::{collect_links, Input},
-    ClientBuilder, ClientPool, Response,
+    ClientPool,
 };
 use openssl_sys as _; // required for vendored-openssl feature
-use regex::RegexSet;
 use ring as _; // required for apple silicon
-use structopt::StructOpt;
 use tokio::sync::mpsc;
 
+#[cfg(feature = "json_output")]
+mod format;
 mod options;
 mod stats;
 
+#[cfg(feature = "json_output")]
+use crate::format::Format;
 use crate::{
-    options::{Config, Format, LycheeOptions},
-    stats::{color_response, ResponseStats},
+    options::{Config, LycheeOptions},
+    stats::ResponseStats,
 };
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
     Success = 0,
-    // NOTE: exit code 1 is used for any `Result::Err` bubbled up to `main()` using the `?` operator.
+    // TODO: exit code 1 is used for any `Result::Err` bubbled up to `main()` using the `?` operator.
     // For now, 1 acts as a catch-all for everything non-link related (including config errors),
     // until we find a way to structure the error code handling better.
     #[allow(unused)]
@@ -57,18 +58,8 @@ fn main() -> Result<()> {
 }
 
 fn run_main() -> Result<i32> {
-    #[cfg(feature = "serde")]
-    let mut opts = LycheeOptions::from_args();
-    #[cfg(not(feature = "serde"))]
-    let opts = LycheeOptions::from_args();
-
-    // Load a potentially existing config file and merge it into the config from the CLI
-    // Requires `serde` feature
-    #[cfg(feature = "serde")]
-    if let Some(c) = Config::load_from_file(&opts.config_file)? {
-        opts.config.merge(c)
-    }
-    let cfg = &opts.config;
+    let opts = LycheeOptions::load_options()?;
+    let (cfg, inputs) = (&opts.config, opts.inputs());
 
     let runtime = match cfg.threads {
         Some(threads) => {
@@ -82,11 +73,16 @@ fn run_main() -> Result<i32> {
         None => tokio::runtime::Runtime::new()?,
     };
 
-    runtime.block_on(run(cfg, opts.inputs()))
+    runtime.block_on(run(&cfg, inputs))
 }
 
-fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
-    let out = color_response(&response.1);
+#[cfg(feature = "indicatif")]
+fn show_progress(
+    progress_bar: &Option<ProgressBar>,
+    response: &lychee_lib::Response,
+    verbose: bool,
+) {
+    let out = crate::stats::color_response(&response.1);
     if let Some(pb) = progress_bar {
         pb.inc(1);
         pb.set_message(&out);
@@ -101,52 +97,39 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
     }
 }
 
-fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
+#[cfg(feature = "json_output")]
+fn fmt(stats: &ResponseStats, format: Format) -> Result<String> {
     match format {
         Format::String => Ok(stats.to_string()),
-        #[cfg(feature = "serde")]
         Format::Json => serde_json::to_string_pretty(&stats).map_err(|e| e.into()),
-        #[cfg(not(feature = "serde"))]
-        Format::Json => Err(anyhow!(
-            "`serde` feature is not enabled. Cannot output JSON format."
-        )),
     }
 }
 
-async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
-    let mut headers = parse_headers(&cfg.headers)?;
-    if let Some(auth) = &cfg.basic_auth {
-        let auth_header = parse_basic_auth(&auth)?;
-        headers.typed_insert(auth_header);
+fn print_stats(cfg: &Config, stats: &ResponseStats) -> Result<()> {
+    #[cfg(feature = "json_output")]
+    let stats_formatted = fmt(&stats, cfg.format)?;
+    #[cfg(not(feature = "json_output"))]
+    let stats_formatted = stats.to_string();
+
+    #[cfg(feature = "json_output")]
+    if let Some(output) = &cfg.output {
+        return std::fs::write(output, stats_formatted)
+            .context("Cannot write status output to file");
     }
+    if cfg.verbose && !stats.is_empty() {
+        // separate summary from the verbose list of links above
+        println!();
+    }
+    // we assume that the formatted stats don't have a final newline
+    println!("{}", stats_formatted);
 
-    let accepted = cfg.accept.clone().and_then(|a| parse_statuscodes(&a).ok());
-    let timeout = parse_timeout(cfg.timeout);
+    Ok(())
+}
+
+async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
+    let client = cfg.build()?;
+
     let max_concurrency = cfg.max_concurrency;
-    let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
-    let include = RegexSet::new(&cfg.include)?;
-    let exclude = RegexSet::new(&cfg.exclude)?;
-
-    let client = ClientBuilder::builder()
-        .includes(include)
-        .excludes(exclude)
-        .exclude_all_private(cfg.exclude_all_private)
-        .exclude_private_ips(cfg.exclude_private)
-        .exclude_link_local_ips(cfg.exclude_link_local)
-        .exclude_loopback_ips(cfg.exclude_loopback)
-        .exclude_mail(cfg.exclude_mail)
-        .max_redirects(cfg.max_redirects)
-        .user_agent(cfg.user_agent.clone())
-        .allow_insecure(cfg.insecure)
-        .custom_headers(headers)
-        .method(method)
-        .timeout(timeout)
-        .github_token(cfg.github_token.clone())
-        .scheme(cfg.scheme.clone())
-        .accepted(accepted)
-        .build()
-        .client()
-        .map_err(|e| anyhow!(e))?;
 
     let links = collect_links(
         &inputs,
@@ -157,6 +140,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     .await
     .map_err(|e| anyhow!(e))?;
 
+    #[cfg(feature = "indicatif")]
     let pb = if cfg.no_progress {
         None
     } else {
@@ -173,9 +157,11 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
 
     let mut stats = ResponseStats::new();
 
+    #[cfg(feature = "indicatif")]
     let bar = pb.clone();
     tokio::spawn(async move {
         for link in links {
+            #[cfg(feature = "indicatif")]
             if let Some(pb) = &bar {
                 pb.set_message(&link.to_string());
             };
@@ -191,125 +177,23 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     });
 
     while let Some(response) = recv_resp.recv().await {
+        #[cfg(feature = "indicatif")]
         show_progress(&pb, &response, cfg.verbose);
         stats.add(response);
     }
 
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
+    #[cfg(feature = "indicatif")]
     if let Some(pb) = &pb {
         pb.finish_and_clear();
     }
 
-    let stats_formatted = fmt(&stats, &cfg.format)?;
-    if let Some(output) = &cfg.output {
-        fs::write(output, stats_formatted).context("Cannot write status output to file")?;
-    } else {
-        if cfg.verbose && !stats.is_empty() {
-            // separate summary from the verbose list of links above
-            println!();
-        }
-        // we assume that the formatted stats don't have a final newline
-        println!("{}", stats_formatted);
-    }
+    print_stats(cfg, &stats)?;
 
     if stats.is_success() {
         Ok(ExitCode::Success as i32)
     } else {
         Ok(ExitCode::LinkCheckFailure as i32)
-    }
-}
-
-fn read_header(input: &str) -> Result<(String, String)> {
-    let elements: Vec<_> = input.split('=').collect();
-    if elements.len() != 2 {
-        return Err(anyhow!(
-            "Header value should be of the form key=value, got {}",
-            input
-        ));
-    }
-    Ok((elements[0].into(), elements[1].into()))
-}
-
-const fn parse_timeout(timeout: usize) -> Duration {
-    Duration::from_secs(timeout as u64)
-}
-
-fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {
-    let mut out = HeaderMap::new();
-    for header in headers {
-        let (key, val) = read_header(header.as_ref())?;
-        out.insert(
-            HeaderName::from_bytes(key.as_bytes())?,
-            val.parse().unwrap(),
-        );
-    }
-    Ok(out)
-}
-
-fn parse_statuscodes<T: AsRef<str>>(accept: T) -> Result<HashSet<StatusCode>> {
-    let mut statuscodes = HashSet::new();
-    for code in accept.as_ref().split(',') {
-        let code: StatusCode = StatusCode::from_bytes(code.as_bytes())?;
-        statuscodes.insert(code);
-    }
-    Ok(statuscodes)
-}
-
-fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
-    let params: Vec<_> = auth.split(':').collect();
-    if params.len() != 2 {
-        return Err(anyhow!(
-            "Basic auth value should be of the form username:password, got {}",
-            auth
-        ));
-    }
-    Ok(Authorization::basic(params[0], params[1]))
-}
-
-#[cfg(test)]
-mod test {
-    use std::{array, collections::HashSet};
-
-    use headers::{HeaderMap, HeaderMapExt};
-    use http::StatusCode;
-    use pretty_assertions::assert_eq;
-    use reqwest::header;
-
-    use super::{parse_basic_auth, parse_headers, parse_statuscodes};
-
-    #[test]
-    fn test_parse_custom_headers() {
-        let mut custom = HeaderMap::new();
-        custom.insert(header::ACCEPT, "text/html".parse().unwrap());
-        assert_eq!(parse_headers(&["accept=text/html"]).unwrap(), custom);
-    }
-
-    #[test]
-    fn test_parse_statuscodes() {
-        let actual = parse_statuscodes("200,204,301").unwrap();
-        let expected = array::IntoIter::new([
-            StatusCode::OK,
-            StatusCode::NO_CONTENT,
-            StatusCode::MOVED_PERMANENTLY,
-        ])
-        .collect::<HashSet<_>>();
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_parse_basic_auth() {
-        let mut expected = HeaderMap::new();
-        expected.insert(
-            header::AUTHORIZATION,
-            "Basic YWxhZGluOmFicmV0ZXNlc2Ftbw==".parse().unwrap(),
-        );
-
-        let mut actual = HeaderMap::new();
-        let auth_header = parse_basic_auth("aladin:abretesesamo").unwrap();
-        actual.typed_insert(auth_header);
-
-        assert_eq!(expected, actual);
     }
 }

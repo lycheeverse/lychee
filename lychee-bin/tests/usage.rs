@@ -1,4 +1,4 @@
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod readme {
     use std::{
         fs::File,
@@ -35,9 +35,9 @@ mod readme {
     /// Only unix: might not work with windows CRLF line-endings returned from
     /// process output (making it fully portable would probably require more
     /// involved parsing).
-    #[test]
-    #[cfg(unix)]
-    fn test_readme_usage_up_to_date() {
+    #[tokio::test]
+    #[cfg_attr(not(feature = "default"), ignore)]
+    async fn test_readme_usage_up_to_date() {
         let mut cmd = main_command();
 
         let result = cmd.env_clear().arg("--help").assert().success();

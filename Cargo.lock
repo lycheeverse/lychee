@@ -459,7 +459,7 @@ dependencies = [
 [[package]]
 name = "console"
 version = "0.14.1"
-source = "git+https://github.com/lebensterben/console.git#a0531b89e1733028de4b753525f5898f19db3df5"
+source = "git+https://github.com/mitsuhiko/console.git#278de9dc2bf0fa28db69adee351072f668beec8f"
 dependencies = [
  "encode_unicode",
  "lazy_static",

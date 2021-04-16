@@ -65,7 +65,7 @@ use ring as _; // required for apple silicon
 
 #[doc(inline)]
 pub use crate::{
-    client::{check, ClientBuilder},
+    client::{check, Client, ClientBuilder},
     client_pool::ClientPool,
     collector::Input,
     filter::{Excludes, Filter, Includes},
