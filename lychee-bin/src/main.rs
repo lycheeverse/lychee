@@ -1,6 +1,6 @@
 //! `lychee` is a fast, asynchronous, resource-friendly link checker.
 //! It is able to find broken hyperlinks and mail addresses inside Markdown,
-//! HTML, reStructuredText, and any other format.
+//! HTML, `reStructuredText`, and any other format.
 //!
 //! The lychee binary is a wrapper around lychee-lib, which provides
 //! convenience functions for calling lychee from the command-line.
