@@ -5,6 +5,8 @@ use tokio::sync::mpsc;
 use crate::{client, types};
 
 #[allow(missing_debug_implementations)]
+/// Manages a channel for incoming requests
+/// and a pool of lychee clients to handle them
 pub struct ClientPool {
     tx: mpsc::Sender<types::Response>,
     rx: mpsc::Receiver<types::Request>,
@@ -13,6 +15,7 @@ pub struct ClientPool {
 
 impl ClientPool {
     #[must_use]
+    /// Creates a new client pool
     pub fn new(
         tx: mpsc::Sender<types::Response>,
         rx: mpsc::Receiver<types::Request>,
@@ -23,6 +26,8 @@ impl ClientPool {
     }
 
     #[allow(clippy::missing_panics_doc)]
+    /// Start listening for incoming requests and send each of them
+    /// asynchronously to a client from the pool
     pub async fn listen(&mut self) {
         while let Some(req) = self.rx.recv().await {
             let client = self.pool.get().await;

@@ -19,14 +19,19 @@ use crate::{
 };
 
 const STDIN: &str = "-";
-/// Links which need to be validated.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+/// An exhaustive list of input sources, which lychee accepts
 pub enum Input {
     /// URL (of HTTP/HTTPS scheme).
     RemoteUrl(Box<Url>),
-    /// Unix shell style glob pattern.
-    FsGlob { pattern: String, ignore_case: bool },
+    /// Unix shell-style glob pattern.
+    FsGlob {
+        /// The glob pattern matching all input files
+        pattern: String,
+        /// Don't be case sensitive when matching files against a glob
+        ignore_case: bool,
+    },
     /// File path.
     FsPath(PathBuf),
     /// Standard Input.
@@ -57,14 +62,19 @@ impl Display for Input {
 }
 
 #[derive(Debug)]
+/// Encapsulates the content for a given input
 pub struct InputContent {
+    /// Input source
     pub input: Input,
+    /// File type of given input
     pub file_type: FileType,
+    /// Raw UTF-8 string content
     pub content: String,
 }
 
 impl InputContent {
     #[must_use]
+    /// Create an instance of `InputContent` from an input string
     pub fn from_string(s: &str, file_type: FileType) -> Self {
         // TODO: consider using Cow (to avoid one .clone() for String types)
         Self {
@@ -77,6 +87,9 @@ impl InputContent {
 
 impl Input {
     #[must_use]
+    /// Construct a new `Input` source. In case the input is a `glob` pattern,
+    /// `glob_ignore_case` decides whether matching files against the `glob` is
+    /// case-insensitive or not
     pub fn new(value: &str, glob_ignore_case: bool) -> Self {
         if value == STDIN {
             Self::Stdin
@@ -97,7 +110,8 @@ impl Input {
         }
     }
 
-    #[allow(clippy::missing_panics_doc, clippy::missing_errors_doc)]
+    #[allow(clippy::missing_panics_doc)]
+    /// Retrieve the contents from the input
     pub async fn get_contents(
         &self,
         file_type_hint: Option<FileType>,

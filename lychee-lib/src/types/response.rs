@@ -4,18 +4,21 @@ use serde::Serialize;
 
 use crate::{Input, Status, Uri};
 
+/// Response type returned by lychee after checking a URI
 #[derive(Debug)]
 pub struct Response(pub Input, pub ResponseBody);
 
 impl Response {
     #[inline]
     #[must_use]
+    /// Create new response
     pub const fn new(uri: Uri, status: Status, source: Input) -> Self {
         Response(source, ResponseBody { uri, status })
     }
 
     #[inline]
     #[must_use]
+    /// Retrieve the underlying status of the response
     pub const fn status(&self) -> &Status {
         &self.1.status
     }
@@ -38,9 +41,12 @@ impl Serialize for Response {
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Serialize, Hash, PartialEq, Eq)]
+/// Encapsulates the state of a URI check
 pub struct ResponseBody {
     #[serde(flatten)]
+    /// The URI which was checked
     pub uri: Uri,
+    /// The status of the check
     pub status: Status,
 }
 

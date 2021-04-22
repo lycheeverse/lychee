@@ -10,14 +10,24 @@ use crate::Uri;
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
+    /// Any form of I/O error occurred while reading from a given path
     // TODO: maybe need to be splitted; currently first slot is Some only for reading files
     IoError(Option<PathBuf>, std::io::Error),
+    /// Network error when trying to connect to an endpoint via reqwest
     ReqwestError(reqwest::Error),
+    /// Network error when trying to connect to an endpoint via hubcaps
     HubcapsError(hubcaps::Error),
+    /// The given string can not be parsed into a valid URL or e-mail address
     UrlParseError(String, (url::ParseError, Option<fast_chemail::ParseError>)),
+    /// The given mail address is unreachable
     UnreachableEmailAddress(Uri),
+    /// The given header could not be parsed.
+    /// A possible error when converting a `HeaderValue` from a string or byte
+    /// slice.
     InvalidHeader(InvalidHeaderValue),
+    /// The given UNIX glob pattern is invalid
     InvalidGlobPattern(glob::PatternError),
+    /// The Github API could not be called because of a missing Github token
     MissingGitHubToken,
 }
 
