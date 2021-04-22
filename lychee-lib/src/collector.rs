@@ -112,6 +112,12 @@ impl Input {
 
     #[allow(clippy::missing_panics_doc)]
     /// Retrieve the contents from the input
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the contents can not be retrieved
+    /// because of an underlying I/O error (e.g. an error while making a
+    /// network request or retrieving the contents from the file system)
     pub async fn get_contents(
         &self,
         file_type_hint: Option<FileType>,
