@@ -12,9 +12,13 @@ use url::Url;
 use crate::{collector::InputContent, Request, Uri};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+/// `FileType` defines which file types lychee can handle
 pub enum FileType {
+    /// File in HTML format
     Html,
+    /// File in Markdown format
     Markdown,
+    /// Generic text file without syntax-specific parsing
     Plaintext,
 }
 

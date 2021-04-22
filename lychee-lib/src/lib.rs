@@ -40,7 +40,7 @@
     clippy::missing_const_for_fn
 )]
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 
 #[cfg(doctest)]
 doc_comment::doctest!("../../README.md");
@@ -51,9 +51,17 @@ mod quirks;
 mod types;
 mod uri;
 
+/// A pool of clients, to handle concurrent checks
 pub mod collector;
+
+/// Functionality to extract URIs from inputs
 pub mod extract;
+
+/// Filters are a way to define behavior when encountering
+/// URIs that need to be treated differently, such as
+/// local IPs or e-mail addresses
 pub mod filter;
+
 #[cfg(test)]
 #[macro_use]
 pub mod test_utils;

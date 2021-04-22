@@ -53,6 +53,7 @@ impl Serialize for Status {
 impl Status {
     #[allow(clippy::missing_panics_doc)]
     #[must_use]
+    /// Create a status object from a response and the set of accepted status codes
     pub fn new(response: &Response, accepted: Option<HashSet<StatusCode>>) -> Self {
         let code = response.status();
 
@@ -70,29 +71,34 @@ impl Status {
 
     #[inline]
     #[must_use]
+    /// Returns `true` if the check was successful
     pub const fn is_success(&self) -> bool {
         matches!(self, Status::Ok(_))
     }
 
     #[inline]
     #[must_use]
+    /// Returns `true` if the check was not successful
     pub const fn is_failure(&self) -> bool {
         matches!(self, Status::Error(_))
     }
 
     #[inline]
     #[must_use]
+    /// Returns `true` if the check was excluded
     pub const fn is_excluded(&self) -> bool {
         matches!(self, Status::Excluded)
     }
 
     #[inline]
     #[must_use]
+    /// Returns `true` if a check took too long to complete
     pub const fn is_timeout(&self) -> bool {
         matches!(self, Status::Timeout(_))
     }
 
     #[must_use]
+    /// Return a unicode icon to visualize the status
     pub const fn icon(&self) -> &str {
         match self {
             Status::Ok(_) => ICON_OK,

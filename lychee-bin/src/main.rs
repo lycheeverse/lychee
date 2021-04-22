@@ -1,3 +1,48 @@
+//! `lychee` is a fast, asynchronous, resource-friendly link checker.
+//! It is able to find broken hyperlinks and mail addresses inside Markdown,
+//! HTML, `reStructuredText`, and any other format.
+//!
+//! The lychee binary is a wrapper around lychee-lib, which provides
+//! convenience functions for calling lychee from the command-line.
+//!
+//! Run it inside a repository with a `README.md`:
+//! ```
+//! lychee
+//! ```
+//!
+//! You can also specify various types of inputs:
+//!
+//! Check links on a website:
+//!
+//! ```sh
+//! lychee https://endler.dev/
+//! ```
+//!
+//! Check links in a remote file:
+//! ```sh
+//! lychee https://raw.githubusercontent.com/lycheeverse/lychee/master/README.md
+//! ```
+//!
+//! Check links in local file(s):
+//! ```sh
+//! lychee README.md
+//! lychee test.html info.txt
+//! ```
+//!
+//! Check links in local files (by shell glob):
+//! ```sh
+//! lychee ~/projects/*/README.md
+//! ```
+//!
+//! Check links in local files (lychee supports advanced globbing and `~` expansion):
+//! ```sh
+//! lychee "~/projects/big_project/**/README.*"
+//! ```
+//!
+//! Ignore case when globbing and check result for each link:
+//! ```sh
+//! lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
+//! ```
 #![warn(clippy::all, clippy::pedantic)]
 #![warn(
     absolute_paths_not_starting_with_crate,
@@ -11,6 +56,7 @@
     clippy::missing_const_for_fn
 )]
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
+#![deny(missing_docs)]
 
 // required for apple silicon
 use ring as _;
