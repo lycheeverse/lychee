@@ -1,9 +1,15 @@
 use http::{header, Method};
 use regex::Regex;
 use reqwest::{Request, Url};
+use std::collections::HashMap;
 
 /// Sadly some pages only return plaintext results if Google is trying to crawl them.
 const GOOGLEBOT: &str = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://google.com/bot.html)";
+
+// Retrieve a map of query params for the given request
+fn query(request: &Request) -> HashMap<String, String> {
+    request.url().query_pairs().into_owned().collect()
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct Quirk {
@@ -34,22 +40,22 @@ impl Default for Quirks {
                 },
             },
             Quirk {
-                // The https://www.youtube.com/oembed API will return 404 for
-                // missing videos and can be used to check youtube links.
-                // See https://stackoverflow.com/a/19377429/270334
+                // Even missing YouTube videos return a 200, therefore we use
+                // the thumbnail endpoint instead
+                // (https://img.youtube.com/vi/{video_id}/0.jpg).
+                // This works for all known video visibilities.
+                // See https://github.com/lycheeverse/lychee/issues/214#issuecomment-819103393)
                 pattern: Regex::new(r"^(https?://)?(www\.)?(youtube\.com|youtu\.?be)").unwrap(),
                 rewrite: |request| {
                     if request.url().path() != "/watch" {
                         return request;
                     }
                     let mut out = request;
-                    let original_url = out.url();
-                    let urlencoded: String =
-                        url::form_urlencoded::byte_serialize(original_url.as_str().as_bytes())
-                            .collect();
-                    let mut url = Url::parse("https://www.youtube.com/oembed").unwrap();
-                    url.set_query(Some(&format!("url={}", urlencoded)));
-                    *out.url_mut() = url;
+                    if let Some(id) = query(&out).get("v") {
+                        *out.url_mut() =
+                            Url::parse(&format!("https://img.youtube.com/vi/{}/0.jpg", &id))
+                                .unwrap()
+                    }
                     out
                 },
             },
@@ -114,7 +120,7 @@ mod tests {
         let url = Url::parse("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").unwrap();
         let request = Request::new(Method::GET, url);
         let modified = Quirks::default().apply(request);
-        let expected_url = Url::parse("https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DNlKuICiT470%26list%3DPLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ%26index%3D7").unwrap();
+        let expected_url = Url::parse("https://img.youtube.com/vi/NlKuICiT470/0.jpg").unwrap();
 
         assert_eq!(
             MockRequest(modified),
