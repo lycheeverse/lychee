@@ -33,7 +33,7 @@ docker pull lycheeverse/lychee
 
 ### NixOS
 
-```
+```sh
 nix-env -iA nixos.lychee
 ```
 
