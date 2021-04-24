@@ -11,6 +11,44 @@ Available as a CLI utility and as a GitHub Action: [lycheeverse/lychee-action](h
 
 ![Lychee demo](./assets/lychee.gif)
 
+## Installation
+
+### Homebrew
+
+```sh
+brew install lychee
+```
+
+### Docker
+
+```sh
+docker pull lycheeverse/lychee
+```
+
+### FreeBSD
+
+```sh
+pkg install lychee
+```
+
+Or use [pot](https://github.com/pizzamig/pot):
+
+```sh
+pot install lychee
+```
+
+### Pre-built binaries
+
+We provide binaries for Linux, macOS, and Windows for every release. \
+You can download them from the [releases page](https://github.com/lycheeverse/lychee/releases).
+
+### Cargo
+
+```sh
+cargo install lychee
+```
+
+
 ## Features
 
 This comparison is made on a best-effort basis. Please create a PR to fix
@@ -80,29 +118,6 @@ Try one of these links to get started:
 
 - [good first issues](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
-
-## Using the Commandline Client
-
-You can run lychee directly from the commandline.
-
-### Installation
-
-#### Using cargo
-
-```sh
-cargo install lychee
-```
-
-#### Using the official Docker image
-
-```sh
-docker pull lycheeverse/lychee
-```
-
-#### Using pre-built binaries
-
-We provide binaries for Linux, macOS, and Windows for every release. \
-You can download them from the [releases page](https://github.com/lycheeverse/lychee/releases).
 
 ## Commandline usage
 
