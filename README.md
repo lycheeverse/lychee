@@ -43,12 +43,6 @@ nix-env -iA nixos.lychee
 pkg install lychee
 ```
 
-Or use [pot](https://github.com/pizzamig/pot):
-
-```sh
-pot install lychee
-```
-
 ### Pre-built binaries
 
 We provide binaries for Linux, macOS, and Windows for every release. \
