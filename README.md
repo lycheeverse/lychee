@@ -121,16 +121,6 @@ use
 
 <sup>1</sup> Other machine-readable formats like CSV are supported.
 
-## Contributing to lychee
-
-We'd be thankful for any contribution. \
-We try to keep the issue-tracker up-to-date so you can quickly find a task to work on.
-
-Try one of these links to get started:
-
-- [good first issues](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
-- [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
-
 ## Commandline usage
 
 Run it inside a repository with a `README.md`:
@@ -288,6 +278,16 @@ See the [builder documentation](https://docs.rs/lychee-lib/latest/lychee_lib/str
 A GitHub Action that uses lychee is available as a separate repository: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action)
 which includes usage instructions.
 
+## Contributing to lychee
+
+We'd be thankful for any contribution. \
+We try to keep the issue-tracker up-to-date so you can quickly find a task to work on.
+
+Try one of these links to get started:
+
+- [good first issues](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+- [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
+
 ## Troubleshooting and workarounds
 
 We collect a list of common workarounds for various websites in our [troubleshooting guide](./TROUBLESHOOTING.md).
@@ -300,7 +300,14 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 - https://github.com/mre/idiomatic-rust
 - https://github.com/lycheeverse/lychee (yes, the lychee docs are checked with lychee 🤯)
 
-If you are using lychee for your project, we'd be delighted to hear about it.
+If you are using lychee for your project, **add it here**.
+
+## Credits
+
+The first prototype of lychee was built in [episode 10 of Hello
+Rust](https://hello-rust.show/10/). Thanks to all Github- and Patreon sponsors
+for supporting the development since the beginning. Also, thanks to all the
+great contributors who have since made this project more mature.
 
 ## License
 
@@ -311,10 +318,3 @@ lychee is licensed under either of
 - MIT license (LICENSE-MIT or http://opensource.org/licenses/MIT)
 
 at your option.
-
-## Credits
-
-The first prototype of lychee was built in [episode 10 of Hello
-Rust](https://hello-rust.show/10/). Thanks to all Github- and Patreon sponsors
-for supporting the development since the beginning. Also, thanks to all the
-great contributors who have since made this project more mature.
