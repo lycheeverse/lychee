@@ -25,6 +25,12 @@ brew install lychee
 docker pull lycheeverse/lychee
 ```
 
+### NixOS
+
+```
+nix-env -iA nixos.lychee
+```
+
 ### FreeBSD
 
 ```sh
