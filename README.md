@@ -13,7 +13,13 @@ Available as a CLI utility and as a GitHub Action: [lycheeverse/lychee-action](h
 
 ## Installation
 
-### Homebrew
+### Arch Linux
+
+```sh
+pacman -S lychee-link-checker
+```
+
+### macOS
 
 ```sh
 brew install lychee
