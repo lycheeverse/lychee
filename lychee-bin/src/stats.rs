@@ -14,11 +14,10 @@ const MAX_PADDING: usize = 20;
 pub(crate) fn color_response(response: &ResponseBody) -> String {
     let out = match response.status {
         Status::Ok(_) => style(response).green().bright(),
+        Status::Excluded | Status::Unsupported(_) => style(response).dim(),
         Status::Redirected(_) => style(response),
-        Status::Excluded => style(response).dim(),
         Status::Timeout(_) => style(response).yellow().bright(),
         Status::Error(_) => style(response).red().bright(),
-        Status::Unsupported(_) => style(response).dim(),
     };
     out.to_string()
 }
