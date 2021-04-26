@@ -128,13 +128,26 @@ mod cli {
         )
     }
 
+    /// Test unsupported URI schemes
+    #[test]
+    fn test_unsupported_uri_schemes() -> Result<()> {
+        test_json_output!(
+            "TEST_SCHEMES.txt",
+            MockResponseStats {
+                total: 1,
+                successful: 1,
+                ..MockResponseStats::default()
+            }
+        )
+    }
+
     #[test]
     fn test_quirks() -> Result<()> {
         test_json_output!(
             "TEST_QUIRKS.txt",
             MockResponseStats {
-                total: 2,
-                successful: 2,
+                total: 3,
+                successful: 3,
                 ..MockResponseStats::default()
             }
         )
