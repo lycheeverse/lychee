@@ -1,7 +1,7 @@
 mod excludes;
 mod includes;
 
-use std::net::IpAddr;
+use std::{collections::HashSet, net::IpAddr};
 
 pub use excludes::Excludes;
 pub use includes::Includes;
@@ -29,12 +29,10 @@ pub struct Filter {
     pub includes: Option<Includes>,
     /// URIs excluded from checking
     pub excludes: Option<Excludes>,
-    /// Only check URIs with the given scheme (e.g. `https`)
-    // TODO: accept multiple schemes
+    /// Only check URIs with the given schemes (e.g. `https` and `http`)
     // TODO: includes scheme and excludes scheme
     // TODO: excludes_mail should be merged to excludes scheme
-    // allowed scheme
-    pub scheme: Option<String>,
+    pub schemes: HashSet<String>,
     /// Example: 192.168.0.1
     pub exclude_private_ips: bool,
     /// Example: 169.254.0.0
@@ -76,7 +74,10 @@ impl Filter {
     #[must_use]
     /// Whether the scheme of the given URI is excluded
     pub fn is_scheme_excluded(&self, uri: &Uri) -> bool {
-        matches!(self.scheme, Some(ref scheme) if scheme != uri.scheme())
+        if self.schemes.is_empty() {
+            return false;
+        }
+        !self.schemes.contains(uri.scheme())
     }
 
     #[inline]

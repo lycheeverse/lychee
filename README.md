@@ -195,7 +195,7 @@ OPTIONS:
     -m, --max-redirects <max-redirects>        Maximum number of allowed redirects [default: 10]
     -X, --method <method>                      Request method [default: get]
     -o, --output <output>                      Output file of status report
-    -s, --scheme <scheme>                      Only test links with the given scheme (e.g. https)
+    -s, --scheme <scheme>...                   Only test links with the given schemes (e.g. http and https)
     -T, --threads <threads>                    Number of threads to utilize. Defaults to number of cores available to
                                                the system
     -t, --timeout <timeout>                    Website timeout from connect to response finished [default: 20]
