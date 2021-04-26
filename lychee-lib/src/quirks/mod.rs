@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn test_cratesio_request() {
         let url = Url::parse("https://crates.io/crates/lychee").unwrap();
-        let request = Request::new(Method::GET, url.clone());
+        let request = Request::new(Method::GET, url);
         let modified = Quirks::default().apply(request);
 
         assert_eq!(
