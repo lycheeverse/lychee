@@ -1,3 +1,4 @@
+use header::HeaderValue;
 use http::{header, Method};
 use regex::Regex;
 use reqwest::{Request, Url};
@@ -36,6 +37,15 @@ impl Default for Quirks {
                     *out.method_mut() = Method::HEAD;
                     out.headers_mut()
                         .insert(header::USER_AGENT, GOOGLEBOT.parse().unwrap());
+                    out
+                },
+            },
+            Quirk {
+                pattern: Regex::new(r"^(https?://)?(www\.)?crates.io").unwrap(),
+                rewrite: |request| {
+                    let mut out = request;
+                    out.headers_mut()
+                        .insert(header::ACCEPT, HeaderValue::from_static("text/html"));
                     out
                 },
             },
@@ -81,6 +91,7 @@ impl Quirks {
 
 #[cfg(test)]
 mod tests {
+    use header::HeaderValue;
     use http::{header, Method};
     use pretty_assertions::assert_eq;
     use reqwest::{Request, Url};
@@ -113,6 +124,18 @@ mod tests {
             &GOOGLEBOT
         );
         assert_eq!(MockRequest(modified), MockRequest::new(Method::HEAD, url));
+    }
+
+    #[test]
+    fn test_cratesio_request() {
+        let url = Url::parse("https://crates.io/crates/lychee").unwrap();
+        let request = Request::new(Method::GET, url.clone());
+        let modified = Quirks::default().apply(request);
+
+        assert_eq!(
+            modified.headers().get(header::ACCEPT).unwrap(),
+            HeaderValue::from_static("text/html")
+        );
     }
 
     #[test]
