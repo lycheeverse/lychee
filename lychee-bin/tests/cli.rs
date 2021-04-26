@@ -128,13 +128,26 @@ mod cli {
         )
     }
 
+    /// Test unsupported URI schemes
+    #[test]
+    fn test_unsupported_uri_schemes() -> Result<()> {
+        test_json_output!(
+            "TEST_SCHEMES.txt",
+            MockResponseStats {
+                total: 1,
+                successful: 1,
+                ..MockResponseStats::default()
+            }
+        )
+    }
+
     #[test]
     fn test_quirks() -> Result<()> {
         test_json_output!(
             "TEST_QUIRKS.txt",
             MockResponseStats {
-                total: 2,
-                successful: 2,
+                total: 3,
+                successful: 3,
                 ..MockResponseStats::default()
             }
         )
@@ -320,7 +333,7 @@ mod cli {
             .assert()
             .success();
 
-        let expected = r#"{"total":11,"successful":11,"failures":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"fail_map":{}}"#;
+        let expected = r#"{"total":11,"successful":11,"failures":0,"timeouts":0,"redirects":0,"excludes":0,"unsupported":0,"errors":0,"fail_map":{}}"#;
         let output = fs::read_to_string(&outfile)?;
         assert_eq!(output.split_whitespace().collect::<String>(), expected);
         fs::remove_file(outfile)?;
