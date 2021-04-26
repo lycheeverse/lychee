@@ -43,7 +43,7 @@ impl ResponseStats {
     pub(crate) fn add(&mut self, response: Response) {
         let Response(source, ResponseBody { ref status, .. }) = response;
         if status.is_unsupported() {
-            // Silently skip unsupported URIs for now
+            // Silently skip unsupported URIs
             return;
         }
 
