@@ -172,6 +172,24 @@ mod cli {
     }
 
     #[test]
+    fn test_schemes() {
+        let mut cmd = main_command();
+        let test_schemes_path = fixtures_path().join("TEST_SCHEMES.md");
+
+        cmd.arg(test_schemes_path)
+            .arg("--scheme")
+            .arg("https")
+            .arg("--scheme")
+            .arg("http")
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("Total............3"))
+            .stdout(contains("Successful.......2"))
+            .stdout(contains("Excluded.........1"));
+    }
+
+    #[test]
     fn test_failure_github_404_no_token() {
         let mut cmd = main_command();
         let test_github_404_path = fixtures_path().join("TEST_GITHUB_404.md");

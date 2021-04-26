@@ -61,6 +61,7 @@
 // required for apple silicon
 use ring as _;
 
+use std::iter::FromIterator;
 use std::{collections::HashSet, fs, str::FromStr, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
@@ -181,7 +182,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .method(method)
         .timeout(timeout)
         .github_token(cfg.github_token.clone())
-        .scheme(cfg.scheme.clone())
+        .schemes(HashSet::from_iter(cfg.scheme.clone()))
         .accepted(accepted)
         .build()
         .client()

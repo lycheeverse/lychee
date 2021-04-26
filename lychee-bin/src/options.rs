@@ -149,10 +149,10 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) insecure: bool,
 
-    /// Only test links with the given scheme (e.g. https)
+    /// Only test links with the given schemes (e.g. http and https)
     #[structopt(short, long)]
     #[serde(default)]
-    pub(crate) scheme: Option<String>,
+    pub(crate) scheme: Vec<String>,
 
     /// URLs to check (supports regex). Has preference over all excludes.
     #[structopt(long)]
@@ -281,7 +281,7 @@ impl Config {
             threads: None;
             user_agent: USER_AGENT;
             insecure: false;
-            scheme: None;
+            scheme: Vec::<String>::new();
             include: Vec::<String>::new();
             exclude: Vec::<String>::new();
             exclude_all_private: false;
