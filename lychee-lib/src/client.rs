@@ -351,12 +351,6 @@ mod test {
 
     #[tokio::test]
     async fn test_custom_headers() {
-        let res = get_mock_client_response("https://crates.io/crates/lychee/").await;
-
-        assert!(res.status().is_failure());
-
-        // Try again, but with a custom header.
-        // For example, crates.io requires a custom accept header.
         // See https://github.com/rust-lang/crates.io/issues/788
         let mut custom = HeaderMap::new();
         custom.insert(header::ACCEPT, "text/html".parse().unwrap());
