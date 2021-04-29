@@ -233,7 +233,7 @@ mod test {
     #[test]
     fn test_file_type() {
         // FIXME: Assume plaintext in case a path has no extension
-        // TODO: can we just fix this or is there some compatablility
+        // REVIEW: can we just fix this or is there some compatablility
         // reason we can't ?
         // assert_eq!(FileType::from(Path::new("/")), FileType::Plaintext);
         // assert_eq!(FileType::from("test"), FileType::Plaintext);
