@@ -32,20 +32,17 @@ impl<P: AsRef<Path>> From<P> for FileType {
     /// Detect if the given path points to a Markdown, HTML, or plaintext file.
     #[allow(clippy::match_same_arms)]
     fn from(p: P) -> FileType {
-        let path = p.as_ref();
-        match path.extension().map(std::ffi::OsStr::to_str) {
-            Some(Some("md")) | Some(Some("markdown")) => FileType::Markdown,
-            Some(Some("htm")) | Some(Some("html")) => FileType::Html,
-            Some(_) => FileType::Plaintext,
+        let path = p
+            .as_ref()
+            .extension()
+            .and_then(std::ffi::OsStr::to_str)
+            .map(str::to_lowercase);
 
-            // Assume HTML in case of no extension.
-            // Note: this is only reasonable for URLs; not paths on disk.
-            // For example, `README` without an extension is more likely to be a plaintext file.
-            // A better solution would be to also implement `From<Url> for FileType`.
-            // Unfortunately that's not possible without refactoring, as
-            // `AsRef<Path>` could be implemented for `Url` in the future, which is why
-            // `From<Url> for FileType` is not allowed.
-            None => FileType::Html,
+        // TODO: also use or-patterns here when stable
+        match path.as_ref().map(String::as_str) {
+            Some("md") | Some("markdown") => FileType::Markdown,
+            Some("htm") | Some("html") | None => FileType::Html,
+            Some(_) => FileType::Plaintext,
         }
     }
 }
@@ -85,8 +82,7 @@ fn extract_links_from_html(input: &str) -> Vec<String> {
     urls
 }
 
-/// Recursively walk links in a HTML document, aggregating URL strings in
-/// `urls`.
+/// Recursively walk links in a HTML document, aggregating URL strings in `urls`.
 fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
     match node.data {
         NodeData::Text { ref contents } => {
@@ -244,11 +240,17 @@ mod test {
     #[test]
     fn test_file_type() {
         // FIXME: Assume plaintext in case a path has no extension
+        // TODO: can we just fix this or is there some compatablility
+        // reason we can't ?
         // assert_eq!(FileType::from(Path::new("/")), FileType::Plaintext);
+        // assert_eq!(FileType::from("test"), FileType::Plaintext);
         assert_eq!(FileType::from("test.md"), FileType::Markdown);
+        assert_eq!(FileType::from("TEST.MD"), FileType::Markdown);
         assert_eq!(FileType::from("test.markdown"), FileType::Markdown);
         assert_eq!(FileType::from("test.html"), FileType::Html);
+        assert_eq!(FileType::from("TEST.HTM"), FileType::Html);
         assert_eq!(FileType::from("test.txt"), FileType::Plaintext);
+        assert_eq!(FileType::from("test.TXT"), FileType::Plaintext);
         assert_eq!(FileType::from("test.something"), FileType::Plaintext);
         assert_eq!(
             FileType::from("/absolute/path/to/test.something"),
@@ -425,8 +427,7 @@ mod test {
 
     #[test]
     fn test_extract_html5_minified() {
-        // minified HTML with some quirky elements such as href attribute values
-        // specified without quotes
+        // minified HTML with some quirky elements such as href attribute values specified without quotes
         let input = load_fixture("TEST_HTML5_MINIFIED.html");
         let links = extract_uris(&input, FileType::Html, None);
 

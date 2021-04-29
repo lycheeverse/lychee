@@ -233,8 +233,8 @@ mod cli {
         let mock_server_a = mock_server!(StatusCode::OK);
         let mock_server_b = mock_server!(StatusCode::OK);
 
-        // this behavior (treating multiple `-` as separate inputs) is the same as most
-        // CLI tools that accept `-` as stdin, e.g. `cat`, `bat`, `grep` etc.
+        // this behavior (treating multiple `-` as separate inputs) is the same as most CLI tools
+        // that accept `-` as stdin, e.g. `cat`, `bat`, `grep` etc.
         cmd.arg("-")
             .arg("-")
             .write_stdin(mock_server_a.uri())
