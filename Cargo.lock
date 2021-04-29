@@ -352,6 +352,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40e38929add23cdf8a366df9b0e088953150724bcbe5fc330b0d8eb3b328eec8"
 
 [[package]]
+name = "builder"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "lychee-lib",
+ "regex",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2263,6 +2274,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16f1d0fef1604ba8f7a073c7e701f213e056707210e9020af4528e0101ce11a6"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "simple"
+version = "0.1.0"
+dependencies = [
+ "lychee-lib",
+ "tokio",
 ]
 
 [[package]]
