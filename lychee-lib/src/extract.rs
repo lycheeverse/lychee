@@ -30,8 +30,15 @@ impl Default for FileType {
 
 impl<P: AsRef<Path>> From<P> for FileType {
     /// Detect if the given path points to a Markdown, HTML, or plaintext file.
-    #[allow(clippy::match_same_arms)]
     fn from(p: P) -> FileType {
+        // Assume HTML in case of no extension.
+        // Note: this is only reasonable for URLs; not paths on disk.
+        // For example, `README` without an extension is more likely to be a plaintext file.
+        // A better solution would be to also implement `From<Url> for FileType`.
+        // Unfortunately that's not possible without refactoring, as
+        // `AsRef<Path>` could be implemented for `Url` in the future, which is why
+        // `From<Url> for FileType` is not allowed.
+
         let path = p
             .as_ref()
             .extension()
@@ -123,21 +130,9 @@ fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
 fn elem_attr_is_link(attr_name: &str, elem_name: &str) -> bool {
     // See a comprehensive list of attributes that might contain URLs/URIs
     // over at: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
-
     matches!(
         (attr_name, elem_name),
-        ("href", _)
-            | ("src", _)
-            | ("srcset", _)
-            | ("cite", _)
-            | ("data", "object")
-            | ("onhashchange", "body")
-    )
-    /*
-    TODO: reenable once `or-patterns` become stable in Rust 1.53
-    matches!(
-        (attr_name, elem_name),
-        // TODO: re-enable this once `or-patterns` become stable:
+        // TODO: re-enable once `or-patterns` become stable in Rust 1.53
         // ("href" | "src" | "srcset" | "cite", _) | ("data", "object") | ("onhashchange", "body")
         ("href", _)
             | ("src", _)
@@ -146,7 +141,6 @@ fn elem_attr_is_link(attr_name: &str, elem_name: &str) -> bool {
             | ("data", "object")
             | ("onhashchange", "body")
     )
-    */
 }
 
 /// Extract unparsed URL strings from a plaintext.
@@ -157,7 +151,6 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
         .collect()
 }
 
-#[allow(clippy::needless_pass_by_value)]
 pub(crate) fn extract_links(
     input_content: &InputContent,
     base_url: &Option<Url>,
