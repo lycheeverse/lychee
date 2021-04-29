@@ -7,6 +7,7 @@ use std::iter::FromIterator;
 use std::{collections::HashSet, time::Duration};
 
 #[tokio::main]
+#[allow(clippy::trivial_regex)]
 async fn main() -> Result<()> {
     // Excludes
     let excludes = Some(RegexSet::new(&[r"example"]).unwrap());
