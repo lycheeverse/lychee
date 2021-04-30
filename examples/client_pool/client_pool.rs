@@ -1,6 +1,6 @@
-use lychee_lib::{ClientBuilder, ClientPool, Result, Request, Uri, Input};
-use tokio::sync::mpsc;
+use lychee_lib::{ClientBuilder, ClientPool, Input, Request, Result, Uri};
 use std::convert::TryFrom;
+use tokio::sync::mpsc;
 
 const CONCURRENT_REQUESTS: usize = 4;
 
@@ -21,9 +21,9 @@ async fn main() -> Result<()> {
     // Send requests to pool
     tokio::spawn(async move {
         for request in requests {
-            println!("Sending {}",request);
+            println!("Sending {}", request);
             send_req.send(request).await.unwrap();
-        };
+        }
     });
 
     // Create a default lychee client
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
 
     // Finally, listen to incoming responses from lychee
     while let Some(response) = recv_resp.recv().await {
-        println!("{}",response);
+        println!("{}", response);
     }
 
     Ok(())
