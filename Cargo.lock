@@ -448,6 +448,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "client_pool"
+version = "0.1.0"
+dependencies = [
+ "lychee-lib",
+ "tokio",
+]
+
+[[package]]
 name = "collect_links"
 version = "0.1.0"
 dependencies = [
