@@ -448,6 +448,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "collect_links"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "lychee-lib",
+ "regex",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
