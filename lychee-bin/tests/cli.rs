@@ -190,6 +190,21 @@ mod cli {
     }
 
     #[test]
+    fn test_repetition() {
+        let mut cmd = main_command();
+        let test_schemes_path = fixtures_path().join("TEST_REPETITION.md");
+        let test_schemes_path_2 = fixtures_path().join("TEST_REPETITION2.md");
+
+        cmd.arg(test_schemes_path)
+            .arg(test_schemes_path_2)
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("Total............1"))
+            .stdout(contains("Successful.......1"));
+    }
+
+    #[test]
     fn test_failure_github_404_no_token() {
         let mut cmd = main_command();
         let test_github_404_path = fixtures_path().join("TEST_GITHUB_404.md");

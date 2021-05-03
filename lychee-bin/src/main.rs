@@ -69,7 +69,7 @@ use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, Head
 use http::StatusCode;
 use indicatif::{ProgressBar, ProgressStyle};
 use lychee_lib::{
-    collector::{collect_links, Input},
+    collector::{Collector, Input},
     ClientBuilder, ClientPool, Response,
 };
 use openssl_sys as _; // required for vendored-openssl feature
@@ -188,14 +188,10 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .client()
         .map_err(|e| anyhow!(e))?;
 
-    let links = collect_links(
-        &inputs,
-        cfg.base_url.clone(),
-        cfg.skip_missing,
-        max_concurrency,
-    )
-    .await
-    .map_err(|e| anyhow!(e))?;
+    let links = Collector::new(cfg.base_url.clone(), cfg.skip_missing, max_concurrency)
+        .collect_links(&inputs)
+        .await
+        .map_err(|e| anyhow!(e))?;
 
     let pb = if cfg.no_progress {
         None
