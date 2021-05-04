@@ -192,11 +192,9 @@ mod cli {
     #[test]
     fn test_repetition() {
         let mut cmd = main_command();
-        let test_schemes_path = fixtures_path().join("TEST_REPETITION.md");
-        let test_schemes_path_2 = fixtures_path().join("TEST_REPETITION2.md");
+        let test_schemes_path = fixtures_path().join("TEST_REPETITION.txt");
 
-        cmd.arg(test_schemes_path)
-            .arg(test_schemes_path_2)
+        cmd.arg(&test_schemes_path)
             .env_clear()
             .assert()
             .success()
