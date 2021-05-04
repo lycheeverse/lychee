@@ -274,23 +274,23 @@ impl Collector {
         //       instead of building a HashSet with all links.
         //       This optimization would speed up cases where there's
         //       a lot of inputs and/or the inputs are large (e.g. big files).
-        let mut collected_links: HashSet<Request> = HashSet::new();
+        let mut links: HashSet<Request> = HashSet::new();
 
         for handle in extract_links_handles {
-            let links = handle.await?;
-            collected_links.extend(links);
+            let new_links = handle.await?;
+            links.extend(new_links);
         }
 
-        // Filter duplicates
-        let mut new_links: HashSet<Request> = HashSet::new();
-        for link in collected_links {
-            if !self.cache.contains(&link.uri) {
-                new_links.insert(link.clone());
-                self.cache.insert(link.uri);
-            }
-        }
+        // Filter out already cached links (duplicates)
+        links.retain(|l| !self.cache.contains(&l.uri));
 
-        Ok(new_links)
+        self.update_cache(&links);
+        Ok(links)
+    }
+
+    /// Update internal link cache
+    fn update_cache(&mut self, links: &HashSet<Request>) {
+        self.cache.extend(links.iter().cloned().map(|l| l.uri));
     }
 }
 
