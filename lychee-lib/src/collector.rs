@@ -15,6 +15,7 @@ use tokio::{
 
 use crate::{
     extract::{extract_links, FileType},
+    uri::Uri,
     Request, Result,
 };
 
@@ -213,60 +214,84 @@ impl Input {
     }
 }
 
-/// Fetch all unique links from a slice of inputs
-/// All relative URLs get prefixed with `base_url` if given.
-#[allow(clippy::missing_errors_doc)]
-pub async fn collect_links(
-    inputs: &[Input],
-    base_url: Option<String>,
+/// Collector keeps the state of link collection
+#[derive(Debug, Clone)]
+pub struct Collector {
+    base_url: Option<Url>,
     skip_missing_inputs: bool,
     max_concurrency: usize,
-) -> Result<HashSet<Request>> {
-    let base_url = if let Some(url) = base_url {
-        Some(Url::parse(&url).map_err(|e| (url, e))?)
-    } else {
-        None
-    };
+    cache: HashSet<Uri>,
+}
 
-    let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(max_concurrency);
-
-    // extract input contents
-    for input in inputs.iter().cloned() {
-        let sender = contents_tx.clone();
-
-        tokio::spawn(async move {
-            let contents = input.get_contents(None, skip_missing_inputs).await;
-            sender.send(contents).await
-        });
-    }
-
-    // receiver will get None once all tasks are done
-    drop(contents_tx);
-
-    // extract links from input contents
-    let mut extract_links_handles = vec![];
-
-    while let Some(result) = contents_rx.recv().await {
-        for input_content in result? {
-            let base_url = base_url.clone();
-            let handle =
-                tokio::task::spawn_blocking(move || extract_links(&input_content, &base_url));
-            extract_links_handles.push(handle);
+impl Collector {
+    /// Create a new collector with an empty cache
+    #[must_use]
+    pub fn new(base_url: Option<Url>, skip_missing_inputs: bool, max_concurrency: usize) -> Self {
+        Collector {
+            base_url,
+            skip_missing_inputs,
+            max_concurrency,
+            cache: HashSet::new(),
         }
     }
 
-    // Note: we could dispatch links to be checked as soon as we get them,
-    //       instead of building a HashSet with all links.
-    //       This optimization would speed up cases where there's
-    //       a lot of inputs and/or the inputs are large (e.g. big files).
-    let mut collected_links: HashSet<Request> = HashSet::new();
+    /// Fetch all unique links from a slice of inputs
+    /// All relative URLs get prefixed with `base_url` if given.
+    ///
+    /// # Errors
+    ///
+    /// Will return `Err` if links cannot be extracted from an input
+    pub async fn collect_links(mut self, inputs: &[Input]) -> Result<HashSet<Request>> {
+        let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(self.max_concurrency);
 
-    for handle in extract_links_handles {
-        let links = handle.await?;
-        collected_links.extend(links);
+        // extract input contents
+        for input in inputs.iter().cloned() {
+            let sender = contents_tx.clone();
+
+            let skip_missing_inputs = self.skip_missing_inputs;
+            tokio::spawn(async move {
+                let contents = input.get_contents(None, skip_missing_inputs).await;
+                sender.send(contents).await
+            });
+        }
+
+        // receiver will get None once all tasks are done
+        drop(contents_tx);
+
+        // extract links from input contents
+        let mut extract_links_handles = vec![];
+
+        while let Some(result) = contents_rx.recv().await {
+            for input_content in result? {
+                let base_url = self.base_url.clone();
+                let handle =
+                    tokio::task::spawn_blocking(move || extract_links(&input_content, &base_url));
+                extract_links_handles.push(handle);
+            }
+        }
+
+        // Note: we could dispatch links to be checked as soon as we get them,
+        //       instead of building a HashSet with all links.
+        //       This optimization would speed up cases where there's
+        //       a lot of inputs and/or the inputs are large (e.g. big files).
+        let mut links: HashSet<Request> = HashSet::new();
+
+        for handle in extract_links_handles {
+            let new_links = handle.await?;
+            links.extend(new_links);
+        }
+
+        // Filter out already cached links (duplicates)
+        links.retain(|l| !self.cache.contains(&l.uri));
+
+        self.update_cache(&links);
+        Ok(links)
     }
 
-    Ok(collected_links)
+    /// Update internal link cache
+    fn update_cache(&mut self, links: &HashSet<Request>) {
+        self.cache.extend(links.iter().cloned().map(|l| l.uri));
+    }
 }
 
 #[cfg(test)]
@@ -277,7 +302,7 @@ mod test {
     use pretty_assertions::assert_eq;
     use reqwest::Url;
 
-    use super::{collect_links, Input};
+    use super::*;
     use crate::{
         extract::FileType,
         mock_server,
@@ -347,7 +372,9 @@ mod test {
             },
         ];
 
-        let responses = collect_links(&inputs, None, false, 8).await?;
+        let responses = Collector::new(None, false, 8)
+            .collect_links(&inputs)
+            .await?;
         let mut links = responses.into_iter().map(|r| r.uri).collect::<Vec<Uri>>();
 
         let mut expected_links = vec![

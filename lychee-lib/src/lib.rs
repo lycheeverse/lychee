@@ -75,7 +75,7 @@ use ring as _; // required for apple silicon
 pub use crate::{
     client::{check, ClientBuilder},
     client_pool::ClientPool,
-    collector::Input,
+    collector::{Collector, Input},
     filter::{Excludes, Filter, Includes},
     types::{ErrorKind, Request, Response, ResponseBody, Result, Status},
     uri::Uri,

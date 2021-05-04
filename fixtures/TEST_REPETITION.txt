@@ -1,0 +1,4 @@
+These links are all the same and should only be checked once:
+https://example.org/
+https://example.org/
+https://example.org
