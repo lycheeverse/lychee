@@ -3,6 +3,7 @@ use std::{fs, io::ErrorKind, path::PathBuf, str::FromStr};
 use anyhow::{anyhow, Error, Result};
 use lazy_static::lazy_static;
 use lychee_lib::collector::Input;
+use reqwest::Url;
 use serde::Deserialize;
 use structopt::{clap::crate_version, StructOpt};
 
@@ -212,9 +213,9 @@ pub(crate) struct Config {
     pub(crate) method: String,
 
     /// Base URL to check relative URLs
-    #[structopt(short, long)]
+    #[structopt(short, long, parse(try_from_str))]
     #[serde(default)]
-    pub(crate) base_url: Option<String>,
+    pub(crate) base_url: Option<Url>,
 
     /// Basic authentication support. E.g. `username:password`
     #[structopt(long)]

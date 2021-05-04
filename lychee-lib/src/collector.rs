@@ -217,7 +217,7 @@ impl Input {
 /// Collector keeps the state of link collection
 #[derive(Debug, Clone)]
 pub struct Collector {
-    base_url: Option<String>,
+    base_url: Option<Url>,
     skip_missing_inputs: bool,
     max_concurrency: usize,
     cache: HashSet<Uri>,
@@ -225,29 +225,23 @@ pub struct Collector {
 
 impl Collector {
     /// Create a new collector with an empty cache
-    pub fn new(
-        base_url: Option<String>,
-        skip_missing_inputs: bool,
-        max_concurrency: usize,
-    ) -> Self {
-        let cache = HashSet::new();
+    #[must_use]
+    pub fn new(base_url: Option<Url>, skip_missing_inputs: bool, max_concurrency: usize) -> Self {
         Collector {
             base_url,
             skip_missing_inputs,
             max_concurrency,
-            cache,
+            cache: HashSet::new(),
         }
     }
 
     /// Fetch all unique links from a slice of inputs
     /// All relative URLs get prefixed with `base_url` if given.
+    ///
+    /// # Errors
+    ///
+    /// Will return `Err` if links cannot be extracted from an input
     pub async fn collect_links(mut self, inputs: &[Input]) -> Result<HashSet<Request>> {
-        let base_url = if let Some(ref url) = self.base_url {
-            Some(Url::parse(&url).map_err(|e| (url.clone(), e))?)
-        } else {
-            None
-        };
-
         let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(self.max_concurrency);
 
         // extract input contents
@@ -269,7 +263,7 @@ impl Collector {
 
         while let Some(result) = contents_rx.recv().await {
             for input_content in result? {
-                let base_url = base_url.clone();
+                let base_url = self.base_url.clone();
                 let handle =
                     tokio::task::spawn_blocking(move || extract_links(&input_content, &base_url));
                 extract_links_handles.push(handle);
