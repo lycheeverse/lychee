@@ -40,6 +40,7 @@ mod cli {
         total: usize,
         successful: usize,
         failures: usize,
+        unknown: usize,
         timeouts: usize,
         redirects: usize,
         excludes: usize,
@@ -53,6 +54,7 @@ mod cli {
   "total": {},
   "successful": {},
   "failures": {},
+  "unknown": {},
   "timeouts": {},
   "redirects": {},
   "excludes": {},
@@ -62,6 +64,7 @@ mod cli {
                 self.total,
                 self.successful,
                 self.failures,
+                self.unknown,
                 self.timeouts,
                 self.redirects,
                 self.excludes,
@@ -364,7 +367,7 @@ mod cli {
             .assert()
             .success();
 
-        let expected = r#"{"total":11,"successful":11,"failures":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"fail_map":{}}"#;
+        let expected = r#"{"total":11,"successful":11,"failures":0,"unknown":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"fail_map":{}}"#;
         let output = fs::read_to_string(&outfile)?;
         assert_eq!(output.split_whitespace().collect::<String>(), expected);
         fs::remove_file(outfile)?;
