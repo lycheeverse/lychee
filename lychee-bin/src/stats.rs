@@ -15,9 +15,8 @@ pub(crate) fn color_response(response: &ResponseBody) -> String {
     let out = match response.status {
         Status::Ok(_) => style(response).green().bright(),
         Status::Excluded | Status::Unsupported(_) => style(response).dim(),
-        Status::UnknownStatusCode(_) => style(response).yellow().bright(),
         Status::Redirected(_) => style(response),
-        Status::Timeout(_) => style(response).yellow().bright(),
+        Status::UnknownStatusCode(_) | Status::Timeout(_) => style(response).yellow().bright(),
         Status::Error(_) => style(response).red().bright(),
     };
     out.to_string()
