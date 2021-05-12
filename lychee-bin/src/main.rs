@@ -1,3 +1,48 @@
+//! `lychee` is a fast, asynchronous, resource-friendly link checker.
+//! It is able to find broken hyperlinks and mail addresses inside Markdown,
+//! HTML, `reStructuredText`, and any other format.
+//!
+//! The lychee binary is a wrapper around lychee-lib, which provides
+//! convenience functions for calling lychee from the command-line.
+//!
+//! Run it inside a repository with a `README.md`:
+//! ```
+//! lychee
+//! ```
+//!
+//! You can also specify various types of inputs:
+//!
+//! Check links on a website:
+//!
+//! ```sh
+//! lychee https://endler.dev/
+//! ```
+//!
+//! Check links in a remote file:
+//! ```sh
+//! lychee https://raw.githubusercontent.com/lycheeverse/lychee/master/README.md
+//! ```
+//!
+//! Check links in local file(s):
+//! ```sh
+//! lychee README.md
+//! lychee test.html info.txt
+//! ```
+//!
+//! Check links in local files (by shell glob):
+//! ```sh
+//! lychee ~/projects/*/README.md
+//! ```
+//!
+//! Check links in local files (lychee supports advanced globbing and `~` expansion):
+//! ```sh
+//! lychee "~/projects/big_project/**/README.*"
+//! ```
+//!
+//! Ignore case when globbing and check result for each link:
+//! ```sh
+//! lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
+//! ```
 #![warn(clippy::all, clippy::pedantic)]
 #![warn(
     absolute_paths_not_starting_with_crate,
@@ -11,10 +56,12 @@
     clippy::missing_const_for_fn
 )]
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
+#![deny(missing_docs)]
 
 // required for apple silicon
 use ring as _;
 
+use std::iter::FromIterator;
 use std::{collections::HashSet, fs, str::FromStr, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
@@ -22,7 +69,7 @@ use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, Head
 use http::StatusCode;
 use indicatif::{ProgressBar, ProgressStyle};
 use lychee_lib::{
-    collector::{collect_links, Input},
+    collector::{Collector, Input},
     ClientBuilder, ClientPool, Response,
 };
 use openssl_sys as _; // required for vendored-openssl feature
@@ -135,20 +182,16 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .method(method)
         .timeout(timeout)
         .github_token(cfg.github_token.clone())
-        .scheme(cfg.scheme.clone())
+        .schemes(HashSet::from_iter(cfg.scheme.clone()))
         .accepted(accepted)
         .build()
         .client()
         .map_err(|e| anyhow!(e))?;
 
-    let links = collect_links(
-        &inputs,
-        cfg.base_url.clone(),
-        cfg.skip_missing,
-        max_concurrency,
-    )
-    .await
-    .map_err(|e| anyhow!(e))?;
+    let links = Collector::new(cfg.base_url.clone(), cfg.skip_missing, max_concurrency)
+        .collect_links(&inputs)
+        .await
+        .map_err(|e| anyhow!(e))?;
 
     let pb = if cfg.no_progress {
         None

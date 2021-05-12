@@ -11,12 +11,15 @@ pub struct Excludes {
 impl Excludes {
     #[inline]
     #[must_use]
+    /// Returns `true` if the given input string matches the regex set
+    /// and should hence be excluded from checking
     pub fn is_match(&self, input: &str) -> bool {
         self.regex.is_match(input)
     }
 
     #[inline]
     #[must_use]
+    /// Whether there were no regular expressions defined to be excluded
     pub fn is_empty(&self) -> bool {
         self.regex.is_empty()
     }

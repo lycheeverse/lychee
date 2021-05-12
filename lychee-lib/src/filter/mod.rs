@@ -1,7 +1,7 @@
 mod excludes;
 mod includes;
 
-use std::net::IpAddr;
+use std::{collections::HashSet, net::IpAddr};
 
 pub use excludes::Excludes;
 pub use includes::Includes;
@@ -13,6 +13,9 @@ static FALSE_POSITIVE_PAT: &[&str] = &[r"http://www.w3.org/1999/xhtml"];
 
 #[inline]
 #[must_use]
+/// The given input is a well-known false-positive, which won't be checked by
+/// default. This behavior can be explicitly overwritten by defining an
+/// `Include` pattern, which will match on a false positive
 pub fn is_false_positive(input: &str) -> bool {
     input == FALSE_POSITIVE_PAT[0]
 }
@@ -22,13 +25,14 @@ pub fn is_false_positive(input: &str) -> bool {
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, Default)]
 pub struct Filter {
+    /// URIs explicitly included for checking. This takes precedence over excludes
     pub includes: Option<Includes>,
+    /// URIs excluded from checking
     pub excludes: Option<Excludes>,
-    // TODO: accept multiple scheme
+    /// Only check URIs with the given schemes (e.g. `https` and `http`)
     // TODO: includes scheme and excludes scheme
     // TODO: excludes_mail should be merged to excludes scheme
-    // allowed scheme
-    pub scheme: Option<String>,
+    pub schemes: HashSet<String>,
     /// Example: 192.168.0.1
     pub exclude_private_ips: bool,
     /// Example: 169.254.0.0
@@ -43,11 +47,13 @@ pub struct Filter {
 impl Filter {
     #[inline]
     #[must_use]
+    /// Whether e-mails aren't checked
     pub fn is_mail_excluded(&self, uri: &Uri) -> bool {
         uri.is_mail() && self.exclude_mail
     }
 
     #[must_use]
+    /// Whether IP addresses are excluded from checking
     pub fn is_ip_excluded(&self, uri: &Uri) -> bool {
         match uri.host_ip() {
             Some(ip_addr) if self.exclude_loopback_ips && ip_addr.is_loopback() => true,
@@ -66,8 +72,12 @@ impl Filter {
 
     #[inline]
     #[must_use]
+    /// Whether the scheme of the given URI is excluded
     pub fn is_scheme_excluded(&self, uri: &Uri) -> bool {
-        matches!(self.scheme, Some(ref scheme) if scheme != uri.scheme())
+        if self.schemes.is_empty() {
+            return false;
+        }
+        !self.schemes.contains(uri.scheme())
     }
 
     #[inline]

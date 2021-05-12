@@ -14,19 +14,19 @@ keywords = [
 ]
 license = "Apache-2.0/MIT"
 repository = "https://github.com/lycheeverse/lychee"
-version = "0.6.0"
+version = "0.7.0"
 
 [dependencies]
-lychee-lib = { path = "../lychee-lib", version = "0.6.0" }
+lychee-lib = { path = "../lychee-lib", version = "0.7.0" }
 anyhow = "1.0.40"
 console = "0.14.1"
 headers = "0.3.4"
 http = "0.2.4"
 indicatif = "0.15.0"
 lazy_static = "1.4.0"
-openssl-sys = "0.9.61"
+openssl-sys = "0.9.63"
 pad = "0.1.6"
-regex = "1.4.5"
+regex = "1.4.6"
 reqwest = { version = "0.11.3", features = ["gzip"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
@@ -41,7 +41,7 @@ toml = "0.5.8"
 
 [dev-dependencies]
 assert_cmd = "1.0.3"
-predicates = "1.0.7"
+predicates = "1.0.8"
 pretty_assertions = "0.7.2"
 tempfile = "3.2.0"
 uuid = { version = "0.8.2", features = ["v4"] }

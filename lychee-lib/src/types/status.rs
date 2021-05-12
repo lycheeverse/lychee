@@ -9,6 +9,7 @@ use crate::ErrorKind;
 const ICON_OK: &str = "\u{2714}"; // ✔
 const ICON_REDIRECTED: &str = "\u{21c4}"; // ⇄
 const ICON_EXCLUDED: &str = "\u{003f}"; // ?
+const ICON_UNSUPPORTED: &str = "\u{003f}"; // ? (using same icon, but under different name for explicitness)
 const ICON_ERROR: &str = "\u{2717}"; // ✗
 const ICON_TIMEOUT: &str = "\u{29d6}"; // ⧖
 
@@ -26,6 +27,10 @@ pub enum Status {
     Redirected(StatusCode),
     /// Resource was excluded from checking
     Excluded,
+    /// The request type is currently not supported,
+    /// for example when the URL scheme is `slack://` or `file://`
+    /// See https://github.com/lycheeverse/lychee/issues/199
+    Unsupported(Box<ErrorKind>),
 }
 
 impl Display for Status {
@@ -34,9 +39,10 @@ impl Display for Status {
             Status::Ok(c) => write!(f, "OK ({})", c),
             Status::Redirected(c) => write!(f, "Redirect ({})", c),
             Status::Excluded => f.write_str("Excluded"),
-            Status::Error(e) => write!(f, "Failed: {}", e),
             Status::Timeout(Some(c)) => write!(f, "Timeout ({})", c),
             Status::Timeout(None) => f.write_str("Timeout"),
+            Status::Unsupported(e) => write!(f, "Unsupported: {}", e),
+            Status::Error(e) => write!(f, "Failed: {}", e),
         }
     }
 }
@@ -53,6 +59,7 @@ impl Serialize for Status {
 impl Status {
     #[allow(clippy::missing_panics_doc)]
     #[must_use]
+    /// Create a status object from a response and the set of accepted status codes
     pub fn new(response: &Response, accepted: Option<HashSet<StatusCode>>) -> Self {
         let code = response.status();
 
@@ -70,29 +77,41 @@ impl Status {
 
     #[inline]
     #[must_use]
+    /// Returns `true` if the check was successful
     pub const fn is_success(&self) -> bool {
         matches!(self, Status::Ok(_))
     }
 
     #[inline]
     #[must_use]
+    /// Returns `true` if the check was not successful
     pub const fn is_failure(&self) -> bool {
         matches!(self, Status::Error(_))
     }
 
     #[inline]
     #[must_use]
+    /// Returns `true` if the check was excluded
     pub const fn is_excluded(&self) -> bool {
         matches!(self, Status::Excluded)
     }
 
     #[inline]
     #[must_use]
+    /// Returns `true` if a check took too long to complete
     pub const fn is_timeout(&self) -> bool {
         matches!(self, Status::Timeout(_))
     }
 
+    #[inline]
     #[must_use]
+    /// Returns `true` if a URI is unsupported
+    pub const fn is_unsupported(&self) -> bool {
+        matches!(self, Status::Unsupported(_))
+    }
+
+    #[must_use]
+    /// Return a unicode icon to visualize the status
     pub const fn icon(&self) -> &str {
         match self {
             Status::Ok(_) => ICON_OK,
@@ -100,6 +119,7 @@ impl Status {
             Status::Excluded => ICON_EXCLUDED,
             Status::Error(_) => ICON_ERROR,
             Status::Timeout(_) => ICON_TIMEOUT,
+            Status::Unsupported(_) => ICON_UNSUPPORTED,
         }
     }
 }
@@ -114,6 +134,8 @@ impl From<reqwest::Error> for Status {
     fn from(e: reqwest::Error) -> Self {
         if e.is_timeout() {
             Self::Timeout(e.status())
+        } else if e.is_builder() {
+            Self::Unsupported(Box::new(ErrorKind::ReqwestError(e)))
         } else {
             Self::Error(Box::new(ErrorKind::ReqwestError(e)))
         }

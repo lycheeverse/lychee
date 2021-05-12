@@ -4,12 +4,56 @@
 [![docs.rs](https://docs.rs/lychee/badge.svg)](https://docs.rs/lychee-lib)
 
 
-⚡ A fast, async, resource-friendly link checker written in Rust.\\
+⚡ A fast, async, resource-friendly link checker written in Rust.\
 Finds broken hyperlinks and mail addresses inside Markdown, HTML, reStructuredText, or any other text file or website!
 
 Available as a CLI utility and as a GitHub Action: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action).
 
 ![Lychee demo](./assets/lychee.gif)
+
+## Installation
+
+### Arch Linux
+
+```sh
+pacman -S lychee-link-checker
+```
+
+### macOS
+
+```sh
+brew install lychee
+```
+
+### Docker
+
+```sh
+docker pull lycheeverse/lychee
+```
+
+### NixOS
+
+```sh
+nix-env -iA nixos.lychee
+```
+
+### FreeBSD
+
+```sh
+pkg install lychee
+```
+
+### Pre-built binaries
+
+We provide binaries for Linux, macOS, and Windows for every release. \
+You can download them from the [releases page](https://github.com/lycheeverse/lychee/releases).
+
+### Cargo
+
+```sh
+cargo install lychee
+```
+
 
 ## Features
 
@@ -70,39 +114,6 @@ use
 [use as library]: https://github.com/raviqqe/liche/issues/13
 
 <sup>1</sup> Other machine-readable formats like CSV are supported.
-
-## Contributing to lychee
-
-We'd be thankful for any contribution. \
-We try to keep the issue-tracker up-to-date so you can quickly find a task to work on.
-
-Try one of these links to get started:
-
-- [good first issues](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
-- [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
-
-## Using the Commandline Client
-
-You can run lychee directly from the commandline.
-
-### Installation
-
-#### Using cargo
-
-```sh
-cargo install lychee
-```
-
-#### Using the official Docker image
-
-```sh
-docker pull lycheeverse/lychee
-```
-
-#### Using pre-built binaries
-
-We provide binaries for Linux, macOS, and Windows for every release. \
-You can download them from the [releases page](https://github.com/lycheeverse/lychee/releases).
 
 ## Commandline usage
 
@@ -184,11 +195,11 @@ OPTIONS:
     -m, --max-redirects <max-redirects>        Maximum number of allowed redirects [default: 10]
     -X, --method <method>                      Request method [default: get]
     -o, --output <output>                      Output file of status report
-    -s, --scheme <scheme>                      Only test links with the given scheme (e.g. https)
+    -s, --scheme <scheme>...                   Only test links with the given schemes (e.g. http and https)
     -T, --threads <threads>                    Number of threads to utilize. Defaults to number of cores available to
                                                the system
     -t, --timeout <timeout>                    Website timeout from connect to response finished [default: 20]
-    -u, --user-agent <user-agent>              User agent [default: lychee/0.6.0]
+    -u, --user-agent <user-agent>              User agent [default: lychee/0.7.0]
 
 ARGS:
     <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
@@ -245,7 +256,6 @@ let client = lychee_lib::ClientBuilder::builder()
     .custom_headers(headers)
     .method(method)
     .timeout(timeout)
-    .verbose(cfg.verbose)
     .github_token(cfg.github_token)
     .scheme(cfg.scheme)
     .accepted(accepted)
@@ -255,11 +265,22 @@ let client = lychee_lib::ClientBuilder::builder()
 
 All options that you set will be used for all link checks.
 See the [builder documentation](https://docs.rs/lychee-lib/latest/lychee_lib/struct.ClientBuilder.html) for all options.
+For more information, check out the [examples](examples) folder.
 
 ## GitHub Action usage
 
 A GitHub Action that uses lychee is available as a separate repository: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action)
 which includes usage instructions.
+
+## Contributing to lychee
+
+We'd be thankful for any contribution. \
+We try to keep the issue-tracker up-to-date so you can quickly find a task to work on.
+
+Try one of these links to get started:
+
+- [good first issues](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+- [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 
 ## Troubleshooting and workarounds
 
@@ -273,7 +294,14 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 - https://github.com/mre/idiomatic-rust
 - https://github.com/lycheeverse/lychee (yes, the lychee docs are checked with lychee 🤯)
 
-If you are using lychee for your project, we'd be delighted to hear about it.
+If you are using lychee for your project, **add it here**.
+
+## Credits
+
+The first prototype of lychee was built in [episode 10 of Hello
+Rust](https://hello-rust.show/10/). Thanks to all Github- and Patreon sponsors
+for supporting the development since the beginning. Also, thanks to all the
+great contributors who have since made this project more mature.
 
 ## License
 
@@ -284,10 +312,3 @@ lychee is licensed under either of
 - MIT license (LICENSE-MIT or http://opensource.org/licenses/MIT)
 
 at your option.
-
-## Credits
-
-The first prototype of lychee was built in [episode 10 of Hello
-Rust](https://hello-rust.show/10/). Thanks to all Github- and Patreon sponsors
-for supporting the development since the beginning. Also, thanks to all the
-great contributors who have since made this project more mature.

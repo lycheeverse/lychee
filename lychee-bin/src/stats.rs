@@ -14,8 +14,8 @@ const MAX_PADDING: usize = 20;
 pub(crate) fn color_response(response: &ResponseBody) -> String {
     let out = match response.status {
         Status::Ok(_) => style(response).green().bright(),
+        Status::Excluded | Status::Unsupported(_) => style(response).dim(),
         Status::Redirected(_) => style(response),
-        Status::Excluded => style(response).dim(),
         Status::Timeout(_) => style(response).yellow().bright(),
         Status::Error(_) => style(response).red().bright(),
     };
@@ -42,6 +42,10 @@ impl ResponseStats {
 
     pub(crate) fn add(&mut self, response: Response) {
         let Response(source, ResponseBody { ref status, .. }) = response;
+        if status.is_unsupported() {
+            // Silently skip unsupported URIs
+            return;
+        }
 
         self.total += 1;
 
@@ -51,6 +55,7 @@ impl ResponseStats {
             Status::Timeout(_) => self.timeouts += 1,
             Status::Redirected(_) => self.redirects += 1,
             Status::Excluded => self.excludes += 1,
+            Status::Unsupported(_) => (), // Just skip unsupported URI
         }
 
         if matches!(

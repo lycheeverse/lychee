@@ -29,23 +29,32 @@ impl Uri {
 
     #[inline]
     #[must_use]
+    /// Returns the scheme of the URI (e.g. `http` or `mailto`)
     pub fn scheme(&self) -> &str {
         self.url.scheme()
     }
 
     #[inline]
     #[must_use]
+    /// Returns the domain of the URI (e.g. `example.org`)
     pub fn domain(&self) -> Option<&str> {
         self.url.domain()
     }
 
     #[inline]
     #[must_use]
+    /// Unless this URL is cannot-be-a-base,
+    /// return an iterator of '/' slash-separated path segments,
+    /// each as a percent-encoded ASCII string.
+    ///
+    /// Return `None` for cannot-be-a-base URLs.
     pub fn path_segments(&self) -> Option<std::str::Split<char>> {
         self.url.path_segments()
     }
 
     #[must_use]
+    /// Returns the IP address (either IPv4 or IPv6) of the URI,
+    /// or `None` if it is a domain
     pub fn host_ip(&self) -> Option<IpAddr> {
         match self.url.host()? {
             url::Host::Domain(_) => None,

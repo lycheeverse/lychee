@@ -128,13 +128,26 @@ mod cli {
         )
     }
 
+    /// Test unsupported URI schemes
+    #[test]
+    fn test_unsupported_uri_schemes() -> Result<()> {
+        test_json_output!(
+            "TEST_SCHEMES.txt",
+            MockResponseStats {
+                total: 1,
+                successful: 1,
+                ..MockResponseStats::default()
+            }
+        )
+    }
+
     #[test]
     fn test_quirks() -> Result<()> {
         test_json_output!(
             "TEST_QUIRKS.txt",
             MockResponseStats {
-                total: 2,
-                successful: 2,
+                total: 3,
+                successful: 3,
                 ..MockResponseStats::default()
             }
         )
@@ -156,6 +169,37 @@ mod cli {
             .code(2);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_schemes() {
+        let mut cmd = main_command();
+        let test_schemes_path = fixtures_path().join("TEST_SCHEMES.md");
+
+        cmd.arg(test_schemes_path)
+            .arg("--scheme")
+            .arg("https")
+            .arg("--scheme")
+            .arg("http")
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("Total............3"))
+            .stdout(contains("Successful.......2"))
+            .stdout(contains("Excluded.........1"));
+    }
+
+    #[test]
+    fn test_repetition() {
+        let mut cmd = main_command();
+        let test_schemes_path = fixtures_path().join("TEST_REPETITION.txt");
+
+        cmd.arg(&test_schemes_path)
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("Total............1"))
+            .stdout(contains("Successful.......1"));
     }
 
     #[test]

@@ -77,10 +77,10 @@ pub struct ClientBuilder {
     user_agent: String,
     /// Ignore SSL errors
     allow_insecure: bool,
-    /// Allowed URI scheme (e.g. https, http).
+    /// Set of allowed URI schemes (e.g. https, http).
     /// This excludes all links from checking, which
-    /// don't specify that scheme in the URL.
-    scheme: Option<String>,
+    /// don't specify any of these schemes in the URL.
+    schemes: HashSet<String>,
     /// Map of headers to send to each resource.
     /// This allows working around validation issues
     /// on some websites.
@@ -104,12 +104,12 @@ impl ClientBuilder {
     fn build_filter(&self) -> Filter {
         let includes = self.includes.clone().map(|regex| Includes { regex });
         let excludes = self.excludes.clone().map(|regex| Excludes { regex });
-        let scheme = self.scheme.clone().map(|s| s.to_lowercase());
+        let schemes = self.schemes.clone();
 
         Filter {
             includes,
             excludes,
-            scheme,
+            schemes,
             // exclude_all_private option turns on all "private" excludes,
             // including private IPs, link-local IPs and loopback IPs
             exclude_private_ips: self.exclude_all_private || self.exclude_private_ips,
@@ -351,12 +351,6 @@ mod test {
 
     #[tokio::test]
     async fn test_custom_headers() {
-        let res = get_mock_client_response("https://crates.io/crates/lychee/").await;
-
-        assert!(res.status().is_failure());
-
-        // Try again, but with a custom header.
-        // For example, crates.io requires a custom accept header.
         // See https://github.com/rust-lang/crates.io/issues/788
         let mut custom = HeaderMap::new();
         custom.insert(header::ACCEPT, "text/html".parse().unwrap());

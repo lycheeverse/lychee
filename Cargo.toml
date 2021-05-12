@@ -2,6 +2,7 @@
 members = [
     "lychee-bin",
     "lychee-lib",
+    "examples/*",
 ]
 
 [patch.crates-io]

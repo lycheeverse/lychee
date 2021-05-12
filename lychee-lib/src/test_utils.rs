@@ -5,6 +5,8 @@ use reqwest::Url;
 use crate::{ClientBuilder, ErrorKind, Request, Uri};
 
 #[macro_export]
+/// Creates a mock web server, which responds with a predefined status when
+/// handling a matching request
 macro_rules! mock_server {
     ($status:expr $(, $func:tt ($($arg:expr),*))*) => {{
         let mock_server = wiremock::MockServer::start().await;
