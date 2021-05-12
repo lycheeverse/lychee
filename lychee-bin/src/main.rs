@@ -184,6 +184,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .github_token(cfg.github_token.clone())
         .schemes(HashSet::from_iter(cfg.scheme.clone()))
         .accepted(accepted)
+        .require_https(cfg.require_https)
         .build()
         .client()
         .map_err(|e| anyhow!(e))?;
