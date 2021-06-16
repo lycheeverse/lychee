@@ -1,51 +1,19 @@
-use std::{collections::HashSet, convert::TryFrom, path::Path};
+use std::{collections::HashSet, convert::TryFrom, path::PathBuf};
 
 use html5ever::{
     parse_document,
     tendril::{StrTendril, TendrilSink},
 };
 use linkify::LinkFinder;
+use log::info;
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
 use url::Url;
 
-use crate::{collector::InputContent, Request, Uri};
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-/// `FileType` defines which file types lychee can handle
-pub enum FileType {
-    /// File in HTML format
-    Html,
-    /// File in Markdown format
-    Markdown,
-    /// Generic text file without syntax-specific parsing
-    Plaintext,
-}
-
-impl Default for FileType {
-    fn default() -> Self {
-        Self::Plaintext
-    }
-}
-
-impl<P: AsRef<Path>> From<P> for FileType {
-    /// Detect if the given path points to a Markdown, HTML, or plaintext file.
-    fn from(p: P) -> FileType {
-        let path = p.as_ref();
-        // Assume HTML in case of no extension.
-        // Note: this is only reasonable for URLs; not paths on disk.
-        // For example, `README` without an extension is more likely to be a plaintext file.
-        // A better solution would be to also implement `From<Url> for FileType`.
-        // Unfortunately that's not possible without refactoring, as
-        // `AsRef<Path>` could be implemented for `Url` in the future, which is why
-        // `From<Url> for FileType` is not allowed.
-        match path.extension().and_then(std::ffi::OsStr::to_str) {
-            Some("md" | "markdown") => FileType::Markdown,
-            Some("htm" | "html") | None => FileType::Html,
-            Some(_) => FileType::Plaintext,
-        }
-    }
-}
+use crate::{
+    types::{FileType, InputContent},
+    Input, Request, Result, Uri,
+};
 
 // Use LinkFinder here to offload the actual link searching in plaintext.
 fn find_links(input: &str) -> Vec<linkify::Link> {
@@ -140,7 +108,7 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
 pub(crate) fn extract_links(
     input_content: &InputContent,
     base_url: &Option<Url>,
-) -> HashSet<Request> {
+) -> Result<HashSet<Request>> {
     let links = match input_content.file_type {
         FileType::Markdown => extract_links_from_markdown(&input_content.content),
         FileType::Html => extract_links_from_html(&input_content.content),
@@ -153,16 +121,23 @@ pub(crate) fn extract_links(
     for link in links {
         if let Ok(uri) = Uri::try_from(link.as_str()) {
             requests.insert(Request::new(uri, input_content.input.clone()));
-        } else if !Path::new(&link).exists() {
-            if let Some(new_url) = base_url.as_ref().and_then(|u| u.join(&link).ok()) {
-                requests.insert(Request::new(
-                    Uri { url: new_url },
-                    input_content.input.clone(),
-                ));
+        } else if let Some(new_url) = base_url.as_ref().and_then(|u| u.join(&link).ok()) {
+            requests.insert(Request::new(
+                Uri { url: new_url },
+                input_content.input.clone(),
+            ));
+        } else if let Input::FsPath(root) = &input_content.input {
+            if let Ok(path) = crate::fs_tree::find(&root, &PathBuf::from(&link)) {
+                let input_content = Input::path_content(path)?;
+                requests.extend(extract_links(&input_content, base_url)?);
+            } else {
+                info!("Cannot find path to {} in filesystem", &link);
             }
-        };
+        } else {
+            info!("Handling of {} not implemented yet", &link);
+        }
     }
-    requests
+    Ok(requests)
 }
 
 #[cfg(test)]
@@ -180,10 +155,10 @@ mod test {
 
     use super::{
         extract_links, extract_links_from_html, extract_links_from_markdown,
-        extract_links_from_plaintext, find_links, FileType,
+        extract_links_from_plaintext, find_links,
     };
+    use crate::types::{FileType, InputContent};
     use crate::{
-        collector::InputContent,
         test_utils::{mail, website},
         Uri,
     };
@@ -211,6 +186,8 @@ mod test {
             &InputContent::from_string(input, file_type),
             &base_url.map(|u| Url::parse(u).unwrap()),
         )
+        // unwrap is fine here as this helper function is only used in tests
+        .unwrap()
         .into_iter()
         .map(|r| r.uri)
         .collect()

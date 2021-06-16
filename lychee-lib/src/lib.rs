@@ -47,12 +47,12 @@ doc_comment::doctest!("../../README.md");
 
 mod client;
 mod client_pool;
+/// A pool of clients, to handle concurrent checks
+pub mod collector;
+mod fs_tree;
 mod quirks;
 mod types;
 mod uri;
-
-/// A pool of clients, to handle concurrent checks
-pub mod collector;
 
 /// Functionality to extract URIs from inputs
 pub mod extract;
@@ -75,8 +75,8 @@ use ring as _; // required for apple silicon
 pub use crate::{
     client::{check, ClientBuilder},
     client_pool::ClientPool,
-    collector::{Collector, Input},
+    collector::Collector,
     filter::{Excludes, Filter, Includes},
-    types::{ErrorKind, Request, Response, ResponseBody, Result, Status},
+    types::{ErrorKind, Input, Request, Response, ResponseBody, Result, Status},
     uri::Uri,
 };

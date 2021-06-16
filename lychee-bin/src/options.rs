@@ -2,7 +2,7 @@ use std::{fs, io::ErrorKind, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, Error, Result};
 use lazy_static::lazy_static;
-use lychee_lib::collector::Input;
+use lychee_lib::Input;
 use reqwest::Url;
 use serde::Deserialize;
 use structopt::{clap::crate_version, StructOpt};

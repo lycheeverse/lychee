@@ -25,6 +25,8 @@ pub enum ErrorKind {
     /// A possible error when converting a `HeaderValue` from a string or byte
     /// slice.
     InvalidHeader(InvalidHeaderValue),
+    /// Cannot find local file
+    FileNotFound(PathBuf),
     /// The given UNIX glob pattern is invalid
     InvalidGlobPattern(glob::PatternError),
     /// The Github API could not be called because of a missing Github token.
@@ -63,6 +65,7 @@ impl Hash for ErrorKind {
             Self::IoError(p, e) => (p, e.kind()).hash(state),
             Self::ReqwestError(e) => e.to_string().hash(state),
             Self::HubcapsError(e) => e.to_string().hash(state),
+            Self::FileNotFound(e) => e.to_string_lossy().hash(state),
             Self::UrlParseError(s, e) => (s, e.type_id()).hash(state),
             Self::UnreachableEmailAddress(u) | Self::InsecureURL(u) => u.hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
@@ -84,6 +87,7 @@ impl Display for ErrorKind {
             Self::IoError(None, e) => e.fmt(f),
             Self::ReqwestError(e) => e.fmt(f),
             Self::HubcapsError(e) => e.fmt(f),
+            Self::FileNotFound(e) => write!(f, "{}", e.to_string_lossy()),
             Self::UrlParseError(s, (url_err, Some(mail_err))) => {
                 write!(
                     f,

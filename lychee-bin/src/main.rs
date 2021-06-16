@@ -70,10 +70,7 @@ use anyhow::{anyhow, Context, Result};
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use http::StatusCode;
 use indicatif::{ProgressBar, ProgressStyle};
-use lychee_lib::{
-    collector::{Collector, Input},
-    ClientBuilder, ClientPool, Response,
-};
+use lychee_lib::{ClientBuilder, ClientPool, Collector, Input, Response};
 use openssl_sys as _; // required for vendored-openssl feature
 use regex::RegexSet;
 use ring as _; // required for apple silicon
