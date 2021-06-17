@@ -1,21 +1,21 @@
 use crate::{ErrorKind, Result};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-pub(crate) fn find(root: &PathBuf, dst: &PathBuf) -> Result<PathBuf> {
+pub(crate) fn find(root: &Path, dst: &Path) -> Result<PathBuf> {
     if dst.exists() {
-        return Ok(dst.clone());
+        return Ok(dst.to_path_buf());
     }
     if dst.is_dir() {
-        return Err(ErrorKind::FileNotFound(dst.clone()));
+        return Err(ErrorKind::FileNotFound(dst.into()));
     }
     // Find `dst` in the `root` path
     if let Some(parent) = root.parent() {
-        let rel = parent.join(dst);
+        let rel = parent.join(dst.to_path_buf());
         if rel.exists() {
             return Ok(rel);
         }
     }
-    return Err(ErrorKind::FileNotFound(dst.clone()));
+    Err(ErrorKind::FileNotFound(dst.to_path_buf()))
 }
 
 #[cfg(test)]

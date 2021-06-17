@@ -41,6 +41,7 @@
 )]
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 #![deny(missing_docs)]
+#![allow(clippy::module_name_repetitions)]
 
 #[cfg(doctest)]
 doc_comment::doctest!("../../README.md");

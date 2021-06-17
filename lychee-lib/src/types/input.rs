@@ -172,6 +172,9 @@ impl Input {
     }
 
     /// Get the input content of a given path
+    /// # Errors
+    ///
+    /// Will return `Err` if file contents can't be read
     pub fn path_content<P: Into<PathBuf> + AsRef<Path> + Clone>(path: P) -> Result<InputContent> {
         let content = read_to_string(&path).map_err(|e| (path.clone().into(), e))?;
         let input_content = InputContent {

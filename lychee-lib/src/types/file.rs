@@ -29,8 +29,8 @@ impl<P: AsRef<Path>> From<P> for FileType {
         // `AsRef<Path>` could be implemented for `Url` in the future, which is why
         // `From<Url> for FileType` is not allowed.
         match path.extension().and_then(std::ffi::OsStr::to_str) {
-            Some("md") | Some("markdown") => FileType::Markdown,
-            Some("htm") | Some("html") | None => FileType::Html,
+            Some("md" | "markdown") => FileType::Markdown,
+            Some("htm" | "html") | None => FileType::Html,
             Some(_) => FileType::Plaintext,
         }
     }
