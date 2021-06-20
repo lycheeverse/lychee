@@ -218,7 +218,12 @@ pub(crate) struct Config {
     pub(crate) method: String,
 
     /// Base URL to check relative URLs
-    #[structopt(short, long, parse(try_from_str))]
+    #[structopt(long, parse(try_from_str))]
+    #[serde(default)]
+    pub(crate) base_dir: Option<PathBuf>,
+
+    /// Base URL to check relative URLs
+    #[structopt(long, parse(try_from_str))]
     #[serde(default)]
     pub(crate) base_url: Option<Url>,
 

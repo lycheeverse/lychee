@@ -1,18 +1,30 @@
 use crate::{ErrorKind, Result};
 use std::path::{Path, PathBuf};
 
-pub(crate) fn find(root: &Path, dst: &Path) -> Result<PathBuf> {
+pub(crate) fn find(src: &Path, dst: &Path, base_dir: &Option<PathBuf>) -> Result<PathBuf> {
     if dst.exists() {
         return Ok(dst.to_path_buf());
     }
     if dst.is_dir() {
         return Err(ErrorKind::FileNotFound(dst.into()));
     }
-    // Find `dst` in the `root` path
-    if let Some(parent) = root.parent() {
-        let rel = parent.join(dst.to_path_buf());
-        if rel.exists() {
-            return Ok(rel);
+    if dst.is_absolute() {
+        // Absolute local links (leading slash) require the base_url to
+        // define the document root.
+        if let Some(base_dir) = base_dir {
+            let absolute = base_dir.join(dst.to_path_buf());
+            if absolute.exists() {
+                return Ok(absolute);
+            }
+        }
+    }
+    if dst.is_relative() {
+        // Find `dst` in the `root` path
+        if let Some(parent) = src.parent() {
+            let relative = parent.join(dst.to_path_buf());
+            if relative.exists() {
+                return Ok(relative);
+            }
         }
     }
     Err(ErrorKind::FileNotFound(dst.to_path_buf()))
@@ -33,7 +45,7 @@ mod test_fs_tree {
         let dir = tempfile::tempdir()?;
         let dst = dir.path().join("foo.html");
         File::create(&dst)?;
-        assert_eq!(find(&dummy, &dst)?, dst);
+        assert_eq!(find(&dummy, &dst, &None)?, dst);
         Ok(())
     }
 
@@ -45,7 +57,7 @@ mod test_fs_tree {
         let dir = tempfile::tempdir()?;
         let dst = dir.path().join("./foo.html");
         File::create(&dst)?;
-        assert_eq!(find(&root, &dst)?, dst);
+        assert_eq!(find(&root, &dst, &None)?, dst);
         Ok(())
     }
 
@@ -57,7 +69,7 @@ mod test_fs_tree {
         let dir = tempfile::tempdir()?;
         let dst = dir.path().join("./foo.html");
         File::create(&dst)?;
-        assert_eq!(find(&root, &dst)?, dst);
+        assert_eq!(find(&root, &dst, &None)?, dst);
         Ok(())
     }
 
@@ -66,7 +78,7 @@ mod test_fs_tree {
         let root = PathBuf::from("index.html");
         // This file does not exist
         let dst = PathBuf::from("./foo.html");
-        assert!(find(&root, &dst).is_err());
+        assert!(find(&root, &dst, &None).is_err());
         Ok(())
     }
 
@@ -81,7 +93,22 @@ mod test_fs_tree {
         let dst = PathBuf::from("./foo.html");
         let dst_absolute = dir.path().join("./foo.html");
         File::create(&dst_absolute)?;
-        assert_eq!(find(&root, &dst)?, dst_absolute);
+        assert_eq!(find(&root, &dst, &None)?, dst_absolute);
+        Ok(())
+    }
+
+    // dummy
+    // ./foo.html
+    // valid base dir
+    #[test]
+    fn test_find_absolute_from_base_dir() -> Result<()> {
+        let dummy = PathBuf::new();
+        let dir = tempfile::tempdir()?;
+        let dst = dir.path().join("foo.html");
+        File::create(&dst)?;
+        let base_dir = dir.path().to_path_buf();
+        let dst_absolute = base_dir.join(dst.to_path_buf());
+        assert_eq!(find(&dummy, &dst, &Some(base_dir))?, dst_absolute);
         Ok(())
     }
 
@@ -94,7 +121,7 @@ mod test_fs_tree {
         // We create the absolute path to foo.html,
         // but we address it under its relative path
         let dst = PathBuf::from("./foo.html");
-        assert!(find(&root, &dst).is_err());
+        assert!(find(&root, &dst, &None).is_err());
         Ok(())
     }
 
@@ -106,7 +133,7 @@ mod test_fs_tree {
         let dir = tempfile::tempdir()?;
         let dst = dir.path().join("foo.html");
         File::create(&dst)?;
-        assert_eq!(find(&root, &dst)?, dst);
+        assert_eq!(find(&root, &dst, &None)?, dst);
         Ok(())
     }
 
@@ -118,7 +145,7 @@ mod test_fs_tree {
         let dir = tempfile::tempdir()?;
         let dst = dir.path().join("foo.html");
         File::create(&dst)?;
-        assert_eq!(find(&root, &dst)?, dst);
+        assert_eq!(find(&root, &dst, &None)?, dst);
         Ok(())
     }
 
@@ -129,7 +156,7 @@ mod test_fs_tree {
         let root = PathBuf::from("/path/to/");
         let dir = tempfile::tempdir()?;
         File::create(&dir)?;
-        assert!(find(&root, &dir.into_path()).is_err());
+        assert!(find(&root, &dir.into_path(), &None).is_err());
         Ok(())
     }
 }

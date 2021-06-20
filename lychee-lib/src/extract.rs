@@ -11,6 +11,7 @@ use pulldown_cmark::{Event as MDEvent, Parser, Tag};
 use url::Url;
 
 use crate::{
+    fs_tree,
     types::{FileType, InputContent},
     Input, Request, Result, Uri,
 };
@@ -106,6 +107,7 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
 pub(crate) fn extract_links(
     input_content: &InputContent,
     base_url: &Option<Url>,
+    base_dir: &Option<PathBuf>,
 ) -> Result<HashSet<Request>> {
     let links = match input_content.file_type {
         FileType::Markdown => extract_links_from_markdown(&input_content.content),
@@ -125,9 +127,9 @@ pub(crate) fn extract_links(
                 input_content.input.clone(),
             ));
         } else if let Input::FsPath(root) = &input_content.input {
-            if let Ok(path) = crate::fs_tree::find(&root, &PathBuf::from(&link)) {
+            if let Ok(path) = fs_tree::find(&root, &PathBuf::from(&link), base_dir) {
                 let input_content = Input::path_content(path)?;
-                requests.extend(extract_links(&input_content, base_url)?);
+                requests.extend(extract_links(&input_content, base_url, base_dir)?);
             } else {
                 info!("Cannot find path to {} in filesystem", &link);
             }
@@ -183,6 +185,7 @@ mod test {
         extract_links(
             &InputContent::from_string(input, file_type),
             &base_url.map(|u| Url::parse(u).unwrap()),
+            &None,
         )
         // unwrap is fine here as this helper function is only used in tests
         .unwrap()

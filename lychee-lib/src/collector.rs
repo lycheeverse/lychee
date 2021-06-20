@@ -1,11 +1,12 @@
 use crate::{extract::extract_links, uri::Uri, Input, Request, Result};
 use reqwest::Url;
-use std::collections::HashSet;
+use std::{collections::HashSet, path::PathBuf};
 
 /// Collector keeps the state of link collection
 #[derive(Debug, Clone)]
 pub struct Collector {
     base_url: Option<Url>,
+    base_dir: Option<PathBuf>,
     skip_missing_inputs: bool,
     max_concurrency: usize,
     cache: HashSet<Uri>,
@@ -14,9 +15,15 @@ pub struct Collector {
 impl Collector {
     /// Create a new collector with an empty cache
     #[must_use]
-    pub fn new(base_url: Option<Url>, skip_missing_inputs: bool, max_concurrency: usize) -> Self {
+    pub fn new(
+        base_url: Option<Url>,
+        base_dir: Option<PathBuf>,
+        skip_missing_inputs: bool,
+        max_concurrency: usize,
+    ) -> Self {
         Collector {
             base_url,
+            base_dir,
             skip_missing_inputs,
             max_concurrency,
             cache: HashSet::new(),
@@ -52,8 +59,10 @@ impl Collector {
         while let Some(result) = contents_rx.recv().await {
             for input_content in result? {
                 let base_url = self.base_url.clone();
-                let handle =
-                    tokio::task::spawn_blocking(move || extract_links(&input_content, &base_url));
+                let base_dir = self.base_dir.clone();
+                let handle = tokio::task::spawn_blocking(move || {
+                    extract_links(&input_content, &base_url, &base_dir)
+                });
                 extract_links_handles.push(handle);
             }
         }
@@ -160,7 +169,7 @@ mod test {
             },
         ];
 
-        let responses = Collector::new(None, false, 8)
+        let responses = Collector::new(None, None, false, 8)
             .collect_links(&inputs)
             .await?;
         let mut links = responses.into_iter().map(|r| r.uri).collect::<Vec<Uri>>();
