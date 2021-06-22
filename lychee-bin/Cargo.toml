@@ -27,7 +27,7 @@ lazy_static = "1.4.0"
 openssl-sys = "0.9.63"
 pad = "0.1.6"
 regex = "1.4.6"
-reqwest = { version = "0.11.3", features = ["gzip"] }
+reqwest = { version = "0.11.4", features = ["gzip"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build

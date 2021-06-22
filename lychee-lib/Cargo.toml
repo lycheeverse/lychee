@@ -29,7 +29,7 @@ markup5ever_rcdom = "0.1.0"
 openssl-sys = "0.9.63"
 pulldown-cmark = "0.8.0"
 regex = "1.4.6"
-reqwest = { version = "0.11.3", features = ["gzip"] }
+reqwest = { version = "0.11.4", features = ["gzip"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
