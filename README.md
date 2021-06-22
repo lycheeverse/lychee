@@ -194,7 +194,8 @@ FLAGS:
 
 OPTIONS:
     -a, --accept <accept>                      Comma-separated list of accepted status codes for valid links
-    -b, --base-url <base-url>                  Base URL to check relative URLs
+    -b, --base <base>                          Base URL or website root directory to check relative URLs e.g.
+                                               https://example.org or `/path/to/public`
         --basic-auth <basic-auth>              Basic authentication support. E.g. `username:password`
     -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
         --exclude <exclude>...                 Exclude URLs from checking (supports regex)
