@@ -14,12 +14,12 @@ async fn main() -> Result<()> {
     ];
 
     let links = Collector::new(
-        None, // base_url
-        None, false, // don't skip missing inputs
+        None,  // base
+        false, // don't skip missing inputs
         10,    // max concurrency
     )
     .collect_links(
-        inputs, // base_url
+        inputs, // base url or directory
     )
     .await?;
 

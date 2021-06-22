@@ -1,5 +1,6 @@
 #![allow(unreachable_pub)]
 
+mod base;
 mod error;
 mod file;
 mod input;
@@ -7,6 +8,7 @@ mod request;
 mod response;
 mod status;
 
+pub use base::Base;
 pub use error::ErrorKind;
 pub use file::FileType;
 pub use input::{Input, InputContent};

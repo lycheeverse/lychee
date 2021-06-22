@@ -197,15 +197,10 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .client()
         .map_err(|e| anyhow!(e))?;
 
-    let links = Collector::new(
-        cfg.base_url.clone(),
-        cfg.base_dir.clone(),
-        cfg.skip_missing,
-        max_concurrency,
-    )
-    .collect_links(&inputs)
-    .await
-    .map_err(|e| anyhow!(e))?;
+    let links = Collector::new(cfg.base.clone(), cfg.skip_missing, max_concurrency)
+        .collect_links(&inputs)
+        .await
+        .map_err(|e| anyhow!(e))?;
 
     let pb = if cfg.no_progress {
         None

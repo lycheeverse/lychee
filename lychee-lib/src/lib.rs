@@ -78,6 +78,6 @@ pub use crate::{
     client_pool::ClientPool,
     collector::Collector,
     filter::{Excludes, Filter, Includes},
-    types::{ErrorKind, Input, Request, Response, ResponseBody, Result, Status},
+    types::{Base, ErrorKind, Input, Request, Response, ResponseBody, Result, Status},
     uri::Uri,
 };

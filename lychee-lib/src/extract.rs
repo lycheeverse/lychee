@@ -8,12 +8,11 @@ use linkify::LinkFinder;
 use log::info;
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
-use url::Url;
 
 use crate::{
     fs_tree,
     types::{FileType, InputContent},
-    Input, Request, Result, Uri,
+    Base, Input, Request, Result, Uri,
 };
 
 // Use LinkFinder here to offload the actual link searching in plaintext.
@@ -106,8 +105,7 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
 
 pub(crate) fn extract_links(
     input_content: &InputContent,
-    base_url: &Option<Url>,
-    base_dir: &Option<PathBuf>,
+    base: &Option<Base>,
 ) -> Result<HashSet<Request>> {
     let links = match input_content.file_type {
         FileType::Markdown => extract_links_from_markdown(&input_content.content),
@@ -121,15 +119,15 @@ pub(crate) fn extract_links(
     for link in links {
         if let Ok(uri) = Uri::try_from(link.as_str()) {
             requests.insert(Request::new(uri, input_content.input.clone()));
-        } else if let Some(new_url) = base_url.as_ref().and_then(|u| u.join(&link).ok()) {
+        } else if let Some(new_url) = base.as_ref().and_then(|u| u.join(&link)) {
             requests.insert(Request::new(
                 Uri { url: new_url },
                 input_content.input.clone(),
             ));
         } else if let Input::FsPath(root) = &input_content.input {
-            if let Ok(path) = fs_tree::find(&root, &PathBuf::from(&link), base_dir) {
+            if let Ok(path) = fs_tree::find(&root, &PathBuf::from(&link), base) {
                 let input_content = Input::path_content(path)?;
-                requests.extend(extract_links(&input_content, base_url, base_dir)?);
+                requests.extend(extract_links(&input_content, base)?);
             } else {
                 info!("Cannot find path to {} in filesystem", &link);
             }
@@ -157,10 +155,13 @@ mod test {
         extract_links, extract_links_from_html, extract_links_from_markdown,
         extract_links_from_plaintext, find_links,
     };
-    use crate::types::{FileType, InputContent};
     use crate::{
         test_utils::{mail, website},
         Uri,
+    };
+    use crate::{
+        types::{FileType, InputContent},
+        Base,
     };
 
     fn load_fixture(filename: &str) -> String {
@@ -182,16 +183,16 @@ mod test {
     }
 
     fn extract_uris(input: &str, file_type: FileType, base_url: Option<&str>) -> HashSet<Uri> {
-        extract_links(
-            &InputContent::from_string(input, file_type),
-            &base_url.map(|u| Url::parse(u).unwrap()),
-            &None,
-        )
-        // unwrap is fine here as this helper function is only used in tests
-        .unwrap()
-        .into_iter()
-        .map(|r| r.uri)
-        .collect()
+        let base = match base_url {
+            Some(url) => Some(Base::Remote(Url::parse(url).unwrap())),
+            None => None,
+        };
+        extract_links(&InputContent::from_string(input, file_type), &base)
+            // unwrap is fine here as this helper function is only used in tests
+            .unwrap()
+            .into_iter()
+            .map(|r| r.uri)
+            .collect()
     }
 
     #[test]

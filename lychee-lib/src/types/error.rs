@@ -25,6 +25,8 @@ pub enum ErrorKind {
     /// A possible error when converting a `HeaderValue` from a string or byte
     /// slice.
     InvalidHeader(InvalidHeaderValue),
+    /// The given string can not be parsed into a valid base URL or base directory
+    InvalidBase(String, String),
     /// Cannot find local file
     FileNotFound(PathBuf),
     /// The given UNIX glob pattern is invalid
@@ -71,6 +73,7 @@ impl Hash for ErrorKind {
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
             Self::MissingGitHubToken => std::mem::discriminant(self).hash(state),
+            ErrorKind::InvalidBase(base, e) => (base, e).hash(state),
         }
     }
 }
@@ -110,6 +113,7 @@ impl Display for ErrorKind {
                 "This URL is available in HTTPS protocol, but HTTP is provided, use '{}' instead",
                 uri
             ),
+            Self::InvalidBase(base, e) => write!(f, "Error while base dir `{}` : {}", base, e),
         }
     }
 }

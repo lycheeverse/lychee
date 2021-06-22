@@ -1,7 +1,7 @@
-use crate::{ErrorKind, Result};
+use crate::{Base, ErrorKind, Result};
 use std::path::{Path, PathBuf};
 
-pub(crate) fn find(src: &Path, dst: &Path, base_dir: &Option<PathBuf>) -> Result<PathBuf> {
+pub(crate) fn find(src: &Path, dst: &Path, base: &Option<Base>) -> Result<PathBuf> {
     if dst.exists() {
         return Ok(dst.to_path_buf());
     }
@@ -11,7 +11,7 @@ pub(crate) fn find(src: &Path, dst: &Path, base_dir: &Option<PathBuf>) -> Result
     if dst.is_absolute() {
         // Absolute local links (leading slash) require the base_url to
         // define the document root.
-        if let Some(base_dir) = base_dir {
+        if let Some(base_dir) = base.as_ref().and_then(|b| b.dir()) {
             let absolute = base_dir.join(dst.to_path_buf());
             if absolute.exists() {
                 return Ok(absolute);
@@ -108,7 +108,10 @@ mod test_fs_tree {
         File::create(&dst)?;
         let base_dir = dir.path().to_path_buf();
         let dst_absolute = base_dir.join(dst.to_path_buf());
-        assert_eq!(find(&dummy, &dst, &Some(base_dir))?, dst_absolute);
+        assert_eq!(
+            find(&dummy, &dst, &Some(Base::Local(base_dir)))?,
+            dst_absolute
+        );
         Ok(())
     }
 
