@@ -8,7 +8,7 @@ use crate::ErrorKind;
 /// the base determines where this resource can be found.
 /// Both, local and remote targets are supported.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-
+#[allow(variant_size_differences)]
 pub enum Base {
     /// Local file path pointing to root directory
     Local(PathBuf),
@@ -47,21 +47,7 @@ impl TryFrom<&str> for Base {
             }
             return Ok(Self::Remote(url));
         }
-        // Only accept existing directories as path
-        let path = PathBuf::from(&value);
-        if !path.is_dir() {
-            return Err(ErrorKind::InvalidBase(
-                value.to_string(),
-                "The given base path is not a directory".to_string(),
-            ));
-        }
-        if !path.exists() {
-            return Err(ErrorKind::InvalidBase(
-                value.to_string(),
-                "The given base directory does not exist".to_string(),
-            ));
-        }
-        Ok(Self::Local(path))
+        Ok(Self::Local(PathBuf::from(value)))
     }
 }
 
@@ -91,10 +77,5 @@ mod test_base {
         let dir = tempfile::tempdir()?;
         Base::try_from(dir.as_ref().to_str().unwrap())?;
         Ok(())
-    }
-
-    #[test]
-    fn test_invalid_local() {
-        assert!(Base::try_from("/asdfasdd20asdfljvvvzzcv/j2ofasd").is_err());
     }
 }
