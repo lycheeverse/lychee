@@ -1,4 +1,4 @@
-use crate::{extract::extract_links, uri::Uri, Base, Input, Request, Result};
+use crate::{extract::extract_links, Base, Input, Request, Result, Uri};
 use std::collections::HashSet;
 
 /// Collector keeps the state of link collection

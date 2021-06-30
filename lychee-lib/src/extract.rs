@@ -8,11 +8,12 @@ use linkify::LinkFinder;
 use log::info;
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
+use reqwest::Url;
 
 use crate::{
-    fs_tree,
+    fs,
     types::{FileType, InputContent},
-    Base, Input, Request, Result, Uri,
+    Base, ErrorKind, Input, Request, Result, Uri,
 };
 
 // Use LinkFinder here to offload the actual link searching in plaintext.
@@ -113,27 +114,27 @@ pub(crate) fn extract_links(
         FileType::Plaintext => extract_links_from_plaintext(&input_content.content),
     };
 
-    // Only keep legit URLs. This sorts out things like anchors.
-    // Silently ignore the parse failures for now.
+    // Only keep legit URLs. For example this filters out anchors.
     let mut requests: HashSet<Request> = HashSet::new();
     for link in links {
-        if let Ok(uri) = Uri::try_from(link.as_str()) {
-            requests.insert(Request::new(uri, input_content.input.clone()));
+        let req = if let Ok(uri) = Uri::try_from(link.as_str()) {
+            Request::new(uri, input_content.input.clone())
         } else if let Some(new_url) = base.as_ref().and_then(|u| u.join(&link)) {
-            requests.insert(Request::new(
-                Uri { url: new_url },
-                input_content.input.clone(),
-            ));
+            Request::new(Uri { inner: new_url }, input_content.input.clone())
         } else if let Input::FsPath(root) = &input_content.input {
-            if let Ok(path) = fs_tree::find(&root, &PathBuf::from(&link), base) {
-                let input_content = Input::path_content(path)?;
-                requests.extend(extract_links(&input_content, base)?);
-            } else {
-                info!("Cannot find path to {} in filesystem", &link);
-            }
+            let link = fs::sanitize(link);
+            let path = fs::resolve(&root, &PathBuf::from(&link), base)?;
+            Request::new(
+                Uri {
+                    inner: Url::from_file_path(&path).map_err(|_e| ErrorKind::InvalidPath(path))?,
+                },
+                input_content.input.clone(),
+            )
         } else {
             info!("Handling of {} not implemented yet", &link);
-        }
+            continue;
+        };
+        requests.insert(req);
     }
     Ok(requests)
 }
@@ -151,10 +152,7 @@ mod test {
     use pretty_assertions::assert_eq;
     use url::Url;
 
-    use super::{
-        extract_links, extract_links_from_html, extract_links_from_markdown,
-        extract_links_from_plaintext, find_links,
-    };
+    use super::*;
     use crate::{
         test_utils::{mail, website},
         Uri,

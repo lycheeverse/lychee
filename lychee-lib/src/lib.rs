@@ -50,10 +50,9 @@ mod client;
 mod client_pool;
 /// A pool of clients, to handle concurrent checks
 pub mod collector;
-mod fs_tree;
+mod fs;
 mod quirks;
 mod types;
-mod uri;
 
 /// Functionality to extract URIs from inputs
 pub mod extract;
@@ -78,6 +77,5 @@ pub use crate::{
     client_pool::ClientPool,
     collector::Collector,
     filter::{Excludes, Filter, Includes},
-    types::{Base, ErrorKind, Input, Request, Response, ResponseBody, Result, Status},
-    uri::Uri,
+    types::{Base, ErrorKind, Input, Request, Response, ResponseBody, Result, Status, Uri},
 };

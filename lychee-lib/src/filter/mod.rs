@@ -6,7 +6,7 @@ use std::{collections::HashSet, net::IpAddr};
 pub use excludes::Excludes;
 pub use includes::Includes;
 
-use crate::uri::Uri;
+use crate::Uri;
 
 /// Pre-defined exclusions for known false-positives
 static FALSE_POSITIVE_PAT: &[&str] = &[r"http://www.w3.org/1999/xhtml"];

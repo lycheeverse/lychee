@@ -10,15 +10,20 @@ use crate::Uri;
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    // TODO: maybe need to be splitted; currently first slot is Some only for reading files
+    // TODO: maybe needs to be split; currently first element is `Some` only for
+    // reading files
     /// Any form of I/O error occurred while reading from a given path.
     IoError(Option<PathBuf>, std::io::Error),
     /// Network error when trying to connect to an endpoint via reqwest.
     ReqwestError(reqwest::Error),
     /// Network error when trying to connect to an endpoint via hubcaps.
     HubcapsError(hubcaps::Error),
-    /// The given string can not be parsed into a valid URL or e-mail address
+    /// The given string can not be parsed into a valid URL, e-mail address, or file path
     UrlParseError(String, (url::ParseError, Option<fast_chemail::ParseError>)),
+    /// The given URI cannot be converted to a file path
+    InvalidFileUri(Uri),
+    /// The given path cannot be converted to a URI
+    InvalidPath(PathBuf),
     /// The given mail address is unreachable
     UnreachableEmailAddress(Uri),
     /// The given header could not be parsed.
@@ -70,10 +75,12 @@ impl Hash for ErrorKind {
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
             Self::UrlParseError(s, e) => (s, e.type_id()).hash(state),
             Self::UnreachableEmailAddress(u) | Self::InsecureURL(u) => u.hash(state),
+            Self::InvalidFileUri(u) => u.hash(state),
+            Self::InvalidPath(p) => p.hash(state),
+            Self::UnreachableEmailAddress(u) => u.hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
             Self::MissingGitHubToken => std::mem::discriminant(self).hash(state),
-            ErrorKind::InvalidBase(base, e) => (base, e).hash(state),
         }
     }
 }
@@ -101,6 +108,8 @@ impl Display for ErrorKind {
             Self::UrlParseError(s, (url_err, None)) => {
                 write!(f, "Cannot parse {} as website url ({})", s, url_err)
             }
+            Self::InvalidFileUri(u) => write!(f, "Invalid file URI: {}", u),
+            Self::InvalidPath(p) => write!(f, "Invalid path: {}", p.display()),
             Self::UnreachableEmailAddress(uri) => write!(f, "Unreachable mail address: {}", uri),
             Self::InvalidHeader(e) => e.fmt(f),
             Self::InvalidGlobPattern(e) => e.fmt(f),
@@ -154,6 +163,12 @@ impl From<reqwest::Error> for ErrorKind {
 impl From<hubcaps::errors::Error> for ErrorKind {
     fn from(e: hubcaps::Error) -> Self {
         Self::HubcapsError(e)
+    }
+}
+
+impl From<url::ParseError> for ErrorKind {
+    fn from(e: url::ParseError) -> Self {
+        Self::UrlParseError("Cannot parse URL".to_string(), (e, None))
     }
 }
 

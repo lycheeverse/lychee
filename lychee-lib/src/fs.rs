@@ -1,33 +1,47 @@
 use crate::{Base, ErrorKind, Result};
 use std::path::{Path, PathBuf};
 
-pub(crate) fn find(src: &Path, dst: &Path, base: &Option<Base>) -> Result<PathBuf> {
-    if dst.exists() {
-        return Ok(dst.to_path_buf());
-    }
-    if dst.is_dir() {
-        return Err(ErrorKind::FileNotFound(dst.into()));
+// Returns the base if it is a valid `PathBuf`
+fn get_base_dir(base: &Option<Base>) -> Option<PathBuf> {
+    base.as_ref().and_then(|b| b.dir())
+}
+
+pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<PathBuf> {
+    if dst.is_relative() {
+        // Find `dst` in the parent directory of `src`
+        if let Some(parent) = src.parent() {
+            let rel_path = parent.join(dst.to_path_buf());
+            return Ok(rel_path);
+        }
     }
     if dst.is_absolute() {
         // Absolute local links (leading slash) require the base_url to
         // define the document root.
-        if let Some(base_dir) = base.as_ref().and_then(|b| b.dir()) {
-            let absolute = base_dir.join(dst.to_path_buf());
-            if absolute.exists() {
-                return Ok(absolute);
-            }
-        }
-    }
-    if dst.is_relative() {
-        // Find `dst` in the `root` path
-        if let Some(parent) = src.parent() {
-            let relative = parent.join(dst.to_path_buf());
-            if relative.exists() {
-                return Ok(relative);
-            }
+        if let Some(base_dir) = get_base_dir(base) {
+            let abs_path = join(base_dir, dst);
+            return Ok(abs_path);
         }
     }
     Err(ErrorKind::FileNotFound(dst.to_path_buf()))
+}
+
+// A cumbersome way to concatenate paths without checking their
+// existence on disk. See https://github.com/rust-lang/rust/issues/16507
+fn join(base: PathBuf, dst: &Path) -> PathBuf {
+    let mut abs = base.into_os_string();
+    let target_str = dst.as_os_str();
+    abs.push(target_str);
+    PathBuf::from(abs)
+}
+
+/// A little helper function to remove the get parameters from a URL link.
+/// The link is not a URL but a String as that link may not have a base domain.
+pub(crate) fn sanitize(link: String) -> String {
+    let path = match link.split_once('?') {
+        Some((path, _params)) => path,
+        None => link.as_str(),
+    };
+    path.to_string()
 }
 
 #[cfg(test)]
@@ -36,6 +50,31 @@ mod test_fs_tree {
 
     use super::*;
     use crate::Result;
+
+    #[test]
+    fn test_sanitize() {
+        assert_eq!(sanitize("/".to_string()), "/".to_string());
+        assert_eq!(
+            sanitize("index.html?foo=bar".to_string()),
+            "index.html".to_string()
+        );
+        assert_eq!(
+            sanitize("/index.html?foo=bar".to_string()),
+            "/index.html".to_string()
+        );
+        assert_eq!(
+            sanitize("/index.html?foo=bar&baz=zorx?bla=blub".to_string()),
+            "/index.html".to_string()
+        );
+        assert_eq!(
+            sanitize("https://example.org/index.html?foo=bar".to_string()),
+            "https://example.org/index.html".to_string()
+        );
+        assert_eq!(
+            sanitize("test.png?foo=bar".to_string()),
+            "test.png".to_string()
+        );
+    }
 
     // dummy root
     // /path/to/foo.html
@@ -149,17 +188,6 @@ mod test_fs_tree {
         let dst = dir.path().join("foo.html");
         File::create(&dst)?;
         assert_eq!(find(&root, &dst, &None)?, dst);
-        Ok(())
-    }
-
-    // /path/to/index.html
-    // /other/path/to
-    #[test]
-    fn test_dst_is_dir() -> Result<()> {
-        let root = PathBuf::from("/path/to/");
-        let dir = tempfile::tempdir()?;
-        File::create(&dir)?;
-        assert!(find(&root, &dir.into_path(), &None).is_err());
         Ok(())
     }
 }

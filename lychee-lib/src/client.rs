@@ -20,8 +20,7 @@ use typed_builder::TypedBuilder;
 use crate::{
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
-    uri::Uri,
-    ErrorKind, Request, Response, Result, Status,
+    ErrorKind, Request, Response, Result, Status, Uri,
 };
 
 const DEFAULT_MAX_REDIRECTS: usize = 5;
@@ -178,6 +177,8 @@ impl Client {
         let Request { uri, source } = Request::try_from(request)?;
         let status = if self.filter.is_excluded(&uri) {
             Status::Excluded
+        } else if uri.is_file() {
+            self.check_file(&uri).await
         } else if uri.is_mail() {
             self.check_mail(&uri).await
         } else {
@@ -248,6 +249,15 @@ impl Client {
             Ok(ref response) => Status::new(response, self.accepted.clone()),
             Err(e) => e.into(),
         }
+    }
+
+    pub async fn check_file(&self, uri: &Uri) -> Status {
+        if let Ok(path) = uri.inner.to_file_path() {
+            if path.exists() {
+                return Status::Ok(StatusCode::OK);
+            }
+        }
+        ErrorKind::InvalidFileUri(uri.clone()).into()
     }
 
     pub async fn check_mail(&self, uri: &Uri) -> Status {
