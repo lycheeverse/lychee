@@ -123,13 +123,13 @@ pub(crate) fn extract_links(
             Request::new(Uri { inner: new_url }, input_content.input.clone())
         } else if let Input::FsPath(root) = &input_content.input {
             let link = fs::sanitize(link);
+            if link.starts_with("#") {
+                // Silently ignore anchors for now.
+                continue;
+            }
             let path = fs::resolve(&root, &PathBuf::from(&link), base)?;
-            Request::new(
-                Uri {
-                    inner: Url::from_file_path(&path).map_err(|_e| ErrorKind::InvalidPath(path))?,
-                },
-                input_content.input.clone(),
-            )
+            let uri = Url::from_file_path(&path).map_err(|_e| ErrorKind::InvalidPath(path))?;
+            Request::new(Uri { inner: uri }, input_content.input.clone())
         } else {
             info!("Handling of {} not implemented yet", &link);
             continue;
