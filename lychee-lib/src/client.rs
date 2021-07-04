@@ -287,10 +287,14 @@ where
 
 #[cfg(test)]
 mod test {
-    use std::time::{Duration, Instant};
+    use std::{
+        fs::File,
+        time::{Duration, Instant},
+    };
 
     use http::{header::HeaderMap, StatusCode};
     use reqwest::header;
+    use tempfile::tempdir;
 
     use super::ClientBuilder;
     use crate::{mock_server, test_utils::get_mock_client_response};
@@ -372,6 +376,17 @@ mod test {
             .check("https://expired.badssl.com/")
             .await
             .unwrap();
+        assert!(res.status().is_success());
+    }
+
+    #[tokio::test]
+    async fn test_file() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("temp");
+        File::create(file).unwrap();
+        let uri = format!("file://{}", dir.path().join("temp").to_str().unwrap());
+
+        let res = get_mock_client_response(uri).await;
         assert!(res.status().is_success());
     }
 

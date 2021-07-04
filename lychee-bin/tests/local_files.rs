@@ -19,8 +19,7 @@ mod cli {
         writeln!(index, r#"<a href="./foo.html">Foo</a>"#)?;
 
         let foo_path = dir.path().join("foo.html");
-        let mut foo = File::create(&foo_path)?;
-        writeln!(foo, r#"<a href="https://example.org">example</a>"#)?;
+        File::create(&foo_path)?;
 
         let mut cmd = main_command();
         cmd.arg(index_path)
@@ -30,7 +29,7 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("Total............1"))
-            .stdout(contains("example.org"));
+            .stdout(contains("foo.html"));
 
         Ok(())
     }
