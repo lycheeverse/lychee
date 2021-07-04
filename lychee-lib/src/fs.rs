@@ -1,9 +1,46 @@
 use crate::{Base, ErrorKind, Result};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 // Returns the base if it is a valid `PathBuf`
 fn get_base_dir(base: &Option<Base>) -> Option<PathBuf> {
     base.as_ref().and_then(|b| b.dir())
+}
+
+/// Normalize a path, removing things like `.` and `..`.
+///
+/// CAUTION: This does not resolve symlinks (unlike
+/// [`std::fs::canonicalize`]). This may cause incorrect or surprising
+/// behavior at times. This should be used carefully. Unfortunately,
+/// [`std::fs::canonicalize`] can be hard to use correctly, since it can often
+/// fail, or on Windows returns annoying device paths. This is a problem Cargo
+/// needs to improve on.
+///
+/// Taken from https://github.com/rust-lang/cargo/blob/fede83ccf973457de319ba6fa0e36ead454d2e20/src/cargo/util/paths.rs#L61
+pub(crate) fn normalize(path: &Path) -> PathBuf {
+    let mut components = path.components().peekable();
+    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
+        components.next();
+        PathBuf::from(c.as_os_str())
+    } else {
+        PathBuf::new()
+    };
+
+    for component in components {
+        match component {
+            Component::Prefix(..) => unreachable!(),
+            Component::RootDir => {
+                ret.push(component.as_os_str());
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                ret.pop();
+            }
+            Component::Normal(c) => {
+                ret.push(c);
+            }
+        }
+    }
+    ret
 }
 
 pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<PathBuf> {
@@ -11,16 +48,20 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Pat
         // Find `dst` in the parent directory of `src`
         if let Some(parent) = src.parent() {
             let rel_path = parent.join(dst.to_path_buf());
-            return Ok(rel_path);
+            return Ok(normalize(&rel_path));
         }
     }
     if dst.is_absolute() {
         // Absolute local links (leading slash) require the base_url to
         // define the document root.
-        if let Some(base_dir) = get_base_dir(base) {
-            let abs_path = join(base_dir, dst);
-            return Ok(abs_path);
-        }
+        let base_dir = get_base_dir(base).unwrap_or(
+            src.to_path_buf()
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or(PathBuf::new()),
+        );
+        let abs_path = join(base_dir, dst);
+        return Ok(normalize(&abs_path));
     }
     Err(ErrorKind::FileNotFound(dst.to_path_buf()))
 }
@@ -46,8 +87,6 @@ pub(crate) fn sanitize(link: String) -> String {
 
 #[cfg(test)]
 mod test_fs_tree {
-    use std::fs::File;
-
     use super::*;
     use crate::Result;
 
@@ -79,115 +118,77 @@ mod test_fs_tree {
     // dummy root
     // /path/to/foo.html
     #[test]
-    fn test_find_absolute() -> Result<()> {
+    fn test_resolve_absolute() -> Result<()> {
         let dummy = PathBuf::new();
-        let dir = tempfile::tempdir()?;
-        let dst = dir.path().join("foo.html");
-        File::create(&dst)?;
-        assert_eq!(find(&dummy, &dst, &None)?, dst);
+        let abs_path = PathBuf::from("/absolute/path/to/foo.html");
+        assert_eq!(resolve(&dummy, &abs_path, &None)?, abs_path);
         Ok(())
     }
 
     // index.html
     // ./foo.html
     #[test]
-    fn test_find_relative() -> Result<()> {
-        let root = PathBuf::from("index.html");
-        let dir = tempfile::tempdir()?;
-        let dst = dir.path().join("./foo.html");
-        File::create(&dst)?;
-        assert_eq!(find(&root, &dst, &None)?, dst);
+    fn test_resolve_relative() -> Result<()> {
+        let dummy = PathBuf::from("index.html");
+        let abs_path = PathBuf::from("./foo.html");
+        assert_eq!(
+            resolve(&dummy, &abs_path, &None)?,
+            PathBuf::from("foo.html")
+        );
         Ok(())
     }
 
     // ./index.html
     // ./foo.html
     #[test]
-    fn test_find_relative_index() -> Result<()> {
-        let root = PathBuf::from("./index.html");
-        let dir = tempfile::tempdir()?;
-        let dst = dir.path().join("./foo.html");
-        File::create(&dst)?;
-        assert_eq!(find(&root, &dst, &None)?, dst);
-        Ok(())
-    }
-
-    #[test]
-    fn test_find_relative_nonexistent() -> Result<()> {
-        let root = PathBuf::from("index.html");
-        // This file does not exist
-        let dst = PathBuf::from("./foo.html");
-        assert!(find(&root, &dst, &None).is_err());
-        Ok(())
-    }
-
-    // /path/to/index.html
-    // ./foo.html
-    #[test]
-    fn test_find_relative_from_absolute() -> Result<()> {
-        let dir = tempfile::tempdir()?;
-        let root = dir.path().join("index.html");
-        // We create the absolute path to foo.html,
-        // but we address it under its relative path
-        let dst = PathBuf::from("./foo.html");
-        let dst_absolute = dir.path().join("./foo.html");
-        File::create(&dst_absolute)?;
-        assert_eq!(find(&root, &dst, &None)?, dst_absolute);
-        Ok(())
-    }
-
-    // dummy
-    // ./foo.html
-    // valid base dir
-    #[test]
-    fn test_find_absolute_from_base_dir() -> Result<()> {
-        let dummy = PathBuf::new();
-        let dir = tempfile::tempdir()?;
-        let dst = dir.path().join("foo.html");
-        File::create(&dst)?;
-        let base_dir = dir.path().to_path_buf();
-        let dst_absolute = base_dir.join(dst.to_path_buf());
+    fn test_resolve_relative_index() -> Result<()> {
+        let dummy = PathBuf::from("./index.html");
+        let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
-            find(&dummy, &dst, &Some(Base::Local(base_dir)))?,
-            dst_absolute
+            resolve(&dummy, &abs_path, &None)?,
+            PathBuf::from("foo.html")
         );
         Ok(())
     }
 
     // /path/to/index.html
-    // ./foo.html (non-existent)
+    // ./foo.html
     #[test]
-    fn test_find_relative_from_absolute_nonexistent() -> Result<()> {
-        let dir = tempfile::tempdir()?;
-        let root = dir.path().join("index.html");
-        // We create the absolute path to foo.html,
-        // but we address it under its relative path
-        let dst = PathBuf::from("./foo.html");
-        assert!(find(&root, &dst, &None).is_err());
+    fn test_resolve_from_absolute() -> Result<()> {
+        let abs_index = PathBuf::from("/path/to/index.html");
+        let abs_path = PathBuf::from("./foo.html");
+        assert_eq!(
+            resolve(&abs_index, &abs_path, &None)?,
+            PathBuf::from("/path/to/foo.html")
+        );
+        Ok(())
+    }
+
+    // dummy
+    // foo.html
+    // valid base dir
+    #[test]
+    fn test_resolve_absolute_from_base_dir() -> Result<()> {
+        let dummy = PathBuf::new();
+        let abs_path = PathBuf::from("/foo.html");
+        let base = Some(Base::Local(PathBuf::from("/some/absolute/base/dir")));
+        assert_eq!(
+            resolve(&dummy, &abs_path, &base)?,
+            PathBuf::from("/some/absolute/base/dir/foo.html")
+        );
         Ok(())
     }
 
     // /path/to/index.html
     // /other/path/to/foo.html
     #[test]
-    fn test_find_absolute_from_absolute() -> Result<()> {
-        let root = PathBuf::from("/path/to/index.html");
-        let dir = tempfile::tempdir()?;
-        let dst = dir.path().join("foo.html");
-        File::create(&dst)?;
-        assert_eq!(find(&root, &dst, &None)?, dst);
-        Ok(())
-    }
-
-    // /path/to
-    // /other/path/to/foo.html
-    #[test]
-    fn test_root_is_dir() -> Result<()> {
-        let root = PathBuf::from("/path/to/");
-        let dir = tempfile::tempdir()?;
-        let dst = dir.path().join("foo.html");
-        File::create(&dst)?;
-        assert_eq!(find(&root, &dst, &None)?, dst);
+    fn test_resolve_absolute_from_absolute() -> Result<()> {
+        let abs_index = PathBuf::from("/path/to/index.html");
+        let abs_path = PathBuf::from("/other/path/to/foo.html");
+        assert_eq!(
+            resolve(&abs_index, &abs_path, &None)?,
+            PathBuf::from("/path/to/other/path/to/foo.html")
+        );
         Ok(())
     }
 }
