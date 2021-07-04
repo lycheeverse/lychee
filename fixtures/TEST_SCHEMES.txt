@@ -1,3 +1,3 @@
 slack://channel?id=123
-file://foo/bar
+file:///test_folder/test_file
 https://example.org
