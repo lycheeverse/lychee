@@ -43,6 +43,12 @@ nix-env -iA nixos.lychee
 pkg install lychee
 ```
 
+### Termux
+
+```sh
+pkg install lychee
+```
+
 ### Pre-built binaries
 
 We provide binaries for Linux, macOS, and Windows for every release. \
