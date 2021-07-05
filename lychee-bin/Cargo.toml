@@ -41,7 +41,7 @@ toml = "0.5.8"
 
 [dev-dependencies]
 assert_cmd = "1.0.4"
-predicates = "1.0.8"
+predicates = "2.0.0"
 pretty_assertions = "0.7.2"
 tempfile = "3.2.0"
 uuid = { version = "0.8.2", features = ["v4"] }
