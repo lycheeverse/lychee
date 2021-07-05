@@ -40,7 +40,7 @@ tokio = { version = "1.6.0", features = ["full"] }
 toml = "0.5.8"
 
 [dev-dependencies]
-assert_cmd = "1.0.4"
+assert_cmd = "1.0.7"
 predicates = "1.0.8"
 pretty_assertions = "0.7.2"
 tempfile = "3.2.0"
