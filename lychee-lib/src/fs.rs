@@ -135,7 +135,7 @@ mod test_fs_tree {
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
             resolve(&dummy, &abs_path, &None)?,
-            PathBuf::from("foo.html")
+            PathBuf::from("./foo.html")
         );
         Ok(())
     }
