@@ -487,6 +487,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "config"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b1b9d958c2b1368a663f05538fc1b5975adce1e19f435acceae987aceeeb369"
+dependencies = [
+ "lazy_static",
+ "nom",
+ "serde",
+]
+
+[[package]]
 name = "console"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -576,8 +587,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d126179d86aee4556e54f5f3c6bf6d9884e7cc52cef82f77ee6f90a7747616d"
 dependencies = [
  "async-trait",
- "config",
+ "config 0.10.1",
  "crossbeam-queue",
+ "num_cpus",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "deadpool"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6284d3fbd2821de00878c70e55e89859c3115c4cacbd63a8dbd56887e88d069f"
+dependencies = [
+ "async-trait",
+ "config 0.11.0",
  "num_cpus",
  "serde",
  "tokio",
@@ -1381,7 +1405,7 @@ name = "lychee-lib"
 version = "0.7.0"
 dependencies = [
  "check-if-email-exists",
- "deadpool",
+ "deadpool 0.8.1",
  "doc-comment",
  "fast_chemail",
  "glob",
@@ -3009,7 +3033,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1cbd58fcf4ac80633ef8f48abdfa1d8743150593c6def666d114c10aa90afac8"
 dependencies = [
  "async-trait",
- "deadpool",
+ "deadpool 0.7.0",
  "futures",
  "futures-timer",
  "http-types",
