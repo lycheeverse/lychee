@@ -181,10 +181,7 @@ mod test {
     }
 
     fn extract_uris(input: &str, file_type: FileType, base_url: Option<&str>) -> HashSet<Uri> {
-        let base = match base_url {
-            Some(url) => Some(Base::Remote(Url::parse(url).unwrap())),
-            None => None,
-        };
+        let base = base_url.map(|url| Base::Remote(Url::parse(url).unwrap()));
         extract_links(&InputContent::from_string(input, file_type), &base)
             // unwrap is fine here as this helper function is only used in tests
             .unwrap()
