@@ -130,15 +130,22 @@ mod cli {
 
     /// Test unsupported URI schemes
     #[test]
-    fn test_unsupported_uri_schemes() -> Result<()> {
-        test_json_output!(
-            "TEST_SCHEMES.txt",
-            MockResponseStats {
-                total: 1,
-                successful: 1,
-                ..MockResponseStats::default()
-            }
-        )
+    fn test_unsupported_uri_schemes() {
+        let mut cmd = main_command();
+        let test_schemes_path = fixtures_path().join("TEST_SCHEMES.txt");
+
+        // Exclude file link because it doesn't exist on the filesystem.
+        // (File URIs are absolute paths, which we don't have.)
+        // Nevertheless, the `file` scheme should be recognized.
+        cmd.arg(test_schemes_path)
+            .arg("--exclude")
+            .arg("file://")
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("Total............2"))
+            .stdout(contains("Successful.......1"))
+            .stdout(contains("Excluded.........1"));
     }
 
     #[test]

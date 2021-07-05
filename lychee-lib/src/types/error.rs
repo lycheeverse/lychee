@@ -11,20 +11,29 @@ use crate::Uri;
 #[non_exhaustive]
 pub enum ErrorKind {
     /// Any form of I/O error occurred while reading from a given path
-    // TODO: maybe need to be splitted; currently first slot is Some only for reading files
+    // TODO: maybe needs to be split; currently first element is `Some` only for
+    // reading files
     IoError(Option<PathBuf>, std::io::Error),
     /// Network error when trying to connect to an endpoint via reqwest
     ReqwestError(reqwest::Error),
     /// Network error when trying to connect to an endpoint via hubcaps
     HubcapsError(hubcaps::Error),
-    /// The given string can not be parsed into a valid URL or e-mail address
+    /// The given string can not be parsed into a valid URL, e-mail address, or file path
     UrlParseError(String, (url::ParseError, Option<fast_chemail::ParseError>)),
+    /// The given URI cannot be converted to a file path
+    InvalidFileUri(Uri),
+    /// The given path cannot be converted to a URI
+    InvalidPath(PathBuf),
     /// The given mail address is unreachable
     UnreachableEmailAddress(Uri),
     /// The given header could not be parsed.
     /// A possible error when converting a `HeaderValue` from a string or byte
     /// slice.
     InvalidHeader(InvalidHeaderValue),
+    /// The given string can not be parsed into a valid base URL or base directory
+    InvalidBase(String, String),
+    /// Cannot find local file
+    FileNotFound(PathBuf),
     /// The given UNIX glob pattern is invalid
     InvalidGlobPattern(glob::PatternError),
     /// The Github API could not be called because of a missing Github token
@@ -60,11 +69,15 @@ impl Hash for ErrorKind {
             Self::IoError(p, e) => (p, e.kind()).hash(state),
             Self::ReqwestError(e) => e.to_string().hash(state),
             Self::HubcapsError(e) => e.to_string().hash(state),
+            Self::FileNotFound(e) => e.to_string_lossy().hash(state),
             Self::UrlParseError(s, e) => (s, e.type_id()).hash(state),
+            Self::InvalidFileUri(f) => f.hash(state),
+            Self::InvalidPath(p) => p.hash(state),
             Self::UnreachableEmailAddress(u) => u.hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
             Self::MissingGitHubToken => std::mem::discriminant(self).hash(state),
+            ErrorKind::InvalidBase(base, e) => (base, e).hash(state),
         }
     }
 }
@@ -81,6 +94,7 @@ impl Display for ErrorKind {
             Self::IoError(None, e) => e.fmt(f),
             Self::ReqwestError(e) => e.fmt(f),
             Self::HubcapsError(e) => e.fmt(f),
+            Self::FileNotFound(e) => write!(f, "{}", e.to_string_lossy()),
             Self::UrlParseError(s, (url_err, Some(mail_err))) => {
                 write!(
                     f,
@@ -91,6 +105,8 @@ impl Display for ErrorKind {
             Self::UrlParseError(s, (url_err, None)) => {
                 write!(f, "Cannot parse {} as website url ({})", s, url_err)
             }
+            Self::InvalidFileUri(u) => write!(f, "Invalid file URI: {}", u),
+            Self::InvalidPath(p) => write!(f, "Invalid path: {}", p.display()),
             Self::UnreachableEmailAddress(uri) => write!(f, "Unreachable mail address: {}", uri),
             Self::InvalidHeader(e) => e.fmt(f),
             Self::InvalidGlobPattern(e) => e.fmt(f),
@@ -98,6 +114,7 @@ impl Display for ErrorKind {
                 "GitHub token not specified. To check GitHub links reliably, \
                  use `--github-token` flag / `GITHUB_TOKEN` env var.",
             ),
+            Self::InvalidBase(base, e) => write!(f, "Error while base dir `{}` : {}", base, e),
         }
     }
 }
@@ -138,6 +155,12 @@ impl From<reqwest::Error> for ErrorKind {
 impl From<hubcaps::errors::Error> for ErrorKind {
     fn from(e: hubcaps::Error) -> Self {
         Self::HubcapsError(e)
+    }
+}
+
+impl From<url::ParseError> for ErrorKind {
+    fn from(e: url::ParseError) -> Self {
+        Self::UrlParseError("Cannot parse URL".to_string(), (e, None))
     }
 }
 

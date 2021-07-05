@@ -6,14 +6,14 @@ use url::Url;
 
 use crate::{ErrorKind, Result};
 
-/// Lychee's own representation of a URI, which encapsulates all support formats.
+/// Lychee's own representation of a URI, which encapsulates all supported formats.
 ///
 /// If the scheme is `mailto`, it's a mail address.
 /// Otherwise it's treated as a website URL.
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Uri {
     /// Website URL or mail address
-    pub(crate) url: Url,
+    pub(crate) inner: Url,
 }
 
 impl Uri {
@@ -24,21 +24,21 @@ impl Uri {
     #[inline]
     #[must_use]
     pub fn as_str(&self) -> &str {
-        self.url.as_ref().trim_start_matches("mailto:")
+        self.inner.as_ref().trim_start_matches("mailto:")
     }
 
     #[inline]
     #[must_use]
     /// Returns the scheme of the URI (e.g. `http` or `mailto`)
     pub fn scheme(&self) -> &str {
-        self.url.scheme()
+        self.inner.scheme()
     }
 
     #[inline]
     #[must_use]
     /// Returns the domain of the URI (e.g. `example.org`)
     pub fn domain(&self) -> Option<&str> {
-        self.url.domain()
+        self.inner.domain()
     }
 
     #[inline]
@@ -49,14 +49,14 @@ impl Uri {
     ///
     /// Return `None` for cannot-be-a-base URLs.
     pub fn path_segments(&self) -> Option<std::str::Split<char>> {
-        self.url.path_segments()
+        self.inner.path_segments()
     }
 
     #[must_use]
     /// Returns the IP address (either IPv4 or IPv6) of the URI,
     /// or `None` if it is a domain
     pub fn host_ip(&self) -> Option<IpAddr> {
-        match self.url.host()? {
+        match self.inner.host()? {
             url::Host::Domain(_) => None,
             url::Host::Ipv4(v4_addr) => Some(v4_addr.into()),
             url::Host::Ipv6(v6_addr) => Some(v6_addr.into()),
@@ -85,6 +85,11 @@ impl Uri {
     pub(crate) fn is_mail(&self) -> bool {
         self.scheme() == "mailto"
     }
+
+    #[inline]
+    pub(crate) fn is_file(&self) -> bool {
+        self.scheme() == "file"
+    }
 }
 
 impl AsRef<str> for Uri {
@@ -95,7 +100,7 @@ impl AsRef<str> for Uri {
 
 impl From<Url> for Uri {
     fn from(url: Url) -> Self {
-        Self { url }
+        Self { inner: url }
     }
 }
 

@@ -1389,6 +1389,7 @@ dependencies = [
  "http",
  "hubcaps",
  "linkify",
+ "log",
  "markup5ever_rcdom",
  "openssl-sys",
  "pretty_assertions",

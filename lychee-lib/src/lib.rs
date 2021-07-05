@@ -41,18 +41,18 @@
 )]
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 #![deny(missing_docs)]
+#![allow(clippy::module_name_repetitions)]
 
 #[cfg(doctest)]
 doc_comment::doctest!("../../README.md");
 
 mod client;
 mod client_pool;
-mod quirks;
-mod types;
-mod uri;
-
 /// A pool of clients, to handle concurrent checks
 pub mod collector;
+mod fs;
+mod quirks;
+mod types;
 
 /// Functionality to extract URIs from inputs
 pub mod extract;
@@ -75,8 +75,7 @@ use ring as _; // required for apple silicon
 pub use crate::{
     client::{check, ClientBuilder},
     client_pool::ClientPool,
-    collector::{Collector, Input},
+    collector::Collector,
     filter::{Excludes, Filter, Includes},
-    types::{ErrorKind, Request, Response, ResponseBody, Result, Status},
-    uri::Uri,
+    types::{Base, ErrorKind, Input, Request, Response, ResponseBody, Result, Status, Uri},
 };

@@ -1,5 +1,5 @@
-This link should be ignored as it is not a fully qualified URL.
-![Logo](awesome.png)
+Check file link
+![Logo](../assets/banner.svg)
 
 ![Anchors should be ignored](#awesome)
 
@@ -18,8 +18,6 @@ Some more complex formatting to test that Markdown parsing works.
 Test HTTP and HTTPS for the same site.
 http://example.org
 https://example.org
-
-https://www.peerlyst.com/posts/a-list-of-static-analysis-tools-for-c-c-peerlyst
 
 test@example.org
 mailto:test2@example.org

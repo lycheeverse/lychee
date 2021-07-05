@@ -68,10 +68,7 @@ use anyhow::{anyhow, Context, Result};
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use http::StatusCode;
 use indicatif::{ProgressBar, ProgressStyle};
-use lychee_lib::{
-    collector::{Collector, Input},
-    ClientBuilder, ClientPool, Response,
-};
+use lychee_lib::{ClientBuilder, ClientPool, Collector, Input, Response};
 use openssl_sys as _; // required for vendored-openssl feature
 use regex::RegexSet;
 use ring as _; // required for apple silicon
@@ -188,7 +185,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .client()
         .map_err(|e| anyhow!(e))?;
 
-    let links = Collector::new(cfg.base_url.clone(), cfg.skip_missing, max_concurrency)
+    let links = Collector::new(cfg.base.clone(), cfg.skip_missing, max_concurrency)
         .collect_links(&inputs)
         .await
         .map_err(|e| anyhow!(e))?;
