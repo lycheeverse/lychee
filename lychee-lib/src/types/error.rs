@@ -76,6 +76,7 @@ impl Hash for ErrorKind {
             Self::UrlParseError(s, e) => (s, e.type_id()).hash(state),
             Self::UnreachableEmailAddress(u) | Self::InsecureURL(u) => u.hash(state),
             Self::InvalidFileUri(u) => u.hash(state),
+            Self::InvalidFileUri(f) => f.hash(state),
             Self::InvalidPath(p) => p.hash(state),
             Self::UnreachableEmailAddress(u) => u.hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),

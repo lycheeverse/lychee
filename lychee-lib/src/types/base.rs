@@ -18,6 +18,7 @@ pub enum Base {
 
 impl Base {
     /// Join link with base url
+    #[must_use]
     pub fn join(&self, link: &str) -> Option<Url> {
         match self {
             Self::Remote(url) => url.join(link).ok(),
@@ -26,10 +27,11 @@ impl Base {
     }
 
     /// Return the directory if the base is local
+    #[must_use]
     pub fn dir(&self) -> Option<PathBuf> {
         match self {
             Self::Remote(_) => None,
-            Self::Local(d) => Some(d.to_path_buf()),
+            Self::Local(d) => Some(d.clone()),
         }
     }
 }

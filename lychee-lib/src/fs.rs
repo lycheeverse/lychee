@@ -3,7 +3,7 @@ use std::path::{Component, Path, PathBuf};
 
 // Returns the base if it is a valid `PathBuf`
 fn get_base_dir(base: &Option<Base>) -> Option<PathBuf> {
-    base.as_ref().and_then(|b| b.dir())
+    base.as_ref().and_then(Base::dir)
 }
 
 /// Normalize a path, removing things like `.` and `..`.
@@ -15,15 +15,14 @@ fn get_base_dir(base: &Option<Base>) -> Option<PathBuf> {
 /// fail, or on Windows returns annoying device paths. This is a problem Cargo
 /// needs to improve on.
 ///
-/// Taken from https://github.com/rust-lang/cargo/blob/fede83ccf973457de319ba6fa0e36ead454d2e20/src/cargo/util/paths.rs#L61
+/// Taken from [`cargo`](https://github.com/rust-lang/cargo/blob/fede83ccf973457de319ba6fa0e36ead454d2e20/src/cargo/util/paths.rs#L61)
 pub(crate) fn normalize(path: &Path) -> PathBuf {
     let mut components = path.components().peekable();
-    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
+
+    let mut ret = components.peek().copied().map_or_else(PathBuf::new, |c| {
         components.next();
         PathBuf::from(c.as_os_str())
-    } else {
-        PathBuf::new()
-    };
+    });
 
     for component in components {
         match component {
@@ -54,12 +53,11 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Pat
     if dst.is_absolute() {
         // Absolute local links (leading slash) require the base_url to
         // define the document root.
-        let base_dir = get_base_dir(base).unwrap_or(
+        let base_dir = get_base_dir(base).unwrap_or_else(|| {
             src.to_path_buf()
                 .parent()
-                .map(|p| p.to_path_buf())
-                .unwrap_or(PathBuf::new()),
-        );
+                .map_or(PathBuf::new(), Path::to_path_buf)
+        });
         let abs_path = join(base_dir, dst);
         return Ok(normalize(&abs_path));
     }
@@ -77,10 +75,10 @@ fn join(base: PathBuf, dst: &Path) -> PathBuf {
 
 /// A little helper function to remove the get parameters from a URL link.
 /// The link is not a URL but a String as that link may not have a base domain.
-pub(crate) fn sanitize(link: String) -> String {
+pub(crate) fn sanitize(link: &str) -> String {
     let path = match link.split_once('?') {
         Some((path, _params)) => path,
-        None => link.as_str(),
+        None => link,
     };
     path.to_string()
 }
@@ -92,27 +90,18 @@ mod test_fs_tree {
 
     #[test]
     fn test_sanitize() {
-        assert_eq!(sanitize("/".to_string()), "/".to_string());
+        assert_eq!(sanitize("/"), "/".to_string());
+        assert_eq!(sanitize("index.html?foo=bar"), "index.html".to_string());
+        assert_eq!(sanitize("/index.html?foo=bar"), "/index.html".to_string());
         assert_eq!(
-            sanitize("index.html?foo=bar".to_string()),
-            "index.html".to_string()
-        );
-        assert_eq!(
-            sanitize("/index.html?foo=bar".to_string()),
+            sanitize("/index.html?foo=bar&baz=zorx?bla=blub"),
             "/index.html".to_string()
         );
         assert_eq!(
-            sanitize("/index.html?foo=bar&baz=zorx?bla=blub".to_string()),
-            "/index.html".to_string()
-        );
-        assert_eq!(
-            sanitize("https://example.org/index.html?foo=bar".to_string()),
+            sanitize("https://example.org/index.html?foo=bar"),
             "https://example.org/index.html".to_string()
         );
-        assert_eq!(
-            sanitize("test.png?foo=bar".to_string()),
-            "test.png".to_string()
-        );
+        assert_eq!(sanitize("test.png?foo=bar"), "test.png".to_string());
     }
 
     // dummy root

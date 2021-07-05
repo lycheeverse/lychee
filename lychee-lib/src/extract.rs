@@ -122,8 +122,8 @@ pub(crate) fn extract_links(
         } else if let Some(new_url) = base.as_ref().and_then(|u| u.join(&link)) {
             Request::new(Uri { inner: new_url }, input_content.input.clone())
         } else if let Input::FsPath(root) = &input_content.input {
-            let link = fs::sanitize(link);
-            if link.starts_with("#") {
+            let link = fs::sanitize(&link);
+            if link.starts_with('#') {
                 // Silently ignore anchors for now.
                 continue;
             }
