@@ -10,12 +10,12 @@ use crate::Uri;
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    /// Any form of I/O error occurred while reading from a given path
     // TODO: maybe need to be splitted; currently first slot is Some only for reading files
+    /// Any form of I/O error occurred while reading from a given path.
     IoError(Option<PathBuf>, std::io::Error),
-    /// Network error when trying to connect to an endpoint via reqwest
+    /// Network error when trying to connect to an endpoint via reqwest.
     ReqwestError(reqwest::Error),
-    /// Network error when trying to connect to an endpoint via hubcaps
+    /// Network error when trying to connect to an endpoint via hubcaps.
     HubcapsError(hubcaps::Error),
     /// The given string can not be parsed into a valid URL or e-mail address
     UrlParseError(String, (url::ParseError, Option<fast_chemail::ParseError>)),
@@ -27,8 +27,10 @@ pub enum ErrorKind {
     InvalidHeader(InvalidHeaderValue),
     /// The given UNIX glob pattern is invalid
     InvalidGlobPattern(glob::PatternError),
-    /// The Github API could not be called because of a missing Github token
+    /// The Github API could not be called because of a missing Github token.
     MissingGitHubToken,
+    /// The website is available in HTTPS protocol, but HTTP scheme is used.
+    InsecureURL(Uri),
 }
 
 impl PartialEq for ErrorKind {
@@ -38,7 +40,8 @@ impl PartialEq for ErrorKind {
             (Self::ReqwestError(e1), Self::ReqwestError(e2)) => e1.to_string() == e2.to_string(),
             (Self::HubcapsError(e1), Self::HubcapsError(e2)) => e1.to_string() == e2.to_string(),
             (Self::UrlParseError(s1, e1), Self::UrlParseError(s2, e2)) => s1 == s2 && e1 == e2,
-            (Self::UnreachableEmailAddress(u1), Self::UnreachableEmailAddress(u2)) => u1 == u2,
+            (Self::UnreachableEmailAddress(u1), Self::UnreachableEmailAddress(u2))
+            | (Self::InsecureURL(u1), Self::InsecureURL(u2)) => u1 == u2,
             (Self::InvalidGlobPattern(e1), Self::InvalidGlobPattern(e2)) => {
                 e1.msg == e2.msg && e1.pos == e2.pos
             }
@@ -61,7 +64,7 @@ impl Hash for ErrorKind {
             Self::ReqwestError(e) => e.to_string().hash(state),
             Self::HubcapsError(e) => e.to_string().hash(state),
             Self::UrlParseError(s, e) => (s, e.type_id()).hash(state),
-            Self::UnreachableEmailAddress(u) => u.hash(state),
+            Self::UnreachableEmailAddress(u) | Self::InsecureURL(u) => u.hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
             Self::MissingGitHubToken => std::mem::discriminant(self).hash(state),
@@ -97,6 +100,11 @@ impl Display for ErrorKind {
             Self::MissingGitHubToken => f.write_str(
                 "GitHub token not specified. To check GitHub links reliably, \
                  use `--github-token` flag / `GITHUB_TOKEN` env var.",
+            ),
+            Self::InsecureURL(uri) => write!(
+                f,
+                "This URL is available in HTTPS protocol, but HTTP is provided, use '{}' instead",
+                uri
             ),
         }
     }
