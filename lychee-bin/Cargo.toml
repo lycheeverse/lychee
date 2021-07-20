@@ -45,7 +45,7 @@ predicates = "1.0.8"
 pretty_assertions = "0.7.2"
 tempfile = "3.2.0"
 uuid = { version = "0.8.2", features = ["v4"] }
-wiremock = "0.5.2"
+wiremock = "0.5.6"
 
 [features]
 vendored-openssl = ["openssl-sys/vendored"]

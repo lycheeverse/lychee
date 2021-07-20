@@ -45,7 +45,7 @@ url = { version = "2.2.2", features = ["serde"] }
 doc-comment = "0.3.3"
 pretty_assertions = "0.7.2"
 tempfile = "3.2.0"
-wiremock = "0.5.2"
+wiremock = "0.5.6"
 
 [features]
 vendored-openssl = ["openssl-sys/vendored"]
