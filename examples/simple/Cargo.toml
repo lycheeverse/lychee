@@ -9,4 +9,4 @@ path = "simple.rs"
 
 [dependencies]
 lychee-lib = { path = "../../lychee-lib" }
-tokio = { version = "1.6.0", features = ["full"] }
+tokio = { version = "1.8.2", features = ["full"] }
