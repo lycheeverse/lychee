@@ -370,4 +370,71 @@ mod cli {
         fs::remove_file(outfile)?;
         Ok(())
     }
+
+    /// Test excludes
+    #[test]
+    fn test_exclude_wildcard() -> Result<()> {
+        let mut cmd = main_command();
+        let test_path = fixtures_path().join("TEST.md");
+
+        cmd.arg(test_path)
+            .arg("--exclude")
+            .arg(".*")
+            .assert()
+            .success()
+            .stdout(contains("Excluded........10"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_exclude_multiple_urls() -> Result<()> {
+        let mut cmd = main_command();
+        let test_path = fixtures_path().join("TEST.md");
+
+        cmd.arg(test_path)
+            .arg("--exclude")
+            .arg("https://en.wikipedia.org/*")
+            .arg("https://ldra.com/")
+            .assert()
+            .success()
+            .stdout(contains("Excluded.........2"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_exclude_file() -> Result<()> {
+        let mut cmd = main_command();
+        let test_path = fixtures_path().join("TEST.md");
+        let excludes_path = fixtures_path().join("TEST_EXCLUDE_1.txt");
+
+        cmd.arg(test_path)
+            .arg("--exclude-file")
+            .arg(excludes_path)
+            .assert()
+            .success()
+            .stdout(contains("Excluded.........2"));
+
+        Ok(())
+    }    
+
+    #[test]
+    fn test_multiple_exclude_files() -> Result<()> {
+        let mut cmd = main_command();
+        let test_path = fixtures_path().join("TEST.md");
+        let excludes_path1 = fixtures_path().join("TEST_EXCLUDE_1.txt");
+        let excludes_path2 = fixtures_path().join("TEST_EXCLUDE_2.txt");
+
+        cmd.arg(test_path)
+            .arg("--exclude-file")
+            .arg(excludes_path1)
+            .arg(excludes_path2)
+            .assert()
+            .success()
+            .stdout(contains("Excluded.........3"));
+
+        Ok(())
+    }    
 }
+

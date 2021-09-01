@@ -165,6 +165,11 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) exclude: Vec<String>,
 
+    /// A file or files that contains URLs to exclude from checking
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) exclude_file: Vec<String>,
+    
     /// Exclude all private IPs from checking.
     /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
     #[structopt(short = "E", long, verbatim_doc_comment)]
@@ -285,6 +290,7 @@ impl Config {
             scheme: Vec::<String>::new();
             include: Vec::<String>::new();
             exclude: Vec::<String>::new();
+            exclude_file: Vec::<String>::new();
             exclude_all_private: false;
             exclude_private: false;
             exclude_link_local: false;

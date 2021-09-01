@@ -52,6 +52,9 @@ headers = []
 # Exclude URLs from checking (supports regex)
 exclude = []
 
+# Exclude URLs contained in a file from checking
+exclude_file = []
+
 include = []
 
 # Exclude all private IPs from checking
