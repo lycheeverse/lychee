@@ -63,6 +63,8 @@ use ring as _;
 
 use std::iter::FromIterator;
 use std::{collections::HashSet, fs, str::FromStr, time::Duration};
+use std::io::{self, BufRead};
+use std::fs::File;
 
 use anyhow::{anyhow, Context, Result};
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, HeaderName};
@@ -113,6 +115,18 @@ fn run_main() -> Result<i32> {
     if let Some(c) = Config::load_from_file(&opts.config_file)? {
         opts.config.merge(c)
     }
+
+    // Load excludes from file
+    for path in &opts.config.exclude_file {
+        let file = File::open(path).expect("No such file");
+        opts.config.exclude.append(
+            &mut io::BufReader::new(file)
+                .lines()
+                .map(|l| l.expect("Could not read line"))
+                .collect()
+        );
+    }
+
     let cfg = &opts.config;
 
     let runtime = match cfg.threads {
