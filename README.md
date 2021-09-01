@@ -100,7 +100,7 @@ use
 | Skip private domains | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
 | [Use as library]     | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![no]         | ![yes]                | ![no]  |
 | Quiet mode           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]        | ![yes]                | ![yes] |
-| Config file          | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]        | ![yes]                | ![no]  |
+| [Config file]        | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]        | ![yes]                | ![no]  |
 | Recursion | ![no]  | ![no]         | ![no]    | ![yes]                 | ![yes]        | ![yes]         | ![yes]                 | ![no]  |
 | Amazing lychee logo  | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
 
@@ -118,6 +118,7 @@ use
 [filter status code]: https://github.com/tcort/markdown-link-check/issues/94
 [skip private domains]: https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go
 [use as library]: https://github.com/raviqqe/liche/issues/13
+[config file]: https://github.com/lycheeverse/lychee/blob/master/lychee.example.toml
 
 <sup>1</sup> Other machine-readable formats like CSV are supported.
 
@@ -159,6 +160,7 @@ acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
 Optionally, to avoid getting rate-limited while checking GitHub links, you can
 set an environment variable with your Github token like so `GITHUB_TOKEN=xxxx`,
 or use the `--github-token` CLI option. It can also be set in the config file.
+[Here is an example config file][config file].
 
 The token can be generated in your
 [GitHub account settings page](https://github.com/settings/tokens). A personal
