@@ -149,6 +149,25 @@ mod cli {
     }
 
     #[test]
+    fn test_resolve_paths() {
+        let mut cmd = main_command();
+        let offline_dir = fixtures_path().join("offline");
+
+        // Exclude file link because it doesn't exist on the filesystem.
+        // (File URIs are absolute paths, which we don't have.)
+        // Nevertheless, the `file` scheme should be recognized.
+        cmd.arg("--offline")
+            .arg("--base")
+            .arg(&offline_dir)
+            .arg(&offline_dir.join("index.html"))
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("Total............2"))
+            .stdout(contains("Successful.......2"));
+    }
+
+    #[test]
     fn test_quirks() -> Result<()> {
         test_json_output!(
             "TEST_QUIRKS.txt",
