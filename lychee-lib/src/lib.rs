@@ -50,7 +50,7 @@ mod client;
 mod client_pool;
 /// A pool of clients, to handle concurrent checks
 pub mod collector;
-mod fs;
+mod helpers;
 mod quirks;
 mod types;
 

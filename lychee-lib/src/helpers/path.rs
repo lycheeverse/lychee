@@ -42,6 +42,18 @@ pub(crate) fn normalize(path: &Path) -> PathBuf {
     ret
 }
 
+// Get the parent directory of a given `Path`.
+fn dirname(src: &Path) -> PathBuf {
+    if src.is_file() {
+        src.to_path_buf()
+            .parent()
+            .map_or(PathBuf::new(), Path::to_path_buf)
+    } else {
+        src.to_path_buf()
+    }
+}
+
+// Resolve `dst` that was linked to from within `src`
 pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<PathBuf> {
     if dst.is_relative() {
         // Find `dst` in the parent directory of `src`
@@ -51,14 +63,16 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Pat
         }
     }
     if dst.is_absolute() {
-        // Absolute local links (leading slash) require the base_url to
+        // Absolute local links (leading slash) require the `base_url` to
         // define the document root.
-        let base_dir = get_base_dir(base).unwrap_or_else(|| {
-            src.to_path_buf()
-                .parent()
-                .map_or(PathBuf::new(), Path::to_path_buf)
-        });
-        let abs_path = join(base_dir, dst);
+        let base = get_base_dir(base).ok_or_else(|| {
+            ErrorKind::InvalidBase(
+                "<empty>".to_string(),
+                format!("Found absolute local link {:?} but no base directory was set. Set with `--base`.", dst)
+                    .to_string(),
+            )
+        })?;
+        let abs_path = join(dirname(&base), dst);
         return Ok(normalize(&abs_path));
     }
     Err(ErrorKind::FileNotFound(dst.to_path_buf()))
@@ -73,36 +87,10 @@ fn join(base: PathBuf, dst: &Path) -> PathBuf {
     PathBuf::from(abs)
 }
 
-/// A little helper function to remove the get parameters from a URL link.
-/// The link is not a URL but a String as that link may not have a base domain.
-pub(crate) fn sanitize(link: &str) -> String {
-    let path = match link.split_once('?') {
-        Some((path, _params)) => path,
-        None => link,
-    };
-    path.to_string()
-}
-
 #[cfg(test)]
-mod test_fs_tree {
+mod test_path {
     use super::*;
     use crate::Result;
-
-    #[test]
-    fn test_sanitize() {
-        assert_eq!(sanitize("/"), "/".to_string());
-        assert_eq!(sanitize("index.html?foo=bar"), "index.html".to_string());
-        assert_eq!(sanitize("/index.html?foo=bar"), "/index.html".to_string());
-        assert_eq!(
-            sanitize("/index.html?foo=bar&baz=zorx?bla=blub"),
-            "/index.html".to_string()
-        );
-        assert_eq!(
-            sanitize("https://example.org/index.html?foo=bar"),
-            "https://example.org/index.html".to_string()
-        );
-        assert_eq!(sanitize("test.png?foo=bar"), "test.png".to_string());
-    }
 
     // dummy root
     // /path/to/foo.html

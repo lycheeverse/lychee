@@ -4,25 +4,53 @@ use html5ever::{
     parse_document,
     tendril::{StrTendril, TendrilSink},
 };
-use linkify::LinkFinder;
 use log::info;
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
 use reqwest::Url;
 
 use crate::{
-    fs,
+    helpers::{path, url},
     types::{FileType, InputContent},
     Base, ErrorKind, Input, Request, Result, Uri,
 };
 
-// Use LinkFinder here to offload the actual link searching in plaintext.
-fn find_links(input: &str) -> Vec<linkify::Link> {
-    let finder = LinkFinder::new();
-    finder.links(input).collect()
+/// Main entrypoint for extracting links from various sources
+/// (Markdown, HTML, and plaintext)
+pub(crate) fn extract_links(
+    input_content: &InputContent,
+    base: &Option<Base>,
+) -> Result<HashSet<Request>> {
+    let links = match input_content.file_type {
+        FileType::Markdown => extract_links_from_markdown(&input_content.content),
+        FileType::Html => extract_links_from_html(&input_content.content),
+        FileType::Plaintext => extract_links_from_plaintext(&input_content.content),
+    };
+
+    // Only keep legit URLs. For example this filters out anchors.
+    let mut requests: HashSet<Request> = HashSet::new();
+    for link in links {
+        let req = if let Ok(uri) = Uri::try_from(link.as_str()) {
+            Request::new(uri, input_content.input.clone())
+        } else if let Some(new_url) = base.as_ref().and_then(|u| u.join(&link)) {
+            Request::new(Uri { inner: new_url }, input_content.input.clone())
+        } else if let Input::FsPath(root) = &input_content.input {
+            if url::is_anchor(&link) {
+                // Silently ignore anchor links for now
+                continue;
+            }
+            let uri = create_uri(root, base, &link)?;
+            Request::new(Uri { inner: uri }, input_content.input.clone())
+        } else {
+            info!("Handling of {} not implemented yet", &link);
+            continue;
+        };
+        requests.insert(req);
+    }
+    Ok(requests)
 }
 
-/// Extract unparsed URL strings from a markdown string.
+/// Extract unparsed URL strings from a Markdown string.
 fn extract_links_from_markdown(input: &str) -> Vec<String> {
     let parser = Parser::new(input);
     parser
@@ -35,15 +63,15 @@ fn extract_links_from_markdown(input: &str) -> Vec<String> {
         .collect()
 }
 
-/// Extract unparsed URL strings from a HTML string.
+/// Extract unparsed URL strings from an HTML string.
 fn extract_links_from_html(input: &str) -> Vec<String> {
     let tendril = StrTendril::from(input);
     let rc_dom = parse_document(RcDom::default(), html5ever::ParseOpts::default()).one(tendril);
 
     let mut urls = Vec::new();
 
-    // we pass mutable urls reference to avoid extra allocations in each
-    // recursive descent
+    // We pass mutable URL references here to avoid
+    // extra allocations in each recursive descent
     walk_html_links(&mut urls, &rc_dom.document);
 
     urls
@@ -68,7 +96,7 @@ fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
             for attr in attrs.borrow().iter() {
                 let attr_value = attr.value.to_string();
 
-                if elem_attr_is_link(attr.name.local.as_ref(), name.local.as_ref()) {
+                if url::elem_attr_is_link(attr.name.local.as_ref(), name.local.as_ref()) {
                     urls.push(attr_value);
                 } else {
                     urls.append(&mut extract_links_from_plaintext(&attr_value));
@@ -80,63 +108,24 @@ fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
     }
 
     // recursively traverse the document's nodes -- this doesn't need any extra
-    // exit conditions because the document is a tree
+    // exit conditions, because the document is a tree
     for child in node.children.borrow().iter() {
         walk_html_links(&mut urls, child);
     }
 }
 
-/// Determine if element's attribute contains a link / URL.
-fn elem_attr_is_link(attr_name: &str, elem_name: &str) -> bool {
-    // See a comprehensive list of attributes that might contain URLs/URIs
-    // over at: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
-    matches!(
-        (attr_name, elem_name),
-        ("href" | "src" | "srcset" | "cite", _) | ("data", "object") | ("onhashchange", "body")
-    )
-}
-
-/// Extract unparsed URL strings from a plaintext.
+/// Extract unparsed URL strings from plaintext
 fn extract_links_from_plaintext(input: &str) -> Vec<String> {
-    find_links(input)
+    url::find_links(input)
         .iter()
         .map(|l| String::from(l.as_str()))
         .collect()
 }
 
-pub(crate) fn extract_links(
-    input_content: &InputContent,
-    base: &Option<Base>,
-) -> Result<HashSet<Request>> {
-    let links = match input_content.file_type {
-        FileType::Markdown => extract_links_from_markdown(&input_content.content),
-        FileType::Html => extract_links_from_html(&input_content.content),
-        FileType::Plaintext => extract_links_from_plaintext(&input_content.content),
-    };
-
-    // Only keep legit URLs. For example this filters out anchors.
-    let mut requests: HashSet<Request> = HashSet::new();
-    for link in links {
-        let req = if let Ok(uri) = Uri::try_from(link.as_str()) {
-            Request::new(uri, input_content.input.clone())
-        } else if let Some(new_url) = base.as_ref().and_then(|u| u.join(&link)) {
-            Request::new(Uri { inner: new_url }, input_content.input.clone())
-        } else if let Input::FsPath(root) = &input_content.input {
-            let link = fs::sanitize(&link);
-            if link.starts_with('#') {
-                // Silently ignore anchors for now.
-                continue;
-            }
-            let path = fs::resolve(&root, &PathBuf::from(&link), base)?;
-            let uri = Url::from_file_path(&path).map_err(|_e| ErrorKind::InvalidPath(path))?;
-            Request::new(Uri { inner: uri }, input_content.input.clone())
-        } else {
-            info!("Handling of {} not implemented yet", &link);
-            continue;
-        };
-        requests.insert(req);
-    }
-    Ok(requests)
+fn create_uri(root: &PathBuf, base: &Option<Base>, link: &str) -> Result<Url> {
+    let link = url::remove_get_params(&link);
+    let path = path::resolve(root, &PathBuf::from(&link), base)?;
+    Ok(Url::from_file_path(&path).map_err(|_e| ErrorKind::InvalidPath(path))?)
 }
 
 #[cfg(test)]
@@ -150,10 +139,10 @@ mod test {
     };
 
     use pretty_assertions::assert_eq;
-    use url::Url;
 
     use super::*;
     use crate::{
+        helpers::url::find_links,
         test_utils::{mail, website},
         Uri,
     };

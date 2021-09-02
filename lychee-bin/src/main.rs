@@ -175,6 +175,13 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let include = RegexSet::new(&cfg.include)?;
     let exclude = RegexSet::new(&cfg.exclude)?;
 
+    // Offline mode overrides the scheme
+    let schemes = if cfg.offline {
+        vec!["file".to_string()]
+    } else {
+        cfg.scheme.clone()
+    };
+
     let client = ClientBuilder::builder()
         .includes(include)
         .excludes(exclude)
@@ -190,7 +197,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .method(method)
         .timeout(timeout)
         .github_token(cfg.github_token.clone())
-        .schemes(HashSet::from_iter(cfg.scheme.clone()))
+        .schemes(HashSet::from_iter(schemes))
         .accepted(accepted)
         .require_https(cfg.require_https)
         .build()

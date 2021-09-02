@@ -124,6 +124,7 @@ impl Display for ErrorKind {
                 uri
             ),
             Self::InvalidBase(base, e) => write!(f, "Error while base dir `{}` : {}", base, e),
+            Self::InvalidBase(base, e) => write!(f, "Error with base dir `{}` : {}", base, e),
         }
     }
 }

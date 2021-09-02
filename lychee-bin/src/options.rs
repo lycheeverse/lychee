@@ -158,6 +158,11 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) scheme: Vec<String>,
 
+    /// Only check local files and block network requests. 
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) offline: bool,
+
     /// URLs to check (supports regex). Has preference over all excludes.
     #[structopt(long)]
     #[serde(default)]
