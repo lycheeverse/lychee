@@ -39,7 +39,7 @@ pub(crate) fn extract_links(
                 // Silently ignore anchor links for now
                 continue;
             }
-            let uri = create_uri(root, base, &link)?;
+            let uri = create_uri_from_path(root, base, &link)?;
             Request::new(Uri { inner: uri }, input_content.input.clone())
         } else {
             info!("Handling of {} not implemented yet", &link);
@@ -122,7 +122,7 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
         .collect()
 }
 
-fn create_uri(root: &PathBuf, base: &Option<Base>, link: &str) -> Result<Url> {
+fn create_uri_from_path(root: &PathBuf, base: &Option<Base>, link: &str) -> Result<Url> {
     let link = url::remove_get_params(&link);
     let path = path::resolve(root, &PathBuf::from(&link), base)?;
     Ok(Url::from_file_path(&path).map_err(|_e| ErrorKind::InvalidPath(path))?)

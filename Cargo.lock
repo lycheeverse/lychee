@@ -1394,6 +1394,7 @@ dependencies = [
  "log",
  "markup5ever_rcdom",
  "openssl-sys",
+ "path-clean",
  "pretty_assertions",
  "pulldown-cmark",
  "regex",
@@ -1717,6 +1718,12 @@ dependencies = [
  "smallvec",
  "winapi",
 ]
+
+[[package]]
+name = "path-clean"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecba01bf2678719532c5e3059e0b5f0811273d94b397088b82e3bd0a78c78fdd"
 
 [[package]]
 name = "pem"

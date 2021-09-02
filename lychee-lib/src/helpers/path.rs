@@ -1,45 +1,25 @@
 use crate::{Base, ErrorKind, Result};
-use std::path::{Component, Path, PathBuf};
+use path_clean::PathClean;
+use std::env;
+use std::path::{Path, PathBuf};
 
 // Returns the base if it is a valid `PathBuf`
 fn get_base_dir(base: &Option<Base>) -> Option<PathBuf> {
     base.as_ref().and_then(Base::dir)
 }
 
-/// Normalize a path, removing things like `.` and `..`.
-///
-/// CAUTION: This does not resolve symlinks (unlike
-/// [`std::fs::canonicalize`]). This may cause incorrect or surprising
-/// behavior at times. This should be used carefully. Unfortunately,
-/// [`std::fs::canonicalize`] can be hard to use correctly, since it can often
-/// fail, or on Windows returns annoying device paths. This is a problem Cargo
-/// needs to improve on.
-///
-/// Taken from [`cargo`](https://github.com/rust-lang/cargo/blob/fede83ccf973457de319ba6fa0e36ead454d2e20/src/cargo/util/paths.rs#L61)
-pub(crate) fn normalize(path: &Path) -> PathBuf {
-    let mut components = path.components().peekable();
+// https://stackoverflow.com/a/54817755/270334
+pub(crate) fn absolute_path(path: impl AsRef<Path>) -> Result<PathBuf> {
+    let path = path.as_ref();
 
-    let mut ret = components.peek().copied().map_or_else(PathBuf::new, |c| {
-        components.next();
-        PathBuf::from(c.as_os_str())
-    });
-
-    for component in components {
-        match component {
-            Component::Prefix(..) => unreachable!(),
-            Component::RootDir => {
-                ret.push(component.as_os_str());
-            }
-            Component::CurDir => {}
-            Component::ParentDir => {
-                ret.pop();
-            }
-            Component::Normal(c) => {
-                ret.push(c);
-            }
-        }
+    let absolute_path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        env::current_dir()?.join(path)
     }
-    ret
+    .clean();
+
+    Ok(absolute_path)
 }
 
 // Get the parent directory of a given `Path`.
@@ -59,7 +39,7 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Pat
         // Find `dst` in the parent directory of `src`
         if let Some(parent) = src.parent() {
             let rel_path = parent.join(dst.to_path_buf());
-            return Ok(normalize(&rel_path));
+            return Ok(absolute_path(&rel_path)?);
         }
     }
     if dst.is_absolute() {
@@ -73,7 +53,7 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Pat
             )
         })?;
         let abs_path = join(dirname(&base), dst);
-        return Ok(normalize(&abs_path));
+        return Ok(absolute_path(&abs_path)?);
     }
     Err(ErrorKind::FileNotFound(dst.to_path_buf()))
 }
