@@ -37,7 +37,7 @@ jobs:
           args: --all-targets -- --deny warnings
 
   publish-check:
-    name: Publish Check
+    name: publish check
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
