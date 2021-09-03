@@ -8,5 +8,5 @@ name = "client_pool"
 path = "client_pool.rs"
 
 [dependencies]
-lychee-lib = { path = "../../lychee-lib" }
+lychee-lib = { path = "../../lychee-lib", version = "0.7.1" }
 tokio = { version = "1.6.0", features = ["full"] }
