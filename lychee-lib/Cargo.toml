@@ -14,10 +14,10 @@ keywords = [
 ]
 license = "Apache-2.0/MIT"
 repository = "https://github.com/lycheeverse/lychee"
-version = "0.7.1"
+version = "0.7.2"
 
 [dependencies]
-check-if-email-exists = "0.8.21"
+check-if-email-exists = "0.8.23"
 deadpool = "0.7.0"
 fast_chemail = "0.9.6"
 glob = "0.3.0"
@@ -38,7 +38,7 @@ ring = "0.16.20"
 serde = { version = "1.0.125", features = ["derive"] }
 shellexpand = "2.1.0"
 tokio = { version = "1.6.0", features = ["full"] }
-typed-builder = "0.9.0"
+typed-builder = "0.9.1"
 url = { version = "2.2.2", features = ["serde"] }
 
 [dev-dependencies]
