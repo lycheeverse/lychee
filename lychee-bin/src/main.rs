@@ -118,13 +118,10 @@ fn run_main() -> Result<i32> {
 
     // Load excludes from file
     for path in &opts.config.exclude_file {
-        let file = File::open(path).expect("No such file");
-        opts.config.exclude.append(
-            &mut io::BufReader::new(file)
-                .lines()
-                .map(|l| l.expect("Could not read line"))
-                .collect(),
-        );
+        let file = File::open(path)?;
+        opts.config
+            .exclude
+            .append(&mut io::BufReader::new(file).lines().collect::<Result<_, _>>()?);
     }
 
     let cfg = &opts.config;
