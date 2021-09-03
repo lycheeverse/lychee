@@ -2,12 +2,12 @@ use linkify::LinkFinder;
 
 /// Remove all GET parameters from a URL.
 /// The link is not a URL but a String as it may not have a base domain.
-pub(crate) fn remove_get_params(url: &str) -> String {
+pub(crate) fn remove_get_params(url: &str) -> &str {
     let path = match url.split_once('?') {
         Some((path, _params)) => path,
         None => url,
     };
-    path.to_string()
+    path
 }
 
 /// Determine if an element's attribute contains a link / URL.
@@ -43,26 +43,17 @@ mod test_fs_tree {
 
     #[test]
     fn test_remove_get_params() {
-        assert_eq!(remove_get_params("/"), "/".to_string());
-        assert_eq!(
-            remove_get_params("index.html?foo=bar"),
-            "index.html".to_string()
-        );
-        assert_eq!(
-            remove_get_params("/index.html?foo=bar"),
-            "/index.html".to_string()
-        );
+        assert_eq!(remove_get_params("/"), "/");
+        assert_eq!(remove_get_params("index.html?foo=bar"), "index.html");
+        assert_eq!(remove_get_params("/index.html?foo=bar"), "/index.html");
         assert_eq!(
             remove_get_params("/index.html?foo=bar&baz=zorx?bla=blub"),
-            "/index.html".to_string()
+            "/index.html"
         );
         assert_eq!(
             remove_get_params("https://example.org/index.html?foo=bar"),
-            "https://example.org/index.html".to_string()
+            "https://example.org/index.html"
         );
-        assert_eq!(
-            remove_get_params("test.png?foo=bar"),
-            "test.png".to_string()
-        );
+        assert_eq!(remove_get_params("test.png?foo=bar"), "test.png");
     }
 }
