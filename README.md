@@ -151,7 +151,7 @@ lychee "~/projects/big_project/**/README.*"
 # ignore case when globbing and check result for each link:
 lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
 
-# check links from epub file (requires atool: http://www.nongnu.org/atool)
+# check links from epub file (requires atool: https://www.nongnu.org/atool)
 acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
 ```
 
@@ -319,7 +319,7 @@ great contributors who have since made this project more mature.
 lychee is licensed under either of
 
 - Apache License, Version 2.0, (LICENSE-APACHE or
-  http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license (LICENSE-MIT or http://opensource.org/licenses/MIT)
+  https://www.apache.org/licenses/LICENSE-2.0)
+- MIT license (LICENSE-MIT or https://opensource.org/licenses/MIT)
 
 at your option.
