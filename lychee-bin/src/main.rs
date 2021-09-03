@@ -61,10 +61,10 @@
 // required for apple silicon
 use ring as _;
 
+use std::fs::File;
+use std::io::{self, BufRead};
 use std::iter::FromIterator;
 use std::{collections::HashSet, fs, str::FromStr, time::Duration};
-use std::io::{self, BufRead};
-use std::fs::File;
 
 use anyhow::{anyhow, Context, Result};
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, HeaderName};
@@ -123,7 +123,7 @@ fn run_main() -> Result<i32> {
             &mut io::BufReader::new(file)
                 .lines()
                 .map(|l| l.expect("Could not read line"))
-                .collect()
+                .collect(),
         );
     }
 

@@ -417,7 +417,7 @@ mod cli {
             .stdout(contains("Excluded.........2"));
 
         Ok(())
-    }    
+    }
 
     #[test]
     fn test_multiple_exclude_files() -> Result<()> {
@@ -435,6 +435,5 @@ mod cli {
             .stdout(contains("Excluded.........3"));
 
         Ok(())
-    }    
+    }
 }
-
