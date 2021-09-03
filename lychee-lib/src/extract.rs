@@ -1,4 +1,4 @@
-use std::{collections::HashSet, convert::TryFrom, path::PathBuf};
+use std::{collections::HashSet, convert::TryFrom, path::Path, path::PathBuf};
 
 use html5ever::{
     parse_document,
@@ -122,10 +122,10 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
         .collect()
 }
 
-fn create_uri_from_path(root: &PathBuf, base: &Option<Base>, link: &str) -> Result<Url> {
-    let link = url::remove_get_params(&link);
+fn create_uri_from_path(root: &Path, base: &Option<Base>, link: &str) -> Result<Url> {
+    let link = url::remove_get_params(link);
     let path = path::resolve(root, &PathBuf::from(&link), base)?;
-    Ok(Url::from_file_path(&path).map_err(|_e| ErrorKind::InvalidPath(path))?)
+    Url::from_file_path(&path).map_err(|_e| ErrorKind::InvalidPath(path))
 }
 
 #[cfg(test)]

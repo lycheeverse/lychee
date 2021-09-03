@@ -39,7 +39,7 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Pat
         // Find `dst` in the parent directory of `src`
         if let Some(parent) = src.parent() {
             let rel_path = parent.join(dst.to_path_buf());
-            return Ok(absolute_path(&rel_path)?);
+            return absolute_path(&rel_path);
         }
     }
     if dst.is_absolute() {
@@ -49,11 +49,10 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Pat
             ErrorKind::InvalidBase(
                 "<empty>".to_string(),
                 format!("Found absolute local link {:?} but no base directory was set. Set with `--base`.", dst)
-                    .to_string(),
             )
         })?;
         let abs_path = join(dirname(&base), dst);
-        return Ok(absolute_path(&abs_path)?);
+        return absolute_path(&abs_path);
     }
     Err(ErrorKind::FileNotFound(dst.to_path_buf()))
 }
