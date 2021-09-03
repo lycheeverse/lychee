@@ -72,16 +72,6 @@ mod test_path {
     use super::*;
     use crate::Result;
 
-    // dummy root
-    // /path/to/foo.html
-    #[test]
-    fn test_resolve_absolute() -> Result<()> {
-        let dummy = PathBuf::new();
-        let abs_path = PathBuf::from("/absolute/path/to/foo.html");
-        assert_eq!(resolve(&dummy, &abs_path, &None)?, abs_path);
-        Ok(())
-    }
-
     // index.html
     // ./foo.html
     #[test]
@@ -90,7 +80,7 @@ mod test_path {
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
             resolve(&dummy, &abs_path, &None)?,
-            PathBuf::from("./foo.html")
+            env::current_dir()?.join("./foo.html")
         );
         Ok(())
     }
@@ -103,7 +93,7 @@ mod test_path {
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
             resolve(&dummy, &abs_path, &None)?,
-            PathBuf::from("./foo.html")
+            env::current_dir()?.join("./foo.html")
         );
         Ok(())
     }
@@ -142,9 +132,10 @@ mod test_path {
     fn test_resolve_absolute_from_absolute() -> Result<()> {
         let abs_index = PathBuf::from("/path/to/index.html");
         let abs_path = PathBuf::from("/other/path/to/foo.html");
+        let base = Some(Base::Local(PathBuf::from("/some/absolute/base/dir")));
         assert_eq!(
-            resolve(&abs_index, &abs_path, &None)?,
-            PathBuf::from("/path/to/other/path/to/foo.html")
+            resolve(&abs_index, &abs_path, &base)?,
+            PathBuf::from("/some/absolute/base/dir/other/path/to/foo.html")
         );
         Ok(())
     }
