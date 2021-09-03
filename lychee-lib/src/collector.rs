@@ -94,7 +94,7 @@ impl Input {
     pub fn new(value: &str, glob_ignore_case: bool) -> Self {
         if value == STDIN {
             Self::Stdin
-        } else if let Ok(url) = Url::parse(&value) {
+        } else if let Ok(url) = Url::parse(value) {
             Self::RemoteUrl(Box::new(url))
         } else {
             // this seems to be the only way to determine if this is a glob pattern

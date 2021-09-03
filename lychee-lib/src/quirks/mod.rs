@@ -64,7 +64,7 @@ impl Default for Quirks {
                     if let Some(id) = query(&out).get("v") {
                         *out.url_mut() =
                             Url::parse(&format!("https://img.youtube.com/vi/{}/0.jpg", &id))
-                                .unwrap()
+                                .unwrap();
                     }
                     out
                 },

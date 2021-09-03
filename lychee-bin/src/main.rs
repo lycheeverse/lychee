@@ -113,7 +113,7 @@ fn run_main() -> Result<i32> {
 
     // Load a potentially existing config file and merge it into the config from the CLI
     if let Some(c) = Config::load_from_file(&opts.config_file)? {
-        opts.config.merge(c)
+        opts.config.merge(c);
     }
 
     // Load excludes from file
@@ -170,7 +170,7 @@ fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
 async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let mut headers = parse_headers(&cfg.headers)?;
     if let Some(auth) = &cfg.basic_auth {
-        let auth_header = parse_basic_auth(&auth)?;
+        let auth_header = parse_basic_auth(auth)?;
         headers.typed_insert(auth_header);
     }
 
