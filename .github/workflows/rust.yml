@@ -37,28 +37,23 @@ jobs:
           args: --all-targets -- --deny warnings
 
   publish-check:
-    name: Publish Check
+    name: publish check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-      - name: cargo fetch
-        uses: actions-rs/cargo@v1
-        with:
-          command: fetch
-      - name: cargo publish check lychee-lib
-        uses: actions-rs/cargo@v1
-        with:
-          command: publish
-          args: --dry-run --manifest-path lychee-lib/Cargo.toml
-      - name: cargo publish check lychee
-        uses: actions-rs/cargo@v1
-        with:
-          command: publish
-          args: --dry-run --manifest-path lychee-bin/Cargo.toml
+    - uses: actions/checkout@v1
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    - name: cargo fetch
+      uses: actions-rs/cargo@v1
+      with:
+        command: fetch
+    - uses: actions-rs/install@v0.1
+      with:
+        crate: cargo-publish-all
+        version: latest
+    - run: cargo-publish-all --dry-run
 
   publish:
     if: startsWith(github.ref, 'refs/tags/')

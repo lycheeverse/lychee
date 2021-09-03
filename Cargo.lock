@@ -1349,7 +1349,7 @@ dependencies = [
 
 [[package]]
 name = "lychee"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1378,7 +1378,7 @@ dependencies = [
 
 [[package]]
 name = "lychee-lib"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "check-if-email-exists",
  "deadpool",
@@ -2696,9 +2696,9 @@ checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
 
 [[package]]
 name = "typed-builder"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "345426c7406aa355b60c5007c79a2d1f5b605540072795222f17f6443e6a9c6f"
+checksum = "a46ee5bd706ff79131be9c94e7edcb82b703c487766a114434e5790361cf08c5"
 dependencies = [
  "proc-macro2",
  "quote",
