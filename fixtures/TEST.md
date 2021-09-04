@@ -19,7 +19,5 @@ Test HTTP and HTTPS for the same site.
 http://example.org
 https://example.org
 
-https://www.peerlyst.com/posts/a-list-of-static-analysis-tools-for-c-c-peerlyst
-
 test@example.org
 mailto:test2@example.org
