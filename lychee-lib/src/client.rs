@@ -182,6 +182,11 @@ impl Client {
         Ok(Response::new(uri, status, source))
     }
 
+    /// Check if the given uri gets filtered by the client
+    pub fn filtered(&self, uri: &Uri) -> bool {
+        self.filter.is_excluded(&uri)
+    }
+
     pub async fn check_website(&self, uri: &Uri) -> Status {
         let mut retries: i64 = 3;
         let mut wait: u64 = 1;

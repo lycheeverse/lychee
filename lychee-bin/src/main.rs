@@ -206,7 +206,9 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
 
     if cfg.dump {
         for link in links {
-            println!("{}", link);
+            if !client.filtered(&link.uri) {
+                println!("{}", link);
+            }
         }
         return Ok(ExitCode::Success as i32);
     }
