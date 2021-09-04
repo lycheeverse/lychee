@@ -204,12 +204,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .await
         .map_err(|e| anyhow!(e))?;
 
-    if cfg.no_check {
-        // Printing the banner to stderr and the links to stdout
-        // to let the user process the links with shell pipes etc.
-        eprintln!("`--no-check` used, dumping links that would be checked:");
-        eprintln!("=======================================================");
-
+    if cfg.dump {
         for link in links {
             println!("{}", link);
         }
