@@ -1,8 +1,4 @@
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+on: [push, pull_request]
 
 env:
   CARGO_TERM_COLOR: always
@@ -41,7 +37,7 @@ jobs:
           args: --all-targets -- --deny warnings
 
   publish-check:
-    name: Publish Check
+    name: publish check
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
@@ -53,16 +49,11 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: fetch
-    - name: cargo publish check lychee-lib
-      uses: actions-rs/cargo@v1
+    - uses: actions-rs/install@v0.1
       with:
-        command: publish
-        args: --dry-run --manifest-path lychee-lib/Cargo.toml
-    - name: cargo publish check lychee
-      uses: actions-rs/cargo@v1
-      with:
-        command: publish
-        args: --dry-run --manifest-path lychee-bin/Cargo.toml
+        crate: cargo-publish-all
+        version: latest
+    - run: cargo-publish-all --dry-run
 
   publish:
     if: startsWith(github.ref, 'refs/tags/')

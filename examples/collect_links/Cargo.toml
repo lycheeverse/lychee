@@ -8,8 +8,8 @@ name = "collect_links"
 path = "collect_links.rs"
 
 [dependencies]
-lychee-lib = { path = "../../lychee-lib" }
-tokio = { version = "1.5.0", features = ["full"] }
+lychee-lib = { path = "../../lychee-lib", version = "0.7.2" }
+tokio = { version = "1.6.0", features = ["full"] }
 regex = "1.4.6"
 http = "0.2.4"
 reqwest = { version = "0.11.3", features = ["gzip"] }
