@@ -382,6 +382,22 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_require_https() {
+        let client = ClientBuilder::builder().build().client().unwrap();
+        let res = client.check("http://example.org").await.unwrap();
+        assert!(res.status().is_success());
+
+        // Same request will fail if HTTPS is required
+        let client = ClientBuilder::builder()
+            .require_https(true)
+            .build()
+            .client()
+            .unwrap();
+        let res = client.check("http://example.org").await.unwrap();
+        assert!(res.status().is_failure());
+    }
+
+    #[tokio::test]
     async fn test_timeout() {
         // Note: this checks response timeout, not connect timeout.
         // To check connect timeout, we'd have to do something more involved,
