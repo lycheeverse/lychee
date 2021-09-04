@@ -436,4 +436,16 @@ mod cli {
 
         Ok(())
     }
+
+    #[test]
+    fn test_require_https() -> Result<()> {
+        let mut cmd = main_command();
+        let test_path = fixtures_path().join("TEST_HTTP.html");
+        cmd.arg(&test_path).assert().success();
+
+        let mut cmd = main_command();
+        cmd.arg("--require-https").arg(test_path).assert().failure();
+
+        Ok(())
+    }
 }

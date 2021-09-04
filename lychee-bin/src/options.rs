@@ -251,6 +251,11 @@ pub(crate) struct Config {
     #[structopt(short, long, default_value = "string")]
     #[serde(default)]
     pub(crate) format: Format,
+
+    /// When HTTPS is available, treat HTTP links as errors
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) require_https: bool,
 }
 
 impl Config {
@@ -306,6 +311,7 @@ impl Config {
             skip_missing: false;
             glob_ignore_case: false;
             output: None;
+            require_https: false;
         }
     }
 }

@@ -187,6 +187,7 @@ FLAGS:
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
     -n, --no-progress            Do not show progress bar.
                                  This is recommended for non-interactive shells (e.g. for continuous integration)
+        --require-https          When HTTPS is available, treat HTTP links as errors
         --skip-missing           Skip missing input files (default is to error if they don't exist)
     -V, --version                Prints version information
     -v, --verbose                Verbose program output
