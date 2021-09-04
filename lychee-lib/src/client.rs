@@ -184,7 +184,7 @@ impl Client {
 
     /// Check if the given uri gets filtered by the client
     pub fn filtered(&self, uri: &Uri) -> bool {
-        self.filter.is_excluded(&uri)
+        self.filter.is_excluded(uri)
     }
 
     pub async fn check_website(&self, uri: &Uri) -> Status {
