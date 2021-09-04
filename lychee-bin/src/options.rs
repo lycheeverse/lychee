@@ -128,7 +128,7 @@ pub(crate) struct Config {
     /// Instead, dump all the links extracted from inputs that would be checked
     #[structopt(long)]
     #[serde(default)]
-    pub(crate) no_check: bool,
+    pub(crate) dump: bool,
 
     /// Maximum number of allowed redirects
     #[structopt(short, long, default_value = &MAX_REDIRECTS_STR)]
