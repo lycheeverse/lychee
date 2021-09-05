@@ -161,6 +161,14 @@ impl Input {
         for entry in glob_with(&glob_expanded, match_opts)? {
             match entry {
                 Ok(path) => {
+                    if path.is_dir() {
+                        // Directories can still have a suffix which looks like
+                        // a file extension like `foo.html`. This can lead to
+                        // unexpected behavior with glob patterns like
+                        // `**/*.html`. Therefore filter these out.
+                        // https://github.com/lycheeverse/lychee/pull/262#issuecomment-913226819
+                        continue;
+                    }
                     let content = Self::path_content(&path)?;
                     contents.push(content);
                 }
