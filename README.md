@@ -191,6 +191,7 @@ FLAGS:
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
     -n, --no-progress            Do not show progress bar.
                                  This is recommended for non-interactive shells (e.g. for continuous integration)
+        --offline                Only check local files and block network requests
         --require-https          When HTTPS is available, treat HTTP links as errors
         --skip-missing           Skip missing input files (default is to error if they don't exist)
     -V, --version                Prints version information
@@ -218,12 +219,6 @@ OPTIONS:
                                                the system
     -t, --timeout <timeout>                    Website timeout from connect to response finished [default: 20]
     -u, --user-agent <user-agent>              User agent [default: lychee/0.7.2]
-
-ARGS:
-    <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
-                   (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.org/README.md`) or standard
-                   input (`-`). Prefix with `--` to separate inputs from options that allow multiple arguments
-                   [default: README.md]
 ```
 
 ### Exit codes
