@@ -408,7 +408,7 @@ mod cli {
             .arg(".*")
             .assert()
             .success()
-            .stdout(contains("Excluded........10"));
+            .stdout(contains("Excluded........11"));
 
         Ok(())
     }
