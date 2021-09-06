@@ -74,9 +74,10 @@ impl Hash for ErrorKind {
             Self::HubcapsError(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
             Self::UrlParseError(s, e) => (s, e.type_id()).hash(state),
-            Self::InvalidFileUri(u) => u.hash(state),
             Self::InvalidPath(p) => p.hash(state),
-            Self::UnreachableEmailAddress(u) | Self::InsecureURL(u) => u.hash(state),
+            Self::InvalidFileUri(u) | Self::UnreachableEmailAddress(u) | Self::InsecureURL(u) => {
+                u.hash(state);
+            }
             Self::InvalidBase(base, e) => (base, e).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
