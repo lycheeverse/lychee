@@ -182,7 +182,7 @@ impl Client {
         Ok(Response::new(uri, status, source))
     }
 
-    /// Check if the given uri gets filtered by the client
+    /// Check if the given URI is filtered by the client
     pub fn filtered(&self, uri: &Uri) -> bool {
         self.filter.is_excluded(uri)
     }
