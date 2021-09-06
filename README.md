@@ -219,6 +219,12 @@ OPTIONS:
                                                the system
     -t, --timeout <timeout>                    Website timeout from connect to response finished [default: 20]
     -u, --user-agent <user-agent>              User agent [default: lychee/0.7.2]
+
+ARGS:
+    <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
+                   (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.org/README.md`) or standard
+                   input (`-`). Prefix with `--` to separate inputs from options that allow multiple arguments
+                   [default: README.md]
 ```
 
 ### Exit codes
