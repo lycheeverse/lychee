@@ -123,7 +123,7 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
 }
 
 fn create_uri_from_path(root: &Path, base: &Option<Base>, link: &str) -> Result<Url> {
-    let link = url::remove_get_params(link);
+    let link = url::remove_get_params_and_fragment(link);
     let path = path::resolve(root, &PathBuf::from(&link), base)?;
     Url::from_file_path(&path).map_err(|_e| ErrorKind::InvalidPath(path))
 }

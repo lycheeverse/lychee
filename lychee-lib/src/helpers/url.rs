@@ -2,10 +2,14 @@ use linkify::LinkFinder;
 
 /// Remove all GET parameters from a URL.
 /// The link is not a URL but a String as it may not have a base domain.
-pub(crate) fn remove_get_params(url: &str) -> &str {
-    let path = match url.split_once('?') {
-        Some((path, _params)) => path,
+pub(crate) fn remove_get_params_and_fragment(url: &str) -> &str {
+    let path = match url.split_once('#') {
+        Some((path_without_fragment, _fragment)) => path_without_fragment,
         None => url,
+    };
+    let path = match path.split_once('?') {
+        Some((path_without_params, _params)) => path_without_params,
+        None => path,
     };
     path
 }
@@ -42,18 +46,40 @@ mod test_fs_tree {
     }
 
     #[test]
-    fn test_remove_get_params() {
-        assert_eq!(remove_get_params("/"), "/");
-        assert_eq!(remove_get_params("index.html?foo=bar"), "index.html");
-        assert_eq!(remove_get_params("/index.html?foo=bar"), "/index.html");
+    fn test_remove_get_params_and_fragment() {
+        assert_eq!(remove_get_params_and_fragment("/"), "/");
         assert_eq!(
-            remove_get_params("/index.html?foo=bar&baz=zorx?bla=blub"),
+            remove_get_params_and_fragment("index.html?foo=bar"),
+            "index.html"
+        );
+        assert_eq!(
+            remove_get_params_and_fragment("/index.html?foo=bar"),
             "/index.html"
         );
         assert_eq!(
-            remove_get_params("https://example.org/index.html?foo=bar"),
+            remove_get_params_and_fragment("/index.html?foo=bar&baz=zorx?bla=blub"),
+            "/index.html"
+        );
+        assert_eq!(
+            remove_get_params_and_fragment("https://example.org/index.html?foo=bar"),
             "https://example.org/index.html"
         );
-        assert_eq!(remove_get_params("test.png?foo=bar"), "test.png");
+        assert_eq!(
+            remove_get_params_and_fragment("test.png?foo=bar"),
+            "test.png"
+        );
+
+        assert_eq!(
+            remove_get_params_and_fragment("https://example.org/index.html#anchor"),
+            "https://example.org/index.html"
+        );
+        assert_eq!(
+            remove_get_params_and_fragment("https://example.org/index.html?foo=bar#anchor"),
+            "https://example.org/index.html"
+        );
+        assert_eq!(
+            remove_get_params_and_fragment("test.png?foo=bar#anchor"),
+            "test.png"
+        );
     }
 }
