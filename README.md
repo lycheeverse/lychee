@@ -176,6 +176,8 @@ USAGE:
     lychee [FLAGS] [OPTIONS] [--] [inputs]...
 
 FLAGS:
+        --dump                   Don't perform any link checking. Instead, dump all the links extracted from inputs that
+                                 would be checked
     -E, --exclude-all-private    Exclude all private IPs from checking.
                                  Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
         --exclude-link-local     Exclude link-local IP address range from checking

@@ -205,6 +205,15 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .await
         .map_err(|e| anyhow!(e))?;
 
+    if cfg.dump {
+        for link in links {
+            if !client.filtered(&link.uri) {
+                println!("{}", link);
+            }
+        }
+        return Ok(ExitCode::Success as i32);
+    }
+
     let pb = if cfg.no_progress {
         None
     } else {
