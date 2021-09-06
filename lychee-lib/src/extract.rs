@@ -32,15 +32,15 @@ pub(crate) fn extract_links(
     for link in links {
         let req = if let Ok(uri) = Uri::try_from(link.as_str()) {
             Request::new(uri, input_content.input.clone())
-        } else if let Some(new_url) = base.as_ref().and_then(|u| u.join(&link)) {
-            Request::new(Uri { inner: new_url }, input_content.input.clone())
+        } else if let Some(url) = base.as_ref().and_then(|u| u.join(&link)) {
+            Request::new(Uri { url }, input_content.input.clone())
         } else if let Input::FsPath(root) = &input_content.input {
             if url::is_anchor(&link) {
                 // Silently ignore anchor links for now
                 continue;
             }
-            let uri = create_uri_from_path(root, base, &link)?;
-            Request::new(Uri { inner: uri }, input_content.input.clone())
+            let url = create_uri_from_path(root, base, &link)?;
+            Request::new(Uri { url }, input_content.input.clone())
         } else {
             info!("Handling of {} not implemented yet", &link);
             continue;

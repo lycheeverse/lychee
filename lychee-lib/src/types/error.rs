@@ -74,11 +74,10 @@ impl Hash for ErrorKind {
             Self::HubcapsError(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
             Self::UrlParseError(s, e) => (s, e.type_id()).hash(state),
-            Self::UnreachableEmailAddress(u) | Self::InsecureURL(u) => u.hash(state),
             Self::InvalidFileUri(u) => u.hash(state),
-            Self::InvalidFileUri(f) => f.hash(state),
             Self::InvalidPath(p) => p.hash(state),
-            Self::UnreachableEmailAddress(u) => u.hash(state),
+            Self::UnreachableEmailAddress(u) | Self::InsecureURL(u) => u.hash(state),
+            Self::InvalidBase(base, e) => (base, e).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
             Self::MissingGitHubToken => std::mem::discriminant(self).hash(state),
@@ -123,7 +122,6 @@ impl Display for ErrorKind {
                 "This URL is available in HTTPS protocol, but HTTP is provided, use '{}' instead",
                 uri
             ),
-            Self::InvalidBase(base, e) => write!(f, "Error while base dir `{}` : {}", base, e),
             Self::InvalidBase(base, e) => write!(f, "Error with base dir `{}` : {}", base, e),
         }
     }

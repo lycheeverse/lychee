@@ -93,7 +93,7 @@ pub struct ClientBuilder {
     accepted: Option<HashSet<StatusCode>>,
     /// Response timeout per request
     timeout: Option<Duration>,
-    /// Treat HTTP links as erros when HTTPS is available
+    /// Treat HTTP links as errors when HTTPS is available
     require_https: bool,
 }
 
@@ -252,7 +252,7 @@ impl Client {
     }
 
     pub async fn check_file(&self, uri: &Uri) -> Status {
-        if let Ok(path) = uri.inner.to_file_path() {
+        if let Ok(path) = uri.url.to_file_path() {
             if path.exists() {
                 return Status::Ok(StatusCode::OK);
             }
