@@ -119,7 +119,7 @@ impl ClientBuilder {
             exclude_private_ips: self.exclude_all_private || self.exclude_private_ips,
             exclude_link_local_ips: self.exclude_all_private || self.exclude_link_local_ips,
             exclude_loopback_ips: self.exclude_all_private || self.exclude_loopback_ips,
-            exclude_mail: self.exclude_all_private || self.exclude_mail,
+            exclude_mail: self.exclude_mail,
         }
     }
 
