@@ -3,13 +3,12 @@ use linkify::LinkFinder;
 /// Remove all GET parameters from a URL.
 /// The link is not a URL but a String as it may not have a base domain.
 pub(crate) fn remove_get_params_and_fragment(url: &str) -> &str {
-    let path = match url.split_once('#') {
-        Some((path_without_fragment, _fragment)) => path_without_fragment,
-        None => url,
-    };
-    let path = match path.split_once('?') {
+    let path = match url.split_once('?') {
         Some((path_without_params, _params)) => path_without_params,
-        None => path,
+        None => match url.split_once('#') {
+            Some((path_without_fragment, _fragment)) => path_without_fragment,
+            None => url,
+        },
     };
     path
 }
