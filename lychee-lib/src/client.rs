@@ -118,7 +118,7 @@ impl ClientBuilder {
             exclude_private_ips: self.exclude_all_private || self.exclude_private_ips,
             exclude_link_local_ips: self.exclude_all_private || self.exclude_link_local_ips,
             exclude_loopback_ips: self.exclude_all_private || self.exclude_loopback_ips,
-            exclude_mail: self.exclude_all_private || self.exclude_mail,
+            exclude_mail: self.exclude_mail,
         }
     }
 
@@ -197,6 +197,11 @@ impl Client {
         };
 
         Ok(Response::new(uri, status, source))
+    }
+
+    /// Check if the given URI is filtered by the client
+    pub fn filtered(&self, uri: &Uri) -> bool {
+        self.filter.is_excluded(uri)
     }
 
     pub async fn check_website(&self, uri: &Uri) -> Status {
@@ -288,6 +293,7 @@ where
 #[cfg(test)]
 mod test {
     use std::{
+        convert::TryInto,
         fs::File,
         time::{Duration, Instant},
     };
@@ -297,7 +303,7 @@ mod test {
     use tempfile::tempdir;
 
     use super::ClientBuilder;
-    use crate::{mock_server, test_utils::get_mock_client_response};
+    use crate::{mock_server, test_utils::get_mock_client_response, Uri};
 
     #[tokio::test]
     async fn test_nonexistent() {
@@ -404,6 +410,29 @@ mod test {
             .await
             .unwrap();
         assert!(res.status().is_success());
+    }
+
+    #[tokio::test]
+    async fn test_exclude_mail() {
+        let client = ClientBuilder::builder()
+            .exclude_mail(false)
+            .exclude_all_private(true)
+            .build()
+            .client()
+            .unwrap();
+        assert!(!client.filtered(&Uri {
+            url: "mailto://mail@example.org".try_into().unwrap()
+        }));
+
+        let client = ClientBuilder::builder()
+            .exclude_mail(true)
+            .exclude_all_private(true)
+            .build()
+            .client()
+            .unwrap();
+        assert!(client.filtered(&Uri {
+            url: "mailto://mail@example.org".try_into().unwrap()
+        }));
     }
 
     #[tokio::test]
