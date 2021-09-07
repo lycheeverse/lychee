@@ -39,6 +39,8 @@ pub struct Client {
     method: reqwest::Method,
     /// The set of accepted HTTP status codes for valid URIs.
     accepted: Option<HashSet<StatusCode>>,
+    /// Require HTTPS URL when it's available.
+    require_https: bool,
     /// Override behavior for certain known issues with URIs.
     quirks: Quirks,
 }
@@ -92,6 +94,8 @@ pub struct ClientBuilder {
     accepted: Option<HashSet<StatusCode>>,
     /// Response timeout per request
     timeout: Option<Duration>,
+    /// Treat HTTP links as errors when HTTPS is available
+    require_https: bool,
 }
 
 impl Default for ClientBuilder {
@@ -115,7 +119,7 @@ impl ClientBuilder {
             exclude_private_ips: self.exclude_all_private || self.exclude_private_ips,
             exclude_link_local_ips: self.exclude_all_private || self.exclude_link_local_ips,
             exclude_loopback_ips: self.exclude_all_private || self.exclude_loopback_ips,
-            exclude_mail: self.exclude_all_private || self.exclude_mail,
+            exclude_mail: self.exclude_mail,
         }
     }
 
@@ -159,6 +163,7 @@ impl ClientBuilder {
             filter,
             method: self.method.clone(),
             accepted: self.accepted.clone(),
+            require_https: self.require_https,
             quirks,
         })
     }
@@ -176,10 +181,26 @@ impl Client {
         } else if uri.is_mail() {
             self.check_mail(&uri).await
         } else {
-            self.check_website(&uri).await
+            match self.check_website(&uri).await {
+                Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
+                    let mut https_uri = uri.clone();
+                    https_uri.url.set_scheme("https").unwrap();
+                    if self.check_website(&https_uri).await.is_success() {
+                        Status::Error(Box::new(ErrorKind::InsecureURL(https_uri)))
+                    } else {
+                        Status::Ok(code)
+                    }
+                }
+                s => s,
+            }
         };
 
         Ok(Response::new(uri, status, source))
+    }
+
+    /// Check if the given URI is filtered by the client
+    pub fn filtered(&self, uri: &Uri) -> bool {
+        self.filter.is_excluded(uri)
     }
 
     pub async fn check_website(&self, uri: &Uri) -> Status {
@@ -261,13 +282,16 @@ where
 
 #[cfg(test)]
 mod test {
-    use std::time::{Duration, Instant};
+    use std::{
+        convert::TryInto,
+        time::{Duration, Instant},
+    };
 
     use http::{header::HeaderMap, StatusCode};
     use reqwest::header;
 
     use super::ClientBuilder;
-    use crate::{mock_server, test_utils::get_mock_client_response};
+    use crate::{mock_server, test_utils::get_mock_client_response, Uri};
 
     #[tokio::test]
     async fn test_nonexistent() {
@@ -363,6 +387,45 @@ mod test {
             .await
             .unwrap();
         assert!(res.status().is_success());
+    }
+
+    #[tokio::test]
+    async fn test_exclude_mail() {
+        let client = ClientBuilder::builder()
+            .exclude_mail(false)
+            .exclude_all_private(true)
+            .build()
+            .client()
+            .unwrap();
+        assert!(!client.filtered(&Uri {
+            url: "mailto://mail@example.org".try_into().unwrap()
+        }));
+
+        let client = ClientBuilder::builder()
+            .exclude_mail(true)
+            .exclude_all_private(true)
+            .build()
+            .client()
+            .unwrap();
+        assert!(client.filtered(&Uri {
+            url: "mailto://mail@example.org".try_into().unwrap()
+        }));
+    }
+
+    #[tokio::test]
+    async fn test_require_https() {
+        let client = ClientBuilder::builder().build().client().unwrap();
+        let res = client.check("http://example.org").await.unwrap();
+        assert!(res.status().is_success());
+
+        // Same request will fail if HTTPS is required
+        let client = ClientBuilder::builder()
+            .require_https(true)
+            .build()
+            .client()
+            .unwrap();
+        let res = client.check("http://example.org").await.unwrap();
+        assert!(res.status().is_failure());
     }
 
     #[tokio::test]

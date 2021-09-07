@@ -61,6 +61,8 @@
 // required for apple silicon
 use ring as _;
 
+use std::fs::File;
+use std::io::{self, BufRead};
 use std::iter::FromIterator;
 use std::{collections::HashSet, fs, str::FromStr, time::Duration};
 
@@ -111,8 +113,17 @@ fn run_main() -> Result<i32> {
 
     // Load a potentially existing config file and merge it into the config from the CLI
     if let Some(c) = Config::load_from_file(&opts.config_file)? {
-        opts.config.merge(c)
+        opts.config.merge(c);
     }
+
+    // Load excludes from file
+    for path in &opts.config.exclude_file {
+        let file = File::open(path)?;
+        opts.config
+            .exclude
+            .append(&mut io::BufReader::new(file).lines().collect::<Result<_, _>>()?);
+    }
+
     let cfg = &opts.config;
 
     let runtime = match cfg.threads {
@@ -156,7 +167,7 @@ fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
 async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let mut headers = parse_headers(&cfg.headers)?;
     if let Some(auth) = &cfg.basic_auth {
-        let auth_header = parse_basic_auth(&auth)?;
+        let auth_header = parse_basic_auth(auth)?;
         headers.typed_insert(auth_header);
     }
 
@@ -184,6 +195,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .github_token(cfg.github_token.clone())
         .schemes(HashSet::from_iter(cfg.scheme.clone()))
         .accepted(accepted)
+        .require_https(cfg.require_https)
         .build()
         .client()
         .map_err(|e| anyhow!(e))?;
@@ -192,6 +204,15 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .collect_links(&inputs)
         .await
         .map_err(|e| anyhow!(e))?;
+
+    if cfg.dump {
+        for link in links {
+            if !client.filtered(&link.uri) {
+                println!("{}", link);
+            }
+        }
+        return Ok(ExitCode::Success as i32);
+    }
 
     let pb = if cfg.no_progress {
         None

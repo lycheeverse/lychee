@@ -43,6 +43,12 @@ nix-env -iA nixos.lychee
 pkg install lychee
 ```
 
+### Termux
+
+```sh
+pkg install lychee
+```
+
 ### Pre-built binaries
 
 We provide binaries for Linux, macOS, and Windows for every release. \
@@ -94,7 +100,7 @@ use
 | Skip private domains | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
 | [Use as library]     | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![no]         | ![yes]                | ![no]  |
 | Quiet mode           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]        | ![yes]                | ![yes] |
-| Config file          | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]        | ![yes]                | ![no]  |
+| [Config file]        | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]        | ![yes]                | ![no]  |
 | Recursion | ![no]  | ![no]         | ![no]    | ![yes]                 | ![yes]        | ![yes]         | ![yes]                 | ![no]  |
 | Amazing lychee logo  | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
 
@@ -112,6 +118,7 @@ use
 [filter status code]: https://github.com/tcort/markdown-link-check/issues/94
 [skip private domains]: https://github.com/appscodelabs/liche/blob/a5102b0bf90203b467a4f3b4597d22cd83d94f99/url_checker.go
 [use as library]: https://github.com/raviqqe/liche/issues/13
+[config file]: https://github.com/lycheeverse/lychee/blob/master/lychee.example.toml
 
 <sup>1</sup> Other machine-readable formats like CSV are supported.
 
@@ -143,6 +150,9 @@ lychee ~/projects/*/README.md
 lychee "~/projects/big_project/**/README.*"
 # ignore case when globbing and check result for each link:
 lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
+
+# check links from epub file (requires atool: https://www.nongnu.org/atool)
+acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
 ```
 
 ### GitHub token
@@ -150,6 +160,7 @@ lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
 Optionally, to avoid getting rate-limited while checking GitHub links, you can
 set an environment variable with your Github token like so `GITHUB_TOKEN=xxxx`,
 or use the `--github-token` CLI option. It can also be set in the config file.
+[Here is an example config file][config file].
 
 The token can be generated in your
 [GitHub account settings page](https://github.com/settings/tokens). A personal
@@ -165,6 +176,8 @@ USAGE:
     lychee [FLAGS] [OPTIONS] [--] [inputs]...
 
 FLAGS:
+        --dump                   Don't perform any link checking. Instead, dump all the links extracted from inputs that
+                                 would be checked
     -E, --exclude-all-private    Exclude all private IPs from checking.
                                  Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
         --exclude-link-local     Exclude link-local IP address range from checking
@@ -176,6 +189,7 @@ FLAGS:
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
     -n, --no-progress            Do not show progress bar.
                                  This is recommended for non-interactive shells (e.g. for continuous integration)
+        --require-https          When HTTPS is available, treat HTTP links as errors
         --skip-missing           Skip missing input files (default is to error if they don't exist)
     -V, --version                Prints version information
     -v, --verbose                Verbose program output
@@ -186,6 +200,7 @@ OPTIONS:
         --basic-auth <basic-auth>              Basic authentication support. E.g. `username:password`
     -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
         --exclude <exclude>...                 Exclude URLs from checking (supports regex)
+        --exclude-file <exclude-file>...       A file or files that contains URLs to exclude from checking
     -f, --format <format>                      Output file format of status report (json, string) [default: string]
         --github-token <github-token>          GitHub API token to use when checking github.com links, to avoid rate
                                                limiting [env: GITHUB_TOKEN=]
@@ -199,7 +214,7 @@ OPTIONS:
     -T, --threads <threads>                    Number of threads to utilize. Defaults to number of cores available to
                                                the system
     -t, --timeout <timeout>                    Website timeout from connect to response finished [default: 20]
-    -u, --user-agent <user-agent>              User agent [default: lychee/0.7.0]
+    -u, --user-agent <user-agent>              User agent [default: lychee/0.7.2]
 
 ARGS:
     <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
@@ -282,6 +297,15 @@ Try one of these links to get started:
 - [good first issues](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 
+Lychee is written in Rust. Install [rust-up](https://rustup.rs/) to get started. Begin my making sure the following commands succeed without errors.
+
+```bash
+cargo test # runs tests
+cargo clippy # lints code
+cargo install cargo-publish-all
+cargo-publish-all --dry-run --yes # dry run release
+```
+
 ## Troubleshooting and workarounds
 
 We collect a list of common workarounds for various websites in our [troubleshooting guide](./TROUBLESHOOTING.md).
@@ -308,7 +332,7 @@ great contributors who have since made this project more mature.
 lychee is licensed under either of
 
 - Apache License, Version 2.0, (LICENSE-APACHE or
-  http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license (LICENSE-MIT or http://opensource.org/licenses/MIT)
+  https://www.apache.org/licenses/LICENSE-2.0)
+- MIT license (LICENSE-MIT or https://opensource.org/licenses/MIT)
 
 at your option.

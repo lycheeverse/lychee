@@ -13,5 +13,5 @@ Cargo.lock
 # IntelliJ generated files
 *.idea
 
-# VSCode generated files
+# VSCode files
 .vscode

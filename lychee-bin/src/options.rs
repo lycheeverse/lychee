@@ -124,6 +124,12 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) no_progress: bool,
 
+    /// Don't perform any link checking.
+    /// Instead, dump all the links extracted from inputs that would be checked
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) dump: bool,
+
     /// Maximum number of allowed redirects
     #[structopt(short, long, default_value = &MAX_REDIRECTS_STR)]
     #[serde(default = "max_redirects")]
@@ -164,6 +170,11 @@ pub(crate) struct Config {
     #[structopt(long)]
     #[serde(default)]
     pub(crate) exclude: Vec<String>,
+
+    /// A file or files that contains URLs to exclude from checking
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) exclude_file: Vec<String>,
 
     /// Exclude all private IPs from checking.
     /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
@@ -246,6 +257,11 @@ pub(crate) struct Config {
     #[structopt(short, long, default_value = "string")]
     #[serde(default)]
     pub(crate) format: Format,
+
+    /// When HTTPS is available, treat HTTP links as errors
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) require_https: bool,
 }
 
 impl Config {
@@ -285,6 +301,7 @@ impl Config {
             scheme: Vec::<String>::new();
             include: Vec::<String>::new();
             exclude: Vec::<String>::new();
+            exclude_file: Vec::<String>::new();
             exclude_all_private: false;
             exclude_private: false;
             exclude_link_local: false;
@@ -300,6 +317,7 @@ impl Config {
             skip_missing: false;
             glob_ignore_case: false;
             output: None;
+            require_https: false;
         }
     }
 }

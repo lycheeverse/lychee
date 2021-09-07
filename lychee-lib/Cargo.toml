@@ -14,19 +14,19 @@ keywords = [
 ]
 license = "Apache-2.0/MIT"
 repository = "https://github.com/lycheeverse/lychee"
-version = "0.7.0"
+version = "0.7.2"
 
 [dependencies]
-check-if-email-exists = "0.8.21"
+check-if-email-exists = "0.8.23"
 deadpool = "0.7.0"
 fast_chemail = "0.9.6"
 glob = "0.3.0"
 html5ever = "0.25.1"
 http = "0.2.4"
 hubcaps = "0.6.2"
-linkify = "0.6.0"
+linkify = "0.7.0"
 markup5ever_rcdom = "0.1.0"
-openssl-sys = "0.9.62"
+openssl-sys = "0.9.63"
 pulldown-cmark = "0.8.0"
 regex = "1.4.6"
 reqwest = { version = "0.11.3", features = ["gzip"] }
@@ -37,15 +37,15 @@ reqwest = { version = "0.11.3", features = ["gzip"] }
 ring = "0.16.20"
 serde = { version = "1.0.125", features = ["derive"] }
 shellexpand = "2.1.0"
-tokio = { version = "1.5.0", features = ["full"] }
-typed-builder = "0.9.0"
-url = { version = "2.2.1", features = ["serde"] }
+tokio = { version = "1.6.0", features = ["full"] }
+typed-builder = "0.9.1"
+url = { version = "2.2.2", features = ["serde"] }
 
 [dev-dependencies]
 doc-comment = "0.3.3"
 pretty_assertions = "0.7.2"
 tempfile = "3.2.0"
-wiremock = "0.5.2"
+wiremock = "0.5.7"
 
 [features]
 vendored-openssl = ["openssl-sys/vendored"]

@@ -115,7 +115,7 @@ impl Display for ResponseStats {
             // lets us avoid extra newlines without any additional logic.
             write!(f, "\n\nErrors in {}", input)?;
             for response in responses {
-                write!(f, "\n{}", color_response(response))?
+                write!(f, "\n{}", color_response(response))?;
             }
         }
 
