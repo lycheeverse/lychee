@@ -153,9 +153,6 @@ mod cli {
         let mut cmd = main_command();
         let offline_dir = fixtures_path().join("offline");
 
-        // Exclude file link because it doesn't exist on the filesystem.
-        // (File URIs are absolute paths, which we don't have.)
-        // Nevertheless, the `file` scheme should be recognized.
         cmd.arg("--offline")
             .arg("--base")
             .arg(&offline_dir)
