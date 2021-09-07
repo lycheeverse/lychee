@@ -94,7 +94,7 @@ pub struct ClientBuilder {
     accepted: Option<HashSet<StatusCode>>,
     /// Response timeout per request
     timeout: Option<Duration>,
-    /// Treat HTTP links as erros when HTTPS is available
+    /// Treat HTTP links as errors when HTTPS is available
     require_https: bool,
 }
 
@@ -119,7 +119,7 @@ impl ClientBuilder {
             exclude_private_ips: self.exclude_all_private || self.exclude_private_ips,
             exclude_link_local_ips: self.exclude_all_private || self.exclude_link_local_ips,
             exclude_loopback_ips: self.exclude_all_private || self.exclude_loopback_ips,
-            exclude_mail: self.exclude_all_private || self.exclude_mail,
+            exclude_mail: self.exclude_mail,
         }
     }
 
@@ -282,13 +282,16 @@ where
 
 #[cfg(test)]
 mod test {
-    use std::time::{Duration, Instant};
+    use std::{
+        convert::TryInto,
+        time::{Duration, Instant},
+    };
 
     use http::{header::HeaderMap, StatusCode};
     use reqwest::header;
 
     use super::ClientBuilder;
-    use crate::{mock_server, test_utils::get_mock_client_response};
+    use crate::{mock_server, test_utils::get_mock_client_response, Uri};
 
     #[tokio::test]
     async fn test_nonexistent() {
@@ -384,6 +387,29 @@ mod test {
             .await
             .unwrap();
         assert!(res.status().is_success());
+    }
+
+    #[tokio::test]
+    async fn test_exclude_mail() {
+        let client = ClientBuilder::builder()
+            .exclude_mail(false)
+            .exclude_all_private(true)
+            .build()
+            .client()
+            .unwrap();
+        assert!(!client.filtered(&Uri {
+            url: "mailto://mail@example.org".try_into().unwrap()
+        }));
+
+        let client = ClientBuilder::builder()
+            .exclude_mail(true)
+            .exclude_all_private(true)
+            .build()
+            .client()
+            .unwrap();
+        assert!(client.filtered(&Uri {
+            url: "mailto://mail@example.org".try_into().unwrap()
+        }));
     }
 
     #[tokio::test]
