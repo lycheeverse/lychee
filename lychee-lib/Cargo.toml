@@ -42,6 +42,7 @@ typed-builder = "0.9.1"
 url = { version = "2.2.2", features = ["serde"] }
 log = "0.4.14"
 path-clean = "0.1.0"
+percent-encoding = "2.1.0"
 
 [dev-dependencies]
 doc-comment = "0.3.3"

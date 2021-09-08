@@ -6,6 +6,7 @@ use html5ever::{
 };
 use log::info;
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
+use percent_encoding::percent_decode_str;
 use pulldown_cmark::{Event as MDEvent, Parser, Tag};
 use reqwest::Url;
 
@@ -122,10 +123,16 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
         .collect()
 }
 
-fn create_uri_from_path(root: &Path, base: &Option<Base>, link: &str) -> Result<Url> {
-    let link = url::remove_get_params_and_fragment(link);
-    let path = path::resolve(root, &PathBuf::from(&link), base)?;
-    Url::from_file_path(&path).map_err(|_e| ErrorKind::InvalidPath(path))
+fn create_uri_from_path(src: &Path, base: &Option<Base>, dst: &str) -> Result<Url> {
+    let dst = url::remove_get_params_and_fragment(dst);
+    // Avoid double-encoding already encoded destination paths by removing any
+    // potential encoding (e.g. `web%20site` becomes `web site`).
+    // That's because Url::from_file_path will encode the full URL in the end.
+    // This behavior cannot be configured.
+    // See https://github.com/lycheeverse/lychee/pull/262#issuecomment-915245411
+    let decoded = percent_decode_str(dst).decode_utf8()?.to_string();
+    let path = path::resolve(src, &PathBuf::from(decoded), base)?;
+    Url::from_file_path(&path).map_err(|_e| ErrorKind::InvalidUrl(path))
 }
 
 #[cfg(test)]

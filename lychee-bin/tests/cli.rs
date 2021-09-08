@@ -160,8 +160,8 @@ mod cli {
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("Total............4"))
-            .stdout(contains("Successful.......4"));
+            .stdout(contains("Total............3"))
+            .stdout(contains("Successful.......3"));
     }
 
     #[test]

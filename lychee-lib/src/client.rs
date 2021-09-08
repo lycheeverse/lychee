@@ -262,7 +262,7 @@ impl Client {
                 return Status::Ok(StatusCode::OK);
             }
         }
-        ErrorKind::InvalidFileUri(uri.clone()).into()
+        ErrorKind::InvalidFilePath(uri.clone()).into()
     }
 
     pub async fn check_mail(&self, uri: &Uri) -> Status {

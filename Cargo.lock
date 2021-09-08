@@ -1395,6 +1395,7 @@ dependencies = [
  "markup5ever_rcdom",
  "openssl-sys",
  "path-clean",
+ "percent-encoding",
  "pretty_assertions",
  "pulldown-cmark",
  "regex",
