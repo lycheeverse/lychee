@@ -58,7 +58,7 @@ You can download them from the [releases page](https://github.com/lycheeverse/ly
 
 #### Build dependencies
 
-On APT/DPkg based Linux distros (e.g. Debian, Ubuntu, Linux Mint and Kali Linux)
+On APT/dpkg-based Linux distros (e.g. Debian, Ubuntu, Linux Mint and Kali Linux)
 the following commands will install all required build dependencies, including
 the Rust toolchain and `cargo`:
 
