@@ -16,7 +16,7 @@ pub(crate) fn color_response(response: &ResponseBody) -> String {
         Status::Ok(_) => style(response).green().bright(),
         Status::Excluded | Status::Unsupported(_) => style(response).dim(),
         Status::Redirected(_) => style(response),
-        Status::Timeout(_) => style(response).yellow().bright(),
+        Status::UnknownStatusCode(_) | Status::Timeout(_) => style(response).yellow().bright(),
         Status::Error(_) => style(response).red().bright(),
     };
     out.to_string()
@@ -27,6 +27,7 @@ pub(crate) struct ResponseStats {
     total: usize,
     successful: usize,
     failures: usize,
+    unknown: usize,
     timeouts: usize,
     redirects: usize,
     excludes: usize,
@@ -52,6 +53,7 @@ impl ResponseStats {
         match status {
             Status::Ok(_) => self.successful += 1,
             Status::Error(_) => self.failures += 1,
+            Status::UnknownStatusCode(_) => self.unknown += 1,
             Status::Timeout(_) => self.timeouts += 1,
             Status::Redirected(_) => self.redirects += 1,
             Status::Excluded => self.excludes += 1,
@@ -105,6 +107,7 @@ impl Display for ResponseStats {
         write_stat(f, "\u{23f3} Timeouts", self.timeouts, true)?; // ⏳
         write_stat(f, "\u{1f500} Redirected", self.redirects, true)?; // 🔀
         write_stat(f, "\u{1f47b} Excluded", self.excludes, true)?; // 👻
+        write_stat(f, "\u{26a0} Unknown", self.unknown, true)?; // ⚠️
         write_stat(f, "\u{1f6ab} Errors", self.errors + self.failures, false)?; // 🚫
 
         for (input, responses) in &self.fail_map {

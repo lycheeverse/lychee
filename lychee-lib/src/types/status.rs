@@ -10,6 +10,7 @@ const ICON_OK: &str = "\u{2714}"; // ✔
 const ICON_REDIRECTED: &str = "\u{21c4}"; // ⇄
 const ICON_EXCLUDED: &str = "\u{003f}"; // ?
 const ICON_UNSUPPORTED: &str = "\u{003f}"; // ? (using same icon, but under different name for explicitness)
+const ICON_UNKNOWN: &str = "\u{003f}"; // ?
 const ICON_ERROR: &str = "\u{2717}"; // ✗
 const ICON_TIMEOUT: &str = "\u{29d6}"; // ⧖
 
@@ -25,6 +26,8 @@ pub enum Status {
     Timeout(Option<StatusCode>),
     /// Got redirected to different resource
     Redirected(StatusCode),
+    /// The given status code is not known by lychee
+    UnknownStatusCode(StatusCode),
     /// Resource was excluded from checking
     Excluded,
     /// The request type is currently not supported,
@@ -38,6 +41,7 @@ impl Display for Status {
         match self {
             Status::Ok(c) => write!(f, "OK ({})", c),
             Status::Redirected(c) => write!(f, "Redirect ({})", c),
+            Status::UnknownStatusCode(c) => write!(f, "Unknown status: {}", c),
             Status::Excluded => f.write_str("Excluded"),
             Status::Timeout(Some(c)) => write!(f, "Timeout ({})", c),
             Status::Timeout(None) => f.write_str("Timeout"),
@@ -69,8 +73,8 @@ impl Status {
             match response.error_for_status_ref() {
                 Ok(_) if code.is_success() => Self::Ok(code),
                 Ok(_) if code.is_redirection() => Self::Redirected(code),
+                Ok(_) => Self::UnknownStatusCode(code),
                 Err(e) => e.into(),
-                Ok(_) => unreachable!(),
             }
         }
     }
@@ -116,6 +120,7 @@ impl Status {
         match self {
             Status::Ok(_) => ICON_OK,
             Status::Redirected(_) => ICON_REDIRECTED,
+            Status::UnknownStatusCode(_) => ICON_UNKNOWN,
             Status::Excluded => ICON_EXCLUDED,
             Status::Error(_) => ICON_ERROR,
             Status::Timeout(_) => ICON_TIMEOUT,
