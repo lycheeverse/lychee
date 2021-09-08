@@ -56,6 +56,19 @@ You can download them from the [releases page](https://github.com/lycheeverse/ly
 
 ### Cargo
 
+#### Build dependencies
+
+On APT/DPkg based Linux distros (e.g. Debian, Ubuntu, Linux Mint and Kali Linux)
+the following commands will install all required build dependencies, including
+the Rust toolchain and `cargo`:
+
+```sh
+curl -sSf 'https://sh.rustup.rs' | sh
+apt install gcc pkg-config libc6-dev libssl-dev
+```
+
+#### Compile and install lychee
+
 ```sh
 cargo install lychee
 ```
@@ -65,16 +78,16 @@ cargo install lychee
 
 This comparison is made on a best-effort basis. Please create a PR to fix
 outdated information.
-use
+
 |                      | lychee  | [awesome_bot] | [muffet] | [broken-link-checker] | [linkinator] | [linkchecker] | [markdown-link-check] | [fink] |
 | -------------------- | ------- | ------------- | -------- | --------------------- | ------------ | ------------- | --------------------- | ------ |
 | Language             | Rust    | Ruby          | Go       | JS                    | TypeScript   | Python        | JS                    | PHP    |
 | Async/Parallel       | ![yes]  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]        | ![yes]                | ![yes] |
-| JSON output | ![yes] | ![no] | ![yes] | ![yes] | ![yes] | ![maybe]<sup>1</sup> | ![yes] | ![yes] |
-| Static binary        | ![yes]  | ![no]         | ![yes]   | ![no]                 | ![no]        | ️ ![no]       | ![no]                 | ![no]  |
-| Markdown files       | ![yes]  | ![yes]        | ![no]    | ![no]                 | ![no]        | ![yes]        | ️ ![yes]              | ![no]  |
-| HTML files           | ![yes]  | ![no]         | ![no]    | ![yes]                | ![yes]       | ![no]         | ![yes]                 | ![no]  |
-| Text files           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                | ![no]  |
+| JSON output          | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![maybe]<sup>1</sup> | ![yes]         | ![yes] |
+| Static binary        | ![yes]  | ![no]         | ![yes]   | ![no]                 | ![no]        | ️![no]         | ![no]                 | ![no]  |
+| Markdown files       | ![yes]  | ![yes]        | ![no]    | ![no]                 | ![no]        | ![yes]        | ![yes]                | ![no]  |
+| HTML files           | ![yes]  | ![no]         | ![no]    | ![yes]                | ![yes]       | ![no]         | ![yes]                | ![no]  |
+| Text files           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
 | Website support      | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]        | ![no]                 | ![yes] |
 | Chunked encodings    | ![yes]  | ![maybe]      | ![maybe] | ![maybe]              | ![maybe]     | ![no]         | ![yes]                | ![yes] |
 | GZIP compression     | ![yes]  | ![maybe]      | ![maybe] | ![yes]                | ![maybe]     | ![yes]        | ![maybe]              | ![no]  |
@@ -82,7 +95,7 @@ use
 | Custom user agent    | ![yes]  | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]        | ![no]                 | ![no]  |
 | Relative URLs        | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![yes]        | ![yes]                | ![yes] |
 | Skip relative URLs   | ![yes]  | ![no]         | ![no]    | ![maybe]              | ![no]        | ![no]         | ![no]                 | ![no]  |
-| Include patterns     | ![yes]️ | ![yes]        | ![no]    | ![yes]                | ![no]        | ![no]         | ![no]                 | ![no]  |
+| Include patterns     | ![yes]️  | ![yes]        | ![no]    | ![yes]                | ![no]        | ![no]         | ![no]                 | ![no]  |
 | Exclude patterns     | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]        | ![yes]                | ![yes] |
 | Handle redirects     | ![yes]  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]        | ![yes]                | ![yes] |
 | Ignore insecure SSL  | ![yes]  | ![yes]        | ![yes]   | ![no]                 | ![no]        | ![yes]        | ![no]                 | ![yes] |
@@ -101,7 +114,7 @@ use
 | [Use as library]     | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![no]         | ![yes]                | ![no]  |
 | Quiet mode           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]        | ![yes]                | ![yes] |
 | [Config file]        | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]        | ![yes]                | ![no]  |
-| Recursion | ![no]  | ![no]         | ![no]    | ![yes]                 | ![yes]        | ![yes]         | ![yes]                 | ![no]  |
+| Recursion            | ![no]   | ![no]         | ![no]    | ![yes]                | ![yes]       | ![yes]        | ![yes]                | ![no]  |
 | Amazing lychee logo  | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
 
 [awesome_bot]: https://github.com/dkhamsing/awesome_bot
