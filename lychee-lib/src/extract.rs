@@ -158,6 +158,12 @@ mod test {
         Base,
     };
 
+    #[test]
+    fn test_create_uri_from_path() {
+        let result = create_uri_from_path(&PathBuf::from("/README.md"), &None, "test+encoding").unwrap();
+        assert_eq!(result.as_str(), "file:///test+encoding");
+    }
+
     fn load_fixture(filename: &str) -> String {
         let fixture_path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
