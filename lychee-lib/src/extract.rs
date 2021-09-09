@@ -130,6 +130,10 @@ fn create_uri_from_path(src: &Path, base: &Option<Base>, dst: &str) -> Result<Ur
     // That's because Url::from_file_path will encode the full URL in the end.
     // This behavior cannot be configured.
     // See https://github.com/lycheeverse/lychee/pull/262#issuecomment-915245411
+    // TODO: This is not a perfect solution.
+    // Ideally, only `src` and `base` should be URL encoded (as is done by
+    // `from_file_path` at the moment) while `dst` is left untouched and simply
+    // appended to the end.
     let decoded = percent_decode_str(dst).decode_utf8()?.to_string();
     let path = path::resolve(src, &PathBuf::from(decoded), base)?;
     Url::from_file_path(&path).map_err(|_e| ErrorKind::InvalidUrl(path))
