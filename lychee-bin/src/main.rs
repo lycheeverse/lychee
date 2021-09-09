@@ -97,6 +97,8 @@ enum ExitCode {
 }
 
 fn main() -> Result<()> {
+    #[cfg(feature = "tokio-console")]
+    console_subscriber::init();
     // std::process::exit doesn't guarantee that all destructors will be ran,
     // therefore we wrap "main" code in another function to guarantee that.
     // See: https://doc.rust-lang.org/stable/std/process/fn.exit.html

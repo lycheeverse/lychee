@@ -27,7 +27,7 @@ lazy_static = "1.4.0"
 openssl-sys = "0.9.63"
 pad = "0.1.6"
 regex = "1.4.6"
-reqwest = { version = "0.11.3", features = ["gzip"] }
+reqwest = { version = "0.11.4", features = ["gzip"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
@@ -46,6 +46,14 @@ pretty_assertions = "0.7.2"
 tempfile = "3.2.0"
 uuid = { version = "0.8.2", features = ["v4"] }
 wiremock = "0.5.7"
+tracing-subscriber = { version = "0.2.17", default-features = false, features = ["fmt", "registry", "env-filter"] }
 
 [features]
+tokio-console = ["console-subscriber", "tracing-subscriber/registry"]
 vendored-openssl = ["openssl-sys/vendored"]
+
+[dependencies.console-subscriber]
+optional = true
+# console-subscriber is not yet published to crates.io, pin to a specific git revision
+git = "https://github.com/tokio-rs/console"
+rev = "926de99ce4cbfd02c87190f9ec5f1c60b5c305d5"
