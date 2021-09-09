@@ -343,7 +343,7 @@ cargo run
 
 Then run lychee with some special flags and features enabled.
 
-```
+```sh
 RUSTFLAGS="--cfg tokio_unstable" cargo run --features tokio-console -- <input1> <input2> ...
 ```
 

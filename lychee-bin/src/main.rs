@@ -46,7 +46,7 @@
 #![warn(clippy::all, clippy::pedantic)]
 #![warn(
     absolute_paths_not_starting_with_crate,
-    invalid_html_tags,
+    rustdoc::invalid_html_tags,
     missing_copy_implementations,
     missing_debug_implementations,
     semicolon_in_expressions_from_macros,
