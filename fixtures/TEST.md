@@ -1,5 +1,5 @@
-This link should be ignored as it is not a fully qualified URL.
-![Logo](awesome.png)
+Check file link
+![Logo](../assets/banner.svg)
 
 ![Anchors should be ignored](#awesome)
 

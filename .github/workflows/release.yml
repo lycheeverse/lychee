@@ -43,17 +43,17 @@ jobs:
       fail-fast: false
     steps:
       - name: Install musl tools
-        if: contains(matrix.target, 'musl')
+        if: ${{ contains(matrix.target, 'musl') }}
         run: sudo apt-get install -y musl-tools
 
       - name: Install arm tools
-        if: contains(matrix.target, 'arm')
+        if: ${{ contains(matrix.target, 'arm') }}
         run: |
           echo "GNU_PREFIX=arm-linux-gnueabihf-" >> $GITHUB_ENV
           sudo apt-get install -y binutils-arm-linux-gnueabihf   
       
       - name: Install aarch64 tools
-        if: contains(matrix.target, 'aarch64')
+        if: ${{ contains(matrix.target, 'aarch64') }}
         run: |
           echo "GNU_PREFIX=aarch64-linux-gnu-" >> $GITHUB_ENV
           sudo apt-get install -y binutils-aarch64-linux-gnu 

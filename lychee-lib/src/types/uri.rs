@@ -82,8 +82,15 @@ impl Uri {
     }
 
     #[inline]
+    /// Check if the URI is a valid mail address
     pub(crate) fn is_mail(&self) -> bool {
         self.scheme() == "mailto"
+    }
+
+    #[inline]
+    /// Check if the URI is a file
+    pub(crate) fn is_file(&self) -> bool {
+        self.scheme() == "file"
     }
 }
 

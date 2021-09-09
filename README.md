@@ -161,11 +161,15 @@ lychee ~/projects/*/README.md
 
 # check links in local files (lychee supports advanced globbing and ~ expansion):
 lychee "~/projects/big_project/**/README.*"
+
 # ignore case when globbing and check result for each link:
 lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
 
 # check links from epub file (requires atool: https://www.nongnu.org/atool)
 acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
+
+# check links in directory; block network requests
+lychee --offline path/to/directory
 ```
 
 ### GitHub token
@@ -202,6 +206,7 @@ FLAGS:
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
     -n, --no-progress            Do not show progress bar.
                                  This is recommended for non-interactive shells (e.g. for continuous integration)
+        --offline                Only check local files and block network requests
         --require-https          When HTTPS is available, treat HTTP links as errors
         --skip-missing           Skip missing input files (default is to error if they don't exist)
     -V, --version                Prints version information
@@ -209,7 +214,8 @@ FLAGS:
 
 OPTIONS:
     -a, --accept <accept>                      Comma-separated list of accepted status codes for valid links
-    -b, --base-url <base-url>                  Base URL to check relative URLs
+    -b, --base <base>                          Base URL or website root directory to check relative URLs e.g.
+                                               https://example.org or `/path/to/public`
         --basic-auth <basic-auth>              Basic authentication support. E.g. `username:password`
     -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
         --exclude <exclude>...                 Exclude URLs from checking (supports regex)
@@ -310,7 +316,8 @@ Try one of these links to get started:
 - [good first issues](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 
-Lychee is written in Rust. Install [rust-up](https://rustup.rs/) to get started. Begin my making sure the following commands succeed without errors.
+Lychee is written in Rust. Install [rust-up](https://rustup.rs/) to get started.
+Begin my making sure the following commands succeed without errors.
 
 ```bash
 cargo test # runs tests

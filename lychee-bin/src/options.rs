@@ -1,9 +1,8 @@
-use std::{fs, io::ErrorKind, path::PathBuf, str::FromStr};
+use std::{convert::TryFrom, fs, io::ErrorKind, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, Error, Result};
 use lazy_static::lazy_static;
-use lychee_lib::collector::Input;
-use reqwest::Url;
+use lychee_lib::{Base, Input};
 use serde::Deserialize;
 use structopt::{clap::crate_version, StructOpt};
 
@@ -74,6 +73,10 @@ macro_rules! fold_in {
             }
         )*
     };
+}
+
+fn parse_base(src: &str) -> Result<Base, lychee_lib::ErrorKind> {
+    Base::try_from(src)
 }
 
 #[derive(Debug, StructOpt)]
@@ -161,6 +164,11 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) scheme: Vec<String>,
 
+    /// Only check local files and block network requests.
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) offline: bool,
+
     /// URLs to check (supports regex). Has preference over all excludes.
     #[structopt(long)]
     #[serde(default)]
@@ -223,10 +231,11 @@ pub(crate) struct Config {
     #[serde(default = "method")]
     pub(crate) method: String,
 
-    /// Base URL to check relative URLs
-    #[structopt(short, long, parse(try_from_str))]
+    /// Base URL or website root directory to check relative URLs
+    /// e.g. https://example.org or `/path/to/public`
+    #[structopt(short, long, parse(try_from_str = parse_base))]
     #[serde(default)]
-    pub(crate) base_url: Option<Url>,
+    pub(crate) base: Option<Base>,
 
     /// Basic authentication support. E.g. `username:password`
     #[structopt(long)]
@@ -311,7 +320,7 @@ impl Config {
             accept: None;
             timeout: TIMEOUT;
             method: METHOD;
-            base_url: None;
+            base: None;
             basic_auth: None;
             github_token: None;
             skip_missing: false;

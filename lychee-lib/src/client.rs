@@ -20,8 +20,7 @@ use typed_builder::TypedBuilder;
 use crate::{
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
-    uri::Uri,
-    ErrorKind, Request, Response, Result, Status,
+    ErrorKind, Request, Response, Result, Status, Uri,
 };
 
 const DEFAULT_MAX_REDIRECTS: usize = 5;
@@ -178,6 +177,8 @@ impl Client {
         let Request { uri, source } = Request::try_from(request)?;
         let status = if self.filter.is_excluded(&uri) {
             Status::Excluded
+        } else if uri.is_file() {
+            self.check_file(&uri).await
         } else if uri.is_mail() {
             self.check_mail(&uri).await
         } else {
@@ -255,6 +256,15 @@ impl Client {
         }
     }
 
+    pub async fn check_file(&self, uri: &Uri) -> Status {
+        if let Ok(path) = uri.url.to_file_path() {
+            if path.exists() {
+                return Status::Ok(StatusCode::OK);
+            }
+        }
+        ErrorKind::InvalidFilePath(uri.clone()).into()
+    }
+
     pub async fn check_mail(&self, uri: &Uri) -> Status {
         let input = CheckEmailInput::new(vec![uri.as_str().to_owned()]);
         let result = &(check_email(&input).await)[0];
@@ -284,11 +294,13 @@ where
 mod test {
     use std::{
         convert::TryInto,
+        fs::File,
         time::{Duration, Instant},
     };
 
     use http::{header::HeaderMap, StatusCode};
     use reqwest::header;
+    use tempfile::tempdir;
 
     use super::ClientBuilder;
     use crate::{mock_server, test_utils::get_mock_client_response, Uri};
@@ -370,6 +382,17 @@ mod test {
             .check("https://expired.badssl.com/")
             .await
             .unwrap();
+        assert!(res.status().is_success());
+    }
+
+    #[tokio::test]
+    async fn test_file() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("temp");
+        File::create(file).unwrap();
+        let uri = format!("file://{}", dir.path().join("temp").to_str().unwrap());
+
+        let res = get_mock_client_response(uri).await;
         assert!(res.status().is_success());
     }
 
