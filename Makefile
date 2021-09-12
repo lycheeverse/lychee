@@ -27,5 +27,5 @@ install: ## Install project locally
 	cargo install --path lychee-bin
 
 .PHONY: run
-run: ## Run Rust code locally
+run: ## Run project locally
 	cargo run
