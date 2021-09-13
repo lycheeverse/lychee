@@ -1,11 +1,13 @@
 use crate::types::FileType;
 use crate::Result;
+use async_stream::try_stream;
+use futures_core::stream::Stream;
 use glob::glob_with;
 use reqwest::Url;
 use serde::Serialize;
 use shellexpand::tilde;
+use std::fmt::Display;
 use std::path::{Path, PathBuf};
-use std::{fmt::Display, fs::read_to_string};
 use tokio::io::{stdin, AsyncReadExt};
 
 const STDIN: &str = "-";
@@ -112,24 +114,40 @@ impl Input {
         &self,
         file_type_hint: Option<FileType>,
         skip_missing: bool,
-    ) -> Result<Vec<InputContent>> {
-        match *self {
-            // TODO: should skip_missing also affect URLs?
-            Input::RemoteUrl(ref url) => Ok(vec![Self::url_contents(url).await?]),
-            Input::FsGlob {
-                ref pattern,
-                ignore_case,
-            } => Ok(Self::glob_contents(pattern, ignore_case).await?),
-            Input::FsPath(ref path) => {
-                let content = Self::path_content(path);
-                match content {
-                    Ok(input_content) => Ok(vec![input_content]),
-                    Err(_) if skip_missing => Ok(vec![]),
-                    Err(e) => Err(e),
+    ) -> impl Stream<Item = Result<InputContent>> + '_ {
+        try_stream! {
+            match *self {
+                // TODO: should skip_missing also affect URLs?
+                Input::RemoteUrl(ref url) => {
+                    let contents: InputContent = Self::url_contents(url).await?;
+                    yield contents;
+                },
+                Input::FsGlob {
+                    ref pattern,
+                    ignore_case,
+                } => {
+                    for await content in Self::glob_contents(pattern, ignore_case).await {
+                        let content = content?;
+                        yield content;
+                    }
                 }
+                Input::FsPath(ref path) => {
+                    let content = Self::path_content(path).await;
+                    match content {
+                        Err(_) if skip_missing => (),
+                        Err(e) => Err(e)?,
+                        Ok(content) => yield content,
+                    };
+                },
+                Input::Stdin => {
+                    let contents = Self::stdin_content(file_type_hint).await?;
+                    yield contents;
+                },
+                Input::String(ref s) => {
+                    let contents = Self::string_content(s, file_type_hint);
+                    yield contents;
+                },
             }
-            Input::Stdin => Ok(vec![Self::stdin_content(file_type_hint).await?]),
-            Input::String(ref s) => Ok(vec![Self::string_content(s, file_type_hint)]),
         }
     }
 
@@ -151,40 +169,46 @@ impl Input {
         Ok(input_content)
     }
 
-    async fn glob_contents(path_glob: &str, ignore_case: bool) -> Result<Vec<InputContent>> {
-        let mut contents = vec![];
-        let glob_expanded = tilde(&path_glob);
+    async fn glob_contents(
+        path_glob: &str,
+        ignore_case: bool,
+    ) -> impl Stream<Item = Result<InputContent>> + '_ {
+        let glob_expanded = tilde(&path_glob).to_string();
         let mut match_opts = glob::MatchOptions::new();
 
         match_opts.case_sensitive = !ignore_case;
 
-        for entry in glob_with(&glob_expanded, match_opts)? {
-            match entry {
-                Ok(path) => {
-                    if path.is_dir() {
-                        // Directories can still have a suffix which looks like
-                        // a file extension like `foo.html`. This can lead to
-                        // unexpected behavior with glob patterns like
-                        // `**/*.html`. Therefore filter these out.
-                        // https://github.com/lycheeverse/lychee/pull/262#issuecomment-913226819
-                        continue;
+        try_stream! {
+            for entry in glob_with(&glob_expanded, match_opts)? {
+                match entry {
+                    Ok(path) => {
+                        if path.is_dir() {
+                            // Directories can still have a suffix which looks like
+                            // a file extension like `foo.html`. This can lead to
+                            // unexpected behavior with glob patterns like
+                            // `**/*.html`. Therefore filter these out.
+                            // https://github.com/lycheeverse/lychee/pull/262#issuecomment-913226819
+                            continue;
+                        }
+                        let content: InputContent = Self::path_content(&path).await?;
+                        yield content;
                     }
-                    let content = Self::path_content(&path)?;
-                    contents.push(content);
+                    Err(e) => println!("{:?}", e),
                 }
-                Err(e) => println!("{:?}", e),
             }
         }
-
-        Ok(contents)
     }
 
     /// Get the input content of a given path
     /// # Errors
     ///
     /// Will return `Err` if file contents can't be read
-    pub fn path_content<P: Into<PathBuf> + AsRef<Path> + Clone>(path: P) -> Result<InputContent> {
-        let content = read_to_string(&path).map_err(|e| (path.clone().into(), e))?;
+    pub async fn path_content<P: Into<PathBuf> + AsRef<Path> + Clone>(
+        path: P,
+    ) -> Result<InputContent> {
+        let content = tokio::fs::read_to_string(&path)
+            .await
+            .map_err(|e| (path.clone().into(), e))?;
         let input_content = InputContent {
             file_type: FileType::from(path.as_ref()),
             content,

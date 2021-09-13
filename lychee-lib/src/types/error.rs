@@ -5,6 +5,8 @@ use serde::{Serialize, Serializer};
 
 use crate::Uri;
 
+use super::InputContent;
+
 /// Kinds of status errors.
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
@@ -42,6 +44,8 @@ pub enum ErrorKind {
     MissingGitHubToken,
     /// The website is available in HTTPS protocol, but HTTP scheme is used.
     InsecureURL(Uri),
+    /// Error while sending/receiving messages from MPSC channel
+    ChannelError(tokio::sync::mpsc::error::SendError<InputContent>),
 }
 
 impl PartialEq for ErrorKind {
@@ -85,6 +89,7 @@ impl Hash for ErrorKind {
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
             Self::MissingGitHubToken => std::mem::discriminant(self).hash(state),
+            Self::ChannelError(e) => e.to_string().hash(state),
         }
     }
 }
@@ -128,6 +133,7 @@ impl Display for ErrorKind {
             ),
             Self::InvalidBase(base, e) => write!(f, "Error with base dir `{}` : {}", base, e),
             Self::Utf8Error(e) => e.fmt(f),
+            Self::ChannelError(e) => e.fmt(f),
         }
     }
 }
@@ -204,6 +210,12 @@ impl From<InvalidHeaderValue> for ErrorKind {
 impl From<glob::PatternError> for ErrorKind {
     fn from(e: glob::PatternError) -> Self {
         Self::InvalidGlobPattern(e)
+    }
+}
+
+impl From<tokio::sync::mpsc::error::SendError<InputContent>> for ErrorKind {
+    fn from(e: tokio::sync::mpsc::error::SendError<InputContent>) -> Self {
+        Self::ChannelError(e)
     }
 }
 

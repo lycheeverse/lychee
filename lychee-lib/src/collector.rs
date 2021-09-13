@@ -1,5 +1,6 @@
 use crate::{extract::extract_links, Base, Input, Request, Result, Uri};
 use std::collections::HashSet;
+use tokio_stream::StreamExt;
 
 /// Collector keeps the state of link collection
 #[derive(Debug, Clone)]
@@ -37,10 +38,12 @@ impl Collector {
             let sender = contents_tx.clone();
 
             let skip_missing_inputs = self.skip_missing_inputs;
-            tokio::spawn(async move {
-                let contents = input.get_contents(None, skip_missing_inputs).await;
-                sender.send(contents).await
-            });
+
+            let contents = input.get_contents(None, skip_missing_inputs).await;
+            tokio::pin!(contents);
+            while let Some(content) = contents.next().await {
+                sender.send(content?).await?;
+            }
         }
 
         // receiver will get None once all tasks are done
@@ -49,13 +52,10 @@ impl Collector {
         // extract links from input contents
         let mut extract_links_handles = vec![];
 
-        while let Some(result) = contents_rx.recv().await {
-            for input_content in result? {
-                let base = self.base.clone();
-                let handle =
-                    tokio::task::spawn_blocking(move || extract_links(&input_content, &base));
-                extract_links_handles.push(handle);
-            }
+        while let Some(content) = contents_rx.recv().await {
+            let base = self.base.clone();
+            let handle = tokio::task::spawn_blocking(move || extract_links(&content, &base));
+            extract_links_handles.push(handle);
         }
 
         // Note: we could dispatch links to be checked as soon as we get them,
@@ -89,6 +89,7 @@ mod test {
     use http::StatusCode;
     use pretty_assertions::assert_eq;
     use reqwest::Url;
+    use tokio_stream::StreamExt;
 
     use super::*;
     use crate::{
@@ -105,27 +106,34 @@ mod test {
     const TEST_GLOB_2_MAIL: &str = "test@glob-2.io";
 
     #[tokio::test]
-    #[ignore]
     async fn test_file_without_extension_is_plaintext() -> Result<()> {
         let temp_dir = tempfile::tempdir()?;
         // Treat as plaintext file (no extension)
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path)?;
         let input = Input::new(&file_path.as_path().display().to_string(), true);
-        let contents = input.get_contents(None, true).await?;
+        let contents: Vec<_> = input
+            .get_contents(None, true)
+            .await
+            .collect::<Vec<_>>()
+            .await;
 
         assert_eq!(contents.len(), 1);
-        assert_eq!(contents[0].file_type, FileType::Plaintext);
+        assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Plaintext);
         Ok(())
     }
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
         let input = Input::new("https://example.org/", true);
-        let contents = input.get_contents(None, true).await?;
+        let contents: Vec<_> = input
+            .get_contents(None, true)
+            .await
+            .collect::<Vec<_>>()
+            .await;
 
         assert_eq!(contents.len(), 1);
-        assert_eq!(contents[0].file_type, FileType::Html);
+        assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Html);
         Ok(())
     }
 

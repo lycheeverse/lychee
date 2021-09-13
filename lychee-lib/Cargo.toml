@@ -43,6 +43,9 @@ url = { version = "2.2.2", features = ["serde"] }
 log = "0.4.14"
 path-clean = "0.1.0"
 percent-encoding = "2.1.0"
+async-stream = "0.3.2"
+futures-core = "0.3.17"
+tokio-stream = "0.1.7"
 
 [dev-dependencies]
 doc-comment = "0.3.3"

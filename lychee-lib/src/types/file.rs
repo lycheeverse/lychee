@@ -28,9 +28,14 @@ impl<P: AsRef<Path>> From<P> for FileType {
         // Unfortunately that's not possible without refactoring, as
         // `AsRef<Path>` could be implemented for `Url` in the future, which is why
         // `From<Url> for FileType` is not allowed.
+        // As a workaround, we check if we got a known web-protocol
+        let is_url = path.starts_with("http");
+
         match path.extension().and_then(std::ffi::OsStr::to_str) {
             Some("md" | "markdown") => FileType::Markdown,
-            Some("htm" | "html") | None => FileType::Html,
+            Some("htm" | "html")  => FileType::Html,
+            None if is_url => FileType::Html,
+            None => FileType::Plaintext,
             Some(_) => FileType::Plaintext,
         }
     }
