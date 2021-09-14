@@ -190,7 +190,7 @@ see below for a full list.
 
 ```ignore
 USAGE:
-    lychee [FLAGS] [OPTIONS] [--] [inputs]...
+    lychee [FLAGS] [OPTIONS] <inputs>...
 
 FLAGS:
         --dump                   Don't perform any link checking. Instead, dump all the links extracted from inputs that
@@ -239,7 +239,6 @@ ARGS:
     <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
                    (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.org/README.md`) or standard
                    input (`-`). Prefix with `--` to separate inputs from options that allow multiple arguments
-                   [default: README.md]
 ```
 
 ### Exit codes
