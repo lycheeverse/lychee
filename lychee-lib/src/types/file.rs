@@ -33,10 +33,9 @@ impl<P: AsRef<Path>> From<P> for FileType {
 
         match path.extension().and_then(std::ffi::OsStr::to_str) {
             Some("md" | "markdown") => FileType::Markdown,
-            Some("htm" | "html")  => FileType::Html,
+            Some("htm" | "html") => FileType::Html,
             None if is_url => FileType::Html,
-            None => FileType::Plaintext,
-            Some(_) => FileType::Plaintext,
+            _ => FileType::Plaintext,
         }
     }
 }
