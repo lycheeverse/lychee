@@ -190,7 +190,7 @@ see below for a full list.
 
 ```ignore
 USAGE:
-    lychee [FLAGS] [OPTIONS] <inputs>...
+    lychee [FLAGS] [OPTIONS] [--] <inputs>...
 
 FLAGS:
         --dump                   Don't perform any link checking. Instead, dump all the links extracted from inputs that
