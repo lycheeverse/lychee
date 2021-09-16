@@ -140,7 +140,7 @@ outdated information.
 Run it inside a repository with a `README.md`:
 
 ```sh
-lychee
+lychee README.md
 ```
 
 You can also specify various types of inputs:
