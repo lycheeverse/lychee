@@ -88,8 +88,8 @@ pub(crate) struct LycheeOptions {
     /// The inputs (where to get links to check from).
     /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
     /// remote URLs (e.g. `https://example.org/README.md`) or standard input (`-`).
-    /// Prefix with `--` to separate inputs from options that allow multiple arguments.
-    #[structopt(name = "inputs", default_value = "README.md")]
+    /// NOTE: Use `--` to separate inputs from options that allow multiple arguments.
+    #[structopt(name = "inputs", required = true)]
     raw_inputs: Vec<String>,
 
     /// Configuration file to use
