@@ -14,6 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@master
       - name: Publish to Registry
+        if: github.repository_owner == 'lycheeverse'
         uses: elgohr/Publish-Docker-Github-Action@3.01
         with:
           name: lycheeverse/lychee
