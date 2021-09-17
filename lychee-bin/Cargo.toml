@@ -46,7 +46,7 @@ pretty_assertions = "0.7.2"
 tempfile = "3.2.0"
 uuid = { version = "0.8.2", features = ["v4"] }
 wiremock = "0.5.7"
-tracing-subscriber = { version = "0.2.22", default-features = false, features = ["fmt", "registry", "env-filter"] }
+tracing-subscriber = { version = "0.2.23", default-features = false, features = ["fmt", "registry", "env-filter"] }
 
 [dependencies.console-subscriber]
 optional = true
