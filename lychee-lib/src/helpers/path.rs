@@ -137,7 +137,9 @@ mod test_path {
         let base = Some(Base::Local(PathBuf::from("/some/absolute/base/dir")));
         assert_eq!(
             resolve(&abs_index, &abs_path, &base)?,
-            Some(PathBuf::from("/some/absolute/base/dir/other/path/to/foo.html"))
+            Some(PathBuf::from(
+                "/some/absolute/base/dir/other/path/to/foo.html"
+            ))
         );
         Ok(())
     }
