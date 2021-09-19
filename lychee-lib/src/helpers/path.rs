@@ -34,27 +34,30 @@ fn dirname(src: &Path) -> PathBuf {
 }
 
 // Resolve `dst` that was linked to from within `src`
-pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<PathBuf> {
-    if dst.is_relative() {
-        // Find `dst` in the parent directory of `src`
-        if let Some(parent) = src.parent() {
-            let rel_path = parent.join(dst.to_path_buf());
-            return absolute_path(&rel_path);
+// Returns Ok(None) in case of an absolute local link without a `base_url`
+pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Option<PathBuf>> {
+    let resolved = match dst {
+        relative if dst.is_relative() => {
+            // Find `dst` in the parent directory of `src`
+            let parent = match src.parent() {
+                Some(parent) => parent,
+                None => return Err(ErrorKind::FileNotFound(relative.to_path_buf())),
+            };
+            parent.join(relative.to_path_buf())
         }
-    }
-    if dst.is_absolute() {
-        // Absolute local links (leading slash) require the `base_url` to
-        // define the document root.
-        let base = get_base_dir(base).ok_or_else(|| {
-            ErrorKind::InvalidBase(
-                "<empty>".to_string(),
-                format!("Found absolute local link {:?} but no base directory was set. Set with `--base`.", dst)
-            )
-        })?;
-        let abs_path = join(dirname(&base), dst);
-        return absolute_path(&abs_path);
-    }
-    Err(ErrorKind::FileNotFound(dst.to_path_buf()))
+        absolute if dst.is_absolute() => {
+            // Absolute local links (leading slash) require the `base_url` to
+            // define the document root. Silently ignore the link in case we
+            // `base_url` is not defined.
+            let base = match get_base_dir(base) {
+                Some(path) => path,
+                None => return Ok(None),
+            };
+            join(dirname(&base), absolute)
+        }
+        _ => return Err(ErrorKind::FileNotFound(dst.to_path_buf())),
+    };
+    Ok(Some(absolute_path(&resolved)?))
 }
 
 // A cumbersome way to concatenate paths without checking their
@@ -79,7 +82,7 @@ mod test_path {
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
             resolve(&dummy, &abs_path, &None)?,
-            env::current_dir()?.join("foo.html")
+            Some(env::current_dir()?.join("foo.html"))
         );
         Ok(())
     }
@@ -92,7 +95,7 @@ mod test_path {
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
             resolve(&dummy, &abs_path, &None)?,
-            env::current_dir()?.join("foo.html")
+            Some(env::current_dir()?.join("foo.html"))
         );
         Ok(())
     }
@@ -105,7 +108,7 @@ mod test_path {
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
             resolve(&abs_index, &abs_path, &None)?,
-            PathBuf::from("/path/to/foo.html")
+            Some(PathBuf::from("/path/to/foo.html"))
         );
         Ok(())
     }
@@ -120,7 +123,7 @@ mod test_path {
         let base = Some(Base::Local(PathBuf::from("/some/absolute/base/dir")));
         assert_eq!(
             resolve(&dummy, &abs_path, &base)?,
-            PathBuf::from("/some/absolute/base/dir/foo.html")
+            Some(PathBuf::from("/some/absolute/base/dir/foo.html"))
         );
         Ok(())
     }
@@ -134,7 +137,7 @@ mod test_path {
         let base = Some(Base::Local(PathBuf::from("/some/absolute/base/dir")));
         assert_eq!(
             resolve(&abs_index, &abs_path, &base)?,
-            PathBuf::from("/some/absolute/base/dir/other/path/to/foo.html")
+            Some(PathBuf::from("/some/absolute/base/dir/other/path/to/foo.html"))
         );
         Ok(())
     }

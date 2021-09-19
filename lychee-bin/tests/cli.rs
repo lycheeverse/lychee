@@ -474,4 +474,22 @@ mod cli {
 
         Ok(())
     }
+
+    /// If base-dir is not set, don't throw an error in case we encounter
+    /// an absolute local link within a file (e.g. `/about`).
+    #[test]
+    fn test_ignore_absolute_local_links_without_base() -> Result<()> {
+        let mut cmd = main_command();
+
+        let offline_dir = fixtures_path().join("offline");
+
+        cmd.arg("--offline")
+            .arg(&offline_dir.join("index.html"))
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("Total............0"));
+
+        Ok(())
+    }
 }
