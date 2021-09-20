@@ -70,7 +70,7 @@ use anyhow::{anyhow, Context, Result};
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use http::StatusCode;
 use indicatif::{ProgressBar, ProgressStyle};
-use lychee_lib::{ClientBuilder, ClientPool, Collector, Input, Response};
+use lychee_lib::{ClientBuilder, ClientPool, Collector, Input, Request, Response};
 use openssl_sys as _; // required for vendored-openssl feature
 use regex::RegexSet;
 use ring as _; // required for apple silicon
@@ -212,20 +212,8 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .map_err(|e| anyhow!(e))?;
 
     if cfg.dump {
-        let mut stdout = io::stdout();
-        for link in links {
-            if !client.filtered(&link.uri) {
-                // Avoid panic on broken pipe. See https://github.com/rust-lang/rust/issues/46016
-                // This can occur when piping the output of lychee to another program like `grep`.
-                if let Err(e) = writeln!(stdout, "{}", &link) {
-                    if e.kind() != io::ErrorKind::BrokenPipe {
-                        eprintln!("{}", e);
-                        return Ok(ExitCode::UnexpectedFailure as i32);
-                    }
-                }
-            }
-        }
-        return Ok(ExitCode::Success as i32);
+        let exit_code = dump_links(links.iter().filter(|link| !client.filtered(&link.uri)));
+        return Ok(exit_code as i32);
     }
 
     let pb = if cfg.no_progress {
@@ -279,6 +267,24 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     } else {
         Ok(ExitCode::LinkCheckFailure as i32)
     }
+}
+
+/// Dump all detected links to stdout without checking them
+fn dump_links<'a>(links: impl Iterator<Item = &'a Request>) -> ExitCode {
+    let mut stdout = io::stdout();
+    for link in links {
+        // Avoid panic on broken pipe.
+        // See https://github.com/rust-lang/rust/issues/46016
+        // This can occur when piping the output of lychee
+        // to another program like `grep`.
+        if let Err(e) = writeln!(stdout, "{}", &link) {
+            if e.kind() != io::ErrorKind::BrokenPipe {
+                eprintln!("{}", e);
+                return ExitCode::UnexpectedFailure;
+            }
+        }
+    }
+    ExitCode::Success
 }
 
 /// Write final statistics to stdout or to file
