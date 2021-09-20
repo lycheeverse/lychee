@@ -17,7 +17,7 @@ repository = "https://github.com/lycheeverse/lychee"
 version = "0.7.2"
 
 [dependencies]
-check-if-email-exists = "0.8.23"
+check-if-email-exists = "0.8.24"
 deadpool = "0.7.0"
 fast_chemail = "0.9.6"
 glob = "0.3.0"

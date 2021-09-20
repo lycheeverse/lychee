@@ -62,7 +62,7 @@
 use ring as _;
 
 use std::fs::File;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Write};
 use std::iter::FromIterator;
 use std::{collections::HashSet, fs, str::FromStr, time::Duration};
 
@@ -70,7 +70,7 @@ use anyhow::{anyhow, Context, Result};
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use http::StatusCode;
 use indicatif::{ProgressBar, ProgressStyle};
-use lychee_lib::{ClientBuilder, ClientPool, Collector, Input, Response};
+use lychee_lib::{ClientBuilder, ClientPool, Collector, Input, Request, Response};
 use openssl_sys as _; // required for vendored-openssl feature
 use regex::RegexSet;
 use ring as _; // required for apple silicon
@@ -212,12 +212,8 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .map_err(|e| anyhow!(e))?;
 
     if cfg.dump {
-        for link in links {
-            if !client.filtered(&link.uri) {
-                println!("{}", link);
-            }
-        }
-        return Ok(ExitCode::Success as i32);
+        let exit_code = dump_links(links.iter().filter(|link| !client.filtered(&link.uri)));
+        return Ok(exit_code as i32);
     }
 
     let pb = if cfg.no_progress {
@@ -264,23 +260,48 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         pb.finish_and_clear();
     }
 
-    let stats_formatted = fmt(&stats, &cfg.format)?;
-    if let Some(output) = &cfg.output {
-        fs::write(output, stats_formatted).context("Cannot write status output to file")?;
-    } else {
-        if cfg.verbose && !stats.is_empty() {
-            // separate summary from the verbose list of links above
-            println!();
-        }
-        // we assume that the formatted stats don't have a final newline
-        println!("{}", stats_formatted);
-    }
+    write_stats(&stats, cfg)?;
 
     if stats.is_success() {
         Ok(ExitCode::Success as i32)
     } else {
         Ok(ExitCode::LinkCheckFailure as i32)
     }
+}
+
+/// Dump all detected links to stdout without checking them
+fn dump_links<'a>(links: impl Iterator<Item = &'a Request>) -> ExitCode {
+    let mut stdout = io::stdout();
+    for link in links {
+        // Avoid panic on broken pipe.
+        // See https://github.com/rust-lang/rust/issues/46016
+        // This can occur when piping the output of lychee
+        // to another program like `grep`.
+        if let Err(e) = writeln!(stdout, "{}", &link) {
+            if e.kind() != io::ErrorKind::BrokenPipe {
+                eprintln!("{}", e);
+                return ExitCode::UnexpectedFailure;
+            }
+        }
+    }
+    ExitCode::Success
+}
+
+/// Write final statistics to stdout or to file
+fn write_stats(stats: &ResponseStats, cfg: &Config) -> Result<()> {
+    let formatted = fmt(stats, &cfg.format)?;
+
+    if let Some(output) = &cfg.output {
+        fs::write(output, formatted).context("Cannot write status output to file")?;
+    } else {
+        if cfg.verbose && !stats.is_empty() {
+            // separate summary from the verbose list of links above
+            println!();
+        }
+        // we assume that the formatted stats don't have a final newline
+        println!("{}", stats);
+    }
+    Ok(())
 }
 
 fn read_header(input: &str) -> Result<(String, String)> {

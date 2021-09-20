@@ -40,8 +40,14 @@ pub(crate) fn extract_links(
                 // Silently ignore anchor links for now
                 continue;
             }
-            let url = create_uri_from_path(root, base, &link)?;
-            Request::new(Uri { url }, input_content.input.clone())
+            match create_uri_from_path(root, base, &link)? {
+                Some(url) => Request::new(Uri { url }, input_content.input.clone()),
+                None => {
+                    // In case we cannot create a URI from a path but we didn't receive an error,
+                    // it means that some preconditions were not met, e.g. the `base_url` wasn't set.
+                    continue;
+                }
+            }
         } else {
             info!("Handling of {} not implemented yet", &link);
             continue;
@@ -123,7 +129,7 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
         .collect()
 }
 
-fn create_uri_from_path(src: &Path, base: &Option<Base>, dst: &str) -> Result<Url> {
+fn create_uri_from_path(src: &Path, base: &Option<Base>, dst: &str) -> Result<Option<Url>> {
     let dst = url::remove_get_params_and_fragment(dst);
     // Avoid double-encoding already encoded destination paths by removing any
     // potential encoding (e.g. `web%20site` becomes `web site`).
@@ -135,8 +141,13 @@ fn create_uri_from_path(src: &Path, base: &Option<Base>, dst: &str) -> Result<Ur
     // `from_file_path` at the moment) while `dst` is left untouched and simply
     // appended to the end.
     let decoded = percent_decode_str(dst).decode_utf8()?.to_string();
-    let path = path::resolve(src, &PathBuf::from(decoded), base)?;
-    Url::from_file_path(&path).map_err(|_e| ErrorKind::InvalidUrl(path))
+    let resolved = path::resolve(src, &PathBuf::from(decoded), base)?;
+    match resolved {
+        Some(path) => Url::from_file_path(&path)
+            .map(Some)
+            .map_err(|_e| ErrorKind::InvalidUrl(path)),
+        None => Ok(None),
+    }
 }
 
 #[cfg(test)]
@@ -166,7 +177,7 @@ mod test {
     fn test_create_uri_from_path() {
         let result =
             create_uri_from_path(&PathBuf::from("/README.md"), &None, "test+encoding").unwrap();
-        assert_eq!(result.as_str(), "file:///test+encoding");
+        assert_eq!(result.unwrap().as_str(), "file:///test+encoding");
     }
 
     fn load_fixture(filename: &str) -> String {
