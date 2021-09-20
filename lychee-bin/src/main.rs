@@ -272,23 +272,30 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         pb.finish_and_clear();
     }
 
-    let stats_formatted = fmt(&stats, &cfg.format)?;
-    if let Some(output) = &cfg.output {
-        fs::write(output, stats_formatted).context("Cannot write status output to file")?;
-    } else {
-        if cfg.verbose && !stats.is_empty() {
-            // separate summary from the verbose list of links above
-            println!();
-        }
-        // we assume that the formatted stats don't have a final newline
-        println!("{}", stats_formatted);
-    }
+    write_stats(&stats, cfg)?;
 
     if stats.is_success() {
         Ok(ExitCode::Success as i32)
     } else {
         Ok(ExitCode::LinkCheckFailure as i32)
     }
+}
+
+/// Write final statistics to stdout or to file
+fn write_stats(stats: &ResponseStats, cfg: &Config) -> Result<()> {
+    let formatted = fmt(stats, &cfg.format)?;
+
+    if let Some(output) = &cfg.output {
+        fs::write(output, formatted).context("Cannot write status output to file")?;
+    } else {
+        if cfg.verbose && !stats.is_empty() {
+            // separate summary from the verbose list of links above
+            println!();
+        }
+        // we assume that the formatted stats don't have a final newline
+        println!("{}", stats);
+    }
+    Ok(())
 }
 
 fn read_header(input: &str) -> Result<(String, String)> {
