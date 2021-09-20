@@ -18,6 +18,7 @@ jobs:
           args: --verbose --no-progress --exclude example.org
 
       - name: Create Issue From File
+        if: github.repository_owner == 'lycheeverse'
         uses: peter-evans/create-issue-from-file@v2
         with:
           title: Link Checker Report
