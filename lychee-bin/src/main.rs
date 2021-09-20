@@ -62,7 +62,7 @@
 use ring as _;
 
 use std::fs::File;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Write};
 use std::iter::FromIterator;
 use std::{collections::HashSet, fs, str::FromStr, time::Duration};
 
@@ -212,9 +212,17 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .map_err(|e| anyhow!(e))?;
 
     if cfg.dump {
+        let mut stdout = io::stdout();
         for link in links {
             if !client.filtered(&link.uri) {
-                println!("{}", link);
+                // Avoid panic on broken pipe. See https://github.com/rust-lang/rust/issues/46016
+                // This can occur when piping the output of lychee to another program like `grep`.
+                if let Err(e) = writeln!(stdout, "{}", &link) {
+                    if e.kind() != io::ErrorKind::BrokenPipe {
+                        eprintln!("{}", e);
+                        return Ok(ExitCode::UnexpectedFailure as i32);
+                    }
+                }
             }
         }
         return Ok(ExitCode::Success as i32);
