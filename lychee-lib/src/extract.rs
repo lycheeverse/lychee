@@ -1,5 +1,6 @@
-use std::{collections::HashSet, convert::TryFrom, path::Path, path::PathBuf};
+use std::{collections::HashSet, convert::TryFrom, path::PathBuf};
 
+use cached::proc_macro::cached;
 use html5ever::{
     parse_document,
     tendril::{StrTendril, TendrilSink},
@@ -34,17 +35,18 @@ pub(crate) fn extract_links(
         let req = if let Ok(uri) = Uri::try_from(link.as_str()) {
             Request::new(uri, input_content.input.clone())
         } else if let Some(url) = base.as_ref().and_then(|u| u.join(&link)) {
-            Request::new(Uri { url }, input_content.input.clone())
+            Request::new(Uri { url: url.clone() }, input_content.input.clone())
         } else if let Input::FsPath(root) = &input_content.input {
             if url::is_anchor(&link) {
                 // Silently ignore anchor links for now
                 continue;
             }
-            match create_uri_from_path(root, base, &link)? {
+            match create_uri_from_path(root.clone(), base.clone(), link)? {
                 Some(url) => Request::new(Uri { url }, input_content.input.clone()),
                 None => {
                     // In case we cannot create a URI from a path but we didn't receive an error,
                     // it means that some preconditions were not met, e.g. the `base_url` wasn't set.
+                    // We silently ignore this case.
                     continue;
                 }
             }
@@ -129,8 +131,9 @@ fn extract_links_from_plaintext(input: &str) -> Vec<String> {
         .collect()
 }
 
-fn create_uri_from_path(src: &Path, base: &Option<Base>, dst: &str) -> Result<Option<Url>> {
-    let dst = url::remove_get_params_and_fragment(dst);
+#[cached(result = true)]
+fn create_uri_from_path(src: PathBuf, base: Option<Base>, dst: String) -> Result<Option<Url>> {
+    let dst = url::remove_get_params_and_fragment(&dst);
     // Avoid double-encoding already encoded destination paths by removing any
     // potential encoding (e.g. `web%20site` becomes `web site`).
     // That's because Url::from_file_path will encode the full URL in the end.
@@ -141,7 +144,7 @@ fn create_uri_from_path(src: &Path, base: &Option<Base>, dst: &str) -> Result<Op
     // `from_file_path` at the moment) while `dst` is left untouched and simply
     // appended to the end.
     let decoded = percent_decode_str(dst).decode_utf8()?.to_string();
-    let resolved = path::resolve(src, &PathBuf::from(decoded), base)?;
+    let resolved = path::resolve(&src, &PathBuf::from(decoded), &base)?;
     match resolved {
         Some(path) => Url::from_file_path(&path)
             .map(Some)
@@ -175,8 +178,12 @@ mod test {
 
     #[test]
     fn test_create_uri_from_path() {
-        let result =
-            create_uri_from_path(&PathBuf::from("/README.md"), &None, "test+encoding").unwrap();
+        let result = create_uri_from_path(
+            PathBuf::from("/README.md"),
+            None,
+            "test+encoding".to_string(),
+        )
+        .unwrap();
         assert_eq!(result.unwrap().as_str(), "file:///test+encoding");
     }
 

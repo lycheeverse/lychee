@@ -7,7 +7,7 @@ use crate::ErrorKind;
 /// When encountering links without a full domain in a document,
 /// the base determines where this resource can be found.
 /// Both, local and remote targets are supported.
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Hash)]
 #[allow(variant_size_differences)]
 pub enum Base {
     /// Local file path pointing to root directory
