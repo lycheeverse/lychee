@@ -42,6 +42,8 @@ pub enum ErrorKind {
     MissingGitHubToken,
     /// The website is available in HTTPS protocol, but HTTP scheme is used.
     InsecureURL(Uri),
+    /// An URL with an invalid host was found
+    InvalidUrlHost,
 }
 
 impl PartialEq for ErrorKind {
@@ -84,7 +86,9 @@ impl Hash for ErrorKind {
             Self::InvalidBase(base, e) => (base, e).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
-            Self::MissingGitHubToken => std::mem::discriminant(self).hash(state),
+            Self::MissingGitHubToken | Self::InvalidUrlHost => {
+                std::mem::discriminant(self).hash(state);
+            }
         }
     }
 }
@@ -128,6 +132,7 @@ impl Display for ErrorKind {
             ),
             Self::InvalidBase(base, e) => write!(f, "Error with base dir `{}` : {}", base, e),
             Self::Utf8Error(e) => e.fmt(f),
+            Self::InvalidUrlHost => write!(f, "URL is missing a host"),
         }
     }
 }

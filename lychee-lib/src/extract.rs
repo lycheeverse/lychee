@@ -28,6 +28,16 @@ pub(crate) fn extract_links(
         FileType::Plaintext => extract_links_from_plaintext(&input_content.content),
     };
 
+    let base_input = match &input_content.input {
+        Input::RemoteUrl(url) => Some(Url::parse(&format!(
+            "{}://{}",
+            url.scheme(),
+            url.host_str().ok_or(ErrorKind::InvalidUrlHost)?
+        ))?),
+        _ => None,
+        // other inputs do not have a URL to extract a base
+    };
+
     // Only keep legit URLs. For example this filters out anchors.
     let mut requests: HashSet<Request> = HashSet::new();
     for link in links {
@@ -48,6 +58,11 @@ pub(crate) fn extract_links(
                     continue;
                 }
             }
+        } else if let Some(url) = base_input.as_ref().map(|u| u.join(&link)) {
+            if base.is_some() {
+                continue;
+            }
+            Request::new(Uri { url: url? }, input_content.input.clone())
         } else {
             info!("Handling of {} not implemented yet", &link);
             continue;
@@ -376,6 +391,41 @@ mod test {
         .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_relative_url_with_base_extracted_from_input() {
+        let input = Input::RemoteUrl(Box::new(
+            Url::parse("https://example.org/some-post").unwrap(),
+        ));
+
+        let contents = r#"<html>
+            <div class="row">
+                <a href="https://github.com/lycheeverse/lychee/">Github</a>
+                <a href="/about">About</a>
+            </div>
+        </html>"#;
+
+        let input_content = &InputContent {
+            input,
+            file_type: FileType::Html,
+            content: contents.to_string(),
+        };
+
+        let links = extract_links(input_content, &None);
+        let urls = links
+            .unwrap()
+            .iter()
+            .map(|x| x.uri.url.as_str().to_string())
+            .collect::<HashSet<_>>();
+
+        let expected_urls = array::IntoIter::new([
+            String::from("https://github.com/lycheeverse/lychee/"),
+            String::from("https://example.org/about"),
+        ])
+        .collect::<HashSet<_>>();
+
+        assert_eq!(urls, expected_urls);
     }
 
     #[test]
