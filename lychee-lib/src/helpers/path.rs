@@ -1,25 +1,28 @@
 use crate::{Base, ErrorKind, Result};
+use cached::proc_macro::cached;
+use once_cell::sync::Lazy;
 use path_clean::PathClean;
 use std::env;
 use std::path::{Path, PathBuf};
+
+static CURRENT_DIR: Lazy<PathBuf> = Lazy::new(|| env::current_dir().unwrap());
 
 // Returns the base if it is a valid `PathBuf`
 fn get_base_dir(base: &Option<Base>) -> Option<PathBuf> {
     base.as_ref().and_then(Base::dir)
 }
 
+// The `clean` method is relatively expensive
+// Therefore we cache this call to reduce allocs and wall time
 // https://stackoverflow.com/a/54817755/270334
-pub(crate) fn absolute_path(path: impl AsRef<Path>) -> Result<PathBuf> {
-    let path = path.as_ref();
-
-    let absolute_path = if path.is_absolute() {
-        path.to_path_buf()
+#[cached]
+pub(crate) fn absolute_path(path: PathBuf) -> PathBuf {
+    if path.is_absolute() {
+        path
     } else {
-        env::current_dir()?.join(path)
+        CURRENT_DIR.join(path)
     }
-    .clean();
-
-    Ok(absolute_path)
+    .clean()
 }
 
 // Get the parent directory of a given `Path`.
@@ -57,7 +60,7 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Opt
         }
         _ => return Err(ErrorKind::FileNotFound(dst.to_path_buf())),
     };
-    Ok(Some(absolute_path(&resolved)?))
+    Ok(Some(absolute_path(resolved)))
 }
 
 // A cumbersome way to concatenate paths without checking their
