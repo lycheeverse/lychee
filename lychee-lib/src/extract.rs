@@ -101,12 +101,10 @@ fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
             ..
         } => {
             for attr in attrs.borrow().iter() {
-                let attr_value = attr.value.to_string();
-
                 if url::elem_attr_is_link(attr.name.local.as_ref(), name.local.as_ref()) {
-                    urls.push(attr_value);
+                    urls.push(attr.value.to_string());
                 } else {
-                    urls.append(&mut extract_links_from_plaintext(&attr_value));
+                    urls.append(&mut extract_links_from_plaintext(&attr.value));
                 }
             }
         }
