@@ -497,6 +497,7 @@ dependencies = [
  "regex",
  "reqwest",
  "tokio",
+ "tokio-stream",
 ]
 
 [[package]]
@@ -1473,6 +1474,7 @@ dependencies = [
  "assert_cmd",
  "console",
  "console-subscriber",
+ "futures",
  "headers",
  "http",
  "indicatif",
@@ -1490,6 +1492,7 @@ dependencies = [
  "structopt",
  "tempfile",
  "tokio",
+ "tokio-stream",
  "toml",
  "tracing-subscriber",
  "uuid",

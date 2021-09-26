@@ -1,4 +1,6 @@
 use crate::{extract::extract_links, Base, Input, Request, Result, Uri};
+use async_stream::try_stream;
+use futures_core::Stream;
 use std::collections::HashSet;
 use tokio_stream::StreamExt;
 
@@ -30,55 +32,45 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub async fn collect_links(mut self, inputs: &[Input]) -> Result<HashSet<Request>> {
-        let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(self.max_concurrency);
+    pub async fn collect_links(mut self, inputs: &[Input]) -> impl Stream<Item = Result<Request>> + '_ {
+        try_stream! {
+            let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(self.max_concurrency);
 
-        // extract input contents
-        for input in inputs.iter().cloned() {
-            let sender = contents_tx.clone();
+            // extract input contents
+            for input in inputs.iter().cloned() {
+                let sender = contents_tx.clone();
 
-            let skip_missing_inputs = self.skip_missing_inputs;
+                let skip_missing_inputs = self.skip_missing_inputs;
 
-            let contents = input.get_contents(None, skip_missing_inputs).await;
-            tokio::pin!(contents);
-            while let Some(content) = contents.next().await {
-                sender.send(content?).await?;
+                let contents = input.get_contents(None, skip_missing_inputs).await;
+                tokio::pin!(contents);
+                while let Some(content) = contents.next().await {
+                    sender.send(content?).await?;
+                }
+            }
+
+            // receiver will get None once all tasks are done
+            drop(contents_tx);
+
+            // extract links from input contents
+            let mut extract_links_handles = vec![];
+
+            while let Some(content) = contents_rx.recv().await {
+                let base = self.base.clone();
+                let handle = tokio::task::spawn_blocking(move || extract_links(&content, &base));
+                extract_links_handles.push(handle);
+            }
+
+            for handle in extract_links_handles {
+                let new_links = handle.await??;
+                for link in new_links {
+                    if !self.cache.contains(&link.uri) {
+                        self.cache.insert(link.uri.clone());
+                        yield link;
+                    }
+                }
             }
         }
-
-        // receiver will get None once all tasks are done
-        drop(contents_tx);
-
-        // extract links from input contents
-        let mut extract_links_handles = vec![];
-
-        while let Some(content) = contents_rx.recv().await {
-            let base = self.base.clone();
-            let handle = tokio::task::spawn_blocking(move || extract_links(&content, &base));
-            extract_links_handles.push(handle);
-        }
-
-        // Note: we could dispatch links to be checked as soon as we get them,
-        //       instead of building a HashSet with all links.
-        //       This optimization would speed up cases where there's
-        //       a lot of inputs and/or the inputs are large (e.g. big files).
-        let mut links: HashSet<Request> = HashSet::new();
-
-        for handle in extract_links_handles {
-            let new_links = handle.await?;
-            links.extend(new_links?);
-        }
-
-        // Filter out already cached links (duplicates)
-        links.retain(|l| !self.cache.contains(&l.uri));
-
-        self.update_cache(&links);
-        Ok(links)
-    }
-
-    /// Update internal link cache
-    fn update_cache(&mut self, links: &HashSet<Request>) {
-        self.cache.extend(links.iter().cloned().map(|l| l.uri));
     }
 }
 
@@ -168,10 +160,13 @@ mod test {
             },
         ];
 
-        let responses = Collector::new(None, false, 8)
-            .collect_links(&inputs)
-            .await?;
-        let mut links = responses.into_iter().map(|r| r.uri).collect::<Vec<Uri>>();
+        let responses = Collector::new(None, false, 8).collect_links(&inputs).await;
+        let mut links = responses
+            .collect::<Result<Vec<_>>>()
+            .await?
+            .into_iter()
+            .map(|r| r.uri)
+            .collect::<Vec<Uri>>();
 
         let mut expected_links = vec![
             website(TEST_STRING),

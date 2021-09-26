@@ -67,6 +67,7 @@ use std::iter::FromIterator;
 use std::{collections::HashSet, fs, str::FromStr, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
+use futures::stream::TryStreamExt;
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use http::StatusCode;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -76,6 +77,7 @@ use regex::RegexSet;
 use ring as _; // required for apple silicon
 use structopt::StructOpt;
 use tokio::sync::mpsc;
+use tokio_stream::StreamExt;
 
 mod options;
 mod stats;
@@ -209,7 +211,9 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let links = Collector::new(cfg.base.clone(), cfg.skip_missing, max_concurrency)
         .collect_links(&inputs)
         .await
-        .map_err(|e| anyhow!(e))?;
+        .map_err(|e| anyhow!(e))
+        .collect::<Result<Vec<_>>>()
+        .await?;
 
     if cfg.dump {
         let exit_code = dump_links(links.iter().filter(|link| !client.filtered(&link.uri)));
