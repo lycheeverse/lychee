@@ -1553,6 +1553,7 @@ dependencies = [
  "indicatif",
  "lazy_static",
  "lychee-lib",
+ "once_cell",
  "openssl-sys",
  "pad",
  "predicates 1.0.8",

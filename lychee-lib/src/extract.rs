@@ -62,7 +62,9 @@ fn extract_links_from_markdown(input: &str) -> Vec<StrTendril> {
     let parser = Parser::new(input);
     parser
         .flat_map(|event| match event {
-            MDEvent::Start(Tag::Link(_, url, _) | Tag::Image(_, url, _)) => vec![StrTendril::from(url.as_ref())],
+            MDEvent::Start(Tag::Link(_, url, _) | Tag::Image(_, url, _)) => {
+                vec![StrTendril::from(url.as_ref())]
+            }
             MDEvent::Text(txt) => extract_links_from_plaintext(&txt),
             MDEvent::Html(html) => extract_links_from_html(&html.to_string()),
             _ => vec![],
@@ -138,8 +140,8 @@ fn create_uri_from_path(src: &Path, base: &Option<Base>, dst: &str) -> Result<Op
     // Ideally, only `src` and `base` should be URL encoded (as is done by
     // `from_file_path` at the moment) while `dst` is left untouched and simply
     // appended to the end.
-    let decoded = percent_decode_str(dst).decode_utf8()?.to_string();
-    let resolved = path::resolve(src, &PathBuf::from(decoded), base)?;
+    let decoded = percent_decode_str(dst).decode_utf8()?;
+    let resolved = path::resolve(src, &PathBuf::from(&*decoded), base)?;
     match resolved {
         Some(path) => Url::from_file_path(&path)
             .map(Some)
@@ -226,8 +228,14 @@ mod test {
         let input = "http://www.apache.org/licenses/LICENSE-2.0\n";
         let link = input.trim_end();
 
-        assert_eq!(vec![StrTendril::from(link)], extract_links_from_markdown(input));
-        assert_eq!(vec![StrTendril::from(link)], extract_links_from_plaintext(input));
+        assert_eq!(
+            vec![StrTendril::from(link)],
+            extract_links_from_markdown(input)
+        );
+        assert_eq!(
+            vec![StrTendril::from(link)],
+            extract_links_from_plaintext(input)
+        );
         assert_eq!(vec![StrTendril::from(link)], extract_links_from_html(input));
     }
 
