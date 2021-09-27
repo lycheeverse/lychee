@@ -31,7 +31,7 @@ pub(crate) fn extract_links(
     // Only keep legit URLs. For example this filters out anchors.
     let mut requests: HashSet<Request> = HashSet::new();
     for link in links {
-        let req = if let Ok(uri) = Uri::try_from(link.as_str()) {
+        let req = if let Ok(uri) = Uri::try_from(&*link) {
             Request::new(uri, input_content.input.clone())
         } else if let Some(url) = base.as_ref().and_then(|u| u.join(&link)) {
             Request::new(Uri { url }, input_content.input.clone())
@@ -58,12 +58,12 @@ pub(crate) fn extract_links(
 }
 
 /// Extract unparsed URL strings from a Markdown string.
-fn extract_links_from_markdown(input: &str) -> Vec<String> {
+fn extract_links_from_markdown(input: &str) -> Vec<StrTendril> {
     let parser = Parser::new(input);
     parser
         .flat_map(|event| match event {
-            MDEvent::Start(Tag::Link(_, url, _) | Tag::Image(_, url, _)) => vec![url.to_string()],
-            MDEvent::Text(txt) => extract_links_from_plaintext(&txt.to_string()),
+            MDEvent::Start(Tag::Link(_, url, _) | Tag::Image(_, url, _)) => vec![StrTendril::from(url.as_ref())],
+            MDEvent::Text(txt) => extract_links_from_plaintext(&txt),
             MDEvent::Html(html) => extract_links_from_html(&html.to_string()),
             _ => vec![],
         })
@@ -71,7 +71,7 @@ fn extract_links_from_markdown(input: &str) -> Vec<String> {
 }
 
 /// Extract unparsed URL strings from an HTML string.
-fn extract_links_from_html(input: &str) -> Vec<String> {
+fn extract_links_from_html(input: &str) -> Vec<StrTendril> {
     let tendril = StrTendril::from(input);
     let rc_dom = parse_document(RcDom::default(), html5ever::ParseOpts::default()).one(tendril);
 
@@ -85,7 +85,7 @@ fn extract_links_from_html(input: &str) -> Vec<String> {
 }
 
 /// Recursively walk links in a HTML document, aggregating URL strings in `urls`.
-fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
+fn walk_html_links(mut urls: &mut Vec<StrTendril>, node: &Handle) {
     match node.data {
         NodeData::Text { ref contents } => {
             urls.append(&mut extract_links_from_plaintext(&contents.borrow()));
@@ -102,7 +102,7 @@ fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
         } => {
             for attr in attrs.borrow().iter() {
                 if url::elem_attr_is_link(attr.name.local.as_ref(), name.local.as_ref()) {
-                    urls.push(attr.value.to_string());
+                    urls.push(attr.value.to_owned());
                 } else {
                     urls.append(&mut extract_links_from_plaintext(&attr.value));
                 }
@@ -120,10 +120,10 @@ fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
 }
 
 /// Extract unparsed URL strings from plaintext
-fn extract_links_from_plaintext(input: &str) -> Vec<String> {
+fn extract_links_from_plaintext(input: &str) -> Vec<StrTendril> {
     url::find_links(input)
         .iter()
-        .map(|l| String::from(l.as_str()))
+        .map(|l| StrTendril::from(l.as_str()))
         .collect()
 }
 
@@ -226,9 +226,9 @@ mod test {
         let input = "http://www.apache.org/licenses/LICENSE-2.0\n";
         let link = input.trim_end();
 
-        assert_eq!(vec![link], extract_links_from_markdown(input));
-        assert_eq!(vec![link], extract_links_from_plaintext(input));
-        assert_eq!(vec![link], extract_links_from_html(input));
+        assert_eq!(vec![StrTendril::from(link)], extract_links_from_markdown(input));
+        assert_eq!(vec![StrTendril::from(link)], extract_links_from_plaintext(input));
+        assert_eq!(vec![StrTendril::from(link)], extract_links_from_html(input));
     }
 
     #[test]
