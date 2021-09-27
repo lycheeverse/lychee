@@ -104,7 +104,7 @@ fn walk_html_links(mut urls: &mut Vec<StrTendril>, node: &Handle) {
         } => {
             for attr in attrs.borrow().iter() {
                 if url::elem_attr_is_link(attr.name.local.as_ref(), name.local.as_ref()) {
-                    urls.push(attr.value.to_owned());
+                    urls.push(attr.value.clone());
                 } else {
                     urls.append(&mut extract_links_from_plaintext(&attr.value));
                 }

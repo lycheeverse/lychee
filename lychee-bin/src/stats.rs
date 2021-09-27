@@ -11,7 +11,7 @@ use serde::Serialize;
 
 static GREEN: Lazy<Style> = Lazy::new(|| Style::new().green().bright());
 static DIM: Lazy<Style> = Lazy::new(|| Style::new().dim());
-static NORMAL: Lazy<Style> = Lazy::new(|| Style::new());
+static NORMAL: Lazy<Style> = Lazy::new(Style::new);
 static YELLOW: Lazy<Style> = Lazy::new(|| Style::new().yellow().bright());
 static RED: Lazy<Style> = Lazy::new(|| Style::new().red().bright());
 
