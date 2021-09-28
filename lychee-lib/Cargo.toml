@@ -46,7 +46,7 @@ percent-encoding = "2.1.0"
 
 [dev-dependencies]
 doc-comment = "0.3.3"
-pretty_assertions = "0.7.2"
+pretty_assertions = "1.0.0"
 tempfile = "3.2.0"
 wiremock = "0.5.7"
 
