@@ -25,15 +25,12 @@ pub(crate) fn absolute_path(path: PathBuf) -> PathBuf {
     .clean()
 }
 
-// Get the parent directory of a given `Path`.
-fn dirname(src: &Path) -> PathBuf {
+// Get the directory name of a given `Path`.
+fn dirname<'a>(src: &'a Path) -> Option<&'a Path> {
     if src.is_file() {
-        src.to_path_buf()
-            .parent()
-            .map_or(PathBuf::new(), Path::to_path_buf)
-    } else {
-        src.to_path_buf()
+        return src.parent();
     }
+    Some(src)
 }
 
 // Resolve `dst` that was linked to from within `src`
@@ -56,7 +53,16 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Opt
                 Some(path) => path,
                 None => return Ok(None),
             };
-            join(dirname(&base), absolute)
+            let dir = match dirname(&base) {
+                Some(dir) => dir,
+                None => {
+                    return Err(ErrorKind::InvalidBase(
+                        base.display().to_string(),
+                        "The given directory cannot be a base".to_string(),
+                    ))
+                }
+            };
+            join(dir.to_path_buf(), absolute)
         }
         _ => return Err(ErrorKind::FileNotFound(dst.to_path_buf())),
     };
