@@ -42,7 +42,7 @@ toml = "0.5.8"
 [dev-dependencies]
 assert_cmd = "2.0.1"
 predicates = "1.0.8"
-pretty_assertions = "0.7.2"
+pretty_assertions = "1.0.0"
 tempfile = "3.2.0"
 uuid = { version = "0.8.2", features = ["v4"] }
 wiremock = "0.5.7"
