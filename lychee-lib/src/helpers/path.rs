@@ -26,7 +26,7 @@ pub(crate) fn absolute_path(path: PathBuf) -> PathBuf {
 }
 
 // Get the directory name of a given `Path`.
-fn dirname<'a>(src: &'a Path) -> Option<&'a Path> {
+fn dirname(src: &'_ Path) -> Option<&'_ Path> {
     if src.is_file() {
         return src.parent();
     }

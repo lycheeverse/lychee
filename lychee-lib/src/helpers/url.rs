@@ -1,5 +1,9 @@
 use linkify::LinkFinder;
 
+use once_cell::sync::Lazy;
+
+static LINK_FINDER: Lazy<LinkFinder> = Lazy::new(LinkFinder::new);
+
 /// Remove all GET parameters from a URL.
 /// The link is not a URL but a String as it may not have a base domain.
 pub(crate) fn remove_get_params_and_fragment(url: &str) -> &str {
@@ -31,8 +35,7 @@ pub(crate) fn is_anchor(url: &str) -> bool {
 
 // Use `LinkFinder` to offload the raw link searching in plaintext
 pub(crate) fn find_links(input: &str) -> Vec<linkify::Link> {
-    let finder = LinkFinder::new();
-    finder.links(input).collect()
+    LINK_FINDER.links(input).collect()
 }
 
 #[cfg(test)]
