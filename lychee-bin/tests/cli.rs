@@ -218,9 +218,12 @@ mod cli {
     #[test]
     fn test_repetition() {
         let mut cmd = main_command();
-        let test_schemes_path = fixtures_path().join("TEST_REPETITION.txt");
+        // Repetitions across multiple files shall all be checked and counted only once.
+        let test_schemes_path_1 = fixtures_path().join("TEST_REPETITION_1.txt");
+        let test_schemes_path_2 = fixtures_path().join("TEST_REPETITION_2.txt");
 
-        cmd.arg(&test_schemes_path)
+        cmd.arg(&test_schemes_path_1)
+            .arg(&test_schemes_path_2)
             .env_clear()
             .assert()
             .success()

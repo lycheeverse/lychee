@@ -72,13 +72,10 @@ impl Collector {
         // Filter out already cached links (duplicates)
         links.retain(|l| !self.cache.contains(&l.uri));
 
-        self.update_cache(&links);
-        Ok(links)
-    }
-
-    /// Update internal link cache
-    fn update_cache(&mut self, links: &HashSet<Request>) {
+        // Add remaining new links to cache
         self.cache.extend(links.iter().cloned().map(|l| l.uri));
+
+        Ok(links)
     }
 }
 
