@@ -160,12 +160,12 @@ mod test {
     fn test_uri_from_str() {
         assert!(Uri::try_from("").is_err());
         assert_eq!(
-            Uri::try_from("http://example.org"),
-            Ok(website("http://example.org"))
+            Uri::try_from("https://example.org"),
+            Ok(website("https://example.org"))
         );
         assert_eq!(
-            Uri::try_from("http://example.org/@test/testing"),
-            Ok(website("http://example.org/@test/testing"))
+            Uri::try_from("https://example.org/@test/testing"),
+            Ok(website("https://example.org/@test/testing"))
         );
         assert_eq!(
             Uri::try_from("mail@example.org"),

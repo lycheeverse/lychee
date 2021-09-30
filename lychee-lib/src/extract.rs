@@ -239,7 +239,7 @@ mod test {
 
     #[test]
     fn test_extract_link_at_end_of_line() {
-        let input = "http://www.apache.org/licenses/LICENSE-2.0\n";
+        let input = "https://www.apache.org/licenses/LICENSE-2.0\n";
         let link = input.trim_end();
 
         let mut extractor = Extractor::new(None);
