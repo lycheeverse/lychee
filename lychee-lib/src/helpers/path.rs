@@ -1,36 +1,36 @@
 use crate::{Base, ErrorKind, Result};
+use cached::proc_macro::cached;
+use once_cell::sync::Lazy;
 use path_clean::PathClean;
 use std::env;
 use std::path::{Path, PathBuf};
+
+static CURRENT_DIR: Lazy<PathBuf> = Lazy::new(|| env::current_dir().unwrap());
 
 // Returns the base if it is a valid `PathBuf`
 fn get_base_dir(base: &Option<Base>) -> Option<PathBuf> {
     base.as_ref().and_then(Base::dir)
 }
 
+// The `clean` method is relatively expensive
+// Therefore we cache this call to reduce allocs and wall time
 // https://stackoverflow.com/a/54817755/270334
-pub(crate) fn absolute_path(path: impl AsRef<Path>) -> Result<PathBuf> {
-    let path = path.as_ref();
-
-    let absolute_path = if path.is_absolute() {
-        path.to_path_buf()
+#[cached]
+pub(crate) fn absolute_path(path: PathBuf) -> PathBuf {
+    if path.is_absolute() {
+        path
     } else {
-        env::current_dir()?.join(path)
+        CURRENT_DIR.join(path)
     }
-    .clean();
-
-    Ok(absolute_path)
+    .clean()
 }
 
-// Get the parent directory of a given `Path`.
-fn dirname(src: &Path) -> PathBuf {
+// Get the directory name of a given `Path`.
+fn dirname(src: &'_ Path) -> Option<&'_ Path> {
     if src.is_file() {
-        src.to_path_buf()
-            .parent()
-            .map_or(PathBuf::new(), Path::to_path_buf)
-    } else {
-        src.to_path_buf()
+        return src.parent();
     }
+    Some(src)
 }
 
 // Resolve `dst` that was linked to from within `src`
@@ -53,11 +53,20 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Opt
                 Some(path) => path,
                 None => return Ok(None),
             };
-            join(dirname(&base), absolute)
+            let dir = match dirname(&base) {
+                Some(dir) => dir,
+                None => {
+                    return Err(ErrorKind::InvalidBase(
+                        base.display().to_string(),
+                        "The given directory cannot be a base".to_string(),
+                    ))
+                }
+            };
+            join(dir.to_path_buf(), absolute)
         }
         _ => return Err(ErrorKind::FileNotFound(dst.to_path_buf())),
     };
-    Ok(Some(absolute_path(&resolved)?))
+    Ok(Some(absolute_path(resolved)))
 }
 
 // A cumbersome way to concatenate paths without checking their

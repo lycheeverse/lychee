@@ -52,20 +52,16 @@ pub struct ResponseBody {
 
 impl Display for ResponseBody {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let ResponseBody {
-            ref uri,
-            ref status,
-        } = self;
+        write!(f, "{} {}", self.status.icon(), self.uri)?;
 
         // TODO: Other errors?
-        let metadata = match status {
+        match &self.status {
             Status::Ok(code) | Status::Redirected(code) => {
-                format!(" [{}]", code)
+                write!(f, " [{}]", code)
             }
-            Status::Timeout(Some(code)) => format!(" [{}]", code),
-            Status::Error(e) => format!(" ({})", e),
-            _ => "".to_owned(),
-        };
-        write!(f, "{} {}{}", status.icon(), uri, metadata)
+            Status::Timeout(Some(code)) => write!(f, " [{}]", code),
+            Status::Error(e) => write!(f, " ({})", e),
+            _ => Ok(()),
+        }
     }
 }
