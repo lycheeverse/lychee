@@ -53,7 +53,11 @@ jobs:
       with:
         crate: cargo-publish-all
         version: latest
-    - run: cargo-publish-all --dry-run
+    # This currently doesn't work.
+    # TODO: Re-enable once https://gitlab.com/torkleyy/cargo-publish-all/-/issues/3 
+    # is resolved.
+    # See also https://github.com/lycheeverse/lychee/pull/346#issuecomment-928355735
+    #- run: cargo-publish-all --dry-run
 
   publish:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
