@@ -34,8 +34,8 @@ pub(crate) fn is_anchor(url: &str) -> bool {
 }
 
 // Use `LinkFinder` to offload the raw link searching in plaintext
-pub(crate) fn find_links(input: &str) -> Vec<linkify::Link> {
-    LINK_FINDER.links(input).collect()
+pub(crate) fn find_links(input: &str) -> impl Iterator<Item = linkify::Link> {
+    LINK_FINDER.links(input)
 }
 
 #[cfg(test)]
