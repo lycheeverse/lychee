@@ -43,8 +43,12 @@ impl Extractor {
             FileType::Html => self.extract_html(&input_content.content),
             FileType::Plaintext => self.extract_plaintext(&input_content.content),
         };
+        self.create_requests(input_content)
+    }
 
-        // Only keep legit URLs. For example this filters out anchors.
+    /// Create requests out of the collected URLs.
+    /// Only keeps legit URLs. For example this filters out anchors.
+    fn create_requests(&self, input_content: &InputContent) -> Result<HashSet<Request>> {
         let mut requests: HashSet<Request> = HashSet::with_capacity(self.urls.len());
         for url in &self.urls {
             let req = if let Ok(uri) = Uri::try_from(url.as_ref()) {
