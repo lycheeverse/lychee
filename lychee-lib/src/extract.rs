@@ -28,7 +28,7 @@ pub struct Extractor {
 }
 
 impl Extractor {
-    pub(crate) fn new(base: Option<Base>) -> Self {
+    pub(crate) const fn new(base: Option<Base>) -> Self {
         Extractor {
             urls: Vec::new(),
             base,
@@ -53,14 +53,14 @@ impl Extractor {
         for url in &self.urls {
             let req = if let Ok(uri) = Uri::try_from(url.as_ref()) {
                 Request::new(uri, input_content.input.clone())
-            } else if let Some(url) = self.base.as_ref().and_then(|u| u.join(&url)) {
+            } else if let Some(url) = self.base.as_ref().and_then(|u| u.join(url)) {
                 Request::new(Uri { url }, input_content.input.clone())
             } else if let Input::FsPath(root) = &input_content.input {
-                if url::is_anchor(&url) {
+                if url::is_anchor(url) {
                     // Silently ignore anchor links for now
                     continue;
                 }
-                match self.create_uri_from_path(root, &url)? {
+                match self.create_uri_from_path(root, url)? {
                     Some(url) => Request::new(Uri { url }, input_content.input.clone()),
                     None => {
                         // In case we cannot create a URI from a path but we didn't receive an error,
@@ -83,7 +83,7 @@ impl Extractor {
         for event in parser {
             match event {
                 MDEvent::Start(Tag::Link(_, url, _) | Tag::Image(_, url, _)) => {
-                    self.urls.push(StrTendril::from(url.as_ref()))
+                    self.urls.push(StrTendril::from(url.as_ref()));
                 }
                 MDEvent::Text(txt) => self.extract_plaintext(&txt),
                 MDEvent::Html(html) => self.extract_html(&html.to_string()),
@@ -97,7 +97,7 @@ impl Extractor {
         let tendril = StrTendril::from(input);
         let rc_dom = parse_document(RcDom::default(), html5ever::ParseOpts::default()).one(tendril);
 
-        self.walk_html_links(&rc_dom.document)
+        self.walk_html_links(&rc_dom.document);
     }
 
     /// Recursively walk links in a HTML document, aggregating URL strings in `urls`.
@@ -135,7 +135,7 @@ impl Extractor {
     /// Extract unparsed URL strings from plaintext
     fn extract_plaintext(&mut self, input: &str) {
         self.urls
-            .extend(url::find_links(input).map(|l| StrTendril::from(l.as_str())))
+            .extend(url::find_links(input).map(|l| StrTendril::from(l.as_str())));
     }
 
     fn create_uri_from_path(&self, src: &Path, dst: &str) -> Result<Option<Url>> {
