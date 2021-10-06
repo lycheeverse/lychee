@@ -223,10 +223,11 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let pb = if cfg.no_progress {
         None
     } else {
-        let bar =
-            ProgressBar::new(links.len() as u64).with_style(ProgressStyle::default_bar().template(
-                "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
-            ));
+        let bar = ProgressBar::new_spinner().with_style(ProgressStyle::default_bar().template(
+            "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
+        ));
+        bar.set_length(0);
+        bar.set_message("Extracting links");
         bar.enable_steady_tick(100);
         Some(bar)
     };
