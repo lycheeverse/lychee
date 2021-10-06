@@ -67,7 +67,7 @@ use std::iter::FromIterator;
 use std::{collections::HashSet, fs, str::FromStr, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
-use futures::stream::TryStreamExt;
+use futures::{pin_mut, stream::TryStreamExt};
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use http::StatusCode;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -211,12 +211,16 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let links = Collector::new(cfg.base.clone(), cfg.skip_missing, max_concurrency)
         .collect_links(&inputs)
         .await
-        .map_err(|e| anyhow!(e))
-        .collect::<Result<Vec<_>>>()
-        .await?;
+        .map_err(|e| anyhow!(e));
 
     if cfg.dump {
-        let exit_code = dump_links(links.iter().filter(|link| !client.filtered(&link.uri)));
+        let exit_code = dump_links(
+            links
+                .collect::<Result<Vec<_>>>()
+                .await?
+                .iter()
+                .filter(|link| !client.filtered(&link.uri)),
+        );
         return Ok(exit_code as i32);
     }
 
@@ -238,14 +242,6 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
     let mut stats = ResponseStats::new();
 
     let bar = pb.clone();
-    tokio::spawn(async move {
-        for link in links {
-            if let Some(pb) = &bar {
-                pb.set_message(&link.to_string());
-            };
-            send_req.send(link).await.unwrap();
-        }
-    });
 
     // Start receiving requests
     tokio::spawn(async move {
@@ -254,10 +250,28 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         clients.listen().await;
     });
 
-    while let Some(response) = recv_resp.recv().await {
-        show_progress(&pb, &response, cfg.verbose);
-        stats.add(response);
+    let show_results_task = tokio::spawn({
+        let verbose = cfg.verbose;
+        async move {
+            while let Some(response) = recv_resp.recv().await {
+                show_progress(&pb, &response, verbose);
+                stats.add(response);
+            }
+            (pb, stats)
+        }
+    });
+
+    pin_mut!(links);
+    while let Some(link) = links.next().await {
+        let link = link?;
+        if let Some(pb) = &bar {
+            pb.inc_length(1);
+            pb.set_message(&link.to_string());
+        };
+        send_req.send(link).await.unwrap();
     }
+
+    let (pb, stats) = show_results_task.await?;
 
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
