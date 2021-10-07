@@ -68,10 +68,9 @@ use std::{collections::HashSet, fs, str::FromStr};
 
 use anyhow::{anyhow, Context, Result};
 use futures::{pin_mut, stream::TryStreamExt};
-use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, HeaderName};
-use http::StatusCode;
+use headers::HeaderMapExt;
 use indicatif::{ProgressBar, ProgressStyle};
-use lychee_lib::{ClientBuilder, Collector, Input, Request, Response};
+use lychee_lib::{Client, ClientBuilder, Collector, Input, Request, Response};
 use openssl_sys as _; // required for vendored-openssl feature
 use regex::RegexSet;
 use ring as _; // required for apple silicon
@@ -167,7 +166,7 @@ fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
     })
 }
 
-async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
+fn create_client(cfg: &Config) -> Result<Client> {
     let mut headers = parse_headers(&cfg.headers)?;
     if let Some(auth) = &cfg.basic_auth {
         let auth_header = parse_basic_auth(auth)?;
@@ -176,7 +175,6 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
 
     let accepted = cfg.accept.clone().and_then(|a| parse_statuscodes(&a).ok());
     let timeout = parse_timeout(cfg.timeout);
-    let max_concurrency = cfg.max_concurrency;
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
     let include = RegexSet::new(&cfg.include)?;
     let exclude = RegexSet::new(&cfg.exclude)?;
@@ -188,7 +186,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         cfg.scheme.clone()
     };
 
-    let client = ClientBuilder::builder()
+    ClientBuilder::builder()
         .includes(include)
         .excludes(exclude)
         .exclude_all_private(cfg.exclude_all_private)
@@ -208,9 +206,13 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .require_https(cfg.require_https)
         .build()
         .client()
-        .map_err(|e| anyhow!(e))?;
+        .map_err(|e| anyhow!(e))
+}
 
-    let links = Collector::new(cfg.base.clone(), cfg.skip_missing, max_concurrency)
+async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
+    let client = create_client(cfg)?;
+
+    let links = Collector::new(cfg.base.clone(), cfg.skip_missing, cfg.max_concurrency)
         .collect_links(&inputs)
         .await
         .map_err(|e| anyhow!(e));
@@ -238,8 +240,8 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         Some(bar)
     };
 
-    let (send_req, mut recv_req) = mpsc::channel(max_concurrency);
-    let (send_resp, mut recv_resp) = mpsc::channel(max_concurrency);
+    let (send_req, mut recv_req) = mpsc::channel(cfg.max_concurrency);
+    let (send_resp, mut recv_resp) = mpsc::channel(cfg.max_concurrency);
 
     let mut stats = ResponseStats::new();
 

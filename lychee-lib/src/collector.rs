@@ -1,6 +1,6 @@
+use crate::{extract::Extractor, Base, Input, Request, Result};
 use async_stream::try_stream;
 use futures_core::Stream;
-use crate::{extract::Extractor, Base, Input, Request, Result};
 use tokio_stream::StreamExt;
 
 /// Collector keeps the state of link collection
@@ -33,7 +33,7 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub async fn collect_links(mut self, inputs: &[Input]) -> impl Stream<Item = Result<Request>> + '_ {
+    pub async fn collect_links(self, inputs: &[Input]) -> impl Stream<Item = Result<Request>> + '_ {
         try_stream! {
             let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(self.max_concurrency);
 
