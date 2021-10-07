@@ -216,6 +216,20 @@ mod cli {
     }
 
     #[test]
+    fn test_caching_single_file() {
+        let mut cmd = main_command();
+        // Repetitions in one file shall all be checked and counted only once.
+        let test_schemes_path_1 = fixtures_path().join("TEST_REPETITION_1.txt");
+
+        cmd.arg(&test_schemes_path_1)
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("Total............1"))
+            .stdout(contains("Successful.......1"));
+    }
+
+    #[test]
     #[ignore]
     // Test that two identical requests don't get executed twice.
     // Note: This currently fails, because we currently don't cache responses. We
@@ -223,7 +237,7 @@ mod cli {
     // See https://github.com/lycheeverse/lychee/pull/349.
     // We're planning to add back caching support at a later point in time,
     // which is why we keep the test around.
-    fn test_caching() {
+    fn test_caching_across_files() {
         let mut cmd = main_command();
         // Repetitions across multiple files shall all be checked and counted only once.
         let test_schemes_path_1 = fixtures_path().join("TEST_REPETITION_1.txt");
