@@ -217,6 +217,12 @@ mod cli {
 
     #[test]
     #[ignore]
+    // Test that two identical requests don't get executed twice.
+    // Note: This currently fails, because we currently don't cache responses. We
+    // used to, but there were issues. 
+    // See https://github.com/lycheeverse/lychee/pull/349.
+    // We're planning to add back caching support at a later point in time,
+    // which is why we keep the test around.
     fn test_caching() {
         let mut cmd = main_command();
         // Repetitions across multiple files shall all be checked and counted only once.
