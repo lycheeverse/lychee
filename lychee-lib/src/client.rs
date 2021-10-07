@@ -26,6 +26,9 @@ use crate::{
 const DEFAULT_MAX_REDIRECTS: usize = 5;
 const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"));
 
+/// Handles incoming requests and returns responses. Usually you would not
+/// initialize a `Client` yourself, but use the `ClientBuilder` because it
+/// provides sane defaults for all configuration options.
 #[derive(Debug, Clone)]
 pub struct Client {
     /// Underlying reqwest client instance that handles the HTTP requests.
@@ -169,6 +172,7 @@ impl ClientBuilder {
 }
 
 impl Client {
+    /// Check a single request
     pub async fn check<T, E>(&self, request: T) -> Result<Response>
     where
         Request: TryFrom<T, Error = E>,
@@ -204,6 +208,7 @@ impl Client {
         self.filter.is_excluded(uri)
     }
 
+    /// Check a website URI
     pub async fn check_website(&self, uri: &Uri) -> Status {
         let mut retries: i64 = 3;
         let mut wait: u64 = 1;
@@ -256,6 +261,7 @@ impl Client {
         }
     }
 
+    /// Check a file URI
     pub async fn check_file(&self, uri: &Uri) -> Status {
         if let Ok(path) = uri.url.to_file_path() {
             if path.exists() {
@@ -265,6 +271,7 @@ impl Client {
         ErrorKind::InvalidFilePath(uri.clone()).into()
     }
 
+    /// Check a mail address
     pub async fn check_mail(&self, uri: &Uri) -> Status {
         let input = CheckEmailInput::new(vec![uri.as_str().to_owned()]);
         let result = &(check_email(&input).await)[0];
