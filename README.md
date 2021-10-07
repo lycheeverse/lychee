@@ -198,7 +198,7 @@ FLAGS:
     -E, --exclude-all-private    Exclude all private IPs from checking.
                                  Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
         --exclude-link-local     Exclude link-local IP address range from checking
-        --exclude-loopback       Exclude loopback IP address range from checking
+        --exclude-loopback       Exclude loopback IP address range and localhost from checking
         --exclude-mail           Exclude all mail addresses from checking
         --exclude-private        Exclude private IP address ranges from checking
         --glob-ignore-case       Ignore case when expanding filesystem path glob inputs

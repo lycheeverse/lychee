@@ -200,7 +200,7 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) exclude_link_local: bool,
 
-    /// Exclude loopback IP address range from checking
+    /// Exclude loopback IP address range and localhost from checking
     #[structopt(long)]
     #[serde(default)]
     pub(crate) exclude_loopback: bool,

@@ -1,4 +1,4 @@
-use crate::{extract::extract_links, Base, Input, Request, Result};
+use crate::{extract::Extractor, Base, Input, Request, Result};
 use std::collections::HashSet;
 
 /// Collector keeps the state of link collection
@@ -50,8 +50,10 @@ impl Collector {
         while let Some(result) = contents_rx.recv().await {
             for input_content in result? {
                 let base = self.base.clone();
-                let handle =
-                    tokio::task::spawn_blocking(move || extract_links(&input_content, &base));
+                let handle = tokio::task::spawn_blocking(move || {
+                    let mut extractor = Extractor::new(base);
+                    extractor.extract(&input_content)
+                });
                 extract_links_handles.push(handle);
             }
         }

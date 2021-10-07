@@ -67,7 +67,7 @@ exclude_private = false
 # Exclude link-local IP address range from checking
 exclude_link_local = false
 
-# Exclude loopback IP address range from checking
+# Exclude loopback IP address range and localhost from checking
 exclude_loopback = false
 
 # Exclude all mail addresses from checking
