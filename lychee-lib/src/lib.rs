@@ -47,7 +47,6 @@
 doc_comment::doctest!("../../README.md");
 
 mod client;
-mod client_pool;
 /// A pool of clients, to handle concurrent checks
 pub mod collector;
 mod helpers;
@@ -73,8 +72,7 @@ use ring as _; // required for apple silicon
 
 #[doc(inline)]
 pub use crate::{
-    client::{check, ClientBuilder},
-    client_pool::ClientPool,
+    client::{check, Client, ClientBuilder},
     collector::Collector,
     filter::{Excludes, Filter, Includes},
     types::{Base, ErrorKind, Input, Request, Response, ResponseBody, Result, Status, Uri},
