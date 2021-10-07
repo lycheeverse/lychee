@@ -154,7 +154,7 @@ impl Extractor {
         match resolved {
             Some(path) => Url::from_file_path(&path)
                 .map(Some)
-                .map_err(|_e| ErrorKind::InvalidUrl(path)),
+                .map_err(|_e| ErrorKind::InvalidUrlFromPath(path)),
             None => Ok(None),
         }
     }
@@ -239,7 +239,7 @@ mod test {
 
     #[test]
     fn test_extract_link_at_end_of_line() {
-        let input = "http://www.apache.org/licenses/LICENSE-2.0\n";
+        let input = "https://www.apache.org/licenses/LICENSE-2.0\n";
         let link = input.trim_end();
 
         let mut extractor = Extractor::new(None);

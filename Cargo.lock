@@ -1579,7 +1579,6 @@ version = "0.7.2"
 dependencies = [
  "cached",
  "check-if-email-exists",
- "deadpool",
  "doc-comment",
  "fast_chemail",
  "glob",

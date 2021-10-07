@@ -9,7 +9,7 @@ pub use includes::Includes;
 use crate::Uri;
 
 /// Pre-defined exclusions for known false-positives
-static FALSE_POSITIVE_PAT: &[&str] = &[r"http://www.w3.org/1999/xhtml"];
+const FALSE_POSITIVE_PAT: &[&str] = &[r"http://www.w3.org/1999/xhtml"];
 
 #[inline]
 #[must_use]
@@ -298,7 +298,7 @@ mod test {
             ..Filter::default()
         };
 
-        assert!(filter.is_excluded(&website("http://github.com")));
+        assert!(filter.is_excluded(&website("https://github.com")));
         assert!(filter.is_excluded(&website("http://exclude.org")));
         assert!(filter.is_excluded(&mail("mail@example.org")));
 
