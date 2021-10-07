@@ -216,7 +216,8 @@ mod cli {
     }
 
     #[test]
-    fn test_repetition() {
+    #[ignore]
+    fn test_caching() {
         let mut cmd = main_command();
         // Repetitions across multiple files shall all be checked and counted only once.
         let test_schemes_path_1 = fixtures_path().join("TEST_REPETITION_1.txt");
