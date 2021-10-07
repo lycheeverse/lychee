@@ -16,137 +16,147 @@ use crate::{
     Base, ErrorKind, Input, Request, Result, Uri,
 };
 
-/// Main entrypoint for extracting links from various sources
-/// (Markdown, HTML, and plaintext)
-pub(crate) fn extract_links(
-    input_content: &InputContent,
-    base: &Option<Base>,
-) -> Result<HashSet<Request>> {
-    let links = match input_content.file_type {
-        FileType::Markdown => extract_links_from_markdown(&input_content.content),
-        FileType::Html => extract_links_from_html(&input_content.content),
-        FileType::Plaintext => extract_links_from_plaintext(&input_content.content),
-    };
+/// A handler for extracting links from various input formats like Markdown and
+/// HTML. Allocations are avoided if possible as this is a performance-critical
+/// section of the library.
+#[derive(Debug)]
+pub struct Extractor {
+    /// URLs extracted from input
+    pub urls: Vec<StrTendril>,
+    /// Base URL or Path
+    pub base: Option<Base>,
+}
 
-    // Only keep legit URLs. For example this filters out anchors.
-    let mut requests: HashSet<Request> = HashSet::new();
-    for link in links {
-        let req = if let Ok(uri) = Uri::try_from(link.as_str()) {
-            Request::new(uri, input_content.input.clone())
-        } else if let Some(url) = base.as_ref().and_then(|u| u.join(&link)) {
-            Request::new(Uri { url }, input_content.input.clone())
-        } else if let Input::FsPath(root) = &input_content.input {
-            if url::is_anchor(&link) {
-                // Silently ignore anchor links for now
-                continue;
-            }
-            match create_uri_from_path(root, base, &link)? {
-                Some(url) => Request::new(Uri { url }, input_content.input.clone()),
-                None => {
-                    // In case we cannot create a URI from a path but we didn't receive an error,
-                    // it means that some preconditions were not met, e.g. the `base_url` wasn't set.
+impl Extractor {
+    pub(crate) const fn new(base: Option<Base>) -> Self {
+        Extractor {
+            urls: Vec::new(),
+            base,
+        }
+    }
+
+    /// Main entrypoint for extracting links from various sources
+    /// (Markdown, HTML, and plaintext)
+    pub(crate) fn extract(&mut self, input_content: &InputContent) -> Result<HashSet<Request>> {
+        match input_content.file_type {
+            FileType::Markdown => self.extract_markdown(&input_content.content),
+            FileType::Html => self.extract_html(&input_content.content),
+            FileType::Plaintext => self.extract_plaintext(&input_content.content),
+        };
+        self.create_requests(input_content)
+    }
+
+    /// Create requests out of the collected URLs.
+    /// Only keeps legit URLs. For example this filters out anchors.
+    fn create_requests(&self, input_content: &InputContent) -> Result<HashSet<Request>> {
+        let mut requests: HashSet<Request> = HashSet::with_capacity(self.urls.len());
+        for url in &self.urls {
+            let req = if let Ok(uri) = Uri::try_from(url.as_ref()) {
+                Request::new(uri, input_content.input.clone())
+            } else if let Some(url) = self.base.as_ref().and_then(|u| u.join(url)) {
+                Request::new(Uri { url }, input_content.input.clone())
+            } else if let Input::FsPath(root) = &input_content.input {
+                if url::is_anchor(url) {
+                    // Silently ignore anchor links for now
                     continue;
                 }
-            }
-        } else {
-            info!("Handling of {} not implemented yet", &link);
-            continue;
-        };
-        requests.insert(req);
+                match self.create_uri_from_path(root, url)? {
+                    Some(url) => Request::new(Uri { url }, input_content.input.clone()),
+                    None => {
+                        // In case we cannot create a URI from a path but we didn't receive an error,
+                        // it means that some preconditions were not met, e.g. the `base_url` wasn't set.
+                        continue;
+                    }
+                }
+            } else {
+                info!("Handling of {} not implemented yet", &url);
+                continue;
+            };
+            requests.insert(req);
+        }
+        Ok(requests)
     }
-    Ok(requests)
-}
 
-/// Extract unparsed URL strings from a Markdown string.
-fn extract_links_from_markdown(input: &str) -> Vec<String> {
-    let parser = Parser::new(input);
-    parser
-        .flat_map(|event| match event {
-            MDEvent::Start(Tag::Link(_, url, _) | Tag::Image(_, url, _)) => vec![url.to_string()],
-            MDEvent::Text(txt) => extract_links_from_plaintext(&txt.to_string()),
-            MDEvent::Html(html) => extract_links_from_html(&html.to_string()),
-            _ => vec![],
-        })
-        .collect()
-}
-
-/// Extract unparsed URL strings from an HTML string.
-fn extract_links_from_html(input: &str) -> Vec<String> {
-    let tendril = StrTendril::from(input);
-    let rc_dom = parse_document(RcDom::default(), html5ever::ParseOpts::default()).one(tendril);
-
-    let mut urls = Vec::new();
-
-    // We pass mutable URL references here to avoid
-    // extra allocations in each recursive descent
-    walk_html_links(&mut urls, &rc_dom.document);
-
-    urls
-}
-
-/// Recursively walk links in a HTML document, aggregating URL strings in `urls`.
-fn walk_html_links(mut urls: &mut Vec<String>, node: &Handle) {
-    match node.data {
-        NodeData::Text { ref contents } => {
-            urls.append(&mut extract_links_from_plaintext(&contents.borrow()));
+    /// Extract unparsed URL strings from a Markdown string.
+    fn extract_markdown(&mut self, input: &str) {
+        let parser = Parser::new(input);
+        for event in parser {
+            match event {
+                MDEvent::Start(Tag::Link(_, url, _) | Tag::Image(_, url, _)) => {
+                    self.urls.push(StrTendril::from(url.as_ref()));
+                }
+                MDEvent::Text(txt) => self.extract_plaintext(&txt),
+                MDEvent::Html(html) => self.extract_html(&html.to_string()),
+                _ => {}
+            }
         }
+    }
 
-        NodeData::Comment { ref contents } => {
-            urls.append(&mut extract_links_from_plaintext(contents));
-        }
+    /// Extract unparsed URL strings from an HTML string.
+    fn extract_html(&mut self, input: &str) {
+        let tendril = StrTendril::from(input);
+        let rc_dom = parse_document(RcDom::default(), html5ever::ParseOpts::default()).one(tendril);
 
-        NodeData::Element {
-            ref name,
-            ref attrs,
-            ..
-        } => {
-            for attr in attrs.borrow().iter() {
-                let attr_value = attr.value.to_string();
+        self.walk_html_links(&rc_dom.document);
+    }
 
-                if url::elem_attr_is_link(attr.name.local.as_ref(), name.local.as_ref()) {
-                    urls.push(attr_value);
-                } else {
-                    urls.append(&mut extract_links_from_plaintext(&attr_value));
+    /// Recursively walk links in a HTML document, aggregating URL strings in `urls`.
+    fn walk_html_links(&mut self, node: &Handle) {
+        match node.data {
+            NodeData::Text { ref contents } => {
+                self.extract_plaintext(&contents.borrow());
+            }
+            NodeData::Comment { ref contents } => {
+                self.extract_plaintext(contents);
+            }
+            NodeData::Element {
+                ref name,
+                ref attrs,
+                ..
+            } => {
+                for attr in attrs.borrow().iter() {
+                    if url::elem_attr_is_link(attr.name.local.as_ref(), name.local.as_ref()) {
+                        self.urls.push(attr.value.clone());
+                    } else {
+                        self.extract_plaintext(&attr.value);
+                    }
                 }
             }
+            _ => {}
         }
 
-        _ => {}
+        // recursively traverse the document's nodes -- this doesn't need any extra
+        // exit conditions, because the document is a tree
+        for child in node.children.borrow().iter() {
+            self.walk_html_links(child);
+        }
     }
 
-    // recursively traverse the document's nodes -- this doesn't need any extra
-    // exit conditions, because the document is a tree
-    for child in node.children.borrow().iter() {
-        walk_html_links(&mut urls, child);
+    /// Extract unparsed URL strings from plaintext
+    fn extract_plaintext(&mut self, input: &str) {
+        self.urls
+            .extend(url::find_links(input).map(|l| StrTendril::from(l.as_str())));
     }
-}
 
-/// Extract unparsed URL strings from plaintext
-fn extract_links_from_plaintext(input: &str) -> Vec<String> {
-    url::find_links(input)
-        .iter()
-        .map(|l| String::from(l.as_str()))
-        .collect()
-}
-
-fn create_uri_from_path(src: &Path, base: &Option<Base>, dst: &str) -> Result<Option<Url>> {
-    let dst = url::remove_get_params_and_fragment(dst);
-    // Avoid double-encoding already encoded destination paths by removing any
-    // potential encoding (e.g. `web%20site` becomes `web site`).
-    // That's because Url::from_file_path will encode the full URL in the end.
-    // This behavior cannot be configured.
-    // See https://github.com/lycheeverse/lychee/pull/262#issuecomment-915245411
-    // TODO: This is not a perfect solution.
-    // Ideally, only `src` and `base` should be URL encoded (as is done by
-    // `from_file_path` at the moment) while `dst` is left untouched and simply
-    // appended to the end.
-    let decoded = percent_decode_str(dst).decode_utf8()?.to_string();
-    let resolved = path::resolve(src, &PathBuf::from(decoded), base)?;
-    match resolved {
-        Some(path) => Url::from_file_path(&path)
-            .map(Some)
-            .map_err(|_e| ErrorKind::InvalidUrl(path)),
-        None => Ok(None),
+    fn create_uri_from_path(&self, src: &Path, dst: &str) -> Result<Option<Url>> {
+        let dst = url::remove_get_params_and_fragment(dst);
+        // Avoid double-encoding already encoded destination paths by removing any
+        // potential encoding (e.g. `web%20site` becomes `web site`).
+        // That's because Url::from_file_path will encode the full URL in the end.
+        // This behavior cannot be configured.
+        // See https://github.com/lycheeverse/lychee/pull/262#issuecomment-915245411
+        // TODO: This is not a perfect solution.
+        // Ideally, only `src` and `base` should be URL encoded (as is done by
+        // `from_file_path` at the moment) while `dst` is left untouched and simply
+        // appended to the end.
+        let decoded = percent_decode_str(dst).decode_utf8()?;
+        let resolved = path::resolve(src, &PathBuf::from(&*decoded), &self.base)?;
+        match resolved {
+            Some(path) => Url::from_file_path(&path)
+                .map(Some)
+                .map_err(|_e| ErrorKind::InvalidUrlFromPath(path)),
+            None => Ok(None),
+        }
     }
 }
 
@@ -175,8 +185,10 @@ mod test {
 
     #[test]
     fn test_create_uri_from_path() {
-        let result =
-            create_uri_from_path(&PathBuf::from("/README.md"), &None, "test+encoding").unwrap();
+        let extractor = Extractor::new(None);
+        let result = extractor
+            .create_uri_from_path(&PathBuf::from("/README.md"), "test+encoding")
+            .unwrap();
         assert_eq!(result.unwrap().as_str(), "file:///test+encoding");
     }
 
@@ -200,7 +212,9 @@ mod test {
 
     fn extract_uris(input: &str, file_type: FileType, base_url: Option<&str>) -> HashSet<Uri> {
         let base = base_url.map(|url| Base::Remote(Url::parse(url).unwrap()));
-        extract_links(&InputContent::from_string(input, file_type), &base)
+        let mut extractor = Extractor::new(base);
+        extractor
+            .extract(&InputContent::from_string(input, file_type))
             // unwrap is fine here as this helper function is only used in tests
             .unwrap()
             .into_iter()
@@ -225,12 +239,20 @@ mod test {
 
     #[test]
     fn test_extract_link_at_end_of_line() {
-        let input = "http://www.apache.org/licenses/LICENSE-2.0\n";
+        let input = "https://www.apache.org/licenses/LICENSE-2.0\n";
         let link = input.trim_end();
 
-        assert_eq!(vec![link], extract_links_from_markdown(input));
-        assert_eq!(vec![link], extract_links_from_plaintext(input));
-        assert_eq!(vec![link], extract_links_from_html(input));
+        let mut extractor = Extractor::new(None);
+        extractor.extract_markdown(input);
+        assert_eq!(vec![StrTendril::from(link)], extractor.urls);
+
+        let mut extractor = Extractor::new(None);
+        extractor.extract_plaintext(input);
+        assert_eq!(vec![StrTendril::from(link)], extractor.urls);
+
+        let mut extractor = Extractor::new(None);
+        extractor.extract_html(input);
+        assert_eq!(vec![StrTendril::from(link)], extractor.urls);
     }
 
     #[test]
@@ -335,7 +357,7 @@ mod test {
     #[test]
     fn test_md_escape() {
         let input = r#"http://msdn.microsoft.com/library/ie/ms535874\(v=vs.85\).aspx"#;
-        let links = find_links(input);
+        let links: Vec<_> = find_links(input).collect();
         let expected = "http://msdn.microsoft.com/library/ie/ms535874(v=vs.85).aspx)";
 
         matches!(&links[..], [link] if link.as_str() == expected);

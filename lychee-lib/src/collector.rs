@@ -1,7 +1,6 @@
-use crate::{extract::extract_links, Base, Input, Request, Result, Uri};
 use async_stream::try_stream;
 use futures_core::Stream;
-use std::collections::HashSet;
+use crate::{extract::Extractor, Base, Input, Request, Result};
 use tokio_stream::StreamExt;
 
 /// Collector keeps the state of link collection
@@ -10,18 +9,20 @@ pub struct Collector {
     base: Option<Base>,
     skip_missing_inputs: bool,
     max_concurrency: usize,
-    cache: HashSet<Uri>,
 }
 
 impl Collector {
     /// Create a new collector with an empty cache
     #[must_use]
-    pub fn new(base: Option<Base>, skip_missing_inputs: bool, max_concurrency: usize) -> Self {
+    pub const fn new(
+        base: Option<Base>,
+        skip_missing_inputs: bool,
+        max_concurrency: usize,
+    ) -> Self {
         Collector {
             base,
             skip_missing_inputs,
             max_concurrency,
-            cache: HashSet::new(),
         }
     }
 
@@ -57,17 +58,17 @@ impl Collector {
 
             while let Some(content) = contents_rx.recv().await {
                 let base = self.base.clone();
-                let handle = tokio::task::spawn_blocking(move || extract_links(&content, &base));
+                let handle = tokio::task::spawn_blocking(move || {
+                    let mut extractor = Extractor::new(base);
+                    extractor.extract(&content)
+                });
                 extract_links_handles.push(handle);
             }
 
             for handle in extract_links_handles {
                 let new_links = handle.await??;
                 for link in new_links {
-                    if !self.cache.contains(&link.uri) {
-                        self.cache.insert(link.uri.clone());
-                        yield link;
-                    }
+                    yield link;
                 }
             }
         }

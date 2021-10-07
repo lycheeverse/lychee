@@ -198,7 +198,7 @@ FLAGS:
     -E, --exclude-all-private    Exclude all private IPs from checking.
                                  Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
         --exclude-link-local     Exclude link-local IP address range from checking
-        --exclude-loopback       Exclude loopback IP address range from checking
+        --exclude-loopback       Exclude loopback IP address range and localhost from checking
         --exclude-mail           Exclude all mail addresses from checking
         --exclude-private        Exclude private IP address ranges from checking
         --glob-ignore-case       Ignore case when expanding filesystem path glob inputs
@@ -316,7 +316,7 @@ Try one of these links to get started:
 - [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 
 Lychee is written in Rust. Install [rust-up](https://rustup.rs/) to get started.
-Begin my making sure the following commands succeed without errors.
+Begin by making sure the following commands succeed without errors.
 
 ```bash
 cargo test # runs tests

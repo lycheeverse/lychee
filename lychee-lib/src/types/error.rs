@@ -27,7 +27,7 @@ pub enum ErrorKind {
     /// The given URI cannot be converted to a file path
     InvalidFilePath(Uri),
     /// The given path cannot be converted to a URI
-    InvalidUrl(PathBuf),
+    InvalidUrlFromPath(PathBuf),
     /// The given mail address is unreachable
     UnreachableEmailAddress(Uri),
     /// The given header could not be parsed.
@@ -42,10 +42,12 @@ pub enum ErrorKind {
     InvalidGlobPattern(glob::PatternError),
     /// The Github API could not be called because of a missing Github token.
     MissingGitHubToken,
-    /// The website is available in HTTPS protocol, but HTTP scheme is used.
+    /// The website is available through HTTPS, but HTTP scheme is used.
     InsecureURL(Uri),
     /// Error while sending/receiving messages from MPSC channel
     ChannelError(tokio::sync::mpsc::error::SendError<InputContent>),
+    /// Invalid URI
+    InvalidURI(Uri),
 }
 
 impl PartialEq for ErrorKind {
@@ -80,7 +82,8 @@ impl Hash for ErrorKind {
             Self::HubcapsError(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
             Self::UrlParseError(s, e) => (s, e.type_id()).hash(state),
-            Self::InvalidUrl(p) => p.hash(state),
+            Self::InvalidURI(u) => u.hash(state),
+            Self::InvalidUrlFromPath(p) => p.hash(state),
             Self::Utf8Error(e) => e.to_string().hash(state),
             Self::InvalidFilePath(u) | Self::UnreachableEmailAddress(u) | Self::InsecureURL(u) => {
                 u.hash(state);
@@ -118,7 +121,10 @@ impl Display for ErrorKind {
                 write!(f, "Cannot parse {} as website url ({})", s, url_err)
             }
             Self::InvalidFilePath(u) => write!(f, "Invalid file URI: {}", u),
-            Self::InvalidUrl(p) => write!(f, "Invalid path: {}", p.display()),
+            Self::InvalidURI(u) => write!(f, "Invalid URI: {}", u),
+            Self::InvalidUrlFromPath(p) => {
+                write!(f, "Invalid path to URL conversion: {}", p.display())
+            }
             Self::UnreachableEmailAddress(uri) => write!(f, "Unreachable mail address: {}", uri),
             Self::InvalidHeader(e) => e.fmt(f),
             Self::InvalidGlobPattern(e) => e.fmt(f),

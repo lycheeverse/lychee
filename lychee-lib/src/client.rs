@@ -26,6 +26,9 @@ use crate::{
 const DEFAULT_MAX_REDIRECTS: usize = 5;
 const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"));
 
+/// Handles incoming requests and returns responses. Usually you would not
+/// initialize a `Client` yourself, but use the `ClientBuilder` because it
+/// provides sane defaults for all configuration options.
 #[derive(Debug, Clone)]
 pub struct Client {
     /// Underlying reqwest client instance that handles the HTTP requests.
@@ -123,7 +126,13 @@ impl ClientBuilder {
     }
 
     /// The build method instantiates the client.
-    #[allow(clippy::missing_errors_doc)]
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Err` if:
+    /// - The user agent cannot be parsed
+    /// - The request client cannot be created
+    /// - The Github client cannot be created
     pub fn client(&self) -> Result<Client> {
         let mut headers = self.custom_headers.clone();
         headers.insert(header::USER_AGENT, HeaderValue::from_str(&self.user_agent)?);
@@ -169,6 +178,13 @@ impl ClientBuilder {
 }
 
 impl Client {
+    /// Check a single request
+    ///
+    /// # Errors
+    ///
+    /// This returns an `Err` if
+    /// - The request cannot be parsed
+    /// - An HTTP website with an invalid URI format gets checked
     pub async fn check<T, E>(&self, request: T) -> Result<Response>
     where
         Request: TryFrom<T, Error = E>,
@@ -185,7 +201,10 @@ impl Client {
             match self.check_website(&uri).await {
                 Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                     let mut https_uri = uri.clone();
-                    https_uri.url.set_scheme("https").unwrap();
+                    https_uri
+                        .url
+                        .set_scheme("https")
+                        .map_err(|_| ErrorKind::InvalidURI(uri.clone()))?;
                     if self.check_website(&https_uri).await.is_success() {
                         Status::Error(Box::new(ErrorKind::InsecureURL(https_uri)))
                     } else {
@@ -200,10 +219,12 @@ impl Client {
     }
 
     /// Check if the given URI is filtered by the client
+    #[must_use]
     pub fn filtered(&self, uri: &Uri) -> bool {
         self.filter.is_excluded(uri)
     }
 
+    /// Check a website URI
     pub async fn check_website(&self, uri: &Uri) -> Status {
         let mut retries: i64 = 3;
         let mut wait: u64 = 1;
@@ -256,6 +277,7 @@ impl Client {
         }
     }
 
+    /// Check a file URI
     pub async fn check_file(&self, uri: &Uri) -> Status {
         if let Ok(path) = uri.url.to_file_path() {
             if path.exists() {
@@ -265,6 +287,7 @@ impl Client {
         ErrorKind::InvalidFilePath(uri.clone()).into()
     }
 
+    /// Check a mail address
     pub async fn check_mail(&self, uri: &Uri) -> Status {
         let input = CheckEmailInput::new(vec![uri.as_str().to_owned()]);
         let result = &(check_email(&input).await)[0];

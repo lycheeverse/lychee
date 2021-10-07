@@ -64,14 +64,14 @@ use ring as _;
 use std::fs::File;
 use std::io::{self, BufRead, Write};
 use std::iter::FromIterator;
-use std::{collections::HashSet, fs, str::FromStr, time::Duration};
+use std::{collections::HashSet, fs, str::FromStr};
 
 use anyhow::{anyhow, Context, Result};
 use futures::{pin_mut, stream::TryStreamExt};
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderMapExt, HeaderName};
 use http::StatusCode;
 use indicatif::{ProgressBar, ProgressStyle};
-use lychee_lib::{ClientBuilder, ClientPool, Collector, Input, Request, Response};
+use lychee_lib::{ClientBuilder, Collector, Input, Request, Response};
 use openssl_sys as _; // required for vendored-openssl feature
 use regex::RegexSet;
 use ring as _; // required for apple silicon
@@ -80,8 +80,10 @@ use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
 mod options;
+mod parse;
 mod stats;
 
+use crate::parse::{parse_basic_auth, parse_headers, parse_statuscodes, parse_timeout};
 use crate::{
     options::{Config, Format, LycheeOptions},
     stats::{color_response, ResponseStats},
@@ -236,7 +238,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         Some(bar)
     };
 
-    let (send_req, recv_req) = mpsc::channel(max_concurrency);
+    let (send_req, mut recv_req) = mpsc::channel(max_concurrency);
     let (send_resp, mut recv_resp) = mpsc::channel(max_concurrency);
 
     let mut stats = ResponseStats::new();
@@ -245,9 +247,15 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
 
     // Start receiving requests
     tokio::spawn(async move {
-        let clients = vec![client; max_concurrency];
-        let mut clients = ClientPool::new(send_resp, recv_req, clients);
-        clients.listen().await;
+        while let Some(req) = recv_req.recv().await {
+            // `Client::check()` may fail only because `Request::try_from()` may
+            // fail. Here `req` is already a valid `Request`, so it never fails.
+            let resp = client.check(req).await.unwrap();
+            send_resp
+                .send(resp)
+                .await
+                .expect("Cannot send response to channel");
+        }
     });
 
     let show_results_task = tokio::spawn({
@@ -321,98 +329,4 @@ fn write_stats(stats: &ResponseStats, cfg: &Config) -> Result<()> {
         println!("{}", stats);
     }
     Ok(())
-}
-
-fn read_header(input: &str) -> Result<(String, String)> {
-    let elements: Vec<_> = input.split('=').collect();
-    if elements.len() != 2 {
-        return Err(anyhow!(
-            "Header value should be of the form key=value, got {}",
-            input
-        ));
-    }
-    Ok((elements[0].into(), elements[1].into()))
-}
-
-const fn parse_timeout(timeout: usize) -> Duration {
-    Duration::from_secs(timeout as u64)
-}
-
-fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {
-    let mut out = HeaderMap::new();
-    for header in headers {
-        let (key, val) = read_header(header.as_ref())?;
-        out.insert(
-            HeaderName::from_bytes(key.as_bytes())?,
-            val.parse().unwrap(),
-        );
-    }
-    Ok(out)
-}
-
-fn parse_statuscodes<T: AsRef<str>>(accept: T) -> Result<HashSet<StatusCode>> {
-    let mut statuscodes = HashSet::new();
-    for code in accept.as_ref().split(',') {
-        let code: StatusCode = StatusCode::from_bytes(code.as_bytes())?;
-        statuscodes.insert(code);
-    }
-    Ok(statuscodes)
-}
-
-fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
-    let params: Vec<_> = auth.split(':').collect();
-    if params.len() != 2 {
-        return Err(anyhow!(
-            "Basic auth value should be of the form username:password, got {}",
-            auth
-        ));
-    }
-    Ok(Authorization::basic(params[0], params[1]))
-}
-
-#[cfg(test)]
-mod test {
-    use std::{array, collections::HashSet};
-
-    use headers::{HeaderMap, HeaderMapExt};
-    use http::StatusCode;
-    use pretty_assertions::assert_eq;
-    use reqwest::header;
-
-    use super::{parse_basic_auth, parse_headers, parse_statuscodes};
-
-    #[test]
-    fn test_parse_custom_headers() {
-        let mut custom = HeaderMap::new();
-        custom.insert(header::ACCEPT, "text/html".parse().unwrap());
-        assert_eq!(parse_headers(&["accept=text/html"]).unwrap(), custom);
-    }
-
-    #[test]
-    fn test_parse_statuscodes() {
-        let actual = parse_statuscodes("200,204,301").unwrap();
-        let expected = array::IntoIter::new([
-            StatusCode::OK,
-            StatusCode::NO_CONTENT,
-            StatusCode::MOVED_PERMANENTLY,
-        ])
-        .collect::<HashSet<_>>();
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_parse_basic_auth() {
-        let mut expected = HeaderMap::new();
-        expected.insert(
-            header::AUTHORIZATION,
-            "Basic YWxhZGluOmFicmV0ZXNlc2Ftbw==".parse().unwrap(),
-        );
-
-        let mut actual = HeaderMap::new();
-        let auth_header = parse_basic_auth("aladin:abretesesamo").unwrap();
-        actual.typed_insert(auth_header);
-
-        assert_eq!(expected, actual);
-    }
 }

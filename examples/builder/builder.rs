@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
         .build()
         .client()?;
 
-    let response = client.check("http://example.org").await?;
+    let response = client.check("https://example.org").await?;
     dbg!(&response);
     assert!(response.status().is_success());
     Ok(())
