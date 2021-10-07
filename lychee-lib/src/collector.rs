@@ -1,4 +1,4 @@
-use crate::{extract::Extractor, Base, Input, Request, Result, Uri};
+use crate::{extract::Extractor, Base, Input, Request, Result};
 use std::collections::HashSet;
 
 /// Collector keeps the state of link collection
@@ -7,18 +7,16 @@ pub struct Collector {
     base: Option<Base>,
     skip_missing_inputs: bool,
     max_concurrency: usize,
-    cache: HashSet<Uri>,
 }
 
 impl Collector {
     /// Create a new collector with an empty cache
     #[must_use]
-    pub fn new(base: Option<Base>, skip_missing_inputs: bool, max_concurrency: usize) -> Self {
+    pub const fn new(base: Option<Base>, skip_missing_inputs: bool, max_concurrency: usize) -> Self {
         Collector {
             base,
             skip_missing_inputs,
             max_concurrency,
-            cache: HashSet::new(),
         }
     }
 
@@ -29,7 +27,7 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub async fn collect_links(mut self, inputs: &[Input]) -> Result<HashSet<Request>> {
+    pub async fn collect_links(self, inputs: &[Input]) -> Result<HashSet<Request>> {
         let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(self.max_concurrency);
 
         // extract input contents
@@ -70,12 +68,6 @@ impl Collector {
             let new_links = handle.await?;
             links.extend(new_links?);
         }
-
-        // Filter out already cached links (duplicates)
-        links.retain(|l| !self.cache.contains(&l.uri));
-
-        // Add remaining new links to cache
-        self.cache.extend(links.iter().cloned().map(|l| l.uri));
 
         Ok(links)
     }
