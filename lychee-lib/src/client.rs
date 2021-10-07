@@ -126,7 +126,13 @@ impl ClientBuilder {
     }
 
     /// The build method instantiates the client.
-    #[allow(clippy::missing_errors_doc)]
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Err` if:
+    /// - The user agent cannot be parsed
+    /// - The request client cannot be created
+    /// - The Github client cannot be created
     pub fn client(&self) -> Result<Client> {
         let mut headers = self.custom_headers.clone();
         headers.insert(header::USER_AGENT, HeaderValue::from_str(&self.user_agent)?);
@@ -173,6 +179,12 @@ impl ClientBuilder {
 
 impl Client {
     /// Check a single request
+    ///
+    /// # Errors
+    ///
+    /// This returns an `Err` if
+    /// - The request cannot be parsed
+    /// - An HTTP website with an invalid URI format gets checked
     pub async fn check<T, E>(&self, request: T) -> Result<Response>
     where
         Request: TryFrom<T, Error = E>,
@@ -189,7 +201,10 @@ impl Client {
             match self.check_website(&uri).await {
                 Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                     let mut https_uri = uri.clone();
-                    https_uri.url.set_scheme("https").unwrap();
+                    https_uri
+                        .url
+                        .set_scheme("https")
+                        .map_err(|_| ErrorKind::InvalidURI(uri.clone()))?;
                     if self.check_website(&https_uri).await.is_success() {
                         Status::Error(Box::new(ErrorKind::InsecureURL(https_uri)))
                     } else {
@@ -204,6 +219,7 @@ impl Client {
     }
 
     /// Check if the given URI is filtered by the client
+    #[must_use]
     pub fn filtered(&self, uri: &Uri) -> bool {
         self.filter.is_excluded(uri)
     }

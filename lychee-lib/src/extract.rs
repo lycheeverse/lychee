@@ -154,7 +154,7 @@ impl Extractor {
         match resolved {
             Some(path) => Url::from_file_path(&path)
                 .map(Some)
-                .map_err(|_e| ErrorKind::InvalidUrl(path)),
+                .map_err(|_e| ErrorKind::InvalidUrlFromPath(path)),
             None => Ok(None),
         }
     }

@@ -69,7 +69,7 @@ use std::{collections::HashSet, fs, str::FromStr};
 use anyhow::{anyhow, Context, Result};
 use headers::HeaderMapExt;
 use indicatif::{ProgressBar, ProgressStyle};
-use lychee_lib::{Client, ClientBuilder, Collector, Input, Request, Response};
+use lychee_lib::{ClientBuilder, Collector, Input, Request, Response};
 use openssl_sys as _; // required for vendored-openssl feature
 use regex::RegexSet;
 use ring as _; // required for apple silicon
@@ -243,16 +243,12 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         }
     });
 
-    async fn check(client: &Client, req: Request) -> Response {
-        client.check(req).await.unwrap()
-    }
-
     // Start receiving requests
     tokio::spawn(async move {
         while let Some(req) = recv_req.recv().await {
-            // Client::check() may fail only because Request::try_from() may fail
-            // here request is already Request, so it never fails
-            let resp = check(&client, req).await;
+            // `Client::check()` may fail only because `Request::try_from()` may
+            // fail. Here `req` is already a valid `Request`, so it never fails.
+            let resp = client.check(req).await.unwrap();
             send_resp
                 .send(resp)
                 .await
