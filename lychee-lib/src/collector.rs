@@ -12,7 +12,11 @@ pub struct Collector {
 impl Collector {
     /// Create a new collector with an empty cache
     #[must_use]
-    pub const fn new(base: Option<Base>, skip_missing_inputs: bool, max_concurrency: usize) -> Self {
+    pub const fn new(
+        base: Option<Base>,
+        skip_missing_inputs: bool,
+        max_concurrency: usize,
+    ) -> Self {
         Collector {
             base,
             skip_missing_inputs,
