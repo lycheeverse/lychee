@@ -9,7 +9,7 @@ pub use includes::Includes;
 use crate::Uri;
 
 /// Pre-defined exclusions for known false-positives
-static FALSE_POSITIVE_PAT: &[&str] = &[r"http://www.w3.org/1999/xhtml"];
+const FALSE_POSITIVE_PAT: &[&str] = &[r"http://www.w3.org/1999/xhtml"];
 
 #[inline]
 #[must_use]
@@ -49,11 +49,11 @@ impl Filter {
     #[must_use]
     /// Whether e-mails aren't checked
     pub fn is_mail_excluded(&self, uri: &Uri) -> bool {
-        uri.is_mail() && self.exclude_mail
+        self.exclude_mail && uri.is_mail()
     }
 
     #[must_use]
-    /// Whether IP addresses are excluded from checking
+    /// Whether the IP address is excluded from checking
     pub fn is_ip_excluded(&self, uri: &Uri) -> bool {
         match uri.host_ip() {
             Some(ip_addr) if self.exclude_loopback_ips && ip_addr.is_loopback() => true,
@@ -68,6 +68,13 @@ impl Filter {
             }
             _ => false,
         }
+    }
+
+    #[must_use]
+    /// Whether the host is excluded from checking
+    pub fn is_host_excluded(&self, uri: &Uri) -> bool {
+        // If loopback IPs are excluded, exclude localhost as well, which usually maps to a loopback IP
+        self.exclude_loopback_ips && uri.domain() == Some("localhost")
     }
 
     #[inline]
@@ -107,6 +114,7 @@ impl Filter {
     /// 1. If any of the following conditions are met, the URI is excluded:
     ///   - If it's a mail address and it's configured to ignore mail addresses.
     ///   - If the IP address belongs to a type that is configured to exclude.
+    ///   - If the host belongs to a type that is configured to exclude.
     ///   - If the scheme of URI is not the allowed scheme.
     /// 2. Decide whether the URI is *presumably included* or *explicitly included*:
     ///    - When both excludes and includes rules are empty, it's *presumably included* unless
@@ -120,8 +128,12 @@ impl Filter {
     ///    - When the excludes rules matches the URI, it's *explicitly excluded*.
     #[must_use]
     pub fn is_excluded(&self, uri: &Uri) -> bool {
-        // Skip mail address, specific IP, and scheme
-        if self.is_mail_excluded(uri) || self.is_ip_excluded(uri) || self.is_scheme_excluded(uri) {
+        // Skip mail address, specific IP, specific host and scheme
+        if self.is_mail_excluded(uri)
+            || self.is_ip_excluded(uri)
+            || self.is_host_excluded(uri)
+            || self.is_scheme_excluded(uri)
+        {
             return true;
         }
 
@@ -286,7 +298,7 @@ mod test {
             ..Filter::default()
         };
 
-        assert!(filter.is_excluded(&website("http://github.com")));
+        assert!(filter.is_excluded(&website("https://github.com")));
         assert!(filter.is_excluded(&website("http://exclude.org")));
         assert!(filter.is_excluded(&mail("mail@example.org")));
 
@@ -325,6 +337,7 @@ mod test {
         assert!(!filter.is_excluded(&website(V4_LINK_LOCAL_2)));
         assert!(!filter.is_excluded(&website(V4_LOOPBACK)));
         assert!(!filter.is_excluded(&website(V6_LOOPBACK)));
+        assert!(!filter.is_excluded(&website("http://localhost")));
     }
 
     #[test]
@@ -359,6 +372,7 @@ mod test {
 
         assert!(filter.is_excluded(&website(V4_LOOPBACK)));
         assert!(filter.is_excluded(&website(V6_LOOPBACK)));
+        assert!(filter.is_excluded(&website("http://localhost")));
     }
 
     #[test]

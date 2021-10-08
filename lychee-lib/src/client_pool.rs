@@ -7,6 +7,10 @@ use crate::{client, types};
 #[allow(missing_debug_implementations)]
 /// Manages a channel for incoming requests
 /// and a pool of lychee clients to handle them
+///
+/// Note: Although `reqwest` has its own pool,
+/// it only works for connections to the same host, so
+/// a single client can still be blocked until a request is done.
 pub struct ClientPool {
     tx: mpsc::Sender<types::Response>,
     rx: mpsc::Receiver<types::Request>,

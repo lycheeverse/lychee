@@ -1,4 +1,4 @@
-use crate::{extract::extract_links, Base, Input, Request, Result, Uri};
+use crate::{extract::Extractor, Base, Input, Request, Result};
 use std::collections::HashSet;
 
 /// Collector keeps the state of link collection
@@ -7,18 +7,20 @@ pub struct Collector {
     base: Option<Base>,
     skip_missing_inputs: bool,
     max_concurrency: usize,
-    cache: HashSet<Uri>,
 }
 
 impl Collector {
     /// Create a new collector with an empty cache
     #[must_use]
-    pub fn new(base: Option<Base>, skip_missing_inputs: bool, max_concurrency: usize) -> Self {
+    pub const fn new(
+        base: Option<Base>,
+        skip_missing_inputs: bool,
+        max_concurrency: usize,
+    ) -> Self {
         Collector {
             base,
             skip_missing_inputs,
             max_concurrency,
-            cache: HashSet::new(),
         }
     }
 
@@ -29,7 +31,7 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub async fn collect_links(mut self, inputs: &[Input]) -> Result<HashSet<Request>> {
+    pub async fn collect_links(self, inputs: &[Input]) -> Result<HashSet<Request>> {
         let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(self.max_concurrency);
 
         // extract input contents
@@ -52,8 +54,10 @@ impl Collector {
         while let Some(result) = contents_rx.recv().await {
             for input_content in result? {
                 let base = self.base.clone();
-                let handle =
-                    tokio::task::spawn_blocking(move || extract_links(&input_content, &base));
+                let handle = tokio::task::spawn_blocking(move || {
+                    let mut extractor = Extractor::new(base);
+                    extractor.extract(&input_content)
+                });
                 extract_links_handles.push(handle);
             }
         }
@@ -69,16 +73,7 @@ impl Collector {
             links.extend(new_links?);
         }
 
-        // Filter out already cached links (duplicates)
-        links.retain(|l| !self.cache.contains(&l.uri));
-
-        self.update_cache(&links);
         Ok(links)
-    }
-
-    /// Update internal link cache
-    fn update_cache(&mut self, links: &HashSet<Request>) {
-        self.cache.extend(links.iter().cloned().map(|l| l.uri));
     }
 }
 

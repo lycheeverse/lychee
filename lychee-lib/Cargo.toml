@@ -17,7 +17,7 @@ repository = "https://github.com/lycheeverse/lychee"
 version = "0.7.2"
 
 [dependencies]
-check-if-email-exists = "0.8.24"
+check-if-email-exists = "0.8.25"
 deadpool = "0.7.0"
 fast_chemail = "0.9.6"
 glob = "0.3.0"
@@ -43,10 +43,12 @@ url = { version = "2.2.2", features = ["serde"] }
 log = "0.4.14"
 path-clean = "0.1.0"
 percent-encoding = "2.1.0"
+cached = "0.25.0"
+once_cell = "1.8.0"
 
 [dev-dependencies]
 doc-comment = "0.3.3"
-pretty_assertions = "0.7.2"
+pretty_assertions = "1.0.0"
 tempfile = "3.2.0"
 wiremock = "0.5.7"
 
