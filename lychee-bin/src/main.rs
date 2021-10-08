@@ -69,7 +69,7 @@ use std::{collections::HashSet, fs, str::FromStr};
 use anyhow::{anyhow, Context, Result};
 use headers::HeaderMapExt;
 use indicatif::{ProgressBar, ProgressStyle};
-use lychee_lib::{ClientBuilder, Collector, Input, Request, Response};
+use lychee_lib::{ClientBuilder, ClientPool, Collector, Input, Request, Response};
 use openssl_sys as _; // required for vendored-openssl feature
 use regex::RegexSet;
 use ring as _; // required for apple silicon
@@ -205,7 +205,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .require_https(cfg.require_https)
         .build()
         .client()
-        .map_err(|e| anyhow!(e))?;
+        .map_err(|e| anyhow!("Failed to create request client: {}", e))?;
 
     let links = Collector::new(cfg.base.clone(), cfg.skip_missing, max_concurrency)
         .collect_links(&inputs)
@@ -228,7 +228,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         Some(bar)
     };
 
-    let (send_req, mut recv_req) = mpsc::channel(max_concurrency);
+    let (send_req, recv_req) = mpsc::channel(max_concurrency);
     let (send_resp, mut recv_resp) = mpsc::channel(max_concurrency);
 
     let mut stats = ResponseStats::new();
@@ -245,15 +245,9 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
 
     // Start receiving requests
     tokio::spawn(async move {
-        while let Some(req) = recv_req.recv().await {
-            // `Client::check()` may fail only because `Request::try_from()` may
-            // fail. Here `req` is already a valid `Request`, so it never fails.
-            let resp = client.check(req).await.unwrap();
-            send_resp
-                .send(resp)
-                .await
-                .expect("Cannot send response to channel");
-        }
+        let clients = vec![client; max_concurrency];
+        let mut clients = ClientPool::new(send_resp, recv_req, clients);
+        clients.listen().await;
     });
 
     while let Some(response) = recv_resp.recv().await {
