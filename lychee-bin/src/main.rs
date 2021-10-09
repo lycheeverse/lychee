@@ -67,7 +67,7 @@ use std::iter::FromIterator;
 use std::{collections::HashSet, fs, str::FromStr};
 
 use anyhow::{anyhow, Context, Result};
-use futures::{pin_mut, stream::TryStreamExt};
+use futures::stream::TryStreamExt;
 use headers::HeaderMapExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use lychee_lib::{Client, ClientBuilder, ClientPool, Collector, Input, Request, Response};
@@ -266,7 +266,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         }
     });
 
-    pin_mut!(links);
+    tokio::pin!(links);
     while let Some(link) = links.next().await {
         let link = link?;
         if let Some(pb) = &bar {
@@ -275,6 +275,9 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         };
         send_req.send(link).await.unwrap();
     }
+    // required for the receiver task to end, which closes send_resp, which allows
+    // the show_results_task to finish
+    drop(send_req);
 
     let (pb, stats) = show_results_task.await?;
 
