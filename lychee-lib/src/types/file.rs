@@ -28,10 +28,36 @@ impl<P: AsRef<Path>> From<P> for FileType {
         // Unfortunately that's not possible without refactoring, as
         // `AsRef<Path>` could be implemented for `Url` in the future, which is why
         // `From<Url> for FileType` is not allowed.
-        match path.extension().and_then(std::ffi::OsStr::to_str) {
+        match path
+            .extension()
+            .and_then(std::ffi::OsStr::to_str)
+            .map(str::to_lowercase)
+            .as_deref()
+        {
             Some("md" | "markdown") => FileType::Markdown,
             Some("htm" | "html") | None => FileType::Html,
             Some(_) => FileType::Plaintext,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extension() {
+        assert_eq!(FileType::from(Path::new("foo.md")), FileType::Markdown);
+        assert_eq!(FileType::from(Path::new("foo.MD")), FileType::Markdown);
+
+        assert_eq!(
+            FileType::from(Path::new("test.unknown")),
+            FileType::Plaintext
+        );
+        assert_eq!(FileType::from(Path::new("test.txt")), FileType::Plaintext);
+        assert_eq!(FileType::from(Path::new("README.TXT")), FileType::Plaintext);
+
+        assert_eq!(FileType::from(Path::new("test.htm")), FileType::Html);
+        assert_eq!(FileType::from(Path::new("test")), FileType::Html);
     }
 }
