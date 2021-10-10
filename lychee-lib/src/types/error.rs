@@ -38,6 +38,8 @@ pub enum ErrorKind {
     InvalidBase(String, String),
     /// Cannot find local file
     FileNotFound(PathBuf),
+    /// Error while traversing an input directory
+    DirTraversal(jwalk::Error),
     /// The given UNIX glob pattern is invalid
     InvalidGlobPattern(glob::PatternError),
     /// The Github API could not be called because of a missing Github token.
@@ -80,6 +82,7 @@ impl Hash for ErrorKind {
             Self::IoError(p, e) => (p, e.kind()).hash(state),
             Self::ReqwestError(e) => e.to_string().hash(state),
             Self::HubcapsError(e) => e.to_string().hash(state),
+            Self::DirTraversal(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
             Self::UrlParseError(s, e) => (s, e.type_id()).hash(state),
             Self::InvalidURI(u) => u.hash(state),
@@ -109,6 +112,7 @@ impl Display for ErrorKind {
             Self::IoError(None, e) => e.fmt(f),
             Self::ReqwestError(e) => e.fmt(f),
             Self::HubcapsError(e) => e.fmt(f),
+            Self::DirTraversal(e) => e.fmt(f),
             Self::FileNotFound(e) => write!(f, "{}", e.to_string_lossy()),
             Self::UrlParseError(s, (url_err, Some(mail_err))) => {
                 write!(
@@ -162,6 +166,12 @@ impl From<(PathBuf, std::io::Error)> for ErrorKind {
 impl From<std::str::Utf8Error> for ErrorKind {
     fn from(e: std::str::Utf8Error) -> Self {
         Self::Utf8Error(e)
+    }
+}
+
+impl From<jwalk::Error> for ErrorKind {
+    fn from(e: jwalk::Error) -> Self {
+        Self::DirTraversal(e)
     }
 }
 

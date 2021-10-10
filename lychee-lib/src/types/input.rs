@@ -3,6 +3,7 @@ use crate::Result;
 use async_stream::try_stream;
 use futures_core::stream::Stream;
 use glob::glob_with;
+use jwalk::WalkDir;
 use reqwest::Url;
 use serde::Serialize;
 use shellexpand::tilde;
@@ -132,23 +133,43 @@ impl Input {
                     }
                 }
                 Input::FsPath(ref path) => {
-                    let content = Self::path_content(path).await;
-                    match content {
-                        Err(_) if skip_missing => (),
-                        Err(e) => Err(e)?,
-                        Ok(content) => yield content,
-                    };
+                    if path.is_dir() {
+                        for entry in WalkDir::new(path).skip_hidden(true) {
+                            let entry = entry?;
+                            if entry.file_type().is_dir() {
+                                continue;
+                            }
+                            if !Self::valid_extension(&entry.path()) {
+                                continue
+                            }
+                            let content = Self::path_content(entry.path()).await?;
+                            yield content;
+                        }
+                    } else {
+                        let content = Self::path_content(path).await;
+                        match content {
+                            Err(_) if skip_missing => (),
+                            Err(e) => Err(e)?,
+                            Ok(content) => yield content,
+                        };
+                    }
                 },
                 Input::Stdin => {
-                    let contents = Self::stdin_content(file_type_hint).await?;
-                    yield contents;
+                    let content = Self::stdin_content(file_type_hint).await?;
+                    yield content;
                 },
                 Input::String(ref s) => {
-                    let contents = Self::string_content(s, file_type_hint);
-                    yield contents;
+                    let content = Self::string_content(s, file_type_hint);
+                    yield content;
                 },
             }
         }
+    }
+
+    // Check the extension of the given path against the list of known/accepted
+    // file extensions
+    fn valid_extension(p: &PathBuf) -> bool {
+        matches!(FileType::from(p), FileType::Markdown | FileType::Html)
     }
 
     async fn url_contents(url: &Url) -> Result<InputContent> {
@@ -182,12 +203,12 @@ impl Input {
             for entry in glob_with(&glob_expanded, match_opts)? {
                 match entry {
                     Ok(path) => {
+                        // Directories can have a suffix which looks like
+                        // a file extension (like `foo.html`). This can lead to
+                        // unexpected behavior with glob patterns like
+                        // `**/*.html`. Therefore filter these out.
+                        // See https://github.com/lycheeverse/lychee/pull/262#issuecomment-913226819
                         if path.is_dir() {
-                            // Directories can still have a suffix which looks like
-                            // a file extension like `foo.html`. This can lead to
-                            // unexpected behavior with glob patterns like
-                            // `**/*.html`. Therefore filter these out.
-                            // https://github.com/lycheeverse/lychee/pull/262#issuecomment-913226819
                             continue;
                         }
                         let content: InputContent = Self::path_content(&path).await?;

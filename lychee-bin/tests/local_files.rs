@@ -33,4 +33,31 @@ mod cli {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_local_dir() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let index_path = dir.path().join("index.html");
+        let mut index = File::create(&index_path)?;
+        writeln!(index, r#"<a href="./foo.html">Foo</a>"#)?;
+        writeln!(index, r#"<a href="./bar.md">Bar</a>"#)?;
+
+        let foo_path = dir.path().join("foo.html");
+        File::create(&foo_path)?;
+        let bar_path = dir.path().join("bar.md");
+        File::create(&bar_path)?;
+
+        let mut cmd = main_command();
+        cmd.arg(dir.path())
+            .arg("--no-progress")
+            .arg("--verbose")
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("Total............2"))
+            .stdout(contains("foo.html"))
+            .stdout(contains("bar.md"));
+
+        Ok(())
+    }
 }
