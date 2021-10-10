@@ -64,6 +64,9 @@ mod tests {
 
         assert_eq!(FileType::from(Path::new("test.htm")), FileType::Html);
         assert_eq!(FileType::from(Path::new("index.html")), FileType::Html);
-        assert_eq!(FileType::from(Path::new("http://foo.com/index.html")), FileType::Html);
+        assert_eq!(
+            FileType::from(Path::new("http://foo.com/index.html")),
+            FileType::Html
+        );
     }
 }
