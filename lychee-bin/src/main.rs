@@ -60,6 +60,7 @@
 
 // required for apple silicon
 use ring as _;
+use tokio_stream::wrappers::ReceiverStream;
 
 use std::fs::File;
 use std::io::{self, BufRead, Write};
@@ -70,7 +71,7 @@ use anyhow::{anyhow, Context, Result};
 use futures::stream::TryStreamExt;
 use headers::HeaderMapExt;
 use indicatif::{ProgressBar, ProgressStyle};
-use lychee_lib::{Client, ClientBuilder, ClientPool, Collector, Input, Request, Response};
+use lychee_lib::{Client, ClientBuilder, Collector, Input, Request, Response};
 use openssl_sys as _; // required for vendored-openssl feature
 use regex::RegexSet;
 use ring as _; // required for apple silicon
@@ -250,9 +251,15 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
 
     // Start receiving requests
     tokio::spawn(async move {
-        let clients = vec![client; max_concurrency];
-        let mut clients = ClientPool::new(send_resp, recv_req, clients);
-        clients.listen().await;
+        futures::StreamExt::for_each_concurrent(
+            ReceiverStream::new(recv_req),
+            max_concurrency,
+            |req| async {
+                let resp = client.check(req).await.unwrap();
+                send_resp.send(resp).await.unwrap();
+            },
+        )
+        .await;
     });
 
     let show_results_task = tokio::spawn({
