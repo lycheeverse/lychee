@@ -70,7 +70,7 @@ use anyhow::{anyhow, Context, Result};
 use futures::{pin_mut, stream::TryStreamExt};
 use headers::HeaderMapExt;
 use indicatif::{ProgressBar, ProgressStyle};
-use lychee_lib::{Client, ClientBuilder, Collector, Input, Request, Response};
+use lychee_lib::{Client, ClientBuilder, ClientPool, Collector, Input, Request, Response};
 use openssl_sys as _; // required for vendored-openssl feature
 use regex::RegexSet;
 use ring as _; // required for apple silicon
@@ -206,7 +206,7 @@ fn create_client(cfg: &Config) -> Result<Client> {
         .require_https(cfg.require_https)
         .build()
         .client()
-        .map_err(|e| anyhow!(e))
+        .map_err(|e| anyhow!("Failed to create request client: {}", e))
 }
 
 async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
@@ -240,24 +240,19 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         Some(bar)
     };
 
-    let (send_req, mut recv_req) = mpsc::channel(cfg.max_concurrency);
+    let (send_req, recv_req) = mpsc::channel(cfg.max_concurrency);
     let (send_resp, mut recv_resp) = mpsc::channel(cfg.max_concurrency);
 
     let mut stats = ResponseStats::new();
 
     let bar = pb.clone();
+    let max_concurrency = cfg.max_concurrency;
 
     // Start receiving requests
     tokio::spawn(async move {
-        while let Some(req) = recv_req.recv().await {
-            // `Client::check()` may fail only because `Request::try_from()` may
-            // fail. Here `req` is already a valid `Request`, so it never fails.
-            let resp = client.check(req).await.unwrap();
-            send_resp
-                .send(resp)
-                .await
-                .expect("Cannot send response to channel");
-        }
+        let clients = vec![client; max_concurrency];
+        let mut clients = ClientPool::new(send_resp, recv_req, clients);
+        clients.listen().await;
     });
 
     let show_results_task = tokio::spawn({

@@ -31,11 +31,39 @@ impl<P: AsRef<Path>> From<P> for FileType {
         // As a workaround, we check if we got a known web-protocol
         let is_url = path.starts_with("http");
 
-        match path.extension().and_then(std::ffi::OsStr::to_str) {
+        match path
+            .extension()
+            .and_then(std::ffi::OsStr::to_str)
+            .map(str::to_lowercase)
+            .as_deref()
+        {
             Some("md" | "markdown") => FileType::Markdown,
             Some("htm" | "html") => FileType::Html,
             None if is_url => FileType::Html,
             _ => FileType::Plaintext,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extension() {
+        assert_eq!(FileType::from(Path::new("foo.md")), FileType::Markdown);
+        assert_eq!(FileType::from(Path::new("foo.MD")), FileType::Markdown);
+
+        assert_eq!(
+            FileType::from(Path::new("test.unknown")),
+            FileType::Plaintext
+        );
+        assert_eq!(FileType::from(Path::new("test")), FileType::Plaintext);
+        assert_eq!(FileType::from(Path::new("test.txt")), FileType::Plaintext);
+        assert_eq!(FileType::from(Path::new("README.TXT")), FileType::Plaintext);
+
+        assert_eq!(FileType::from(Path::new("test.htm")), FileType::Html);
+        assert_eq!(FileType::from(Path::new("index.html")), FileType::Html);
+        assert_eq!(FileType::from(Path::new("http://foo.com/index.html")), FileType::Html);
     }
 }

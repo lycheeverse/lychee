@@ -1583,6 +1583,7 @@ dependencies = [
  "async-stream",
  "cached",
  "check-if-email-exists",
+ "deadpool",
  "doc-comment",
  "fast_chemail",
  "futures-core",

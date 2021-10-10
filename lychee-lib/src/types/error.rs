@@ -120,7 +120,7 @@ impl Display for ErrorKind {
             Self::UrlParseError(s, (url_err, None)) => {
                 write!(f, "Cannot parse {} as website url ({})", s, url_err)
             }
-            Self::InvalidFilePath(u) => write!(f, "Invalid file URI: {}", u),
+            Self::InvalidFilePath(u) => write!(f, "Cannot find file {}", u),
             Self::InvalidURI(u) => write!(f, "Invalid URI: {}", u),
             Self::InvalidUrlFromPath(p) => {
                 write!(f, "Invalid path to URL conversion: {}", p.display())
