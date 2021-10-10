@@ -50,6 +50,17 @@ impl Extractor {
     /// Only keeps legit URLs. For example this filters out anchors.
     fn create_requests(&self, input_content: &InputContent) -> Result<HashSet<Request>> {
         let mut requests: HashSet<Request> = HashSet::with_capacity(self.urls.len());
+
+        let base_input = match &input_content.input {
+            Input::RemoteUrl(url) => Some(Url::parse(&format!(
+                "{}://{}",
+                url.scheme(),
+                url.host_str().ok_or(ErrorKind::InvalidUrlHost)?
+            ))?),
+            _ => None,
+            // other inputs do not have a URL to extract a base
+        };
+
         for url in &self.urls {
             let req = if let Ok(uri) = Uri::try_from(url.as_ref()) {
                 Request::new(uri, input_content.input.clone())
@@ -68,6 +79,11 @@ impl Extractor {
                         continue;
                     }
                 }
+            } else if let Some(url) = base_input.as_ref().map(|u| u.join(url)) {
+                if self.base.is_some() {
+                    continue;
+                }
+                Request::new(Uri { url: url? }, input_content.input.clone())
             } else {
                 info!("Handling of {} not implemented yet", &url);
                 continue;
@@ -398,6 +414,42 @@ mod test {
         .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_relative_url_with_base_extracted_from_input() {
+        let input = Input::RemoteUrl(Box::new(
+            Url::parse("https://example.org/some-post").unwrap(),
+        ));
+
+        let contents = r#"<html>
+            <div class="row">
+                <a href="https://github.com/lycheeverse/lychee/">Github</a>
+                <a href="/about">About</a>
+            </div>
+        </html>"#;
+
+        let input_content = &InputContent {
+            input,
+            file_type: FileType::Html,
+            content: contents.to_string(),
+        };
+
+        let mut extractor = Extractor::new(None);
+        let links = extractor.extract(input_content);
+        let urls = links
+            .unwrap()
+            .iter()
+            .map(|x| x.uri.url.as_str().to_string())
+            .collect::<HashSet<_>>();
+
+        let expected_urls = array::IntoIter::new([
+            String::from("https://github.com/lycheeverse/lychee/"),
+            String::from("https://example.org/about"),
+        ])
+        .collect::<HashSet<_>>();
+
+        assert_eq!(urls, expected_urls);
     }
 
     #[test]
