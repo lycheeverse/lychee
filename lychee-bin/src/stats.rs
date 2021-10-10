@@ -1,13 +1,18 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::{self, Display},
+    fs,
 };
+
+use anyhow::{Context, Result};
 
 use console::Style;
 use lychee_lib::{Input, Response, ResponseBody, Status};
 use once_cell::sync::Lazy;
 use pad::{Alignment, PadStr};
 use serde::Serialize;
+
+use crate::options::{Config, Format};
 
 static GREEN: Lazy<Style> = Lazy::new(|| Style::new().green().bright());
 static DIM: Lazy<Style> = Lazy::new(|| Style::new().dim());
@@ -101,6 +106,30 @@ fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -
     }
 
     Ok(())
+}
+
+/// Write final statistics to stdout or to file
+pub(crate) fn write(stats: &ResponseStats, cfg: &Config) -> Result<()> {
+    let formatted = fmt(stats, &cfg.format)?;
+
+    if let Some(output) = &cfg.output {
+        fs::write(output, formatted).context("Cannot write status output to file")?;
+    } else {
+        if cfg.verbose && !stats.is_empty() {
+            // separate summary from the verbose list of links above
+            println!();
+        }
+        // we assume that the formatted stats don't have a final newline
+        println!("{}", stats);
+    }
+    Ok(())
+}
+
+fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
+    Ok(match format {
+        Format::String => stats.to_string(),
+        Format::Json => serde_json::to_string_pretty(&stats)?,
+    })
 }
 
 impl Display for ResponseStats {

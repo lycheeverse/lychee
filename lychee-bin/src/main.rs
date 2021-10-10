@@ -58,34 +58,28 @@
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 #![deny(missing_docs)]
 
+use lychee_lib::{Collector, Input, Request, Response};
 // required for apple silicon
 use ring as _;
 use tokio_stream::wrappers::ReceiverStream;
 
-use std::fs::File;
-use std::io::{self, BufRead, Write};
-use std::iter::FromIterator;
-use std::{collections::HashSet, fs, str::FromStr};
+use std::io::{self, Write};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use futures::stream::TryStreamExt;
-use headers::HeaderMapExt;
 use indicatif::{ProgressBar, ProgressStyle};
-use lychee_lib::{Client, ClientBuilder, Collector, Input, Request, Response};
 use openssl_sys as _; // required for vendored-openssl feature
-use regex::RegexSet;
 use ring as _; // required for apple silicon
-use structopt::StructOpt;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
+mod client;
 mod options;
 mod parse;
 mod stats;
 
-use crate::parse::{parse_basic_auth, parse_headers, parse_statuscodes, parse_timeout};
 use crate::{
-    options::{Config, Format, LycheeOptions},
+    options::Config,
     stats::{color_response, ResponseStats},
 };
 
@@ -104,7 +98,7 @@ fn main() -> Result<()> {
     #[cfg(feature = "tokio-console")]
     console_subscriber::init();
     // std::process::exit doesn't guarantee that all destructors will be ran,
-    // therefore we wrap "main" code in another function to guarantee that.
+    // therefore we wrap "main" code in another function to ensure that.
     // See: https://doc.rust-lang.org/stable/std/process/fn.exit.html
     // Also see: https://www.youtube.com/watch?v=zQC8T71Y8e4
     let exit_code = run_main()?;
@@ -112,24 +106,9 @@ fn main() -> Result<()> {
 }
 
 fn run_main() -> Result<i32> {
-    let mut opts = LycheeOptions::from_args();
+    let merged = options::merge()?;
 
-    // Load a potentially existing config file and merge it into the config from the CLI
-    if let Some(c) = Config::load_from_file(&opts.config_file)? {
-        opts.config.merge(c);
-    }
-
-    // Load excludes from file
-    for path in &opts.config.exclude_file {
-        let file = File::open(path)?;
-        opts.config
-            .exclude
-            .append(&mut io::BufReader::new(file).lines().collect::<Result<_, _>>()?);
-    }
-
-    let cfg = &opts.config;
-
-    let runtime = match cfg.threads {
+    let runtime = match merged.config.threads {
         Some(threads) => {
             // We define our own runtime instead of the `tokio::main` attribute
             // since we want to make the number of threads configurable
@@ -141,7 +120,101 @@ fn run_main() -> Result<i32> {
         None => tokio::runtime::Runtime::new()?,
     };
 
-    runtime.block_on(run(cfg, opts.inputs()))
+    runtime.block_on(run(&merged.config, merged.inputs()))
+}
+
+async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
+    let client = client::create(cfg)?;
+
+    println!("Collect links");
+    let links = Collector::new(cfg.base.clone(), cfg.skip_missing, cfg.max_concurrency)
+        .collect_links(&inputs)
+        .await
+        .map_err(|e| anyhow!("Cannot collect links from inputs: {}", e));
+
+    let exit_code = if cfg.dump {
+        dump_links(
+            links
+                .collect::<Result<Vec<_>>>()
+                .await?
+                .iter()
+                .filter(|link| !client.filtered(&link.uri)),
+        )
+    } else {
+        let (send_req, recv_req) = mpsc::channel(cfg.max_concurrency);
+        let (send_resp, mut recv_resp) = mpsc::channel(cfg.max_concurrency);
+        let max_concurrency = cfg.max_concurrency;
+        let mut stats = ResponseStats::new();
+
+        // Start receiving requests
+        tokio::spawn(async move {
+            println!("Spawn checker");
+            futures::StreamExt::for_each_concurrent(
+                ReceiverStream::new(recv_req),
+                max_concurrency,
+                |req| async {
+                    let resp = client.check(req).await.unwrap();
+                    send_resp.send(resp).await.unwrap();
+                },
+            )
+            .await;
+        });
+
+        let pb = if cfg.no_progress {
+            None
+        } else {
+            let bar = ProgressBar::new_spinner().with_style(ProgressStyle::default_bar().template(
+                "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
+            ));
+            bar.set_length(0);
+            bar.set_message("Extracting links");
+            bar.enable_steady_tick(100);
+            Some(bar)
+        };
+
+        let bar = pb.clone();
+        let show_results_task = tokio::spawn({
+            let verbose = cfg.verbose;
+            async move {
+                while let Some(response) = recv_resp.recv().await {
+                    show_progress(&pb, &response, verbose);
+                    stats.add(response);
+                }
+                (pb, stats)
+            }
+        });
+
+        tokio::pin!(links);
+
+        while let Some(link) = links.next().await {
+            let link = link?;
+            if let Some(pb) = &bar {
+                pb.inc_length(1);
+                pb.set_message(&link.to_string());
+            };
+            send_req.send(link).await.unwrap();
+        }
+        // required for the receiver task to end, which closes send_resp, which allows
+        // the show_results_task to finish
+        drop(send_req);
+
+        let (pb, stats) = show_results_task.await?;
+
+        // Note that print statements may interfere with the progress bar, so this
+        // must go before printing the stats
+        if let Some(pb) = &pb {
+            pb.finish_and_clear();
+        }
+
+        stats::write(&stats, cfg)?;
+
+        if stats.is_success() {
+            ExitCode::Success
+        } else {
+            ExitCode::LinkCheckFailure
+        }
+    };
+    Ok(exit_code as i32)
 }
 
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
@@ -160,151 +233,9 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
     }
 }
 
-fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
-    Ok(match format {
-        Format::String => stats.to_string(),
-        Format::Json => serde_json::to_string_pretty(&stats)?,
-    })
-}
-
-fn create_client(cfg: &Config) -> Result<Client> {
-    let mut headers = parse_headers(&cfg.headers)?;
-    if let Some(auth) = &cfg.basic_auth {
-        let auth_header = parse_basic_auth(auth)?;
-        headers.typed_insert(auth_header);
-    }
-
-    let accepted = cfg.accept.clone().and_then(|a| parse_statuscodes(&a).ok());
-    let timeout = parse_timeout(cfg.timeout);
-    let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
-    let include = RegexSet::new(&cfg.include)?;
-    let exclude = RegexSet::new(&cfg.exclude)?;
-
-    // Offline mode overrides the scheme
-    let schemes = if cfg.offline {
-        vec!["file".to_string()]
-    } else {
-        cfg.scheme.clone()
-    };
-
-    ClientBuilder::builder()
-        .includes(include)
-        .excludes(exclude)
-        .exclude_all_private(cfg.exclude_all_private)
-        .exclude_private_ips(cfg.exclude_private)
-        .exclude_link_local_ips(cfg.exclude_link_local)
-        .exclude_loopback_ips(cfg.exclude_loopback)
-        .exclude_mail(cfg.exclude_mail)
-        .max_redirects(cfg.max_redirects)
-        .user_agent(cfg.user_agent.clone())
-        .allow_insecure(cfg.insecure)
-        .custom_headers(headers)
-        .method(method)
-        .timeout(timeout)
-        .github_token(cfg.github_token.clone())
-        .schemes(HashSet::from_iter(schemes))
-        .accepted(accepted)
-        .require_https(cfg.require_https)
-        .build()
-        .client()
-        .map_err(|e| anyhow!("Failed to create request client: {}", e))
-}
-
-async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
-    let client = create_client(cfg)?;
-
-    let links = Collector::new(cfg.base.clone(), cfg.skip_missing, cfg.max_concurrency)
-        .collect_links(&inputs)
-        .await
-        .map_err(|e| anyhow!(e));
-
-    if cfg.dump {
-        let exit_code = dump_links(
-            links
-                .collect::<Result<Vec<_>>>()
-                .await?
-                .iter()
-                .filter(|link| !client.filtered(&link.uri)),
-        );
-        return Ok(exit_code as i32);
-    }
-
-    let pb = if cfg.no_progress {
-        None
-    } else {
-        let bar = ProgressBar::new_spinner().with_style(ProgressStyle::default_bar().template(
-            "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
-        ));
-        bar.set_length(0);
-        bar.set_message("Extracting links");
-        bar.enable_steady_tick(100);
-        Some(bar)
-    };
-
-    let (send_req, recv_req) = mpsc::channel(cfg.max_concurrency);
-    let (send_resp, mut recv_resp) = mpsc::channel(cfg.max_concurrency);
-
-    let mut stats = ResponseStats::new();
-
-    let bar = pb.clone();
-    let max_concurrency = cfg.max_concurrency;
-
-    // Start receiving requests
-    tokio::spawn(async move {
-        futures::StreamExt::for_each_concurrent(
-            ReceiverStream::new(recv_req),
-            max_concurrency,
-            |req| async {
-                let resp = client.check(req).await.unwrap();
-                send_resp.send(resp).await.unwrap();
-            },
-        )
-        .await;
-    });
-
-    let show_results_task = tokio::spawn({
-        let verbose = cfg.verbose;
-        async move {
-            while let Some(response) = recv_resp.recv().await {
-                show_progress(&pb, &response, verbose);
-                stats.add(response);
-            }
-            (pb, stats)
-        }
-    });
-
-    tokio::pin!(links);
-    while let Some(link) = links.next().await {
-        let link = link?;
-        if let Some(pb) = &bar {
-            pb.inc_length(1);
-            pb.set_message(&link.to_string());
-        };
-        send_req.send(link).await.unwrap();
-    }
-    // required for the receiver task to end, which closes send_resp, which allows
-    // the show_results_task to finish
-    drop(send_req);
-
-    let (pb, stats) = show_results_task.await?;
-
-    // Note that print statements may interfere with the progress bar, so this
-    // must go before printing the stats
-    if let Some(pb) = &pb {
-        pb.finish_and_clear();
-    }
-
-    write_stats(&stats, cfg)?;
-
-    if stats.is_success() {
-        Ok(ExitCode::Success as i32)
-    } else {
-        Ok(ExitCode::LinkCheckFailure as i32)
-    }
-}
-
 /// Dump all detected links to stdout without checking them
 fn dump_links<'a>(links: impl Iterator<Item = &'a Request>) -> ExitCode {
+    println!("inside dump");
     let mut stdout = io::stdout();
     for link in links {
         // Avoid panic on broken pipe.
@@ -319,21 +250,4 @@ fn dump_links<'a>(links: impl Iterator<Item = &'a Request>) -> ExitCode {
         }
     }
     ExitCode::Success
-}
-
-/// Write final statistics to stdout or to file
-fn write_stats(stats: &ResponseStats, cfg: &Config) -> Result<()> {
-    let formatted = fmt(stats, &cfg.format)?;
-
-    if let Some(output) = &cfg.output {
-        fs::write(output, formatted).context("Cannot write status output to file")?;
-    } else {
-        if cfg.verbose && !stats.is_empty() {
-            // separate summary from the verbose list of links above
-            println!();
-        }
-        // we assume that the formatted stats don't have a final newline
-        println!("{}", stats);
-    }
-    Ok(())
 }

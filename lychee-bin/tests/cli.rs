@@ -316,7 +316,7 @@ mod cli {
             .failure()
             .code(1)
             .stderr(contains(format!(
-                "Error: Failed to read file: `{}`, reason: No such file or directory (os error 2)",
+                "Cannot collect links from inputs: Failed to read file: `{}`, reason: No such file or directory (os error 2)",
                 filename
             )));
     }

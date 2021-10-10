@@ -519,8 +519,10 @@ dependencies = [
 name = "client_pool"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "lychee-lib",
  "tokio",
+ "tokio-stream",
 ]
 
 [[package]]

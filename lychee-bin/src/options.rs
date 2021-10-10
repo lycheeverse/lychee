@@ -1,9 +1,16 @@
-use std::{convert::TryFrom, fs, io::ErrorKind, path::PathBuf, str::FromStr};
+use std::{
+    convert::TryFrom,
+    fs::{self, File},
+    io::{self, ErrorKind},
+    path::PathBuf,
+    str::FromStr,
+};
 
 use anyhow::{anyhow, Error, Result};
 use lazy_static::lazy_static;
 use lychee_lib::{Base, Input};
 use serde::Deserialize;
+use std::io::BufRead;
 use structopt::{clap::crate_version, StructOpt};
 
 const METHOD: &str = "get";
@@ -329,4 +336,24 @@ impl Config {
             require_https: false;
         }
     }
+}
+
+/// Merge all provided config options into one
+/// This includes a potential config file, command-line- and environment variables
+pub(crate) fn merge() -> Result<LycheeOptions> {
+    let mut opts = LycheeOptions::from_args();
+
+    // Merge a potentially existing config file and merge it into the config from the CLI
+    if let Some(c) = Config::load_from_file(&opts.config_file)? {
+        opts.config.merge(c);
+    }
+
+    // Load and merge excludes from file
+    for path in &opts.config.exclude_file {
+        let file = File::open(path)?;
+        opts.config
+            .exclude
+            .append(&mut io::BufReader::new(file).lines().collect::<Result<_, _>>()?);
+    }
+    Ok(opts)
 }
