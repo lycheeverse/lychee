@@ -9,7 +9,10 @@ pub use includes::Includes;
 use crate::Uri;
 
 /// Pre-defined exclusions for known false-positives
-const FALSE_POSITIVE_PAT: &[&str] = &[r"http://www.w3.org/1999/xhtml"];
+const FALSE_POSITIVE_PAT: &[&str] = &[
+    r"http://www.w3.org/1999/xhtml",
+    r"http://www.w3.org/2000/svg",
+];
 
 #[inline]
 #[must_use]
