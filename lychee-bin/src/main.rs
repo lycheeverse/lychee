@@ -58,30 +58,23 @@
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 #![deny(missing_docs)]
 
-use lychee_lib::{Collector, Input, Request, Response};
+use lychee_lib::{Collector, Input};
 // required for apple silicon
 use ring as _;
-use tokio_stream::wrappers::ReceiverStream;
-
-use std::io::{self, Write};
 
 use anyhow::{anyhow, Result};
 use futures::stream::TryStreamExt;
-use indicatif::{ProgressBar, ProgressStyle};
 use openssl_sys as _; // required for vendored-openssl feature
 use ring as _; // required for apple silicon
-use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
 mod client;
+mod commands;
 mod options;
 mod parse;
 mod stats;
 
-use crate::{
-    options::Config,
-    stats::{color_response, ResponseStats},
-};
+use crate::options::Config;
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
@@ -124,130 +117,17 @@ fn run_main() -> Result<i32> {
 }
 
 async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
-    let client = client::create(cfg)?;
-
-    println!("Collect links");
     let links = Collector::new(cfg.base.clone(), cfg.skip_missing, cfg.max_concurrency)
         .collect_links(&inputs)
         .await
         .map_err(|e| anyhow!("Cannot collect links from inputs: {}", e));
+    let client = client::create(cfg)?;
 
     let exit_code = if cfg.dump {
-        dump_links(
-            links
-                .collect::<Result<Vec<_>>>()
-                .await?
-                .iter()
-                .filter(|link| !client.filtered(&link.uri)),
-        )
+        let links = links.collect::<Result<Vec<_>>>().await?;
+        commands::dump(links.iter().filter(|link| !client.filtered(&link.uri)))
     } else {
-        let (send_req, recv_req) = mpsc::channel(cfg.max_concurrency);
-        let (send_resp, mut recv_resp) = mpsc::channel(cfg.max_concurrency);
-        let max_concurrency = cfg.max_concurrency;
-        let mut stats = ResponseStats::new();
-
-        // Start receiving requests
-        tokio::spawn(async move {
-            println!("Spawn checker");
-            futures::StreamExt::for_each_concurrent(
-                ReceiverStream::new(recv_req),
-                max_concurrency,
-                |req| async {
-                    let resp = client.check(req).await.unwrap();
-                    send_resp.send(resp).await.unwrap();
-                },
-            )
-            .await;
-        });
-
-        let pb = if cfg.no_progress {
-            None
-        } else {
-            let bar = ProgressBar::new_spinner().with_style(ProgressStyle::default_bar().template(
-                "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
-            ));
-            bar.set_length(0);
-            bar.set_message("Extracting links");
-            bar.enable_steady_tick(100);
-            Some(bar)
-        };
-
-        let bar = pb.clone();
-        let show_results_task = tokio::spawn({
-            let verbose = cfg.verbose;
-            async move {
-                while let Some(response) = recv_resp.recv().await {
-                    show_progress(&pb, &response, verbose);
-                    stats.add(response);
-                }
-                (pb, stats)
-            }
-        });
-
-        tokio::pin!(links);
-
-        while let Some(link) = links.next().await {
-            let link = link?;
-            if let Some(pb) = &bar {
-                pb.inc_length(1);
-                pb.set_message(&link.to_string());
-            };
-            send_req.send(link).await.unwrap();
-        }
-        // required for the receiver task to end, which closes send_resp, which allows
-        // the show_results_task to finish
-        drop(send_req);
-
-        let (pb, stats) = show_results_task.await?;
-
-        // Note that print statements may interfere with the progress bar, so this
-        // must go before printing the stats
-        if let Some(pb) = &pb {
-            pb.finish_and_clear();
-        }
-
-        stats::write(&stats, cfg)?;
-
-        if stats.is_success() {
-            ExitCode::Success
-        } else {
-            ExitCode::LinkCheckFailure
-        }
+        commands::check(client, links, cfg).await?
     };
     Ok(exit_code as i32)
-}
-
-fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
-    let out = color_response(&response.1);
-    if let Some(pb) = progress_bar {
-        pb.inc(1);
-        pb.set_message(&out);
-        if verbose {
-            pb.println(out);
-        }
-    } else {
-        if (response.status().is_success() || response.status().is_excluded()) && !verbose {
-            return;
-        }
-        println!("{}", out);
-    }
-}
-
-/// Dump all detected links to stdout without checking them
-fn dump_links<'a>(links: impl Iterator<Item = &'a Request>) -> ExitCode {
-    println!("inside dump");
-    let mut stdout = io::stdout();
-    for link in links {
-        // Avoid panic on broken pipe.
-        // See https://github.com/rust-lang/rust/issues/46016
-        // This can occur when piping the output of lychee
-        // to another program like `grep`.
-        if let Err(e) = writeln!(stdout, "{}", &link) {
-            if e.kind() != io::ErrorKind::BrokenPipe {
-                eprintln!("{}", e);
-                return ExitCode::UnexpectedFailure;
-            }
-        }
-    }
-    ExitCode::Success
 }
