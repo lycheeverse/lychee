@@ -168,7 +168,7 @@ impl Input {
 
     // Check the extension of the given path against the list of known/accepted
     // file extensions
-    fn valid_extension(p: &PathBuf) -> bool {
+    fn valid_extension(p: &Path) -> bool {
         matches!(FileType::from(p), FileType::Markdown | FileType::Html)
     }
 
