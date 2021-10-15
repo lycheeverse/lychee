@@ -19,7 +19,7 @@ version = "0.7.2"
 [dependencies]
 lychee-lib = { path = "../lychee-lib", version = "0.7.2" }
 anyhow = "1.0.44"
-console = "0.14.1"
+console = "0.15.0"
 headers = "0.3.4"
 http = "0.2.5"
 indicatif = "0.15.0"
