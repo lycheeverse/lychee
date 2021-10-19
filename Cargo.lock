@@ -717,6 +717,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "deadpool"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "137f7a694f9395431e6c5d4f2026defef6002310577d76c7c80619ed626b681b"
+dependencies = [
+ "async-trait",
+ "num_cpus",
+ "tokio",
+]
+
+[[package]]
 name = "diff"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1584,7 +1595,7 @@ version = "0.7.2"
 dependencies = [
  "cached",
  "check-if-email-exists",
- "deadpool",
+ "deadpool 0.9.0",
  "doc-comment",
  "fast_chemail",
  "glob",
@@ -3477,7 +3488,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33807c11bd2c5a3896c36042ef2ca9663795bb7e4af2fe87474a159ea72c2159"
 dependencies = [
  "async-trait",
- "deadpool",
+ "deadpool 0.7.0",
  "futures",
  "futures-timer",
  "http-types",
