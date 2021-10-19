@@ -1135,18 +1135,18 @@ dependencies = [
 
 [[package]]
 name = "headers"
-version = "0.3.4"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0b7591fb62902706ae8e7aaff416b1b0fa2c0fd0878b46dc13baa3712d8a855"
+checksum = "a4c4eb0471fcb85846d8b0690695ef354f9afb11cb03cac2e1d7c9253351afb0"
 dependencies = [
  "base64 0.13.0",
  "bitflags",
  "bytes",
  "headers-core",
  "http",
+ "httpdate 1.0.1",
  "mime",
  "sha-1",
- "time",
 ]
 
 [[package]]
@@ -1267,6 +1267,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "494b4d60369511e7dea41cf646832512a94e542f68bb9c49e54518e0f468eb47"
 
 [[package]]
+name = "httpdate"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6456b8a6c8f33fee7d958fcd1b60d55b11940a79e63ae87013e6d22e26034440"
+
+[[package]]
 name = "hubcaps"
 version = "0.6.2"
 source = "git+https://github.com/softprops/hubcaps.git#a9e6616ecc7b8eef0ea0eaf6055d9610c8961500"
@@ -1301,7 +1307,7 @@ dependencies = [
  "http",
  "http-body",
  "httparse",
- "httpdate",
+ "httpdate 0.3.2",
  "itoa",
  "pin-project",
  "socket2 0.4.0",
@@ -1346,7 +1352,7 @@ dependencies = [
  "bytes",
  "http",
  "httparse",
- "httpdate",
+ "httpdate 0.3.2",
  "language-tags",
  "mime",
  "percent-encoding",
