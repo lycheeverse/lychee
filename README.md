@@ -173,6 +173,15 @@ acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
 lychee --offline path/to/directory
 ```
 
+### Docker Usage
+
+Here's how to mount a local directory into the container and check some input
+with lychee:
+
+```
+docker run -v `pwd`:/input lycheeverse/lychee /input/README.md
+```
+
 ### GitHub token
 
 Optionally, to avoid getting rate-limited while checking GitHub links, you can
