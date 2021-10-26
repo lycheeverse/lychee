@@ -178,7 +178,7 @@ lychee --offline path/to/directory
 Here's how to mount a local directory into the container and check some input
 with lychee:
 
-```
+```sh
 docker run -v `pwd`:/input lycheeverse/lychee /input/README.md
 ```
 
@@ -328,7 +328,7 @@ Try one of these links to get started:
 Lychee is written in Rust. Install [rust-up](https://rustup.rs/) to get started.
 Begin by making sure the following commands succeed without errors.
 
-```bash
+```sh
 cargo test # runs tests
 cargo clippy # lints code
 cargo install cargo-publish-all
