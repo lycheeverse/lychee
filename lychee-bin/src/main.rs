@@ -76,6 +76,7 @@ use ring as _; // required for apple silicon
 use structopt::StructOpt;
 use tokio::sync::mpsc;
 
+mod color;
 mod options;
 mod parse;
 mod stats;
