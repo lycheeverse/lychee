@@ -49,13 +49,15 @@ uuid = { version = "0.8.2", features = ["v4"] }
 wiremock = "0.5.7"
 tracing-subscriber = { version = "0.3.1", default-features = false, features = ["fmt", "registry", "env-filter"] }
 
-[dependencies.console-subscriber]
-optional = true
 # console-subscriber is not yet published to crates.io
-# pin to a specific git revision
-git = "https://github.com/tokio-rs/console"
-rev = "926de99ce4cbfd02c87190f9ec5f1c60b5c305d5"
+# Users have to uncomment this section and the feature below and build lychee
+# locally
+# TODO: Remove this git revision pin after publication
+#[dependencies.console-subscriber]
+#optional = true
+#git = "https://github.com/tokio-rs/console"
+#rev = "926de99ce4cbfd02c87190f9ec5f1c60b5c305d5"
 
 [features]
-tokio-console = ["console-subscriber", "tracing-subscriber/registry"]
+#tokio-console = ["console-subscriber", "tracing-subscriber/registry"]
 vendored-openssl = ["openssl-sys/vendored"]
