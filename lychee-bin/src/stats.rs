@@ -102,7 +102,7 @@ impl Display for ResponseStats {
         color!(
             f,
             BOLD_MAGENTA,
-            "Issues found in {} inputs. Find details below.\n\n",
+            "Issues found in {} input(s). Find details below.\n\n",
             self.fail_map.len()
         )?;
         for (input, responses) in &self.fail_map {
@@ -115,13 +115,12 @@ impl Display for ResponseStats {
 
         color!(f, NORMAL, "\u{1F50D} {} Total", self.total)?;
         color!(f, BOLD_GREEN, " \u{2705} {} OK", self.successful)?;
-        color!(
-            f,
-            BOLD_MAGENTA,
-            " \u{1f6ab} {} Errors",
-            self.errors + self.failures
-        )?;
-        if self.errors + self.failures > 0 {
+
+        let total_errors = self.errors + self.failures;
+
+        let err_str = if total_errors > 1 { "Errors" } else { "Error" };
+        color!(f, BOLD_MAGENTA, " \u{1f6ab} {} {}", total_errors, err_str)?;
+        if total_errors > 0 {
             write!(f, " ")?;
             self.print_errors(f)?;
         }
