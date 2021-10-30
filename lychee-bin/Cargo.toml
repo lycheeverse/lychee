@@ -14,17 +14,17 @@ keywords = [
 ]
 license = "Apache-2.0/MIT"
 repository = "https://github.com/lycheeverse/lychee"
-version = "0.7.2"
+version = "0.8.0"
 
 [dependencies]
-lychee-lib = { path = "../lychee-lib", version = "0.7.2" }
+lychee-lib = { path = "../lychee-lib", version = "0.8.0" }
 anyhow = "1.0.44"
 console = "0.15.0"
 headers = "0.3.5"
 http = "0.2.5"
 indicatif = "0.15.0"
 lazy_static = "1.4.0"
-openssl-sys = "0.9.67"
+openssl-sys = "0.9.68"
 pad = "0.1.6"
 regex = "1.4.6"
 reqwest = { version = "0.11.6", features = ["gzip"] }
@@ -49,13 +49,15 @@ uuid = { version = "0.8.2", features = ["v4"] }
 wiremock = "0.5.7"
 tracing-subscriber = { version = "0.3.1", default-features = false, features = ["fmt", "registry", "env-filter"] }
 
-[dependencies.console-subscriber]
-optional = true
 # console-subscriber is not yet published to crates.io
-# pin to a specific git revision
-git = "https://github.com/tokio-rs/console"
-rev = "926de99ce4cbfd02c87190f9ec5f1c60b5c305d5"
+# Users have to uncomment this section and the feature below and build lychee
+# locally
+# TODO: Remove this git revision pin after publication
+#[dependencies.console-subscriber]
+#optional = true
+#git = "https://github.com/tokio-rs/console"
+#rev = "926de99ce4cbfd02c87190f9ec5f1c60b5c305d5"
 
 [features]
-tokio-console = ["console-subscriber", "tracing-subscriber/registry"]
+#tokio-console = ["console-subscriber", "tracing-subscriber/registry"]
 vendored-openssl = ["openssl-sys/vendored"]

@@ -155,13 +155,12 @@ impl Filter {
 
         if is_false_positive(input)
         // Exclude well-known false-positives
-        // Performed after checking includes to allow user-overwriddes
+        // Performed after checking includes to allow user-overwrites
                 || self.is_excludes_empty()
-                // Previous checks imply input is not explicitly included,
-                // if excludes rules is empty, then *presumably excluded*
+                // Previous checks imply input is not explicitly included.
+                // If exclude rules are empty, then *presumably excluded*
             || self.is_excludes_match(input)
-        // If excludes rules matches input, then
-        // *explicitly excluded*
+        // If exclude rules match input, then *explicitly excluded*
         {
             return true;
         }
@@ -179,8 +178,8 @@ mod test {
     use super::{Excludes, Filter, Includes};
     use crate::test_utils::{mail, website};
 
-    // Note: the standard library as of Rust stable 1.47.0 does not expose
-    // "link-local" or "private" IPv6 checks.  However, one might argue
+    // Note: the standard library, as of Rust stable 1.47.0, does not expose
+    // "link-local" or "private" IPv6 checks. However, one might argue
     // that these concepts do exist in IPv6, albeit the naming is different.
     // See: https://en.wikipedia.org/wiki/Link-local_address#IPv6
     // See: https://en.wikipedia.org/wiki/Private_network#IPv6
@@ -236,7 +235,7 @@ mod test {
 
     #[test]
     fn test_includes_and_excludes_empty() {
-        // This is the pre-configured, empty set of excludes for a client
+        // This is the pre-configured, empty set of excludes for a client.
         // In this case, only the requests matching the include set will be checked
         let filter = Filter::default();
 

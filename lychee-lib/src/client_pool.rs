@@ -34,7 +34,7 @@ impl ClientPool {
     /// asynchronously to a client from the pool
     pub async fn listen(&mut self) {
         while let Some(req) = self.rx.recv().await {
-            let client = self.pool.get().await;
+            let client = self.pool.get().await.unwrap();
             let tx = self.tx.clone();
             tokio::spawn(async move {
                 // Client::check() may fail only because Request::try_from() may fail
