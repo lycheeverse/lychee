@@ -118,14 +118,14 @@ impl Display for ResponseStats {
 
         let total_errors = self.errors + self.failures;
 
-        let err_str = if total_errors > 1 { "Errors" } else { "Error" };
+        let err_str = if total_errors == 1 { "Error" } else { "Errors" };
         color!(f, BOLD_MAGENTA, " \u{1f6ab} {} {}", total_errors, err_str)?;
         if total_errors > 0 {
             write!(f, " ")?;
             self.print_errors(f)?;
         }
         if self.excludes > 0 {
-            color!(f, BOLD_YELLOW, " \u{1F4A4} Excluded: {}", self.excludes)?;
+            color!(f, BOLD_YELLOW, " \u{1F4A4} {} Excluded", self.excludes)?;
         }
         Ok(())
     }

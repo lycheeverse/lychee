@@ -146,9 +146,9 @@ mod cli {
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("Total............2"))
-            .stdout(contains("Successful.......1"))
-            .stdout(contains("Excluded.........1"));
+            .stdout(contains("2 Total"))
+            .stdout(contains("1 OK"))
+            .stdout(contains("1 Excluded"));
     }
 
     #[test]
@@ -163,8 +163,8 @@ mod cli {
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("Total............3"))
-            .stdout(contains("Successful.......3"));
+            .stdout(contains("3 Total"))
+            .stdout(contains("3 OK"));
     }
 
     #[test]
@@ -210,9 +210,9 @@ mod cli {
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("Total............3"))
-            .stdout(contains("Successful.......2"))
-            .stdout(contains("Excluded.........1"));
+            .stdout(contains("3 Total"))
+            .stdout(contains("2 OK"))
+            .stdout(contains("1 Excluded"));
     }
 
     #[test]
@@ -225,8 +225,8 @@ mod cli {
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("Total............1"))
-            .stdout(contains("Successful.......1"));
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 OK"));
     }
 
     #[test]
@@ -248,8 +248,8 @@ mod cli {
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("Total............1"))
-            .stdout(contains("Successful.......1"));
+            .stdout(contains("1 TOTAL"))
+            .stdout(contains("1 OK"));
     }
 
     #[test]
@@ -263,8 +263,8 @@ mod cli {
             .assert()
             .failure()
             .code(2)
-            .stdout(contains("https://github.com/mre/idiomatic-rust-doesnt-exist-man \
-            (GitHub token not specified. To check GitHub links reliably, use `--github-token` flag / `GITHUB_TOKEN` env var.)"));
+            .stdout(contains("https://github.com/mre/idiomatic-rust-doesnt-exist-man: \
+            GitHub token not specified. To check GitHub links reliably, use `--github-token` flag / `GITHUB_TOKEN` env var."));
     }
 
     #[tokio::test]
@@ -347,7 +347,7 @@ mod cli {
             .arg("--verbose")
             .assert()
             .success()
-            .stdout(contains("Total............2"));
+            .stdout(contains("2 Total"));
 
         Ok(())
     }
@@ -371,7 +371,7 @@ mod cli {
             .arg("--glob-ignore-case")
             .assert()
             .success()
-            .stdout(contains("Total............2"));
+            .stdout(contains("2 Total"));
 
         Ok(())
     }
@@ -394,7 +394,7 @@ mod cli {
             .arg("--verbose")
             .assert()
             .success()
-            .stdout(contains("Total............1"));
+            .stdout(contains("1 Total"));
 
         Ok(())
     }
@@ -432,7 +432,7 @@ mod cli {
             .arg(".*")
             .assert()
             .success()
-            .stdout(contains("Excluded........11"));
+            .stdout(contains("11 Excluded"));
 
         Ok(())
     }
@@ -448,7 +448,7 @@ mod cli {
             .arg("https://ldra.com/")
             .assert()
             .success()
-            .stdout(contains("Excluded.........2"));
+            .stdout(contains("2 Excluded"));
 
         Ok(())
     }
@@ -464,7 +464,7 @@ mod cli {
             .arg(excludes_path)
             .assert()
             .success()
-            .stdout(contains("Excluded.........2"));
+            .stdout(contains("2 Excluded"));
 
         Ok(())
     }
@@ -482,7 +482,7 @@ mod cli {
             .arg(excludes_path2)
             .assert()
             .success()
-            .stdout(contains("Excluded.........3"));
+            .stdout(contains("3 Excluded"));
 
         Ok(())
     }
@@ -512,7 +512,7 @@ mod cli {
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("Total............0"));
+            .stdout(contains("0 Total"));
 
         Ok(())
     }
