@@ -3,7 +3,7 @@ use std::{
     fmt::{self, Display},
 };
 
-use crate::color::*;
+use crate::color::{color, BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, GREEN, NORMAL, PINK, YELLOW};
 use lychee_lib::{Input, Response, ResponseBody, Status};
 use serde::Serialize;
 
