@@ -13,7 +13,7 @@ pub(crate) fn color_response(response: &ResponseBody) -> String {
         Status::Excluded | Status::Unsupported(_) => DIM.apply_to(response),
         Status::Redirected(_) => NORMAL.apply_to(response),
         Status::UnknownStatusCode(_) | Status::Timeout(_) => YELLOW.apply_to(response),
-        Status::Error(_) => MAGENTA.apply_to(response),
+        Status::Error(_) => PINK.apply_to(response),
     };
     out.to_string()
 }
@@ -92,7 +92,7 @@ impl ResponseStats {
             .collect();
         error_str.sort();
 
-        color!(f, MAGENTA, "({})", error_str.join("|"))?;
+        color!(f, PINK, "({})", error_str.join("|"))?;
         Ok(())
     }
 }
@@ -101,7 +101,7 @@ impl Display for ResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         color!(
             f,
-            BOLD_MAGENTA,
+            BOLD_PINK,
             "Issues found in {} input(s). Find details below.\n\n",
             self.fail_map.len()
         )?;
@@ -119,7 +119,7 @@ impl Display for ResponseStats {
         let total_errors = self.errors + self.failures;
 
         let err_str = if total_errors == 1 { "Error" } else { "Errors" };
-        color!(f, BOLD_MAGENTA, " \u{1f6ab} {} {}", total_errors, err_str)?;
+        color!(f, BOLD_PINK, " \u{1f6ab} {} {}", total_errors, err_str)?;
         if total_errors > 0 {
             write!(f, " ")?;
             self.print_errors(f)?;
