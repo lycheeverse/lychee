@@ -12,6 +12,9 @@ use crate::Uri;
 const FALSE_POSITIVE_PAT: &[&str] = &[
     r"http://www.w3.org/1999/xhtml",
     r"http://www.w3.org/2000/svg",
+    r"https://schemas.microsoft.com",
+    r"http://schemas.zune.net",
+    r"http://schemas.openxmlformats.org",
 ];
 
 #[inline]
@@ -20,7 +23,7 @@ const FALSE_POSITIVE_PAT: &[&str] = &[
 /// default. This behavior can be explicitly overwritten by defining an
 /// `Include` pattern, which will match on a false positive
 pub fn is_false_positive(input: &str) -> bool {
-    input == FALSE_POSITIVE_PAT[0]
+    FALSE_POSITIVE_PAT.iter().any(|pat| input.starts_with(pat))
 }
 
 /// A generic URI filter
@@ -247,6 +250,9 @@ mod test {
         let filter = Filter::default();
 
         assert!(filter.is_excluded(&website("http://www.w3.org/1999/xhtml")));
+        assert!(filter.is_excluded(&website(
+            "http://schemas.openxmlformats.org/markup-compatibility/2006"
+        )));
         assert!(!filter.is_excluded(&website("https://example.org")));
     }
 
