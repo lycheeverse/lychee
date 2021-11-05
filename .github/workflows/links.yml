@@ -15,7 +15,7 @@ jobs:
       - name: Link Checker
         uses: lycheeverse/lychee-action@master
         with:
-          args: --verbose --no-progress --exclude example.org
+          args: --verbose --no-progress --exclude example.org -- README.md
 
       - name: Create Issue From File
         if: github.repository_owner == 'lycheeverse'
