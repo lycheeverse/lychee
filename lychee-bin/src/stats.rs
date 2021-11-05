@@ -184,19 +184,19 @@ mod test {
 
     #[tokio::test]
     async fn test_stats() {
-        let stata = [
+        let status_codes = [
             StatusCode::OK,
             StatusCode::PERMANENT_REDIRECT,
             StatusCode::BAD_GATEWAY,
         ];
 
         let mut stats = ResponseStats::new();
-        for status in &stata {
+        for status in &status_codes {
             stats.add(get_mock_status_response(status).await);
         }
 
         let mut expected_map: HashMap<Input, HashSet<ResponseBody>> = HashMap::new();
-        for status in &stata {
+        for status in &status_codes {
             if status.is_server_error() || status.is_client_error() || status.is_redirection() {
                 let Response(input, response_body) = get_mock_status_response(status).await;
                 let entry = expected_map.entry(input).or_default();
