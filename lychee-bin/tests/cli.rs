@@ -309,7 +309,7 @@ mod cli {
     #[test]
     fn test_missing_file_error() {
         let mut cmd = main_command();
-        let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4().to_string());
+        let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
 
         cmd.arg(&filename)
             .assert()
@@ -324,7 +324,7 @@ mod cli {
     #[test]
     fn test_missing_file_ok_if_skip_missing() {
         let mut cmd = main_command();
-        let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4().to_string());
+        let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
 
         cmd.arg(&filename).arg("--skip-missing").assert().success();
     }

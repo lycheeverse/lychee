@@ -22,16 +22,20 @@ lazy_static! {
 
 #[derive(Debug, Deserialize)]
 pub(crate) enum Format {
-    String,
+    Compact,
+    Detailed,
     Json,
+    Markdown,
 }
 
 impl FromStr for Format {
     type Err = Error;
     fn from_str(format: &str) -> Result<Self, Self::Err> {
         match format {
-            "string" => Ok(Format::String),
+            "compact" | "string" => Ok(Format::Compact),
+            "detailed" => Ok(Format::Detailed),
             "json" => Ok(Format::Json),
+            "markdown" | "md" => Ok(Format::Markdown),
             _ => Err(anyhow!("Could not parse format {}", format)),
         }
     }
@@ -39,7 +43,7 @@ impl FromStr for Format {
 
 impl Default for Format {
     fn default() -> Self {
-        Format::String
+        Format::Compact
     }
 }
 
@@ -262,8 +266,8 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) output: Option<PathBuf>,
 
-    /// Output file format of status report (json, string)
-    #[structopt(short, long, default_value = "string")]
+    /// Output format of final status report (compact, detailed, json, markdown)
+    #[structopt(short, long, default_value = "compact")]
     #[serde(default)]
     pub(crate) format: Format,
 

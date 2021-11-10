@@ -254,7 +254,7 @@ impl Client {
                 .repo(owner, repo)
                 .get()
                 .await
-                .map_or_else(|e| e.into(), |_| Status::Ok(StatusCode::OK)),
+                .map_or_else(std::convert::Into::into, |_| Status::Ok(StatusCode::OK)),
             None => ErrorKind::MissingGitHubToken.into(),
         }
     }
