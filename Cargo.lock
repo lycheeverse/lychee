@@ -661,9 +661,9 @@ dependencies = [
 
 [[package]]
 name = "deadpool"
-version = "0.9.1"
+version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51dc1e92ba8164da131a4753a26cb1e7ebcfe617e56bb3c2b6136049c8ee5730"
+checksum = "3bf0c5365c0925c80a838a6810a1bf38d3304ca6b4eb25829e29e33da12de786"
 dependencies = [
  "async-trait",
  "deadpool-runtime",
@@ -1500,7 +1500,7 @@ version = "0.8.0"
 dependencies = [
  "cached",
  "check-if-email-exists",
- "deadpool 0.9.1",
+ "deadpool 0.9.2",
  "doc-comment",
  "fast_chemail",
  "glob",
