@@ -12,5 +12,5 @@ pub use json::Json;
 pub use markdown::Markdown;
 
 pub trait StatsWriter {
-    fn write(&self, stats: &ResponseStats) -> Result<String>;
+    fn write(&self, stats: ResponseStats) -> Result<String>;
 }

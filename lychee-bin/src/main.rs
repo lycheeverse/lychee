@@ -58,9 +58,9 @@
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 #![deny(missing_docs)]
 
-use color::color_response;
 // required for apple silicon
 use ring as _;
+use stats::color_response;
 
 use std::fs::File;
 use std::io::{self, BufRead, Write};
@@ -265,13 +265,15 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         Format::Markdown => Box::new(writer::Markdown::new()),
     };
 
-    write_stats(writer, &stats, cfg)?;
-
-    if stats.is_success() {
-        Ok(ExitCode::Success as i32)
+    let code = if stats.is_success() {
+        ExitCode::Success
     } else {
-        Ok(ExitCode::LinkCheckFailure as i32)
-    }
+        ExitCode::LinkCheckFailure
+    };
+
+    write_stats(writer, stats, cfg)?;
+
+    Ok(code as i32)
 }
 
 /// Dump all detected links to stdout without checking them
@@ -293,18 +295,19 @@ fn dump_links<'a>(links: impl Iterator<Item = &'a Request>) -> ExitCode {
 }
 
 /// Write final statistics to stdout or to file
-fn write_stats(writer: Box<dyn StatsWriter>, stats: &ResponseStats, cfg: &Config) -> Result<()> {
+fn write_stats(writer: Box<dyn StatsWriter>, stats: ResponseStats, cfg: &Config) -> Result<()> {
+    let is_empty = stats.is_empty();
     let formatted = writer.write(stats)?;
 
     if let Some(output) = &cfg.output {
         fs::write(output, formatted).context("Cannot write status output to file")?;
     } else {
-        if cfg.verbose && !stats.is_empty() {
+        if cfg.verbose && !is_empty {
             // separate summary from the verbose list of links above
             println!();
         }
         // we assume that the formatted stats don't have a final newline
-        println!("{}", stats);
+        println!("{}", formatted);
     }
     Ok(())
 }

@@ -12,7 +12,7 @@ impl Json {
 }
 
 impl StatsWriter for Json {
-    fn write(&self, stats: &ResponseStats) -> Result<String> {
+    fn write(&self, stats: ResponseStats) -> Result<String> {
         Ok(serde_json::to_string_pretty(&stats).context("Cannot format stats as JSON")?)
     }
 }

@@ -1,20 +1,21 @@
 use console::Style;
-use lychee_lib::{ResponseBody, Status};
 use once_cell::sync::Lazy;
 
-static GREEN: Lazy<Style> = Lazy::new(|| Style::new().green().bright());
-static DIM: Lazy<Style> = Lazy::new(|| Style::new().dim());
-static NORMAL: Lazy<Style> = Lazy::new(Style::new);
-static YELLOW: Lazy<Style> = Lazy::new(|| Style::new().yellow().bright());
-static RED: Lazy<Style> = Lazy::new(|| Style::new().red().bright());
+pub(crate) static NORMAL: Lazy<Style> = Lazy::new(Style::new);
+pub(crate) static DIM: Lazy<Style> = Lazy::new(|| Style::new().dim());
 
-pub(crate) fn color_response(response: &ResponseBody) -> String {
-    let out = match response.status {
-        Status::Ok(_) => GREEN.apply_to(response),
-        Status::Excluded | Status::Unsupported(_) => DIM.apply_to(response),
-        Status::Redirected(_) => NORMAL.apply_to(response),
-        Status::UnknownStatusCode(_) | Status::Timeout(_) => YELLOW.apply_to(response),
-        Status::Error(_) => RED.apply_to(response),
+pub(crate) static GREEN: Lazy<Style> = Lazy::new(|| Style::new().green().bright());
+pub(crate) static BOLD_GREEN: Lazy<Style> = Lazy::new(|| Style::new().green().bold().bright());
+pub(crate) static YELLOW: Lazy<Style> = Lazy::new(|| Style::new().yellow().bright());
+pub(crate) static BOLD_YELLOW: Lazy<Style> = Lazy::new(|| Style::new().yellow().bold().bright());
+pub(crate) static PINK: Lazy<Style> = Lazy::new(|| Style::new().color256(197).bright());
+pub(crate) static BOLD_PINK: Lazy<Style> = Lazy::new(|| Style::new().color256(197).bold().bright());
+
+// Write output using predefined colors
+macro_rules! color {
+    ($f:ident, $color:ident, $text:tt, $($tts:tt)*) => {
+        write!($f, "{}", $color.apply_to(format!($text, $($tts)*)))
     };
-    out.to_string()
 }
+
+pub(crate) use color;

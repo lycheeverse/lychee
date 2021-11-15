@@ -1,7 +1,23 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 use lychee_lib::{Input, Response, ResponseBody, Status};
 use serde::Serialize;
+
+use crate::color::{color, DIM, GREEN, NORMAL, PINK, YELLOW};
+
+pub(crate) fn color_response(response: &ResponseBody) -> String {
+    let out = match response.status {
+        Status::Ok(_) => GREEN.apply_to(response),
+        Status::Excluded | Status::Unsupported(_) => DIM.apply_to(response),
+        Status::Redirected(_) => NORMAL.apply_to(response),
+        Status::UnknownStatusCode(_) | Status::Timeout(_) => YELLOW.apply_to(response),
+        Status::Error(_) => PINK.apply_to(response),
+    };
+    out.to_string()
+}
 
 #[derive(Default, Serialize)]
 pub struct ResponseStats {
@@ -24,8 +40,9 @@ impl ResponseStats {
 
     pub(crate) fn add(&mut self, response: Response) {
         let Response(source, ResponseBody { ref status, .. }) = response;
+
+        // Silently skip unsupported URIs
         if status.is_unsupported() {
-            // Silently skip unsupported URIs
             return;
         }
 
@@ -59,6 +76,7 @@ impl ResponseStats {
     pub(crate) const fn is_empty(&self) -> bool {
         self.total == 0
     }
+
 }
 
 #[cfg(test)]
