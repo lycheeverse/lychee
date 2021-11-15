@@ -24,7 +24,7 @@ pub(crate) fn elem_attr_is_link(attr_name: &str, elem_name: &str) -> bool {
     // over at: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
     matches!(
         (attr_name, elem_name),
-        ("href" | "src" | "srcset" | "cite", _) | ("data", "object") | ("onhashchange", "body")
+        ("href" | "src" | "cite", _) | ("data", "object") | ("onhashchange", "body")
     )
 }
 
