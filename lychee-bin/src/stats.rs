@@ -18,11 +18,11 @@ pub(crate) fn color_response(response: &ResponseBody) -> String {
 
 #[derive(Default, Serialize)]
 pub(crate) struct ResponseStats {
+    pub(crate) total: usize,
     pub(crate) successful: usize,
     pub(crate) failures: usize,
     pub(crate) unknown: usize,
     pub(crate) timeouts: usize,
-    pub(crate) total: usize,
     pub(crate) redirects: usize,
     pub(crate) excludes: usize,
     pub(crate) errors: usize,
