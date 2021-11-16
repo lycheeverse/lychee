@@ -56,7 +56,7 @@ impl Display for DetailedResponseStats {
 /// for `ResponseStats`
 struct DetailedResponseStats(ResponseStats);
 
-pub struct Detailed;
+pub(crate) struct Detailed;
 
 impl Detailed {
     pub(crate) fn new() -> Self {

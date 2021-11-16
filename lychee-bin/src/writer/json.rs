@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use super::StatsWriter;
 use crate::stats::ResponseStats;
 
-pub struct Json;
+pub(crate) struct Json;
 
 impl Json {
     pub(crate) fn new() -> Self {
