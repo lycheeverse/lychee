@@ -1,12 +1,9 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt,
-};
+use std::collections::{HashMap, HashSet};
 
 use lychee_lib::{Input, Response, ResponseBody, Status};
 use serde::Serialize;
 
-use crate::color::{color, DIM, GREEN, NORMAL, PINK, YELLOW};
+use crate::color::{DIM, GREEN, NORMAL, PINK, YELLOW};
 
 pub(crate) fn color_response(response: &ResponseBody) -> String {
     let out = match response.status {
@@ -76,7 +73,6 @@ impl ResponseStats {
     pub(crate) const fn is_empty(&self) -> bool {
         self.total == 0
     }
-
 }
 
 #[cfg(test)]
