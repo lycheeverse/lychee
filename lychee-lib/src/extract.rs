@@ -131,10 +131,16 @@ impl Extractor {
                 ..
             } => {
                 for attr in attrs.borrow().iter() {
-                    if url::elem_attr_is_link(attr.name.local.as_ref(), name.local.as_ref()) {
-                        self.urls.push(attr.value.clone());
-                    } else {
+                    let urls = url::extract_links_from_elem_attr(
+                        attr.name.local.as_ref(),
+                        name.local.as_ref(),
+                        attr.value.as_ref(),
+                    );
+
+                    if urls.is_empty() {
                         self.extract_plaintext(&attr.value);
+                    } else {
+                        self.urls.extend(urls.into_iter().map(StrTendril::from));
                     }
                 }
             }
@@ -328,9 +334,8 @@ mod test {
 
         let expected_links = array::IntoIter::new([
             website("https://example.com/static/image.png"),
-            // The links from the srcSet are currently not detected
-            // website("https://example.com/static/image300.png"),
-            // website("https://example.com/static/image600.png"),
+            website("https://example.com/static/image300.png"),
+            website("https://example.com/static/image600.png"),
         ])
         .collect::<HashSet<Uri>>();
 
