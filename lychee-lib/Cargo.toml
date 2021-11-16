@@ -18,7 +18,7 @@ version = "0.8.0"
 
 [dependencies]
 check-if-email-exists = "0.8.25"
-deadpool = "0.9.1"
+deadpool = "0.9.2"
 fast_chemail = "0.9.6"
 glob = "0.3.0"
 html5ever = "0.25.1"
