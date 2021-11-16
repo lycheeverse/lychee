@@ -311,6 +311,32 @@ mod test {
     }
 
     #[test]
+    fn test_extract_html_srcset() {
+        let links = extract_uris(
+            r#"
+            <img
+            src="/static/image.png"
+            srcset="
+              /static/image300.png  300w,
+              /static/image600.png  600w,
+            "
+          />
+          "#,
+            FileType::Html,
+            Some("https://example.com/"),
+        );
+
+        let expected_links = array::IntoIter::new([
+            website("https://example.com/static/image.png"),
+            website("https://example.com/static/image300.png"),
+            website("https://example.com/static/image600.png"),
+        ])
+        .collect::<HashSet<Uri>>();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
     fn test_skip_markdown_anchors() {
         let links = extract_uris("This is [a test](#lol).", FileType::Markdown, None);
 
