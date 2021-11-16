@@ -36,7 +36,7 @@ impl Display for DetailedResponseStats {
         write_stat(f, "\u{23f3} Timeouts", stats.timeouts, true)?; // ⏳
         write_stat(f, "\u{1f500} Redirected", stats.redirects, true)?; // 🔀
         write_stat(f, "\u{1f47b} Excluded", stats.excludes, true)?; // 👻
-        write_stat(f, "\u{2753} Unknown", stats.unknown, true)?; //❓ 
+        write_stat(f, "\u{2753} Unknown", stats.unknown, true)?; //❓
         write_stat(f, "\u{1f6ab} Errors", stats.errors + stats.failures, false)?; // 🚫
 
         for (input, responses) in &stats.fail_map {
@@ -59,7 +59,7 @@ struct DetailedResponseStats(ResponseStats);
 pub(crate) struct Detailed;
 
 impl Detailed {
-    pub(crate) fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Detailed {}
     }
 }

@@ -87,7 +87,7 @@ impl Display for MarkdownResponseStats {
 pub(crate) struct Markdown;
 
 impl Markdown {
-    pub(crate) fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Markdown {}
     }
 }

@@ -87,7 +87,7 @@ use crate::parse::{parse_basic_auth, parse_headers, parse_statuscodes, parse_tim
 use crate::{
     options::{Config, Format, LycheeOptions},
     stats::ResponseStats,
-    writer::*,
+    writer::StatsWriter,
 };
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
@@ -271,7 +271,7 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         ExitCode::LinkCheckFailure
     };
 
-    write_stats(writer, stats, cfg)?;
+    write_stats(&*writer, stats, cfg)?;
 
     Ok(code as i32)
 }
@@ -295,7 +295,7 @@ fn dump_links<'a>(links: impl Iterator<Item = &'a Request>) -> ExitCode {
 }
 
 /// Write final statistics to stdout or to file
-fn write_stats(writer: Box<dyn StatsWriter>, stats: ResponseStats, cfg: &Config) -> Result<()> {
+fn write_stats(writer: &dyn StatsWriter, stats: ResponseStats, cfg: &Config) -> Result<()> {
     let is_empty = stats.is_empty();
     let formatted = writer.write(stats)?;
 

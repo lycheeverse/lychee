@@ -73,7 +73,7 @@ impl Display for CompactResponseStats {
 pub(crate) struct Compact;
 
 impl Compact {
-    pub(crate) fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Compact {}
     }
 }

@@ -17,16 +17,16 @@ pub(crate) fn color_response(response: &ResponseBody) -> String {
 }
 
 #[derive(Default, Serialize)]
-pub struct ResponseStats {
-    pub total: usize,
-    pub successful: usize,
-    pub failures: usize,
-    pub unknown: usize,
-    pub timeouts: usize,
-    pub redirects: usize,
-    pub excludes: usize,
-    pub errors: usize,
-    pub fail_map: HashMap<Input, HashSet<ResponseBody>>,
+pub(crate) struct ResponseStats {
+    pub(crate) successful: usize,
+    pub(crate) failures: usize,
+    pub(crate) unknown: usize,
+    pub(crate) timeouts: usize,
+    pub(crate) total: usize,
+    pub(crate) redirects: usize,
+    pub(crate) excludes: usize,
+    pub(crate) errors: usize,
+    pub(crate) fail_map: HashMap<Input, HashSet<ResponseBody>>,
 }
 
 impl ResponseStats {
