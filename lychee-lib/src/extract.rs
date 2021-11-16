@@ -131,10 +131,16 @@ impl Extractor {
                 ..
             } => {
                 for attr in attrs.borrow().iter() {
-                    if url::elem_attr_is_link(attr.name.local.as_ref(), name.local.as_ref()) {
-                        self.urls.push(attr.value.clone());
-                    } else {
+                    let urls = url::extract_links_from_elem_attr(
+                        attr.name.local.as_ref(),
+                        name.local.as_ref(),
+                        attr.value.as_ref(),
+                    );
+
+                    if urls.is_empty() {
                         self.extract_plaintext(&attr.value);
+                    } else {
+                        self.urls.extend(urls.into_iter().map(StrTendril::from));
                     }
                 }
             }
@@ -304,6 +310,32 @@ mod test {
         let expected_links = array::IntoIter::new([
             website("https://github.com/lycheeverse/lychee/"),
             website("https://github.com/lycheeverse/blob/master/README.md"),
+        ])
+        .collect::<HashSet<Uri>>();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_html_srcset() {
+        let links = extract_uris(
+            r#"
+            <img
+                src="/static/image.png"
+                srcset="
+                /static/image300.png  300w,
+                /static/image600.png  600w,
+                "
+            />
+          "#,
+            FileType::Html,
+            Some("https://example.com/"),
+        );
+
+        let expected_links = array::IntoIter::new([
+            website("https://example.com/static/image.png"),
+            website("https://example.com/static/image300.png"),
+            website("https://example.com/static/image600.png"),
         ])
         .collect::<HashSet<Uri>>();
 
