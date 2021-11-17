@@ -64,6 +64,7 @@ impl Display for MarkdownResponseStats {
         writeln!(f, "{}", stats_table(&self.0))?;
 
         if !&stats.fail_map.is_empty() {
+            writeln!(f)?;
             writeln!(f, "## Errors per input")?;
             for (input, responses) in &stats.fail_map {
                 // Using leading newlines over trailing ones (e.g. `writeln!`)
