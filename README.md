@@ -230,7 +230,8 @@ OPTIONS:
     -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
         --exclude <exclude>...                 Exclude URLs from checking (supports regex)
         --exclude-file <exclude-file>...       A file or files that contains URLs to exclude from checking
-    -f, --format <format>                      Output file format of status report (json, string) [default: string]
+    -f, --format <format>                      Output format of final status report (compact, detailed, json, markdown)
+                                               [default: compact]
         --github-token <github-token>          GitHub API token to use when checking github.com links, to avoid rate
                                                limiting [env: GITHUB_TOKEN=]
     -h, --headers <headers>...                 Custom request headers

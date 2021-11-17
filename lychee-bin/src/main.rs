@@ -60,6 +60,7 @@
 
 // required for apple silicon
 use ring as _;
+use stats::color_response;
 
 use std::fs::File;
 use std::io::{self, BufRead, Write};
@@ -76,14 +77,17 @@ use ring as _; // required for apple silicon
 use structopt::StructOpt;
 use tokio::sync::mpsc;
 
+mod color;
 mod options;
 mod parse;
 mod stats;
+mod writer;
 
 use crate::parse::{parse_basic_auth, parse_headers, parse_statuscodes, parse_timeout};
 use crate::{
     options::{Config, Format, LycheeOptions},
-    stats::{color_response, ResponseStats},
+    stats::ResponseStats,
+    writer::StatsWriter,
 };
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
@@ -155,13 +159,6 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
         }
         println!("{}", out);
     }
-}
-
-fn fmt(stats: &ResponseStats, format: &Format) -> Result<String> {
-    Ok(match format {
-        Format::String => stats.to_string(),
-        Format::Json => serde_json::to_string_pretty(&stats)?,
-    })
 }
 
 async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
@@ -261,13 +258,22 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         pb.finish_and_clear();
     }
 
-    write_stats(&stats, cfg)?;
+    let writer: Box<dyn StatsWriter> = match cfg.format {
+        Format::Compact => Box::new(writer::Compact::new()),
+        Format::Detailed => Box::new(writer::Detailed::new()),
+        Format::Json => Box::new(writer::Json::new()),
+        Format::Markdown => Box::new(writer::Markdown::new()),
+    };
 
-    if stats.is_success() {
-        Ok(ExitCode::Success as i32)
+    let code = if stats.is_success() {
+        ExitCode::Success
     } else {
-        Ok(ExitCode::LinkCheckFailure as i32)
-    }
+        ExitCode::LinkCheckFailure
+    };
+
+    write_stats(&*writer, stats, cfg)?;
+
+    Ok(code as i32)
 }
 
 /// Dump all detected links to stdout without checking them
@@ -289,18 +295,19 @@ fn dump_links<'a>(links: impl Iterator<Item = &'a Request>) -> ExitCode {
 }
 
 /// Write final statistics to stdout or to file
-fn write_stats(stats: &ResponseStats, cfg: &Config) -> Result<()> {
-    let formatted = fmt(stats, &cfg.format)?;
+fn write_stats(writer: &dyn StatsWriter, stats: ResponseStats, cfg: &Config) -> Result<()> {
+    let is_empty = stats.is_empty();
+    let formatted = writer.write(stats)?;
 
     if let Some(output) = &cfg.output {
         fs::write(output, formatted).context("Cannot write status output to file")?;
     } else {
-        if cfg.verbose && !stats.is_empty() {
+        if cfg.verbose && !is_empty {
             // separate summary from the verbose list of links above
             println!();
         }
         // we assume that the formatted stats don't have a final newline
-        println!("{}", stats);
+        println!("{}", formatted);
     }
     Ok(())
 }
