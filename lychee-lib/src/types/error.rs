@@ -1,50 +1,69 @@
-use std::{any::Any, convert::Infallible, fmt::Display, hash::Hash, path::PathBuf};
-
-use http::header::InvalidHeaderValue;
 use serde::{Serialize, Serializer};
+use std::any::Any;
+use std::hash::Hash;
+use std::{convert::Infallible, path::PathBuf};
+use thiserror::Error;
 
 use crate::Uri;
 
-/// Kinds of status errors.
-#[allow(clippy::module_name_repetitions)]
-#[derive(Debug)]
+/// Possible Errors when interacting with `lychee_lib`
+#[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
     // TODO: maybe needs to be split; currently first element is `Some` only for
     // reading files
     /// Any form of I/O error occurred while reading from a given path.
+    #[error("Failed to read from path: `{}`, reason: {1}", match .0 {
+        Some(p) => p.to_str().unwrap_or("<MALFORMED PATH>"),
+        None => "<MALFORMED PATH>",
+    })]
     IoError(Option<PathBuf>, std::io::Error),
     /// Errors which can occur when attempting to interpret a sequence of u8 as a string
-    Utf8Error(std::str::Utf8Error),
-    /// Network error when trying to connect to an endpoint via reqwest.
-    ReqwestError(reqwest::Error),
-    /// Network error when trying to connect to an endpoint via hubcaps.
-    HubcapsError(hubcaps::Error),
+    #[error("Attempted to interpret an invalid sequence of bytes as a string")]
+    Utf8Error(#[from] std::str::Utf8Error),
+    /// Reqwest network error
+    #[error("Network error while trying to connect to an endpoint via reqwest")]
+    ReqwestError(#[from] reqwest::Error),
+    /// Hubcaps network error
+    #[error("Network error when trying to connect to an endpoint via hubcaps")]
+    HubcapsError(#[from] hubcaps::Error),
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
+    #[error("Cannot parse {0} as website url / file path or mail address: ({1:?})")]
     UrlParseError(String, (url::ParseError, Option<fast_chemail::ParseError>)),
     /// The given URI cannot be converted to a file path
+    #[error("Cannot find file {0}")]
     InvalidFilePath(Uri),
     /// The given path cannot be converted to a URI
+    #[error("Invalid path to URL conversion: {0}")]
     InvalidUrlFromPath(PathBuf),
     /// The given mail address is unreachable
+    #[error("Unreachable mail address: {0}")]
     UnreachableEmailAddress(Uri),
     /// The given header could not be parsed.
     /// A possible error when converting a `HeaderValue` from a string or byte
     /// slice.
-    InvalidHeader(InvalidHeaderValue),
+    #[error("Header could not be parsed.")]
+    InvalidHeader(#[from] http::header::InvalidHeaderValue),
     /// The given string can not be parsed into a valid base URL or base directory
+    #[error("Error with base dir `{0}` : {1}")]
     InvalidBase(String, String),
-    /// Cannot find local file
+    /// The given path does not resolve to a valid file
+    #[error("Cannot find local file {0}")]
     FileNotFound(PathBuf),
-    /// The given UNIX glob pattern is invalid
-    InvalidGlobPattern(glob::PatternError),
+    /// The given glob pattern is not valid
+    #[error("UNIX glob pattern is invalid")]
+    InvalidGlobPattern(#[from] glob::PatternError),
     /// The Github API could not be called because of a missing Github token.
+    #[error("GitHub token not specified. To check GitHub links reliably, use `--github-token` flag / `GITHUB_TOKEN` env var.")]
     MissingGitHubToken,
-    /// The website is available through HTTPS, but HTTP scheme is used.
+    /// Used an insecure URI where a secure variant was reachable
+    #[error("This URI is available in HTTPS protocol, but HTTP is provided, use '{0}' instead")]
     InsecureURL(Uri),
     /// An URL with an invalid host was found
+    #[error("URL is missing a host")]
     InvalidUrlHost,
-    /// Invalid URI
+    /// Cannot parse the given URI
+    #[error("The given URI is invalid: {0}")]
     InvalidURI(Uri),
 }
 
@@ -96,53 +115,6 @@ impl Hash for ErrorKind {
     }
 }
 
-impl Display for ErrorKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::IoError(Some(p), e) => write!(
-                f,
-                "Failed to read file: `{}`, reason: {}",
-                p.to_str().unwrap_or("<MALFORMED PATH>"),
-                e
-            ),
-            Self::IoError(None, e) => e.fmt(f),
-            Self::ReqwestError(e) => e.fmt(f),
-            Self::HubcapsError(e) => e.fmt(f),
-            Self::FileNotFound(e) => write!(f, "{}", e.to_string_lossy()),
-            Self::UrlParseError(s, (url_err, Some(mail_err))) => {
-                write!(
-                    f,
-                    "Cannot parse {} as website url ({}) or mail address ({})",
-                    s, url_err, mail_err
-                )
-            }
-            Self::UrlParseError(s, (url_err, None)) => {
-                write!(f, "Cannot parse {} as website url ({})", s, url_err)
-            }
-            Self::InvalidFilePath(u) => write!(f, "Cannot find file {}", u),
-            Self::InvalidURI(u) => write!(f, "Invalid URI: {}", u),
-            Self::InvalidUrlFromPath(p) => {
-                write!(f, "Invalid path to URL conversion: {}", p.display())
-            }
-            Self::UnreachableEmailAddress(uri) => write!(f, "Unreachable mail address: {}", uri),
-            Self::InvalidHeader(e) => e.fmt(f),
-            Self::InvalidGlobPattern(e) => e.fmt(f),
-            Self::MissingGitHubToken => f.write_str(
-                "GitHub token not specified. To check GitHub links reliably, \
-                 use `--github-token` flag / `GITHUB_TOKEN` env var.",
-            ),
-            Self::InsecureURL(uri) => write!(
-                f,
-                "This URL is available in HTTPS protocol, but HTTP is provided, use '{}' instead",
-                uri
-            ),
-            Self::InvalidBase(base, e) => write!(f, "Error with base dir `{}` : {}", base, e),
-            Self::Utf8Error(e) => e.fmt(f),
-            Self::InvalidUrlHost => write!(f, "URL is missing a host"),
-        }
-    }
-}
-
 impl Serialize for ErrorKind {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -158,12 +130,6 @@ impl From<(PathBuf, std::io::Error)> for ErrorKind {
     }
 }
 
-impl From<std::str::Utf8Error> for ErrorKind {
-    fn from(e: std::str::Utf8Error) -> Self {
-        Self::Utf8Error(e)
-    }
-}
-
 impl From<std::io::Error> for ErrorKind {
     fn from(e: std::io::Error) -> Self {
         Self::IoError(None, e)
@@ -173,18 +139,6 @@ impl From<std::io::Error> for ErrorKind {
 impl From<tokio::task::JoinError> for ErrorKind {
     fn from(e: tokio::task::JoinError) -> Self {
         Self::IoError(None, e.into())
-    }
-}
-
-impl From<reqwest::Error> for ErrorKind {
-    fn from(e: reqwest::Error) -> Self {
-        Self::ReqwestError(e)
-    }
-}
-
-impl From<hubcaps::errors::Error> for ErrorKind {
-    fn from(e: hubcaps::Error) -> Self {
-        Self::HubcapsError(e)
     }
 }
 
@@ -203,18 +157,6 @@ impl From<(String, url::ParseError)> for ErrorKind {
 impl From<(String, url::ParseError, fast_chemail::ParseError)> for ErrorKind {
     fn from(value: (String, url::ParseError, fast_chemail::ParseError)) -> Self {
         Self::UrlParseError(value.0, (value.1, Some(value.2)))
-    }
-}
-
-impl From<InvalidHeaderValue> for ErrorKind {
-    fn from(e: InvalidHeaderValue) -> Self {
-        Self::InvalidHeader(e)
-    }
-}
-
-impl From<glob::PatternError> for ErrorKind {
-    fn from(e: glob::PatternError) -> Self {
-        Self::InvalidGlobPattern(e)
     }
 }
 
