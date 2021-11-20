@@ -6,7 +6,7 @@ use thiserror::Error;
 
 use crate::Uri;
 
-/// Possible Errors when interacting with lychee_lib
+/// Possible Errors when interacting with `lychee_lib`
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
