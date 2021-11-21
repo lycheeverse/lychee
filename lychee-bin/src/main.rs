@@ -210,7 +210,10 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
         .map_err(|e| anyhow!(e))?;
 
     if cfg.dump {
-        let exit_code = dump_links(links.iter().filter(|link| !client.filtered(&link.uri)));
+        let exit_code = dump_links(
+            links.iter().filter(|link| !client.filtered(&link.uri)),
+            cfg.verbose,
+        );
         return Ok(exit_code as i32);
     }
 
@@ -277,14 +280,22 @@ async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
 }
 
 /// Dump all detected links to stdout without checking them
-fn dump_links<'a>(links: impl Iterator<Item = &'a Request>) -> ExitCode {
+fn dump_links<'a>(links: impl Iterator<Item = &'a Request>, verbose: bool) -> ExitCode {
     let mut stdout = io::stdout();
     for link in links {
         // Avoid panic on broken pipe.
         // See https://github.com/rust-lang/rust/issues/46016
         // This can occur when piping the output of lychee
         // to another program like `grep`.
-        if let Err(e) = writeln!(stdout, "{}", &link) {
+
+        // Only print source in verbose mode. This way the normal link output
+        // can be fed into another tool without data mangling.
+        let output = if verbose {
+            link.to_string()
+        } else {
+            link.uri.to_string()
+        };
+        if let Err(e) = writeln!(stdout, "{}", output) {
             if e.kind() != io::ErrorKind::BrokenPipe {
                 eprintln!("{}", e);
                 return ExitCode::UnexpectedFailure;
