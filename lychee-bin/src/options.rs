@@ -183,7 +183,9 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) exclude: Vec<String>,
 
-    /// A file or files that contains URLs to exclude from checking
+    /// File or files that contain URLs to be excluded from checking. Regular
+    /// expressions supported; one pattern per line. Automatically excludes
+    /// patterns from `.lycheeignore` if file exists.
     #[structopt(long)]
     #[serde(default)]
     pub(crate) exclude_file: Vec<String>,

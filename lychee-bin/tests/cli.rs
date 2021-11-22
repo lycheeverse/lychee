@@ -488,6 +488,39 @@ mod cli {
     }
 
     #[test]
+    fn test_lycheeignore_file() -> Result<()> {
+        let mut cmd = main_command();
+        let test_path = fixtures_path().join("ignore");
+
+        cmd.current_dir(test_path)
+            .arg("TEST.md")
+            .assert()
+            .success()
+            .stdout(contains("9 Total"))
+            .stdout(contains("7 Excluded"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lycheeignore_and_exclude_file() -> Result<()> {
+        let mut cmd = main_command();
+        let test_path = fixtures_path().join("ignore");
+        let excludes_path = test_path.join("normal-exclude-file");
+
+        cmd.current_dir(test_path)
+            .arg("TEST.md")
+            .arg("--exclude-file")
+            .arg(excludes_path)
+            .assert()
+            .success()
+            .stdout(contains("9 Total"))
+            .stdout(contains("8 Excluded"));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_require_https() -> Result<()> {
         let mut cmd = main_command();
         let test_path = fixtures_path().join("TEST_HTTP.html");

@@ -1,0 +1,8 @@
+.*\.example.com
+example.org/.+
+http://.*
+
+
+github.com/.*/.*$
+^file.*
+@

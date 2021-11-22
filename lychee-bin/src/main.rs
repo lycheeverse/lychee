@@ -63,7 +63,7 @@ use ring as _;
 use stats::color_response;
 
 use std::fs::File;
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, BufReader, Write};
 use std::iter::FromIterator;
 use std::{collections::HashSet, fs, str::FromStr};
 
@@ -90,6 +90,8 @@ use crate::{
     writer::StatsWriter,
 };
 
+const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
+
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
     Success = 0,
@@ -112,6 +114,12 @@ fn main() -> Result<()> {
     std::process::exit(exit_code);
 }
 
+// Read lines from file; ignore empty lines
+fn read_lines(file: &File) -> Result<Vec<String>> {
+    let lines: Vec<_> = BufReader::new(file).lines().collect::<Result<_, _>>()?;
+    Ok(lines.into_iter().filter(|line| !line.is_empty()).collect())
+}
+
 fn run_main() -> Result<i32> {
     let mut opts = LycheeOptions::from_args();
 
@@ -120,12 +128,14 @@ fn run_main() -> Result<i32> {
         opts.config.merge(c);
     }
 
+    if let Ok(lycheeignore) = File::open(LYCHEE_IGNORE_FILE) {
+        opts.config.exclude.append(&mut read_lines(&lycheeignore)?);
+    }
+
     // Load excludes from file
     for path in &opts.config.exclude_file {
         let file = File::open(path)?;
-        opts.config
-            .exclude
-            .append(&mut io::BufReader::new(file).lines().collect::<Result<_, _>>()?);
+        opts.config.exclude.append(&mut read_lines(&file)?);
     }
 
     let cfg = &opts.config;
