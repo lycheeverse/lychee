@@ -227,7 +227,9 @@ OPTIONS:
         --basic-auth <basic-auth>              Basic authentication support. E.g. `username:password`
     -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
         --exclude <exclude>...                 Exclude URLs from checking (supports regex)
-        --exclude-file <exclude-file>...       A file or files that contains URLs to exclude from checking
+        --exclude-file <exclude-file>...       File or files that contain URLs to be excluded from checking. Regular
+                                               expressions supported; one pattern per line. Automatically excludes
+                                               patterns from `.lycheeignore` if file exists
     -f, --format <format>                      Output format of final status report (compact, detailed, json, markdown)
                                                [default: compact]
         --github-token <github-token>          GitHub API token to use when checking github.com links, to avoid rate
@@ -255,6 +257,14 @@ ARGS:
 - `0` for success (all links checked successfully or excluded/skipped as configured)
 - `1` for missing inputs and any unexpected runtime failures or config errors
 - `2` for link check failures (if any non-excluded link failed the check)
+
+### Ignoring links
+
+You can exclude links from getting checked by either specifying regex patterns
+with `--exclude` (e.g. `--exclude example\.(com|org)`) or by using an "exclude
+file" (`--exclude_file`), which allows you to list multiple regular expressions
+for exclusion (one pattern per line).  
+If a file named `.lycheeignore` exists in the current working directory, its contents are excluded as well.
 
 ## Library usage
 

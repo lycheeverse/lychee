@@ -53,6 +53,8 @@ headers = []
 exclude = []
 
 # Exclude URLs contained in a file from checking
+# If a file named `.lycheeignore` exists in the current working directory,
+# its contents will be excluded as well.
 exclude_file = []
 
 include = []
