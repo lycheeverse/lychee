@@ -60,7 +60,7 @@ impl Display for ResponseBody {
                 write!(f, " [{}]", code)
             }
             Status::Timeout(Some(code)) => write!(f, " [{}]", code),
-            Status::Error(e) => write!(f, " ({})", e),
+            Status::Error(e) => write!(f, ": {}", e),
             _ => Ok(()),
         }
     }

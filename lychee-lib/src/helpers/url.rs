@@ -18,14 +18,37 @@ pub(crate) fn remove_get_params_and_fragment(url: &str) -> &str {
     path
 }
 
-/// Determine if an element's attribute contains a link / URL.
-pub(crate) fn elem_attr_is_link(attr_name: &str, elem_name: &str) -> bool {
+/// Extract all semantically-known links from a given html attribute. Pattern-based extraction from
+/// unstructured plaintext is done elsewhere.
+pub(crate) fn extract_links_from_elem_attr(
+    attr_name: &str,
+    elem_name: &str,
+    attr_value: &str,
+) -> Vec<String> {
     // See a comprehensive list of attributes that might contain URLs/URIs
     // over at: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
-    matches!(
-        (attr_name, elem_name),
-        ("href" | "src" | "srcset" | "cite", _) | ("data", "object") | ("onhashchange", "body")
-    )
+    let mut urls = Vec::new();
+
+    match (attr_name, elem_name) {
+        ("href" | "src" | "cite", _) | ("data", "object") | ("onhashchange", "body") => {
+            urls.push(attr_value.to_owned());
+        }
+        ("srcset", _) => {
+            for image_candidate_string in attr_value.trim().split(',') {
+                for part in image_candidate_string.split_ascii_whitespace() {
+                    if part.is_empty() {
+                        continue;
+                    }
+
+                    urls.push(part.to_owned());
+                    break;
+                }
+            }
+        }
+        _ => (),
+    }
+
+    urls
 }
 
 // Taken from https://github.com/getzola/zola/blob/master/components/link_checker/src/lib.rs

@@ -2,7 +2,7 @@
 
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
 [![docs.rs](https://docs.rs/lychee/badge.svg)](https://docs.rs/lychee-lib)
-
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-lychee-blue.svg?colorA=24292e&colorB=0366d6&style=flat&longCache=true&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAM6wAADOsB5dZE0gAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAERSURBVCiRhZG/SsMxFEZPfsVJ61jbxaF0cRQRcRJ9hlYn30IHN/+9iquDCOIsblIrOjqKgy5aKoJQj4O3EEtbPwhJbr6Te28CmdSKeqzeqr0YbfVIrTBKakvtOl5dtTkK+v4HfA9PEyBFCY9AGVgCBLaBp1jPAyfAJ/AAdIEG0dNAiyP7+K1qIfMdonZic6+WJoBJvQlvuwDqcXadUuqPA1NKAlexbRTAIMvMOCjTbMwl1LtI/6KWJ5Q6rT6Ht1MA58AX8Apcqqt5r2qhrgAXQC3CZ6i1+KMd9TRu3MvA3aH/fFPnBodb6oe6HM8+lYHrGdRXW8M9bMZtPXUji69lmf5Cmamq7quNLFZXD9Rq7v0Bpc1o/tp0fisAAAAASUVORK5CYII=)](https://github.com/marketplace/actions/lychee-broken-link-checker)
 
 ⚡ A fast, async, resource-friendly link checker written in Rust.\
 Finds broken hyperlinks and mail addresses inside Markdown, HTML, reStructuredText, or any other text file or website!
@@ -73,7 +73,6 @@ apt install gcc pkg-config libc6-dev libssl-dev
 cargo install lychee
 ```
 
-
 ## Features
 
 This comparison is made on a best-effort basis. Please create a PR to fix
@@ -114,7 +113,7 @@ outdated information.
 | [Use as library]     | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![no]         | ![yes]                | ![no]  |
 | Quiet mode           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]        | ![yes]                | ![yes] |
 | [Config file]        | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]        | ![yes]                | ![no]  |
-| Recursion            | ![no]   | ![no]         | ![no]    | ![yes]                | ![yes]       | ![yes]        | ![yes]                | ![no]  |
+| Recursion            | ![no]   | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]        | ![yes]                | ![no]  |
 | Amazing lychee logo  | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]         | ![no]                 | ![no]  |
 
 [awesome_bot]: https://github.com/dkhamsing/awesome_bot
@@ -172,6 +171,15 @@ acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
 lychee --offline path/to/directory
 ```
 
+### Docker Usage
+
+Here's how to mount a local directory into the container and check some input
+with lychee:
+
+```sh
+docker run -v `pwd`:/input lycheeverse/lychee /input/README.md
+```
+
 ### GitHub token
 
 Optionally, to avoid getting rate-limited while checking GitHub links, you can
@@ -219,8 +227,11 @@ OPTIONS:
         --basic-auth <basic-auth>              Basic authentication support. E.g. `username:password`
     -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
         --exclude <exclude>...                 Exclude URLs from checking (supports regex)
-        --exclude-file <exclude-file>...       A file or files that contains URLs to exclude from checking
-    -f, --format <format>                      Output file format of status report (json, string) [default: string]
+        --exclude-file <exclude-file>...       File or files that contain URLs to be excluded from checking. Regular
+                                               expressions supported; one pattern per line. Automatically excludes
+                                               patterns from `.lycheeignore` if file exists
+    -f, --format <format>                      Output format of final status report (compact, detailed, json, markdown)
+                                               [default: compact]
         --github-token <github-token>          GitHub API token to use when checking github.com links, to avoid rate
                                                limiting [env: GITHUB_TOKEN=]
     -h, --headers <headers>...                 Custom request headers
@@ -233,7 +244,7 @@ OPTIONS:
     -T, --threads <threads>                    Number of threads to utilize. Defaults to number of cores available to
                                                the system
     -t, --timeout <timeout>                    Website timeout from connect to response finished [default: 20]
-    -u, --user-agent <user-agent>              User agent [default: lychee/0.7.2]
+    -u, --user-agent <user-agent>              User agent [default: lychee/0.8.1]
 
 ARGS:
     <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
@@ -246,6 +257,14 @@ ARGS:
 - `0` for success (all links checked successfully or excluded/skipped as configured)
 - `1` for missing inputs and any unexpected runtime failures or config errors
 - `2` for link check failures (if any non-excluded link failed the check)
+
+### Ignoring links
+
+You can exclude links from getting checked by either specifying regex patterns
+with `--exclude` (e.g. `--exclude example\.(com|org)`) or by using an "exclude
+file" (`--exclude_file`), which allows you to list multiple regular expressions
+for exclusion (one pattern per line).  
+If a file named `.lycheeignore` exists in the current working directory, its contents are excluded as well.
 
 ## Library usage
 
@@ -318,7 +337,7 @@ Try one of these links to get started:
 Lychee is written in Rust. Install [rust-up](https://rustup.rs/) to get started.
 Begin by making sure the following commands succeed without errors.
 
-```bash
+```sh
 cargo test # runs tests
 cargo clippy # lints code
 cargo install cargo-publish-all

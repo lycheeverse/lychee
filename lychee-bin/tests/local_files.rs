@@ -28,7 +28,7 @@ mod cli {
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("Total............1"))
+            .stdout(contains("1 Total"))
             .stdout(contains("foo.html"));
 
         Ok(())

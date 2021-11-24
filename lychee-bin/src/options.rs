@@ -1,16 +1,9 @@
-use std::{
-    convert::TryFrom,
-    fs::{self, File},
-    io::{self, ErrorKind},
-    path::PathBuf,
-    str::FromStr,
-};
+use std::{convert::TryFrom, fs, io::ErrorKind, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, Error, Result};
 use lazy_static::lazy_static;
 use lychee_lib::{Base, Input};
 use serde::Deserialize;
-use std::io::BufRead;
 use structopt::{clap::crate_version, StructOpt};
 
 const METHOD: &str = "get";
@@ -29,16 +22,20 @@ lazy_static! {
 
 #[derive(Debug, Deserialize)]
 pub(crate) enum Format {
-    String,
+    Compact,
+    Detailed,
     Json,
+    Markdown,
 }
 
 impl FromStr for Format {
     type Err = Error;
     fn from_str(format: &str) -> Result<Self, Self::Err> {
         match format {
-            "string" => Ok(Format::String),
+            "compact" | "string" => Ok(Format::Compact),
+            "detailed" => Ok(Format::Detailed),
             "json" => Ok(Format::Json),
+            "markdown" | "md" => Ok(Format::Markdown),
             _ => Err(anyhow!("Could not parse format {}", format)),
         }
     }
@@ -46,7 +43,7 @@ impl FromStr for Format {
 
 impl Default for Format {
     fn default() -> Self {
-        Format::String
+        Format::Compact
     }
 }
 
@@ -186,7 +183,9 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) exclude: Vec<String>,
 
-    /// A file or files that contains URLs to exclude from checking
+    /// File or files that contain URLs to be excluded from checking. Regular
+    /// expressions supported; one pattern per line. Automatically excludes
+    /// patterns from `.lycheeignore` if file exists.
     #[structopt(long)]
     #[serde(default)]
     pub(crate) exclude_file: Vec<String>,
@@ -269,8 +268,8 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) output: Option<PathBuf>,
 
-    /// Output file format of status report (json, string)
-    #[structopt(short, long, default_value = "string")]
+    /// Output format of final status report (compact, detailed, json, markdown)
+    #[structopt(short, long, default_value = "compact")]
     #[serde(default)]
     pub(crate) format: Format,
 
@@ -336,24 +335,4 @@ impl Config {
             require_https: false;
         }
     }
-}
-
-/// Merge all provided config options into one
-/// This includes a potential config file, command-line- and environment variables
-pub(crate) fn merge() -> Result<LycheeOptions> {
-    let mut opts = LycheeOptions::from_args();
-
-    // Merge a potentially existing config file and merge it into the config from the CLI
-    if let Some(c) = Config::load_from_file(&opts.config_file)? {
-        opts.config.merge(c);
-    }
-
-    // Load and merge excludes from file
-    for path in &opts.config.exclude_file {
-        let file = File::open(path)?;
-        opts.config
-            .exclude
-            .append(&mut io::BufReader::new(file).lines().collect::<Result<_, _>>()?);
-    }
-    Ok(opts)
 }

@@ -58,23 +58,34 @@
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 #![deny(missing_docs)]
 
-use lychee_lib::{Collector, Input};
+use futures::TryStreamExt;
+use lychee_lib::Collector;
 // required for apple silicon
 use ring as _;
 
-use anyhow::{anyhow, Result};
-use futures::stream::TryStreamExt;
+use anyhow::{anyhow, Context, Result};
 use openssl_sys as _; // required for vendored-openssl feature
-use ring as _; // required for apple silicon
-use tokio_stream::StreamExt;
+use ring as _;
+use std::fs::{self, File};
+use std::io::{BufRead, BufReader};
+use structopt::StructOpt;
+use tokio_stream::StreamExt; // required for apple silicon
 
 mod client;
+mod color;
 mod commands;
 mod options;
 mod parse;
 mod stats;
+mod writer;
 
-use crate::options::Config;
+use crate::{
+    options::{Config, Format, LycheeOptions},
+    stats::ResponseStats,
+    writer::StatsWriter,
+};
+
+const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
@@ -98,10 +109,38 @@ fn main() -> Result<()> {
     std::process::exit(exit_code);
 }
 
-fn run_main() -> Result<i32> {
-    let merged = options::merge()?;
+// Read lines from file; ignore empty lines
+fn read_lines(file: &File) -> Result<Vec<String>> {
+    let lines: Vec<_> = BufReader::new(file).lines().collect::<Result<_, _>>()?;
+    Ok(lines.into_iter().filter(|line| !line.is_empty()).collect())
+}
 
-    let runtime = match merged.config.threads {
+/// Merge all provided config options into one
+/// This includes a potential config file, command-line- and environment variables
+fn load_config() -> Result<LycheeOptions> {
+    let mut opts = LycheeOptions::from_args();
+
+    // Load a potentially existing config file and merge it into the config from the CLI
+    if let Some(c) = Config::load_from_file(&opts.config_file)? {
+        opts.config.merge(c);
+    }
+
+    if let Ok(lycheeignore) = File::open(LYCHEE_IGNORE_FILE) {
+        opts.config.exclude.append(&mut read_lines(&lycheeignore)?);
+    }
+
+    // Load excludes from file
+    for path in &opts.config.exclude_file {
+        let file = File::open(path)?;
+        opts.config.exclude.append(&mut read_lines(&file)?);
+    }
+
+    Ok(opts)
+}
+
+fn run_main() -> Result<i32> {
+    let opts = load_config()?;
+    let runtime = match opts.config.threads {
         Some(threads) => {
             // We define our own runtime instead of the `tokio::main` attribute
             // since we want to make the number of threads configurable
@@ -113,21 +152,57 @@ fn run_main() -> Result<i32> {
         None => tokio::runtime::Runtime::new()?,
     };
 
-    runtime.block_on(run(&merged.config, merged.inputs()))
+    runtime.block_on(run(&opts))
 }
 
-async fn run(cfg: &Config, inputs: Vec<Input>) -> Result<i32> {
-    let links = Collector::new(cfg.base.clone(), cfg.skip_missing, cfg.max_concurrency)
-        .collect_links(&inputs)
-        .await
-        .map_err(|e| anyhow!("Cannot collect links from inputs: {}", e));
-    let client = client::create(cfg)?;
+async fn run(opts: &LycheeOptions) -> Result<i32> {
+    let inputs = opts.inputs();
+    let links = Collector::new(
+        opts.config.base.clone(),
+        opts.config.skip_missing,
+        opts.config.max_concurrency,
+    )
+    .collect_links(&inputs)
+    .await
+    .map_err(|e| anyhow!("Cannot collect links from inputs: {}", e));
 
-    let exit_code = if cfg.dump {
+    let client = client::create(&opts.config)?;
+
+    let exit_code = if opts.config.dump {
         let links = links.collect::<Result<Vec<_>>>().await?;
-        commands::dump(links.iter().filter(|link| !client.filtered(&link.uri)))
+        // Filter out excluded links
+        let links = links.iter().filter(|link| !client.filtered(&link.uri));
+        commands::dump(links, opts.config.verbose)
     } else {
-        commands::check(client, links, cfg).await?
+        let (stats, code) = commands::check(client, links, &opts.config).await?;
+        write_stats(stats, &opts.config)?;
+        code
     };
+
     Ok(exit_code as i32)
+}
+
+/// Write final statistics to stdout or to file
+fn write_stats(stats: ResponseStats, cfg: &Config) -> Result<()> {
+    let writer: Box<dyn StatsWriter> = match cfg.format {
+        Format::Compact => Box::new(writer::Compact::new()),
+        Format::Detailed => Box::new(writer::Detailed::new()),
+        Format::Json => Box::new(writer::Json::new()),
+        Format::Markdown => Box::new(writer::Markdown::new()),
+    };
+
+    let is_empty = stats.is_empty();
+    let formatted = writer.write(stats)?;
+
+    if let Some(output) = &cfg.output {
+        fs::write(output, formatted).context("Cannot write status output to file")?;
+    } else {
+        if cfg.verbose && !is_empty {
+            // separate summary from the verbose list of links above
+            println!();
+        }
+        // we assume that the formatted stats don't have a final newline
+        println!("{}", formatted);
+    }
+    Ok(())
 }

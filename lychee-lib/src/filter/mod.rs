@@ -9,7 +9,13 @@ pub use includes::Includes;
 use crate::Uri;
 
 /// Pre-defined exclusions for known false-positives
-const FALSE_POSITIVE_PAT: &[&str] = &[r"http://www.w3.org/1999/xhtml"];
+const FALSE_POSITIVE_PAT: &[&str] = &[
+    r"http://www.w3.org/1999/xhtml",
+    r"http://www.w3.org/2000/svg",
+    r"https://schemas.microsoft.com",
+    r"http://schemas.zune.net",
+    r"http://schemas.openxmlformats.org",
+];
 
 #[inline]
 #[must_use]
@@ -17,7 +23,7 @@ const FALSE_POSITIVE_PAT: &[&str] = &[r"http://www.w3.org/1999/xhtml"];
 /// default. This behavior can be explicitly overwritten by defining an
 /// `Include` pattern, which will match on a false positive
 pub fn is_false_positive(input: &str) -> bool {
-    input == FALSE_POSITIVE_PAT[0]
+    FALSE_POSITIVE_PAT.iter().any(|pat| input.starts_with(pat))
 }
 
 /// A generic URI filter
@@ -152,13 +158,12 @@ impl Filter {
 
         if is_false_positive(input)
         // Exclude well-known false-positives
-        // Performed after checking includes to allow user-overwriddes
+        // Performed after checking includes to allow user-overwrites
                 || self.is_excludes_empty()
-                // Previous checks imply input is not explicitly included,
-                // if excludes rules is empty, then *presumably excluded*
+                // Previous checks imply input is not explicitly included.
+                // If exclude rules are empty, then *presumably excluded*
             || self.is_excludes_match(input)
-        // If excludes rules matches input, then
-        // *explicitly excluded*
+        // If exclude rules match input, then *explicitly excluded*
         {
             return true;
         }
@@ -176,8 +181,8 @@ mod test {
     use super::{Excludes, Filter, Includes};
     use crate::test_utils::{mail, website};
 
-    // Note: the standard library as of Rust stable 1.47.0 does not expose
-    // "link-local" or "private" IPv6 checks.  However, one might argue
+    // Note: the standard library, as of Rust stable 1.47.0, does not expose
+    // "link-local" or "private" IPv6 checks. However, one might argue
     // that these concepts do exist in IPv6, albeit the naming is different.
     // See: https://en.wikipedia.org/wiki/Link-local_address#IPv6
     // See: https://en.wikipedia.org/wiki/Private_network#IPv6
@@ -233,7 +238,7 @@ mod test {
 
     #[test]
     fn test_includes_and_excludes_empty() {
-        // This is the pre-configured, empty set of excludes for a client
+        // This is the pre-configured, empty set of excludes for a client.
         // In this case, only the requests matching the include set will be checked
         let filter = Filter::default();
 
@@ -245,6 +250,9 @@ mod test {
         let filter = Filter::default();
 
         assert!(filter.is_excluded(&website("http://www.w3.org/1999/xhtml")));
+        assert!(filter.is_excluded(&website(
+            "http://schemas.openxmlformats.org/markup-compatibility/2006"
+        )));
         assert!(!filter.is_excluded(&website("https://example.org")));
     }
 

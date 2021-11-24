@@ -7,12 +7,16 @@ use tokio_stream::StreamExt;
 
 use crate::{
     options::Config,
-    stats::{self, color_response, ResponseStats},
+    stats::{color_response, ResponseStats},
     ExitCode,
 };
 use lychee_lib::{Client, Request, Response};
 
-pub(crate) async fn check<S>(client: Client, links: S, cfg: &Config) -> Result<ExitCode>
+pub(crate) async fn check<S>(
+    client: Client,
+    links: S,
+    cfg: &Config,
+) -> Result<(ResponseStats, ExitCode)>
 where
     S: futures::Stream<Item = Result<Request>>,
 {
@@ -23,7 +27,6 @@ where
 
     // Start receiving requests
     tokio::spawn(async move {
-        println!("Spawn checker");
         futures::StreamExt::for_each_concurrent(
             ReceiverStream::new(recv_req),
             max_concurrency,
@@ -81,14 +84,12 @@ where
         pb.finish_and_clear();
     }
 
-    stats::write(&stats, cfg)?;
-
     let code = if stats.is_success() {
         ExitCode::Success
     } else {
         ExitCode::LinkCheckFailure
     };
-    Ok(code)
+    Ok((stats, code))
 }
 
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
