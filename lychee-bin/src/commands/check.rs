@@ -1,6 +1,6 @@
-use anyhow::Result;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
+use lychee_lib::Result;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
@@ -14,7 +14,7 @@ use lychee_lib::{Client, Request, Response};
 
 pub(crate) async fn check<S>(
     client: Client,
-    links: S,
+    requests: S,
     cfg: &Config,
 ) -> Result<(ResponseStats, ExitCode)>
 where
@@ -30,9 +30,12 @@ where
         futures::StreamExt::for_each_concurrent(
             ReceiverStream::new(recv_req),
             max_concurrency,
-            |req| async {
-                let resp = client.check(req).await.unwrap();
-                send_resp.send(resp).await.unwrap();
+            |request| async {
+                let response = client.check(request).await.expect("cannot check request");
+                send_resp
+                    .send(response)
+                    .await
+                    .expect("cannot send response to queue");
             },
         )
         .await;
@@ -62,15 +65,15 @@ where
         }
     });
 
-    tokio::pin!(links);
+    tokio::pin!(requests);
 
-    while let Some(link) = links.next().await {
-        let link = link?;
+    while let Some(request) = requests.next().await {
+        let request = request?;
         if let Some(pb) = &bar {
             pb.inc_length(1);
-            pb.set_message(&link.to_string());
+            pb.set_message(&request.to_string());
         };
-        send_req.send(link).await.unwrap();
+        send_req.send(request).await.expect("Cannot send request");
     }
     // required for the receiver task to end, which closes send_resp, which allows
     // the show_results_task to finish
