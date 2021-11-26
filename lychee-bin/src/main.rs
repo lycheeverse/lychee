@@ -58,18 +58,16 @@
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 #![deny(missing_docs)]
 
-use futures::TryStreamExt;
 use lychee_lib::Collector;
 // required for apple silicon
 use ring as _;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use openssl_sys as _; // required for vendored-openssl feature
 use ring as _;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use structopt::StructOpt;
-use tokio_stream::StreamExt; // required for apple silicon
 
 mod client;
 mod color;
@@ -157,24 +155,20 @@ fn run_main() -> Result<i32> {
 
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs();
-    let links = Collector::new(
+    let requests = Collector::new(
         opts.config.base.clone(),
         opts.config.skip_missing,
         opts.config.max_concurrency,
     )
     .collect_links(&inputs)
-    .await
-    .map_err(|e| anyhow!("Cannot collect links from inputs: {}", e));
+    .await;
 
     let client = client::create(&opts.config)?;
 
     let exit_code = if opts.config.dump {
-        let links = links.collect::<Result<Vec<_>>>().await?;
-        // Filter out excluded links
-        let links = links.iter().filter(|link| !client.filtered(&link.uri));
-        commands::dump(links, opts.config.verbose)
+        commands::dump(client, requests, opts.config.verbose).await?
     } else {
-        let (stats, code) = commands::check(client, links, &opts.config).await?;
+        let (stats, code) = commands::check(client, requests, &opts.config).await?;
         write_stats(stats, &opts.config)?;
         code
     };
