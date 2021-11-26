@@ -12,6 +12,13 @@ use std::path::{Path, PathBuf};
 use tokio::io::{stdin, AsyncReadExt};
 
 const STDIN: &str = "-";
+
+// Check the extension of the given path against the list of known/accepted
+// file extensions
+fn valid_extension(p: &Path) -> bool {
+    matches!(FileType::from(p), FileType::Markdown | FileType::Html)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 /// An exhaustive list of input sources, which lychee accepts
@@ -118,7 +125,6 @@ impl Input {
     ) -> impl Stream<Item = Result<InputContent>> + '_ {
         try_stream! {
             match *self {
-                // TODO: should skip_missing also affect URLs?
                 Input::RemoteUrl(ref url) => {
                     let contents: InputContent = Self::url_contents(url).await?;
                     yield contents;
@@ -134,18 +140,38 @@ impl Input {
                 }
                 Input::FsPath(ref path) => {
                     if path.is_dir() {
-                        for entry in WalkDir::new(path).skip_hidden(true) {
+                        for entry in WalkDir::new(path).skip_hidden(true)
+                        .process_read_dir(|_, _, _, children| {
+                            children.retain(|child| {
+                                let entry = match child.as_ref() {
+                                    Ok(x) => x,
+                                    Err(_) => return true,
+                                };
+
+                                let file_type = entry.file_type();
+
+                                if file_type.is_dir() {
+                                    // Required for recursion
+                                    return true;
+                                }
+                                if file_type.is_symlink() {
+                                    return false;
+                                }
+                                if !file_type.is_file() {
+                                    return false;
+                                }
+                                return valid_extension(&entry.path());
+                            });
+                        }) {
                             let entry = entry?;
                             if entry.file_type().is_dir() {
                                 continue;
                             }
-                            if !Self::valid_extension(&entry.path()) {
-                                continue
-                            }
                             let content = Self::path_content(entry.path()).await?;
-                            yield content;
+                            yield content
                         }
                     } else {
+
                         let content = Self::path_content(path).await;
                         match content {
                             Err(_) if skip_missing => (),
@@ -164,12 +190,6 @@ impl Input {
                 },
             }
         }
-    }
-
-    // Check the extension of the given path against the list of known/accepted
-    // file extensions
-    fn valid_extension(p: &Path) -> bool {
-        matches!(FileType::from(p), FileType::Markdown | FileType::Html)
     }
 
     async fn url_contents(url: &Url) -> Result<InputContent> {
@@ -255,5 +275,21 @@ impl Input {
 
     fn string_content(s: &str, file_type_hint: Option<FileType>) -> InputContent {
         InputContent::from_string(s, file_type_hint.unwrap_or_default())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_valid_extension() {
+        assert!(valid_extension(Path::new("file.md")));
+        assert!(valid_extension(Path::new("file.markdown")));
+        assert!(valid_extension(Path::new("file.html")));
+        assert!(valid_extension(Path::new("file.htm")));
+        assert!(valid_extension(Path::new("file.HTM")));
+        assert!(!valid_extension(Path::new("file.txt")));
+        assert!(!valid_extension(Path::new("file")));
     }
 }
