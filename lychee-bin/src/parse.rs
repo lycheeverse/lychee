@@ -24,7 +24,7 @@ pub(crate) fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {
         let (key, val) = read_header(header.as_ref())?;
         out.insert(
             HeaderName::from_bytes(key.as_bytes())?,
-            val.parse().unwrap(),
+            val.parse()?,
         );
     }
     Ok(out)
