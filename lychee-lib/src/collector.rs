@@ -1,7 +1,13 @@
-use crate::{extract::Extractor, Base, Input, Request, Result};
-use async_stream::try_stream;
+use std::iter::FromIterator;
+
+use crate::{extract::Extractor, Base, Input, Request};
+// use async_stream::try_stream;
+use futures::{
+    stream::{self, FuturesUnordered},
+    StreamExt,
+};
 use futures_core::Stream;
-use tokio_stream::StreamExt;
+use par_stream::ParStreamExt;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -34,24 +40,30 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub async fn collect_links(self, inputs: &[Input]) -> impl Stream<Item = Result<Request>> + '_ {
-        try_stream! {
-            for input in inputs.iter().cloned() {
-                let contents = input.get_contents(None, self.skip_missing_inputs).await;
-                tokio::pin!(contents);
-                while let Some(content) = contents.next().await {
-                    let content = content?;
+    pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Request> {
+        let contents = inputs
+            .into_iter()
+            .map(|input| input.get_contents(None, self.skip_missing_inputs));
 
-                    let base = self.base.clone();
-                        let mut extractor = Extractor::new(base);
+        let contents_futs = FuturesUnordered::from_iter(contents);
 
-                        let requests = extractor.extract(&content)?;
-                        for request in requests {
-                            yield request;
-                        }
+        // tokio::pin!(contents_futs);
+        let flattened = contents_futs.flatten();
+
+        let extractor = Extractor::new(self.base);
+        let requests = flattened
+            .par_then_unordered(None, move |content| {
+                let mut extractor = extractor.clone();
+                // the closure is sent to parallel worker
+                async move {
+                    let content = content.unwrap();
+                    let requests = extractor.extract(&content).unwrap();
+                    stream::iter(requests)
                 }
-            }
-        }
+            })
+            .flatten();
+
+        requests
     }
 }
 

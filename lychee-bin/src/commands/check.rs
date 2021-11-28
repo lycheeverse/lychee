@@ -18,7 +18,7 @@ pub(crate) async fn check<S>(
     cfg: &Config,
 ) -> Result<(ResponseStats, ExitCode)>
 where
-    S: futures::Stream<Item = Result<Request>>,
+    S: futures::Stream<Item = Request>,
 {
     let (send_req, recv_req) = mpsc::channel(cfg.max_concurrency);
     let (send_resp, mut recv_resp) = mpsc::channel(cfg.max_concurrency);
@@ -68,7 +68,7 @@ where
     tokio::pin!(requests);
 
     while let Some(request) = requests.next().await {
-        let request = request?;
+        let request = request;
         if let Some(pb) = &bar {
             pb.inc_length(1);
             pb.set_message(&request.to_string());

@@ -119,12 +119,12 @@ impl Input {
     /// because of an underlying I/O error (e.g. an error while making a
     /// network request or retrieving the contents from the file system)
     pub async fn get_contents(
-        &self,
+        self,
         file_type_hint: Option<FileType>,
         skip_missing: bool,
-    ) -> impl Stream<Item = Result<InputContent>> + '_ {
+    ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
-            match *self {
+            match self {
                 Input::RemoteUrl(ref url) => {
                     let contents: InputContent = Self::url_contents(url).await?;
                     yield contents;
@@ -171,7 +171,6 @@ impl Input {
                             yield content
                         }
                     } else {
-
                         let content = Self::path_content(path).await;
                         match content {
                             Err(_) if skip_missing => (),

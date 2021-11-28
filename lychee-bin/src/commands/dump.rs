@@ -9,7 +9,7 @@ use crate::ExitCode;
 /// Dump all detected links to stdout without checking them
 pub(crate) async fn dump<'a, S>(client: Client, requests: S, verbose: bool) -> Result<ExitCode>
 where
-    S: futures::Stream<Item = Result<Request>>,
+    S: futures::Stream<Item = Request>,
 {
     // Lock stdout for better performance
     let stdout = io::stdout();
@@ -18,7 +18,7 @@ where
     tokio::pin!(requests);
 
     while let Some(request) = requests.next().await {
-        let request = request?;
+        let request = request;
 
         if client.filtered(&request.uri) {
             continue;

@@ -160,7 +160,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         opts.config.skip_missing,
         opts.config.max_concurrency,
     )
-    .collect_links(&inputs)
+    .collect_links(inputs)
     .await;
 
     let client = client::create(&opts.config)?;
