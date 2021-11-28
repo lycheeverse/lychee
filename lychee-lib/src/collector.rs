@@ -41,17 +41,15 @@ impl Collector {
     ///
     /// Will return `Err` if links cannot be extracted from an input
     pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Request> {
-        let contents = inputs
-            .into_iter()
-            .map(|input| input.get_contents(None, self.skip_missing_inputs));
-
-        let contents_futs = FuturesUnordered::from_iter(contents);
-
-        // tokio::pin!(contents_futs);
-        let flattened = contents_futs.flatten();
+        let contents = FuturesUnordered::from_iter(
+            inputs
+                .into_iter()
+                .map(|input| input.get_contents(None, self.skip_missing_inputs)),
+        )
+        .flatten();
 
         let extractor = Extractor::new(self.base);
-        let requests = flattened
+        let requests = contents
             .par_then_unordered(None, move |content| {
                 let mut extractor = extractor.clone();
                 // the closure is sent to parallel worker
