@@ -1,9 +1,6 @@
 use std::{collections::HashSet, convert::TryFrom, path::Path, path::PathBuf};
 
-use html5ever::{
-    parse_document,
-    tendril::{StrTendril, TendrilSink},
-};
+use html5ever::{parse_document, tendril::TendrilSink};
 use log::info;
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
 use percent_encoding::percent_decode_str;
@@ -19,10 +16,10 @@ use crate::{
 /// A handler for extracting links from various input formats like Markdown and
 /// HTML. Allocations are avoided if possible as this is a performance-critical
 /// section of the library.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Extractor {
     /// URLs extracted from input
-    pub urls: Vec<StrTendril>,
+    pub urls: Vec<String>,
     /// Base URL or Path
     pub base: Option<Base>,
 }
@@ -47,7 +44,7 @@ impl Extractor {
     }
 
     /// Create requests out of the collected URLs.
-    /// Only keeps legit URLs. For example this filters out anchors.
+    /// Only keeps "valid" URLs. This filters out anchors for example.
     fn create_requests(&self, input_content: &InputContent) -> Result<HashSet<Request>> {
         let mut requests: HashSet<Request> = HashSet::with_capacity(self.urls.len());
 
@@ -99,7 +96,7 @@ impl Extractor {
         for event in parser {
             match event {
                 MDEvent::Start(Tag::Link(_, url, _) | Tag::Image(_, url, _)) => {
-                    self.urls.push(StrTendril::from(url.as_ref()));
+                    self.urls.push(url.to_string());
                 }
                 MDEvent::Text(txt) => self.extract_plaintext(&txt),
                 MDEvent::Html(html) => self.extract_html(&html.to_string()),
@@ -110,8 +107,10 @@ impl Extractor {
 
     /// Extract unparsed URL strings from an HTML string.
     fn extract_html(&mut self, input: &str) {
-        let tendril = StrTendril::from(input);
-        let rc_dom = parse_document(RcDom::default(), html5ever::ParseOpts::default()).one(tendril);
+        let rc_dom = parse_document(RcDom::default(), html5ever::ParseOpts::default())
+            .from_utf8()
+            .read_from(&mut input.as_bytes())
+            .unwrap();
 
         self.walk_html_links(&rc_dom.document);
     }
@@ -140,7 +139,7 @@ impl Extractor {
                     if urls.is_empty() {
                         self.extract_plaintext(&attr.value);
                     } else {
-                        self.urls.extend(urls.into_iter().map(StrTendril::from));
+                        self.urls.extend(urls);
                     }
                 }
             }
@@ -157,7 +156,7 @@ impl Extractor {
     /// Extract unparsed URL strings from plaintext
     fn extract_plaintext(&mut self, input: &str) {
         self.urls
-            .extend(url::find_links(input).map(|l| StrTendril::from(l.as_str())));
+            .extend(url::find_links(input).map(|l| l.as_str().to_string()));
     }
 
     fn create_uri_from_path(&self, src: &Path, dst: &str) -> Result<Option<Url>> {
