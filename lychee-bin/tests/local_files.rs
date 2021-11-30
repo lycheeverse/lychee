@@ -54,7 +54,8 @@ mod cli {
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("Total............2"))
+            .stdout(contains("2 Total"))
+            .stdout(contains("2 OK"))
             .stdout(contains("foo.html"))
             .stdout(contains("bar.md"));
 
