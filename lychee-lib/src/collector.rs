@@ -1,6 +1,6 @@
 use crate::{extract::Extractor, Base, Input, Request, Result};
 use futures::{
-    stream::{self, FuturesUnordered, Stream},
+    stream::{self, Stream},
     StreamExt, TryStreamExt,
 };
 use par_stream::ParStreamExt;
@@ -38,10 +38,11 @@ impl Collector {
     ///
     /// Will return `Err` if links cannot be extracted from an input
     pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
-        let contents = inputs
-            .into_iter()
-            .map(|input| input.get_contents(None, self.skip_missing_inputs))
-            .collect::<FuturesUnordered<_>>()
+        let skip_missing_inputs = self.skip_missing_inputs;
+        let contents = stream::iter(inputs)
+            .par_then_unordered(None, move |input| async move {
+                input.get_contents(None, skip_missing_inputs).await
+            })
             .flatten();
 
         let extractor = Extractor::new(self.base);
