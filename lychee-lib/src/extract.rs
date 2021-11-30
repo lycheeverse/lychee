@@ -35,17 +35,17 @@ impl Extractor {
     pub(crate) fn extract(&mut self, input_content: &InputContent) -> Result<HashSet<Request>> {
         let urls = match input_content.file_type {
             FileType::Markdown => self.extract_markdown(&input_content.content),
-            FileType::Html => self.extract_html(&input_content.content),
+            FileType::Html => self.extract_html(&input_content.content)?,
             FileType::Plaintext => self.extract_plaintext(&input_content.content),
         };
-        self.create_requests(urls, input_content)
+        self.create_requests(&urls, input_content)
     }
 
     /// Create requests out of the collected URLs.
     /// Only keeps "valid" URLs. This filters out anchors for example.
     fn create_requests(
         &self,
-        urls: Vec<StrTendril>,
+        urls: &[StrTendril],
         input_content: &InputContent,
     ) -> Result<HashSet<Request>> {
         let mut requests: HashSet<Request> = HashSet::with_capacity(urls.len());
@@ -60,7 +60,7 @@ impl Extractor {
             // other inputs do not have a URL to extract a base
         };
 
-        for url in &urls {
+        for url in urls {
             let req = if let Ok(uri) = Uri::try_from(url.as_ref()) {
                 Request::new(uri, input_content.input.clone())
             } else if let Some(url) = self.base.as_ref().and_then(|u| u.join(url)) {
@@ -108,13 +108,12 @@ impl Extractor {
     }
 
     /// Extract unparsed URL strings from an HTML string.
-    fn extract_html(&mut self, input: &str) -> Vec<StrTendril> {
+    fn extract_html(&mut self, input: &str) -> Result<Vec<StrTendril>> {
         let rc_dom = parse_document(RcDom::default(), html5ever::ParseOpts::default())
             .from_utf8()
-            .read_from(&mut input.as_bytes())
-            .unwrap();
+            .read_from(&mut input.as_bytes())?;
 
-        self.walk_html_links(&rc_dom.document)
+        Ok(self.walk_html_links(&rc_dom.document))
     }
 
     /// Recursively walk links in a HTML document, aggregating URL strings in `urls`.
@@ -161,6 +160,8 @@ impl Extractor {
     }
 
     /// Extract unparsed URL strings from plaintext
+    // Allow &self here for consistency with the other extractors
+    #[allow(clippy::unused_self)]
     fn extract_plaintext(&self, input: &str) -> Vec<StrTendril> {
         url::find_links(input)
             .map(|l| StrTendril::from(l.as_str()))
@@ -278,7 +279,7 @@ mod test {
         let urls = extractor.extract_plaintext(input);
         assert_eq!(vec![StrTendril::from(link)], urls);
 
-        let urls = extractor.extract_html(input);
+        let urls = extractor.extract_html(input).unwrap();
         assert_eq!(vec![StrTendril::from(link)], urls);
     }
 

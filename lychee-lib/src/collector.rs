@@ -4,7 +4,7 @@ use futures::{
     StreamExt, TryStreamExt,
 };
 use par_stream::ParStreamExt;
-use std::{collections::HashSet, iter::FromIterator};
+use std::collections::HashSet;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -38,12 +38,11 @@ impl Collector {
     ///
     /// Will return `Err` if links cannot be extracted from an input
     pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
-        let contents = FuturesUnordered::from_iter(
-            inputs
-                .into_iter()
-                .map(|input| input.get_contents(None, self.skip_missing_inputs)),
-        )
-        .flatten();
+        let contents = inputs
+            .into_iter()
+            .map(|input| input.get_contents(None, self.skip_missing_inputs))
+            .collect::<FuturesUnordered<_>>()
+            .flatten();
 
         let extractor = Extractor::new(self.base);
         contents
