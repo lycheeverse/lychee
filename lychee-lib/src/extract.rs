@@ -143,11 +143,7 @@ impl Extractor {
                     if urls.is_empty() {
                         self.extract_plaintext(&attr.value);
                     } else {
-                        all_urls.extend(
-                            urls.into_iter()
-                                .map(StrTendril::from)
-                                .collect::<Vec<_>>(),
-                        );
+                        all_urls.extend(urls.into_iter().map(StrTendril::from).collect::<Vec<_>>());
                     }
                 }
             }
