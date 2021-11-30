@@ -1,6 +1,6 @@
 use crate::options::Config;
 use crate::parse::{parse_basic_auth, parse_headers, parse_statuscodes, parse_timeout};
-use anyhow::{anyhow, Result};
+use anyhow::{Context, Result};
 use headers::HeaderMapExt;
 use lychee_lib::{Client, ClientBuilder};
 use regex::RegexSet;
@@ -48,5 +48,5 @@ pub(crate) fn create(cfg: &Config) -> Result<Client> {
         .require_https(cfg.require_https)
         .build()
         .client()
-        .map_err(|e| anyhow!("Failed to create request client: {}", e))
+        .context("Failed to create request client")
 }
