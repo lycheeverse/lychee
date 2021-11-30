@@ -28,7 +28,7 @@ where
         // See https://github.com/rust-lang/rust/issues/46016
         // This can occur when piping the output of lychee
         // to another program like `grep`.
-        if let Err(e) = write(&mut handle, request, verbose) {
+        if let Err(e) = write(&mut handle, &request, verbose) {
             if e.kind() != io::ErrorKind::BrokenPipe {
                 eprintln!("{}", e);
                 return Ok(ExitCode::UnexpectedFailure);
@@ -42,7 +42,7 @@ where
 /// Dump request to stdout
 /// Only print source in verbose mode. This way the normal link output
 /// can be fed into another tool without data mangling.
-fn write(handle: &mut StdoutLock<'_>, request: Request, verbose: bool) -> io::Result<()> {
+fn write(handle: &mut StdoutLock<'_>, request: &Request, verbose: bool) -> io::Result<()> {
     let output = if verbose {
         request.to_string()
     } else {

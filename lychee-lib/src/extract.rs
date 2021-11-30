@@ -145,7 +145,7 @@ impl Extractor {
                     } else {
                         all_urls.extend(
                             urls.into_iter()
-                                .map(|url| StrTendril::from(url))
+                                .map(StrTendril::from)
                                 .collect::<Vec<_>>(),
                         );
                     }
