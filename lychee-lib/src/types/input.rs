@@ -1,7 +1,7 @@
 use crate::types::FileType;
 use crate::Result;
 use async_stream::try_stream;
-use futures_core::stream::Stream;
+use futures::stream::Stream;
 use glob::glob_with;
 use jwalk::WalkDir;
 use reqwest::Url;

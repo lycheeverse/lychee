@@ -18,7 +18,7 @@ pub(crate) async fn check<S>(
     cfg: &Config,
 ) -> Result<(ResponseStats, ExitCode)>
 where
-    S: futures::Stream<Item = Request>,
+    S: futures::Stream<Item = Result<Request>>,
 {
     let (send_req, recv_req) = mpsc::channel(cfg.max_concurrency);
     let (send_resp, mut recv_resp) = mpsc::channel(cfg.max_concurrency);
@@ -30,7 +30,8 @@ where
         futures::StreamExt::for_each_concurrent(
             ReceiverStream::new(recv_req),
             max_concurrency,
-            |request| async {
+            |request: Result<Request>| async {
+                let request: Request = request.expect("cannot read request");
                 let response = client.check(request).await.expect("cannot check request");
                 send_resp
                     .send(response)
@@ -68,12 +69,12 @@ where
     tokio::pin!(requests);
 
     while let Some(request) = requests.next().await {
-        let request = request;
+        let request = request?;
         if let Some(pb) = &bar {
             pb.inc_length(1);
             pb.set_message(&request.to_string());
         };
-        send_req.send(request).await.expect("Cannot send request");
+        send_req.send(Ok(request)).await.expect("Cannot send request");
     }
     // required for the receiver task to end, which closes send_resp, which allows
     // the show_results_task to finish

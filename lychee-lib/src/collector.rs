@@ -1,13 +1,10 @@
-use std::iter::FromIterator;
-
-use crate::{extract::Extractor, Base, Input, Request};
-// use async_stream::try_stream;
 use futures::{
-    stream::{self, FuturesUnordered},
-    StreamExt,
+    stream::{self, FuturesUnordered, Stream},
+    StreamExt, TryStreamExt,
 };
-use futures_core::Stream;
 use par_stream::ParStreamExt;
+use std::{collections::HashSet, iter::FromIterator};
+use crate::{extract::Extractor, Base, Input, Request, Result};
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -40,7 +37,7 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Request> {
+    pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
         let contents = FuturesUnordered::from_iter(
             inputs
                 .into_iter()
@@ -49,19 +46,33 @@ impl Collector {
         .flatten();
 
         let extractor = Extractor::new(self.base);
-        let requests = contents
+        contents
             .par_then_unordered(None, move |content| {
                 let mut extractor = extractor.clone();
-                // the closure is sent to parallel worker
+                // send to parallel worker
                 async move {
-                    let content = content.unwrap();
-                    let requests = extractor.extract(&content).unwrap();
-                    stream::iter(requests)
+                    let content = content?;
+                    let requests: HashSet<Request> = extractor.extract(&content)?;
+                    Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
             })
-            .flatten();
+            .try_flatten()
+        // .then(|r| future::ok(stream::iter::<_>(r)))
+        // .flatten();
 
-        requests
+        // stream::iter(vec![Err(ErrorKind::InvalidUrlHost)])
+        // contents
+        //     .par_then_unordered(None, move |content| {
+        //         let mut extractor = extractor.clone();
+        //         // send to parallel worker
+        //         async move {
+        //             let content = content?;
+        //             let requests = extractor.extract(&content)?;
+        //             Ok(stream::iter(requests))
+        //         }
+        //     })
+        //     // .then(|r| future::ok(stream::iter::<_>(r)))
+        //     .flatten()
     }
 }
 
@@ -72,7 +83,6 @@ mod test {
     use http::StatusCode;
     use pretty_assertions::assert_eq;
     use reqwest::Url;
-    use tokio_stream::StreamExt;
 
     use super::*;
     use crate::{
@@ -151,13 +161,8 @@ mod test {
             },
         ];
 
-        let responses = Collector::new(None, false, 8).collect_links(&inputs).await;
-        let mut links = responses
-            .collect::<Result<Vec<_>>>()
-            .await?
-            .into_iter()
-            .map(|r| r.uri)
-            .collect::<Vec<Uri>>();
+        let responses = Collector::new(None, false, 8).collect_links(inputs).await;
+        let mut links: Vec<Uri> = responses.map(|r| r.unwrap().uri).collect().await;
 
         let mut expected_links = vec![
             website(TEST_STRING),

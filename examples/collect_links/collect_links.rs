@@ -7,7 +7,7 @@ use tokio_stream::StreamExt;
 #[allow(clippy::trivial_regex)]
 async fn main() -> Result<()> {
     // Collect all links from the following inputs
-    let inputs: &[Input] = &[
+    let inputs = vec![
         Input::RemoteUrl(Box::new(
             Url::parse("https://github.com/lycheeverse/lychee").unwrap(),
         )),

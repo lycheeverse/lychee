@@ -274,18 +274,16 @@ mod test {
     fn test_extract_link_at_end_of_line() {
         let input = "https://www.apache.org/licenses/LICENSE-2.0\n";
         let link = input.trim_end();
-
         let mut extractor = Extractor::new(None);
-        extractor.extract_markdown(input);
-        assert_eq!(vec![StrTendril::from(link)], extractor.urls);
 
-        let mut extractor = Extractor::new(None);
-        extractor.extract_plaintext(input);
-        assert_eq!(vec![StrTendril::from(link)], extractor.urls);
+        let urls = extractor.extract_markdown(input);
+        assert_eq!(vec![StrTendril::from(link)], urls);
 
-        let mut extractor = Extractor::new(None);
-        extractor.extract_html(input);
-        assert_eq!(vec![StrTendril::from(link)], extractor.urls);
+        let urls = extractor.extract_plaintext(input);
+        assert_eq!(vec![StrTendril::from(link)], urls);
+
+        let urls = extractor.extract_html(input);
+        assert_eq!(vec![StrTendril::from(link)], urls);
     }
 
     #[test]
