@@ -30,7 +30,7 @@ impl Collector {
         }
     }
 
-    /// Fetch all unique links from a slice of inputs
+    /// Fetch all unique links from inputs
     /// All relative URLs get prefixed with `base` (if given).
     /// (This can be a directory or a base URL)
     ///
@@ -57,22 +57,6 @@ impl Collector {
                 }
             })
             .try_flatten()
-        // .then(|r| future::ok(stream::iter::<_>(r)))
-        // .flatten();
-
-        // stream::iter(vec![Err(ErrorKind::InvalidUrlHost)])
-        // contents
-        //     .par_then_unordered(None, move |content| {
-        //         let mut extractor = extractor.clone();
-        //         // send to parallel worker
-        //         async move {
-        //             let content = content?;
-        //             let requests = extractor.extract(&content)?;
-        //             Ok(stream::iter(requests))
-        //         }
-        //     })
-        //     // .then(|r| future::ok(stream::iter::<_>(r)))
-        //     .flatten()
     }
 }
 
