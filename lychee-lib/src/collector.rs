@@ -1,10 +1,10 @@
+use crate::{extract::Extractor, Base, Input, Request, Result};
 use futures::{
     stream::{self, FuturesUnordered, Stream},
     StreamExt, TryStreamExt,
 };
 use par_stream::ParStreamExt;
 use std::{collections::HashSet, iter::FromIterator};
-use crate::{extract::Extractor, Base, Input, Request, Result};
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs

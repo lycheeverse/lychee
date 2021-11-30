@@ -74,7 +74,10 @@ where
             pb.inc_length(1);
             pb.set_message(&request.to_string());
         };
-        send_req.send(Ok(request)).await.expect("Cannot send request");
+        send_req
+            .send(Ok(request))
+            .await
+            .expect("Cannot send request");
     }
     // required for the receiver task to end, which closes send_resp, which allows
     // the show_results_task to finish
