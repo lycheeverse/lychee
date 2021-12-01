@@ -51,7 +51,8 @@ mod client;
 pub mod collector;
 mod helpers;
 mod quirks;
-mod types;
+/// foo
+pub mod types;
 
 /// Functionality to extract URIs from inputs
 pub mod extract;
@@ -75,5 +76,8 @@ pub use crate::{
     client::{check, Client, ClientBuilder},
     collector::Collector,
     filter::{Excludes, Filter, Includes},
-    types::{Base, ErrorKind, Input, Request, Response, ResponseBody, Result, Status, Uri},
+    types::{
+        Base, ErrorKind, FileType, Input, InputContent, Request, Response, ResponseBody, Result,
+        Status, Uri,
+    },
 };

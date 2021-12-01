@@ -11,3 +11,4 @@ hubcaps = { git="https://github.com/softprops/hubcaps.git" }
 
 [profile.release]
 debug = true
+
