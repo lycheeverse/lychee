@@ -4,9 +4,10 @@ use std::hash::Hash;
 use std::{convert::Infallible, path::PathBuf};
 use thiserror::Error;
 
+use super::InputContent;
 use crate::Uri;
 
-/// Possible Errors when interacting with `lychee_lib`
+/// Kinds of status errors.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
@@ -50,6 +51,9 @@ pub enum ErrorKind {
     /// The given path does not resolve to a valid file
     #[error("Cannot find local file {0}")]
     FileNotFound(PathBuf),
+    /// Error while traversing an input directory
+    #[error("Cannot traverse input directory")]
+    DirTraversal(#[from] jwalk::Error),
     /// The given glob pattern is not valid
     #[error("UNIX glob pattern is invalid")]
     InvalidGlobPattern(#[from] glob::PatternError),
@@ -59,6 +63,9 @@ pub enum ErrorKind {
     /// Used an insecure URI where a secure variant was reachable
     #[error("This URI is available in HTTPS protocol, but HTTP is provided, use '{0}' instead")]
     InsecureURL(Uri),
+    /// Error while sending/receiving messages from MPSC channel
+    #[error("Cannot send/receive message from channel")]
+    ChannelError(#[from] tokio::sync::mpsc::error::SendError<InputContent>),
     /// An URL with an invalid host was found
     #[error("URL is missing a host")]
     InvalidUrlHost,
@@ -97,6 +104,7 @@ impl Hash for ErrorKind {
             Self::IoError(p, e) => (p, e.kind()).hash(state),
             Self::ReqwestError(e) => e.to_string().hash(state),
             Self::HubcapsError(e) => e.to_string().hash(state),
+            Self::DirTraversal(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
             Self::UrlParseError(s, e) => (s, e.type_id()).hash(state),
             Self::InvalidURI(u) => u.hash(state),
@@ -108,6 +116,7 @@ impl Hash for ErrorKind {
             Self::InvalidBase(base, e) => (base, e).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
+            Self::ChannelError(e) => e.to_string().hash(state),
             Self::MissingGitHubToken | Self::InvalidUrlHost => {
                 std::mem::discriminant(self).hash(state);
             }

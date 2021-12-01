@@ -5,7 +5,8 @@ use path_clean::PathClean;
 use std::env;
 use std::path::{Path, PathBuf};
 
-static CURRENT_DIR: Lazy<PathBuf> = Lazy::new(|| env::current_dir().unwrap());
+static CURRENT_DIR: Lazy<PathBuf> =
+    Lazy::new(|| env::current_dir().expect("cannot get current dir from environment"));
 
 // Returns the base if it is a valid `PathBuf`
 fn get_base_dir(base: &Option<Base>) -> Option<PathBuf> {

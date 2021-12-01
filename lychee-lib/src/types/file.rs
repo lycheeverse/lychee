@@ -28,6 +28,9 @@ impl<P: AsRef<Path>> From<P> for FileType {
         // Unfortunately that's not possible without refactoring, as
         // `AsRef<Path>` could be implemented for `Url` in the future, which is why
         // `From<Url> for FileType` is not allowed.
+        // As a workaround, we check if we got a known web-protocol
+        let is_url = path.starts_with("http");
+
         match path
             .extension()
             .and_then(std::ffi::OsStr::to_str)
@@ -35,8 +38,9 @@ impl<P: AsRef<Path>> From<P> for FileType {
             .as_deref()
         {
             Some("md" | "markdown") => FileType::Markdown,
-            Some("htm" | "html") | None => FileType::Html,
-            Some(_) => FileType::Plaintext,
+            Some("htm" | "html") => FileType::Html,
+            None if is_url => FileType::Html,
+            _ => FileType::Plaintext,
         }
     }
 }
@@ -54,10 +58,15 @@ mod tests {
             FileType::from(Path::new("test.unknown")),
             FileType::Plaintext
         );
+        assert_eq!(FileType::from(Path::new("test")), FileType::Plaintext);
         assert_eq!(FileType::from(Path::new("test.txt")), FileType::Plaintext);
         assert_eq!(FileType::from(Path::new("README.TXT")), FileType::Plaintext);
 
         assert_eq!(FileType::from(Path::new("test.htm")), FileType::Html);
-        assert_eq!(FileType::from(Path::new("test")), FileType::Html);
+        assert_eq!(FileType::from(Path::new("index.html")), FileType::Html);
+        assert_eq!(
+            FileType::from(Path::new("http://foo.com/index.html")),
+            FileType::Html
+        );
     }
 }

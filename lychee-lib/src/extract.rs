@@ -19,37 +19,36 @@ use crate::{
 /// A handler for extracting links from various input formats like Markdown and
 /// HTML. Allocations are avoided if possible as this is a performance-critical
 /// section of the library.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Extractor {
-    /// URLs extracted from input
-    pub urls: Vec<StrTendril>,
     /// Base URL or Path
     pub base: Option<Base>,
 }
 
 impl Extractor {
     pub(crate) const fn new(base: Option<Base>) -> Self {
-        Extractor {
-            urls: Vec::new(),
-            base,
-        }
+        Extractor { base }
     }
 
     /// Main entrypoint for extracting links from various sources
     /// (Markdown, HTML, and plaintext)
     pub(crate) fn extract(&mut self, input_content: &InputContent) -> Result<HashSet<Request>> {
-        match input_content.file_type {
+        let urls = match input_content.file_type {
             FileType::Markdown => self.extract_markdown(&input_content.content),
-            FileType::Html => self.extract_html(&input_content.content),
+            FileType::Html => self.extract_html(&input_content.content)?,
             FileType::Plaintext => self.extract_plaintext(&input_content.content),
         };
-        self.create_requests(input_content)
+        self.create_requests(&urls, input_content)
     }
 
     /// Create requests out of the collected URLs.
-    /// Only keeps legit URLs. For example this filters out anchors.
-    fn create_requests(&self, input_content: &InputContent) -> Result<HashSet<Request>> {
-        let mut requests: HashSet<Request> = HashSet::with_capacity(self.urls.len());
+    /// Only keeps "valid" URLs. This filters out anchors for example.
+    fn create_requests(
+        &self,
+        urls: &[StrTendril],
+        input_content: &InputContent,
+    ) -> Result<HashSet<Request>> {
+        let mut requests: HashSet<Request> = HashSet::with_capacity(urls.len());
 
         let base_input = match &input_content.input {
             Input::RemoteUrl(url) => Some(Url::parse(&format!(
@@ -61,7 +60,7 @@ impl Extractor {
             // other inputs do not have a URL to extract a base
         };
 
-        for url in &self.urls {
+        for url in urls {
             let req = if let Ok(uri) = Uri::try_from(url.as_ref()) {
                 Request::new(uri, input_content.input.clone())
             } else if let Some(url) = self.base.as_ref().and_then(|u| u.join(url)) {
@@ -94,36 +93,39 @@ impl Extractor {
     }
 
     /// Extract unparsed URL strings from a Markdown string.
-    fn extract_markdown(&mut self, input: &str) {
+    fn extract_markdown(&self, input: &str) -> Vec<StrTendril> {
         let parser = Parser::new(input);
-        for event in parser {
-            match event {
+        parser
+            .flat_map(|event| match event {
                 MDEvent::Start(Tag::Link(_, url, _) | Tag::Image(_, url, _)) => {
-                    self.urls.push(StrTendril::from(url.as_ref()));
+                    vec![StrTendril::from(url.as_ref())]
                 }
                 MDEvent::Text(txt) => self.extract_plaintext(&txt),
-                MDEvent::Html(html) => self.extract_html(&html.to_string()),
-                _ => {}
-            }
-        }
+                MDEvent::Html(html) => self.extract_plaintext(&html.to_string()),
+                _ => vec![],
+            })
+            .collect()
     }
 
     /// Extract unparsed URL strings from an HTML string.
-    fn extract_html(&mut self, input: &str) {
-        let tendril = StrTendril::from(input);
-        let rc_dom = parse_document(RcDom::default(), html5ever::ParseOpts::default()).one(tendril);
+    fn extract_html(&mut self, input: &str) -> Result<Vec<StrTendril>> {
+        let rc_dom = parse_document(RcDom::default(), html5ever::ParseOpts::default())
+            .from_utf8()
+            .read_from(&mut input.as_bytes())?;
 
-        self.walk_html_links(&rc_dom.document);
+        Ok(self.walk_html_links(&rc_dom.document))
     }
 
     /// Recursively walk links in a HTML document, aggregating URL strings in `urls`.
-    fn walk_html_links(&mut self, node: &Handle) {
+    fn walk_html_links(&mut self, node: &Handle) -> Vec<StrTendril> {
+        let mut all_urls = Vec::new();
         match node.data {
             NodeData::Text { ref contents } => {
-                self.extract_plaintext(&contents.borrow());
+                all_urls.append(&mut self.extract_plaintext(&contents.borrow()));
             }
+
             NodeData::Comment { ref contents } => {
-                self.extract_plaintext(contents);
+                all_urls.append(&mut self.extract_plaintext(contents));
             }
             NodeData::Element {
                 ref name,
@@ -140,7 +142,7 @@ impl Extractor {
                     if urls.is_empty() {
                         self.extract_plaintext(&attr.value);
                     } else {
-                        self.urls.extend(urls.into_iter().map(StrTendril::from));
+                        all_urls.extend(urls.into_iter().map(StrTendril::from).collect::<Vec<_>>());
                     }
                 }
             }
@@ -150,14 +152,20 @@ impl Extractor {
         // recursively traverse the document's nodes -- this doesn't need any extra
         // exit conditions, because the document is a tree
         for child in node.children.borrow().iter() {
-            self.walk_html_links(child);
+            let urls = self.walk_html_links(child);
+            all_urls.extend(urls);
         }
+
+        all_urls
     }
 
     /// Extract unparsed URL strings from plaintext
-    fn extract_plaintext(&mut self, input: &str) {
-        self.urls
-            .extend(url::find_links(input).map(|l| StrTendril::from(l.as_str())));
+    // Allow &self here for consistency with the other extractors
+    #[allow(clippy::unused_self)]
+    fn extract_plaintext(&self, input: &str) -> Vec<StrTendril> {
+        url::find_links(input)
+            .map(|l| StrTendril::from(l.as_str()))
+            .collect()
     }
 
     fn create_uri_from_path(&self, src: &Path, dst: &str) -> Result<Option<Url>> {
@@ -263,18 +271,16 @@ mod test {
     fn test_extract_link_at_end_of_line() {
         let input = "https://www.apache.org/licenses/LICENSE-2.0\n";
         let link = input.trim_end();
-
         let mut extractor = Extractor::new(None);
-        extractor.extract_markdown(input);
-        assert_eq!(vec![StrTendril::from(link)], extractor.urls);
 
-        let mut extractor = Extractor::new(None);
-        extractor.extract_plaintext(input);
-        assert_eq!(vec![StrTendril::from(link)], extractor.urls);
+        let urls = extractor.extract_markdown(input);
+        assert_eq!(vec![StrTendril::from(link)], urls);
 
-        let mut extractor = Extractor::new(None);
-        extractor.extract_html(input);
-        assert_eq!(vec![StrTendril::from(link)], extractor.urls);
+        let urls = extractor.extract_plaintext(input);
+        assert_eq!(vec![StrTendril::from(link)], urls);
+
+        let urls = extractor.extract_html(input).unwrap();
+        assert_eq!(vec![StrTendril::from(link)], urls);
     }
 
     #[test]

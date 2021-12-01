@@ -1,12 +1,13 @@
 use lychee_lib::{Collector, Input, Result};
 use reqwest::Url;
 use std::path::PathBuf;
+use tokio_stream::StreamExt;
 
 #[tokio::main]
 #[allow(clippy::trivial_regex)]
 async fn main() -> Result<()> {
     // Collect all links from the following inputs
-    let inputs: &[Input] = &[
+    let inputs = vec![
         Input::RemoteUrl(Box::new(
             Url::parse("https://github.com/lycheeverse/lychee").unwrap(),
         )),
@@ -21,6 +22,8 @@ async fn main() -> Result<()> {
     .collect_links(
         inputs, // base url or directory
     )
+    .await
+    .collect::<Result<Vec<_>>>()
     .await?;
 
     dbg!(links);

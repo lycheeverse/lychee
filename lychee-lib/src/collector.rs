@@ -1,7 +1,13 @@
 use crate::{extract::Extractor, Base, Input, Request, Result};
+use futures::{
+    stream::{self, Stream},
+    StreamExt, TryStreamExt,
+};
+use par_stream::ParStreamExt;
 use std::collections::HashSet;
 
 /// Collector keeps the state of link collection
+/// It drives the link extraction from inputs
 #[derive(Debug, Clone)]
 pub struct Collector {
     base: Option<Base>,
@@ -24,56 +30,33 @@ impl Collector {
         }
     }
 
-    /// Fetch all unique links from a slice of inputs
-    /// All relative URLs get prefixed with `base` if given.
+    /// Fetch all unique links from inputs
+    /// All relative URLs get prefixed with `base` (if given).
     /// (This can be a directory or a base URL)
     ///
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub async fn collect_links(self, inputs: &[Input]) -> Result<HashSet<Request>> {
-        let (contents_tx, mut contents_rx) = tokio::sync::mpsc::channel(self.max_concurrency);
+    pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
+        let skip_missing_inputs = self.skip_missing_inputs;
+        let contents = stream::iter(inputs)
+            .par_then_unordered(None, move |input| async move {
+                input.get_contents(None, skip_missing_inputs).await
+            })
+            .flatten();
 
-        // extract input contents
-        for input in inputs.iter().cloned() {
-            let sender = contents_tx.clone();
-
-            let skip_missing_inputs = self.skip_missing_inputs;
-            tokio::spawn(async move {
-                let contents = input.get_contents(None, skip_missing_inputs).await;
-                sender.send(contents).await
-            });
-        }
-
-        // receiver will get None once all tasks are done
-        drop(contents_tx);
-
-        // extract links from input contents
-        let mut extract_links_handles = vec![];
-
-        while let Some(result) = contents_rx.recv().await {
-            for input_content in result? {
-                let base = self.base.clone();
-                let handle = tokio::task::spawn_blocking(move || {
-                    let mut extractor = Extractor::new(base);
-                    extractor.extract(&input_content)
-                });
-                extract_links_handles.push(handle);
-            }
-        }
-
-        // Note: we could dispatch links to be checked as soon as we get them,
-        //       instead of building a HashSet with all links.
-        //       This optimization would speed up cases where there's
-        //       a lot of inputs and/or the inputs are large (e.g. big files).
-        let mut links: HashSet<Request> = HashSet::new();
-
-        for handle in extract_links_handles {
-            let new_links = handle.await?;
-            links.extend(new_links?);
-        }
-
-        Ok(links)
+        let extractor = Extractor::new(self.base);
+        contents
+            .par_then_unordered(None, move |content| {
+                let mut extractor = extractor.clone();
+                // send to parallel worker
+                async move {
+                    let content = content?;
+                    let requests: HashSet<Request> = extractor.extract(&content)?;
+                    Result::Ok(stream::iter(requests.into_iter().map(Ok)))
+                }
+            })
+            .try_flatten()
     }
 }
 
@@ -100,27 +83,34 @@ mod test {
     const TEST_GLOB_2_MAIL: &str = "test@glob-2.io";
 
     #[tokio::test]
-    #[ignore]
     async fn test_file_without_extension_is_plaintext() -> Result<()> {
         let temp_dir = tempfile::tempdir()?;
         // Treat as plaintext file (no extension)
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path)?;
         let input = Input::new(&file_path.as_path().display().to_string(), true);
-        let contents = input.get_contents(None, true).await?;
+        let contents: Vec<_> = input
+            .get_contents(None, true)
+            .await
+            .collect::<Vec<_>>()
+            .await;
 
         assert_eq!(contents.len(), 1);
-        assert_eq!(contents[0].file_type, FileType::Plaintext);
+        assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Plaintext);
         Ok(())
     }
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
         let input = Input::new("https://example.org/", true);
-        let contents = input.get_contents(None, true).await?;
+        let contents: Vec<_> = input
+            .get_contents(None, true)
+            .await
+            .collect::<Vec<_>>()
+            .await;
 
         assert_eq!(contents.len(), 1);
-        assert_eq!(contents[0].file_type, FileType::Html);
+        assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Html);
         Ok(())
     }
 
@@ -155,10 +145,8 @@ mod test {
             },
         ];
 
-        let responses = Collector::new(None, false, 8)
-            .collect_links(&inputs)
-            .await?;
-        let mut links = responses.into_iter().map(|r| r.uri).collect::<Vec<Uri>>();
+        let responses = Collector::new(None, false, 8).collect_links(inputs).await;
+        let mut links: Vec<Uri> = responses.map(|r| r.unwrap().uri).collect().await;
 
         let mut expected_links = vec![
             website(TEST_STRING),
