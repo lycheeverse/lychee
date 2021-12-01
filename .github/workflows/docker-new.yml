@@ -1,4 +1,6 @@
 on:
+  repository_dispatch:
+  workflow_dispatch:
   workflow_run:
     workflows: ["release"]
     types:
