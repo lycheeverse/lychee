@@ -24,7 +24,7 @@ jobs:
       # Export environment variables for all stages.
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-      DOCKER_DEPLOY_IMAGES: false
+      DOCKER_DEPLOY_IMAGES: true
       # //TEMP replace with correct repo once we are happy with tags
       DOCKER_REPO: lycheeverse/lychee-dev
       DOCKER_PLATFORMS: linux/amd64,linux/arm64/v8
