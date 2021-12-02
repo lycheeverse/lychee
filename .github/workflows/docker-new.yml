@@ -79,8 +79,8 @@ jobs:
               printf "\n${line}\n${msg}\n${line}\n"
               docker pull -q --platform "$platform" "$image"
               echo -n "Image architecture: "
-              docker run --rm --entrypoint /bin/sh "$image" -c 'uname -m'
-              version=$(docker run --rm "$image" --version)
+              docker run --platform "$platform" --rm --entrypoint /bin/sh "$image" -c 'uname -m'
+              version=$(docker run --platform "$platform" --rm "$image" --version)
               echo "lychee version: $version"
               if [[ $TAG != "latest" ]] &&
               [[ $TAG != "$version" ]] &&
@@ -114,7 +114,7 @@ jobs:
         if: ${{ env.DOCKER_DEPLOY_IMAGES == 'true' }}
         run: |
           image_src="${DOCKER_REPO}:${TAG}"
-          image_dst="${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_REPO }}:${TAG}"
+          image_dst="${{ env.DOCKER_REPO }}:${TAG}"
           msg="Copy multi-arch docker images to DockerHub ($image)"
           line="${msg//?/=}"
           printf "\n${line}\n${msg}\n${line}\n"
