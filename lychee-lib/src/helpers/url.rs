@@ -20,6 +20,7 @@ pub(crate) fn remove_get_params_and_fragment(url: &str) -> &str {
 
 /// Extract all semantically-known links from a given html attribute. Pattern-based extraction from
 /// unstructured plaintext is done elsewhere.
+#[inline(always)]
 pub(crate) fn extract_links_from_elem_attr(
     attr_name: &str,
     elem_name: &str,
@@ -30,7 +31,7 @@ pub(crate) fn extract_links_from_elem_attr(
     let mut urls = Vec::new();
 
     match (attr_name, elem_name) {
-        ("href" | "src" | "cite", _) | ("data", "object") | ("onhashchange", "body") => {
+        ("href" | "src" | "cite", _) | ("data", "object") => {
             urls.push(attr_value.to_owned());
         }
         ("srcset", _) => {
@@ -49,11 +50,6 @@ pub(crate) fn extract_links_from_elem_attr(
     }
 
     urls
-}
-
-// Taken from https://github.com/getzola/zola/blob/master/components/link_checker/src/lib.rs
-pub(crate) fn is_anchor(url: &str) -> bool {
-    url.starts_with('#')
 }
 
 // Use `LinkFinder` to offload the raw link searching in plaintext

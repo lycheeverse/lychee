@@ -8,7 +8,10 @@ use reqwest::Url;
 
 use crate::{
     helpers::{path, url},
-    types::{FileType, InputContent},
+    types::{
+        raw_uri::{RawUri, UriKind},
+        FileType, InputContent,
+    },
     Base, ErrorKind, Input, Request, Result, Uri,
 };
 
@@ -38,94 +41,13 @@ impl Extractor {
 
     /// Main entrypoint for extracting links from various sources
     /// (Markdown, HTML, and plaintext)
-    pub fn extract(&mut self, input_content: &InputContent) -> Result<HashSet<Request>> {
+    pub fn extract(&mut self, input_content: &InputContent) -> Result<Vec<RawUri>> {
         let urls = match input_content.file_type {
             FileType::Markdown => extract_markdown(&input_content.content),
             FileType::Html => extract_html(&input_content.content)?,
             FileType::Plaintext => extract_plaintext(&input_content.content),
         };
-        // Conversion to String for par_iter. This might ruin performance
-        let urls = urls.into_iter().map(|url| url.into_send()).collect();
-        self.create_requests(urls, input_content)
-    }
-
-    /// Create requests out of the collected URLs.
-    /// Only keeps "valid" URLs. This filters out anchors for example.
-    fn create_requests(
-        &self,
-        urls: Vec<SendTendril<UTF8>>,
-        input_content: &InputContent,
-    ) -> Result<HashSet<Request>> {
-        let base_input = match &input_content.input {
-            Input::RemoteUrl(url) => Some(Url::parse(&format!(
-                "{}://{}",
-                url.scheme(),
-                url.host_str().ok_or(ErrorKind::InvalidUrlHost)?
-            ))?),
-            _ => None,
-            // other inputs do not have a URL to extract a base
-        };
-
-        let requests: Result<Vec<Option<Request>>> = urls
-            .into_par_iter()
-            .map(|url| {
-                //
-                let url = StrTendril::from(url);
-                if let Ok(uri) = Uri::try_from(url.as_ref()) {
-                    Ok(Some(Request::new(uri, input_content.input.clone())))
-                } else if let Some(url) = self.base.as_ref().and_then(|u| u.join(&url)) {
-                    Ok(Some(Request::new(Uri { url }, input_content.input.clone())))
-                } else if let Input::FsPath(root) = &input_content.input {
-                    if url::is_anchor(&url) {
-                        // Silently ignore anchor links for now
-                        Ok(None)
-                    } else {
-                        if let Some(url) = self.create_uri_from_path(root, &url)? {
-                            Ok(Some(Request::new(Uri { url }, input_content.input.clone())))
-                        } else {
-                            // In case we cannot create a URI from a path but we didn't receive an error,
-                            // it means that some preconditions were not met, e.g. the `base_url` wasn't set.
-                            Ok(None)
-                        }
-                    }
-                } else if let Some(url) = base_input.as_ref().map(|u| u.join(&url)) {
-                    if self.base.is_some() {
-                        Ok(None)
-                    } else {
-                        Ok(Some(Request::new(
-                            Uri { url: url? },
-                            input_content.input.clone(),
-                        )))
-                    }
-                } else {
-                    info!("Handling of {} not implemented yet", &url);
-                    Ok(None)
-                }
-            })
-            .collect();
-        let requests: Vec<Request> = requests?.into_iter().flatten().collect();
-        Ok(HashSet::from_iter(requests))
-    }
-
-    fn create_uri_from_path(&self, src: &Path, dst: &str) -> Result<Option<Url>> {
-        let dst = url::remove_get_params_and_fragment(dst);
-        // Avoid double-encoding already encoded destination paths by removing any
-        // potential encoding (e.g. `web%20site` becomes `web site`).
-        // That's because Url::from_file_path will encode the full URL in the end.
-        // This behavior cannot be configured.
-        // See https://github.com/lycheeverse/lychee/pull/262#issuecomment-915245411
-        // TODO: This is not a perfect solution.
-        // Ideally, only `src` and `base` should be URL encoded (as is done by
-        // `from_file_path` at the moment) while `dst` is left untouched and simply
-        // appended to the end.
-        let decoded = percent_decode_str(dst).decode_utf8()?;
-        let resolved = path::resolve(src, &PathBuf::from(&*decoded), &self.base)?;
-        match resolved {
-            Some(path) => Url::from_file_path(&path)
-                .map(Some)
-                .map_err(|_e| ErrorKind::InvalidUrlFromPath(path)),
-            None => Ok(None),
-        }
+        Ok(urls)
     }
 }
 
@@ -151,15 +73,6 @@ mod test {
         types::{FileType, InputContent},
         Base,
     };
-
-    #[test]
-    fn test_create_uri_from_path() {
-        let extractor = Extractor::new(None);
-        let result = extractor
-            .create_uri_from_path(&PathBuf::from("/README.md"), "test+encoding")
-            .unwrap();
-        assert_eq!(result.unwrap().as_str(), "file:///test+encoding");
-    }
 
     fn load_fixture(filename: &str) -> String {
         let fixture_path = Path::new(env!("CARGO_MANIFEST_DIR"))

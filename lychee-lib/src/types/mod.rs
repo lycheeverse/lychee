@@ -4,6 +4,7 @@ mod base;
 mod error;
 mod file;
 mod input;
+pub(crate) mod raw_uri;
 mod request;
 mod response;
 mod status;

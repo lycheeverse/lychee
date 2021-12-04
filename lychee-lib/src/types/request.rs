@@ -2,6 +2,8 @@ use std::{convert::TryFrom, fmt::Display};
 
 use crate::{ErrorKind, Input, Uri};
 
+use super::raw_uri::UriKind;
+
 /// A request type that can be handle by lychee
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Request {
@@ -10,14 +12,16 @@ pub struct Request {
     pub uri: Uri,
     /// The resource which contained the given URI
     pub source: Input,
+    /// Specifies if the link gets rendered as a hyperlink in a document
+    pub kind: UriKind,
 }
 
 impl Request {
     /// Instantiate a new `Request` object
     #[inline]
     #[must_use]
-    pub const fn new(uri: Uri, source: Input) -> Self {
-        Request { uri, source }
+    pub const fn new(uri: Uri, source: Input, kind: UriKind) -> Self {
+        Request { uri, source, kind }
     }
 }
 
@@ -32,7 +36,7 @@ impl TryFrom<String> for Request {
 
     fn try_from(s: String) -> Result<Self, Self::Error> {
         let uri = Uri::try_from(s.as_str())?;
-        Ok(Request::new(uri, Input::String(s)))
+        Ok(Request::new(uri, Input::String(s), UriKind::Unknown))
     }
 }
 
@@ -41,6 +45,10 @@ impl TryFrom<&str> for Request {
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         let uri = Uri::try_from(s)?;
-        Ok(Request::new(uri, Input::String(s.to_owned())))
+        Ok(Request::new(
+            uri,
+            Input::String(s.to_owned()),
+            UriKind::Unknown,
+        ))
     }
 }

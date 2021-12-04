@@ -951,6 +951,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7531096570974c3a9dcf9e4b8e1cede1ec26cf5046219fb3b9d897503b9be59"
 
 [[package]]
+name = "extract"
+version = "0.1.0"
+dependencies = [
+ "lychee-lib",
+ "tokio",
+]
+
+[[package]]
 name = "fast-socks5"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,13 +1,12 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use lychee_lib::extract::Extractor;
 use lychee_lib::{FileType, InputContent};
-use std::fs::{self, File};
-use std::io::Read;
+use std::fs;
 
 fn extract(input: &str) {
     let mut extractor = Extractor::new(None);
     let links = extractor.extract(&InputContent::from_string(input, FileType::Html));
-    println!("Links found: {}", links.unwrap().len());
+    println!("Links found: {:?}", links.unwrap());
 }
 
 fn criterion_benchmark(c: &mut Criterion) {

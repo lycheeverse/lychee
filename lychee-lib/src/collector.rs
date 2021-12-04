@@ -1,8 +1,12 @@
-use crate::{extract::Extractor, Base, Input, Request, Result};
+use crate::{
+    extract::Extractor, helpers::request::create_requests, types::raw_uri::RawUri, Base, Input,
+    Request, Result,
+};
 use futures::{
     stream::{self, Stream},
     StreamExt, TryStreamExt,
 };
+use html5ever::tendril::StrTendril;
 use par_stream::ParStreamExt;
 use std::collections::HashSet;
 
@@ -45,14 +49,17 @@ impl Collector {
             })
             .flatten();
 
-        let extractor = Extractor::new(self.base);
+        let base = self.base;
+        let extractor = Extractor::new(base.clone());
         contents
             .par_then_unordered(None, move |content| {
                 let mut extractor = extractor.clone();
+                let base = base.clone();
                 // send to parallel worker
                 async move {
                     let content = content?;
-                    let requests: HashSet<Request> = extractor.extract(&content)?;
+                    let uris: Vec<RawUri> = extractor.extract(&content)?;
+                    let requests = create_requests(uris, &content, &base)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
             })

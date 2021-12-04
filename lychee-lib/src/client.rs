@@ -190,7 +190,7 @@ impl Client {
         Request: TryFrom<T, Error = E>,
         ErrorKind: From<E>,
     {
-        let Request { uri, source } = Request::try_from(request)?;
+        let Request { uri, source, kind } = Request::try_from(request)?;
         let status = if self.filter.is_excluded(&uri) {
             Status::Excluded
         } else if uri.is_file() {

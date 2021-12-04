@@ -21,7 +21,7 @@ fn valid_extension(p: &Path) -> bool {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-/// An exhaustive list of input sources, which lychee accepts
+/// Input types which lychee supports
 pub enum Input {
     /// URL (of HTTP/HTTPS scheme).
     RemoteUrl(Box<Url>),
