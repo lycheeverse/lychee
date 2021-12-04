@@ -1,4 +1,4 @@
-use lychee_lib::{ClientBuilder, Input, Request, Result, Uri};
+use lychee_lib::{types::UriKind, ClientBuilder, Input, Request, Result, Uri};
 use std::convert::TryFrom;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -16,6 +16,7 @@ async fn main() -> Result<()> {
     let requests = vec![Request::new(
         Uri::try_from("https://example.org")?,
         Input::Stdin,
+        UriKind::Unknown,
     )];
 
     // Queue requests

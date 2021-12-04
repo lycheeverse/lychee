@@ -1750,7 +1750,6 @@ dependencies = [
  "jwalk",
  "linkify",
  "log",
- "markup5ever_rcdom",
  "once_cell",
  "openssl-sys",
  "par-stream",
@@ -1799,18 +1798,6 @@ dependencies = [
  "string_cache",
  "string_cache_codegen",
  "tendril",
-]
-
-[[package]]
-name = "markup5ever_rcdom"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f015da43bcd8d4f144559a3423f4591d69b8ce0652c905374da7205df336ae2b"
-dependencies = [
- "html5ever",
- "markup5ever",
- "tendril",
- "xml5ever",
 ]
 
 [[package]]
@@ -3644,16 +3631,4 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
-]
-
-[[package]]
-name = "xml5ever"
-version = "0.16.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9234163818fd8e2418fcde330655e757900d4236acd8cc70fef345ef91f6d865"
-dependencies = [
- "log",
- "mac",
- "markup5ever",
- "time",
 ]

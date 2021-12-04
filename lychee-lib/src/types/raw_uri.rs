@@ -33,3 +33,23 @@ impl Display for RawUri {
         write!(f, "{} ({:?})", self.text, self.kind)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_is_anchor() {
+        let raw_uri = RawUri {
+            text: "#anchor".to_string(),
+            kind: UriKind::Unknown,
+        };
+        assert!(raw_uri.is_anchor());
+
+        let raw_uri = RawUri {
+            text: "notan#anchor".to_string(),
+            kind: UriKind::Unknown,
+        };
+        assert!(!raw_uri.is_anchor());
+    }
+}

@@ -6,6 +6,8 @@ use url::Url;
 
 use crate::{ErrorKind, Result};
 
+use super::raw_uri::RawUri;
+
 /// Lychee's own representation of a URI, which encapsulates all support formats.
 ///
 /// If the scheme is `mailto`, it's a mail address.
@@ -126,6 +128,23 @@ impl TryFrom<&str> for Uri {
     type Error = ErrorKind;
 
     fn try_from(s: &str) -> Result<Self> {
+        let s = s.trim_start_matches("mailto:");
+        if let Err(mail_err) = parse_email(s) {
+            match Url::parse(s) {
+                Ok(uri) => Ok(uri.into()),
+                Err(url_err) => Err((s.to_owned(), url_err, mail_err).into()),
+            }
+        } else {
+            Ok(Url::parse(&(String::from("mailto:") + s)).unwrap().into())
+        }
+    }
+}
+
+impl TryFrom<RawUri> for Uri {
+    type Error = ErrorKind;
+
+    fn try_from(raw_uri: RawUri) -> Result<Self> {
+        let s = raw_uri.text;
         let s = s.trim_start_matches("mailto:");
         if let Err(mail_err) = parse_email(s) {
             match Url::parse(s) {

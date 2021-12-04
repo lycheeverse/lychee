@@ -1,14 +1,11 @@
 use crate::{
-    extract::Extractor, helpers::request::create_requests, types::raw_uri::RawUri, Base, Input,
-    Request, Result,
+    extract::Extractor, helpers::request, types::raw_uri::RawUri, Base, Input, Request, Result,
 };
 use futures::{
     stream::{self, Stream},
     StreamExt, TryStreamExt,
 };
-use html5ever::tendril::StrTendril;
 use par_stream::ParStreamExt;
-use std::collections::HashSet;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -59,7 +56,7 @@ impl Collector {
                 async move {
                     let content = content?;
                     let uris: Vec<RawUri> = extractor.extract(&content)?;
-                    let requests = create_requests(uris, &content, &base)?;
+                    let requests = request::create(uris, &content, &base)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
             })

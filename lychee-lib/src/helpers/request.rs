@@ -1,4 +1,4 @@
-use html5ever::tendril::{fmt::UTF8, SendTendril, StrTendril};
+use html5ever::tendril::StrTendril;
 use log::info;
 use percent_encoding::percent_decode_str;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -18,7 +18,7 @@ use crate::{
 
 /// Create requests out of the collected URLs.
 /// Only keeps "valid" URLs. This filters out anchors for example.
-pub(crate) fn create_requests(
+pub(crate) fn create(
     uris: Vec<RawUri>,
     input_content: &InputContent,
     base: &Option<Base>,
@@ -37,18 +37,15 @@ pub(crate) fn create_requests(
         .into_par_iter()
         .map(|raw_uri| {
             let is_anchor = raw_uri.is_anchor();
-            let text = StrTendril::from(raw_uri.text);
-            if let Ok(uri) = Uri::try_from(text.as_ref()) {
-                Ok(Some(Request::new(
-                    uri,
-                    input_content.input.clone(),
-                    raw_uri.kind,
-                )))
+            let text = StrTendril::from(raw_uri.text.clone());
+            let kind = raw_uri.kind;
+            if let Ok(uri) = Uri::try_from(raw_uri) {
+                Ok(Some(Request::new(uri, input_content.input.clone(), kind)))
             } else if let Some(url) = base.as_ref().and_then(|u| u.join(&text)) {
                 Ok(Some(Request::new(
                     Uri { url },
                     input_content.input.clone(),
-                    raw_uri.kind,
+                    kind,
                 )))
             } else if let Input::FsPath(root) = &input_content.input {
                 if is_anchor {
@@ -59,7 +56,7 @@ pub(crate) fn create_requests(
                         Ok(Some(Request::new(
                             Uri { url },
                             input_content.input.clone(),
-                            raw_uri.kind,
+                            kind,
                         )))
                     } else {
                         // In case we cannot create a URI from a path but we didn't receive an error,
@@ -74,7 +71,7 @@ pub(crate) fn create_requests(
                     Ok(Some(Request::new(
                         Uri { url: url? },
                         input_content.input.clone(),
-                        raw_uri.kind,
+                        kind,
                     )))
                 }
             } else {

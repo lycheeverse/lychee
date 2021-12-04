@@ -62,12 +62,6 @@ mod test_fs_tree {
     use super::*;
 
     #[test]
-    fn test_is_anchor() {
-        assert!(is_anchor("#anchor"));
-        assert!(!is_anchor("notan#anchor"));
-    }
-
-    #[test]
     fn test_remove_get_params_and_fragment() {
         assert_eq!(remove_get_params_and_fragment("/"), "/");
         assert_eq!(
