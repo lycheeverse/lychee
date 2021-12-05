@@ -14,7 +14,6 @@ pub use base::Base;
 pub use error::ErrorKind;
 pub use file::FileType;
 pub use input::{Input, InputContent};
-pub use raw_uri::UriKind;
 pub use request::Request;
 pub use response::{Response, ResponseBody};
 pub use status::Status;

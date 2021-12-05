@@ -197,8 +197,9 @@ impl Client {
         let Request {
             uri,
             source,
-            kind: _kind,
+            attribute: _attribute,
         } = request.try_into()?;
+        // TODO: Allow filtering based on attribute
 
         let status = if self.filter.is_excluded(&uri) {
             Status::Excluded

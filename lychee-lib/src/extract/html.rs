@@ -5,10 +5,7 @@ use html5ever::{
 };
 
 use super::plaintext::extract_plaintext;
-use crate::{
-    types::{raw_uri::RawUri, UriKind},
-    Result,
-};
+use crate::{types::raw_uri::RawUri, Result};
 
 #[derive(Clone)]
 struct LinkExtractor {
@@ -23,7 +20,6 @@ impl TokenSink for LinkExtractor {
             Token::CharacterTokens(raw) => self.links.append(&mut extract_plaintext(&raw)),
             Token::CommentToken(_raw) => (),
             Token::TagToken(tag) => {
-                //println!("TOKEN TAG {:?}", tag); // important
                 let Tag {
                     kind: _kind,
                     name,
@@ -41,12 +37,11 @@ impl TokenSink for LinkExtractor {
                     if urls.is_empty() {
                         extract_plaintext(&attr.value);
                     } else {
-                        // TODO: fix UriKind to proper variant
                         self.links.extend(
                             urls.into_iter()
                                 .map(|url| RawUri {
                                     text: url,
-                                    kind: UriKind::Strict,
+                                    attribute: Some(attr.name.local.to_string()),
                                 })
                                 .collect::<Vec<_>>(),
                         );

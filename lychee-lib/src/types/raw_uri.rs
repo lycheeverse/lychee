@@ -1,25 +1,17 @@
 use std::fmt::Display;
 
-/// A way to classify links to make it easier to offer fine control over the
-/// links that will be checked
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum UriKind {
-    /// Normal web-link that gets rendered as a hyperlink
-    Strict,
-    /// Link occuring in non-human-clickable sections like comments, `<code>`,
-    /// or `<pre>` tags
-    Fuzzy,
-    /// The visibility of the link cannot be inferred during parsing
-    /// This can be the case when a link gets created from a raw string
-    Unknown,
-}
-
 /// A raw URI that got extracted from a document with a fuzzy parser.
 /// Note that this can still be invalid according to stricter URI standards
 #[derive(Clone, Debug, PartialEq)]
 pub struct RawUri {
+    /// Unparsed URI represented as a `String`. There is no guarantee that it
+    /// can be parsed into a URI object
     pub text: String,
-    pub kind: UriKind,
+    /// Name of the attribute that contained the URI (e.g. `img`). This is a way
+    /// to classify links to make it easier to offer fine control over the links
+    /// that will be checked e.g. by trying to filter out links that were found
+    /// in unwanted tags like `<pre>` or `<code>`.
+    pub attribute: Option<String>,
 }
 
 impl RawUri {
@@ -30,7 +22,16 @@ impl RawUri {
 }
 impl Display for RawUri {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} ({:?})", self.text, self.kind)
+        write!(f, "{} (Attribute: {:?})", self.text, self.attribute)
+    }
+}
+
+impl From<&str> for RawUri {
+    fn from(text: &str) -> Self {
+        RawUri {
+            text: text.to_string(),
+            attribute: None,
+        }
     }
 }
 
@@ -42,13 +43,13 @@ mod test {
     fn test_is_anchor() {
         let raw_uri = RawUri {
             text: "#anchor".to_string(),
-            kind: UriKind::Unknown,
+            attribute: None,
         };
         assert!(raw_uri.is_anchor());
 
         let raw_uri = RawUri {
             text: "notan#anchor".to_string(),
-            kind: UriKind::Unknown,
+            attribute: None,
         };
         assert!(!raw_uri.is_anchor());
     }

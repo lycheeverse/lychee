@@ -35,7 +35,7 @@ where
                 // This can panic. See when the Url could not be parsed as a Uri.
                 // See https://github.com/servo/rust-url/issues/554
                 // See https://github.com/seanmonstar/reqwest/issues/668
-                // TODO: Handle error when https://github.com/seanmonstar/reqwest/pull/1399 got merged
+                // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
                 let response = client.check(request).await.expect("cannot check URI");
 
                 send_resp

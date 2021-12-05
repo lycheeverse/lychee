@@ -5,8 +5,7 @@ use std::fs;
 
 fn extract(input: &str) {
     let mut extractor = Extractor::new(None);
-    let links = extractor.extract(&InputContent::from_string(input, FileType::Html));
-    println!("Links found: {:?}", links.unwrap());
+    extractor.extract(&InputContent::from_string(input, FileType::Html)).unwrap();
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
