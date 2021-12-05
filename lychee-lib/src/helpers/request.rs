@@ -1,3 +1,4 @@
+use ellipse::Ellipse;
 use html5ever::tendril::StrTendril;
 use log::info;
 use percent_encoding::percent_decode_str;
@@ -15,8 +16,6 @@ use crate::{
     types::{raw_uri::RawUri, InputContent},
     Base, ErrorKind, Input, Request, Result, Uri,
 };
-
-use super::string;
 
 const MAX_SOURCE_LEN: usize = 100;
 
@@ -46,9 +45,8 @@ pub(crate) fn create(
 
             // Truncate the source in case it gets too long
             let mut input = input_content.input.clone();
-            if let Input::String(mut src) = input {
-                src.truncate(MAX_SOURCE_LEN);
-                input = Input::String(string::truncate(src.as_mut_str(), MAX_SOURCE_LEN))
+            if let Input::String(src) = input {
+                input = Input::String(src.as_str().truncate_ellipse(MAX_SOURCE_LEN).to_string())
             }
 
             if let Ok(uri) = Uri::try_from(raw_uri) {
