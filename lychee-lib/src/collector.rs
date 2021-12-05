@@ -56,7 +56,7 @@ impl Collector {
                 async move {
                     let content = content?;
                     let uris: Vec<RawUri> = extractor.extract(&content)?;
-                    let requests = request::create(uris, &content, &base)?;
+                    let requests = request::create(uris, content, &base)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
             })

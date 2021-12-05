@@ -16,11 +16,13 @@ use crate::{
     Base, ErrorKind, Input, Request, Result, Uri,
 };
 
+const MAX_SOURCE_LEN: usize = 100;
+
 /// Create requests out of the collected URLs.
 /// Only keeps "valid" URLs. This filters out anchors for example.
 pub(crate) fn create(
     uris: Vec<RawUri>,
-    input_content: &InputContent,
+    input_content: InputContent,
     base: &Option<Base>,
 ) -> Result<HashSet<Request>> {
     let base_input = match &input_content.input {
@@ -39,25 +41,25 @@ pub(crate) fn create(
             let is_anchor = raw_uri.is_anchor();
             let text = StrTendril::from(raw_uri.text.clone());
             let kind = raw_uri.kind;
+
+            // Truncate the source in case it gets too long
+            let mut input = input_content.input.clone();
+            if let Input::String(mut src) = input {
+                src.truncate(MAX_SOURCE_LEN);
+                input = Input::String(src.to_string())
+            }
+
             if let Ok(uri) = Uri::try_from(raw_uri) {
-                Ok(Some(Request::new(uri, input_content.input.clone(), kind)))
+                Ok(Some(Request::new(uri, input, kind)))
             } else if let Some(url) = base.as_ref().and_then(|u| u.join(&text)) {
-                Ok(Some(Request::new(
-                    Uri { url },
-                    input_content.input.clone(),
-                    kind,
-                )))
+                Ok(Some(Request::new(Uri { url }, input, kind)))
             } else if let Input::FsPath(root) = &input_content.input {
                 if is_anchor {
                     // Silently ignore anchor links for now
                     Ok(None)
                 } else {
                     if let Some(url) = create_uri_from_path(root, &text, &base)? {
-                        Ok(Some(Request::new(
-                            Uri { url },
-                            input_content.input.clone(),
-                            kind,
-                        )))
+                        Ok(Some(Request::new(Uri { url }, input, kind)))
                     } else {
                         // In case we cannot create a URI from a path but we didn't receive an error,
                         // it means that some preconditions were not met, e.g. the `base_url` wasn't set.
@@ -68,11 +70,7 @@ pub(crate) fn create(
                 if base.is_some() {
                     Ok(None)
                 } else {
-                    Ok(Some(Request::new(
-                        Uri { url: url? },
-                        input_content.input.clone(),
-                        kind,
-                    )))
+                    Ok(Some(Request::new(Uri { url: url? }, input, kind)))
                 }
             } else {
                 info!("Handling of `{}` not implemented yet", text);

@@ -16,9 +16,6 @@ impl TokenSink for LinkExtractor {
     type Handle = ();
 
     fn process_token(&mut self, token: Token, line_number: u64) -> TokenSinkResult<()> {
-        if line_number < 10 {
-            println!("{}", line_number);
-        }
         match token {
             Token::CharacterTokens(raw) => self.links.append(&mut extract_plaintext(&raw)),
             Token::CommentToken(_raw) => (),
