@@ -18,40 +18,6 @@ pub(crate) fn remove_get_params_and_fragment(url: &str) -> &str {
     path
 }
 
-/// Extract all semantically-known links from a given html attribute. Pattern-based extraction from
-/// unstructured plaintext is done elsewhere.
-#[inline(always)]
-pub(crate) fn extract_links_from_elem_attr(
-    attr_name: &str,
-    elem_name: &str,
-    attr_value: &str,
-) -> Vec<String> {
-    // See a comprehensive list of attributes that might contain URLs/URIs
-    // over at: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
-    let mut urls = Vec::new();
-
-    match (attr_name, elem_name) {
-        ("href" | "src" | "cite", _) | ("data", "object") => {
-            urls.push(attr_value.to_owned());
-        }
-        ("srcset", _) => {
-            for image_candidate_string in attr_value.trim().split(',') {
-                for part in image_candidate_string.split_ascii_whitespace() {
-                    if part.is_empty() {
-                        continue;
-                    }
-
-                    urls.push(part.to_owned());
-                    break;
-                }
-            }
-        }
-        _ => (),
-    }
-
-    urls
-}
-
 // Use `LinkFinder` to offload the raw link searching in plaintext
 pub(crate) fn find_links(input: &str) -> impl Iterator<Item = linkify::Link> {
     LINK_FINDER.links(input)

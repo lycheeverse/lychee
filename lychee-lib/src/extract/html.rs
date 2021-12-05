@@ -1,11 +1,14 @@
 use html5ever::{
     buffer_queue::BufferQueue,
     tendril::StrTendril,
-    tokenizer::{Token, TokenSink, TokenSinkResult, Tokenizer, TokenizerOpts},
+    tokenizer::{Tag, Token, TokenSink, TokenSinkResult, Tokenizer, TokenizerOpts},
 };
 
 use super::plaintext::extract_plaintext;
-use crate::{types::raw_uri::RawUri, Result};
+use crate::{
+    types::{raw_uri::RawUri, UriKind},
+    Result,
+};
 
 #[derive(Clone)]
 struct LinkExtractor {
@@ -19,21 +22,36 @@ impl TokenSink for LinkExtractor {
         match token {
             Token::CharacterTokens(raw) => self.links.append(&mut extract_plaintext(&raw)),
             Token::CommentToken(_raw) => (),
-            Token::TagToken(_tag) => {
+            Token::TagToken(tag) => {
                 //println!("TOKEN TAG {:?}", tag); // important
-                //todo: img, script
+                let Tag {
+                    kind: _kind,
+                    name,
+                    self_closing: _self_closing,
+                    attrs,
+                } = tag;
 
-                // This is not proper HTML serialization, of course.
-                // match tag.kind {
-                //     StartTag => print!("TAG  : <\x1b[32m{}\x1b[0m", tag.name),
-                //     EndTag => print!("TAG  : <\x1b[31m/{}\x1b[0m", tag.name),
-                // }
-                // for attr in tag.attrs.iter() {
-                //     print!(
-                //         " \x1b[36m{}\x1b[0m='\x1b[34m{}\x1b[0m'",
-                //         attr.name.local, attr.value
-                //     );
-                // }
+                for attr in attrs {
+                    let urls = extract_urls_from_elem_attr(
+                        attr.name.local.as_ref(),
+                        name.as_ref(),
+                        attr.value.as_ref(),
+                    );
+
+                    if urls.is_empty() {
+                        extract_plaintext(&attr.value);
+                    } else {
+                        // TODO: fix UriKind to proper variant
+                        self.links.extend(
+                            urls.into_iter()
+                                .map(|url| RawUri {
+                                    text: url,
+                                    kind: UriKind::Strict,
+                                })
+                                .collect::<Vec<_>>(),
+                        );
+                    }
+                }
                 ()
             }
             Token::ParseError(err) => {
@@ -46,6 +64,80 @@ impl TokenSink for LinkExtractor {
         TokenSinkResult::Continue
     }
 }
+
+/// Extract all semantically-known links from a given html attribute.
+/// Pattern-based extraction from unstructured plaintext is done elsewhere.
+#[inline(always)]
+pub(crate) fn extract_urls_from_elem_attr(
+    attr_name: &str,
+    elem_name: &str,
+    attr_value: &str,
+) -> Vec<String> {
+    // See a comprehensive list of attributes that might contain URLs/URIs
+    // over at: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
+    let mut urls = Vec::new();
+
+    match (attr_name, elem_name) {
+        ("href" | "src" | "cite", _) | ("data", "object") => {
+            urls.push(attr_value.to_owned());
+        }
+        ("srcset", _) => {
+            for image_candidate_string in attr_value.trim().split(',') {
+                for part in image_candidate_string.split_ascii_whitespace() {
+                    if part.is_empty() {
+                        continue;
+                    }
+
+                    urls.push(part.to_owned());
+                    break;
+                }
+            }
+        }
+        _ => (),
+    }
+    urls
+}
+
+// fn walk_html_links(node: &Handle) -> Vec<StrTendril> {
+//     let mut all_urls = Vec::new();
+//     match node.data {
+//         NodeData::Text { ref contents } => {
+//             all_urls.append(&mut extract_plaintext(&contents.borrow()));
+//         }
+//         NodeData::Comment { ref contents } => {
+//             all_urls.append(&mut extract_plaintext(contents));
+//         }
+//         NodeData::Element {
+//             ref name,
+//             ref attrs,
+//             ..
+//         } => {
+//             for attr in attrs.borrow().iter() {
+//                 let urls = url::extract_links_from_elem_attr(
+//                     attr.name.local.as_ref(),
+//                     name.local.as_ref(),
+//                     attr.value.as_ref(),
+//                 );
+
+//                 if urls.is_empty() {
+//                     extract_plaintext(&attr.value);
+//                 } else {
+//                     all_urls.extend(urls.into_iter().map(StrTendril::from).collect::<Vec<_>>());
+//                 }
+//             }
+//         }
+//         _ => {}
+//     }
+
+//     // recursively traverse the document's nodes -- this doesn't need any extra
+//     // exit conditions, because the document is a tree
+//     for child in node.children.borrow().iter() {
+//         let urls = walk_html_links(child);
+//         all_urls.extend(urls);
+//     }
+
+//     all_urls
+// }
 
 // Recursively walk links in a HTML document, aggregating URL strings in `urls`.
 // fn walk_html_links(node: &Handle) -> Vec<StrTendril> {
