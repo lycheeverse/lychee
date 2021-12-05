@@ -16,6 +16,8 @@ use crate::{
     Base, ErrorKind, Input, Request, Result, Uri,
 };
 
+use super::string;
+
 const MAX_SOURCE_LEN: usize = 100;
 
 /// Create requests out of the collected URLs.
@@ -46,7 +48,7 @@ pub(crate) fn create(
             let mut input = input_content.input.clone();
             if let Input::String(mut src) = input {
                 src.truncate(MAX_SOURCE_LEN);
-                input = Input::String(src.to_string())
+                input = Input::String(string::truncate(src.as_mut_str(), MAX_SOURCE_LEN))
             }
 
             if let Ok(uri) = Uri::try_from(raw_uri) {
