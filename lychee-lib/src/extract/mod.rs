@@ -12,8 +12,8 @@ use markdown::extract_markdown;
 use plaintext::extract_plaintext;
 
 /// A handler for extracting links from various input formats like Markdown and
-/// HTML. Allocations are avoided if possible as this is a performance-critical
-/// section of the library.
+/// HTML. Allocations should be avoided if possible as this is a
+/// performance-critical section of the library.
 #[derive(Debug, Clone)]
 pub struct Extractor {
     /// Base URL or Path
