@@ -12,7 +12,6 @@ use std::collections::HashSet;
 pub struct Collector {
     base: Option<Base>,
     skip_missing_inputs: bool,
-    max_concurrency: usize,
 }
 
 impl Collector {
@@ -26,7 +25,6 @@ impl Collector {
         Collector {
             base,
             skip_missing_inputs,
-            max_concurrency,
         }
     }
 
