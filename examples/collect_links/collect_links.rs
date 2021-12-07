@@ -17,7 +17,6 @@ async fn main() -> Result<()> {
     let links = Collector::new(
         None,  // base
         false, // don't skip missing inputs
-        10,    // max concurrency
     )
     .collect_links(
         inputs, // base url or directory
