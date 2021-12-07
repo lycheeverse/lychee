@@ -41,46 +41,20 @@ impl Extractor {
 
 #[cfg(test)]
 mod test {
-    use std::{
-        array,
-        collections::HashSet,
-        convert::TryFrom,
-        fs::File,
-        io::{BufReader, Read},
-        path::Path,
-    };
-
     use pretty_assertions::assert_eq;
     use reqwest::Url;
+    use std::{array, collections::HashSet, convert::TryFrom, iter::FromIterator};
 
     use super::*;
     use crate::{
         helpers::url::find_links,
-        test_utils::{mail, website},
+        test_utils::{load_fixture, mail, website},
         Input, Uri,
     };
     use crate::{
         types::{FileType, InputContent},
         Base,
     };
-
-    fn load_fixture(filename: &str) -> String {
-        let fixture_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .join("fixtures")
-            .join(filename);
-
-        let file = File::open(fixture_path).expect("Unable to open fixture file");
-        let mut buf_reader = BufReader::new(file);
-        let mut content = String::new();
-
-        buf_reader
-            .read_to_string(&mut content)
-            .expect("Unable to read fixture file contents");
-
-        content
-    }
 
     fn extract_uris(
         input: &str,
@@ -90,12 +64,12 @@ mod test {
         let base = base_url.map(|url| Base::Remote(Url::parse(url).unwrap()));
         let input_content = InputContent::from_string(input, file_type);
         let mut extractor = Extractor::new(base);
-        let uris: Result<HashSet<_>> = extractor
+        let uris: HashSet<_> = extractor
             .extract(&input_content)?
             .into_iter()
-            .map(|raw_uri| Uri::try_from(raw_uri))
+            .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
-        Ok(uris?)
+        Ok(uris)
     }
 
     #[test]
@@ -272,17 +246,16 @@ mod test {
         let input = load_fixture("TEST_HTML5.html");
         let links = extract_uris(&input, FileType::Html, Some("https://example.org")).unwrap();
 
-        let expected_links = array::IntoIter::new([
-            website("https://example.org/head/home"),
-            website("https://example.org/images/icon.png"),
-            website("https://example.org/css/style_relative_url.css"),
-            website("https://example.org/css/style_full_url.css"),
-            website("https://example.org/js/script.js"),
+        let expected_links = HashSet::from_iter([
             // the body links wouldn't be present if the file was parsed strictly as XML
             website("https://example.org/body/a"),
             website("https://example.org/body/div_empty_a"),
-        ])
-        .collect::<HashSet<Uri>>();
+            website("https://example.org/css/style_full_url.css"),
+            website("https://example.org/css/style_relative_url.css"),
+            website("https://example.org/head/home"),
+            website("https://example.org/images/icon.png"),
+            website("https://example.org/js/script.js"),
+        ]);
 
         assert_eq!(links, expected_links);
     }

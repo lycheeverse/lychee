@@ -22,7 +22,6 @@ async fn main() -> Result<()> {
     // Queue requests
     tokio::spawn(async move {
         for request in requests {
-            println!("Sending {}", request);
             send_req.send(request).await.unwrap();
         }
     });

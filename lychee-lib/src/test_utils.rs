@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::{convert::TryFrom, fs, path::Path};
 
 use reqwest::Url;
 
@@ -44,4 +44,13 @@ pub(crate) fn mail(address: &str) -> Uri {
     }
     .expect("Expected valid Mail Address")
     .into()
+}
+
+pub(crate) fn load_fixture(filename: &str) -> String {
+    let fixture_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("fixtures")
+        .join(filename);
+    fs::read_to_string(fixture_path).unwrap()
 }
