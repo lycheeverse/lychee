@@ -155,13 +155,9 @@ fn run_main() -> Result<i32> {
 
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs();
-    let requests = Collector::new(
-        opts.config.base.clone(),
-        opts.config.skip_missing,
-        opts.config.max_concurrency,
-    )
-    .collect_links(inputs)
-    .await;
+    let requests = Collector::new(opts.config.base.clone(), opts.config.skip_missing)
+        .collect_links(inputs)
+        .await;
 
     let client = client::create(&opts.config)?;
 
