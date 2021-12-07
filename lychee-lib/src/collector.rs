@@ -20,7 +20,6 @@ impl Collector {
     pub const fn new(
         base: Option<Base>,
         skip_missing_inputs: bool,
-        max_concurrency: usize,
     ) -> Self {
         Collector {
             base,
