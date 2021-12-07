@@ -17,10 +17,7 @@ pub struct Collector {
 impl Collector {
     /// Create a new collector with an empty cache
     #[must_use]
-    pub const fn new(
-        base: Option<Base>,
-        skip_missing_inputs: bool,
-    ) -> Self {
+    pub const fn new(base: Option<Base>, skip_missing_inputs: bool) -> Self {
         Collector {
             base,
             skip_missing_inputs,
@@ -142,7 +139,7 @@ mod test {
             },
         ];
 
-        let responses = Collector::new(None, false, 8).collect_links(inputs).await;
+        let responses = Collector::new(None, false).collect_links(inputs).await;
         let mut links: Vec<Uri> = responses.map(|r| r.unwrap().uri).collect().await;
 
         let mut expected_links = vec![
