@@ -1,6 +1,6 @@
 # Benchmarks
 
-Testing critical section of lychee for performance.  
+Testing critical sections of lychee for performance.  
 Run with
 
 ```
