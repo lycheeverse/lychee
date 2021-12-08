@@ -7,10 +7,15 @@ pub struct RawUri {
     /// Unparsed URI represented as a `String`. There is no guarantee that it
     /// can be parsed into a URI object
     pub text: String,
-    /// Name of the attribute that contained the URI (e.g. `img`). This is a way
+    /// Name of the element that contained the URI (e.g. `a` for the <a> tag).
+    /// This is a way to classify links to make it easier to offer fine control
+    /// over the links that will be checked e.g. by trying to filter out links
+    /// that were found in unwanted tags like `<pre>` or `<code>`.
+    pub element: Option<String>,
+    /// Name of the attribute that contained the URI (e.g. `src`). This is a way
     /// to classify links to make it easier to offer fine control over the links
     /// that will be checked e.g. by trying to filter out links that were found
-    /// in unwanted tags like `<pre>` or `<code>`.
+    /// in unwanted attributes like `srcset` or `manifest`.
     pub attribute: Option<String>,
 }
 
@@ -30,6 +35,7 @@ impl From<&str> for RawUri {
     fn from(text: &str) -> Self {
         RawUri {
             text: text.to_string(),
+            element: None,
             attribute: None,
         }
     }
@@ -41,16 +47,10 @@ mod test {
 
     #[test]
     fn test_is_anchor() {
-        let raw_uri = RawUri {
-            text: "#anchor".to_string(),
-            attribute: None,
-        };
+        let raw_uri = RawUri::from("#anchor");
         assert!(raw_uri.is_anchor());
 
-        let raw_uri = RawUri {
-            text: "notan#anchor".to_string(),
-            attribute: None,
-        };
+        let raw_uri = RawUri::from("notan#anchor");
         assert!(!raw_uri.is_anchor());
     }
 }

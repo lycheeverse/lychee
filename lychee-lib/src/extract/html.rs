@@ -41,6 +41,7 @@ impl TokenSink for LinkExtractor {
                             urls.into_iter()
                                 .map(|url| RawUri {
                                     text: url,
+                                    element: Some(name.to_string()),
                                     attribute: Some(attr.name.local.to_string()),
                                 })
                                 .collect::<Vec<_>>(),
@@ -68,15 +69,16 @@ pub(crate) fn extract_urls_from_elem_attr(
     elem_name: &str,
     attr_value: &str,
 ) -> Vec<String> {
-    // See a comprehensive list of attributes that might contain URLs/URIs
-    // over at: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
+    // For a comprehensive list of attributes that might contain URLs/URIs
+    // see https://www.w3.org/TR/REC-html40/index/attributes.html
+    // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
     let mut urls = Vec::new();
 
-    match (attr_name, elem_name) {
-        ("href" | "src" | "cite", _) | ("data", "object") => {
+    match (elem_name, attr_name) {
+        ("object", "data") | (_, "href" | "src" | "cite") => {
             urls.push(attr_value.to_owned());
         }
-        ("srcset", _) => {
+        (_, "srcset") => {
             for image_candidate_string in attr_value.trim().split(',') {
                 for part in image_candidate_string.split_ascii_whitespace() {
                     if part.is_empty() {
@@ -88,7 +90,9 @@ pub(crate) fn extract_urls_from_elem_attr(
                 }
             }
         }
-        _ => (),
+        _ => {
+            // println!("{}", elem_name);
+        }
     }
     urls
 }
