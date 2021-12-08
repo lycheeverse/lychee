@@ -69,13 +69,30 @@ pub(crate) fn extract_urls_from_elem_attr(
     elem_name: &str,
     attr_value: &str,
 ) -> Vec<String> {
-    // For a comprehensive list of attributes that might contain URLs/URIs
-    // see https://www.w3.org/TR/REC-html40/index/attributes.html
-    // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
     let mut urls = Vec::new();
 
+    // For a comprehensive list of elements that might contain URLs/URIs
+    // see https://www.w3.org/TR/REC-html40/index/attributes.html
+    // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
     match (elem_name, attr_name) {
-        ("object", "data") | (_, "href" | "src" | "cite") => {
+        // Common element/attribute combinations for links
+        (_, "href" | "src" | "cite" | "usemap")
+        // Less common (but still valid!) combinations
+        | ("applet", "codebase")
+        | ("body", "background")
+        | ("button", "formaction")
+        | ("command", "icon")
+        | ("form", "action")
+        | ("frame", "longdesc")
+        | ("head", "profile")
+        | ("html", "manifest")
+        | ("iframe", "longdesc")
+        | ("img", "longdesc")
+        | ("input", "formaction")
+        | ("object", "classid")
+        | ("object", "codebase")
+        | ("object", "data")
+        | ("video", "poster") => {
             urls.push(attr_value.to_owned());
         }
         (_, "srcset") => {
