@@ -107,9 +107,7 @@ pub(crate) fn extract_urls_from_elem_attr(
                 }
             }
         }
-        _ => {
-            // println!("{}", elem_name);
-        }
+        _ => (),
     }
     urls
 }
