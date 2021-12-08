@@ -1,0 +1,17 @@
+[package]
+name = "benches"
+version = "0.0.0"
+authors = ["Matthias Endler <matthias@endler.dev>"]
+license = "Apache-2.0/MIT"
+description = "Criterion benchmarks of the lychee crates"
+edition = "2018"
+publish = false
+
+[dependencies]
+lychee-lib = { path = "../lychee-lib", version = "0.8.1" }
+criterion = "0.3"
+
+[[bench]]
+name = "extract"
+path = "src/extract.rs"
+harness = false

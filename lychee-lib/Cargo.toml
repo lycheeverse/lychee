@@ -59,11 +59,6 @@ doc-comment = "0.3.3"
 pretty_assertions = "1.0.0"
 tempfile = "3.2.0"
 wiremock = "0.5.7"
-criterion = "0.3"
 
 [features]
 vendored-openssl = ["openssl-sys/vendored"]
-
-[[bench]]
-name = "extract"
-harness = false

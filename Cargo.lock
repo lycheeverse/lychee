@@ -343,6 +343,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
+name = "benches"
+version = "0.0.0"
+dependencies = [
+ "criterion",
+ "lychee-lib",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1748,7 +1756,6 @@ dependencies = [
  "async-stream",
  "cached",
  "check-if-email-exists",
- "criterion",
  "doc-comment",
  "ellipse",
  "fast_chemail",

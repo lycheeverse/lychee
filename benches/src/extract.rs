@@ -5,10 +5,12 @@ use std::fs;
 
 fn extract(input: &str) {
     let mut extractor = Extractor::new(None);
-    extractor.extract(&InputContent::from_string(input, FileType::Html)).unwrap();
+    extractor
+        .extract(&InputContent::from_string(input, FileType::Html))
+        .unwrap();
 }
 
-fn criterion_benchmark(c: &mut Criterion) {
+fn benchmark(c: &mut Criterion) {
     // Currently Wikipedia's biggest featured article
     let elvis = fs::read_to_string("../fixtures/elvis.html").unwrap();
     c.bench_function("extract from large doc", |b| {
@@ -19,6 +21,6 @@ fn criterion_benchmark(c: &mut Criterion) {
 criterion_group!(
     name = benches;
     config = Criterion::default().sample_size(10);
-    targets = criterion_benchmark
+    targets = benchmark
 );
 criterion_main!(benches);
