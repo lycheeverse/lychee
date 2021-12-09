@@ -926,15 +926,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 
 [[package]]
-name = "ellipse"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1835a82a08e5c9393639e7cf99786a65af71f7fa9df7c91a519f2d52e6fa052d"
-dependencies = [
- "unicode-segmentation",
-]
-
-[[package]]
 name = "encode_unicode"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1757,7 +1748,6 @@ dependencies = [
  "cached",
  "check-if-email-exists",
  "doc-comment",
- "ellipse",
  "fast_chemail",
  "futures",
  "glob",
@@ -1774,7 +1764,6 @@ dependencies = [
  "percent-encoding",
  "pretty_assertions",
  "pulldown-cmark",
- "rayon",
  "regex",
  "reqwest",
  "ring",
