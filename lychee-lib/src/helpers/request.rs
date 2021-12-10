@@ -1,8 +1,6 @@
-use ellipse::Ellipse;
 use html5ever::tendril::StrTendril;
 use log::info;
 use percent_encoding::percent_decode_str;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use reqwest::Url;
 use std::{
     collections::HashSet,
@@ -16,8 +14,6 @@ use crate::{
     types::{raw_uri::RawUri, InputContent},
     Base, ErrorKind, Input, Request, Result, Uri,
 };
-
-const MAX_SOURCE_LEN: usize = 100;
 
 /// Create requests out of the collected URLs.
 /// Only keeps "valid" URLs. This filters out anchors for example.
@@ -37,17 +33,14 @@ pub(crate) fn create(
     };
 
     let requests: Result<Vec<Option<Request>>> = uris
-        .into_par_iter()
+        .into_iter()
         .map(|raw_uri| {
             let is_anchor = raw_uri.is_anchor();
             let text = StrTendril::from(raw_uri.text.clone());
             let attribute = raw_uri.attribute.clone();
 
             // Truncate the source in case it gets too long
-            let mut input = input_content.input.clone();
-            if let Input::String(src) = input {
-                input = Input::String(src.as_str().truncate_ellipse(MAX_SOURCE_LEN).to_string())
-            }
+            let input = input_content.input.clone();
 
             if let Ok(uri) = Uri::try_from(raw_uri) {
                 Ok(Some(Request::new(uri, input, attribute)))
