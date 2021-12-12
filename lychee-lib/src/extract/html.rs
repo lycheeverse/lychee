@@ -18,7 +18,6 @@ impl TokenSink for LinkExtractor {
     fn process_token(&mut self, token: Token, _line_number: u64) -> TokenSinkResult<()> {
         match token {
             Token::CharacterTokens(raw) => self.links.append(&mut extract_plaintext(&raw)),
-            Token::CommentToken(_raw) => (),
             Token::TagToken(tag) => {
                 let Tag {
                     kind: _kind,
@@ -50,12 +49,13 @@ impl TokenSink for LinkExtractor {
                 }
                 ()
             }
-            Token::ParseError(err) => {
-                println!("ERROR: {}", err);
+            Token::ParseError(_err) => {
+                // Silently ignore parse errors
             }
-            Token::NullCharacterToken => (), // println!("NULL CHAR TOKEN"),
-            Token::DoctypeToken(_doctype) => (), // println!("DOCTYPTE TOKEN: {:?}", doctype),
-            Token::EOFToken => (),           // println!("EOF TOKEN"),
+            Token::CommentToken(_raw) => (),
+            Token::NullCharacterToken => (),
+            Token::DoctypeToken(_doctype) => (),
+            Token::EOFToken => (),
         }
         TokenSinkResult::Continue
     }

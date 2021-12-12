@@ -15,6 +15,8 @@ use crate::{
     Base, ErrorKind, Input, Request, Result, Uri,
 };
 
+const MAX_TRUNCATED_STR_LEN: usize = 100;
+
 /// Create requests out of the collected URLs.
 /// Only keeps "valid" URLs. This filters out anchors for example.
 pub(crate) fn create(
@@ -28,8 +30,8 @@ pub(crate) fn create(
             url.scheme(),
             url.host_str().ok_or(ErrorKind::InvalidUrlHost)?
         ))?),
-        _ => None,
         // other inputs do not have a URL to extract a base
+        _ => None,
     };
 
     let requests: Result<Vec<Option<Request>>> = uris
@@ -40,7 +42,11 @@ pub(crate) fn create(
             let attribute = raw_uri.attribute.clone();
 
             // Truncate the source in case it gets too long
-            let input = input_content.input.clone();
+            let input = match &input_content.input {
+                Input::String(s) => Input::String(s.chars().take(MAX_TRUNCATED_STR_LEN).collect()),
+                // Cloning is cheap here
+                c => c.clone(),
+            };
 
             if let Ok(uri) = Uri::try_from(raw_uri) {
                 Ok(Some(Request::new(uri, input, attribute)))
