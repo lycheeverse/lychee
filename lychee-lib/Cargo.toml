@@ -25,7 +25,7 @@ http = "0.2.5"
 hubcaps = "0.6.2"
 linkify = "0.8.0"
 markup5ever_rcdom = "0.1.0"
-openssl-sys = "0.9.71"
+openssl-sys = "0.9.72"
 pulldown-cmark = "0.8.0"
 regex = "1.4.6"
 reqwest = { version = "0.11.7", features = ["gzip"] }
