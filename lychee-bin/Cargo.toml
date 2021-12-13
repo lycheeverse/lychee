@@ -24,7 +24,7 @@ headers = "0.3.5"
 http = "0.2.5"
 indicatif = "0.15.0"
 lazy_static = "1.4.0"
-openssl-sys = "0.9.71"
+openssl-sys = "0.9.72"
 pad = "0.1.6"
 regex = "1.4.6"
 reqwest = { version = "0.11.7", features = ["gzip"] }
