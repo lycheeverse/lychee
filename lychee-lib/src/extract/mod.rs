@@ -17,6 +17,7 @@ pub struct Extractor;
 impl Extractor {
     /// Main entrypoint for extracting links from various sources
     /// (Markdown, HTML, and plaintext)
+    #[must_use]
     pub fn extract(input_content: &InputContent) -> Vec<RawUri> {
         match input_content.file_type {
             FileType::Markdown => extract_markdown(&input_content.content),
