@@ -1,5 +1,4 @@
 use std::io::{self, Write};
-
 use lychee_lib::Result;
 use lychee_lib::{Client, Request};
 use tokio_stream::StreamExt;
