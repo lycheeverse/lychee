@@ -44,8 +44,8 @@ impl Display for CompactResponseStats {
                 stats.fail_map.len()
             )?;
         }
-        for (input, responses) in &stats.fail_map {
-            color!(f, BOLD_YELLOW, "[{}]:\n", input)?;
+        for (source, responses) in &stats.fail_map {
+            color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             for response in responses {
                 writeln!(f, "{}", color_response(response))?;
             }

@@ -11,8 +11,8 @@ use std::{
 
 use crate::{
     helpers::{path, url},
-    types::{raw_uri::RawUri, InputContent},
-    Base, ErrorKind, Input, Request, Result, Uri,
+    types::{raw_uri::RawUri, InputContent, InputSource},
+    Base, ErrorKind, Request, Result, Uri,
 };
 
 const MAX_TRUNCATED_STR_LEN: usize = 100;
@@ -21,11 +21,11 @@ const MAX_TRUNCATED_STR_LEN: usize = 100;
 /// Only keeps "valid" URLs. This filters out anchors for example.
 pub(crate) fn create(
     uris: Vec<RawUri>,
-    input_content: InputContent,
+    input_content: &InputContent,
     base: &Option<Base>,
 ) -> Result<HashSet<Request>> {
-    let base_input = match &input_content.input {
-        Input::RemoteUrl(url) => Some(Url::parse(&format!(
+    let base_input = match &input_content.source {
+        InputSource::RemoteUrl(url) => Some(Url::parse(&format!(
             "{}://{}",
             url.scheme(),
             url.host_str().ok_or(ErrorKind::InvalidUrlHost)?
@@ -42,34 +42,34 @@ pub(crate) fn create(
             let attribute = raw_uri.attribute.clone();
 
             // Truncate the source in case it gets too long
-            let input = match &input_content.input {
-                Input::String(s) => Input::String(s.chars().take(MAX_TRUNCATED_STR_LEN).collect()),
+            let source = match &input_content.source {
+                InputSource::String(s) => {
+                    InputSource::String(s.chars().take(MAX_TRUNCATED_STR_LEN).collect())
+                }
                 // Cloning is cheap here
                 c => c.clone(),
             };
 
             if let Ok(uri) = Uri::try_from(raw_uri) {
-                Ok(Some(Request::new(uri, input, attribute)))
+                Ok(Some(Request::new(uri, source, attribute)))
             } else if let Some(url) = base.as_ref().and_then(|u| u.join(&text)) {
-                Ok(Some(Request::new(Uri { url }, input, attribute)))
-            } else if let Input::FsPath(root) = &input_content.input {
+                Ok(Some(Request::new(Uri { url }, source, attribute)))
+            } else if let InputSource::FsPath(root) = &input_content.source {
                 if is_anchor {
                     // Silently ignore anchor links for now
                     Ok(None)
+                } else if let Some(url) = create_uri_from_path(root, &text, base)? {
+                    Ok(Some(Request::new(Uri { url }, source, attribute)))
                 } else {
-                    if let Some(url) = create_uri_from_path(root, &text, &base)? {
-                        Ok(Some(Request::new(Uri { url }, input, attribute)))
-                    } else {
-                        // In case we cannot create a URI from a path but we didn't receive an error,
-                        // it means that some preconditions were not met, e.g. the `base_url` wasn't set.
-                        Ok(None)
-                    }
+                    // In case we cannot create a URI from a path but we didn't receive an error,
+                    // it means that some preconditions were not met, e.g. the `base_url` wasn't set.
+                    Ok(None)
                 }
             } else if let Some(url) = base_input.as_ref().map(|u| u.join(&text)) {
                 if base.is_some() {
                     Ok(None)
                 } else {
-                    Ok(Some(Request::new(Uri { url: url? }, input, attribute)))
+                    Ok(Some(Request::new(Uri { url: url? }, source, attribute)))
                 }
             } else {
                 info!("Handling of `{}` not implemented yet", text);
@@ -93,7 +93,7 @@ fn create_uri_from_path(src: &Path, dst: &str, base: &Option<Base>) -> Result<Op
     // `from_file_path` at the moment) while `dst` is left untouched and simply
     // appended to the end.
     let decoded = percent_decode_str(dst).decode_utf8()?;
-    let resolved = path::resolve(src, &PathBuf::from(&*decoded), &base)?;
+    let resolved = path::resolve(src, &PathBuf::from(&*decoded), base)?;
     match resolved {
         Some(path) => Url::from_file_path(&path)
             .map(Some)

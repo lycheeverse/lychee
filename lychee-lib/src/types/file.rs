@@ -1,6 +1,6 @@
 use std::path::Path;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 /// `FileType` defines which file types lychee can handle
 pub enum FileType {
     /// File in HTML format

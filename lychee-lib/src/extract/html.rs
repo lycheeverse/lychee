@@ -5,7 +5,7 @@ use html5ever::{
 };
 
 use super::plaintext::extract_plaintext;
-use crate::{types::raw_uri::RawUri, Result};
+use crate::types::raw_uri::RawUri;
 
 #[derive(Clone)]
 struct LinkExtractor {
@@ -15,6 +15,7 @@ struct LinkExtractor {
 impl TokenSink for LinkExtractor {
     type Handle = ();
 
+    #[allow(clippy::match_same_arms)]
     fn process_token(&mut self, token: Token, _line_number: u64) -> TokenSinkResult<()> {
         match token {
             Token::CharacterTokens(raw) => self.links.append(&mut extract_plaintext(&raw)),
@@ -47,7 +48,6 @@ impl TokenSink for LinkExtractor {
                         );
                     }
                 }
-                ()
             }
             Token::ParseError(_err) => {
                 // Silently ignore parse errors
@@ -63,7 +63,7 @@ impl TokenSink for LinkExtractor {
 
 /// Extract all semantically-known links from a given html attribute.
 /// Pattern-based extraction from unstructured plaintext is done elsewhere.
-#[inline(always)]
+#[allow(clippy::unnested_or_patterns)]
 pub(crate) fn extract_urls_from_elem_attr(
     attr_name: &str,
     elem_name: &str,
@@ -113,7 +113,7 @@ pub(crate) fn extract_urls_from_elem_attr(
 }
 
 /// Extract unparsed URL strings from an HTML string.
-pub(crate) fn extract_html(buf: &str) -> Result<Vec<RawUri>> {
+pub(crate) fn extract_html(buf: &str) -> Vec<RawUri> {
     let mut tokenizer = Tokenizer::new(
         LinkExtractor { links: Vec::new() },
         TokenizerOpts::default(),
@@ -125,7 +125,7 @@ pub(crate) fn extract_html(buf: &str) -> Result<Vec<RawUri>> {
     let _handle = tokenizer.feed(&mut input);
     tokenizer.end();
 
-    Ok(tokenizer.sink.links)
+    tokenizer.sink.links
 }
 
 #[cfg(test)]
@@ -138,7 +138,6 @@ mod tests {
         let link = input.trim_end();
 
         let uris: Vec<String> = extract_html(input)
-            .unwrap()
             .into_iter()
             .map(|raw_uri| raw_uri.text)
             .collect();

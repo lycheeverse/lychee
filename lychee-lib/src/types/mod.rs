@@ -13,7 +13,7 @@ mod uri;
 pub use base::Base;
 pub use error::ErrorKind;
 pub use file::FileType;
-pub use input::{Input, InputContent};
+pub use input::{Input, InputContent, InputSource};
 pub use request::Request;
 pub use response::{Response, ResponseBody};
 pub use status::Status;

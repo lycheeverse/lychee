@@ -19,10 +19,34 @@ fn valid_extension(p: &Path) -> bool {
     matches!(FileType::from(p), FileType::Markdown | FileType::Html)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug)]
+/// Encapsulates the content for a given input
+pub struct InputContent {
+    /// Input source
+    pub source: InputSource,
+    /// File type of given input
+    pub file_type: FileType,
+    /// Raw UTF-8 string content
+    pub content: String,
+}
+
+impl InputContent {
+    #[must_use]
+    /// Create an instance of `InputContent` from an input string
+    pub fn from_string(s: &str, file_type: FileType) -> Self {
+        // TODO: consider using Cow (to avoid one .clone() for String types)
+        Self {
+            source: InputSource::String(s.to_owned()),
+            file_type,
+            content: s.to_owned(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 #[non_exhaustive]
 /// Input types which lychee supports
-pub enum Input {
+pub enum InputSource {
     /// URL (of HTTP/HTTPS scheme).
     RemoteUrl(Box<Url>),
     /// Unix shell-style glob pattern.
@@ -40,49 +64,25 @@ pub enum Input {
     String(String),
 }
 
-impl Serialize for Input {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.collect_str(self)
-    }
-}
-
-impl Display for Input {
+impl Display for InputSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            Input::RemoteUrl(url) => url.as_str(),
-            Input::FsGlob { pattern, .. } => pattern,
-            Input::FsPath(path) => path.to_str().unwrap_or_default(),
-            Input::Stdin => "stdin",
-            Input::String(_) => "raw input string",
+            Self::RemoteUrl(url) => url.as_str(),
+            Self::FsGlob { pattern, .. } => pattern,
+            Self::FsPath(path) => path.to_str().unwrap_or_default(),
+            Self::Stdin => "stdin",
+            Self::String(s) => s,
         })
     }
 }
 
-#[derive(Debug)]
-/// Encapsulates the content for a given input
-pub struct InputContent {
-    /// Input source
-    pub input: Input,
-    /// File type of given input
-    pub file_type: FileType,
-    /// Raw UTF-8 string content
-    pub content: String,
-}
-
-impl InputContent {
-    #[must_use]
-    /// Create an instance of `InputContent` from an input string
-    pub fn from_string(s: &str, file_type: FileType) -> Self {
-        // TODO: consider using Cow (to avoid one .clone() for String types)
-        Self {
-            input: Input::String(s.to_owned()),
-            file_type,
-            content: s.to_owned(),
-        }
-    }
+/// Lychee Input with optional file hint for parsing
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Input {
+    /// Origin of input
+    pub source: InputSource,
+    /// Hint to indicate which extractor to use
+    pub file_type_hint: Option<FileType>,
 }
 
 impl Input {
@@ -90,23 +90,27 @@ impl Input {
     /// Construct a new `Input` source. In case the input is a `glob` pattern,
     /// `glob_ignore_case` decides whether matching files against the `glob` is
     /// case-insensitive or not
-    pub fn new(value: &str, glob_ignore_case: bool) -> Self {
-        if value == STDIN {
-            Self::Stdin
+    pub fn new(value: &str, file_type_hint: Option<FileType>, glob_ignore_case: bool) -> Self {
+        let source = if value == STDIN {
+            InputSource::Stdin
         } else if let Ok(url) = Url::parse(value) {
-            Self::RemoteUrl(Box::new(url))
+            InputSource::RemoteUrl(Box::new(url))
         } else {
             // this seems to be the only way to determine if this is a glob pattern
             let is_glob = glob::Pattern::escape(value) != value;
 
             if is_glob {
-                Self::FsGlob {
+                InputSource::FsGlob {
                     pattern: value.to_owned(),
                     ignore_case: glob_ignore_case,
                 }
             } else {
-                Self::FsPath(value.into())
+                InputSource::FsPath(value.into())
             }
+        };
+        Self {
+            source,
+            file_type_hint,
         }
     }
 
@@ -124,12 +128,12 @@ impl Input {
         skip_missing: bool,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
-            match self {
-                Input::RemoteUrl(ref url) => {
+            match self.source {
+                InputSource::RemoteUrl(ref url) => {
                     let contents: InputContent = Self::url_contents(url).await?;
                     yield contents;
                 },
-                Input::FsGlob {
+                InputSource::FsGlob {
                     ref pattern,
                     ignore_case,
                 } => {
@@ -138,7 +142,7 @@ impl Input {
                         yield content;
                     }
                 }
-                Input::FsPath(ref path) => {
+                InputSource::FsPath(ref path) => {
                     if path.is_dir() {
                         for entry in WalkDir::new(path).skip_hidden(true)
                         .process_read_dir(|_, _, _, children| {
@@ -179,11 +183,11 @@ impl Input {
                         };
                     }
                 },
-                Input::Stdin => {
+                InputSource::Stdin => {
                     let content = Self::stdin_content(file_type_hint).await?;
                     yield content;
                 },
-                Input::String(ref s) => {
+                InputSource::String(ref s) => {
                     let content = Self::string_content(s, file_type_hint);
                     yield content;
                 },
@@ -201,7 +205,7 @@ impl Input {
 
         let res = reqwest::get(url.clone()).await?;
         let input_content = InputContent {
-            input: Input::RemoteUrl(Box::new(url.clone())),
+            source: InputSource::RemoteUrl(Box::new(url.clone())),
             file_type,
             content: res.text().await?,
         };
@@ -251,8 +255,8 @@ impl Input {
             .map_err(|e| (path.clone().into(), e))?;
         let input_content = InputContent {
             file_type: FileType::from(path.as_ref()),
+            source: InputSource::FsPath(path.into()),
             content,
-            input: Input::FsPath(path.into()),
         };
 
         Ok(input_content)
@@ -264,7 +268,7 @@ impl Input {
         stdin.read_to_string(&mut content).await?;
 
         let input_content = InputContent {
-            input: Input::Stdin,
+            source: InputSource::Stdin,
             file_type: file_type_hint.unwrap_or_default(),
             content,
         };

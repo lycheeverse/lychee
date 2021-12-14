@@ -4,10 +4,7 @@ use lychee_lib::{FileType, InputContent};
 use std::fs;
 
 fn extract(input: &str) {
-    let mut extractor = Extractor::new(None);
-    extractor
-        .extract(&InputContent::from_string(input, FileType::Html))
-        .unwrap();
+    Extractor::extract(&InputContent::from_string(input, FileType::Html));
 }
 
 fn benchmark(c: &mut Criterion) {

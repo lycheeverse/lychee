@@ -76,7 +76,7 @@ pub use crate::{
     collector::Collector,
     filter::{Excludes, Filter, Includes},
     types::{
-        Base, ErrorKind, FileType, Input, InputContent, Request, Response, ResponseBody, Result,
-        Status, Uri,
+        Base, ErrorKind, FileType, Input, InputContent, InputSource, Request, Response,
+        ResponseBody, Result, Status, Uri,
     },
 };

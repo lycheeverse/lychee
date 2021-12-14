@@ -1,4 +1,4 @@
-use lychee_lib::{Collector, Input, Result};
+use lychee_lib::{Collector, Input, InputSource, Result};
 use reqwest::Url;
 use std::path::PathBuf;
 use tokio_stream::StreamExt;
@@ -8,16 +8,21 @@ use tokio_stream::StreamExt;
 async fn main() -> Result<()> {
     // Collect all links from the following inputs
     let inputs = vec![
-        Input::RemoteUrl(Box::new(
-            Url::parse("https://github.com/lycheeverse/lychee").unwrap(),
-        )),
-        Input::FsPath(PathBuf::from("fixtures/TEST.md")),
+        Input {
+            source: InputSource::RemoteUrl(Box::new(
+                Url::parse("https://github.com/lycheeverse/lychee").unwrap(),
+            )),
+            file_type_hint: None,
+        },
+        Input {
+            source: InputSource::FsPath(PathBuf::from("fixtures/TEST.md")),
+            file_type_hint: None,
+        },
     ];
 
     let links = Collector::new(
         None,  // base
         false, // don't skip missing inputs
-        10,    // max concurrency
     )
     .collect_links(
         inputs, // base url or directory
