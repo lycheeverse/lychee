@@ -1,6 +1,6 @@
-use std::io::{self, Write};
 use lychee_lib::Result;
 use lychee_lib::{Client, Request};
+use std::io::{self, Write};
 use tokio_stream::StreamExt;
 
 use crate::ExitCode;
