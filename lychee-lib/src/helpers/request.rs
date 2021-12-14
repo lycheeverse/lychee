@@ -24,15 +24,7 @@ pub(crate) fn create(
     input_content: &InputContent,
     base: &Option<Base>,
 ) -> Result<HashSet<Request>> {
-    let base_input = match &input_content.source {
-        InputSource::RemoteUrl(url) => Some(Url::parse(&format!(
-            "{}://{}",
-            url.scheme(),
-            url.host_str().ok_or(ErrorKind::InvalidUrlHost)?
-        ))?),
-        // other inputs do not have a URL to extract a base
-        _ => None,
-    };
+    let base_input = Base::from_source(&input_content.source);
 
     let requests: Result<Vec<Option<Request>>> = uris
         .into_iter()

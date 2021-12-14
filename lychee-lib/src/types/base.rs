@@ -2,7 +2,7 @@ use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, path::PathBuf};
 
-use crate::ErrorKind;
+use crate::{ErrorKind, InputSource};
 
 /// When encountering links without a full domain in a document,
 /// the base determines where this resource can be found.
@@ -19,7 +19,7 @@ pub enum Base {
 impl Base {
     /// Join link with base url
     #[must_use]
-    pub fn join(&self, link: &str) -> Option<Url> {
+    pub(crate) fn join(&self, link: &str) -> Option<Url> {
         match self {
             Self::Remote(url) => url.join(link).ok(),
             Self::Local(_) => None,
@@ -28,10 +28,20 @@ impl Base {
 
     /// Return the directory if the base is local
     #[must_use]
-    pub fn dir(&self) -> Option<PathBuf> {
+    pub(crate) fn dir(&self) -> Option<PathBuf> {
         match self {
             Self::Remote(_) => None,
             Self::Local(d) => Some(d.clone()),
+        }
+    }
+
+    pub(crate) fn from_source(source: &InputSource) -> Option<Url> {
+        match &source {
+            InputSource::RemoteUrl(url) => {
+                Url::parse(&format!("{}://{}", url.scheme(), url.host_str()?)).ok()
+            }
+            // other inputs do not have a URL to extract a base
+            _ => None,
         }
     }
 }
