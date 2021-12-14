@@ -1,4 +1,4 @@
-use lychee_lib::{ClientBuilder, InputSource, Request, Result, Uri};
+use lychee_lib::{ClientBuilder, Request, Result};
 use std::convert::TryFrom;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -13,11 +13,7 @@ async fn main() -> Result<()> {
     let (send_resp, mut recv_resp) = mpsc::channel(CONCURRENT_REQUESTS);
 
     // Add as many requests as you like
-    let requests = vec![Request::new(
-        Uri::try_from("https://example.org")?,
-        InputSource::Stdin,
-        None,
-    )];
+    let requests = vec![Request::try_from("https://example.org")?];
 
     // Queue requests
     tokio::spawn(async move {

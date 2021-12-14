@@ -37,6 +37,18 @@ impl Display for Request {
     }
 }
 
+impl TryFrom<Uri> for Request {
+    type Error = ErrorKind;
+
+    fn try_from(uri: Uri) -> Result<Self, Self::Error> {
+        Ok(Request::new(
+            uri.clone(),
+            InputSource::String(uri.to_string()),
+            None,
+        ))
+    }
+}
+
 impl TryFrom<String> for Request {
     type Error = ErrorKind;
 
