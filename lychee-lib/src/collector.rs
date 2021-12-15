@@ -58,9 +58,7 @@ impl Collector {
 
 #[cfg(test)]
 mod test {
-    use std::{
-        array, collections::HashSet, convert::TryFrom, fs::File, io::Write, iter::FromIterator,
-    };
+    use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write, iter::FromIterator};
 
     use http::StatusCode;
     use pretty_assertions::assert_eq;
@@ -301,37 +299,31 @@ mod test {
         assert_eq!(links, expected_links);
     }
 
-    // #[tokio::test]
-    // async fn test_relative_url_with_base_extracted_from_input() {
-    //     let input = Input::RemoteUrl(Box::new(
-    //         Url::parse("https://example.org/some-post").unwrap(),
-    //     ));
+    #[tokio::test]
+    async fn test_relative_url_with_base_extracted_from_input() {
+        let contents = r#"<html>
+            <div class="row">
+                <a href="https://github.com/lycheeverse/lychee/">Github</a>
+                <a href="/about">About</a>
+            </div>
+        </html>"#;
+        let mock_server = mock_server!(StatusCode::OK, set_body_string(contents));
 
-    //     let contents = r#"<html>
-    //         <div class="row">
-    //             <a href="https://github.com/lycheeverse/lychee/">Github</a>
-    //             <a href="/about">About</a>
-    //         </div>
-    //     </html>"#;
+        let server_uri = Url::parse(&mock_server.uri()).unwrap();
 
-    //     let input_content = &InputContent {
-    //         input,
-    //         file_type: FileType::Html,
-    //         content: contents.to_string(),
-    //     };
+        let input = Input {
+            source: InputSource::RemoteUrl(Box::new(server_uri.clone())),
+            file_type_hint: None,
+        };
 
-    //     let links = Extractor::extract(input_content);
-    //     let urls = links
-    //         .into_iter()
-    //         .map(|raw_uri| raw_uri.text)
-    //         .collect::<HashSet<_>>();
+        let responses = Collector::new(None, false).collect_links(vec![input]).await;
+        let links: HashSet<Uri> = responses.map(|r| r.unwrap().uri).collect().await;
 
-    //     let expected_urls = array::IntoIter::new([
-    //         String::from("https://github.com/lycheeverse/lychee/"),
-    //         String::from("/about"),
-    //     ])
-    //     .collect::<HashSet<_>>();
+        let expected_urls = HashSet::from_iter([
+            website("https://github.com/lycheeverse/lychee/"),
+            website(&format!("{}about", server_uri)),
+        ]);
 
-    //     assert_eq!(urls, expected_urls);
-    // }
+        assert_eq!(links, expected_urls);
+    }
 }
