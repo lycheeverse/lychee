@@ -72,6 +72,12 @@ mod test {
         Result, Uri,
     };
 
+    // Helper function to run the collector on the given inputs
+    async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
+        let responses = Collector::new(base, false).collect_links(inputs).await;
+        responses.map(|r| r.unwrap().uri).collect().await
+    }
+
     const TEST_STRING: &str = "http://test-string.com";
     const TEST_URL: &str = "https://test-url.org";
     const TEST_FILE: &str = "https://test-file.io";
@@ -145,8 +151,7 @@ mod test {
             },
         ];
 
-        let responses = Collector::new(None, false).collect_links(inputs).await;
-        let links: HashSet<Uri> = responses.map(|r| r.unwrap().uri).collect().await;
+        let links = collect(inputs, None).await;
 
         let expected_links = HashSet::from_iter([
             website(TEST_STRING),
@@ -168,10 +173,7 @@ mod test {
             source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
             file_type_hint: Some(FileType::Markdown),
         };
-        let responses = Collector::new(Some(base), false)
-            .collect_links(vec![input])
-            .await;
-        let links: HashSet<Uri> = responses.map(|r| r.unwrap().uri).collect().await;
+        let links = collect(vec![input], Some(base)).await;
 
         let expected_links = HashSet::from_iter([
             website("https://endler.dev"),
@@ -196,10 +198,7 @@ mod test {
             ),
             file_type_hint: Some(FileType::Html),
         };
-        let responses = Collector::new(Some(base), false)
-            .collect_links(vec![input])
-            .await;
-        let links: HashSet<Uri> = responses.map(|r| r.unwrap().uri).collect().await;
+        let links = collect(vec![input], Some(base)).await;
 
         let expected_links = HashSet::from_iter([
             website("https://github.com/lycheeverse/lychee/"),
@@ -227,10 +226,7 @@ mod test {
             ),
             file_type_hint: Some(FileType::Html),
         };
-        let responses = Collector::new(Some(base), false)
-            .collect_links(vec![input])
-            .await;
-        let links: HashSet<Uri> = responses.map(|r| r.unwrap().uri).collect().await;
+        let links = collect(vec![input], Some(base)).await;
 
         let expected_links = HashSet::from_iter([
             website("https://example.com/static/image.png"),
@@ -256,10 +252,7 @@ mod test {
             file_type_hint: Some(FileType::Markdown),
         };
 
-        let responses = Collector::new(Some(base), false)
-            .collect_links(vec![input])
-            .await;
-        let links: HashSet<Uri> = responses.map(|r| r.unwrap().uri).collect().await;
+        let links = collect(vec![input], Some(base)).await;
 
         let expected = HashSet::from_iter([
             website("https://localhost.com/@/internal.md"),
@@ -280,10 +273,7 @@ mod test {
             source: InputSource::String(input),
             file_type_hint: Some(FileType::Html),
         };
-        let responses = Collector::new(Some(base), false)
-            .collect_links(vec![input])
-            .await;
-        let links: HashSet<Uri> = responses.map(|r| r.unwrap().uri).collect().await;
+        let links = collect(vec![input], Some(base)).await;
 
         let expected_links = HashSet::from_iter([
             // the body links wouldn't be present if the file was parsed strictly as XML
@@ -316,8 +306,7 @@ mod test {
             file_type_hint: None,
         };
 
-        let responses = Collector::new(None, false).collect_links(vec![input]).await;
-        let links: HashSet<Uri> = responses.map(|r| r.unwrap().uri).collect().await;
+        let links = collect(vec![input], None).await;
 
         let expected_urls = HashSet::from_iter([
             website("https://github.com/lycheeverse/lychee/"),
