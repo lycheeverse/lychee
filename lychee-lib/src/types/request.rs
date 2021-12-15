@@ -12,9 +12,11 @@ pub struct Request {
     pub uri: Uri,
     /// The resource which contained the given URI
     pub source: InputSource,
-    /// Specifies where the link got rendered in a document
-    /// This can be `img` or `a` but also `pre` or `code`.
+    /// Specifies how the URI was rendered inside a document
+    /// (for example `img`, `a`, `pre`, or `code`).
     /// In case of plaintext input the field is `None`.
+    pub element: Option<String>,
+    /// Specifies the attribute (e.g. `href`) that contained the URI
     pub attribute: Option<String>,
 }
 
@@ -22,10 +24,16 @@ impl Request {
     /// Instantiate a new `Request` object
     #[inline]
     #[must_use]
-    pub const fn new(uri: Uri, source: InputSource, attribute: Option<String>) -> Self {
+    pub const fn new(
+        uri: Uri,
+        source: InputSource,
+        element: Option<String>,
+        attribute: Option<String>,
+    ) -> Self {
         Request {
             uri,
             source,
+            element,
             attribute,
         }
     }
@@ -43,7 +51,8 @@ impl TryFrom<Uri> for Request {
     fn try_from(uri: Uri) -> Result<Self, Self::Error> {
         Ok(Request::new(
             uri.clone(),
-            InputSource::String(uri.to_string()),
+            InputSource::RemoteUrl(Box::new(uri.url)),
+            None,
             None,
         ))
     }
@@ -54,7 +63,7 @@ impl TryFrom<String> for Request {
 
     fn try_from(s: String) -> Result<Self, Self::Error> {
         let uri = Uri::try_from(s.as_str())?;
-        Ok(Request::new(uri, InputSource::String(s), None))
+        Ok(Request::new(uri, InputSource::String(s), None, None))
     }
 }
 
@@ -63,6 +72,11 @@ impl TryFrom<&str> for Request {
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         let uri = Uri::try_from(s)?;
-        Ok(Request::new(uri, InputSource::String(s.to_owned()), None))
+        Ok(Request::new(
+            uri,
+            InputSource::String(s.to_owned()),
+            None,
+            None,
+        ))
     }
 }

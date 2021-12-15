@@ -8,7 +8,8 @@ use crate::{ErrorKind, Result};
 
 use super::raw_uri::RawUri;
 
-/// Lychee's own representation of a URI, which encapsulates all support formats.
+/// Lychee's own representation of a URI, which encapsulates all supported
+/// formats.
 ///
 /// If the scheme is `mailto`, it's a mail address.
 /// Otherwise it's treated as a website URL.
