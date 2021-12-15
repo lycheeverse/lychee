@@ -124,7 +124,6 @@ impl Input {
     /// network request or retrieving the contents from the file system)
     pub async fn get_contents(
         self,
-        file_type_hint: Option<FileType>,
         skip_missing: bool,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
@@ -184,11 +183,11 @@ impl Input {
                     }
                 },
                 InputSource::Stdin => {
-                    let content = Self::stdin_content(file_type_hint).await?;
+                    let content = Self::stdin_content(self.file_type_hint).await?;
                     yield content;
                 },
                 InputSource::String(ref s) => {
-                    let content = Self::string_content(s, file_type_hint);
+                    let content = Self::string_content(s, self.file_type_hint);
                     yield content;
                 },
             }
