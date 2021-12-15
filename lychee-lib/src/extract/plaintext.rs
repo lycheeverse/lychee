@@ -1,9 +1,6 @@
 use crate::{helpers::url, types::raw_uri::RawUri};
 
 /// Extract unparsed URL strings from plaintext
-// Allow &self here for consistency with the other extractors
-// Links in plaintext always get treated as strict
-// as there are no hidden elements in text files
 pub(crate) fn extract_plaintext(input: &str) -> Vec<RawUri> {
     url::find_links(input)
         .map(|uri| RawUri::from(uri.as_str()))

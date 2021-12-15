@@ -61,8 +61,7 @@ impl TokenSink for LinkExtractor {
     }
 }
 
-/// Extract all semantically-known links from a given html attribute.
-/// Pattern-based extraction from unstructured plaintext is done elsewhere.
+/// Extract all semantically known links from a given html attribute.
 #[allow(clippy::unnested_or_patterns)]
 pub(crate) fn extract_urls_from_elem_attr(
     attr_name: &str,
