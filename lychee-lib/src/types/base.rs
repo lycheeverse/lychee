@@ -40,9 +40,8 @@ impl Base {
             InputSource::RemoteUrl(url) => {
                 // TODO: This should be refactored.
                 // Cases like https://user:pass@example.com are not handled
-                // We can probably use the
-                // original URL and just replace the path component in the
-                // caller of this function
+                // We can probably use the original URL and just replace the
+                // path component in the caller of this function
                 if let Some(port) = url.port() {
                     Url::parse(&format!("{}://{}:{}", url.scheme(), url.host_str()?, port)).ok()
                 } else {

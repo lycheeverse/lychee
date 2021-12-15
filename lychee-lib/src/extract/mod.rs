@@ -31,7 +31,7 @@ impl Extractor {
 mod test {
     use pretty_assertions::assert_eq;
     use reqwest::Url;
-    use std::{array, collections::HashSet, convert::TryFrom};
+    use std::{array, collections::HashSet, convert::TryFrom, path::Path};
 
     use super::*;
     use crate::{
@@ -51,8 +51,7 @@ mod test {
 
     #[test]
     fn test_file_type() {
-        // FIXME: Assume plaintext in case a path has no extension
-        // assert_eq!(FileType::from(Path::new("/")), FileType::Plaintext);
+        assert_eq!(FileType::from(Path::new("/")), FileType::Plaintext);
         assert_eq!(FileType::from("test.md"), FileType::Markdown);
         assert_eq!(FileType::from("test.markdown"), FileType::Markdown);
         assert_eq!(FileType::from("test.html"), FileType::Html);
