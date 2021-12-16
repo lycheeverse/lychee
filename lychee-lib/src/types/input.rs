@@ -43,7 +43,7 @@ impl InputContent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 /// Input types which lychee supports
 pub enum InputSource {
@@ -62,6 +62,18 @@ pub enum InputSource {
     Stdin,
     /// Raw string input.
     String(String),
+}
+
+// Custom serialization for enum is needed
+// Otherwise we get "key must be a string" when using the JSON writer
+// Related: https://github.com/serde-rs/json/issues/45
+impl Serialize for InputSource {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_str(self)
+    }
 }
 
 impl Display for InputSource {
