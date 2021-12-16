@@ -112,7 +112,7 @@ impl LycheeOptions {
     pub(crate) fn inputs(&self) -> Vec<Input> {
         self.raw_inputs
             .iter()
-            .map(|s| Input::new(s, self.config.glob_ignore_case))
+            .map(|s| Input::new(s, None, self.config.glob_ignore_case))
             .collect()
     }
 }

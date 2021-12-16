@@ -39,10 +39,10 @@ impl Display for DetailedResponseStats {
         write_stat(f, "\u{2753} Unknown", stats.unknown, true)?; //❓
         write_stat(f, "\u{1f6ab} Errors", stats.errors + stats.failures, false)?; // 🚫
 
-        for (input, responses) in &stats.fail_map {
+        for (source, responses) in &stats.fail_map {
             // Using leading newlines over trailing ones (e.g. `writeln!`)
             // lets us avoid extra newlines without any additional logic.
-            write!(f, "\n\nErrors in {}", input)?;
+            write!(f, "\n\nErrors in {}", source)?;
             for response in responses {
                 write!(f, "\n{}", color_response(response))?;
             }

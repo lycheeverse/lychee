@@ -2,17 +2,17 @@ use std::fmt::Display;
 
 use serde::Serialize;
 
-use crate::{Input, Status, Uri};
+use crate::{InputSource, Status, Uri};
 
 /// Response type returned by lychee after checking a URI
 #[derive(Debug)]
-pub struct Response(pub Input, pub ResponseBody);
+pub struct Response(pub InputSource, pub ResponseBody);
 
 impl Response {
     #[inline]
     #[must_use]
     /// Create new response
-    pub const fn new(uri: Uri, status: Status, source: Input) -> Self {
+    pub const fn new(uri: Uri, status: Status, source: InputSource) -> Self {
         Response(source, ResponseBody { uri, status })
     }
 

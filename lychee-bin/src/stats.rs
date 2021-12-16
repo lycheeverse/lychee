@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use lychee_lib::{Input, Response, ResponseBody, Status};
+use lychee_lib::{InputSource, Response, ResponseBody, Status};
 use serde::Serialize;
 
 use crate::color::{DIM, GREEN, NORMAL, PINK, YELLOW};
@@ -26,7 +26,7 @@ pub(crate) struct ResponseStats {
     pub(crate) redirects: usize,
     pub(crate) excludes: usize,
     pub(crate) errors: usize,
-    pub(crate) fail_map: HashMap<Input, HashSet<ResponseBody>>,
+    pub(crate) fail_map: HashMap<InputSource, HashSet<ResponseBody>>,
 }
 
 impl ResponseStats {
@@ -80,7 +80,7 @@ mod test {
     use std::collections::{HashMap, HashSet};
 
     use http::StatusCode;
-    use lychee_lib::{ClientBuilder, Input, Response, ResponseBody, Status, Uri};
+    use lychee_lib::{ClientBuilder, InputSource, Response, ResponseBody, Status, Uri};
     use pretty_assertions::assert_eq;
     use reqwest::Url;
     use wiremock::{matchers::path, Mock, MockServer, ResponseTemplate};
@@ -117,7 +117,7 @@ mod test {
         assert!(stats.is_empty());
 
         stats.add(Response(
-            Input::Stdin,
+            InputSource::Stdin,
             ResponseBody {
                 uri: website("https://example.org/ok"),
                 status: Status::Ok(StatusCode::OK),
@@ -140,11 +140,11 @@ mod test {
             stats.add(get_mock_status_response(status).await);
         }
 
-        let mut expected_map: HashMap<Input, HashSet<ResponseBody>> = HashMap::new();
+        let mut expected_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         for status in &status_codes {
             if status.is_server_error() || status.is_client_error() || status.is_redirection() {
-                let Response(input, response_body) = get_mock_status_response(status).await;
-                let entry = expected_map.entry(input).or_default();
+                let Response(source, response_body) = get_mock_status_response(status).await;
+                let entry = expected_map.entry(source).or_default();
                 entry.insert(response_body);
             }
         }

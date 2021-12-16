@@ -1,10 +1,11 @@
-use crate::{extract::Extractor, Base, Input, Request, Result};
+use crate::{
+    extract::Extractor, helpers::request, types::raw_uri::RawUri, Base, Input, Request, Result,
+};
 use futures::{
     stream::{self, Stream},
     StreamExt, TryStreamExt,
 };
 use par_stream::ParStreamExt;
-use std::collections::HashSet;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -35,18 +36,19 @@ impl Collector {
         let skip_missing_inputs = self.skip_missing_inputs;
         let contents = stream::iter(inputs)
             .par_then_unordered(None, move |input| async move {
-                input.get_contents(None, skip_missing_inputs).await
+                input.get_contents(skip_missing_inputs).await
             })
             .flatten();
 
-        let extractor = Extractor::new(self.base);
+        let base = self.base;
         contents
             .par_then_unordered(None, move |content| {
-                let mut extractor = extractor.clone();
                 // send to parallel worker
+                let base = base.clone();
                 async move {
                     let content = content?;
-                    let requests: HashSet<Request> = extractor.extract(&content)?;
+                    let uris: Vec<RawUri> = Extractor::extract(&content);
+                    let requests = request::create(uris, &content, &base)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
             })
@@ -56,7 +58,7 @@ impl Collector {
 
 #[cfg(test)]
 mod test {
-    use std::{fs::File, io::Write};
+    use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write, iter::FromIterator};
 
     use http::StatusCode;
     use pretty_assertions::assert_eq;
@@ -65,10 +67,16 @@ mod test {
     use super::*;
     use crate::{
         mock_server,
-        test_utils::{mail, website},
-        types::{FileType, Input},
+        test_utils::{load_fixture, mail, website},
+        types::{FileType, Input, InputSource},
         Result, Uri,
     };
+
+    // Helper function to run the collector on the given inputs
+    async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
+        let responses = Collector::new(base, false).collect_links(inputs).await;
+        responses.map(|r| r.unwrap().uri).collect().await
+    }
 
     const TEST_STRING: &str = "http://test-string.com";
     const TEST_URL: &str = "https://test-url.org";
@@ -82,12 +90,8 @@ mod test {
         // Treat as plaintext file (no extension)
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path)?;
-        let input = Input::new(&file_path.as_path().display().to_string(), true);
-        let contents: Vec<_> = input
-            .get_contents(None, true)
-            .await
-            .collect::<Vec<_>>()
-            .await;
+        let input = Input::new(&file_path.as_path().display().to_string(), None, true);
+        let contents: Vec<_> = input.get_contents(true).await.collect::<Vec<_>>().await;
 
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Plaintext);
@@ -96,12 +100,8 @@ mod test {
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
-        let input = Input::new("https://example.org/", true);
-        let contents: Vec<_> = input
-            .get_contents(None, true)
-            .await
-            .collect::<Vec<_>>()
-            .await;
+        let input = Input::new("https://example.org/", None, true);
+        let contents: Vec<_> = input.get_contents(true).await.collect::<Vec<_>>().await;
 
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Html);
@@ -128,32 +128,191 @@ mod test {
         let mock_server = mock_server!(StatusCode::OK, set_body_string(TEST_URL));
 
         let inputs = vec![
-            Input::String(TEST_STRING.to_owned()),
-            Input::RemoteUrl(Box::new(
-                Url::parse(&mock_server.uri()).map_err(|e| (mock_server.uri(), e))?,
-            )),
-            Input::FsPath(file_path),
-            Input::FsGlob {
-                pattern: temp_dir_path.join("glob*").to_str().unwrap().to_owned(),
-                ignore_case: true,
+            Input {
+                source: InputSource::String(TEST_STRING.to_owned()),
+                file_type_hint: None,
+            },
+            Input {
+                source: InputSource::RemoteUrl(Box::new(
+                    Url::parse(&mock_server.uri()).map_err(|e| (mock_server.uri(), e))?,
+                )),
+                file_type_hint: None,
+            },
+            Input {
+                source: InputSource::FsPath(file_path),
+                file_type_hint: None,
+            },
+            Input {
+                source: InputSource::FsGlob {
+                    pattern: temp_dir_path.join("glob*").to_str().unwrap().to_owned(),
+                    ignore_case: true,
+                },
+                file_type_hint: None,
             },
         ];
 
-        let responses = Collector::new(None, false).collect_links(inputs).await;
-        let mut links: Vec<Uri> = responses.map(|r| r.unwrap().uri).collect().await;
+        let links = collect(inputs, None).await;
 
-        let mut expected_links = vec![
+        let expected_links = HashSet::from_iter([
             website(TEST_STRING),
             website(TEST_URL),
             website(TEST_FILE),
             website(TEST_GLOB_1),
             mail(TEST_GLOB_2_MAIL),
-        ];
+        ]);
 
-        links.sort();
-        expected_links.sort();
         assert_eq!(links, expected_links);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_collect_markdown_links() {
+        let base = Base::try_from("https://github.com/hello-rust/lychee/").unwrap();
+        let input = Input {
+            source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
+            file_type_hint: Some(FileType::Markdown),
+        };
+        let links = collect(vec![input], Some(base)).await;
+
+        let expected_links = HashSet::from_iter([
+            website("https://endler.dev"),
+            website("https://github.com/hello-rust/lychee/relative_link"),
+        ]);
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[tokio::test]
+    async fn test_collect_html_links() {
+        let base = Base::try_from("https://github.com/lycheeverse/").unwrap();
+        let input = Input {
+            source: InputSource::String(
+                r#"<html>
+                <div class="row">
+                    <a href="https://github.com/lycheeverse/lychee/">
+                    <a href="blob/master/README.md">README</a>
+                </div>
+            </html>"#
+                    .to_string(),
+            ),
+            file_type_hint: Some(FileType::Html),
+        };
+        let links = collect(vec![input], Some(base)).await;
+
+        let expected_links = HashSet::from_iter([
+            website("https://github.com/lycheeverse/lychee/"),
+            website("https://github.com/lycheeverse/blob/master/README.md"),
+        ]);
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[tokio::test]
+    async fn test_collect_html_srcset() {
+        let base = Base::try_from("https://example.com/").unwrap();
+        let input = Input {
+            source: InputSource::String(
+                r#"
+            <img
+                src="/static/image.png"
+                srcset="
+                /static/image300.png  300w,
+                /static/image600.png  600w,
+                "
+            />
+          "#
+                .to_string(),
+            ),
+            file_type_hint: Some(FileType::Html),
+        };
+        let links = collect(vec![input], Some(base)).await;
+
+        let expected_links = HashSet::from_iter([
+            website("https://example.com/static/image.png"),
+            website("https://example.com/static/image300.png"),
+            website("https://example.com/static/image600.png"),
+        ]);
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[tokio::test]
+    async fn test_markdown_internal_url() {
+        let base = Base::try_from("https://localhost.com/").unwrap();
+
+        let input = Input {
+            source: InputSource::String(
+                r#"This is [an internal url](@/internal.md)
+        This is [an internal url](@/internal.markdown)
+        This is [an internal url](@/internal.markdown#example)
+        This is [an internal url](@/internal.md#example)"#
+                    .to_string(),
+            ),
+            file_type_hint: Some(FileType::Markdown),
+        };
+
+        let links = collect(vec![input], Some(base)).await;
+
+        let expected = HashSet::from_iter([
+            website("https://localhost.com/@/internal.md"),
+            website("https://localhost.com/@/internal.markdown"),
+            website("https://localhost.com/@/internal.md#example"),
+            website("https://localhost.com/@/internal.markdown#example"),
+        ]);
+
+        assert_eq!(links, expected);
+    }
+
+    #[tokio::test]
+    async fn test_extract_html5_not_valid_xml_relative_links() {
+        let base = Base::try_from("https://example.org").unwrap();
+        let input = load_fixture("TEST_HTML5.html");
+
+        let input = Input {
+            source: InputSource::String(input),
+            file_type_hint: Some(FileType::Html),
+        };
+        let links = collect(vec![input], Some(base)).await;
+
+        let expected_links = HashSet::from_iter([
+            // the body links wouldn't be present if the file was parsed strictly as XML
+            website("https://example.org/body/a"),
+            website("https://example.org/body/div_empty_a"),
+            website("https://example.org/css/style_full_url.css"),
+            website("https://example.org/css/style_relative_url.css"),
+            website("https://example.org/head/home"),
+            website("https://example.org/images/icon.png"),
+            website("https://example.org/js/script.js"),
+        ]);
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[tokio::test]
+    async fn test_relative_url_with_base_extracted_from_input() {
+        let contents = r#"<html>
+            <div class="row">
+                <a href="https://github.com/lycheeverse/lychee/">Github</a>
+                <a href="/about">About</a>
+            </div>
+        </html>"#;
+        let mock_server = mock_server!(StatusCode::OK, set_body_string(contents));
+
+        let server_uri = Url::parse(&mock_server.uri()).unwrap();
+
+        let input = Input {
+            source: InputSource::RemoteUrl(Box::new(server_uri.clone())),
+            file_type_hint: None,
+        };
+
+        let links = collect(vec![input], None).await;
+
+        let expected_urls = HashSet::from_iter([
+            website("https://github.com/lycheeverse/lychee/"),
+            website(&format!("{}about", server_uri)),
+        ]);
+
+        assert_eq!(links, expected_urls);
     }
 }

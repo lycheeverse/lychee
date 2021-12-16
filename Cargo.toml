@@ -3,6 +3,7 @@ members = [
     "lychee-bin",
     "lychee-lib",
     "examples/*",
+    "benches",
 ]
 
 [patch.crates-io]

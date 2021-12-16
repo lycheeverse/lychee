@@ -75,5 +75,8 @@ pub use crate::{
     client::{check, Client, ClientBuilder},
     collector::Collector,
     filter::{Excludes, Filter, Includes},
-    types::{Base, ErrorKind, Input, Request, Response, ResponseBody, Result, Status, Uri},
+    types::{
+        Base, ErrorKind, FileType, Input, InputContent, InputSource, Request, Response,
+        ResponseBody, Result, Status, Uri,
+    },
 };

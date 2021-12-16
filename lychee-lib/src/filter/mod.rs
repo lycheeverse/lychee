@@ -36,8 +36,8 @@ pub struct Filter {
     /// URIs excluded from checking
     pub excludes: Option<Excludes>,
     /// Only check URIs with the given schemes (e.g. `https` and `http`)
-    // TODO: includes scheme and excludes scheme
-    // TODO: excludes_mail should be merged to excludes scheme
+    // TODO: includes_scheme and excludes_scheme
+    // TODO: excludes_mail should be an alias for exclude_scheme=mailto
     pub schemes: HashSet<String>,
     /// Example: 192.168.0.1
     pub exclude_private_ips: bool,

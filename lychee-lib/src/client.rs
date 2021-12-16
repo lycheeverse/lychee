@@ -4,7 +4,11 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use std::{collections::HashSet, convert::TryFrom, time::Duration};
+use std::{
+    collections::HashSet,
+    convert::{TryFrom, TryInto},
+    time::Duration,
+};
 
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
 use http::{
@@ -190,7 +194,14 @@ impl Client {
         Request: TryFrom<T, Error = E>,
         ErrorKind: From<E>,
     {
-        let Request { uri, source } = Request::try_from(request)?;
+        let Request {
+            uri,
+            source,
+            element: _element,
+            attribute: _attribute,
+        } = request.try_into()?;
+        // TODO: Allow filtering based on element and attribute
+
         let status = if self.filter.is_excluded(&uri) {
             Status::Excluded
         } else if uri.is_file() {

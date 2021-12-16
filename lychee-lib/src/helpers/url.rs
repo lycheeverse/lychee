@@ -18,44 +18,6 @@ pub(crate) fn remove_get_params_and_fragment(url: &str) -> &str {
     path
 }
 
-/// Extract all semantically-known links from a given html attribute. Pattern-based extraction from
-/// unstructured plaintext is done elsewhere.
-pub(crate) fn extract_links_from_elem_attr(
-    attr_name: &str,
-    elem_name: &str,
-    attr_value: &str,
-) -> Vec<String> {
-    // See a comprehensive list of attributes that might contain URLs/URIs
-    // over at: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
-    let mut urls = Vec::new();
-
-    match (attr_name, elem_name) {
-        ("href" | "src" | "cite", _) | ("data", "object") | ("onhashchange", "body") => {
-            urls.push(attr_value.to_owned());
-        }
-        ("srcset", _) => {
-            for image_candidate_string in attr_value.trim().split(',') {
-                for part in image_candidate_string.split_ascii_whitespace() {
-                    if part.is_empty() {
-                        continue;
-                    }
-
-                    urls.push(part.to_owned());
-                    break;
-                }
-            }
-        }
-        _ => (),
-    }
-
-    urls
-}
-
-// Taken from https://github.com/getzola/zola/blob/master/components/link_checker/src/lib.rs
-pub(crate) fn is_anchor(url: &str) -> bool {
-    url.starts_with('#')
-}
-
 // Use `LinkFinder` to offload the raw link searching in plaintext
 pub(crate) fn find_links(input: &str) -> impl Iterator<Item = linkify::Link> {
     LINK_FINDER.links(input)
@@ -64,12 +26,6 @@ pub(crate) fn find_links(input: &str) -> impl Iterator<Item = linkify::Link> {
 #[cfg(test)]
 mod test_fs_tree {
     use super::*;
-
-    #[test]
-    fn test_is_anchor() {
-        assert!(is_anchor("#anchor"));
-        assert!(!is_anchor("notan#anchor"));
-    }
 
     #[test]
     fn test_remove_get_params_and_fragment() {
