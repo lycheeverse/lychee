@@ -145,17 +145,23 @@ lychee README.md
 You can also specify various types of inputs:
 
 ```sh
-# check links on a website:
-lychee https://endler.dev/
-
-# check links in a remote file:
-lychee https://raw.githubusercontent.com/lycheeverse/lychee/master/README.md
+# check links in supported files of current directory (recursive)
+lychee .
 
 # check links in local file(s):
 lychee README.md
 lychee test.html info.txt
 
-# check links in local files (by shell glob):
+# check links on a website:
+lychee https://endler.dev
+
+# check links in directory but block network requests
+lychee --offline path/to/directory
+
+# check links in a remote file:
+lychee https://raw.githubusercontent.com/lycheeverse/lychee/master/README.md
+
+# check links in local files via shell glob:
 lychee ~/projects/*/README.md
 
 # check links in local files (lychee supports advanced globbing and ~ expansion):
@@ -166,9 +172,6 @@ lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
 
 # check links from epub file (requires atool: https://www.nongnu.org/atool)
 acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
-
-# check links in directory; block network requests
-lychee --offline path/to/directory
 ```
 
 ### Docker Usage
@@ -180,9 +183,9 @@ with lychee:
 docker run -v `pwd`:/input lycheeverse/lychee /input/README.md
 ```
 
-### GitHub token
+### GitHub Token
 
-Optionally, to avoid getting rate-limited while checking GitHub links, you can
+To avoid getting rate-limited while checking GitHub links, you can optionally
 set an environment variable with your Github token like so `GITHUB_TOKEN=xxxx`,
 or use the `--github-token` CLI option. It can also be set in the config file.
 [Here is an example config file][config file].
@@ -193,8 +196,8 @@ token with no extra permissions is enough to be able to check public repos links
 
 ### Commandline Parameters
 
-There is an extensive list of commandline parameters to customize the behavior,
-see below for a full list.
+There is an extensive list of commandline parameters to customize the behavior.
+See below for a full list.
 
 ```ignore
 USAGE:
@@ -268,7 +271,7 @@ If a file named `.lycheeignore` exists in the current working directory, its con
 
 ## Library usage
 
-You can use lychee as a library for your own projects.
+You can use lychee as a library for your own projects!
 Here is a "hello world" example:
 
 ```rust
@@ -319,7 +322,7 @@ All options that you set will be used for all link checks.
 See the [builder documentation](https://docs.rs/lychee-lib/latest/lychee_lib/struct.ClientBuilder.html) for all options.
 For more information, check out the [examples](examples) folder.
 
-## GitHub Action usage
+## GitHub Action Usage
 
 A GitHub Action that uses lychee is available as a separate repository: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action)
 which includes usage instructions.
@@ -367,19 +370,26 @@ RUSTFLAGS="--cfg tokio_unstable" cargo run --features tokio-console -- <input1> 
 
 If you find a way to make lychee faster, please do reach out.
 
-## Troubleshooting and workarounds
+## Troubleshooting and Workarounds
 
 We collect a list of common workarounds for various websites in our [troubleshooting guide](./TROUBLESHOOTING.md).
 
 ## Users
 
+- https://github.com/opensearch-project/OpenSearch
+- https://github.com/ramitsurana/awesome-kubernetes
+- https://github.com/papers-we-love/papers-we-love
+- https://github.com/pingcap/docs
+- https://github.com/microsoft/WhatTheHack
+- https://github.com/nix-community/awesome-nix
+- https://github.com/balena-io/docs
 - https://github.com/pawroman/links
 - https://github.com/analysis-tools-dev/static-analysis
 - https://github.com/analysis-tools-dev/dynamic-analysis
 - https://github.com/mre/idiomatic-rust
 - https://github.com/lycheeverse/lychee (yes, the lychee docs are checked with lychee 🤯)
 
-If you are using lychee for your project, **add it here**.
+If you are using lychee for your project, **please add it here**.
 
 ## Credits
 
