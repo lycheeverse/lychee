@@ -3,7 +3,6 @@ use http::StatusCode;
 use lychee_lib::{ClientBuilder, Result};
 use regex::RegexSet;
 use reqwest::Method;
-use std::iter::FromIterator;
 use std::{collections::HashSet, time::Duration};
 
 #[tokio::main]

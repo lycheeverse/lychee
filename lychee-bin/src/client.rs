@@ -4,7 +4,6 @@ use anyhow::{Context, Result};
 use headers::HeaderMapExt;
 use lychee_lib::{Client, ClientBuilder};
 use regex::RegexSet;
-use std::iter::FromIterator;
 use std::{collections::HashSet, str::FromStr};
 
 /// Creates a client according to the command-line config

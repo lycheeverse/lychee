@@ -4,7 +4,7 @@ version = "0.0.0"
 authors = ["Matthias Endler <matthias@endler.dev>"]
 license = "Apache-2.0/MIT"
 description = "Criterion benchmarks of the lychee crates"
-edition = "2018"
+edition = "2021"
 publish = false
 
 [dependencies]
