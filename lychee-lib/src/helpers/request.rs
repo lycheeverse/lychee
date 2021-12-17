@@ -4,8 +4,6 @@ use percent_encoding::percent_decode_str;
 use reqwest::Url;
 use std::{
     collections::HashSet,
-    convert::TryFrom,
-    iter::FromIterator,
     path::{Path, PathBuf},
 };
 

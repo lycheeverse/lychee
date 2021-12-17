@@ -4,11 +4,7 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use std::{
-    collections::HashSet,
-    convert::{TryFrom, TryInto},
-    time::Duration,
-};
+use std::{collections::HashSet, time::Duration};
 
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
 use http::{
@@ -327,7 +323,6 @@ where
 #[cfg(test)]
 mod test {
     use std::{
-        convert::TryInto,
         fs::File,
         time::{Duration, Instant},
     };

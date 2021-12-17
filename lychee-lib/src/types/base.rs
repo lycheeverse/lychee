@@ -101,7 +101,7 @@ mod test_base {
 
     #[test]
     fn test_get_base_from_url() {
-        for (url, expected) in &[
+        for (url, expected) in [
             ("https://example.org", "https://example.org"),
             ("https://example.org?query=something", "https://example.org"),
             ("https://example.org/#anchor", "https://example.org"),
