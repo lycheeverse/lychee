@@ -136,19 +136,16 @@ outdated information.
 
 ## Commandline usage
 
-Run it inside a repository with a `README.md`:
+Recursively check all links in supported files inside the current directory
 
 ```sh
-lychee README.md
+lychee .
 ```
 
 You can also specify various types of inputs:
 
 ```sh
-# check links in supported files of current directory (recursive)
-lychee .
-
-# check links in local file(s):
+# check links in specific local file(s):
 lychee README.md
 lychee test.html info.txt
 
