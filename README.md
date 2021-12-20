@@ -378,6 +378,7 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 - https://github.com/papers-we-love/papers-we-love
 - https://github.com/pingcap/docs
 - https://github.com/microsoft/WhatTheHack
+- https://github.com/Azure/ResourceModules
 - https://github.com/nix-community/awesome-nix
 - https://github.com/balena-io/docs
 - https://github.com/pawroman/links
