@@ -13,4 +13,4 @@ tokio = { version = "1.15.0", features = ["full"] }
 regex = "1.4.6"
 http = "0.2.5"
 tokio-stream = "0.1.7"
-reqwest = { version = "0.11.7", features = ["gzip"] }
+reqwest = { version = "0.11.8", features = ["gzip"] }
