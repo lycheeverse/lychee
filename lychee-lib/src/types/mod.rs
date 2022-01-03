@@ -1,6 +1,7 @@
 #![allow(unreachable_pub)]
 
 mod base;
+mod cache;
 mod error;
 mod file;
 mod input;
@@ -11,6 +12,7 @@ mod status;
 mod uri;
 
 pub use base::Base;
+pub use cache::CacheStatus;
 pub use error::ErrorKind;
 pub use file::FileType;
 pub use input::{Input, InputContent, InputSource};

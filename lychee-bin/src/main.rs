@@ -69,6 +69,7 @@ use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use structopt::StructOpt;
 
+mod cache;
 mod client;
 mod color;
 mod commands;
@@ -78,6 +79,7 @@ mod stats;
 mod writer;
 
 use crate::{
+    cache::{Cache, StoreExt},
     options::{Config, Format, LycheeOptions},
     stats::ResponseStats,
     writer::StatsWriter,
@@ -164,7 +166,19 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let exit_code = if opts.config.dump {
         commands::dump(client, requests, opts.config.verbose).await?
     } else {
-        let (stats, code) = commands::check(client, requests, &opts.config).await?;
+        let cache = if opts.config.no_cache {
+            Cache::new()
+        } else {
+            let cache = Cache::load(".lycheecache");
+            match cache {
+                Ok(cache) => cache,
+                Err(e) => {
+                    println!("Error while loading cache: {}", e);
+                    Cache::new()
+                }
+            }
+        };
+        let (stats, code) = commands::check(client, cache, requests, &opts.config).await?;
         write_stats(stats, &opts.config)?;
         code
     };

@@ -132,6 +132,11 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) no_progress: bool,
 
+    /// Do not load request cache from disk
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) no_cache: bool,
+
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
     #[structopt(long)]
@@ -313,6 +318,7 @@ impl Config {
 
             // Keys with defaults to assign
             verbose: false;
+            no_cache: false;
             no_progress: false;
             max_redirects: DEFAULT_MAX_REDIRECTS;
             max_retries: DEFAULT_MAX_RETRIES;

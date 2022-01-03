@@ -1,11 +1,15 @@
+use std::sync::Arc;
+
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 use lychee_lib::Result;
+use lychee_lib::Status;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
 use crate::{
+    cache::{Cache, StoreExt},
     options::Config,
     stats::{color_response, ResponseStats},
     ExitCode,
@@ -14,6 +18,7 @@ use lychee_lib::{Client, Request, Response};
 
 pub(crate) async fn check<S>(
     client: Client,
+    cache: Cache,
     requests: S,
     cfg: &Config,
 ) -> Result<(ResponseStats, ExitCode)>
@@ -25,18 +30,34 @@ where
     let max_concurrency = cfg.max_concurrency;
     let mut stats = ResponseStats::new();
 
+    let cache = Arc::new(cache);
+    let cache_ref = cache.clone();
+
     // Start receiving requests
     tokio::spawn(async move {
         futures::StreamExt::for_each_concurrent(
             ReceiverStream::new(recv_req),
             max_concurrency,
             |request: Result<Request>| async {
-                let request: Request = request.expect("cannot read request");
-                // This can panic. See when the Url could not be parsed as a Uri.
-                // See https://github.com/servo/rust-url/issues/554
-                // See https://github.com/seanmonstar/reqwest/issues/668
-                // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
-                let response = client.check(request).await.expect("cannot check URI");
+                let request = request.expect("cannot read request");
+                let uri = request.uri.clone();
+                let mut modified = false;
+                let response = match cache.get(&uri) {
+                    Some(v) => Response::new(uri.clone(), Status::from(*v.value()), request.source),
+                    None => {
+                        // This can panic. See when the Url could not be parsed as a Uri.
+                        // See https://github.com/servo/rust-url/issues/554
+                        // See https://github.com/seanmonstar/reqwest/issues/668
+                        // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
+                        let response = client.check(request).await.expect("cannot check URI");
+                        modified = true;
+                        response
+                    }
+                };
+
+                if modified {
+                    cache.insert(uri, response.status().into());
+                }
 
                 send_resp
                     .send(response)
@@ -95,6 +116,8 @@ where
     if let Some(pb) = &pb {
         pb.finish_and_clear();
     }
+
+    cache_ref.store(".lycheecache").expect("can't write cache");
 
     let code = if stats.is_success() {
         ExitCode::Success

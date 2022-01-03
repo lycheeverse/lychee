@@ -211,8 +211,8 @@ impl Client {
             element: _element,
             attribute: _attribute,
         } = request.try_into()?;
-        // TODO: Allow filtering based on element and attribute
 
+        // TODO: Allow filtering based on element and attribute
         let status = if self.filter.is_excluded(&uri) {
             Status::Excluded
         } else if uri.is_file() {
