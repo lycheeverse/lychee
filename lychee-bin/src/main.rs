@@ -111,7 +111,7 @@ fn main() -> Result<()> {
     std::process::exit(exit_code);
 }
 
-// Read lines from file; ignore empty lines
+/// Read lines from file; ignore empty lines
 fn read_lines(file: &File) -> Result<Vec<String>> {
     let lines: Vec<_> = BufReader::new(file).lines().collect::<Result<_, _>>()?;
     Ok(lines.into_iter().filter(|line| !line.is_empty()).collect())
@@ -140,6 +140,7 @@ fn load_config() -> Result<LycheeOptions> {
     Ok(opts)
 }
 
+/// Set up runtime and call lychee entrypoint
 fn run_main() -> Result<i32> {
     let opts = load_config()?;
     let runtime = match opts.config.threads {
@@ -157,6 +158,7 @@ fn run_main() -> Result<i32> {
     runtime.block_on(run(&opts))
 }
 
+/// Run lychee on the given inputs
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs();
     let requests = Collector::new(opts.config.base.clone(), opts.config.skip_missing)
@@ -181,6 +183,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
 }
 
 #[must_use]
+/// Load cache (if any)
 fn setup_cache(no_cache: bool) -> Cache {
     if no_cache {
         return Cache::new();
