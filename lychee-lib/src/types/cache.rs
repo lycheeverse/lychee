@@ -33,12 +33,11 @@ impl Display for CacheStatus {
 impl From<&Status> for CacheStatus {
     fn from(s: &Status) -> Self {
         match s {
-            Status::Ok(_) => Self::Success,
-            Status::Cached(s) => s.to_owned(),
+            Status::Cached(s) => *s,
             // Reqwest treats unknown status codes as Ok(StatusCode).
             // TODO: Use accepted status codes to decide whether this is a
             // success or failure
-            Status::UnknownStatusCode(_) => Self::Success,
+            Status::Ok(_) | Status::UnknownStatusCode(_) => Self::Success,
             Status::Excluded => Self::Excluded,
             Status::Unsupported(_) => Self::Unsupported,
             Status::Redirected(_) | Status::Error(_) | Status::Timeout(_) => Self::Fail,

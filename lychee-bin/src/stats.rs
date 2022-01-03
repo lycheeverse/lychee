@@ -10,8 +10,9 @@ pub(crate) fn color_response(response: &ResponseBody) -> String {
         Status::Ok(_) | Status::Cached(CacheStatus::Success) => GREEN.apply_to(response),
         Status::Excluded
         | Status::Unsupported(_)
-        | Status::Cached(CacheStatus::Excluded)
-        | Status::Cached(CacheStatus::Unsupported) => DIM.apply_to(response),
+        | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => {
+            DIM.apply_to(response)
+        }
         Status::Redirected(_) => NORMAL.apply_to(response),
         Status::UnknownStatusCode(_) | Status::Timeout(_) => YELLOW.apply_to(response),
         Status::Error(_) | Status::Cached(CacheStatus::Fail) => PINK.apply_to(response),
@@ -64,8 +65,7 @@ impl ResponseStats {
             match cache_status {
                 CacheStatus::Success => self.successful += 1,
                 CacheStatus::Fail => self.failures += 1,
-                CacheStatus::Excluded => self.excludes += 1,
-                CacheStatus::Unsupported => self.excludes += 1,
+                CacheStatus::Excluded | CacheStatus::Unsupported => self.excludes += 1,
             }
         }
 
