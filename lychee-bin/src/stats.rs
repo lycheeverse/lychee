@@ -71,7 +71,10 @@ impl ResponseStats {
 
         if matches!(
             status,
-            Status::Error(_) | Status::Timeout(_) | Status::Redirected(_)
+            Status::Error(_)
+                | Status::Timeout(_)
+                | Status::Redirected(_)
+                | Status::Cached(CacheStatus::Fail)
         ) {
             let fail = self.fail_map.entry(source).or_default();
             fail.insert(response.1);

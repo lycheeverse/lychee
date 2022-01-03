@@ -40,24 +40,7 @@ where
             max_concurrency,
             |request: Result<Request>| async {
                 let request = request.expect("cannot read request");
-                let uri = request.uri.clone();
-                let mut modified = false;
-                let response = match cache.get(&uri) {
-                    Some(v) => Response::new(uri.clone(), Status::from(*v.value()), request.source),
-                    None => {
-                        // This can panic. See when the Url could not be parsed as a Uri.
-                        // See https://github.com/servo/rust-url/issues/554
-                        // See https://github.com/seanmonstar/reqwest/issues/668
-                        // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
-                        let response = client.check(request).await.expect("cannot check URI");
-                        modified = true;
-                        response
-                    }
-                };
-
-                if modified {
-                    cache.insert(uri, response.status().into());
-                }
+                let response = handle(&client, cache.clone(), request).await;
 
                 send_resp
                     .send(response)
@@ -127,6 +110,38 @@ where
     Ok((stats, code))
 }
 
+async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Response {
+    let uri = request.uri.clone();
+    let mut modified = false;
+    let response = match cache.get(&uri) {
+        Some(v) => {
+            // Found a cached request
+            let status = if client.is_excluded(&uri) {
+                // Overwrite cache status in case the URI is excluded in the
+                // current run
+                Status::Excluded
+            } else {
+                Status::from(*v.value())
+            };
+            Response::new(uri.clone(), status, request.source)
+        }
+        None => {
+            // Request was not cached; run a normal check
+            // This can panic. See when the Url could not be parsed as a Uri.
+            // See https://github.com/servo/rust-url/issues/554
+            // See https://github.com/seanmonstar/reqwest/issues/668
+            // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
+            let response = client.check(request).await.expect("cannot check URI");
+            modified = true;
+            response
+        }
+    };
+
+    if modified {
+        cache.insert(uri, response.status().into());
+    }
+    response
+}
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
     let out = color_response(&response.1);
     if let Some(pb) = progress_bar {

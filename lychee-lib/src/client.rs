@@ -242,7 +242,7 @@ impl Client {
 
     /// Check if the given URI is filtered by the client
     #[must_use]
-    pub fn filtered(&self, uri: &Uri) -> bool {
+    pub fn is_excluded(&self, uri: &Uri) -> bool {
         self.filter.is_excluded(uri)
     }
 
@@ -492,7 +492,7 @@ mod test {
             .build()
             .client()
             .unwrap();
-        assert!(!client.filtered(&Uri {
+        assert!(!client.is_excluded(&Uri {
             url: "mailto://mail@example.org".try_into().unwrap()
         }));
 
@@ -502,7 +502,7 @@ mod test {
             .build()
             .client()
             .unwrap();
-        assert!(client.filtered(&Uri {
+        assert!(client.is_excluded(&Uri {
             url: "mailto://mail@example.org".try_into().unwrap()
         }));
     }
