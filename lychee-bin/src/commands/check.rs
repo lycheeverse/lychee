@@ -9,7 +9,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
 use crate::{
-    cache::{Cache, StoreExt},
+    cache::Cache,
     options::Config,
     stats::{color_response, ResponseStats},
     ExitCode,
@@ -18,10 +18,10 @@ use lychee_lib::{Client, Request, Response};
 
 pub(crate) async fn check<S>(
     client: Client,
-    cache: Cache,
+    cache: Arc<Cache>,
     requests: S,
     cfg: &Config,
-) -> Result<(ResponseStats, ExitCode)>
+) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
 where
     S: futures::Stream<Item = Result<Request>>,
 {
@@ -29,8 +29,6 @@ where
     let (send_resp, mut recv_resp) = mpsc::channel(cfg.max_concurrency);
     let max_concurrency = cfg.max_concurrency;
     let mut stats = ResponseStats::new();
-
-    let cache = Arc::new(cache);
     let cache_ref = cache.clone();
 
     // Start receiving requests
@@ -100,14 +98,12 @@ where
         pb.finish_and_clear();
     }
 
-    cache_ref.store(".lycheecache").expect("can't write cache");
-
     let code = if stats.is_success() {
         ExitCode::Success
     } else {
         ExitCode::LinkCheckFailure
     };
-    Ok((stats, code))
+    Ok((stats, cache_ref, code))
 }
 
 async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Response {

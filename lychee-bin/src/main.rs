@@ -67,6 +67,7 @@ use openssl_sys as _; // required for vendored-openssl feature
 use ring as _;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
+use std::sync::Arc;
 use structopt::StructOpt;
 
 mod cache;
@@ -86,6 +87,7 @@ use crate::{
 };
 
 const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
+const LYCHEE_CACHE_FILE: &str = ".lycheecache";
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
@@ -166,24 +168,32 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let exit_code = if opts.config.dump {
         commands::dump(client, requests, opts.config.verbose).await?
     } else {
-        let cache = if opts.config.no_cache {
-            Cache::new()
-        } else {
-            let cache = Cache::load(".lycheecache");
-            match cache {
-                Ok(cache) => cache,
-                Err(e) => {
-                    println!("Error while loading cache: {}", e);
-                    Cache::new()
-                }
-            }
-        };
-        let (stats, code) = commands::check(client, cache, requests, &opts.config).await?;
+        let cache = setup_cache(opts.config.no_cache);
+        let cache = Arc::new(cache);
+        let (stats, cache, exit_code) =
+            commands::check(client, cache, requests, &opts.config).await?;
         write_stats(stats, &opts.config)?;
-        code
+        cache.store(LYCHEE_CACHE_FILE)?;
+        exit_code
     };
 
     Ok(exit_code as i32)
+}
+
+#[must_use]
+fn setup_cache(no_cache: bool) -> Cache {
+    if no_cache {
+        return Cache::new();
+    }
+
+    let cache = Cache::load(LYCHEE_CACHE_FILE);
+    match cache {
+        Ok(cache) => cache,
+        Err(e) => {
+            println!("Error while loading cache: {}. Continuing without.", e);
+            Cache::new()
+        }
+    }
 }
 
 /// Write final statistics to stdout or to file
