@@ -6,6 +6,7 @@ use lychee_lib::{
     Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT,
 };
 use serde::Deserialize;
+use std::time::Duration;
 use structopt::StructOpt;
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
@@ -149,6 +150,13 @@ pub(crate) struct Config {
     #[structopt(long)]
     #[serde(default)]
     pub(crate) no_cache: bool,
+
+    #[structopt(
+        long, 
+        parse(try_from_str = humantime::parse_duration), 
+        default_value = "1d"
+    )]
+    pub(crate) max_cache_age: Duration,
 
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked

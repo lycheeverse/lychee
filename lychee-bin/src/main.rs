@@ -137,6 +137,44 @@ fn load_config() -> Result<LycheeOptions> {
     Ok(opts)
 }
 
+#[must_use]
+/// Load cache (if exists and is still valid)
+/// This returns an `Option` as starting without a cache is a common scenario
+/// and we silently discard errors on purpose
+fn load_cache(cfg: &Config) -> Option<Cache> {
+    if cfg.no_cache {
+        return None;
+    }
+
+    match fs::metadata(LYCHEE_CACHE_FILE) {
+        Err(_e) => {
+            // No cache found; silently start with empty cache
+            return None;
+        }
+        Ok(metadata) => {
+            let modified = metadata.modified().ok()?;
+            let elapsed = modified.elapsed().ok()?;
+            if elapsed > cfg.max_cache_age {
+                println!(
+                    "Cache is too old (age: {}, max age: {}). Discarding",
+                    humantime::format_duration(elapsed),
+                    humantime::format_duration(cfg.max_cache_age)
+                );
+                return None;
+            }
+        }
+    }
+
+    let cache = Cache::load(LYCHEE_CACHE_FILE);
+    match cache {
+        Ok(cache) => Some(cache),
+        Err(e) => {
+            println!("Error while loading cache: {}. Continuing without.", e);
+            None
+        }
+    }
+}
+
 /// Set up runtime and call lychee entrypoint
 fn run_main() -> Result<i32> {
     let opts = load_config()?;
@@ -167,7 +205,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let exit_code = if opts.config.dump {
         commands::dump(client, requests, opts.config.verbose).await?
     } else {
-        let cache = setup_cache(opts.config.no_cache);
+        let cache = load_cache(&opts.config).unwrap_or(Cache::new());
         let cache = Arc::new(cache);
         let (stats, cache, exit_code) =
             commands::check(client, cache, requests, &opts.config).await?;
@@ -177,23 +215,6 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     };
 
     Ok(exit_code as i32)
-}
-
-#[must_use]
-/// Load cache (if any)
-fn setup_cache(no_cache: bool) -> Cache {
-    if no_cache {
-        return Cache::new();
-    }
-
-    let cache = Cache::load(LYCHEE_CACHE_FILE);
-    match cache {
-        Ok(cache) => cache,
-        Err(e) => {
-            println!("Error while loading cache: {}. Continuing without.", e);
-            Cache::new()
-        }
-    }
 }
 
 /// Write final statistics to stdout or to file
