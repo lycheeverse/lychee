@@ -152,8 +152,8 @@ pub(crate) struct Config {
     pub(crate) no_cache: bool,
 
     #[structopt(
-        long, 
-        parse(try_from_str = humantime::parse_duration), 
+        long,
+        parse(try_from_str = humantime::parse_duration),
         default_value = "1d"
     )]
     pub(crate) max_cache_age: Duration,
