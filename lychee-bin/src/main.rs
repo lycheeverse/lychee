@@ -210,7 +210,10 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         let (stats, cache, exit_code) =
             commands::check(client, cache, requests, &opts.config).await?;
         write_stats(stats, &opts.config)?;
-        cache.store(LYCHEE_CACHE_FILE)?;
+
+        if !opts.config.no_cache {
+            cache.store(LYCHEE_CACHE_FILE)?;
+        }
         exit_code
     };
 
