@@ -45,6 +45,7 @@ mod cli {
         redirects: usize,
         excludes: usize,
         errors: usize,
+        cached: usize,
     }
 
     impl MockResponseStats {
@@ -59,6 +60,7 @@ mod cli {
   "redirects": {},
   "excludes": {},
   "errors": {},
+  "cached": {},
   "fail_map": {{}}
 }}"#,
                 self.total,
@@ -68,7 +70,8 @@ mod cli {
                 self.timeouts,
                 self.redirects,
                 self.excludes,
-                self.errors
+                self.errors,
+                self.cached
             )
         }
     }
@@ -114,7 +117,8 @@ mod cli {
                 successful: 2,
                 ..MockResponseStats::default()
             },
-            "--exclude-mail"
+            "--exclude-mail",
+            "--no-cache"
         )
     }
 
@@ -141,6 +145,7 @@ mod cli {
         // (File URIs are absolute paths, which we don't have.)
         // Nevertheless, the `file` scheme should be recognized.
         cmd.arg(test_schemes_path)
+            .arg("--no-cache")
             .arg("--exclude")
             .arg("file://")
             .env_clear()
@@ -265,6 +270,7 @@ mod cli {
         let test_github_404_path = fixtures_path().join("TEST_GITHUB_404.md");
 
         cmd.arg(test_github_404_path)
+            .arg("--no-cache")
             .arg("--no-progress")
             .env_clear()
             .assert()
@@ -291,6 +297,7 @@ mod cli {
         let mock_server = mock_server!(StatusCode::INTERNAL_SERVER_ERROR);
 
         cmd.arg("-")
+            .arg("--no-cache")
             .write_stdin(mock_server.uri())
             .assert()
             .failure()
@@ -413,7 +420,8 @@ mod cli {
         let test_path = fixtures_path().join("TEST.md");
         let outfile = format!("{}.json", Uuid::new_v4());
 
-        cmd.arg("--output")
+        cmd.arg("--no-cache")
+            .arg("--output")
             .arg(&outfile)
             .arg("--format")
             .arg("json")
@@ -421,7 +429,7 @@ mod cli {
             .assert()
             .success();
 
-        let expected = r#"{"total":11,"successful":11,"failures":0,"unknown":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"fail_map":{}}"#;
+        let expected = r#"{"total":11,"successful":11,"failures":0,"unknown":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"cached":0,"fail_map":{}}"#;
         let output = fs::read_to_string(&outfile)?;
         assert_eq!(output.split_whitespace().collect::<String>(), expected);
         fs::remove_file(outfile)?;
@@ -484,6 +492,7 @@ mod cli {
         let excludes_path2 = fixtures_path().join("TEST_EXCLUDE_2.txt");
 
         cmd.arg(test_path)
+            .arg("--no-cache")
             .arg("--exclude-file")
             .arg(excludes_path1)
             .arg(excludes_path2)
@@ -534,7 +543,11 @@ mod cli {
         cmd.arg(&test_path).assert().success();
 
         let mut cmd = main_command();
-        cmd.arg("--require-https").arg(test_path).assert().failure();
+        cmd.arg("--no-cache")
+            .arg("--require-https")
+            .arg(test_path)
+            .assert()
+            .failure();
 
         Ok(())
     }
