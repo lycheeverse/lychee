@@ -109,31 +109,25 @@ where
 /// Handle a single request
 async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Response {
     let uri = request.uri.clone();
-    let mut modified = false;
-    let response = if let Some(v) = cache.get(&uri) {
+    if let Some(v) = cache.get(&uri) {
         // Found a cached request
+        // Overwrite cache status in case the URI is excluded in the
+        // current run
         let status = if client.is_excluded(&uri) {
-            // Overwrite cache status in case the URI is excluded in the
-            // current run
             Status::Excluded
         } else {
             Status::from(*v.value())
         };
-        Response::new(uri.clone(), status, request.source)
-    } else {
-        // Request was not cached; run a normal check
-        // This can panic. See when the Url could not be parsed as a Uri.
-        // See https://github.com/servo/rust-url/issues/554
-        // See https://github.com/seanmonstar/reqwest/issues/668
-        // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
-        let response = client.check(request).await.expect("cannot check URI");
-        modified = true;
-        response
-    };
-
-    if modified {
-        cache.insert(uri, response.status().into());
+        return Response::new(uri.clone(), status, request.source);
     }
+
+    // Request was not cached; run a normal check
+    // This can panic when the Url could not be parsed to a Uri.
+    // See https://github.com/servo/rust-url/issues/554
+    // See https://github.com/seanmonstar/reqwest/issues/668
+    // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
+    let response = client.check(request).await.expect("cannot check URI");
+    cache.insert(uri, response.status().into());
     response
 }
 
