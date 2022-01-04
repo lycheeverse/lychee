@@ -205,7 +205,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let exit_code = if opts.config.dump {
         commands::dump(client, requests, opts.config.verbose).await?
     } else {
-        let cache = load_cache(&opts.config).unwrap_or(Cache::new());
+        let cache = load_cache(&opts.config).unwrap_or_default();
         let cache = Arc::new(cache);
         let (stats, cache, exit_code) =
             commands::check(client, cache, requests, &opts.config).await?;
