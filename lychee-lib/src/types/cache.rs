@@ -6,7 +6,7 @@ use crate::Status;
 
 /// Representation of the status of a cached request. This is kept simple on
 /// purpose because the type gets serialized to a cache file and might need to
-/// be parsed by other tools and edited by humans.
+/// be parsed by other tools or edited by humans.
 #[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum CacheStatus {
     /// The cached request delivered a valid response

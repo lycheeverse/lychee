@@ -3,6 +3,9 @@ use dashmap::DashMap;
 use lychee_lib::{CacheStatus, Uri};
 use std::path::Path;
 
+/// The cache stores previous response codes
+/// for faster checking. At the moment it is backed by `DashMap`, but this is an
+/// implementation detail, which may change in the future.
 pub(crate) type Cache = DashMap<Uri, CacheStatus>;
 
 pub(crate) trait StoreExt {

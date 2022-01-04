@@ -106,6 +106,7 @@ where
     Ok((stats, cache_ref, code))
 }
 
+/// Handle a single request
 async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Response {
     let uri = request.uri.clone();
     let mut modified = false;
@@ -135,6 +136,7 @@ async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Respons
     }
     response
 }
+
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
     let out = color_response(&response.1);
     if let Some(pb) = progress_bar {
