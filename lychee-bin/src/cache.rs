@@ -25,10 +25,10 @@ impl StoreExt for Cache {
     }
 
     fn load<T: AsRef<Path>>(path: T) -> Result<Cache> {
-        let map = DashMap::new();
         let mut rdr = csv::ReaderBuilder::new()
             .has_headers(false)
             .from_path(path)?;
+        let map = DashMap::new();
         for result in rdr.deserialize() {
             let (uri, status): (Uri, CacheStatus) = result?;
             map.insert(uri, status);
