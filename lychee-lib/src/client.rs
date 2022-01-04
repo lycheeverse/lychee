@@ -347,7 +347,12 @@ impl Client {
 /// A convenience function to check a single URI
 /// This is the most simple link check and avoids having to create a client manually.
 /// For more complex scenarios, look into using the [`ClientBuilder`] instead.
-#[allow(clippy::missing_errors_doc)]
+///
+/// # Errors
+///
+/// Returns an `Err` if:
+/// - The request client cannot be built
+/// - The request cannot be checked (see [check](Client::check) for failure cases)
 pub async fn check<T, E>(request: T) -> Result<Response>
 where
     Request: TryFrom<T, Error = E>,
