@@ -288,6 +288,7 @@ mod cli {
         let mock_server = mock_server!(StatusCode::OK);
 
         cmd.arg("-")
+            .arg("--no-cache")
             .write_stdin(mock_server.uri())
             .assert()
             .success();
@@ -360,6 +361,7 @@ mod cli {
         writeln!(file_b, "{}", mock_server_b.uri().as_str())?;
 
         cmd.arg(dir.path().join("*.md"))
+            .arg("--no-cache")
             .arg("--verbose")
             .assert()
             .success()
@@ -511,6 +513,7 @@ mod cli {
         let test_path = fixtures_path().join("ignore");
 
         cmd.current_dir(test_path)
+            .arg("--no-cache")
             .arg("TEST.md")
             .assert()
             .success()
