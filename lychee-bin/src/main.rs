@@ -81,13 +81,10 @@ mod writer;
 
 use crate::{
     cache::{Cache, StoreExt},
-    options::{Config, Format, LycheeOptions},
+    options::{Config, Format, LycheeOptions, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE},
     stats::ResponseStats,
     writer::StatsWriter,
 };
-
-const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
-const LYCHEE_CACHE_FILE: &str = ".lycheecache";
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
