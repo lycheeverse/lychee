@@ -1761,6 +1761,7 @@ dependencies = [
  "http",
  "hubcaps",
  "jwalk",
+ "lazy_static",
  "linkify",
  "log",
  "once_cell",

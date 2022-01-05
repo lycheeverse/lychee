@@ -1,12 +1,23 @@
-use std::{convert::TryFrom, fmt::Display, net::IpAddr};
+use std::{collections::HashSet, convert::TryFrom, fmt::Display, net::IpAddr};
 
 use fast_chemail::parse_email;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{ErrorKind, Result};
 
 use super::raw_uri::RawUri;
+
+lazy_static! {
+    static ref GITHUB_EXCLUDED_ORGS: HashSet<&'static str> = {
+        let mut m = HashSet::new();
+        m.insert("sponsors");
+        m.insert("marketplace");
+        m.insert("features");
+        m
+    };
+}
 
 /// Lychee's own representation of a URI, which encapsulates all supported
 /// formats.
@@ -75,9 +86,12 @@ impl Uri {
             self.domain()?,
             "github.com" | "www.github.com" | "raw.githubusercontent.com"
         ) {
-            let mut path = self.path_segments()?;
-            let owner = path.next()?;
-            let repo = path.next()?;
+            let mut segments = self.path_segments()?;
+            let owner = segments.next()?;
+            if GITHUB_EXCLUDED_ORGS.contains(owner) {
+                return None;
+            }
+            let repo = segments.next()?;
             return Some((owner, repo));
         }
 
@@ -242,6 +256,21 @@ mod test {
             website("https://github.com/lycheeverse/lychee").extract_github(),
             Some(("lycheeverse", "lychee"))
         );
+
+        // Check known false positives
+        assert!(website("https://github.com/sponsors/analysis-tools-dev ")
+            .extract_github()
+            .is_none());
+
+        assert!(
+            website("https://github.com/marketplace/actions/lychee-broken-link-checker")
+                .extract_github()
+                .is_none()
+        );
+
+        assert!(website("https://github.com/features/actions")
+            .extract_github()
+            .is_none());
 
         assert!(
             website("https://pkg.go.dev/github.com/Debian/pkg-go-tools/cmd/pgt-gopath")
