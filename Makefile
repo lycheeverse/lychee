@@ -24,7 +24,7 @@ build: ## Build Rust code locally
 
 .PHONY: install
 install: ## Install project locally
-	cargo install --path lychee-bin
+	cargo install --path lychee-bin --locked
 
 .PHONY: run
 run: ## Run project locally
