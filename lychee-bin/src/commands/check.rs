@@ -127,7 +127,12 @@ async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Respons
     // See https://github.com/seanmonstar/reqwest/issues/668
     // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
     let response = client.check(request).await.expect("cannot check URI");
-    cache.insert(uri, response.status().into());
+
+    // Never cache filesystem access as it is fast already so caching has no
+    // benefit
+    if !uri.is_file() {
+        cache.insert(uri, response.status().into());
+    }
     response
 }
 
