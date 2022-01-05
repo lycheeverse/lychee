@@ -22,7 +22,7 @@ lazy_static! {
     static ref MAX_REDIRECTS_STR: String = DEFAULT_MAX_REDIRECTS.to_string();
     static ref MAX_RETRIES_STR: String = DEFAULT_MAX_RETRIES.to_string();
     static ref STRUCTOPT_HELP_MSG_CACHE: String = format!(
-        "Do not load request cache (stored in `{}`) from disk",
+        "Use request cache stored on disk at `{}`",
         LYCHEE_CACHE_FILE
     );
     static ref STRUCTOPT_HELP_MSG_IGNORE_FILE: String = format!(
@@ -149,7 +149,7 @@ pub(crate) struct Config {
     #[structopt(help = &STRUCTOPT_HELP_MSG_CACHE)]
     #[structopt(long)]
     #[serde(default)]
-    pub(crate) no_cache: bool,
+    pub(crate) cache: bool,
 
     #[structopt(
         long,
@@ -337,7 +337,7 @@ impl Config {
 
             // Keys with defaults to assign
             verbose: false;
-            no_cache: false;
+            cache: false;
             no_progress: false;
             max_redirects: DEFAULT_MAX_REDIRECTS;
             max_retries: DEFAULT_MAX_RETRIES;

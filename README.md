@@ -201,6 +201,7 @@ USAGE:
     lychee [FLAGS] [OPTIONS] <inputs>...
 
 FLAGS:
+        --cache                  Use request cache stored on disk at `.lycheecache`
         --dump                   Don't perform any link checking. Instead, dump all the links extracted from inputs that
                                  would be checked
     -E, --exclude-all-private    Exclude all private IPs from checking.
@@ -212,7 +213,6 @@ FLAGS:
         --glob-ignore-case       Ignore case when expanding filesystem path glob inputs
         --help                   Prints help information
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
-        --no-cache               Do not load request cache (stored in `.lycheecache`) from disk
     -n, --no-progress            Do not show progress bar.
                                  This is recommended for non-interactive shells (e.g. for continuous integration)
         --offline                Only check local files and block network requests

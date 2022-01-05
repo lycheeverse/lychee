@@ -142,7 +142,7 @@ fn load_config() -> Result<LycheeOptions> {
 /// This returns an `Option` as starting without a cache is a common scenario
 /// and we silently discard errors on purpose
 fn load_cache(cfg: &Config) -> Option<Cache> {
-    if cfg.no_cache {
+    if !cfg.cache {
         return None;
     }
 
@@ -211,7 +211,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             commands::check(client, cache, requests, &opts.config).await?;
         write_stats(stats, &opts.config)?;
 
-        if !opts.config.no_cache {
+        if opts.config.cache {
             cache.store(LYCHEE_CACHE_FILE)?;
         }
         exit_code
