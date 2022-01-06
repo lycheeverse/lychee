@@ -45,7 +45,7 @@ fn stats_table(stats: &ResponseStats) -> String {
             count: stats.errors + stats.failures,
         },
     ];
-    let style = tabled::Style::github_markdown().header(Some(Line::bordered('-', '|', '|', '|')));
+    let style = tabled::Style::GITHUB_MARKDOWN.header(Some(Line::bordered('-', '|', '|', '|')));
 
     Table::new(stats)
         .with(Modify::new(Full).with(Alignment::left()))
