@@ -249,7 +249,7 @@ pub(crate) struct Config {
     pub(crate) basic_auth: Option<String>,
 
     /// GitHub API token to use when checking github.com links, to avoid rate limiting
-    #[structopt(long, env = "GITHUB_TOKEN")]
+    #[structopt(long, env = "GITHUB_TOKEN", hide_env_values = true)]
     #[serde(default)]
     pub(crate) github_token: Option<String>,
 
