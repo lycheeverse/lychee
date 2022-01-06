@@ -248,14 +248,16 @@ impl Client {
     /// Check a website URI
     pub async fn check_website(&self, uri: &Uri) -> Status {
         let mut retries: u64 = 0;
+        let mut wait = DEFAULT_RETRY_WAIT_TIME;
 
         let mut status = self.check_default(uri).await;
         while retries < self.max_retries {
             if status.is_success() {
                 return status;
             }
+            sleep(Duration::from_secs(wait)).await;
             retries += 1;
-            sleep(Duration::from_secs(DEFAULT_RETRY_WAIT_TIME * retries * 2)).await;
+            wait *= 2;
             status = self.check_default(uri).await;
         }
         // Pull out the heavy weapons in case of a failed normal request.
