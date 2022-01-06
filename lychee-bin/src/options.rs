@@ -2,22 +2,22 @@ use std::{convert::TryFrom, fs, io::ErrorKind, path::PathBuf, str::FromStr};
 
 use anyhow::{anyhow, Error, Result};
 use lazy_static::lazy_static;
-use lychee_lib::{Base, Input};
+use lychee_lib::{
+    Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT,
+};
 use serde::Deserialize;
-use structopt::{clap::crate_version, StructOpt};
+use structopt::StructOpt;
 
 const METHOD: &str = "get";
-const TIMEOUT: usize = 20;
 const MAX_CONCURRENCY: usize = 128;
-const MAX_REDIRECTS: usize = 10;
-const USER_AGENT: &str = concat!("lychee/", crate_version!());
 
 // this exists because structopt requires `&str` type values for defaults
 // (we can't use e.g. `TIMEOUT` or `timeout()` which gets created for serde)
 lazy_static! {
-    static ref TIMEOUT_STR: String = TIMEOUT.to_string();
+    static ref TIMEOUT_STR: String = DEFAULT_TIMEOUT.to_string();
     static ref MAX_CONCURRENCY_STR: String = MAX_CONCURRENCY.to_string();
-    static ref MAX_REDIRECTS_STR: String = MAX_REDIRECTS.to_string();
+    static ref MAX_REDIRECTS_STR: String = DEFAULT_MAX_REDIRECTS.to_string();
+    static ref MAX_RETRIES_STR: String = DEFAULT_MAX_RETRIES.to_string();
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,10 +61,11 @@ macro_rules! default_function {
 
 // Generate the functions for serde defaults
 default_function! {
-    max_redirects: usize = MAX_REDIRECTS;
+    max_redirects: usize = DEFAULT_MAX_REDIRECTS;
+    max_retries: u64 = DEFAULT_MAX_RETRIES;
     max_concurrency: usize = MAX_CONCURRENCY;
-    user_agent: String = USER_AGENT.to_string();
-    timeout: usize = TIMEOUT;
+    user_agent: String = DEFAULT_USER_AGENT.to_string();
+    timeout: usize = DEFAULT_TIMEOUT;
     method: String = METHOD.to_string();
 }
 
@@ -142,6 +143,11 @@ pub(crate) struct Config {
     #[serde(default = "max_redirects")]
     pub(crate) max_redirects: usize,
 
+    /// Maximum number of retries per request
+    #[structopt(long, default_value = &MAX_RETRIES_STR)]
+    #[serde(default = "max_retries")]
+    pub(crate) max_retries: u64,
+
     /// Maximum number of concurrent network requests
     #[structopt(long, default_value = &MAX_CONCURRENCY_STR)]
     #[serde(default = "max_concurrency")]
@@ -154,7 +160,7 @@ pub(crate) struct Config {
     pub(crate) threads: Option<usize>,
 
     /// User agent
-    #[structopt(short, long, default_value = USER_AGENT)]
+    #[structopt(short, long, default_value = DEFAULT_USER_AGENT)]
     #[serde(default = "user_agent")]
     pub(crate) user_agent: String,
 
@@ -308,10 +314,11 @@ impl Config {
             // Keys with defaults to assign
             verbose: false;
             no_progress: false;
-            max_redirects: MAX_REDIRECTS;
+            max_redirects: DEFAULT_MAX_REDIRECTS;
+            max_retries: DEFAULT_MAX_RETRIES;
             max_concurrency: MAX_CONCURRENCY;
             threads: None;
-            user_agent: USER_AGENT;
+            user_agent: DEFAULT_USER_AGENT;
             insecure: false;
             scheme: Vec::<String>::new();
             include: Vec::<String>::new();
@@ -324,7 +331,7 @@ impl Config {
             exclude_mail: false;
             headers: Vec::<String>::new();
             accept: None;
-            timeout: TIMEOUT;
+            timeout: DEFAULT_TIMEOUT;
             method: METHOD;
             base: None;
             basic_auth: None;

@@ -23,8 +23,16 @@ use crate::{
     ErrorKind, Request, Response, Result, Status, Uri,
 };
 
-const DEFAULT_MAX_REDIRECTS: usize = 5;
-const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"));
+/// Default lychee user agent
+pub const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"));
+/// Number of redirects until a request gets declared as failed
+pub const DEFAULT_MAX_REDIRECTS: usize = 5;
+/// Number of retries until a request gets declared as failed
+pub const DEFAULT_MAX_RETRIES: u64 = 3;
+/// Wait time in seconds between requests (will be doubled after every failure)
+pub const DEFAULT_RETRY_WAIT_TIME: u64 = 1;
+/// Total timeout per request until a request gets declared as failed
+pub const DEFAULT_TIMEOUT: usize = 20;
 
 /// Handles incoming requests and returns responses. Usually you would not
 /// initialize a `Client` yourself, but use the `ClientBuilder` because it
@@ -37,6 +45,8 @@ pub struct Client {
     github_client: Option<Github>,
     /// Filtered domain handling.
     filter: Filter,
+    /// Maximum number of retries
+    max_retries: u64,
     /// Default request HTTP method to use.
     method: reqwest::Method,
     /// The set of accepted HTTP status codes for valid URIs.
@@ -74,6 +84,9 @@ pub struct ClientBuilder {
     /// Maximum number of redirects before returning error
     #[builder(default = DEFAULT_MAX_REDIRECTS)]
     max_redirects: usize,
+    /// Maximum number of retries before returning error
+    #[builder(default = DEFAULT_MAX_RETRIES)]
+    max_retries: u64,
     /// User agent used for checking links
     // Faking the user agent is necessary for some websites, unfortunately.
     // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
@@ -169,6 +182,7 @@ impl ClientBuilder {
             reqwest_client,
             github_client: github_token,
             filter,
+            max_retries: self.max_retries,
             method: self.method.clone(),
             accepted: self.accepted.clone(),
             require_https: self.require_https,
@@ -233,17 +247,15 @@ impl Client {
 
     /// Check a website URI
     pub async fn check_website(&self, uri: &Uri) -> Status {
-        let mut retries: i64 = 3;
-        let mut wait: u64 = 1;
+        let mut retries: u64 = 0;
 
         let mut status = self.check_default(uri).await;
-        while retries > 0 {
+        while retries < self.max_retries {
             if status.is_success() {
                 return status;
             }
-            retries -= 1;
-            sleep(Duration::from_secs(wait)).await;
-            wait *= 2;
+            retries += 1;
+            sleep(Duration::from_secs(DEFAULT_RETRY_WAIT_TIME * retries * 2)).await;
             status = self.check_default(uri).await;
         }
         // Pull out the heavy weapons in case of a failed normal request.
