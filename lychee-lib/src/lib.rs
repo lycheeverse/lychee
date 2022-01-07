@@ -72,7 +72,11 @@ use ring as _; // required for apple silicon
 
 #[doc(inline)]
 pub use crate::{
-    client::{check, Client, ClientBuilder},
+    // Constants get exposed so that the CLI can use the same defaults as the library
+    client::{
+        check, Client, ClientBuilder, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+        DEFAULT_RETRY_WAIT_TIME, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT,
+    },
     collector::Collector,
     filter::{Excludes, Filter, Includes},
     types::{

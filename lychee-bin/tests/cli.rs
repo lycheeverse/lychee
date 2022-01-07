@@ -180,7 +180,7 @@ mod cli {
             // Currently getting a 429 with Googlebot.
             // See https://github.com/lycheeverse/lychee/issues/448
             // See https://twitter.com/matthiasendler/status/1479224185125748737
-            // TODO: Remove this exlusion in the future
+            // TODO: Remove this exclusion in the future
             "--exclude",
             "twitter"
         )
