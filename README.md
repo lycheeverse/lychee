@@ -233,7 +233,7 @@ OPTIONS:
     -f, --format <format>                      Output format of final status report (compact, detailed, json, markdown)
                                                [default: compact]
         --github-token <github-token>          GitHub API token to use when checking github.com links, to avoid rate
-                                               limiting [env: GITHUB_TOKEN=]
+                                               limiting [env: GITHUB_TOKEN]
     -h, --headers <headers>...                 Custom request headers
         --include <include>...                 URLs to check (supports regex). Has preference over all excludes
         --max-concurrency <max-concurrency>    Maximum number of concurrent network requests [default: 128]
