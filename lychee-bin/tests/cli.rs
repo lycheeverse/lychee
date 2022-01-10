@@ -406,6 +406,57 @@ mod cli {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_globset() -> Result<()> {
+        // using Result to be able to use `?`
+        let mut cmd = main_command();
+
+        let dir = tempfile::tempdir()?;
+        let subdir_1 = tempfile::tempdir_in(&dir)?;
+        let subdir_2 = tempfile::tempdir_in(&dir)?;
+        let mut file_a = File::create(subdir_1.path().join("a.html"))?;
+        let mut file_b = File::create(subdir_2.path().join("b.md"))?;
+
+        writeln!(file_a, "https://example.com")?;
+        writeln!(file_b, "https://endler.dev")?;
+
+        cmd.current_dir(dir.path())
+            .arg("**/*.md")
+            .arg("**/*.html")
+            .arg("--verbose")
+            .assert()
+            .success()
+            .stdout(contains("2 Total"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_globset_exclude() -> Result<()> {
+        // using Result to be able to use `?`
+        let mut cmd = main_command();
+
+        let dir = tempfile::tempdir()?;
+        let subdir_1 = tempfile::tempdir_in(&dir)?;
+        let subdir_2 = tempfile::tempdir_in(&dir)?;
+        let mut file_a = File::create(subdir_1.path().join("foo.md"))?;
+        let mut file_b = File::create(subdir_2.path().join("bar.md"))?;
+
+        writeln!(file_a, "https://example.com")?;
+        writeln!(file_b, "https://endler.dev")?;
+
+        cmd.current_dir(dir.path())
+            .arg("**/*.md")
+            .arg("!foo.md")
+            .arg("!./vendor/*")
+            .arg("--verbose")
+            .assert()
+            .success()
+            .stdout(contains("1 Total"));
+
+        Ok(())
+    }
+
     /// Test formatted file output
     #[test]
     fn test_formatted_file_output() -> Result<()> {

@@ -56,7 +56,7 @@ pub enum ErrorKind {
     DirTraversal(#[from] jwalk::Error),
     /// The given glob pattern is not valid
     #[error("UNIX glob pattern is invalid")]
-    InvalidGlobPattern(#[from] glob::PatternError),
+    InvalidGlobPattern(#[from] globset::Error),
     /// The Github API could not be called because of a missing Github token.
     #[error("GitHub token not specified. To check GitHub links reliably, use `--github-token` flag / `GITHUB_TOKEN` env var.")]
     MissingGitHubToken,
@@ -84,7 +84,7 @@ impl PartialEq for ErrorKind {
             (Self::UnreachableEmailAddress(u1), Self::UnreachableEmailAddress(u2))
             | (Self::InsecureURL(u1), Self::InsecureURL(u2)) => u1 == u2,
             (Self::InvalidGlobPattern(e1), Self::InvalidGlobPattern(e2)) => {
-                e1.msg == e2.msg && e1.pos == e2.pos
+                e1.glob() == e2.glob() && e1.kind() == e2.kind()
             }
             (Self::InvalidHeader(_), Self::InvalidHeader(_))
             | (Self::MissingGitHubToken, Self::MissingGitHubToken) => true,

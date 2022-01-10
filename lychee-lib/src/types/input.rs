@@ -2,7 +2,7 @@ use crate::types::FileType;
 use crate::Result;
 use async_stream::try_stream;
 use futures::stream::Stream;
-use glob::glob_with;
+use globset::{Glob, GlobBuilder};
 use jwalk::WalkDir;
 use reqwest::Url;
 use serde::Serialize;
@@ -52,9 +52,7 @@ pub enum InputSource {
     /// Unix shell-style glob pattern.
     FsGlob {
         /// The glob pattern matching all input files
-        pattern: String,
-        /// Don't be case sensitive when matching files against a glob
-        ignore_case: bool,
+        glob: Glob,
     },
     /// File path.
     FsPath(PathBuf),
@@ -80,7 +78,7 @@ impl Display for InputSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::RemoteUrl(url) => url.as_str(),
-            Self::FsGlob { pattern, .. } => pattern,
+            Self::FsGlob { glob } => glob.glob(),
             Self::FsPath(path) => path.to_str().unwrap_or_default(),
             Self::Stdin => "stdin",
             Self::String(s) => s,
@@ -102,28 +100,25 @@ impl Input {
     /// Construct a new `Input` source. In case the input is a `glob` pattern,
     /// `glob_ignore_case` decides whether matching files against the `glob` is
     /// case-insensitive or not
-    pub fn new(value: &str, file_type_hint: Option<FileType>, glob_ignore_case: bool) -> Self {
+    pub fn try_new(
+        value: &str,
+        file_type_hint: Option<FileType>,
+        glob_ignore_case: bool,
+    ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
         } else if let Ok(url) = Url::parse(value) {
             InputSource::RemoteUrl(Box::new(url))
         } else {
-            // this seems to be the only way to determine if this is a glob pattern
-            let is_glob = glob::Pattern::escape(value) != value;
-
-            if is_glob {
-                InputSource::FsGlob {
-                    pattern: value.to_owned(),
-                    ignore_case: glob_ignore_case,
-                }
-            } else {
-                InputSource::FsPath(value.into())
-            }
+            let glob = GlobBuilder::new(value)
+                .case_insensitive(glob_ignore_case)
+                .build()?;
+            InputSource::FsGlob { glob }
         };
-        Self {
+        Ok(Self {
             source,
             file_type_hint,
-        }
+        })
     }
 
     #[allow(clippy::missing_panics_doc)]
@@ -145,10 +140,9 @@ impl Input {
                     yield contents;
                 },
                 InputSource::FsGlob {
-                    ref pattern,
-                    ignore_case,
+                    ref glob,
                 } => {
-                    for await content in Self::glob_contents(pattern, ignore_case).await {
+                    for await content in Self::glob_contents(glob).await {
                         let content = content?;
                         yield content;
                     }
@@ -224,14 +218,8 @@ impl Input {
         Ok(input_content)
     }
 
-    async fn glob_contents(
-        path_glob: &str,
-        ignore_case: bool,
-    ) -> impl Stream<Item = Result<InputContent>> + '_ {
-        let glob_expanded = tilde(&path_glob).to_string();
-        let mut match_opts = glob::MatchOptions::new();
-
-        match_opts.case_sensitive = !ignore_case;
+    async fn glob_contents(glob: Glob) -> impl Stream<Item = Result<InputContent>> {
+        // let glob_expanded = tilde(&path_glob).to_string();
 
         try_stream! {
             for entry in glob_with(&glob_expanded, match_opts)? {
