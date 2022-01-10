@@ -57,7 +57,7 @@ features = ["runtime-tokio"]
 doc-comment = "0.3.3"
 pretty_assertions = "1.0.0"
 tempfile = "3.2.0"
-wiremock = "0.5.9"
+wiremock = "0.5.10"
 
 [features]
 vendored-openssl = ["openssl-sys/vendored"]
