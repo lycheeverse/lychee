@@ -77,7 +77,7 @@ where
         let request = request?;
         if let Some(pb) = &bar {
             pb.inc_length(1);
-            pb.set_message(&request.to_string());
+            pb.set_message(request.to_string());
         };
         send_req
             .send(Ok(request))
@@ -108,7 +108,7 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
     let out = color_response(&response.1);
     if let Some(pb) = progress_bar {
         pb.inc(1);
-        pb.set_message(&out);
+        pb.set_message(out.clone());
         if verbose {
             pb.println(out);
         }
