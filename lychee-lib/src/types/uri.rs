@@ -10,13 +10,19 @@ use crate::{ErrorKind, Result};
 use super::raw_uri::RawUri;
 
 lazy_static! {
-    static ref GITHUB_EXCLUDED_ORGS: HashSet<&'static str> = {
-        let mut m = HashSet::new();
-        m.insert("sponsors");
-        m.insert("marketplace");
-        m.insert("features");
-        m
-    };
+    static ref GITHUB_EXCLUDED_ENDPOINTS: HashSet<&'static str> = HashSet::from_iter([
+        "sponsors",
+        "marketplace",
+        "features",
+        "notifications",
+        "pulls",
+        "issues",
+        "explore",
+        "new",
+        "watching",
+        "about",
+        "pricing"
+    ]);
 }
 
 /// Lychee's own representation of a URI, which encapsulates all supported
@@ -79,19 +85,35 @@ impl Uri {
 
     // TODO: Support GitLab etc.
     pub(crate) fn extract_github(&self) -> Option<(&str, &str)> {
+        // Custom function to return a suffix.
+        // We could use [str::strip_suffix], but it returns an `Option` and is
+        // rather tedious to use in our case. There is also [str::trim_end_matches],
+        // but we only want to remove a single occurrence at the end.
+        fn remove_suffix<'a>(input: &'a str, suffix: &str) -> &'a str {
+            if input.ends_with(suffix) {
+                &input[..input.len() - suffix.len()]
+            } else {
+                input
+            }
+        }
+
         debug_assert!(!self.is_mail(), "Should only be called on a Website type!");
 
-        // TODO: Support more patterns
         if matches!(
             self.domain()?,
             "github.com" | "www.github.com" | "raw.githubusercontent.com"
         ) {
             let mut segments = self.path_segments()?;
             let owner = segments.next()?;
-            if GITHUB_EXCLUDED_ORGS.contains(owner) {
+            if GITHUB_EXCLUDED_ENDPOINTS.contains(owner) {
                 return None;
             }
             let repo = segments.next()?;
+
+            // If the URL ends with `.git`, assume this is an SSH URL and strip
+            // the suffix. See https://github.com/lycheeverse/lychee/issues/384
+            let repo = remove_suffix(repo, ".git");
+
             return Some((owner, repo));
         }
 
@@ -255,6 +277,11 @@ mod test {
         assert_eq!(
             website("https://github.com/lycheeverse/lychee").extract_github(),
             Some(("lycheeverse", "lychee"))
+        );
+
+        assert_eq!(
+            website("https://github.com/Microsoft/python-language-server.git").extract_github(),
+            Some(("Microsoft", "python-language-server"))
         );
 
         // Check known false positives
