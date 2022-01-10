@@ -84,17 +84,12 @@ impl Uri {
     }
 
     // TODO: Support GitLab etc.
-    pub(crate) fn extract_github(&self) -> Option<(&str, &str)> {
-        // Custom function to return a suffix.
-        // We could use [str::strip_suffix], but it returns an `Option` and is
-        // rather tedious to use in our case. There is also [str::trim_end_matches],
-        // but we only want to remove a single occurrence at the end.
+    pub(crate) fn gh_org_and_repo(&self) -> Option<(&str, &str)> {
         fn remove_suffix<'a>(input: &'a str, suffix: &str) -> &'a str {
-            if input.ends_with(suffix) {
-                &input[..input.len() - suffix.len()]
-            } else {
-                input
+            if let Some(stripped) = input.strip_suffix(suffix) {
+                return stripped;
             }
+            input
         }
 
         debug_assert!(!self.is_mail(), "Should only be called on a Website type!");
@@ -103,13 +98,22 @@ impl Uri {
             self.domain()?,
             "github.com" | "www.github.com" | "raw.githubusercontent.com"
         ) {
-            let mut segments = self.path_segments()?;
-            let owner = segments.next()?;
+            let parts: Vec<_> = self.path_segments()?.collect();
+            if parts.len() != 2 {
+                // Accept additional _empty_ path segment after last slash
+                if !(parts.len() == 3 && parts[2].is_empty()) {
+                    // Not a valid org/repo pair.
+                    // Skip this as the API doesn't handle files etc.
+                    return None;
+                }
+            }
+
+            let owner = parts[0];
             if GITHUB_EXCLUDED_ENDPOINTS.contains(owner) {
                 return None;
             }
-            let repo = segments.next()?;
 
+            let repo = parts[1];
             // If the URL ends with `.git`, assume this is an SSH URL and strip
             // the suffix. See https://github.com/lycheeverse/lychee/issues/384
             let repo = remove_suffix(repo, ".git");
@@ -263,45 +267,62 @@ mod test {
     }
 
     #[test]
-    fn test_is_github() {
+    fn test_github() {
         assert_eq!(
-            website("http://github.com/lycheeverse/lychee").extract_github(),
+            website("http://github.com/lycheeverse/lychee").gh_org_and_repo(),
             Some(("lycheeverse", "lychee"))
         );
 
         assert_eq!(
-            website("http://www.github.com/lycheeverse/lychee").extract_github(),
+            website("http://www.github.com/lycheeverse/lychee").gh_org_and_repo(),
             Some(("lycheeverse", "lychee"))
         );
 
         assert_eq!(
-            website("https://github.com/lycheeverse/lychee").extract_github(),
+            website("https://github.com/lycheeverse/lychee").gh_org_and_repo(),
             Some(("lycheeverse", "lychee"))
         );
 
         assert_eq!(
-            website("https://github.com/Microsoft/python-language-server.git").extract_github(),
+            website("https://github.com/lycheeverse/lychee/").gh_org_and_repo(),
+            Some(("lycheeverse", "lychee"))
+        );
+
+        assert_eq!(
+            website("https://github.com/Microsoft/python-language-server.git").gh_org_and_repo(),
             Some(("Microsoft", "python-language-server"))
         );
+    }
 
-        // Check known false positives
+    #[test]
+    fn test_github_false_positives() {
+        assert!(website("https://github.com/lycheeverse/lychee/foo/bar")
+            .gh_org_and_repo()
+            .is_none());
+
+        assert!(
+            website("https://github.com/lycheeverse/lychee/blob/master/NON_EXISTENT_FILE.md")
+                .gh_org_and_repo()
+                .is_none()
+        );
+
         assert!(website("https://github.com/sponsors/analysis-tools-dev ")
-            .extract_github()
+            .gh_org_and_repo()
             .is_none());
 
         assert!(
             website("https://github.com/marketplace/actions/lychee-broken-link-checker")
-                .extract_github()
+                .gh_org_and_repo()
                 .is_none()
         );
 
         assert!(website("https://github.com/features/actions")
-            .extract_github()
+            .gh_org_and_repo()
             .is_none());
 
         assert!(
             website("https://pkg.go.dev/github.com/Debian/pkg-go-tools/cmd/pgt-gopath")
-                .extract_github()
+                .gh_org_and_repo()
                 .is_none()
         );
     }

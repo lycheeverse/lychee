@@ -262,7 +262,7 @@ impl Client {
         }
         // Pull out the heavy weapons in case of a failed normal request.
         // This could be a Github URL and we run into the rate limiter.
-        if let Some((owner, repo)) = uri.extract_github() {
+        if let Some((owner, repo)) = uri.gh_org_and_repo() {
             return self.check_github(owner, repo).await;
         }
 
