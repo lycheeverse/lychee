@@ -260,24 +260,39 @@ impl Client {
             wait *= 2;
             status = self.check_default(uri).await;
         }
-        // Pull out the heavy weapons in case of a failed normal request.
+
+        // Pull out the heavy machinery in case of a failed normal request.
         // This could be a Github URL and we run into the rate limiter.
-        if let Some((owner, repo)) = uri.gh_org_and_repo() {
-            return self.check_github(owner, repo).await;
+        if let Some(github_uri) = uri.gh_org_and_repo() {
+            if let Some(client) = &self.github_client {
+                match client.repo(github_uri.owner, github_uri.repo).get().await {
+                    Ok(repo) => {
+                        if repo.private {
+                            // Simplify checking private repos by
+                            // assuming the path exists if the main repo exists
+                            // E.g. `github.com/org/private/issues` would exist
+                            // because `github.com/org/private` exists
+                            return Status::Ok(StatusCode::OK);
+                        } else {
+                            if github_uri.endpoint.is_some() {
+                                // The URI returned a non-200 status code in a
+                                // normal request and now we find that the repo
+                                // exists, so the full URI (including the
+                                // additional endpoint) must be invalid.
+                                return Status::Ok(StatusCode::NOT_FOUND);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        return e.into();
+                    }
+                }
+            } else {
+                return ErrorKind::MissingGitHubToken.into();
+            }
         }
 
         status
-    }
-
-    async fn check_github(&self, owner: &str, repo: &str) -> Status {
-        match &self.github_client {
-            Some(github) => github
-                .repo(owner, repo)
-                .get()
-                .await
-                .map_or_else(std::convert::Into::into, |_| Status::Ok(StatusCode::OK)),
-            None => ErrorKind::MissingGitHubToken.into(),
-        }
     }
 
     async fn check_default(&self, uri: &Uri) -> Status {

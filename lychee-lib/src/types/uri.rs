@@ -10,7 +10,7 @@ use crate::{ErrorKind, Result};
 use super::raw_uri::RawUri;
 
 lazy_static! {
-    static ref GITHUB_EXCLUDED_ENDPOINTS: HashSet<&'static str> = HashSet::from_iter([
+    static ref GITHUB_API_EXCLUDED_ENDPOINTS: HashSet<&'static str> = HashSet::from_iter([
         "sponsors",
         "marketplace",
         "features",
@@ -23,6 +23,36 @@ lazy_static! {
         "about",
         "pricing"
     ]);
+}
+
+/// Uri path segments extracted from a Github URL
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub(crate) struct GithubUri {
+    /// Organization name
+    pub(crate) owner: String,
+    /// Repository name
+    pub(crate) repo: String,
+    /// e.g. `issues` in `/org/repo/issues`
+    pub(crate) endpoint: Option<String>,
+}
+
+impl GithubUri {
+    /// Create a new Github URI without an endpoint
+    fn new<T: Into<String>>(owner: T, repo: T) -> Self {
+        GithubUri {
+            owner: owner.into(),
+            repo: repo.into(),
+            endpoint: None,
+        }
+    }
+
+    fn with_endpoint<T: Into<String>>(owner: T, repo: T, endpoint: T) -> Self {
+        GithubUri {
+            owner: owner.into(),
+            repo: repo.into(),
+            endpoint: Some(endpoint.into()),
+        }
+    }
 }
 
 /// Lychee's own representation of a URI, which encapsulates all supported
@@ -84,7 +114,7 @@ impl Uri {
     }
 
     // TODO: Support GitLab etc.
-    pub(crate) fn gh_org_and_repo(&self) -> Option<(&str, &str)> {
+    pub(crate) fn gh_org_and_repo(&self) -> Option<GithubUri> {
         fn remove_suffix<'a>(input: &'a str, suffix: &str) -> &'a str {
             if let Some(stripped) = input.strip_suffix(suffix) {
                 return stripped;
@@ -99,17 +129,19 @@ impl Uri {
             "github.com" | "www.github.com" | "raw.githubusercontent.com"
         ) {
             let parts: Vec<_> = self.path_segments()?.collect();
-            if parts.len() != 2 {
-                // Accept additional _empty_ path segment after last slash
-                if !(parts.len() == 3 && parts[2].is_empty()) {
-                    // Not a valid org/repo pair.
-                    // Skip this as the API doesn't handle files etc.
-                    return None;
-                }
+            if parts.len() < 2 {
+                // Not a valid org/repo pair.
+                // Note: We don't check for exactly 2 here, because the Github
+                // API doesn't handle checking individual files inside repos or
+                // paths like `github.com/org/repo/issues`, so we are more
+                // permissive and only check for repo existence. This is the
+                // only way to get a basic check for private repos. Public repos
+                // are not affected and should work with a normal check.
+                return None;
             }
 
             let owner = parts[0];
-            if GITHUB_EXCLUDED_ENDPOINTS.contains(owner) {
+            if GITHUB_API_EXCLUDED_ENDPOINTS.contains(owner) {
                 return None;
             }
 
@@ -118,7 +150,17 @@ impl Uri {
             // the suffix. See https://github.com/lycheeverse/lychee/issues/384
             let repo = remove_suffix(repo, ".git");
 
-            return Some((owner, repo));
+            let endpoint = if parts.len() > 2 && !parts[2].is_empty() {
+                Some(parts[2..].join("/"))
+            } else {
+                None
+            };
+
+            return Some(GithubUri {
+                owner: owner.to_string(),
+                repo: repo.to_string(),
+                endpoint,
+            });
         }
 
         None
@@ -214,7 +256,10 @@ mod test {
     use pretty_assertions::assert_eq;
 
     use super::Uri;
-    use crate::test_utils::{mail, website};
+    use crate::{
+        test_utils::{mail, website},
+        types::uri::GithubUri,
+    };
 
     #[test]
     fn test_uri_from_str() {
@@ -270,42 +315,47 @@ mod test {
     fn test_github() {
         assert_eq!(
             website("http://github.com/lycheeverse/lychee").gh_org_and_repo(),
-            Some(("lycheeverse", "lychee"))
+            Some(GithubUri::new("lycheeverse", "lychee"))
         );
 
         assert_eq!(
             website("http://www.github.com/lycheeverse/lychee").gh_org_and_repo(),
-            Some(("lycheeverse", "lychee"))
+            Some(GithubUri::new("lycheeverse", "lychee"))
         );
 
         assert_eq!(
             website("https://github.com/lycheeverse/lychee").gh_org_and_repo(),
-            Some(("lycheeverse", "lychee"))
+            Some(GithubUri::new("lycheeverse", "lychee"))
         );
 
         assert_eq!(
             website("https://github.com/lycheeverse/lychee/").gh_org_and_repo(),
-            Some(("lycheeverse", "lychee"))
+            Some(GithubUri::new("lycheeverse", "lychee"))
         );
 
         assert_eq!(
             website("https://github.com/Microsoft/python-language-server.git").gh_org_and_repo(),
-            Some(("Microsoft", "python-language-server"))
+            Some(GithubUri::new("Microsoft", "python-language-server"))
+        );
+
+        assert_eq!(
+            website("https://github.com/lycheeverse/lychee/foo/bar").gh_org_and_repo(),
+            Some(GithubUri::with_endpoint("lycheeverse", "lychee", "foo/bar"))
+        );
+
+        assert_eq!(
+            website("https://github.com/lycheeverse/lychee/blob/master/NON_EXISTENT_FILE.md")
+                .gh_org_and_repo(),
+            Some(GithubUri::with_endpoint(
+                "lycheeverse",
+                "lychee",
+                "blob/master/NON_EXISTENT_FILE.md"
+            ))
         );
     }
 
     #[test]
     fn test_github_false_positives() {
-        assert!(website("https://github.com/lycheeverse/lychee/foo/bar")
-            .gh_org_and_repo()
-            .is_none());
-
-        assert!(
-            website("https://github.com/lycheeverse/lychee/blob/master/NON_EXISTENT_FILE.md")
-                .gh_org_and_repo()
-                .is_none()
-        );
-
         assert!(website("https://github.com/sponsors/analysis-tools-dev ")
             .gh_org_and_repo()
             .is_none());
