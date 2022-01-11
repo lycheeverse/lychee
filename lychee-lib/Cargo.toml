@@ -27,7 +27,7 @@ linkify = "0.8.0"
 openssl-sys = "0.9.72"
 pulldown-cmark = "0.9.0"
 regex = "1.5.4"
-reqwest = { version = "0.11.8", features = ["gzip"] }
+reqwest = { version = "0.11.9", features = ["gzip"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
