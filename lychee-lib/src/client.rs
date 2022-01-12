@@ -20,6 +20,7 @@ use typed_builder::TypedBuilder;
 use crate::{
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
+    types::GithubUri,
     ErrorKind, Request, Response, Result, Status, Uri,
 };
 
@@ -262,39 +263,46 @@ impl Client {
         }
 
         // Pull out the heavy machinery in case of a failed normal request.
-        // This could be a Github URL and we run into the rate limiter.
+        // This could be a Github URL and we ran into the rate limiter.
         if let Some(github_uri) = uri.gh_org_and_repo() {
-            if let Some(client) = &self.github_client {
-                match client.repo(github_uri.owner, github_uri.repo).get().await {
-                    Ok(repo) => {
-                        if repo.private {
-                            // Simplify checking private repos by
-                            // assuming the path exists if the main repo exists
-                            // E.g. `github.com/org/private/issues` would exist
-                            // because `github.com/org/private` exists
-                            return Status::Ok(StatusCode::OK);
-                        } else {
-                            if github_uri.endpoint.is_some() {
-                                // The URI returned a non-200 status code in a
-                                // normal request and now we find that the repo
-                                // exists, so the full URI (including the
-                                // additional endpoint) must be invalid.
-                                return Status::Ok(StatusCode::NOT_FOUND);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        return e.into();
-                    }
-                }
-            } else {
-                return ErrorKind::MissingGitHubToken.into();
-            }
+            return self.check_github(github_uri).await;
         }
 
         status
     }
 
+    /// Check a URI using the Github API.
+    ///
+    /// Caveat: Files inside private repositories won't get checked and instead
+    /// be reported as valid if the repository itself is reachable through the
+    /// API. A better approach would be to download the file through the API or
+    /// clone the repo, but we chose the pragmatic approach.
+    async fn check_github(&self, uri: GithubUri) -> Status {
+        let client = match &self.github_client {
+            Some(client) => client,
+            None => return ErrorKind::MissingGitHubToken.into(),
+        };
+        let repo = match client.repo(uri.owner, uri.repo).get().await {
+            Ok(repo) => repo,
+            Err(e) => return ErrorKind::GithubError(Some(e)).into(),
+        };
+        if repo.private {
+            // The private repo exists. Assume a given endpoint exists as well
+            // (e.g. `issues` in `github.com/org/private/issues`). This is not
+            // always the case but simplifies the check.
+            return Status::Ok(StatusCode::OK);
+        } else if uri.endpoint.is_some() {
+            // The URI returned a non-200 status code from a normal request and
+            // now we find that this public repo is reachable through the API,
+            // so that must mean the full URI (which includes the additional
+            // endpoint) must be invalid.
+            return ErrorKind::GithubError(None).into();
+        }
+        // Found public repo without endpoint
+        Status::Ok(StatusCode::OK)
+    }
+
+    /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest)
     async fn check_default(&self, uri: &Uri) -> Status {
         let request = match self
             .reqwest_client
