@@ -29,3 +29,7 @@ install: ## Install project locally
 .PHONY: run
 run: ## Run project locally
 	cargo run
+
+.PHONY: docs
+docs: ## Generate and show documentation
+	cargo doc --open 
