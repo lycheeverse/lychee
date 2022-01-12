@@ -26,8 +26,8 @@ pub enum ErrorKind {
     #[error("Network error while trying to connect to an endpoint via reqwest")]
     ReqwestError(#[from] reqwest::Error),
     /// Hubcaps network error
-    #[error("Network error when trying to connect to an endpoint via hubcaps")]
-    HubcapsError(#[from] hubcaps::Error),
+    #[error("Network error when trying to connect to a Github URL via hubcaps")]
+    GithubError(#[from] Option<hubcaps::Error>),
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
     #[error("Cannot parse {0} as website url / file path or mail address: ({1:?})")]
     UrlParseError(String, (url::ParseError, Option<fast_chemail::ParseError>)),
@@ -79,7 +79,7 @@ impl PartialEq for ErrorKind {
         match (self, other) {
             (Self::IoError(p1, e1), Self::IoError(p2, e2)) => p1 == p2 && e1.kind() == e2.kind(),
             (Self::ReqwestError(e1), Self::ReqwestError(e2)) => e1.to_string() == e2.to_string(),
-            (Self::HubcapsError(e1), Self::HubcapsError(e2)) => e1.to_string() == e2.to_string(),
+            (Self::GithubError(_e1), Self::GithubError(_e2)) => false, // hubcaps::Error doesn't impl PartialEq
             (Self::UrlParseError(s1, e1), Self::UrlParseError(s2, e2)) => s1 == s2 && e1 == e2,
             (Self::UnreachableEmailAddress(u1), Self::UnreachableEmailAddress(u2))
             | (Self::InsecureURL(u1), Self::InsecureURL(u2)) => u1 == u2,
@@ -103,7 +103,7 @@ impl Hash for ErrorKind {
         match self {
             Self::IoError(p, e) => (p, e.kind()).hash(state),
             Self::ReqwestError(e) => e.to_string().hash(state),
-            Self::HubcapsError(e) => e.to_string().hash(state),
+            Self::GithubError(e) => e.type_id().hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
             Self::UrlParseError(s, e) => (s, e.type_id()).hash(state),

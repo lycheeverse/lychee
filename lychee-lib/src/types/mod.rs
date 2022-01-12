@@ -17,7 +17,7 @@ pub use input::{Input, InputContent, InputSource};
 pub use request::Request;
 pub use response::{Response, ResponseBody};
 pub use status::Status;
-pub use uri::Uri;
+pub use uri::{GithubUri, Uri};
 
 /// The lychee `Result` type
 pub type Result<T> = std::result::Result<T, crate::ErrorKind>;
