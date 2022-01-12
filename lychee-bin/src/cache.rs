@@ -1,14 +1,25 @@
-use crate::time::{timestamp, Timestamp};
+use crate::time::{self, timestamp, Timestamp};
 use anyhow::Result;
 use dashmap::DashMap;
-use lychee_lib::{CacheStatus, Uri};
+use lychee_lib::{CacheStatus, Status, Uri};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+/// Describes a response status that can be serialized to disk
 #[derive(Serialize, Deserialize)]
 pub(crate) struct CacheValue {
     pub(crate) status: CacheStatus,
     pub(crate) timestamp: Timestamp,
+}
+
+impl From<&Status> for CacheValue {
+    fn from(s: &Status) -> Self {
+        let timestamp = time::timestamp();
+        CacheValue {
+            status: s.into(),
+            timestamp,
+        }
+    }
 }
 
 /// The cache stores previous response codes
