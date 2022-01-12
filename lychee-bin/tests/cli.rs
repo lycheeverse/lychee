@@ -117,8 +117,7 @@ mod cli {
                 successful: 2,
                 ..MockResponseStats::default()
             },
-            "--exclude-mail",
-            "--no-cache"
+            "--exclude-mail"
         )
     }
 
@@ -145,7 +144,6 @@ mod cli {
         // (File URIs are absolute paths, which we don't have.)
         // Nevertheless, the `file` scheme should be recognized.
         cmd.arg(test_schemes_path)
-            .arg("--no-cache")
             .arg("--exclude")
             .arg("file://")
             .env_clear()
@@ -261,8 +259,7 @@ mod cli {
             // result, the response might not be cached and the test would be
             // flaky. Therefore limit the concurrency to one request at a time.
             "--max-concurrency",
-            "1",
-            "--no-cache"
+            "1"
         )
     }
 
@@ -272,7 +269,6 @@ mod cli {
         let test_github_404_path = fixtures_path().join("TEST_GITHUB_404.md");
 
         cmd.arg(test_github_404_path)
-            .arg("--no-cache")
             .arg("--no-progress")
             .env_clear()
             .assert()
@@ -288,7 +284,6 @@ mod cli {
         let mock_server = mock_server!(StatusCode::OK);
 
         cmd.arg("-")
-            .arg("--no-cache")
             .write_stdin(mock_server.uri())
             .assert()
             .success();
@@ -300,7 +295,6 @@ mod cli {
         let mock_server = mock_server!(StatusCode::INTERNAL_SERVER_ERROR);
 
         cmd.arg("-")
-            .arg("--no-cache")
             .write_stdin(mock_server.uri())
             .assert()
             .failure()
@@ -361,7 +355,6 @@ mod cli {
         writeln!(file_b, "{}", mock_server_b.uri().as_str())?;
 
         cmd.arg(dir.path().join("*.md"))
-            .arg("--no-cache")
             .arg("--verbose")
             .assert()
             .success()
@@ -424,8 +417,7 @@ mod cli {
         let test_path = fixtures_path().join("TEST.md");
         let outfile = format!("{}.json", Uuid::new_v4());
 
-        cmd.arg("--no-cache")
-            .arg("--output")
+        cmd.arg("--output")
             .arg(&outfile)
             .arg("--format")
             .arg("json")
@@ -496,7 +488,6 @@ mod cli {
         let excludes_path2 = fixtures_path().join("TEST_EXCLUDE_2.txt");
 
         cmd.arg(test_path)
-            .arg("--no-cache")
             .arg("--exclude-file")
             .arg(excludes_path1)
             .arg(excludes_path2)
@@ -513,7 +504,6 @@ mod cli {
         let test_path = fixtures_path().join("ignore");
 
         cmd.current_dir(test_path)
-            .arg("--no-cache")
             .arg("TEST.md")
             .assert()
             .success()
@@ -548,11 +538,7 @@ mod cli {
         cmd.arg(&test_path).assert().success();
 
         let mut cmd = main_command();
-        cmd.arg("--no-cache")
-            .arg("--require-https")
-            .arg(test_path)
-            .assert()
-            .failure();
+        cmd.arg("--require-https").arg(test_path).assert().failure();
 
         Ok(())
     }

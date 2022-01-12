@@ -8,6 +8,8 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
+use crate::cache::CacheValue;
+use crate::time;
 use crate::{
     cache::Cache,
     options::Config,
@@ -116,7 +118,7 @@ async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Respons
         let status = if client.is_excluded(&uri) {
             Status::Excluded
         } else {
-            Status::from(*v.value())
+            Status::from(v.value().status)
         };
         return Response::new(uri.clone(), status, request.source);
     }
@@ -131,7 +133,12 @@ async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Respons
     // Never cache filesystem access as it is fast already so caching has no
     // benefit
     if !uri.is_file() {
-        cache.insert(uri, response.status().into());
+        let timestamp = time::timestamp();
+        let cache_val = CacheValue {
+            status: response.status().into(),
+            timestamp,
+        };
+        cache.insert(uri, cache_val);
     }
     response
 }

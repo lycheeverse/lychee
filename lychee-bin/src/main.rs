@@ -77,6 +77,7 @@ mod commands;
 mod options;
 mod parse;
 mod stats;
+mod time;
 mod writer;
 
 use crate::{
@@ -146,6 +147,9 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
         return None;
     }
 
+    // Discard entire cache if it hasn't been updated since `max_cache_age`.
+    // This is an optimization, which avoids iterating over the file and
+    // checking the age of each entry.
     match fs::metadata(LYCHEE_CACHE_FILE) {
         Err(_e) => {
             // No cache found; silently start with empty cache
@@ -165,7 +169,7 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
         }
     }
 
-    let cache = Cache::load(LYCHEE_CACHE_FILE);
+    let cache = Cache::load(LYCHEE_CACHE_FILE, cfg.max_cache_age.as_secs());
     match cache {
         Ok(cache) => Some(cache),
         Err(e) => {
