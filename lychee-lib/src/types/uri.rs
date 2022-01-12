@@ -27,17 +27,18 @@ lazy_static! {
 
 /// Uri path segments extracted from a Github URL
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub(crate) struct GithubUri {
+pub struct GithubUri {
     /// Organization name
-    pub(crate) owner: String,
+    pub owner: String,
     /// Repository name
-    pub(crate) repo: String,
+    pub repo: String,
     /// e.g. `issues` in `/org/repo/issues`
-    pub(crate) endpoint: Option<String>,
+    pub endpoint: Option<String>,
 }
 
 impl GithubUri {
     /// Create a new Github URI without an endpoint
+    #[cfg(test)]
     fn new<T: Into<String>>(owner: T, repo: T) -> Self {
         GithubUri {
             owner: owner.into(),
@@ -46,6 +47,7 @@ impl GithubUri {
         }
     }
 
+    #[cfg(test)]
     fn with_endpoint<T: Into<String>>(owner: T, repo: T, endpoint: T) -> Self {
         GithubUri {
             owner: owner.into(),
