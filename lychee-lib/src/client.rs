@@ -382,7 +382,6 @@ mod test {
     #[tokio::test]
     async fn test_nonexistent_with_path() {
         let res = get_mock_client_response("http://127.0.0.1/invalid").await;
-
         assert!(res.status().is_failure());
     }
 
@@ -404,14 +403,21 @@ mod test {
     #[tokio::test]
     async fn test_github() {
         let res = get_mock_client_response("https://github.com/lycheeverse/lychee").await;
-
         assert!(res.status().is_success());
     }
 
     #[tokio::test]
-    async fn test_github_nonexistent() {
+    async fn test_github_nonexistent_repo() {
         let res = get_mock_client_response("https://github.com/lycheeverse/not-lychee").await;
+        assert!(res.status().is_failure());
+    }
 
+    #[tokio::test]
+    async fn test_github_nonexistent_file() {
+        let res = get_mock_client_response(
+            "https://github.com/lycheeverse/lychee/blob/master/NON_EXISTENT_FILE.md",
+        )
+        .await;
         assert!(res.status().is_failure());
     }
 
