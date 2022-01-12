@@ -237,6 +237,7 @@ OPTIONS:
                                                limiting [env: GITHUB_TOKEN]
     -h, --headers <headers>...                 Custom request headers
         --include <include>...                 URLs to check (supports regex). Has preference over all excludes
+        --max-cache-age <max-cache-age>         [default: 1d]
         --max-concurrency <max-concurrency>    Maximum number of concurrent network requests [default: 128]
     -m, --max-redirects <max-redirects>        Maximum number of allowed redirects [default: 5]
         --max-retries <max-retries>            Maximum number of retries per request [default: 3]
