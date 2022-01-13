@@ -5,7 +5,8 @@
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-lychee-blue.svg?colorA=24292e&colorB=0366d6&style=flat&longCache=true&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAM6wAADOsB5dZE0gAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAERSURBVCiRhZG/SsMxFEZPfsVJ61jbxaF0cRQRcRJ9hlYn30IHN/+9iquDCOIsblIrOjqKgy5aKoJQj4O3EEtbPwhJbr6Te28CmdSKeqzeqr0YbfVIrTBKakvtOl5dtTkK+v4HfA9PEyBFCY9AGVgCBLaBp1jPAyfAJ/AAdIEG0dNAiyP7+K1qIfMdonZic6+WJoBJvQlvuwDqcXadUuqPA1NKAlexbRTAIMvMOCjTbMwl1LtI/6KWJ5Q6rT6Ht1MA58AX8Apcqqt5r2qhrgAXQC3CZ6i1+KMd9TRu3MvA3aH/fFPnBodb6oe6HM8+lYHrGdRXW8M9bMZtPXUji69lmf5Cmamq7quNLFZXD9Rq7v0Bpc1o/tp0fisAAAAASUVORK5CYII=)](https://github.com/marketplace/actions/lychee-broken-link-checker)
 
 ⚡ A fast, async, stream-based link checker written in Rust.\
-Finds broken hyperlinks and mail addresses inside Markdown, HTML, reStructuredText, or any other text file or website!
+Finds broken hyperlinks and mail addresses inside Markdown, HTML,
+reStructuredText, or any other text file or website!
 
 Available as a command-line utility, a library and a [GitHub Action](https://github.com/lycheeverse/lychee-action).
 
@@ -267,7 +268,15 @@ You can exclude links from getting checked by either specifying regex patterns
 with `--exclude` (e.g. `--exclude example\.(com|org)`) or by using an "exclude
 file" (`--exclude_file`), which allows you to list multiple regular expressions
 for exclusion (one pattern per line).  
-If a file named `.lycheeignore` exists in the current working directory, its contents are excluded as well.
+If a file named `.lycheeignore` exists in the current working directory, its
+contents are excluded as well.
+
+### Caching
+
+If the `--cache` flag is set, lychee will cache responses in a file called
+`.lycheecache` in the current directory. If the file exists and the flag is set,
+then the cache will be loaded on startup. This can greatly speed up future runs.
+Note that by default lychee will not store any data on disk.
 
 ## Library usage
 
@@ -319,8 +328,10 @@ let client = lychee_lib::ClientBuilder::builder()
 ```
 
 All options that you set will be used for all link checks.
-See the [builder documentation](https://docs.rs/lychee-lib/latest/lychee_lib/struct.ClientBuilder.html) for all options.
-For more information, check out the [examples](examples) folder.
+See the [builder
+documentation](https://docs.rs/lychee-lib/latest/lychee_lib/struct.ClientBuilder.html)
+for all options. For more information, check out the [examples](examples)
+folder.
 
 ## GitHub Action Usage
 
@@ -349,10 +360,11 @@ cargo-publish-all --dry-run --yes # dry run release
 
 ## Debugging and improving async code
 
-Lychee makes heavy use of async code to be resource-friendly while still being performant.
-Async code can be difficult to troubleshoot with most tools, however.
-Therefore we provide experimental support for [tokio-console](https://github.com/tokio-rs/console).
-It provides a top(1)-like overview for async tasks!
+Lychee makes heavy use of async code to be resource-friendly while still being
+performant. Async code can be difficult to troubleshoot with most tools,
+however. Therefore we provide experimental support for
+[tokio-console](https://github.com/tokio-rs/console). It provides a top(1)-like
+overview for async tasks!
 
 If you want to give it a spin, download and start the console:
 
