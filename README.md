@@ -7,7 +7,7 @@
 ⚡ A fast, async, stream-based link checker written in Rust.\
 Finds broken hyperlinks and mail addresses inside Markdown, HTML, reStructuredText, or any other text file or website!
 
-Available as a CLI utility and as a GitHub Action: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action).
+Available as a command-line utility, a library and a [GitHub Action](https://github.com/lycheeverse/lychee-action).
 
 ![Lychee demo](./assets/lychee.gif)
 
