@@ -20,7 +20,7 @@ use typed_builder::TypedBuilder;
 use crate::{
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
-    types::{GithubUri, mail},
+    types::{mail, GithubUri},
     ErrorKind, Request, Response, Result, Status, Uri,
 };
 

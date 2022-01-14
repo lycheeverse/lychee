@@ -7,8 +7,8 @@ mod file;
 mod input;
 pub(crate) mod mail;
 pub(crate) mod raw_uri;
-mod response;
 mod request;
+mod response;
 mod status;
 mod uri;
 
