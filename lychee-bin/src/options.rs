@@ -151,6 +151,7 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) cache: bool,
 
+    /// Discard all cached requests older than this duration
     #[structopt(
         long,
         parse(try_from_str = humantime::parse_duration),
