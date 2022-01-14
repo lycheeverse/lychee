@@ -50,8 +50,8 @@ pub enum ErrorKind {
     #[error("Invalid path to URL conversion: {0}")]
     InvalidUrlFromPath(PathBuf),
     /// The given mail address is unreachable
-    #[error("Unreachable mail address: {0}")]
-    UnreachableEmailAddress(Uri),
+    #[error("Unreachable mail address: {0}: {1}")]
+    UnreachableEmailAddress(Uri, String),
     /// The given header could not be parsed.
     /// A possible error when converting a `HeaderValue` from a string or byte
     /// slice.
@@ -93,7 +93,7 @@ impl PartialEq for ErrorKind {
             (Self::ReqwestError(e1), Self::ReqwestError(e2)) => e1.to_string() == e2.to_string(),
             (Self::GithubError(_e1), Self::GithubError(_e2)) => false, // hubcaps::Error doesn't impl PartialEq
             (Self::UrlParseError(s1, e1), Self::UrlParseError(s2, e2)) => s1 == s2 && e1 == e2,
-            (Self::UnreachableEmailAddress(u1), Self::UnreachableEmailAddress(u2))
+            (Self::UnreachableEmailAddress(u1, ..), Self::UnreachableEmailAddress(u2, ..))
             | (Self::InsecureURL(u1), Self::InsecureURL(u2)) => u1 == u2,
             (Self::InvalidGlobPattern(e1), Self::InvalidGlobPattern(e2)) => {
                 e1.msg == e2.msg && e1.pos == e2.pos
@@ -122,7 +122,9 @@ impl Hash for ErrorKind {
             Self::InvalidURI(u) => u.hash(state),
             Self::InvalidUrlFromPath(p) => p.hash(state),
             Self::Utf8Error(e) => e.to_string().hash(state),
-            Self::InvalidFilePath(u) | Self::UnreachableEmailAddress(u) | Self::InsecureURL(u) => {
+            Self::InvalidFilePath(u)
+            | Self::UnreachableEmailAddress(u, ..)
+            | Self::InsecureURL(u) => {
                 u.hash(state);
             }
             Self::InvalidBase(base, e) => (base, e).hash(state),

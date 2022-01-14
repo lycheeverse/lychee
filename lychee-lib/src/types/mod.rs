@@ -5,6 +5,7 @@ mod cache;
 mod error;
 mod file;
 mod input;
+pub(crate) mod mail;
 pub(crate) mod raw_uri;
 mod request;
 mod response;
