@@ -7,7 +7,8 @@ use thiserror::Error;
 use super::InputContent;
 use crate::Uri;
 
-/// Kinds of status errors.
+/// Kinds of status errors
+/// Note: The error messages can change over time, so don't match on the output
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
@@ -23,10 +24,21 @@ pub enum ErrorKind {
     #[error("Attempted to interpret an invalid sequence of bytes as a string")]
     Utf8Error(#[from] std::str::Utf8Error),
     /// Reqwest network error
-    #[error("Network error while trying to connect to an endpoint via reqwest")]
+    #[error("Network error (reqwest): {0}")]
     ReqwestError(#[from] reqwest::Error),
-    /// Hubcaps network error
-    #[error("Network error when trying to connect to a Github URL via hubcaps")]
+    /// Network error while using Github API (via hubcaps)
+    #[error("Network error (hubcaps) {}", match .0 {
+        Some(e) => match e {
+            hubcaps::Error::Fault { code, error } => format!(": {} [{}]", error.message.clone(), code),
+            hubcaps::Error::RateLimit { .. } => "Hit the rate limit".to_string(),
+            hubcaps::Error::Codec(e) => e.to_string(),
+            hubcaps::Error::Reqwest(e) => e.to_string(),
+            hubcaps::Error::Url(e) => e.to_string(),
+            hubcaps::Error::IO(e) => e.to_string(),
+            hubcaps::Error::JWT(e) => e.to_string(),
+        }
+        None => "".to_string(),
+    })]
     GithubError(#[from] Option<hubcaps::Error>),
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
     #[error("Cannot parse {0} as website url / file path or mail address: ({1:?})")]
