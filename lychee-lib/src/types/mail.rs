@@ -9,12 +9,11 @@ pub(crate) fn error_from_output(o: &CheckEmailOutput) -> String {
         return format!("{:?}", e);
     } else if let Err(e) = &o.mx {
         return format!("{:?}", e);
-    } else {
-        return match &o.is_reachable {
+    }
+    match &o.is_reachable {
             Reachable::Safe => "Safe: The email is safe to send",
             Reachable::Risky => "Risky: The email address appears to exist, but has quality issues that may result in low engagement or a bounce",
             Reachable::Invalid => "Invalid: Email doesn't exist or is syntactically incorrect",
             Reachable::Unknown => "Unknown: We're unable to get a valid response from the recipient's email server."
-        }.to_string();
-    }
+        }.to_string()
 }
