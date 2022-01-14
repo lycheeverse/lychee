@@ -308,7 +308,7 @@ mod test {
     }
 
     #[test]
-    fn test_mail() {
+    fn test_localhost() {
         assert_eq!(
             website("http://127.0.0.1").host_ip(),
             Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))
