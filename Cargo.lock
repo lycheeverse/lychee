@@ -2564,6 +2564,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "recursion"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "lychee-lib",
+ "regex",
+ "reqwest",
+ "tokio",
+ "tokio-stream",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.1.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"

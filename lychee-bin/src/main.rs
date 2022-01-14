@@ -201,7 +201,7 @@ fn run_main() -> Result<i32> {
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs();
     let requests = Collector::new(opts.config.base.clone(), opts.config.skip_missing)
-        .collect_links(inputs)
+        .from_iter(inputs)
         .await;
 
     let client = client::create(&opts.config)?;

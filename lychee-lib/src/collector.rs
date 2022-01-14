@@ -25,16 +25,59 @@ impl Collector {
         }
     }
 
-    /// Fetch all unique links from inputs
+    /// Fetch all unique links from a vector of inputs. The stream ends when all
+    /// inputs were processed. If you need support for recursion, use
+    /// `from_chan` instead.
+    ///
+    /// All relative URLs get prefixed with `base` (if given). (This can be a
+    /// directory or a base URL)
+    ///
+    /// # Errors
+    ///
+    /// Will return `Err` if links cannot be extracted from an input
+    pub async fn from_iter<'a, T: IntoIterator<Item = Input> + Send + 'a>(
+        self,
+        input: T,
+    ) -> impl Stream<Item = Result<Request>>
+    where
+        <T as IntoIterator>::IntoIter: Send + 'static,
+    {
+        let skip_missing_inputs = self.skip_missing_inputs;
+        let contents = stream::iter(input)
+            .par_then_unordered(None, move |input| async move {
+                input.get_contents(skip_missing_inputs).await
+            })
+            .flatten();
+
+        let base = self.base;
+        contents
+            .par_then_unordered(None, move |content| {
+                // send to parallel worker
+                let base = base.clone();
+                async move {
+                    let content = content?;
+                    let uris: Vec<RawUri> = Extractor::extract(&content);
+                    let requests = request::create(uris, &content, &base)?;
+                    Result::Ok(stream::iter(requests.into_iter().map(Ok)))
+                }
+            })
+            .try_flatten()
+    }
+
+    /// Fetch all unique links from a channel of inputs. The stream ends when
+    /// when the channel gets closed. For simple use-cases without the need for
+    /// recursion, `from_vec` might be more convenient as it uses a fixed set of
+    /// inputs.
+    ///
     /// All relative URLs get prefixed with `base` (if given).
     /// (This can be a directory or a base URL)
     ///
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
+    pub async fn from_chan(self, input_chan: Vec<Input>) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
-        let contents = stream::iter(inputs)
+        let contents = stream::iter(input_chan)
             .par_then_unordered(None, move |input| async move {
                 input.get_contents(skip_missing_inputs).await
             })
@@ -74,7 +117,7 @@ mod test {
 
     // Helper function to run the collector on the given inputs
     async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
-        let responses = Collector::new(base, false).collect_links(inputs).await;
+        let responses = Collector::new(base, false).from_iter(inputs).await;
         responses.map(|r| r.unwrap().uri).collect().await
     }
 
