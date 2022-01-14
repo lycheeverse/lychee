@@ -211,8 +211,8 @@ impl Client {
             element: _element,
             attribute: _attribute,
         } = request.try_into()?;
-        // TODO: Allow filtering based on element and attribute
 
+        // TODO: Allow filtering based on element and attribute
         let status = if self.filter.is_excluded(&uri) {
             Status::Excluded
         } else if uri.is_file() {
@@ -242,7 +242,7 @@ impl Client {
 
     /// Check if the given URI is filtered by the client
     #[must_use]
-    pub fn filtered(&self, uri: &Uri) -> bool {
+    pub fn is_excluded(&self, uri: &Uri) -> bool {
         self.filter.is_excluded(uri)
     }
 
@@ -347,7 +347,12 @@ impl Client {
 /// A convenience function to check a single URI
 /// This is the most simple link check and avoids having to create a client manually.
 /// For more complex scenarios, look into using the [`ClientBuilder`] instead.
-#[allow(clippy::missing_errors_doc)]
+///
+/// # Errors
+///
+/// Returns an `Err` if:
+/// - The request client cannot be built
+/// - The request cannot be checked (see [check](Client::check) for failure cases)
 pub async fn check<T, E>(request: T) -> Result<Response>
 where
     Request: TryFrom<T, Error = E>,
@@ -492,7 +497,7 @@ mod test {
             .build()
             .client()
             .unwrap();
-        assert!(!client.filtered(&Uri {
+        assert!(!client.is_excluded(&Uri {
             url: "mailto://mail@example.org".try_into().unwrap()
         }));
 
@@ -502,7 +507,7 @@ mod test {
             .build()
             .client()
             .unwrap();
-        assert!(client.filtered(&Uri {
+        assert!(client.is_excluded(&Uri {
             url: "mailto://mail@example.org".try_into().unwrap()
         }));
     }

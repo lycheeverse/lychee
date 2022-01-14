@@ -80,7 +80,7 @@ pub use crate::{
     collector::Collector,
     filter::{Excludes, Filter, Includes},
     types::{
-        Base, ErrorKind, FileType, Input, InputContent, InputSource, Request, Response,
-        ResponseBody, Result, Status, Uri,
+        Base, CacheStatus, ErrorKind, FileType, Input, InputContent, InputSource, Request,
+        Response, ResponseBody, Result, Status, Uri,
     },
 };

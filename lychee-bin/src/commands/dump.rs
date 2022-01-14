@@ -15,7 +15,7 @@ where
     while let Some(request) = requests.next().await {
         let request = request?;
 
-        if client.filtered(&request.uri) {
+        if client.is_excluded(&request.uri) {
             continue;
         }
 

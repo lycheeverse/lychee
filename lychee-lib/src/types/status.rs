@@ -6,6 +6,8 @@ use serde::{Serialize, Serializer};
 
 use crate::ErrorKind;
 
+use super::CacheStatus;
+
 const ICON_OK: &str = "\u{2714}"; // ✔
 const ICON_REDIRECTED: &str = "\u{21c4}"; // ⇄
 const ICON_EXCLUDED: &str = "\u{003f}"; // ?
@@ -13,6 +15,7 @@ const ICON_UNSUPPORTED: &str = "\u{003f}"; // ? (using same icon, but under diff
 const ICON_UNKNOWN: &str = "\u{003f}"; // ?
 const ICON_ERROR: &str = "\u{2717}"; // ✗
 const ICON_TIMEOUT: &str = "\u{29d6}"; // ⧖
+const ICON_CACHED: &str = "\u{21bb}"; // ↻
 
 /// Response status of the request.
 #[allow(variant_size_differences)]
@@ -34,6 +37,8 @@ pub enum Status {
     /// for example when the URL scheme is `slack://` or `file://`
     /// See https://github.com/lycheeverse/lychee/issues/199
     Unsupported(Box<ErrorKind>),
+    /// Cached request status from previous run
+    Cached(CacheStatus),
 }
 
 impl Display for Status {
@@ -47,6 +52,7 @@ impl Display for Status {
             Status::Timeout(None) => f.write_str("Timeout"),
             Status::Unsupported(e) => write!(f, "Unsupported: {}", e),
             Status::Error(e) => write!(f, "Failed: {}", e),
+            Status::Cached(s) => write!(f, "Cached: {}", s),
         }
     }
 }
@@ -125,6 +131,7 @@ impl Status {
             Status::Error(_) => ICON_ERROR,
             Status::Timeout(_) => ICON_TIMEOUT,
             Status::Unsupported(_) => ICON_UNSUPPORTED,
+            Status::Cached(_) => ICON_CACHED,
         }
     }
 }
@@ -150,5 +157,11 @@ impl From<reqwest::Error> for Status {
 impl From<hubcaps::Error> for Status {
     fn from(e: hubcaps::Error) -> Self {
         Self::Error(Box::new(e.into()))
+    }
+}
+
+impl From<CacheStatus> for Status {
+    fn from(s: CacheStatus) -> Self {
+        Self::Cached(s)
     }
 }

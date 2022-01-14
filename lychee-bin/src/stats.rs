@@ -1,17 +1,21 @@
 use std::collections::{HashMap, HashSet};
 
-use lychee_lib::{InputSource, Response, ResponseBody, Status};
+use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status};
 use serde::Serialize;
 
 use crate::color::{DIM, GREEN, NORMAL, PINK, YELLOW};
 
 pub(crate) fn color_response(response: &ResponseBody) -> String {
     let out = match response.status {
-        Status::Ok(_) => GREEN.apply_to(response),
-        Status::Excluded | Status::Unsupported(_) => DIM.apply_to(response),
+        Status::Ok(_) | Status::Cached(CacheStatus::Success) => GREEN.apply_to(response),
+        Status::Excluded
+        | Status::Unsupported(_)
+        | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => {
+            DIM.apply_to(response)
+        }
         Status::Redirected(_) => NORMAL.apply_to(response),
         Status::UnknownStatusCode(_) | Status::Timeout(_) => YELLOW.apply_to(response),
-        Status::Error(_) => PINK.apply_to(response),
+        Status::Error(_) | Status::Cached(CacheStatus::Fail) => PINK.apply_to(response),
     };
     out.to_string()
 }
@@ -26,6 +30,7 @@ pub(crate) struct ResponseStats {
     pub(crate) redirects: usize,
     pub(crate) excludes: usize,
     pub(crate) errors: usize,
+    pub(crate) cached: usize,
     pub(crate) fail_map: HashMap<InputSource, HashSet<ResponseBody>>,
 }
 
@@ -53,11 +58,23 @@ impl ResponseStats {
             Status::Redirected(_) => self.redirects += 1,
             Status::Excluded => self.excludes += 1,
             Status::Unsupported(_) => (), // Just skip unsupported URI
+            Status::Cached(_) => self.cached += 1,
+        }
+
+        if let Status::Cached(cache_status) = status {
+            match cache_status {
+                CacheStatus::Success => self.successful += 1,
+                CacheStatus::Fail => self.failures += 1,
+                CacheStatus::Excluded | CacheStatus::Unsupported => self.excludes += 1,
+            }
         }
 
         if matches!(
             status,
-            Status::Error(_) | Status::Timeout(_) | Status::Redirected(_)
+            Status::Error(_)
+                | Status::Timeout(_)
+                | Status::Redirected(_)
+                | Status::Cached(CacheStatus::Fail)
         ) {
             let fail = self.fail_map.entry(source).or_default();
             fail.insert(response.1);

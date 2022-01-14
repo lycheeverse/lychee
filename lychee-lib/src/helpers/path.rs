@@ -44,7 +44,7 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Opt
                 Some(parent) => parent,
                 None => return Err(ErrorKind::FileNotFound(relative.to_path_buf())),
             };
-            parent.join(relative.to_path_buf())
+            parent.join(relative)
         }
         absolute if dst.is_absolute() => {
             // Absolute local links (leading slash) require the `base_url` to

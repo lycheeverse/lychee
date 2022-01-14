@@ -45,6 +45,7 @@ mod cli {
         redirects: usize,
         excludes: usize,
         errors: usize,
+        cached: usize,
     }
 
     impl MockResponseStats {
@@ -59,6 +60,7 @@ mod cli {
   "redirects": {},
   "excludes": {},
   "errors": {},
+  "cached": {},
   "fail_map": {{}}
 }}"#,
                 self.total,
@@ -68,7 +70,8 @@ mod cli {
                 self.timeouts,
                 self.redirects,
                 self.excludes,
-                self.errors
+                self.errors,
+                self.cached
             )
         }
     }
@@ -237,26 +240,27 @@ mod cli {
     }
 
     #[test]
-    #[ignore]
     // Test that two identical requests don't get executed twice.
-    // Note: This currently fails, because we currently don't cache responses. We
-    // used to, but there were issues.
-    // See https://github.com/lycheeverse/lychee/pull/349.
-    // We're planning to add back caching support at a later point in time,
-    // which is why we keep the test around.
-    fn test_caching_across_files() {
-        let mut cmd = main_command();
-        // Repetitions across multiple files shall all be checked and counted only once.
-        let test_schemes_path_1 = fixtures_path().join("TEST_REPETITION_1.txt");
-        let test_schemes_path_2 = fixtures_path().join("TEST_REPETITION_2.txt");
+    fn test_caching_across_files() -> Result<()> {
+        // Repetitions across multiple files shall all be checked only once.
+        let repeated_uris = fixtures_path().join("TEST_REPETITION_*.txt");
 
-        cmd.arg(&test_schemes_path_1)
-            .arg(&test_schemes_path_2)
-            .env_clear()
-            .assert()
-            .success()
-            .stdout(contains("1 TOTAL"))
-            .stdout(contains("1 OK"));
+        test_json_output!(
+            repeated_uris,
+            MockResponseStats {
+                total: 2,
+                cached: 1,
+                successful: 2,
+                excludes: 0,
+                ..MockResponseStats::default()
+            },
+            "--verbose",
+            // Two requests to the same URI may be executed in parallel. As a
+            // result, the response might not be cached and the test would be
+            // flaky. Therefore limit the concurrency to one request at a time.
+            "--max-concurrency",
+            "1"
+        )
     }
 
     #[test]
@@ -421,7 +425,7 @@ mod cli {
             .assert()
             .success();
 
-        let expected = r#"{"total":11,"successful":11,"failures":0,"unknown":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"fail_map":{}}"#;
+        let expected = r#"{"total":11,"successful":11,"failures":0,"unknown":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"cached":0,"fail_map":{}}"#;
         let output = fs::read_to_string(&outfile)?;
         assert_eq!(output.split_whitespace().collect::<String>(), expected);
         fs::remove_file(outfile)?;

@@ -6,7 +6,11 @@ use lychee_lib::{
     Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT,
 };
 use serde::Deserialize;
+use std::time::Duration;
 use structopt::StructOpt;
+
+pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
+pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
 
 const METHOD: &str = "get";
 const MAX_CONCURRENCY: usize = 128;
@@ -14,10 +18,20 @@ const MAX_CONCURRENCY: usize = 128;
 // this exists because structopt requires `&str` type values for defaults
 // (we can't use e.g. `TIMEOUT` or `timeout()` which gets created for serde)
 lazy_static! {
-    static ref TIMEOUT_STR: String = DEFAULT_TIMEOUT.to_string();
     static ref MAX_CONCURRENCY_STR: String = MAX_CONCURRENCY.to_string();
     static ref MAX_REDIRECTS_STR: String = DEFAULT_MAX_REDIRECTS.to_string();
     static ref MAX_RETRIES_STR: String = DEFAULT_MAX_RETRIES.to_string();
+    static ref STRUCTOPT_HELP_MSG_CACHE: String = format!(
+        "Use request cache stored on disk at `{}`",
+        LYCHEE_CACHE_FILE
+    );
+    static ref STRUCTOPT_HELP_MSG_IGNORE_FILE: String = format!(
+        "File or files that contain URLs to be excluded from checking. Regular
+expressions supported; one pattern per line. Automatically excludes
+patterns from `{}` if file exists",
+        LYCHEE_IGNORE_FILE
+    );
+    static ref TIMEOUT_STR: String = DEFAULT_TIMEOUT.to_string();
 }
 
 #[derive(Debug, Deserialize)]
@@ -132,6 +146,18 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) no_progress: bool,
 
+    #[structopt(help = &STRUCTOPT_HELP_MSG_CACHE)]
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) cache: bool,
+
+    #[structopt(
+        long,
+        parse(try_from_str = humantime::parse_duration),
+        default_value = "1d"
+    )]
+    pub(crate) max_cache_age: Duration,
+
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
     #[structopt(long)]
@@ -189,9 +215,7 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) exclude: Vec<String>,
 
-    /// File or files that contain URLs to be excluded from checking. Regular
-    /// expressions supported; one pattern per line. Automatically excludes
-    /// patterns from `.lycheeignore` if file exists.
+    #[structopt(help = &STRUCTOPT_HELP_MSG_IGNORE_FILE)]
     #[structopt(long)]
     #[serde(default)]
     pub(crate) exclude_file: Vec<String>,
@@ -313,6 +337,7 @@ impl Config {
 
             // Keys with defaults to assign
             verbose: false;
+            cache: false;
             no_progress: false;
             max_redirects: DEFAULT_MAX_REDIRECTS;
             max_retries: DEFAULT_MAX_RETRIES;

@@ -67,23 +67,25 @@ use openssl_sys as _; // required for vendored-openssl feature
 use ring as _;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
+use std::sync::Arc;
 use structopt::StructOpt;
 
+mod cache;
 mod client;
 mod color;
 mod commands;
 mod options;
 mod parse;
 mod stats;
+mod time;
 mod writer;
 
 use crate::{
-    options::{Config, Format, LycheeOptions},
+    cache::{Cache, StoreExt},
+    options::{Config, Format, LycheeOptions, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE},
     stats::ResponseStats,
     writer::StatsWriter,
 };
-
-const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
@@ -107,7 +109,7 @@ fn main() -> Result<()> {
     std::process::exit(exit_code);
 }
 
-// Read lines from file; ignore empty lines
+/// Read lines from file; ignore empty lines
 fn read_lines(file: &File) -> Result<Vec<String>> {
     let lines: Vec<_> = BufReader::new(file).lines().collect::<Result<_, _>>()?;
     Ok(lines.into_iter().filter(|line| !line.is_empty()).collect())
@@ -136,6 +138,48 @@ fn load_config() -> Result<LycheeOptions> {
     Ok(opts)
 }
 
+#[must_use]
+/// Load cache (if exists and is still valid)
+/// This returns an `Option` as starting without a cache is a common scenario
+/// and we silently discard errors on purpose
+fn load_cache(cfg: &Config) -> Option<Cache> {
+    if !cfg.cache {
+        return None;
+    }
+
+    // Discard entire cache if it hasn't been updated since `max_cache_age`.
+    // This is an optimization, which avoids iterating over the file and
+    // checking the age of each entry.
+    match fs::metadata(LYCHEE_CACHE_FILE) {
+        Err(_e) => {
+            // No cache found; silently start with empty cache
+            return None;
+        }
+        Ok(metadata) => {
+            let modified = metadata.modified().ok()?;
+            let elapsed = modified.elapsed().ok()?;
+            if elapsed > cfg.max_cache_age {
+                println!(
+                    "Cache is too old (age: {}, max age: {}). Discarding",
+                    humantime::format_duration(elapsed),
+                    humantime::format_duration(cfg.max_cache_age)
+                );
+                return None;
+            }
+        }
+    }
+
+    let cache = Cache::load(LYCHEE_CACHE_FILE, cfg.max_cache_age.as_secs());
+    match cache {
+        Ok(cache) => Some(cache),
+        Err(e) => {
+            println!("Error while loading cache: {}. Continuing without.", e);
+            None
+        }
+    }
+}
+
+/// Set up runtime and call lychee entrypoint
 fn run_main() -> Result<i32> {
     let opts = load_config()?;
     let runtime = match opts.config.threads {
@@ -153,6 +197,7 @@ fn run_main() -> Result<i32> {
     runtime.block_on(run(&opts))
 }
 
+/// Run lychee on the given inputs
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs();
     let requests = Collector::new(opts.config.base.clone(), opts.config.skip_missing)
@@ -164,9 +209,16 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let exit_code = if opts.config.dump {
         commands::dump(client, requests, opts.config.verbose).await?
     } else {
-        let (stats, code) = commands::check(client, requests, &opts.config).await?;
+        let cache = load_cache(&opts.config).unwrap_or_default();
+        let cache = Arc::new(cache);
+        let (stats, cache, exit_code) =
+            commands::check(client, cache, requests, &opts.config).await?;
         write_stats(stats, &opts.config)?;
-        code
+
+        if opts.config.cache {
+            cache.store(LYCHEE_CACHE_FILE)?;
+        }
+        exit_code
     };
 
     Ok(exit_code as i32)

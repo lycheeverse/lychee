@@ -49,7 +49,7 @@ pub(crate) fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
 
 #[cfg(test)]
 mod test {
-    use std::{array, collections::HashSet};
+    use std::collections::HashSet;
 
     use headers::{HeaderMap, HeaderMapExt};
     use http::StatusCode;
@@ -68,7 +68,7 @@ mod test {
     #[test]
     fn test_parse_statuscodes() {
         let actual = parse_statuscodes("200,204,301").unwrap();
-        let expected = array::IntoIter::new([
+        let expected = IntoIterator::into_iter([
             StatusCode::OK,
             StatusCode::NO_CONTENT,
             StatusCode::MOVED_PERMANENTLY,

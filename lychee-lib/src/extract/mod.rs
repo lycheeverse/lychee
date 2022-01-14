@@ -31,7 +31,7 @@ impl Extractor {
 mod test {
     use pretty_assertions::assert_eq;
     use reqwest::Url;
-    use std::{array, collections::HashSet, convert::TryFrom, path::Path};
+    use std::{collections::HashSet, convert::TryFrom, path::Path};
 
     use super::*;
     use crate::{
@@ -81,7 +81,7 @@ mod test {
     fn test_skip_markdown_email() {
         let input = "Get in touch - [Contact Us](mailto:test@test.com)";
         let links = extract_uris(input, FileType::Markdown);
-        let expected = array::IntoIter::new([mail("test@test.com")]).collect::<HashSet<Uri>>();
+        let expected = IntoIterator::into_iter([mail("test@test.com")]).collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected);
     }
@@ -99,7 +99,7 @@ mod test {
             "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.org";
         let links: HashSet<Uri> = extract_uris(input, FileType::Plaintext);
 
-        let expected = array::IntoIter::new([
+        let expected = IntoIterator::into_iter([
             website("https://endler.dev"),
             website("https://hello-rust.show/foo/bar?lol=1"),
             mail("test@example.org"),
@@ -123,7 +123,7 @@ mod test {
         let input = load_fixture("TEST_HTML5.html");
         let links = extract_uris(&input, FileType::Html);
 
-        let expected_links = array::IntoIter::new([
+        let expected_links = IntoIterator::into_iter([
             website("https://example.org/head/home"),
             website("https://example.org/css/style_full_url.css"),
             // the body links wouldn't be present if the file was parsed strictly as XML
@@ -160,7 +160,7 @@ mod test {
             .map(|raw_uri| raw_uri.text)
             .collect::<HashSet<_>>();
 
-        let expected_urls = array::IntoIter::new([
+        let expected_urls = IntoIterator::into_iter([
             String::from("https://github.com/lycheeverse/lychee/"),
             String::from("/about"),
         ])
@@ -175,8 +175,8 @@ mod test {
         let input = load_fixture("TEST_HTML5_LOWERCASE_DOCTYPE.html");
         let links = extract_uris(&input, FileType::Html);
 
-        let expected_links =
-            array::IntoIter::new([website("https://example.org/body/a")]).collect::<HashSet<Uri>>();
+        let expected_links = IntoIterator::into_iter([website("https://example.org/body/a")])
+            .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
     }
@@ -187,7 +187,7 @@ mod test {
         let input = load_fixture("TEST_HTML5_MINIFIED.html");
         let links = extract_uris(&input, FileType::Html);
 
-        let expected_links = array::IntoIter::new([
+        let expected_links = IntoIterator::into_iter([
             website("https://example.org/"),
             website("https://example.org/favicon.ico"),
             website("https://fonts.externalsite.com"),
@@ -205,8 +205,8 @@ mod test {
         let input = load_fixture("TEST_HTML5_MALFORMED_LINKS.html");
         let links = extract_uris(&input, FileType::Html);
 
-        let expected_links =
-            array::IntoIter::new([website("https://example.org/valid")]).collect::<HashSet<Uri>>();
+        let expected_links = IntoIterator::into_iter([website("https://example.org/valid")])
+            .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
     }
@@ -217,7 +217,7 @@ mod test {
         let input = load_fixture("TEST_HTML5_CUSTOM_ELEMENTS.html");
         let links = extract_uris(&input, FileType::Html);
 
-        let expected_links = array::IntoIter::new([
+        let expected_links = IntoIterator::into_iter([
             website("https://example.org/some-weird-element"),
             website("https://example.org/even-weirder-src"),
             website("https://example.org/even-weirder-href"),
@@ -234,7 +234,7 @@ mod test {
         let input = "https://example.com/@test/test http://otherdomain.com/test/@test".to_string();
         let links = extract_uris(&input, FileType::Plaintext);
 
-        let expected_links = array::IntoIter::new([
+        let expected_links = IntoIterator::into_iter([
             website("https://example.com/@test/test"),
             website("http://otherdomain.com/test/@test"),
         ])

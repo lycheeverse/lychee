@@ -1,11 +1,15 @@
+use std::sync::Arc;
+
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 use lychee_lib::Result;
+use lychee_lib::Status;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
 use crate::{
+    cache::Cache,
     options::Config,
     stats::{color_response, ResponseStats},
     ExitCode,
@@ -14,9 +18,10 @@ use lychee_lib::{Client, Request, Response};
 
 pub(crate) async fn check<S>(
     client: Client,
+    cache: Arc<Cache>,
     requests: S,
     cfg: &Config,
-) -> Result<(ResponseStats, ExitCode)>
+) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
 where
     S: futures::Stream<Item = Result<Request>>,
 {
@@ -24,6 +29,7 @@ where
     let (send_resp, mut recv_resp) = mpsc::channel(cfg.max_concurrency);
     let max_concurrency = cfg.max_concurrency;
     let mut stats = ResponseStats::new();
+    let cache_ref = cache.clone();
 
     // Start receiving requests
     tokio::spawn(async move {
@@ -31,12 +37,8 @@ where
             ReceiverStream::new(recv_req),
             max_concurrency,
             |request: Result<Request>| async {
-                let request: Request = request.expect("cannot read request");
-                // This can panic. See when the Url could not be parsed as a Uri.
-                // See https://github.com/servo/rust-url/issues/554
-                // See https://github.com/seanmonstar/reqwest/issues/668
-                // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
-                let response = client.check(request).await.expect("cannot check URI");
+                let request = request.expect("cannot read request");
+                let response = handle(&client, cache.clone(), request).await;
 
                 send_resp
                     .send(response)
@@ -101,7 +103,37 @@ where
     } else {
         ExitCode::LinkCheckFailure
     };
-    Ok((stats, code))
+    Ok((stats, cache_ref, code))
+}
+
+/// Handle a single request
+async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Response {
+    let uri = request.uri.clone();
+    if let Some(v) = cache.get(&uri) {
+        // Found a cached request
+        // Overwrite cache status in case the URI is excluded in the
+        // current run
+        let status = if client.is_excluded(&uri) {
+            Status::Excluded
+        } else {
+            Status::from(v.value().status)
+        };
+        return Response::new(uri.clone(), status, request.source);
+    }
+
+    // Request was not cached; run a normal check
+    // This can panic when the Url could not be parsed to a Uri.
+    // See https://github.com/servo/rust-url/issues/554
+    // See https://github.com/seanmonstar/reqwest/issues/668
+    // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
+    let response = client.check(request).await.expect("cannot check URI");
+
+    // Never cache filesystem access as it is fast already so caching has no
+    // benefit
+    if !uri.is_file() {
+        cache.insert(uri, response.status().into());
+    }
+    response
 }
 
 fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
