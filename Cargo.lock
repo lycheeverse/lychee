@@ -1798,6 +1798,7 @@ dependencies = [
  "ring",
  "serde",
  "shellexpand",
+ "streamunordered",
  "tempfile",
  "thiserror",
  "tokio",
@@ -2961,6 +2962,18 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "streamunordered"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e68576e37c8a37f5372796df15202190349dd80e7ed6a79544c0232213e90e35"
+dependencies = [
+ "futures-core",
+ "futures-sink",
+ "futures-util",
+ "slab",
+]
 
 [[package]]
 name = "string_cache"

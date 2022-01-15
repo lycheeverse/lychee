@@ -3,11 +3,17 @@ use std::pin::Pin;
 use crate::{
     extract::Extractor, helpers::request, types::raw_uri::RawUri, Base, Input, Request, Result,
 };
+use async_stream::stream;
 use futures::{
     stream::{self, Stream},
     StreamExt, TryStreamExt,
 };
 use par_stream::ParStreamExt;
+use streamunordered::StreamUnordered;
+use tokio::sync::mpsc;
+
+// use futures_util::pin_mut;
+// use futures_util::stream::StreamExt;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -67,7 +73,7 @@ impl Collector {
             .try_flatten()
     }
 
-    /// Fetch all unique links from a stream of inputs. The output stream ends
+    /// Fetch all unique links from a channel of inputs. The output stream ends
     /// when the input stream gets closed . If you don't need support for
     /// sending more inputs to the collector (e.g. for recursion), `from_iter`
     /// might be easier to use.
@@ -78,30 +84,33 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub async fn from_stream(
+    pub async fn from_chan(
         self,
-        input: Pin<Box<dyn Stream<Item = Input> + Send>>,
+        input_chan: mpsc::Receiver<Input>,
     ) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
-        let contents = input
-            .par_then_unordered(None, move |input| async move {
-                input.get_contents(skip_missing_inputs).await
-            })
-            .flatten();
+        let mut streams = StreamUnordered::new();
 
-        let base = self.base;
-        contents
-            .par_then_unordered(None, move |content| {
-                // send to parallel worker
-                let base = base.clone();
-                async move {
-                    let content = content?;
-                    let uris: Vec<RawUri> = Extractor::extract(&content);
-                    let requests = request::create(uris, &content, &base)?;
-                    Result::Ok(stream::iter(requests.into_iter().map(Ok)))
-                }
-            })
-            .try_flatten()
+        while let Some(input) = input_chan.recv().await {
+            let contents = input.get_contents(skip_missing_inputs).await;
+
+            let base = self.base;
+            let stream = contents
+                .par_then_unordered(None, move |content| {
+                    // send to parallel worker
+                    let base = base.clone();
+                    async move {
+                        let content = content?;
+                        let uris: Vec<RawUri> = Extractor::extract(&content);
+                        let requests = request::create(uris, &content, &base)?;
+                        Result::Ok(stream::iter(requests.into_iter().map(Ok)))
+                    }
+                })
+                .try_flatten();
+
+            streams.insert(stream);
+        }
+        streams
     }
 }
 

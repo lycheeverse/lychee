@@ -19,12 +19,17 @@ use lychee_lib::{Client, Request, Response};
 pub(crate) async fn check<S>(
     client: Client,
     cache: Arc<Cache>,
-    requests: S,
+    inputs: Vec<Input>,
     cfg: &Config,
-) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
-where
-    S: futures::Stream<Item = Result<Request>>,
-{
+) -> Result<(ResponseStats, Arc<Cache>, ExitCode)> {
+    let (send_input, mut recv_input) = mpsc::channel(cfg.max_concurrency);
+    for input in opts.inputs() {
+        send_input.send(input)
+    }
+    let requests = Collector::new(opts.config.base.clone(), opts.config.skip_missing)
+        .from_chan(recv_input)
+        .await;
+
     let (send_req, recv_req) = mpsc::channel(cfg.max_concurrency);
     let (send_resp, mut recv_resp) = mpsc::channel(cfg.max_concurrency);
     let max_concurrency = cfg.max_concurrency;

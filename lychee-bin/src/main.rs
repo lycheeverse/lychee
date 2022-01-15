@@ -59,17 +59,19 @@
 #![deny(missing_docs)]
 
 use futures::stream;
-use lychee_lib::Collector;
 // required for apple silicon
-use ring as _;
-
 use anyhow::{Context, Result};
-use openssl_sys as _; // required for vendored-openssl feature
+// required for vendored-openssl feature
+use openssl_sys as _;
+use ring as _;
 use ring as _;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::sync::Arc;
 use structopt::StructOpt;
+use tokio::sync::mpsc;
+
+use lychee_lib::Collector;
 
 mod cache;
 mod client;
@@ -209,11 +211,6 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             .await;
         commands::dump(client, requests, opts.config.verbose).await?
     } else {
-        let inputs = Box::pin(stream::iter(opts.inputs()));
-        let requests = Collector::new(opts.config.base.clone(), opts.config.skip_missing)
-            .from_stream(inputs)
-            .await;
-
         let cache = load_cache(&opts.config).unwrap_or_default();
         let cache = Arc::new(cache);
         let (stats, cache, exit_code) =
