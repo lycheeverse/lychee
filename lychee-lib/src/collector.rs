@@ -1,3 +1,5 @@
+use std::pin::Pin;
+
 use crate::{
     extract::Extractor, helpers::request, types::raw_uri::RawUri, Base, Input, Request, Result,
 };
@@ -25,9 +27,10 @@ impl Collector {
         }
     }
 
-    /// Fetch all unique links from a vector of inputs. The stream ends when all
-    /// inputs were processed. If you need support for recursion, use
-    /// `from_chan` instead.
+    /// Fetch all unique links from a an iterator of inputs. The output stream
+    /// ends when all inputs were processed. If you need support for sending
+    /// more inputs to the collector (e.g. for recursion), use `from_stream`
+    /// instead.
     ///
     /// All relative URLs get prefixed with `base` (if given). (This can be a
     /// directory or a base URL)
@@ -64,20 +67,23 @@ impl Collector {
             .try_flatten()
     }
 
-    /// Fetch all unique links from a channel of inputs. The stream ends when
-    /// when the channel gets closed. For simple use-cases without the need for
-    /// recursion, `from_vec` might be more convenient as it uses a fixed set of
-    /// inputs.
+    /// Fetch all unique links from a stream of inputs. The output stream ends
+    /// when the input stream gets closed . If you don't need support for
+    /// sending more inputs to the collector (e.g. for recursion), `from_iter`
+    /// might be easier to use.
     ///
-    /// All relative URLs get prefixed with `base` (if given).
-    /// (This can be a directory or a base URL)
+    /// All relative URLs get prefixed with `base` (if given). (This can be a
+    /// directory or a base URL)
     ///
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub async fn from_chan(self, input_chan: Vec<Input>) -> impl Stream<Item = Result<Request>> {
+    pub async fn from_stream(
+        self,
+        input: Pin<Box<dyn Stream<Item = Input> + Send>>,
+    ) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
-        let contents = stream::iter(input_chan)
+        let contents = input
             .par_then_unordered(None, move |input| async move {
                 input.get_contents(skip_missing_inputs).await
             })
@@ -117,7 +123,9 @@ mod test {
 
     // Helper function to run the collector on the given inputs
     async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
-        let responses = Collector::new(base, false).from_iter(inputs).await;
+        let responses = Collector::new(base, false)
+            .from_stream(Box::pin(stream::iter(inputs)))
+            .await;
         responses.map(|r| r.unwrap().uri).collect().await
     }
 

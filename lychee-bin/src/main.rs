@@ -58,6 +58,7 @@
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 #![deny(missing_docs)]
 
+use futures::stream;
 use lychee_lib::Collector;
 // required for apple silicon
 use ring as _;
@@ -199,16 +200,20 @@ fn run_main() -> Result<i32> {
 
 /// Run lychee on the given inputs
 async fn run(opts: &LycheeOptions) -> Result<i32> {
-    let inputs = opts.inputs();
-    let requests = Collector::new(opts.config.base.clone(), opts.config.skip_missing)
-        .from_iter(inputs)
-        .await;
-
     let client = client::create(&opts.config)?;
 
     let exit_code = if opts.config.dump {
+        let inputs = opts.inputs();
+        let requests = Collector::new(opts.config.base.clone(), opts.config.skip_missing)
+            .from_iter(inputs)
+            .await;
         commands::dump(client, requests, opts.config.verbose).await?
     } else {
+        let inputs = Box::pin(stream::iter(opts.inputs()));
+        let requests = Collector::new(opts.config.base.clone(), opts.config.skip_missing)
+            .from_stream(inputs)
+            .await;
+
         let cache = load_cache(&opts.config).unwrap_or_default();
         let cache = Arc::new(cache);
         let (stats, cache, exit_code) =
