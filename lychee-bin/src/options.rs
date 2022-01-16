@@ -34,7 +34,7 @@ patterns from `{}` if file exists",
     static ref TIMEOUT_STR: String = DEFAULT_TIMEOUT.to_string();
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub(crate) enum Format {
     Compact,
     Detailed,

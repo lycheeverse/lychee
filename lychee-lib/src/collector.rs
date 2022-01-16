@@ -1,19 +1,12 @@
-use std::pin::Pin;
-
 use crate::{
     extract::Extractor, helpers::request, types::raw_uri::RawUri, Base, Input, Request, Result,
 };
-use async_stream::stream;
 use futures::{
     stream::{self, Stream},
     StreamExt, TryStreamExt,
 };
 use par_stream::ParStreamExt;
-use streamunordered::StreamUnordered;
 use tokio::sync::mpsc;
-
-// use futures_util::pin_mut;
-// use futures_util::stream::StreamExt;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -86,31 +79,36 @@ impl Collector {
     /// Will return `Err` if links cannot be extracted from an input
     pub async fn from_chan(
         self,
-        input_chan: mpsc::Receiver<Input>,
-    ) -> impl Stream<Item = Result<Request>> {
+        mut input_chan: mpsc::Receiver<Input>,
+        output_chan: mpsc::Sender<Request>,
+    ) {
         let skip_missing_inputs = self.skip_missing_inputs;
-        let mut streams = StreamUnordered::new();
 
         while let Some(input) = input_chan.recv().await {
             let contents = input.get_contents(skip_missing_inputs).await;
 
-            let base = self.base;
-            let stream = contents
-                .par_then_unordered(None, move |content| {
-                    // send to parallel worker
-                    let base = base.clone();
-                    async move {
-                        let content = content?;
-                        let uris: Vec<RawUri> = Extractor::extract(&content);
-                        let requests = request::create(uris, &content, &base)?;
-                        Result::Ok(stream::iter(requests.into_iter().map(Ok)))
+            let base = self.base.clone();
+            let output_chan = output_chan.clone();
+            contents.par_then_unordered(None, move |content| {
+                // send to parallel worker
+                let base = base.clone();
+                let output_chan = output_chan.clone();
+                async move {
+                    let content = content?;
+                    let uris: Vec<RawUri> = Extractor::extract(&content);
+                    let requests = request::create(uris, &content, &base)?;
+                    for request in requests {
+                        output_chan
+                            .send(request)
+                            .await
+                            .expect("Cannot send to channel");
                     }
-                })
-                .try_flatten();
-
-            streams.insert(stream);
+                    Result::Ok(())
+                }
+            });
         }
-        streams
+        println!("done");
+        drop(output_chan);
     }
 }
 
@@ -132,9 +130,7 @@ mod test {
 
     // Helper function to run the collector on the given inputs
     async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
-        let responses = Collector::new(base, false)
-            .from_stream(Box::pin(stream::iter(inputs)))
-            .await;
+        let responses = Collector::new(base, false).from_iter(inputs).await;
         responses.map(|r| r.unwrap().uri).collect().await
     }
 

@@ -2,11 +2,12 @@ use std::sync::Arc;
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
+use lychee_lib::Collector;
+use lychee_lib::Input;
 use lychee_lib::Result;
 use lychee_lib::Status;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tokio_stream::StreamExt;
 
 use crate::{
     cache::Cache,
@@ -16,19 +17,26 @@ use crate::{
 };
 use lychee_lib::{Client, Request, Response};
 
-pub(crate) async fn check<S>(
+pub(crate) async fn check(
     client: Client,
     cache: Arc<Cache>,
     inputs: Vec<Input>,
-    cfg: &Config,
+    cfg: Config,
 ) -> Result<(ResponseStats, Arc<Cache>, ExitCode)> {
-    let (send_input, mut recv_input) = mpsc::channel(cfg.max_concurrency);
-    for input in opts.inputs() {
-        send_input.send(input)
+    let (send_coll_requests, mut recv_coll_requests) = mpsc::channel(cfg.max_concurrency);
+    let (send_input, recv_input) = mpsc::channel(cfg.max_concurrency);
+    for input in inputs {
+        send_input.send(input).await.expect("Cannot send");
     }
-    let requests = Collector::new(opts.config.base.clone(), opts.config.skip_missing)
-        .from_chan(recv_input)
-        .await;
+    drop(send_input);
+
+    let base = cfg.base.clone();
+    let skip_missing = cfg.skip_missing.clone();
+    tokio::spawn(async move {
+        Collector::new(base, cfg.skip_missing)
+            .from_chan(recv_input, send_coll_requests)
+            .await;
+    });
 
     let (send_req, recv_req) = mpsc::channel(cfg.max_concurrency);
     let (send_resp, mut recv_resp) = mpsc::channel(cfg.max_concurrency);
@@ -78,10 +86,7 @@ pub(crate) async fn check<S>(
         }
     });
 
-    tokio::pin!(requests);
-
-    while let Some(request) = requests.next().await {
-        let request = request?;
+    while let Some(request) = recv_coll_requests.recv().await {
         if let Some(pb) = &bar {
             pb.inc_length(1);
             pb.set_message(request.to_string());

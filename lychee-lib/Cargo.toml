@@ -50,7 +50,6 @@ once_cell = "1.9.0"
 thiserror = "1.0.30"
 futures = "0.3.19"
 lazy_static = "1.4.0"
-streamunordered = "0.5.2"
 
 [dependencies.par-stream]
 version = "0.10.0"
