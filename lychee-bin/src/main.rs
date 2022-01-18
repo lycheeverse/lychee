@@ -66,7 +66,7 @@ use ring as _;
 use ring as _;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use structopt::StructOpt;
 
@@ -210,16 +210,16 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
             .await;
         commands::dump(client, requests, opts.config.verbose).await?
     } else {
-        let cache = load_cache(&opts.config).unwrap_or_default();
-        let cache = Arc::new(cache);
-        let cache_activated = opts.config.cache;
+        let cache = Arc::new(load_cache(&opts.config).unwrap_or_default());
+        let cache_active = opts.config.cache;
         let output = opts.config.output.clone();
         let verbose = opts.config.verbose;
-        let format = opts.config.format.clone();
-        let (stats, cache, exit_code) = commands::check(client, cache, inputs, opts.config).await?;
-        write_stats(stats, format, output, verbose)?;
+        let format = opts.config.format;
 
-        if cache_activated {
+        let (stats, cache, exit_code) = commands::check(client, cache, inputs, opts.config).await?;
+
+        write_stats(stats, format, output, verbose)?;
+        if cache_active {
             cache.store(LYCHEE_CACHE_FILE)?;
         }
         exit_code

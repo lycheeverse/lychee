@@ -31,7 +31,6 @@ pub(crate) async fn check(
     drop(send_input);
 
     let base = cfg.base.clone();
-    let skip_missing = cfg.skip_missing.clone();
     tokio::spawn(async move {
         Collector::new(base, cfg.skip_missing)
             .from_chan(recv_input, send_coll_requests)

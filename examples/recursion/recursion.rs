@@ -1,7 +1,7 @@
 /// Example of a collector which receives inputs from a channel (instead of a vector).
 /// With that, inputs can be fed into the collector while it is running.
 /// This also serves as a demonstration of how lychee handles recursion.
-/// 
+///
 /// If you don't care about recursion, the `collect_links` example might be more convenient.
 use lychee_lib::{Collector, Input, InputSource, Result};
 use reqwest::Url;
