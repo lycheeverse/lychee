@@ -1,5 +1,6 @@
 use crate::{
-    extract::Extractor, helpers::request, types::raw_uri::RawUri, Base, Input, Request, Result,
+    extract::Extractor, helpers::request, types::raw_uri::RawUri, Base, Input, InputContent,
+    Request, Result,
 };
 use futures::{
     stream::{self, Stream},
@@ -7,6 +8,7 @@ use futures::{
 };
 use par_stream::ParStreamExt;
 use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -26,10 +28,8 @@ impl Collector {
         }
     }
 
-    /// Fetch all unique links from a an iterator of inputs. The output stream
-    /// ends when all inputs were processed. If you need support for sending
-    /// more inputs to the collector (e.g. for recursion), use `from_stream`
-    /// instead.
+    /// Fetches all unique links from an iterator or a stream of inputs. The
+    /// output stream ends when all inputs were processed.
     ///
     /// All relative URLs get prefixed with `base` (if given). (This can be a
     /// directory or a base URL)
@@ -66,10 +66,10 @@ impl Collector {
             .try_flatten()
     }
 
-    /// Fetch all unique links from a channel of inputs. The output stream ends
-    /// when the input stream gets closed . If you don't need support for
-    /// sending more inputs to the collector (e.g. for recursion), `from_iter`
-    /// might be easier to use.
+    /// Fetches all unique links from a channel of inputs. Returns a stream of requests
+    /// which ends when the input stream gets closed. This allows to continuously send
+    /// more inputs to the collector (e.g. for recursion). If you have a fixed
+    /// set of inputs, `from_iter` might be easier to use.
     ///
     /// All relative URLs get prefixed with `base` (if given). (This can be a
     /// directory or a base URL)
@@ -79,36 +79,24 @@ impl Collector {
     /// Will return `Err` if links cannot be extracted from an input
     pub async fn from_chan(
         self,
-        mut input_chan: mpsc::Receiver<Input>,
-        output_chan: mpsc::Sender<Request>,
-    ) {
+        inputs: mpsc::Receiver<Input>,
+    ) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
+        let base = self.base;
 
-        while let Some(input) = input_chan.recv().await {
-            let contents = input.get_contents(skip_missing_inputs).await;
-
-            let base = self.base.clone();
-            let output_chan = output_chan.clone();
-            contents.par_then_unordered(None, move |content| {
-                // send to parallel worker
+        ReceiverStream::new(inputs)
+            .par_then_unordered(None, move |input| input.get_contents(skip_missing_inputs))
+            .flatten()
+            .par_then_unordered(None, move |content| {
                 let base = base.clone();
-                let output_chan = output_chan.clone();
                 async move {
-                    let content = content?;
+                    let content: InputContent = content?;
                     let uris: Vec<RawUri> = Extractor::extract(&content);
                     let requests = request::create(uris, &content, &base)?;
-                    for request in requests {
-                        output_chan
-                            .send(request)
-                            .await
-                            .expect("Cannot send to channel");
-                    }
-                    Result::Ok(())
+                    Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
-            });
-        }
-        println!("done");
-        drop(output_chan);
+            })
+            .try_flatten()
     }
 }
 

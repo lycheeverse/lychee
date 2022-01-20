@@ -59,9 +59,10 @@
 #![deny(missing_docs)]
 
 // required for apple silicon
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 // required for vendored-openssl feature
 use openssl_sys as _;
+use parking_lot::RwLock;
 use ring as _;
 use ring as _;
 use std::fs::{self, File};
@@ -69,8 +70,6 @@ use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::sync::Arc;
 use structopt::StructOpt;
-
-use lychee_lib::Collector;
 
 mod cache;
 mod client;
@@ -205,10 +204,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs();
 
     let exit_code = if opts.config.dump {
-        let requests = Collector::new(opts.config.base.clone(), opts.config.skip_missing)
-            .from_iter(inputs)
-            .await;
-        commands::dump(client, requests, opts.config.verbose).await?
+        commands::dump(client, inputs, opts.config).await?
     } else {
         let cache = Arc::new(load_cache(&opts.config).unwrap_or_default());
         let cache_active = opts.config.cache;
@@ -230,7 +226,7 @@ async fn run(opts: LycheeOptions) -> Result<i32> {
 
 /// Write final statistics to stdout or to file
 fn write_stats(
-    stats: ResponseStats,
+    stats: Arc<RwLock<ResponseStats>>,
     format: Format,
     output: Option<PathBuf>,
     verbose: bool,
@@ -242,8 +238,12 @@ fn write_stats(
         Format::Markdown => Box::new(writer::Markdown::new()),
     };
 
-    let is_empty = stats.is_empty();
-    let formatted = writer.write(stats)?;
+    let is_empty = stats.read().is_empty();
+    let stats = match Arc::try_unwrap(stats) {
+        Ok(stats) => stats,
+        Err(_) => return Err(anyhow!("Cannot access stats")),
+    };
+    let formatted = writer.write(stats.into_inner())?;
 
     if let Some(output) = output {
         fs::write(output, formatted).context("Cannot write status output to file")?;

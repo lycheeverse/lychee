@@ -45,6 +45,7 @@ once_cell = "1.9.0"
 dashmap = { version = "5.0.0", features = ["serde"] }
 csv = "1.1.6"
 humantime = "2.1.0"
+parking_lot = "0.11.2"
 
 [dev-dependencies]
 assert_cmd = "2.0.4"

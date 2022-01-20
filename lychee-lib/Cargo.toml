@@ -38,6 +38,7 @@ ring = "0.16.20"
 serde = { version = "1.0.133", features = ["derive"] }
 shellexpand = "2.1.0"
 tokio = { version = "1.15.0", features = ["full"] }
+tokio-stream = "0.1.8"
 typed-builder = "0.9.1"
 url = { version = "2.2.2", features = ["serde"] }
 log = "0.4.14"
