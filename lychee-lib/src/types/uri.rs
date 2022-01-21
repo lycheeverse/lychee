@@ -11,17 +11,20 @@ use super::raw_uri::RawUri;
 
 lazy_static! {
     static ref GITHUB_API_EXCLUDED_ENDPOINTS: HashSet<&'static str> = HashSet::from_iter([
-        "sponsors",
-        "marketplace",
-        "features",
-        "notifications",
-        "pulls",
-        "issues",
-        "explore",
-        "new",
-        "watching",
         "about",
-        "pricing"
+        "collections",
+        "events",
+        "explore",
+        "features",
+        "issues",
+        "marketplace",
+        "new",
+        "notifications",
+        "pricing",
+        "pulls",
+        "sponsors",
+        "topics",
+        "watching",
     ]);
 }
 
