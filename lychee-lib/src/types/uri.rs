@@ -181,6 +181,14 @@ impl Uri {
     pub fn is_file(&self) -> bool {
         self.scheme() == "file"
     }
+
+    #[inline]
+    #[must_use]
+    /// Check if the URI is a website
+    pub fn is_website(&self) -> bool {
+        // Treat all URIs as website URLs except if the scheme is `mailto`
+        !self.is_mail()
+    }
 }
 
 impl AsRef<str> for Uri {

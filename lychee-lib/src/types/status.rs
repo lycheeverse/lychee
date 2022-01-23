@@ -120,6 +120,13 @@ impl Status {
         matches!(self, Status::Unsupported(_))
     }
 
+    #[inline]
+    #[must_use]
+    /// Returns `true` if a URI was visited before and is cached
+    pub const fn is_cached(&self) -> bool {
+        matches!(self, Status::Cached(_))
+    }
+
     #[must_use]
     /// Return a unicode icon to visualize the status
     pub const fn icon(&self) -> &str {

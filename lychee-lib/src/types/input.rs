@@ -11,6 +11,8 @@ use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use tokio::io::{stdin, AsyncReadExt};
 
+use super::RecursionLevel;
+
 const STDIN: &str = "-";
 
 // Check the extension of the given path against the list of known/accepted
@@ -95,14 +97,27 @@ pub struct Input {
     pub source: InputSource,
     /// Hint to indicate which extractor to use
     pub file_type_hint: Option<FileType>,
+    /// Current recursion level
+    pub recursion_level: RecursionLevel,
 }
 
 impl Input {
     #[must_use]
-    /// Construct a new `Input` source. In case the input is a `glob` pattern,
-    /// `glob_ignore_case` decides whether matching files against the `glob` is
-    /// case-insensitive or not
+    /// Construct a new `Input` source with a default recursion level of 0. In
+    /// case the input is a `glob` pattern, `glob_ignore_case` decides whether
+    /// matching files against the `glob` is case-insensitive or not
     pub fn new(value: &str, file_type_hint: Option<FileType>, glob_ignore_case: bool) -> Self {
+        Self::with_recursion(value, file_type_hint, glob_ignore_case, 0)
+    }
+
+    #[must_use]
+    /// Construct a new `Input` source with the given recursion level.
+    pub fn with_recursion(
+        value: &str,
+        file_type_hint: Option<FileType>,
+        glob_ignore_case: bool,
+        recursion_level: RecursionLevel,
+    ) -> Self {
         let source = if value == STDIN {
             InputSource::Stdin
         } else if let Ok(url) = Url::parse(value) {
@@ -123,6 +138,7 @@ impl Input {
         Self {
             source,
             file_type_hint,
+            recursion_level,
         }
     }
 

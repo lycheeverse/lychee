@@ -1,9 +1,11 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 use lychee_lib::Collector;
 use lychee_lib::Input;
+use lychee_lib::InputSource;
 use lychee_lib::Result;
 use lychee_lib::Status;
 use parking_lot::RwLock;
@@ -24,10 +26,13 @@ pub(crate) async fn check(
     cfg: Config,
 ) -> Result<(Arc<RwLock<ResponseStats>>, Arc<Cache>, ExitCode)> {
     let (send_input, recv_input) = mpsc::channel(cfg.max_concurrency);
+    let send_input_recursive = send_input.clone();
 
     let base = cfg.base.clone();
     let verbose = cfg.verbose;
     let max_concurrency = cfg.max_concurrency;
+
+    let input_sources: HashSet<InputSource> = inputs.iter().map(|i| i.source.clone()).collect();
 
     // Get handles for values that will be moved into the async closure
     let cache_handle = cache.clone();
@@ -46,13 +51,60 @@ pub(crate) async fn check(
             requests,
             max_concurrency,
             |request: Result<Request>| async {
-                let request = request.expect("cannot read request");
+                let request = match request {
+                    Ok(request) => request,
+                    Err(_) => return,
+                };
                 if let Some(pb) = &pb {
                     pb.inc_length(1);
                     pb.set_message(request.to_string());
                 };
                 let response = handle_request(&client, cache.clone(), request).await;
                 update_progress(&pb, &response, verbose);
+
+                if cfg.recursive {
+                    let recursion_level = response.recursion_level() + 1;
+                    if let Some(depth) = cfg.depth {
+                        if recursion_level > depth {
+                            // Maximum recursion depth reached;
+                            // stop link checking.
+                            return;
+                        }
+                    }
+
+                    if !response.is_success() {
+                        // Don't recurse if the previous request was not
+                        // successful
+                        return;
+                    }
+
+                    // Check if this URI was checked before, and can be
+                    // skipped
+                    if response.is_cached() {
+                        return;
+                    }
+
+                    let input = Input::with_recursion(
+                        &response.uri().to_string(),
+                        None,
+                        false,
+                        recursion_level,
+                    );
+
+                    // Check domain against known domains
+                    // If no domain is given, it might be a local link (e.g. 127.0.0.1),
+                    // which we accept
+                    let source = response.source();
+                    // Only domains, which were part of the original
+                    // input should be checked recursively
+                    if !should_recurse(&input_sources, source) {
+                        return;
+                    }
+                    send_input_recursive
+                        .send(input)
+                        .await
+                        .expect("Can't send recursive input to channel");
+                }
                 stats.write().add(response);
             },
         )
@@ -144,4 +196,47 @@ fn update_progress(progress_bar: &Option<ProgressBar>, response: &Response, verb
         }
         println!("{}", out);
     }
+}
+
+/// Check if the given source is part of the original set of inputs
+/// This is needed to limit recursion to known resources
+fn should_recurse(inputs: &HashSet<InputSource>, source: &InputSource) -> bool {
+    if matches!(
+        source,
+        InputSource::Stdin | InputSource::String(_) | InputSource::FsGlob { .. }
+    ) {
+        // Don't recurse
+        return false;
+    }
+    for input in inputs {
+        match input {
+            InputSource::RemoteUrl(url) => {
+                if let Some(domain) = url.domain() {
+                    if Some(domain) == url.domain() {
+                        return true;
+                    }
+                }
+            }
+            InputSource::FsPath(_path) => {
+                // TODO: Add support for file recursion
+                //
+                // cwd: /path/to/pub/
+                // checking: some/other/file.txt
+                //
+                // path: foo
+                // resolved: /path/to/pub/some/other/foo
+                //
+                // path: /blub
+                // resolved: /pat/to/pub/blub
+                //
+                // path: ../foo
+                // resolved: /path/to/pub/some/foo
+                //
+                // path: ./foo/bar
+                // resolved: /path/to/pub/some/other/foo/bar
+            }
+            _ => (),
+        };
+    }
+    false
 }

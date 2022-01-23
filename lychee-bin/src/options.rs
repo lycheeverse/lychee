@@ -308,6 +308,16 @@ pub(crate) struct Config {
     #[structopt(long)]
     #[serde(default)]
     pub(crate) require_https: bool,
+
+    /// Enable recursion (make sub-requests for detected links)
+    #[structopt(short, long)]
+    #[serde(default)]
+    pub(crate) recursive: bool,
+
+    /// Stop link checking beyond this maximum recursion depth.
+    /// (Recommended for large inputs.)
+    #[structopt(long)]
+    pub(crate) depth: Option<isize>,
 }
 
 impl Config {
@@ -366,6 +376,7 @@ impl Config {
             glob_ignore_case: false;
             output: None;
             require_https: false;
+            recursive: false;
         }
     }
 }

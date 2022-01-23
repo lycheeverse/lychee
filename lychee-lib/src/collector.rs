@@ -77,6 +77,9 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
+    // We considered to use streams as an input here, but it's not supported to
+    // push new inputs to a stream once it's passed to the collector.
+    // That's why we a provide separate methods for channels and vectors
     pub async fn from_chan(
         self,
         inputs: mpsc::Receiver<Input>,
@@ -175,16 +178,19 @@ mod test {
             Input {
                 source: InputSource::String(TEST_STRING.to_owned()),
                 file_type_hint: None,
+                recursion_level: 0,
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
                     Url::parse(&mock_server.uri()).map_err(|e| (mock_server.uri(), e))?,
                 )),
                 file_type_hint: None,
+                recursion_level: 0,
             },
             Input {
                 source: InputSource::FsPath(file_path),
                 file_type_hint: None,
+                recursion_level: 0,
             },
             Input {
                 source: InputSource::FsGlob {
@@ -192,6 +198,7 @@ mod test {
                     ignore_case: true,
                 },
                 file_type_hint: None,
+                recursion_level: 0,
             },
         ];
 
@@ -216,6 +223,7 @@ mod test {
         let input = Input {
             source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
             file_type_hint: Some(FileType::Markdown),
+                recursion_level: 0,
         };
         let links = collect(vec![input], Some(base)).await;
 
@@ -241,6 +249,7 @@ mod test {
                     .to_string(),
             ),
             file_type_hint: Some(FileType::Html),
+            recursion_level: 0,
         };
         let links = collect(vec![input], Some(base)).await;
 
@@ -269,6 +278,7 @@ mod test {
                 .to_string(),
             ),
             file_type_hint: Some(FileType::Html),
+            recursion_level: 0,
         };
         let links = collect(vec![input], Some(base)).await;
 
@@ -294,6 +304,7 @@ mod test {
                     .to_string(),
             ),
             file_type_hint: Some(FileType::Markdown),
+            recursion_level: 0,
         };
 
         let links = collect(vec![input], Some(base)).await;
@@ -316,6 +327,7 @@ mod test {
         let input = Input {
             source: InputSource::String(input),
             file_type_hint: Some(FileType::Html),
+            recursion_level: 0,
         };
         let links = collect(vec![input], Some(base)).await;
 
@@ -348,6 +360,7 @@ mod test {
         let input = Input {
             source: InputSource::RemoteUrl(Box::new(server_uri.clone())),
             file_type_hint: None,
+            recursion_level: 0,
         };
 
         let links = collect(vec![input], None).await;

@@ -13,10 +13,12 @@ async fn main() -> Result<()> {
                 Url::parse("https://github.com/lycheeverse/lychee").unwrap(),
             )),
             file_type_hint: None,
+            recursion_level: 0,
         },
         Input {
             source: InputSource::FsPath(PathBuf::from("fixtures/TEST.md")),
             file_type_hint: None,
+            recursion_level: 0,
         },
     ];
 

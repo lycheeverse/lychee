@@ -41,7 +41,7 @@ impl ResponseStats {
     }
 
     pub(crate) fn add(&mut self, response: Response) {
-        let Response(source, ResponseBody { ref status, .. }) = response;
+        let Response(source, ResponseBody { ref status, .. }, _recursion_level) = response;
 
         // Silently skip unsupported URIs
         if status.is_unsupported() {
@@ -133,14 +133,11 @@ mod test {
         let mut stats = ResponseStats::new();
         assert!(stats.is_empty());
 
-        stats.add(Response(
+        stats.add(Response::new(
+            website("https://example.org/ok"),
+            Status::Ok(StatusCode::OK),
             InputSource::Stdin,
-            ResponseBody {
-                uri: website("https://example.org/ok"),
-                status: Status::Ok(StatusCode::OK),
-            },
         ));
-
         assert!(!stats.is_empty());
     }
 
@@ -160,7 +157,8 @@ mod test {
         let mut expected_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         for status in &status_codes {
             if status.is_server_error() || status.is_client_error() || status.is_redirection() {
-                let Response(source, response_body) = get_mock_status_response(status).await;
+                let Response(source, response_body, _recursion_level) =
+                    get_mock_status_response(status).await;
                 let entry = expected_map.entry(source).or_default();
                 entry.insert(response_body);
             }
