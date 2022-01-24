@@ -27,6 +27,6 @@ pub type Result<T> = std::result::Result<T, crate::ErrorKind>;
 /// lychee supports recursion up to an arbitrary depth.
 /// In order to keep track of the current level of recursion,
 /// it gets stored in the input and response objects
-/// 
+///
 /// Setting the level to `-1` means infinite recursion
 type RecursionLevel = isize;
