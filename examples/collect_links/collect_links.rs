@@ -22,11 +22,11 @@ async fn main() -> Result<()> {
         },
     ];
 
-    let links = Collector::new(
+    let links = Collector::from_iter(
         None,  // base
         false, // don't skip missing inputs
+        inputs,
     )
-    .from_iter(inputs)
     .await
     .collect::<Result<Vec<_>>>()
     .await?;

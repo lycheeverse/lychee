@@ -8,33 +8,38 @@ use reqwest::Url;
 use std::path::PathBuf;
 use tokio_stream::StreamExt;
 
+const MAX_CONCURRENCY: usize = 4;
+
 #[tokio::main]
 #[allow(clippy::trivial_regex)]
 async fn main() -> Result<()> {
-    // Collect all links from the following inputs
-    let inputs = [
-        Input {
-            source: InputSource::RemoteUrl(Box::new(
-                Url::parse("https://github.com/lycheeverse/lychee").unwrap(),
-            )),
-            file_type_hint: None,
-            recursion_level: 0,
-        },
-        Input {
-            source: InputSource::FsPath(PathBuf::from("fixtures/TEST.md")),
-            file_type_hint: None,
-            recursion_level: 0,
-        },
-    ];
-
-    let links = Collector::new(
+    let (chan, links) = Collector::from_chan(
         None,  // base
         false, // don't skip missing inputs
+        MAX_CONCURRENCY,
     )
-    .from_iter(inputs)
+    .await;
+
+    // Collect all links from the following inputs
+    chan.send(Input {
+        source: InputSource::RemoteUrl(Box::new(
+            Url::parse("https://github.com/lycheeverse/lychee").unwrap(),
+        )),
+        file_type_hint: None,
+        recursion_level: 0,
+    })
     .await
-    .collect::<Result<Vec<_>>>()
-    .await?;
+    .unwrap();
+    chan.send(Input {
+        source: InputSource::FsPath(PathBuf::from("fixtures/TEST.md")),
+        file_type_hint: None,
+        recursion_level: 0,
+    })
+    .await
+    .unwrap();
+    drop(chan);
+
+    let links = links.collect::<Result<Vec<_>>>().await?;
 
     dbg!(links);
 

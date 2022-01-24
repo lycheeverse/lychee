@@ -12,22 +12,10 @@ use tokio_stream::wrappers::ReceiverStream;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
-#[derive(Debug, Clone)]
-pub struct Collector {
-    base: Option<Base>,
-    skip_missing_inputs: bool,
-}
+#[derive(Debug, Copy, Clone)]
+pub struct Collector;
 
 impl Collector {
-    /// Create a new collector with an empty cache
-    #[must_use]
-    pub const fn new(base: Option<Base>, skip_missing_inputs: bool) -> Self {
-        Collector {
-            base,
-            skip_missing_inputs,
-        }
-    }
-
     /// Fetches all unique links from an iterator or a stream of inputs. The
     /// output stream ends when all inputs were processed.
     ///
@@ -38,20 +26,19 @@ impl Collector {
     ///
     /// Will return `Err` if links cannot be extracted from an input
     pub async fn from_iter<'a, T: IntoIterator<Item = Input> + Send + 'a>(
-        self,
+        base: Option<Base>,
+        skip_missing_inputs: bool,
         input: T,
     ) -> impl Stream<Item = Result<Request>>
     where
         <T as IntoIterator>::IntoIter: Send + 'static,
     {
-        let skip_missing_inputs = self.skip_missing_inputs;
         let contents = stream::iter(input)
             .par_then_unordered(None, move |input| async move {
                 input.get_contents(skip_missing_inputs).await
             })
             .flatten();
 
-        let base = self.base;
         contents
             .par_then_unordered(None, move |content| {
                 // send to parallel worker
@@ -81,14 +68,16 @@ impl Collector {
     // push new inputs to a stream once it's passed to the collector.
     // That's why we a provide separate methods for channels and vectors
     pub async fn from_chan(
-        self,
-        inputs: mpsc::Receiver<Input>,
-    ) -> impl Stream<Item = Result<Request>> {
-        let skip_missing_inputs = self.skip_missing_inputs;
-        let base = self.base;
+        base: Option<Base>,
+        skip_missing_inputs: bool,
+        max_concurrency: usize,
+    ) -> (mpsc::Sender<Input>, impl Stream<Item = Result<Request>>) {
+        let (send_input, recv_input) = mpsc::channel(max_concurrency);
 
-        ReceiverStream::new(inputs)
-            .par_then_unordered(None, move |input| input.get_contents(skip_missing_inputs))
+        let stream = ReceiverStream::new(recv_input)
+            .par_then_unordered(None, move |input: Input| {
+                input.get_contents(skip_missing_inputs)
+            })
             .flatten()
             .par_then_unordered(None, move |content| {
                 let base = base.clone();
@@ -99,7 +88,8 @@ impl Collector {
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
             })
-            .try_flatten()
+            .try_flatten();
+        (send_input, stream)
     }
 }
 
@@ -121,7 +111,7 @@ mod test {
 
     // Helper function to run the collector on the given inputs
     async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
-        let responses = Collector::new(base, false).from_iter(inputs).await;
+        let responses = Collector::from_iter(base, false, inputs).await;
         responses.map(|r| r.unwrap().uri).collect().await
     }
 

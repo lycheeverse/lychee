@@ -9,7 +9,6 @@ use lychee_lib::InputSource;
 use lychee_lib::Result;
 use lychee_lib::Status;
 use parking_lot::RwLock;
-use tokio::sync::mpsc;
 
 use crate::{
     cache::Cache,
@@ -25,9 +24,6 @@ pub(crate) async fn check(
     inputs: Vec<Input>,
     cfg: Config,
 ) -> Result<(Arc<RwLock<ResponseStats>>, Arc<Cache>, ExitCode)> {
-    let (send_input, recv_input) = mpsc::channel(cfg.max_concurrency);
-    let send_input_recursive = send_input.clone();
-
     let base = cfg.base.clone();
     let verbose = cfg.verbose;
     let max_concurrency = cfg.max_concurrency;
@@ -41,10 +37,17 @@ pub(crate) async fn check(
     let pb = init_progress(cfg.no_progress);
     let pb_handle = pb.clone();
 
-    let requests = Collector::new(base, cfg.skip_missing)
-        .from_chan(recv_input)
-        .await;
+    let (sender, requests) =
+        Collector::from_chan(base, cfg.skip_missing, cfg.max_concurrency).await;
 
+    for input in inputs {
+        sender
+            .send(input)
+            .await
+            .expect("Cannot send input to channel");
+    }
+
+    // Explicitly drop the channel to stop the stream inside the collector
     // Start receiving requests
     let collector_handle = tokio::spawn(async move {
         futures::StreamExt::for_each_concurrent(
@@ -100,7 +103,7 @@ pub(crate) async fn check(
                     if !should_recurse(&input_sources, source) {
                         return;
                     }
-                    send_input_recursive
+                    sender
                         .send(input)
                         .await
                         .expect("Can't send recursive input to channel");
@@ -110,15 +113,6 @@ pub(crate) async fn check(
         )
         .await;
     });
-
-    for input in inputs {
-        send_input
-            .send(input)
-            .await
-            .expect("Cannot send input to channel");
-    }
-    // Explicitly drop the channel to stop the stream inside the collector
-    drop(send_input);
 
     collector_handle.await?;
 

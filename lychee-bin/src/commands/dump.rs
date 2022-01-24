@@ -8,9 +8,7 @@ use crate::ExitCode;
 
 /// Dump all detected links to stdout without checking them
 pub(crate) async fn dump(client: Client, inputs: Vec<Input>, cfg: Config) -> Result<ExitCode> {
-    let requests = Collector::new(cfg.base.clone(), cfg.skip_missing)
-        .from_iter(inputs)
-        .await;
+    let requests = Collector::from_iter(cfg.base.clone(), cfg.skip_missing, inputs).await;
     tokio::pin!(requests);
 
     while let Some(request) = requests.next().await {
