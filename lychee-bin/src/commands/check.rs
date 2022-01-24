@@ -68,7 +68,7 @@ pub(crate) async fn check(
                 if cfg.recursive {
                     let recursion_level = response.recursion_level() + 1;
                     if let Some(depth) = cfg.depth {
-                        if recursion_level > depth {
+                        if depth != -1 && recursion_level > depth {
                             // Maximum recursion depth reached;
                             // stop link checking.
                             return;

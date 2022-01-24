@@ -315,7 +315,8 @@ pub(crate) struct Config {
     pub(crate) recursive: bool,
 
     /// Stop link checking beyond this maximum recursion depth.
-    /// (Recommended for large inputs.)
+    /// This is recommended for large inputs.
+    /// A value of -1 means infinite recursion.
     #[structopt(long)]
     pub(crate) depth: Option<isize>,
 }
