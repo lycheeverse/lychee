@@ -9,6 +9,7 @@ use lychee_lib::InputSource;
 use lychee_lib::Result;
 use lychee_lib::Status;
 use parking_lot::RwLock;
+use tokio::sync::mpsc;
 
 use crate::{
     cache::Cache,
@@ -66,47 +67,7 @@ pub(crate) async fn check(
                 update_progress(&pb, &response, verbose);
 
                 if cfg.recursive {
-                    let recursion_level = response.recursion_level() + 1;
-                    if let Some(depth) = cfg.depth {
-                        if depth != -1 && recursion_level > depth {
-                            // Maximum recursion depth reached;
-                            // stop link checking.
-                            return;
-                        }
-                    }
-
-                    if !response.is_success() {
-                        // Don't recurse if the previous request was not
-                        // successful
-                        return;
-                    }
-
-                    // Check if this URI was checked before, and can be
-                    // skipped
-                    if response.is_cached() {
-                        return;
-                    }
-
-                    let input = Input::with_recursion(
-                        &response.uri().to_string(),
-                        None,
-                        false,
-                        recursion_level,
-                    );
-
-                    // Check domain against known domains
-                    // If no domain is given, it might be a local link (e.g. 127.0.0.1),
-                    // which we accept
-                    let source = response.source();
-                    // Only domains, which were part of the original
-                    // input should be checked recursively
-                    if !should_recurse(&input_sources, source) {
-                        return;
-                    }
-                    sender
-                        .send(input)
-                        .await
-                        .expect("Can't send recursive input to channel");
+                    recurse(&response, cfg.depth, &input_sources, &sender).await;
                 }
                 stats.write().add(response);
             },
@@ -128,6 +89,51 @@ pub(crate) async fn check(
         ExitCode::LinkCheckFailure
     };
     Ok((stats_handle, cache_handle, code))
+}
+
+/// Traverse children of response by creating a new input and sending it to the
+/// channel of the collector
+async fn recurse(
+    response: &Response,
+    depth: Option<isize>,
+    input_sources: &HashSet<InputSource>,
+    sender: &mpsc::Sender<Input>,
+) {
+    let recursion_level = response.recursion_level() + 1;
+
+    if let Some(depth) = depth {
+        if depth != -1 && recursion_level > depth {
+            // Maximum recursion depth reached;
+            // stop link checking.
+            return;
+        }
+    }
+
+    if !response.is_success() {
+        // Don't recurse if the previous request was not
+        // successful
+        return;
+    }
+
+    // Check if this URI was checked before, and can be
+    // skipped
+    if response.is_cached() {
+        return;
+    }
+
+    // Only domains, which were part of the original
+    // input should be checked recursively
+    let source = response.source();
+    if !should_recurse(input_sources, source) {
+        return;
+    }
+
+    // Construct the new recursive input
+    let input = Input::with_recursion(&response.uri().to_string(), None, false, recursion_level);
+    sender
+        .send(input)
+        .await
+        .expect("Can't send recursive input to channel");
 }
 
 /// Handle a single request
