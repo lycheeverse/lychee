@@ -1,8 +1,4 @@
-use html5ever::{
-    buffer_queue::BufferQueue,
-    tendril::StrTendril,
-    tokenizer::{Tag, Token, TokenSink, TokenSinkResult, Tokenizer, TokenizerOpts},
-};
+use html5gum::{Tokenizer, Token};
 
 use super::plaintext::extract_plaintext;
 use crate::types::raw_uri::RawUri;
@@ -10,54 +6,6 @@ use crate::types::raw_uri::RawUri;
 #[derive(Clone)]
 struct LinkExtractor {
     links: Vec<RawUri>,
-}
-
-impl TokenSink for LinkExtractor {
-    type Handle = ();
-
-    #[allow(clippy::match_same_arms)]
-    fn process_token(&mut self, token: Token, _line_number: u64) -> TokenSinkResult<()> {
-        match token {
-            Token::CharacterTokens(raw) => self.links.extend(extract_plaintext(&raw)),
-            Token::TagToken(tag) => {
-                let Tag {
-                    kind: _kind,
-                    name,
-                    self_closing: _self_closing,
-                    attrs,
-                } = tag;
-
-                for attr in attrs {
-                    let urls = LinkExtractor::extract_urls_from_elem_attr(
-                        attr.name.local.as_ref(),
-                        name.as_ref(),
-                        attr.value.as_ref(),
-                    );
-
-                    let new_urls = match urls {
-                        None => extract_plaintext(&attr.value),
-                        Some(urls) => urls
-                            .into_iter()
-                            .map(|url| RawUri {
-                                text: url.to_string(),
-                                element: Some(name.to_string()),
-                                attribute: Some(attr.name.local.to_string()),
-                            })
-                            .collect::<Vec<_>>(),
-                    };
-                    self.links.extend(new_urls);
-                }
-            }
-            Token::ParseError(_err) => {
-                // Silently ignore parse errors
-            }
-            Token::CommentToken(_raw) => (),
-            Token::NullCharacterToken => (),
-            Token::DoctypeToken(_doctype) => (),
-            Token::EOFToken => (),
-        }
-        TokenSinkResult::Continue
-    }
 }
 
 impl LinkExtractor {
@@ -112,18 +60,47 @@ impl LinkExtractor {
             _ => None,
         }
     }
+
+    pub(crate) fn run(&mut self, input: &str) {
+        for token in Tokenizer::new(input).infallible() {
+            match token {
+                Token::StartTag(tag) => {
+                    for (attr, value) in tag.attributes {
+                        let urls = LinkExtractor::extract_urls_from_elem_attr(
+                            &attr,
+                            &tag.name,
+                            &value
+                        );
+
+                        let new_urls = match urls {
+                            None => extract_plaintext(&value),
+                            Some(urls) => urls
+                                .into_iter()
+                                .map(|url| RawUri {
+                                    text: url.to_string(),
+                                    element: Some(tag.name.to_string()),
+                                    attribute: Some(attr.to_string()),
+                                })
+                                .collect::<Vec<_>>(),
+                        };
+                        self.links.extend(new_urls);
+                    }
+                }
+                Token::EndTag(_) => (),
+                Token::String(raw) => self.links.extend(extract_plaintext(&raw)),
+                Token::Comment(_) => (),
+                Token::Doctype(_) => (),
+                Token::Error(_) => (),
+            }
+        }
+    }
 }
 
 /// Extract unparsed URL strings from an HTML string.
 pub(crate) fn extract_html(buf: &str) -> Vec<RawUri> {
-    let mut input = BufferQueue::new();
-    input.push_back(StrTendril::from(buf));
-
-    let mut tokenizer = Tokenizer::new(LinkExtractor::new(), TokenizerOpts::default());
-    let _handle = tokenizer.feed(&mut input);
-    tokenizer.end();
-
-    tokenizer.sink.links
+    let mut extractor = LinkExtractor::new();
+    extractor.run(buf);
+    extractor.links
 }
 
 #[cfg(test)]
