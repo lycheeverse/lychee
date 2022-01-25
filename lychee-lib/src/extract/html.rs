@@ -65,10 +65,13 @@ impl LinkExtractor {
         for token in Tokenizer::new(input).infallible() {
             match token {
                 Token::StartTag(tag) => {
+                    let name = std::str::from_utf8(&tag.name).unwrap();
                     for (attr, value) in tag.attributes {
+                        let attr = std::str::from_utf8(&attr).unwrap();
+                        let value = std::str::from_utf8(&value).unwrap();
                         let urls = LinkExtractor::extract_urls_from_elem_attr(
                             &attr,
-                            &tag.name,
+                            &name,
                             &value
                         );
 
@@ -78,7 +81,7 @@ impl LinkExtractor {
                                 .into_iter()
                                 .map(|url| RawUri {
                                     text: url.to_string(),
-                                    element: Some(tag.name.to_string()),
+                                    element: Some(name.to_string()),
                                     attribute: Some(attr.to_string()),
                                 })
                                 .collect::<Vec<_>>(),
@@ -87,7 +90,7 @@ impl LinkExtractor {
                     }
                 }
                 Token::EndTag(_) => (),
-                Token::String(raw) => self.links.extend(extract_plaintext(&raw)),
+                Token::String(raw) => self.links.extend(extract_plaintext(std::str::from_utf8(&raw).unwrap())),
                 Token::Comment(_) => (),
                 Token::Doctype(_) => (),
                 Token::Error(_) => (),

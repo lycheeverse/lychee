@@ -1357,10 +1357,8 @@ dependencies = [
 [[package]]
 name = "html5gum"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75c37df15dc3ab0710b16856a7fe738c115a7b41ed61a001f13ed19dd1fd8e8a"
 dependencies = [
- "memchr",
+ "jetscii",
 ]
 
 [[package]]
@@ -1590,6 +1588,12 @@ name = "itoa"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aab8fc367588b89dcee83ab0fd66b72b50b72fa1904d7095045ace2b0c81c35"
+
+[[package]]
+name = "jetscii"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9447923c57a8a2d5c1b0875cdf96a6324275df728b498f2ede0e5cbde088a15"
 
 [[package]]
 name = "js-sys"
