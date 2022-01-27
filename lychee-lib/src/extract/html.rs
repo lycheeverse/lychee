@@ -1,4 +1,4 @@
-use html5gum::{Error, Tokenizer, Emitter};
+use html5gum::{Emitter, Error, Tokenizer};
 
 use super::plaintext::extract_plaintext;
 use crate::types::raw_uri::RawUri;
@@ -84,30 +84,26 @@ impl LinkExtractor {
 
     fn flush_old_attribute(&mut self) {
         {
-        // none of those will panic as long as the original input was valid utf8
-        let name = std::str::from_utf8(&self.current_tag_name).unwrap();
-        let attr = std::str::from_utf8(&self.current_attribute_name).unwrap();
-        let value = std::str::from_utf8(&self.current_attribute_value).unwrap();
+            // none of those will panic as long as the original input was valid utf8
+            let name = std::str::from_utf8(&self.current_tag_name).unwrap();
+            let attr = std::str::from_utf8(&self.current_attribute_name).unwrap();
+            let value = std::str::from_utf8(&self.current_attribute_value).unwrap();
 
-        let urls = LinkExtractor::extract_urls_from_elem_attr(
-            &attr,
-            &name,
-            &value
-        );
+            let urls = LinkExtractor::extract_urls_from_elem_attr(&attr, &name, &value);
 
-        let new_urls = match urls {
-            None => extract_plaintext(&value),
-            Some(urls) => urls
-                .into_iter()
-                .map(|url| RawUri {
-                    text: url.to_string(),
-                    element: Some(name.to_string()),
-                    attribute: Some(attr.to_string()),
-                })
-            .collect::<Vec<_>>(),
-        };
+            let new_urls = match urls {
+                None => extract_plaintext(&value),
+                Some(urls) => urls
+                    .into_iter()
+                    .map(|url| RawUri {
+                        text: url.to_string(),
+                        element: Some(name.to_string()),
+                        attribute: Some(attr.to_string()),
+                    })
+                    .collect::<Vec<_>>(),
+            };
 
-        self.links.extend(new_urls);
+            self.links.extend(new_urls);
         }
 
         self.current_attribute_name.clear();
@@ -120,7 +116,8 @@ impl Emitter for &mut LinkExtractor {
 
     fn set_last_start_tag(&mut self, last_start_tag: Option<&[u8]>) {
         self.last_start_tag.clear();
-        self.last_start_tag.extend(last_start_tag.unwrap_or_default());
+        self.last_start_tag
+            .extend(last_start_tag.unwrap_or_default());
     }
 
     fn emit_eof(&mut self) {
@@ -185,7 +182,9 @@ impl Emitter for &mut LinkExtractor {
     fn push_doctype_public_identifier(&mut self, _: &[u8]) {}
     fn push_doctype_system_identifier(&mut self, _: &[u8]) {}
     fn current_is_appropriate_end_tag_token(&mut self) -> bool {
-        self.current_tag_is_closing && !self.current_tag_name.is_empty() && self.current_tag_name == self.last_start_tag
+        self.current_tag_is_closing
+            && !self.current_tag_name.is_empty()
+            && self.current_tag_name == self.last_start_tag
     }
 
     fn emit_current_comment(&mut self) {}
