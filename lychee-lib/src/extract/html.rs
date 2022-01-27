@@ -89,10 +89,10 @@ impl LinkExtractor {
             let attr = std::str::from_utf8(&self.current_attribute_name).unwrap();
             let value = std::str::from_utf8(&self.current_attribute_value).unwrap();
 
-            let urls = LinkExtractor::extract_urls_from_elem_attr(&attr, &name, &value);
+            let urls = LinkExtractor::extract_urls_from_elem_attr(attr, name, value);
 
             let new_urls = match urls {
-                None => extract_plaintext(&value),
+                None => extract_plaintext(value),
                 Some(urls) => urls
                     .into_iter()
                     .map(|url| RawUri {
