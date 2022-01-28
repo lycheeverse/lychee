@@ -14,6 +14,13 @@ struct LinkExtractor {
     last_start_tag: Vec<u8>,
 }
 
+/// this is the same as `std::str::from_utf8_unchecked`, but with extra debug assertions for ease
+/// of debugging
+unsafe fn from_utf8_unchecked(s: &[u8]) -> &str {
+    debug_assert!(std::str::from_utf8(&s).is_ok());
+    std::str::from_utf8_unchecked(&s)
+}
+
 impl LinkExtractor {
     pub(crate) const fn new() -> Self {
         LinkExtractor {
@@ -76,18 +83,18 @@ impl LinkExtractor {
     }
 
     fn flush_current_characters(&mut self) {
-        // this won't panic as long as the original input was valid utf8
-        let raw = std::str::from_utf8(&self.current_string).unwrap();
+        // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
+        let raw = unsafe { from_utf8_unchecked(&self.current_string) };
         self.links.extend(extract_plaintext(raw));
         self.current_string.clear();
     }
 
     fn flush_old_attribute(&mut self) {
         {
-            // none of those will panic as long as the original input was valid utf8
-            let name = std::str::from_utf8(&self.current_tag_name).unwrap();
-            let attr = std::str::from_utf8(&self.current_attribute_name).unwrap();
-            let value = std::str::from_utf8(&self.current_attribute_value).unwrap();
+            // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
+            let name = unsafe { from_utf8_unchecked(&self.current_tag_name) };
+            let attr = unsafe { from_utf8_unchecked(&self.current_attribute_name) };
+            let value = unsafe { from_utf8_unchecked(&self.current_attribute_value) };
 
             let urls = LinkExtractor::extract_urls_from_elem_attr(attr, name, value);
 
