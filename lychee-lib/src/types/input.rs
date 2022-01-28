@@ -8,6 +8,7 @@ use reqwest::Url;
 use serde::Serialize;
 use shellexpand::tilde;
 use std::fmt::Display;
+use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::io::{stdin, AsyncReadExt};
 
@@ -40,6 +41,20 @@ impl InputContent {
             file_type,
             content: s.to_owned(),
         }
+    }
+}
+
+impl TryFrom<&PathBuf> for InputContent {
+    type Error = crate::ErrorKind;
+
+    fn try_from(path: &PathBuf) -> std::result::Result<Self, Self::Error> {
+        let input = fs::read_to_string(&path)?;
+
+        Ok(Self {
+            source: InputSource::String(input.clone()),
+            file_type: FileType::from(path),
+            content: input,
+        })
     }
 }
 

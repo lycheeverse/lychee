@@ -175,10 +175,12 @@ acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
 ### Docker Usage
 
 Here's how to mount a local directory into the container and check some input
-with lychee:
+with lychee. The `--init` parameter is passed so that lychee can be stopped
+from the terminal. We also pass `-it` to start an interactive terminal, which
+is required to show the progress bar.
 
 ```sh
-docker run -v `pwd`:/input lycheeverse/lychee /input/README.md
+docker run --init -it -v `pwd`:/input lycheeverse/lychee /input/README.md
 ```
 
 ### GitHub Token

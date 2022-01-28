@@ -1,18 +1,25 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use lychee_lib::extract::Extractor;
-use lychee_lib::{FileType, InputContent};
-use std::fs;
+use lychee_lib::InputContent;
+use std::path::PathBuf;
 
-fn extract(input: &str) {
-    let extracted = Extractor::extract(&InputContent::from_string(input, FileType::Html));
-    println!("{}", extracted.len());
+fn extract(paths: &[PathBuf]) {
+    for path in paths {
+        let content: InputContent = path.try_into().unwrap();
+        let extracted = Extractor::extract(&content);
+        println!("{}", extracted.len());
+    }
 }
 
 fn benchmark(c: &mut Criterion) {
     // Currently Wikipedia's biggest featured article
-    let elvis = fs::read_to_string("../fixtures/elvis.html").unwrap();
-    c.bench_function("extract from large doc", |b| {
-        b.iter(|| extract(black_box(&elvis)))
+    c.bench_function("extract from large docs", |b| {
+        b.iter(|| {
+            extract(black_box(&[
+                PathBuf::from("../fixtures/bench/elvis.html"),
+                PathBuf::from("../fixtures/bench/arch.html"),
+            ]))
+        })
     });
 }
 
