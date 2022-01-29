@@ -23,7 +23,7 @@ impl Collector {
         Collector {
             base,
             skip_missing_inputs,
-            use_html5ever
+            use_html5ever,
         }
     }
 

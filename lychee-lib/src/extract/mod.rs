@@ -21,11 +21,13 @@ impl Extractor {
     pub fn extract(input_content: &InputContent, use_html5ever: bool) -> Vec<RawUri> {
         match input_content.file_type {
             FileType::Markdown => extract_markdown(&input_content.content),
-            FileType::Html => if use_html5ever {
-                html::extract_html(&input_content.content)
-            } else {
-                html5gum::extract_html(&input_content.content)
-            },
+            FileType::Html => {
+                if use_html5ever {
+                    html::extract_html(&input_content.content)
+                } else {
+                    html5gum::extract_html(&input_content.content)
+                }
+            }
             FileType::Plaintext => extract_plaintext(&input_content.content),
         }
     }
@@ -252,10 +254,9 @@ mod test {
         let input = "https://www.apache.org/licenses/LICENSE-2.0\n";
         let links = extract_uris(&input, FileType::Plaintext);
 
-        let expected_links = IntoIterator::into_iter([
-            website("https://www.apache.org/licenses/LICENSE-2.0"),
-        ])
-        .collect::<HashSet<Uri>>();
+        let expected_links =
+            IntoIterator::into_iter([website("https://www.apache.org/licenses/LICENSE-2.0")])
+                .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
     }
