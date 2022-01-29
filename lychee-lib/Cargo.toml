@@ -49,6 +49,7 @@ once_cell = "1.9.0"
 thiserror = "1.0.30"
 futures = "0.3.19"
 lazy_static = "1.4.0"
+html5ever = "0.25.1"
 html5gum = { git = "https://github.com/untitaker/html5gum" }
 
 [dependencies.par-stream]

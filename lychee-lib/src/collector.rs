@@ -13,15 +13,17 @@ use par_stream::ParStreamExt;
 pub struct Collector {
     base: Option<Base>,
     skip_missing_inputs: bool,
+    use_html5ever: bool,
 }
 
 impl Collector {
     /// Create a new collector with an empty cache
     #[must_use]
-    pub const fn new(base: Option<Base>, skip_missing_inputs: bool) -> Self {
+    pub const fn new(base: Option<Base>, skip_missing_inputs: bool, use_html5ever: bool) -> Self {
         Collector {
             base,
             skip_missing_inputs,
+            use_html5ever
         }
     }
 
@@ -47,7 +49,7 @@ impl Collector {
                 let base = base.clone();
                 async move {
                     let content = content?;
-                    let uris: Vec<RawUri> = Extractor::extract(&content);
+                    let uris: Vec<RawUri> = Extractor::extract(&content, self.use_html5ever);
                     let requests = request::create(uris, &content, &base)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }

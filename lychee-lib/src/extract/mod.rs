@@ -1,10 +1,10 @@
 use crate::types::{raw_uri::RawUri, FileType, InputContent};
 
 mod html;
+mod html5gum;
 mod markdown;
 mod plaintext;
 
-use html::extract_html;
 use markdown::extract_markdown;
 use plaintext::extract_plaintext;
 
@@ -18,10 +18,14 @@ impl Extractor {
     /// Main entrypoint for extracting links from various sources
     /// (Markdown, HTML, and plaintext)
     #[must_use]
-    pub fn extract(input_content: &InputContent) -> Vec<RawUri> {
+    pub fn extract(input_content: &InputContent, use_html5ever: bool) -> Vec<RawUri> {
         match input_content.file_type {
             FileType::Markdown => extract_markdown(&input_content.content),
-            FileType::Html => extract_html(&input_content.content),
+            FileType::Html => if use_html5ever {
+                html::extract_html(&input_content.content)
+            } else {
+                html5gum::extract_html(&input_content.content)
+            },
             FileType::Plaintext => extract_plaintext(&input_content.content),
         }
     }
@@ -237,6 +241,19 @@ mod test {
         let expected_links = IntoIterator::into_iter([
             website("https://example.com/@test/test"),
             website("http://otherdomain.com/test/@test"),
+        ])
+        .collect::<HashSet<Uri>>();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_link_at_end_of_line() {
+        let input = "https://www.apache.org/licenses/LICENSE-2.0\n";
+        let links = extract_uris(&input, FileType::Plaintext);
+
+        let expected_links = IntoIterator::into_iter([
+            website("https://www.apache.org/licenses/LICENSE-2.0"),
         ])
         .collect::<HashSet<Uri>>();
 

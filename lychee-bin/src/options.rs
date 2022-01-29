@@ -289,6 +289,13 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) skip_missing: bool,
 
+    /// Use html5ever instead of html5gum as parser.
+    ///
+    /// This option is unstable and may get removed anytime. File a bug if you rely on this.
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) use_html5ever: bool,
+
     /// Ignore case when expanding filesystem path glob inputs
     #[structopt(long)]
     #[serde(default)]
