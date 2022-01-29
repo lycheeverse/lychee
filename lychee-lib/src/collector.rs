@@ -19,12 +19,26 @@ pub struct Collector {
 impl Collector {
     /// Create a new collector with an empty cache
     #[must_use]
-    pub const fn new(base: Option<Base>, skip_missing_inputs: bool, use_html5ever: bool) -> Self {
+    pub const fn new(base: Option<Base>) -> Self {
         Collector {
             base,
-            skip_missing_inputs,
-            use_html5ever,
+            skip_missing_inputs: false,
+            use_html5ever: false,
         }
+    }
+
+    /// Skip missing input files (default is to error if they don't exist)
+    #[must_use]
+    pub const fn skip_missing_inputs(mut self, yes: bool) -> Self {
+        self.skip_missing_inputs = yes;
+        self
+    }
+
+    /// Use `html5ever` to parse HTML instead of `html5gum`.
+    #[must_use]
+    pub const fn use_html5ever(mut self, yes: bool) -> Self {
+        self.use_html5ever = yes;
+        self
     }
 
     /// Fetch all unique links from inputs
@@ -76,7 +90,7 @@ mod test {
 
     // Helper function to run the collector on the given inputs
     async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
-        let responses = Collector::new(base, false, false).collect_links(inputs).await;
+        let responses = Collector::new(base).collect_links(inputs).await;
         responses.map(|r| r.unwrap().uri).collect().await
     }
 
