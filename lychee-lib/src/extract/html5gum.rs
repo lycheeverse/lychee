@@ -17,8 +17,8 @@ struct LinkExtractor {
 /// this is the same as `std::str::from_utf8_unchecked`, but with extra debug assertions for ease
 /// of debugging
 unsafe fn from_utf8_unchecked(s: &[u8]) -> &str {
-    debug_assert!(std::str::from_utf8(&s).is_ok());
-    std::str::from_utf8_unchecked(&s)
+    debug_assert!(std::str::from_utf8(s).is_ok());
+    std::str::from_utf8_unchecked(s)
 }
 
 impl LinkExtractor {
