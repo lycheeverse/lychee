@@ -76,7 +76,7 @@ mod test {
 
     // Helper function to run the collector on the given inputs
     async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
-        let responses = Collector::new(base, false).collect_links(inputs).await;
+        let responses = Collector::new(base, false, false).collect_links(inputs).await;
         responses.map(|r| r.unwrap().uri).collect().await
     }
 

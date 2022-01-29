@@ -49,10 +49,19 @@ mod test {
 
     fn extract_uris(input: &str, file_type: FileType) -> HashSet<Uri> {
         let input_content = InputContent::from_string(input, file_type);
-        Extractor::extract(&input_content)
+
+        let uris_html5gum = Extractor::extract(&input_content, false)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
-            .collect()
+            .collect();
+
+        let uris_html5ever = Extractor::extract(&input_content, true)
+            .into_iter()
+            .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
+            .collect();
+
+        assert_eq!(uris_html5gum, uris_html5ever);
+        uris_html5gum
     }
 
     #[test]
@@ -160,19 +169,21 @@ mod test {
             content: contents.to_string(),
         };
 
-        let links = Extractor::extract(input_content);
-        let urls = links
-            .into_iter()
-            .map(|raw_uri| raw_uri.text)
+        for &use_html5ever in &[true, false] {
+            let links = Extractor::extract(input_content, use_html5ever);
+            let urls = links
+                .into_iter()
+                .map(|raw_uri| raw_uri.text)
+                .collect::<HashSet<_>>();
+
+            let expected_urls = IntoIterator::into_iter([
+                String::from("https://github.com/lycheeverse/lychee/"),
+                String::from("/about"),
+            ])
             .collect::<HashSet<_>>();
 
-        let expected_urls = IntoIterator::into_iter([
-            String::from("https://github.com/lycheeverse/lychee/"),
-            String::from("/about"),
-        ])
-        .collect::<HashSet<_>>();
-
-        assert_eq!(urls, expected_urls);
+            assert_eq!(urls, expected_urls);
+        }
     }
 
     #[test]

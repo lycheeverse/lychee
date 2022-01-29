@@ -23,6 +23,7 @@ async fn main() -> Result<()> {
     let links = Collector::new(
         None,  // base
         false, // don't skip missing inputs
+        false, // use html5gum for parsing
     )
     .collect_links(
         inputs, // base url or directory
