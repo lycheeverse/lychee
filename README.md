@@ -246,10 +246,6 @@ FLAGS:
         --skip-missing           
             Skip missing input files (default is to error if they don't exist)
 
-        --use-html5ever          
-            Use html5ever instead of html5gum as parser.
-            
-            This option is unstable and may get removed anytime. File a bug if you rely on this.
     -V, --version                
             Prints version information
 
@@ -316,6 +312,11 @@ OPTIONS:
     -t, --timeout <timeout>                    
             Website timeout from connect to response finished [default: 20]
 
+        --use-html5ever <use-html5ever>
+            Use html5ever instead of html5gum as parser.
+
+            This option is unstable and may get removed anytime. File a bug if you rely on this. [env:
+            LYCHEE_USE_HTML5EVER=]
     -u, --user-agent <user-agent>              
             User agent [default: lychee/0.8.2]
 
