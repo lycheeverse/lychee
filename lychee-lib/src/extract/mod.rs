@@ -263,7 +263,7 @@ mod test {
     #[test]
     fn test_extract_link_at_end_of_line() {
         let input = "https://www.apache.org/licenses/LICENSE-2.0\n";
-        let links = extract_uris(&input, FileType::Plaintext);
+        let links = extract_uris(input, FileType::Plaintext);
 
         let expected_links =
             IntoIterator::into_iter([website("https://www.apache.org/licenses/LICENSE-2.0")])
