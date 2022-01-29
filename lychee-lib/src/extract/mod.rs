@@ -169,7 +169,7 @@ mod test {
             content: contents.to_string(),
         };
 
-        for &use_html5ever in &[true, false] {
+        for use_html5ever in [true, false] {
             let links = Extractor::extract(input_content, use_html5ever);
             let urls = links
                 .into_iter()
