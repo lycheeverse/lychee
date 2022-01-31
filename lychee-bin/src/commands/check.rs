@@ -66,13 +66,16 @@ pub(crate) async fn check(
                 let response = handle_request(&client, cache.clone(), request).await;
                 update_progress(&pb, &response, verbose);
 
+                let sender_handle = sender.clone();
                 if cfg.recursive {
-                    recurse(&response, cfg.depth, &input_sources, &sender).await;
+                    recurse(&response, cfg.depth, &input_sources, &sender_handle).await;
                 }
                 stats.write().add(response);
+                drop(sender_handle);
             },
         )
         .await;
+        drop(sender);
     });
 
     collector_handle.await?;
