@@ -204,128 +204,58 @@ USAGE:
     lychee [FLAGS] [OPTIONS] <inputs>...
 
 FLAGS:
-        --cache                  
-            Use request cache stored on disk at `.lycheecache`
-
-        --dump                   
-            Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
-
-    -E, --exclude-all-private    
-            Exclude all private IPs from checking.
-            Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
-        --exclude-link-local     
-            Exclude link-local IP address range from checking
-
-        --exclude-loopback       
-            Exclude loopback IP address range and localhost from checking
-
-        --exclude-mail           
-            Exclude all mail addresses from checking
-
-        --exclude-private        
-            Exclude private IP address ranges from checking
-
-        --glob-ignore-case       
-            Ignore case when expanding filesystem path glob inputs
-
-        --help                   
-            Prints help information
-
-    -i, --insecure               
-            Proceed for server connections considered insecure (invalid TLS)
-
-    -n, --no-progress            
-            Do not show progress bar.
-            This is recommended for non-interactive shells (e.g. for continuous integration)
-        --offline                
-            Only check local files and block network requests
-
-        --require-https          
-            When HTTPS is available, treat HTTP links as errors
-
-        --skip-missing           
-            Skip missing input files (default is to error if they don't exist)
-
-    -V, --version                
-            Prints version information
-
-    -v, --verbose                
-            Verbose program output
-
+        --cache                  Use request cache stored on disk at `.lycheecache`
+        --dump                   Don't perform any link checking. Instead, dump all the links extracted from inputs that
+                                 would be checked
+    -E, --exclude-all-private    Exclude all private IPs from checking.
+                                 Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
+        --exclude-link-local     Exclude link-local IP address range from checking
+        --exclude-loopback       Exclude loopback IP address range and localhost from checking
+        --exclude-mail           Exclude all mail addresses from checking
+        --exclude-private        Exclude private IP address ranges from checking
+        --glob-ignore-case       Ignore case when expanding filesystem path glob inputs
+        --help                   Prints help information
+    -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
+    -n, --no-progress            Do not show progress bar.
+                                 This is recommended for non-interactive shells (e.g. for continuous integration)
+        --offline                Only check local files and block network requests
+        --require-https          When HTTPS is available, treat HTTP links as errors
+        --skip-missing           Skip missing input files (default is to error if they don't exist)
+    -V, --version                Prints version information
+    -v, --verbose                Verbose program output
 
 OPTIONS:
-    -a, --accept <accept>                      
-            Comma-separated list of accepted status codes for valid links
-
-    -b, --base <base>                          
-            Base URL or website root directory to check relative URLs e.g. https://example.org or `/path/to/public`
-
-        --basic-auth <basic-auth>              
-            Basic authentication support. E.g. `username:password`
-
-    -c, --config <config-file>                 
-            Configuration file to use [default: ./lychee.toml]
-
-        --exclude <exclude>...                 
-            Exclude URLs from checking (supports regex)
-
-        --exclude-file <exclude-file>...       
-            File or files that contain URLs to be excluded from checking. Regular
-            expressions supported; one pattern per line. Automatically excludes
-            patterns from `.lycheeignore` if file exists
-    -f, --format <format>                      
-            Output format of final status report (compact, detailed, json, markdown) [default: compact]
-
-        --github-token <github-token>          
-            GitHub API token to use when checking github.com links, to avoid rate limiting [env: GITHUB_TOKEN]
-
-    -h, --headers <headers>...                 
-            Custom request headers
-
-        --include <include>...                 
-            URLs to check (supports regex). Has preference over all excludes
-
-        --max-cache-age <max-cache-age>        
-            Discard all cached requests older than this duration [default: 1d]
-
-        --max-concurrency <max-concurrency>    
-            Maximum number of concurrent network requests [default: 128]
-
-    -m, --max-redirects <max-redirects>        
-            Maximum number of allowed redirects [default: 5]
-
-        --max-retries <max-retries>            
-            Maximum number of retries per request [default: 3]
-
-    -X, --method <method>                      
-            Request method [default: get]
-
-    -o, --output <output>                      
-            Output file of status report
-
-    -s, --scheme <scheme>...                   
-            Only test links with the given schemes (e.g. http and https)
-
-    -T, --threads <threads>                    
-            Number of threads to utilize. Defaults to number of cores available to the system
-
-    -t, --timeout <timeout>                    
-            Website timeout from connect to response finished [default: 20]
-
-        --use-html5ever <use-html5ever>        
-            Use html5ever instead of html5gum as parser.
-            
-            This option is unstable and may get removed anytime. File a bug if you rely on this. [env:
-            LYCHEE_USE_HTML5EVER=]
-    -u, --user-agent <user-agent>              
-            User agent [default: lychee/0.8.2]
-
+    -a, --accept <accept>                      Comma-separated list of accepted status codes for valid links
+    -b, --base <base>                          Base URL or website root directory to check relative URLs e.g.
+                                               https://example.org or `/path/to/public`
+        --basic-auth <basic-auth>              Basic authentication support. E.g. `username:password`
+    -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
+        --exclude <exclude>...                 Exclude URLs from checking (supports regex)
+        --exclude-file <exclude-file>...       File or files that contain URLs to be excluded from checking. Regular
+                                               expressions supported; one pattern per line. Automatically excludes
+                                               patterns from `.lycheeignore` if file exists
+    -f, --format <format>                      Output format of final status report (compact, detailed, json, markdown)
+                                               [default: compact]
+        --github-token <github-token>          GitHub API token to use when checking github.com links, to avoid rate
+                                               limiting [env: GITHUB_TOKEN]
+    -h, --headers <headers>...                 Custom request headers
+        --include <include>...                 URLs to check (supports regex). Has preference over all excludes
+        --max-cache-age <max-cache-age>        Discard all cached requests older than this duration [default: 1d]
+        --max-concurrency <max-concurrency>    Maximum number of concurrent network requests [default: 128]
+    -m, --max-redirects <max-redirects>        Maximum number of allowed redirects [default: 5]
+        --max-retries <max-retries>            Maximum number of retries per request [default: 3]
+    -X, --method <method>                      Request method [default: get]
+    -o, --output <output>                      Output file of status report
+    -s, --scheme <scheme>...                   Only test links with the given schemes (e.g. http and https)
+    -T, --threads <threads>                    Number of threads to utilize. Defaults to number of cores available to
+                                               the system
+    -t, --timeout <timeout>                    Website timeout from connect to response finished [default: 20]
+    -u, --user-agent <user-agent>              User agent [default: lychee/0.8.2]
 
 ARGS:
-    <inputs>...    
-            The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs (e.g.
-            `"~/git/*/README.md"`), remote URLs (e.g. `https://example.org/README.md`) or standard input (`-`). NOTE:
-            Use `--` to separate inputs from options that allow multiple arguments
+    <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
+                   (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.org/README.md`) or standard
+                   input (`-`). NOTE: Use `--` to separate inputs from options that allow multiple arguments
 ```
 
 ### Exit codes

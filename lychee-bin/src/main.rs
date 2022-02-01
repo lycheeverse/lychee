@@ -202,7 +202,8 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs();
     let requests = Collector::new(opts.config.base.clone())
         .skip_missing_inputs(opts.config.skip_missing)
-        .use_html5ever(opts.config.use_html5ever)
+        // File a bug if you rely on this envvar! It's going to go away eventually.
+        .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").map_or(false, |x| x == "1"))
         .collect_links(inputs)
         .await;
 
