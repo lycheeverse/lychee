@@ -18,7 +18,20 @@ impl Extractor {
     /// Main entrypoint for extracting links from various sources
     /// (Markdown, HTML, and plaintext)
     #[must_use]
-    pub fn extract(input_content: &InputContent, use_html5ever: bool) -> Vec<RawUri> {
+    pub fn extract(input_content: &InputContent) -> Vec<RawUri> {
+        Self::extract_impl(input_content, false)
+    }
+
+    /// Main entrypoint for extracting links from various sources, legacy implementation using
+    /// html5ever
+    /// (Markdown, HTML, and plaintext)
+    #[must_use]
+    pub fn extract_html5ever(input_content: &InputContent) -> Vec<RawUri> {
+        Self::extract_impl(input_content, true)
+    }
+
+    #[must_use]
+    fn extract_impl(input_content: &InputContent, use_html5ever: bool) -> Vec<RawUri> {
         match input_content.file_type {
             FileType::Markdown => extract_markdown(&input_content.content),
             FileType::Html => {
@@ -50,12 +63,12 @@ mod test {
     fn extract_uris(input: &str, file_type: FileType) -> HashSet<Uri> {
         let input_content = InputContent::from_string(input, file_type);
 
-        let uris_html5gum = Extractor::extract(&input_content, false)
+        let uris_html5gum = Extractor::extract(&input_content)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
 
-        let uris_html5ever = Extractor::extract(&input_content, true)
+        let uris_html5ever = Extractor::extract_html5ever(&input_content)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
@@ -170,7 +183,12 @@ mod test {
         };
 
         for use_html5ever in [true, false] {
-            let links = Extractor::extract(input_content, use_html5ever);
+            let links = if use_html5ever {
+                Extractor::extract_html5ever(input_content)
+            } else {
+                Extractor::extract(input_content)
+            };
+
             let urls = links
                 .into_iter()
                 .map(|raw_uri| raw_uri.text)

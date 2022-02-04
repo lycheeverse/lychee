@@ -6,7 +6,7 @@ use std::path::PathBuf;
 fn extract(paths: &[PathBuf]) {
     for path in paths {
         let content: InputContent = path.try_into().unwrap();
-        let extracted = Extractor::extract(&content, false);
+        let extracted = Extractor::extract(&content);
         println!("{}", extracted.len());
     }
 }

@@ -7,7 +7,7 @@ use html5ever::{
 use super::plaintext::extract_plaintext;
 use crate::types::raw_uri::RawUri;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct LinkExtractor {
     links: Vec<RawUri>,
 }
@@ -61,8 +61,8 @@ impl TokenSink for LinkExtractor {
 }
 
 impl LinkExtractor {
-    pub(crate) const fn new() -> Self {
-        Self { links: Vec::new() }
+    pub(crate) fn new() -> Self {
+        LinkExtractor::default()
     }
 
     /// Extract all semantically known links from a given html attribute.

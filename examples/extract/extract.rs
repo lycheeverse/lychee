@@ -6,7 +6,7 @@ use std::fs;
 #[tokio::main]
 async fn main() -> Result<()> {
     let input = fs::read_to_string("fixtures/elvis.html").unwrap();
-    let links = Extractor::extract(&InputContent::from_string(&input, FileType::Html), false);
+    let links = Extractor::extract(&InputContent::from_string(&input, FileType::Html));
     println!("{:#?}", links);
 
     Ok(())

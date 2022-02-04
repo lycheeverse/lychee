@@ -63,7 +63,11 @@ impl Collector {
                 let base = base.clone();
                 async move {
                     let content = content?;
-                    let uris: Vec<RawUri> = Extractor::extract(&content, self.use_html5ever);
+                    let uris: Vec<RawUri> = if self.use_html5ever {
+                        Extractor::extract_html5ever(&content)
+                    } else {
+                        Extractor::extract(&content)
+                    };
                     let requests = request::create(uris, &content, &base)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
