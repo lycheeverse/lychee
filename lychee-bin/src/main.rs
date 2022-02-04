@@ -58,15 +58,15 @@
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 #![deny(missing_docs)]
 
-use lychee_lib::Collector;
 // required for apple silicon
-use ring as _;
-
 use anyhow::{Context, Result};
-use openssl_sys as _; // required for vendored-openssl feature
+// required for vendored-openssl feature
+use openssl_sys as _;
+use ring as _;
 use ring as _;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
+use std::path::PathBuf;
 use std::sync::Arc;
 use structopt::StructOpt;
 
@@ -194,28 +194,27 @@ fn run_main() -> Result<i32> {
         None => tokio::runtime::Runtime::new()?,
     };
 
-    runtime.block_on(run(&opts))
+    runtime.block_on(run(opts))
 }
 
 /// Run lychee on the given inputs
-async fn run(opts: &LycheeOptions) -> Result<i32> {
-    let inputs = opts.inputs();
-    let requests = Collector::new(opts.config.base.clone(), opts.config.skip_missing)
-        .collect_links(inputs)
-        .await;
-
+async fn run(opts: LycheeOptions) -> Result<i32> {
     let client = client::create(&opts.config)?;
+    let inputs = opts.inputs();
 
     let exit_code = if opts.config.dump {
-        commands::dump(client, requests, opts.config.verbose).await?
+        commands::dump(client, inputs, opts.config).await?
     } else {
-        let cache = load_cache(&opts.config).unwrap_or_default();
-        let cache = Arc::new(cache);
-        let (stats, cache, exit_code) =
-            commands::check(client, cache, requests, &opts.config).await?;
-        write_stats(stats, &opts.config)?;
+        let cache = Arc::new(load_cache(&opts.config).unwrap_or_default());
+        let cache_active = opts.config.cache;
+        let output = opts.config.output.clone();
+        let verbose = opts.config.verbose;
+        let format = opts.config.format;
 
-        if opts.config.cache {
+        let (stats, cache, exit_code) = commands::check(client, cache, inputs, opts.config).await?;
+
+        write_stats(stats, format, output, verbose)?;
+        if cache_active {
             cache.store(LYCHEE_CACHE_FILE)?;
         }
         exit_code
@@ -225,8 +224,13 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
 }
 
 /// Write final statistics to stdout or to file
-fn write_stats(stats: ResponseStats, cfg: &Config) -> Result<()> {
-    let writer: Box<dyn StatsWriter> = match cfg.format {
+fn write_stats(
+    stats: ResponseStats,
+    format: Format,
+    output: Option<PathBuf>,
+    verbose: bool,
+) -> Result<()> {
+    let writer: Box<dyn StatsWriter> = match format {
         Format::Compact => Box::new(writer::Compact::new()),
         Format::Detailed => Box::new(writer::Detailed::new()),
         Format::Json => Box::new(writer::Json::new()),
@@ -236,10 +240,10 @@ fn write_stats(stats: ResponseStats, cfg: &Config) -> Result<()> {
     let is_empty = stats.is_empty();
     let formatted = writer.write(stats)?;
 
-    if let Some(output) = &cfg.output {
+    if let Some(output) = output {
         fs::write(output, formatted).context("Cannot write status output to file")?;
     } else {
-        if cfg.verbose && !is_empty {
+        if verbose && !is_empty {
             // separate summary from the verbose list of links above
             println!();
         }

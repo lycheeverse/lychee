@@ -34,7 +34,7 @@ patterns from `{}` if file exists",
     static ref TIMEOUT_STR: String = DEFAULT_TIMEOUT.to_string();
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Copy)]
 pub(crate) enum Format {
     Compact,
     Detailed,
@@ -120,7 +120,7 @@ pub(crate) struct LycheeOptions {
 }
 
 impl LycheeOptions {
-    // This depends on config, which is why a method is required (we could
+    // This depends on the config, which is why a method is required (we could
     // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there,
     // but we'd get no access to `glob_ignore_case`.
     /// Get parsed inputs from options.
@@ -308,6 +308,17 @@ pub(crate) struct Config {
     #[structopt(long)]
     #[serde(default)]
     pub(crate) require_https: bool,
+
+    /// Enable recursion (make sub-requests for detected links)
+    #[structopt(short, long)]
+    #[serde(default)]
+    pub(crate) recursive: bool,
+
+    /// Stop link checking beyond this maximum recursion depth.
+    /// This is recommended for large inputs.
+    /// A value of -1 means infinite recursion.
+    #[structopt(long)]
+    pub(crate) depth: Option<isize>,
 }
 
 impl Config {
@@ -366,6 +377,7 @@ impl Config {
             glob_ignore_case: false;
             output: None;
             require_https: false;
+            recursive: false;
         }
     }
 }

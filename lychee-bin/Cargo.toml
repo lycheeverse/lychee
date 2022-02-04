@@ -18,9 +18,9 @@ version = "0.8.2"
 
 [dependencies]
 lychee-lib = { path = "../lychee-lib", version = "0.8.2" }
-anyhow = "1.0.53"
+anyhow = "1.0.52"
 console = "0.15.0"
-headers = "0.3.6"
+headers = "0.3.5"
 http = "0.2.6"
 indicatif = "0.16.2"
 lazy_static = "1.4.0"
@@ -34,10 +34,10 @@ reqwest = { version = "0.11.9", features = ["gzip"] }
 # https://github.com/Homebrew/homebrew-core/pull/70216
 ring = "0.16.20"
 serde = { version = "1.0.133", features = ["derive"] }
-serde_json = "1.0.78"
-structopt = "0.3.26"
+serde_json = "1.0.74"
+structopt = "0.3.25"
 tabled = "0.4.2"
-tokio = { version = "1.16.1", features = ["full"] }
+tokio = { version = "1.15.0", features = ["full"] }
 toml = "0.5.8"
 futures = "0.3.19"
 tokio-stream = "0.1.8"
@@ -45,15 +45,16 @@ once_cell = "1.9.0"
 dashmap = { version = "5.0.0", features = ["serde"] }
 csv = "1.1.6"
 humantime = "2.1.0"
+parking_lot = "0.11.2"
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
 predicates = "2.1.1"
-pretty_assertions = "1.1.0"
+pretty_assertions = "1.0.0"
 tempfile = "3.3.0"
 uuid = { version = "0.8.2", features = ["v4"] }
 wiremock = "0.5.10"
-tracing-subscriber = { version = "0.3.7", default-features = false, features = ["fmt", "registry", "env-filter"] }
+tracing-subscriber = { version = "0.3.5", default-features = false, features = ["fmt", "registry", "env-filter"] }
 
 # console-subscriber is not yet published to crates.io
 # Users have to uncomment this section and the feature below and build lychee

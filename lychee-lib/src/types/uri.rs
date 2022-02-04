@@ -11,20 +11,17 @@ use super::raw_uri::RawUri;
 
 lazy_static! {
     static ref GITHUB_API_EXCLUDED_ENDPOINTS: HashSet<&'static str> = HashSet::from_iter([
-        "about",
-        "collections",
-        "events",
-        "explore",
-        "features",
-        "issues",
-        "marketplace",
-        "new",
-        "notifications",
-        "pricing",
-        "pulls",
         "sponsors",
-        "topics",
+        "marketplace",
+        "features",
+        "notifications",
+        "pulls",
+        "issues",
+        "explore",
+        "new",
         "watching",
+        "about",
+        "pricing"
     ]);
 }
 
@@ -184,6 +181,14 @@ impl Uri {
     pub fn is_file(&self) -> bool {
         self.scheme() == "file"
     }
+
+    #[inline]
+    #[must_use]
+    /// Check if the URI is a website
+    pub fn is_website(&self) -> bool {
+        // Treat all URIs as website URLs except if the scheme is `mailto`
+        !self.is_mail()
+    }
 }
 
 impl AsRef<str> for Uri {
@@ -311,7 +316,7 @@ mod test {
     }
 
     #[test]
-    fn test_localhost() {
+    fn test_mail() {
         assert_eq!(
             website("http://127.0.0.1").host_ip(),
             Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))

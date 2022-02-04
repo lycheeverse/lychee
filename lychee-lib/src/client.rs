@@ -20,7 +20,7 @@ use typed_builder::TypedBuilder;
 use crate::{
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
-    types::{mail, GithubUri},
+    types::GithubUri,
     ErrorKind, Request, Response, Result, Status, Uri,
 };
 
@@ -337,7 +337,7 @@ impl Client {
         let result = &(check_email(&input).await)[0];
 
         if let Reachable::Invalid = result.is_reachable {
-            ErrorKind::UnreachableEmailAddress(uri.clone(), mail::error_from_output(result)).into()
+            ErrorKind::UnreachableEmailAddress(uri.clone()).into()
         } else {
             Status::Ok(StatusCode::OK)
         }
@@ -359,7 +359,7 @@ where
     ErrorKind: From<E>,
 {
     let client = ClientBuilder::builder().build().client()?;
-    Ok(client.check(request).await?)
+    client.check(request).await
 }
 
 #[cfg(test)]

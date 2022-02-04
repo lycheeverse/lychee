@@ -9,38 +9,33 @@ use par_stream::ParStreamExt;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
-#[derive(Debug, Clone)]
-pub struct Collector {
-    base: Option<Base>,
-    skip_missing_inputs: bool,
-}
+#[derive(Debug, Copy, Clone)]
+pub struct Collector;
 
 impl Collector {
-    /// Create a new collector with an empty cache
-    #[must_use]
-    pub const fn new(base: Option<Base>, skip_missing_inputs: bool) -> Self {
-        Collector {
-            base,
-            skip_missing_inputs,
-        }
-    }
-
-    /// Fetch all unique links from inputs
-    /// All relative URLs get prefixed with `base` (if given).
-    /// (This can be a directory or a base URL)
+    /// Fetches all unique links from an iterator or a stream of inputs. The
+    /// output stream ends when all inputs were processed.
+    ///
+    /// All relative URLs get prefixed with `base` (if given). (This can be a
+    /// directory or a base URL)
     ///
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
-        let skip_missing_inputs = self.skip_missing_inputs;
-        let contents = stream::iter(inputs)
+    pub async fn from_iter<'a, T: IntoIterator<Item = Input> + Send + 'a>(
+        base: Option<Base>,
+        skip_missing_inputs: bool,
+        input: T,
+    ) -> impl Stream<Item = Result<Request>>
+    where
+        <T as IntoIterator>::IntoIter: Send + 'static,
+    {
+        let contents = stream::iter(input)
             .par_then_unordered(None, move |input| async move {
                 input.get_contents(skip_missing_inputs).await
             })
             .flatten();
 
-        let base = self.base;
         contents
             .par_then_unordered(None, move |content| {
                 // send to parallel worker
@@ -74,7 +69,7 @@ mod test {
 
     // Helper function to run the collector on the given inputs
     async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
-        let responses = Collector::new(base, false).collect_links(inputs).await;
+        let responses = Collector::from_iter(base, false, inputs).await;
         responses.map(|r| r.unwrap().uri).collect().await
     }
 
@@ -131,16 +126,19 @@ mod test {
             Input {
                 source: InputSource::String(TEST_STRING.to_owned()),
                 file_type_hint: None,
+                recursion_level: 0,
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
                     Url::parse(&mock_server.uri()).map_err(|e| (mock_server.uri(), e))?,
                 )),
                 file_type_hint: None,
+                recursion_level: 0,
             },
             Input {
                 source: InputSource::FsPath(file_path),
                 file_type_hint: None,
+                recursion_level: 0,
             },
             Input {
                 source: InputSource::FsGlob {
@@ -148,6 +146,7 @@ mod test {
                     ignore_case: true,
                 },
                 file_type_hint: None,
+                recursion_level: 0,
             },
         ];
 
@@ -172,6 +171,7 @@ mod test {
         let input = Input {
             source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
             file_type_hint: Some(FileType::Markdown),
+                recursion_level: 0,
         };
         let links = collect(vec![input], Some(base)).await;
 
@@ -197,6 +197,7 @@ mod test {
                     .to_string(),
             ),
             file_type_hint: Some(FileType::Html),
+            recursion_level: 0,
         };
         let links = collect(vec![input], Some(base)).await;
 
@@ -225,6 +226,7 @@ mod test {
                 .to_string(),
             ),
             file_type_hint: Some(FileType::Html),
+            recursion_level: 0,
         };
         let links = collect(vec![input], Some(base)).await;
 
@@ -250,6 +252,7 @@ mod test {
                     .to_string(),
             ),
             file_type_hint: Some(FileType::Markdown),
+            recursion_level: 0,
         };
 
         let links = collect(vec![input], Some(base)).await;
@@ -272,6 +275,7 @@ mod test {
         let input = Input {
             source: InputSource::String(input),
             file_type_hint: Some(FileType::Html),
+            recursion_level: 0,
         };
         let links = collect(vec![input], Some(base)).await;
 
@@ -304,6 +308,7 @@ mod test {
         let input = Input {
             source: InputSource::RemoteUrl(Box::new(server_uri.clone())),
             file_type_hint: None,
+            recursion_level: 0,
         };
 
         let links = collect(vec![input], None).await;

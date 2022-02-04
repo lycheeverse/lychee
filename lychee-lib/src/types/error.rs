@@ -50,8 +50,8 @@ pub enum ErrorKind {
     #[error("Invalid path to URL conversion: {0}")]
     InvalidUrlFromPath(PathBuf),
     /// The given mail address is unreachable
-    #[error("Unreachable mail address: {0}: {1}")]
-    UnreachableEmailAddress(Uri, String),
+    #[error("Unreachable mail address: {0}")]
+    UnreachableEmailAddress(Uri),
     /// The given header could not be parsed.
     /// A possible error when converting a `HeaderValue` from a string or byte
     /// slice.
@@ -84,22 +84,36 @@ pub enum ErrorKind {
     /// Cannot parse the given URI
     #[error("The given URI is invalid: {0}")]
     InvalidURI(Uri),
+    /// An Arc could not be converted to its inner value
+    #[error("Failed to convert Arc")]
+    Unlock,
 }
 
 impl PartialEq for ErrorKind {
     fn eq(&self, other: &Self) -> bool {
+        #[allow(clippy::match_same_arms)]
         match (self, other) {
             (Self::IoError(p1, e1), Self::IoError(p2, e2)) => p1 == p2 && e1.kind() == e2.kind(),
+            (Self::Utf8Error(e1), Self::Utf8Error(e2)) => e1 == e2,
             (Self::ReqwestError(e1), Self::ReqwestError(e2)) => e1.to_string() == e2.to_string(),
             (Self::GithubError(_e1), Self::GithubError(_e2)) => false, // hubcaps::Error doesn't impl PartialEq
             (Self::UrlParseError(s1, e1), Self::UrlParseError(s2, e2)) => s1 == s2 && e1 == e2,
-            (Self::UnreachableEmailAddress(u1, ..), Self::UnreachableEmailAddress(u2, ..))
-            | (Self::InsecureURL(u1), Self::InsecureURL(u2)) => u1 == u2,
+            (Self::InvalidFilePath(u1), Self::InvalidFilePath(u2)) => u1 == u2,
+            (Self::InvalidUrlFromPath(u1), Self::InvalidUrlFromPath(u2)) => u1 == u2,
+            (Self::UnreachableEmailAddress(u1), Self::UnreachableEmailAddress(u2)) => u1 == u2,
+            (Self::InvalidHeader(_), Self::InvalidHeader(_)) => true,
+            (Self::InvalidBase(d1, s1), Self::InvalidBase(d2, s2)) => d1 == d2 && s1 == s2,
+            (Self::FileNotFound(f1), Self::FileNotFound(f2)) => f1 == f2,
+            (Self::DirTraversal(t1), Self::DirTraversal(t2)) => t1.path() == t2.path(),
             (Self::InvalidGlobPattern(e1), Self::InvalidGlobPattern(e2)) => {
                 e1.msg == e2.msg && e1.pos == e2.pos
             }
-            (Self::InvalidHeader(_), Self::InvalidHeader(_))
-            | (Self::MissingGitHubToken, Self::MissingGitHubToken) => true,
+            (Self::MissingGitHubToken, Self::MissingGitHubToken) => true,
+            (Self::InsecureURL(u1), Self::InsecureURL(u2)) => u1 == u2,
+            (Self::ChannelError(c1), Self::ChannelError(c2)) => c1.0.source == c2.0.source,
+            (Self::InvalidUrlHost, Self::InvalidUrlHost) => true,
+            (Self::InvalidURI(u1), Self::InvalidURI(u2)) => u1 == u2,
+            (Self::Unlock, Self::Unlock) => true,
             _ => false,
         }
     }
@@ -122,9 +136,7 @@ impl Hash for ErrorKind {
             Self::InvalidURI(u) => u.hash(state),
             Self::InvalidUrlFromPath(p) => p.hash(state),
             Self::Utf8Error(e) => e.to_string().hash(state),
-            Self::InvalidFilePath(u)
-            | Self::UnreachableEmailAddress(u, ..)
-            | Self::InsecureURL(u) => {
+            Self::InvalidFilePath(u) | Self::UnreachableEmailAddress(u) | Self::InsecureURL(u) => {
                 u.hash(state);
             }
             Self::InvalidBase(base, e) => (base, e).hash(state),
@@ -134,6 +146,7 @@ impl Hash for ErrorKind {
             Self::MissingGitHubToken | Self::InvalidUrlHost => {
                 std::mem::discriminant(self).hash(state);
             }
+            Self::Unlock => std::mem::discriminant(self).hash(state),
         }
     }
 }

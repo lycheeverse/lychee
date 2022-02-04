@@ -114,7 +114,7 @@ outdated information.
 | [Use as library]     | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![no]                | ![yes]                | ![no]  |
 | Quiet mode           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | [Config file]        | ![yes]  | ![no]         | ![no]    | ![no]                 | ![yes]       | ![yes]               | ![yes]                | ![no]  |
-| Recursion            | ![no]   | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![no]  |
+| Recursion            | ![yes]   | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![no]  |
 | Amazing lychee logo  | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
 
 [awesome_bot]: https://github.com/dkhamsing/awesome_bot
@@ -158,6 +158,9 @@ lychee --offline path/to/directory
 
 # check links in a remote file:
 lychee https://raw.githubusercontent.com/lycheeverse/lychee/master/README.md
+
+# check website recursively (also check sub-pages)
+lychee --recursive https://example.org
 
 # check links in local files via shell glob:
 lychee ~/projects/*/README.md

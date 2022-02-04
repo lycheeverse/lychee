@@ -7,25 +7,25 @@ use tokio_stream::StreamExt;
 #[allow(clippy::trivial_regex)]
 async fn main() -> Result<()> {
     // Collect all links from the following inputs
-    let inputs = vec![
+    let inputs = [
         Input {
             source: InputSource::RemoteUrl(Box::new(
                 Url::parse("https://github.com/lycheeverse/lychee").unwrap(),
             )),
             file_type_hint: None,
+            recursion_level: 0,
         },
         Input {
             source: InputSource::FsPath(PathBuf::from("fixtures/TEST.md")),
             file_type_hint: None,
+            recursion_level: 0,
         },
     ];
 
-    let links = Collector::new(
+    let links = Collector::from_iter(
         None,  // base
         false, // don't skip missing inputs
-    )
-    .collect_links(
-        inputs, // base url or directory
+        inputs,
     )
     .await
     .collect::<Result<Vec<_>>>()
