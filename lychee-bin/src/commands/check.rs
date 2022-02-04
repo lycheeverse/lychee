@@ -57,7 +57,8 @@ where
         ));
         bar.set_length(0);
         bar.set_message("Extracting links");
-        bar.enable_steady_tick(100);
+        bar.set_draw_rate(500);
+        bar.enable_steady_tick(5000);
         Some(bar)
     };
 
