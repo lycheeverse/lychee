@@ -57,8 +57,10 @@ where
         ));
         bar.set_length(0);
         bar.set_message("Extracting links");
-        bar.set_draw_rate(500);
-        bar.enable_steady_tick(5000);
+        // 10 updates per second = report status at _most_ every 100ms
+        bar.set_draw_rate(10);
+        // report status _at least_ every 500ms
+        bar.enable_steady_tick(500);
         Some(bar)
     };
 
