@@ -386,7 +386,7 @@ If you find a way to make lychee faster, please do reach out.
 
 ## Troubleshooting and Workarounds
 
-We collect a list of common workarounds for various websites in our [troubleshooting guide](./TROUBLESHOOTING.md).
+We collect a list of common workarounds for various websites in our [troubleshooting guide](./docs/TROUBLESHOOTING.md).
 
 ## Users
 
