@@ -5,13 +5,14 @@ use crate::types::raw_uri::RawUri;
 
 #[derive(Clone)]
 struct LinkExtractor {
+    // note: what html5gum calls a tag, lychee calls an element
     links: Vec<RawUri>,
     current_string: Vec<u8>,
-    current_tag_name: Vec<u8>,
-    current_tag_is_closing: bool,
+    current_element_name: Vec<u8>,
+    current_element_is_closing: bool,
     current_attribute_name: Vec<u8>,
     current_attribute_value: Vec<u8>,
-    last_start_tag: Vec<u8>,
+    last_start_element: Vec<u8>,
 }
 
 /// this is the same as `std::str::from_utf8_unchecked`, but with extra debug assertions for ease
@@ -26,11 +27,11 @@ impl LinkExtractor {
         LinkExtractor {
             links: Vec::new(),
             current_string: Vec::new(),
-            current_tag_name: Vec::new(),
-            current_tag_is_closing: false,
+            current_element_name: Vec::new(),
+            current_element_is_closing: false,
             current_attribute_name: Vec::new(),
             current_attribute_value: Vec::new(),
-            last_start_tag: Vec::new(),
+            last_start_element: Vec::new(),
         }
     }
 
@@ -92,7 +93,7 @@ impl LinkExtractor {
     fn flush_old_attribute(&mut self) {
         {
             // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
-            let name = unsafe { from_utf8_unchecked(&self.current_tag_name) };
+            let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
             let attr = unsafe { from_utf8_unchecked(&self.current_attribute_name) };
             let value = unsafe { from_utf8_unchecked(&self.current_attribute_value) };
 
@@ -122,8 +123,8 @@ impl Emitter for &mut LinkExtractor {
     type Token = ();
 
     fn set_last_start_tag(&mut self, last_start_tag: Option<&[u8]>) {
-        self.last_start_tag.clear();
-        self.last_start_tag
+        self.last_start_element.clear();
+        self.last_start_element
             .extend(last_start_tag.unwrap_or_default());
     }
 
@@ -141,14 +142,14 @@ impl Emitter for &mut LinkExtractor {
 
     fn init_start_tag(&mut self) {
         self.flush_current_characters();
-        self.current_tag_name.clear();
-        self.current_tag_is_closing = false;
+        self.current_element_name.clear();
+        self.current_element_is_closing = false;
     }
 
     fn init_end_tag(&mut self) {
         self.flush_current_characters();
-        self.current_tag_name.clear();
-        self.current_tag_is_closing = true;
+        self.current_element_name.clear();
+        self.current_element_is_closing = true;
     }
 
     fn init_comment(&mut self) {
@@ -161,12 +162,12 @@ impl Emitter for &mut LinkExtractor {
 
     fn emit_current_doctype(&mut self) {}
     fn set_self_closing(&mut self) {
-        self.current_tag_is_closing = true;
+        self.current_element_is_closing = true;
     }
     fn set_force_quirks(&mut self) {}
 
     fn push_tag_name(&mut self, s: &[u8]) {
-        self.current_tag_name.extend(s);
+        self.current_element_name.extend(s);
     }
 
     fn push_comment(&mut self, _: &[u8]) {}
@@ -189,9 +190,9 @@ impl Emitter for &mut LinkExtractor {
     fn push_doctype_public_identifier(&mut self, _: &[u8]) {}
     fn push_doctype_system_identifier(&mut self, _: &[u8]) {}
     fn current_is_appropriate_end_tag_token(&mut self) -> bool {
-        self.current_tag_is_closing
-            && !self.current_tag_name.is_empty()
-            && self.current_tag_name == self.last_start_tag
+        self.current_element_is_closing
+            && !self.current_element_name.is_empty()
+            && self.current_element_name == self.last_start_element
     }
 
     fn emit_current_comment(&mut self) {}
