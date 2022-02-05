@@ -498,6 +498,71 @@ mod cli {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_example_config() -> Result<()> {
+        let mock_server = mock_server!(StatusCode::OK);
+        let mut cmd = main_command();
+        cmd.arg("--config")
+            .arg("lychee.example.toml")
+            .arg("-")
+            .write_stdin(mock_server.uri())
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 OK"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_empty_config() -> Result<()> {
+        let mock_server = mock_server!(StatusCode::OK);
+        let config = fixtures_path().join("configs").join("empty.toml");
+        let mut cmd = main_command();
+        cmd.arg("--config")
+            .arg(config)
+            .arg("-")
+            .write_stdin(mock_server.uri())
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 OK"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cache_config() -> Result<()> {
+        let mock_server = mock_server!(StatusCode::OK);
+        let config = fixtures_path().join("configs").join("cache.toml");
+        let mut cmd = main_command();
+        cmd.arg("--config")
+            .arg(config)
+            .arg("-")
+            .write_stdin(mock_server.uri())
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 OK"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_invalid_config() {
+        let config = fixtures_path().join("configs").join("invalid.toml");
+        let mut cmd = main_command();
+        cmd.arg("--config")
+            .arg(config)
+            .arg("-")
+            .env_clear()
+            .assert()
+            .failure();
+    }
+
     #[test]
     fn test_lycheeignore_file() -> Result<()> {
         let mut cmd = main_command();
