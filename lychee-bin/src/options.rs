@@ -1,7 +1,7 @@
 use std::{convert::TryFrom, fs, io::ErrorKind, path::PathBuf, str::FromStr, time::Duration};
 
 use anyhow::{anyhow, Error, Result};
-use const_format::concatcp;
+use const_format::{concatcp, formatcp};
 use lychee_lib::{
     Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT,
 };
@@ -19,14 +19,15 @@ const MAX_CONCURRENCY: usize = 128;
 const MAX_CONCURRENCY_STR: &str = concatcp!(MAX_CONCURRENCY);
 const MAX_REDIRECTS_STR: &str = concatcp!(DEFAULT_MAX_REDIRECTS);
 const MAX_RETRIES_STR: &str = concatcp!(DEFAULT_MAX_RETRIES);
-const STRUCTOPT_HELP_MSG_CACHE: &str =
-    concatcp!("Use request cache stored on disk at ", LYCHEE_CACHE_FILE);
-const STRUCTOPT_HELP_MSG_IGNORE_FILE: &str = concatcp!(
+const STRUCTOPT_HELP_MSG_CACHE: &str = formatcp!(
+    "Use request cache stored on disk at `{}`",
+    LYCHEE_CACHE_FILE,
+);
+const STRUCTOPT_HELP_MSG_IGNORE_FILE: &str = formatcp!(
     "File or files that contain URLs to be excluded from checking. Regular
 expressions supported; one pattern per line. Automatically excludes
-patterns from ",
+patterns from `{}` if file exists",
     LYCHEE_IGNORE_FILE,
-    " if file exists"
 );
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT);
 
