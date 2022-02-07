@@ -11,12 +11,15 @@ use structopt::StructOpt;
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
 
-const METHOD: &str = "get";
-const MAX_CONCURRENCY: usize = 128;
+const DEFAULT_METHOD: &str = "get";
+const DEFAULT_MAX_CACHE_AGE: &str = "1d";
+const DEFAULT_MAX_CONCURRENCY: usize = 128;
 
 // this exists because structopt requires `&str` type values for defaults
+// whereas serde expects owned `String` types
 // (we can't use e.g. `TIMEOUT` or `timeout()` which gets created for serde)
-const MAX_CONCURRENCY_STR: &str = concatcp!(MAX_CONCURRENCY);
+const MAX_CONCURRENCY_STR: &str = concatcp!(DEFAULT_MAX_CONCURRENCY);
+const MAX_CACHE_AGE_STR: &str = concatcp!(DEFAULT_MAX_CACHE_AGE);
 const MAX_REDIRECTS_STR: &str = concatcp!(DEFAULT_MAX_REDIRECTS);
 const MAX_RETRIES_STR: &str = concatcp!(DEFAULT_MAX_RETRIES);
 const STRUCTOPT_HELP_MSG_CACHE: &str = formatcp!(
@@ -74,10 +77,11 @@ macro_rules! default_function {
 default_function! {
     max_redirects: usize = DEFAULT_MAX_REDIRECTS;
     max_retries: u64 = DEFAULT_MAX_RETRIES;
-    max_concurrency: usize = MAX_CONCURRENCY;
+    max_concurrency: usize = DEFAULT_MAX_CONCURRENCY;
+    max_cache_age: Duration = humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
     user_agent: String = DEFAULT_USER_AGENT.to_string();
     timeout: usize = DEFAULT_TIMEOUT;
-    method: String = METHOD.to_string();
+    method: String = DEFAULT_METHOD.to_string();
 }
 
 // Macro for merging configuration values
@@ -152,8 +156,9 @@ pub(crate) struct Config {
     #[structopt(
         long,
         parse(try_from_str = humantime::parse_duration),
-        default_value = "1d"
+        default_value = &MAX_CACHE_AGE_STR
     )]
+    #[serde(default = "max_cache_age")]
     pub(crate) max_cache_age: Duration,
 
     /// Don't perform any link checking.
@@ -261,7 +266,7 @@ pub(crate) struct Config {
 
     /// Request method
     // Using `-X` as a short param similar to curl
-    #[structopt(short = "X", long, default_value = METHOD)]
+    #[structopt(short = "X", long, default_value = DEFAULT_METHOD)]
     #[serde(default = "method")]
     pub(crate) method: String,
 
@@ -339,7 +344,8 @@ impl Config {
             no_progress: false;
             max_redirects: DEFAULT_MAX_REDIRECTS;
             max_retries: DEFAULT_MAX_RETRIES;
-            max_concurrency: MAX_CONCURRENCY;
+            max_concurrency: DEFAULT_MAX_CONCURRENCY;
+            max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
             threads: None;
             user_agent: DEFAULT_USER_AGENT;
             insecure: false;
@@ -355,7 +361,7 @@ impl Config {
             headers: Vec::<String>::new();
             accept: None;
             timeout: DEFAULT_TIMEOUT;
-            method: METHOD;
+            method: DEFAULT_METHOD;
             base: None;
             basic_auth: None;
             github_token: None;
