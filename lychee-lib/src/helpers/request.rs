@@ -1,4 +1,3 @@
-use html5ever::tendril::StrTendril;
 use log::info;
 use percent_encoding::percent_decode_str;
 use reqwest::Url;
@@ -28,7 +27,7 @@ pub(crate) fn create(
         .into_iter()
         .map(|raw_uri| {
             let is_anchor = raw_uri.is_anchor();
-            let text = StrTendril::from(raw_uri.text.clone());
+            let text = raw_uri.text.clone();
             let element = raw_uri.element.clone();
             let attribute = raw_uri.attribute.clone();
 
