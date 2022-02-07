@@ -1,12 +1,11 @@
-use std::{convert::TryFrom, fs, io::ErrorKind, path::PathBuf, str::FromStr};
+use std::{convert::TryFrom, fs, io::ErrorKind, path::PathBuf, str::FromStr, time::Duration};
 
 use anyhow::{anyhow, Error, Result};
-use lazy_static::lazy_static;
+use const_format::{concatcp, formatcp};
 use lychee_lib::{
     Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT,
 };
 use serde::Deserialize;
-use std::time::Duration;
 use structopt::StructOpt;
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
@@ -17,22 +16,20 @@ const MAX_CONCURRENCY: usize = 128;
 
 // this exists because structopt requires `&str` type values for defaults
 // (we can't use e.g. `TIMEOUT` or `timeout()` which gets created for serde)
-lazy_static! {
-    static ref MAX_CONCURRENCY_STR: String = MAX_CONCURRENCY.to_string();
-    static ref MAX_REDIRECTS_STR: String = DEFAULT_MAX_REDIRECTS.to_string();
-    static ref MAX_RETRIES_STR: String = DEFAULT_MAX_RETRIES.to_string();
-    static ref STRUCTOPT_HELP_MSG_CACHE: String = format!(
-        "Use request cache stored on disk at `{}`",
-        LYCHEE_CACHE_FILE
-    );
-    static ref STRUCTOPT_HELP_MSG_IGNORE_FILE: String = format!(
-        "File or files that contain URLs to be excluded from checking. Regular
+const MAX_CONCURRENCY_STR: &str = concatcp!(MAX_CONCURRENCY);
+const MAX_REDIRECTS_STR: &str = concatcp!(DEFAULT_MAX_REDIRECTS);
+const MAX_RETRIES_STR: &str = concatcp!(DEFAULT_MAX_RETRIES);
+const STRUCTOPT_HELP_MSG_CACHE: &str = formatcp!(
+    "Use request cache stored on disk at `{}`",
+    LYCHEE_CACHE_FILE,
+);
+const STRUCTOPT_HELP_MSG_IGNORE_FILE: &str = formatcp!(
+    "File or files that contain URLs to be excluded from checking. Regular
 expressions supported; one pattern per line. Automatically excludes
 patterns from `{}` if file exists",
-        LYCHEE_IGNORE_FILE
-    );
-    static ref TIMEOUT_STR: String = DEFAULT_TIMEOUT.to_string();
-}
+    LYCHEE_IGNORE_FILE,
+);
+const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT);
 
 #[derive(Debug, Deserialize)]
 pub(crate) enum Format {
