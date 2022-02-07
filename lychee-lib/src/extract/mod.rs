@@ -1,10 +1,10 @@
 use crate::types::{raw_uri::RawUri, FileType, InputContent};
 
 mod html;
+mod html5gum;
 mod markdown;
 mod plaintext;
 
-use html::extract_html;
 use markdown::extract_markdown;
 use plaintext::extract_plaintext;
 
@@ -19,9 +19,28 @@ impl Extractor {
     /// (Markdown, HTML, and plaintext)
     #[must_use]
     pub fn extract(input_content: &InputContent) -> Vec<RawUri> {
+        Self::extract_impl(input_content, false)
+    }
+
+    /// Main entrypoint for extracting links from various sources, legacy implementation using
+    /// html5ever
+    /// (Markdown, HTML, and plaintext)
+    #[must_use]
+    pub fn extract_html5ever(input_content: &InputContent) -> Vec<RawUri> {
+        Self::extract_impl(input_content, true)
+    }
+
+    #[must_use]
+    fn extract_impl(input_content: &InputContent, use_html5ever: bool) -> Vec<RawUri> {
         match input_content.file_type {
             FileType::Markdown => extract_markdown(&input_content.content),
-            FileType::Html => extract_html(&input_content.content),
+            FileType::Html => {
+                if use_html5ever {
+                    html::extract_html(&input_content.content)
+                } else {
+                    html5gum::extract_html(&input_content.content)
+                }
+            }
             FileType::Plaintext => extract_plaintext(&input_content.content),
         }
     }
@@ -43,10 +62,19 @@ mod test {
 
     fn extract_uris(input: &str, file_type: FileType) -> HashSet<Uri> {
         let input_content = InputContent::from_string(input, file_type);
-        Extractor::extract(&input_content)
+
+        let uris_html5gum = Extractor::extract(&input_content)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
-            .collect()
+            .collect();
+
+        let uris_html5ever = Extractor::extract_html5ever(&input_content)
+            .into_iter()
+            .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
+            .collect();
+
+        assert_eq!(uris_html5gum, uris_html5ever);
+        uris_html5gum
     }
 
     #[test]
@@ -154,19 +182,26 @@ mod test {
             content: contents.to_string(),
         };
 
-        let links = Extractor::extract(input_content);
-        let urls = links
-            .into_iter()
-            .map(|raw_uri| raw_uri.text)
+        for use_html5ever in [true, false] {
+            let links = if use_html5ever {
+                Extractor::extract_html5ever(input_content)
+            } else {
+                Extractor::extract(input_content)
+            };
+
+            let urls = links
+                .into_iter()
+                .map(|raw_uri| raw_uri.text)
+                .collect::<HashSet<_>>();
+
+            let expected_urls = IntoIterator::into_iter([
+                String::from("https://github.com/lycheeverse/lychee/"),
+                String::from("/about"),
+            ])
             .collect::<HashSet<_>>();
 
-        let expected_urls = IntoIterator::into_iter([
-            String::from("https://github.com/lycheeverse/lychee/"),
-            String::from("/about"),
-        ])
-        .collect::<HashSet<_>>();
-
-        assert_eq!(urls, expected_urls);
+            assert_eq!(urls, expected_urls);
+        }
     }
 
     #[test]
@@ -239,6 +274,18 @@ mod test {
             website("http://otherdomain.com/test/@test"),
         ])
         .collect::<HashSet<Uri>>();
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_link_at_end_of_line() {
+        let input = "https://www.apache.org/licenses/LICENSE-2.0\n";
+        let links = extract_uris(input, FileType::Plaintext);
+
+        let expected_links =
+            IntoIterator::into_iter([website("https://www.apache.org/licenses/LICENSE-2.0")])
+                .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
     }

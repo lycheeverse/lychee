@@ -7,7 +7,7 @@ use html5ever::{
 use super::plaintext::extract_plaintext;
 use crate::types::raw_uri::RawUri;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct LinkExtractor {
     links: Vec<RawUri>,
 }
@@ -61,8 +61,8 @@ impl TokenSink for LinkExtractor {
 }
 
 impl LinkExtractor {
-    pub(crate) const fn new() -> Self {
-        Self { links: Vec::new() }
+    pub(crate) fn new() -> Self {
+        LinkExtractor::default()
     }
 
     /// Extract all semantically known links from a given html attribute.
@@ -124,21 +124,4 @@ pub(crate) fn extract_html(buf: &str) -> Vec<RawUri> {
     tokenizer.end();
 
     tokenizer.sink.links
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_extract_link_at_end_of_line() {
-        let input = "https://www.apache.org/licenses/LICENSE-2.0\n";
-        let link = input.trim_end();
-
-        let uris: Vec<String> = extract_html(input)
-            .into_iter()
-            .map(|raw_uri| raw_uri.text)
-            .collect();
-        assert_eq!(vec![link.to_string()], uris);
-    }
 }

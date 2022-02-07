@@ -5,6 +5,7 @@ members = [
     "examples/*",
     "benches",
 ]
+resolver = "2"
 
 [patch.crates-io]
 # Switch back to version on crates.io after 0.6.3+ is released
