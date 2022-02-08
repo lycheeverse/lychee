@@ -1,5 +1,5 @@
 use crate::types::FileType;
-use crate::Result;
+use crate::{ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
@@ -48,7 +48,8 @@ impl TryFrom<&PathBuf> for InputContent {
     type Error = crate::ErrorKind;
 
     fn try_from(path: &PathBuf) -> std::result::Result<Self, Self::Error> {
-        let input = fs::read_to_string(&path)?;
+        let input =
+            fs::read_to_string(&path).map_err(|e| ErrorKind::ReadFileInput(e, path.to_owned()))?;
 
         Ok(Self {
             source: InputSource::String(input.clone()),
@@ -229,11 +230,13 @@ impl Input {
             FileType::from(url.as_str())
         };
 
-        let res = reqwest::get(url.clone()).await?;
+        let res = reqwest::get(url.clone())
+            .await
+            .map_err(ErrorKind::NetworkRequest)?;
         let input_content = InputContent {
             source: InputSource::RemoteUrl(Box::new(url.clone())),
             file_type,
-            content: res.text().await?,
+            content: res.text().await.map_err(ErrorKind::ReadResponseBody)?,
         };
 
         Ok(input_content)
@@ -276,11 +279,12 @@ impl Input {
     pub async fn path_content<P: Into<PathBuf> + AsRef<Path> + Clone>(
         path: P,
     ) -> Result<InputContent> {
+        let path = path.into();
         let content = tokio::fs::read_to_string(&path)
             .await
-            .map_err(|e| (path.clone().into(), e))?;
+            .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))?;
         let input_content = InputContent {
-            file_type: FileType::from(path.as_ref()),
+            file_type: FileType::from(&path),
             source: InputSource::FsPath(path.into()),
             content,
         };
@@ -291,7 +295,10 @@ impl Input {
     async fn stdin_content(file_type_hint: Option<FileType>) -> Result<InputContent> {
         let mut content = String::new();
         let mut stdin = stdin();
-        stdin.read_to_string(&mut content).await?;
+        stdin
+            .read_to_string(&mut content)
+            .await
+            .map_err(ErrorKind::ReadStdinInput)?;
 
         let input_content = InputContent {
             source: InputSource::Stdin,

@@ -1,10 +1,11 @@
 #[cfg(test)]
 mod cli {
-    use std::{fs::File, io::Write};
+    use std::{error::Error, fs::File, io::Write};
 
     use assert_cmd::Command;
-    use lychee_lib::Result;
     use predicates::str::contains;
+
+    type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
     fn main_command() -> Command {
         // this gets the "main" binary name (e.g. `lychee`)

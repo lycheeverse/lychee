@@ -147,16 +147,18 @@ impl From<reqwest::Error> for Status {
         if e.is_timeout() {
             Self::Timeout(e.status())
         } else if e.is_builder() {
-            Self::Unsupported(Box::new(ErrorKind::Reqwest(e)))
+            Self::Unsupported(Box::new(ErrorKind::BuildRequestClient(e)))
+        } else if e.is_body() || e.is_decode() {
+            Self::Unsupported(Box::new(ErrorKind::ReadResponseBody(e)))
         } else {
-            Self::Error(Box::new(ErrorKind::Reqwest(e)))
+            Self::Error(Box::new(ErrorKind::NetworkRequest(e)))
         }
     }
 }
 
 impl From<octocrab::Error> for Status {
     fn from(e: octocrab::Error) -> Self {
-        Self::Error(Box::new(e.into()))
+        Self::Error(Box::new(ErrorKind::Github(e)))
     }
 }
 

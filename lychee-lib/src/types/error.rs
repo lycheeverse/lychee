@@ -3,6 +3,7 @@ use std::any::Any;
 use std::hash::Hash;
 use std::{convert::Infallible, path::PathBuf};
 use thiserror::Error;
+use tokio::task::JoinError;
 
 use super::InputContent;
 use crate::Uri;
@@ -12,23 +13,33 @@ use crate::Uri;
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    // TODO: maybe needs to be split; currently first element is `Some` only for
-    // reading files
-    /// Any form of I/O error occurred while reading from a given path.
-    #[error("Failed to read from path: `{}`, reason: {1}", match .0 {
-        Some(p) => p.to_str().unwrap_or("<MALFORMED PATH>"),
-        None => "<MALFORMED PATH>",
-    })]
-    Io(Option<PathBuf>, std::io::Error),
+    /// Error while executing a future on the Tokio runtime
+    #[error("Task failed to execute to completion")]
+    RuntimeJoinError(#[source] JoinError),
+    /// Error while converting a file to an input
+    #[error("Cannot read input content from file `{1}`")]
+    ReadFileInput(#[source] std::io::Error, PathBuf),
+    /// Error while reading stdin as input
+    #[error("Cannot read input content from stdin")]
+    ReadStdinInput(#[source] std::io::Error),
     /// Errors which can occur when attempting to interpret a sequence of u8 as a string
     #[error("Attempted to interpret an invalid sequence of bytes as a string")]
-    Utf8(#[from] std::str::Utf8Error),
-    /// Reqwest network error
-    #[error("Network error (reqwest): {0}")]
-    Reqwest(#[from] reqwest::Error),
+    Utf8(#[source] std::str::Utf8Error),
+    /// Network error while making request
+    #[error("Network error while handling request")]
+    NetworkRequest(#[source] reqwest::Error),
+    /// Cannot read the body of the received response
+    #[error("Error reading response body")]
+    ReadResponseBody(#[source] reqwest::Error),
+    /// The network client required for making requests cannot be created
+    #[error("Error creating request client")]
+    BuildRequestClient(#[source] reqwest::Error),
     /// Network error while using Github API
-    #[error("Network error (GitHub client) {}", .0.as_ref().map_or(String::new(), std::string::ToString::to_string))]
-    Github(#[from] Option<octocrab::Error>),
+    #[error("Network error (GitHub client)")]
+    Github(#[source] octocrab::Error),
+    /// The given git repository URL is invalid
+    #[error("Invalid git repository")]
+    InvalidGitRepo(String),
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
     #[error("Cannot parse {0} as website url / file path or mail address: ({1:?})")]
     ParseUrl(String, (url::ParseError, Option<fast_chemail::ParseError>)),
@@ -45,7 +56,7 @@ pub enum ErrorKind {
     /// A possible error when converting a `HeaderValue` from a string or byte
     /// slice.
     #[error("Header could not be parsed.")]
-    InvalidHeader(#[from] http::header::InvalidHeaderValue),
+    InvalidHeader(#[source] http::header::InvalidHeaderValue),
     /// The given string can not be parsed into a valid base URL or base directory
     #[error("Error with base dir `{0}` : {1}")]
     InvalidBase(String, String),
@@ -78,9 +89,24 @@ pub enum ErrorKind {
 impl PartialEq for ErrorKind {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Io(p1, e1), Self::Io(p2, e2)) => p1 == p2 && e1.kind() == e2.kind(),
-            (Self::Reqwest(e1), Self::Reqwest(e2)) => e1.to_string() == e2.to_string(),
-            (Self::Github(_e1), Self::Github(_e2)) => false, // hubcaps::Error doesn't impl PartialEq
+            (Self::NetworkRequest(e1), Self::NetworkRequest(e2)) => {
+                e1.to_string() == e2.to_string()
+            }
+            (Self::ReadResponseBody(e1), Self::ReadResponseBody(e2)) => {
+                e1.to_string() == e2.to_string()
+            }
+            (Self::BuildRequestClient(e1), Self::BuildRequestClient(e2)) => {
+                e1.to_string() == e2.to_string()
+            }
+            (Self::RuntimeJoinError(e1), Self::RuntimeJoinError(e2)) => {
+                e1.to_string() == e2.to_string()
+            }
+            (Self::ReadFileInput(e1, s1), Self::ReadFileInput(e2, s2)) => {
+                e1.kind() == e2.kind() && s1 == s2
+            }
+            (Self::ReadStdinInput(e1), Self::ReadStdinInput(e2)) => e1.kind() == e2.kind(),
+            (Self::Github(e1), Self::Github(e2)) => e1.to_string() == e2.to_string(),
+            (Self::InvalidGitRepo(s1), Self::InvalidGitRepo(s2)) => s1 == s2,
             (Self::ParseUrl(s1, e1), Self::ParseUrl(s2, e2)) => s1 == s2 && e1 == e2,
             (Self::UnreachableEmailAddress(u1, ..), Self::UnreachableEmailAddress(u2, ..))
             | (Self::InsecureURL(u1), Self::InsecureURL(u2)) => u1 == u2,
@@ -102,9 +128,14 @@ impl Hash for ErrorKind {
         H: std::hash::Hasher,
     {
         match self {
-            Self::Io(p, e) => (p, e.kind()).hash(state),
-            Self::Reqwest(e) => e.to_string().hash(state),
+            Self::RuntimeJoinError(e) => e.to_string().hash(state),
+            Self::ReadFileInput(e, s) => (e.kind(), s).hash(state),
+            Self::ReadStdinInput(e) => e.kind().hash(state),
+            Self::NetworkRequest(e) => e.to_string().hash(state),
+            Self::ReadResponseBody(e) => e.to_string().hash(state),
+            Self::BuildRequestClient(e) => e.to_string().hash(state),
             Self::Github(e) => e.type_id().hash(state),
+            Self::InvalidGitRepo(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
             Self::ParseUrl(s, e) => (s, e.type_id()).hash(state),
@@ -133,24 +164,6 @@ impl Serialize for ErrorKind {
         S: Serializer,
     {
         serializer.collect_str(self)
-    }
-}
-
-impl From<(PathBuf, std::io::Error)> for ErrorKind {
-    fn from(value: (PathBuf, std::io::Error)) -> Self {
-        Self::Io(Some(value.0), value.1)
-    }
-}
-
-impl From<std::io::Error> for ErrorKind {
-    fn from(e: std::io::Error) -> Self {
-        Self::Io(None, e)
-    }
-}
-
-impl From<tokio::task::JoinError> for ErrorKind {
-    fn from(e: tokio::task::JoinError) -> Self {
-        Self::Io(None, e.into())
     }
 }
 
