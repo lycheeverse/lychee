@@ -396,7 +396,7 @@ impl Client {
         };
         let repo = match client.repos(uri.owner, uri.repo).get().await {
             Ok(repo) => repo,
-            Err(e) => return ErrorKind::GithubError(Some(e)).into(),
+            Err(e) => return ErrorKind::Github(Some(e)).into(),
         };
         if let Some(true) = repo.private {
             // The private repo exists. Assume a given endpoint exists as well
@@ -408,7 +408,7 @@ impl Client {
             // now we find that this public repo is reachable through the API,
             // so that must mean the full URI (which includes the additional
             // endpoint) must be invalid.
-            return ErrorKind::GithubError(None).into();
+            return ErrorKind::Github(None).into();
         }
         // Found public repo without endpoint
         Status::Ok(StatusCode::OK)
