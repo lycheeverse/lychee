@@ -96,8 +96,15 @@ pub struct ClientBuilder {
     ///
     /// This property is defined in [IETF RFC 4193].
     ///
+    /// ## Note
+    ///
+    /// Unicast site-local network was defined in [IETF RFC 4291], but was fully deprecated in
+    /// [IETF RFC 3879]. So it is **NOT** considered as private on this purpose.
+    ///
     /// [IETF RFC 1918]: https://tools.ietf.org/html/rfc1918
     /// [IETF RFC 4193]: https://tools.ietf.org/html/rfc4193
+    /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
+    /// [IETF RFC 3879]: https://tools.ietf.org/html/rfc3879
     exclude_private_ips: bool,
     /// When it's `true`, exclude link-local IPs.
     ///
