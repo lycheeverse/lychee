@@ -51,6 +51,7 @@ futures = "0.3.19"
 lazy_static = "1.4.0"
 html5ever = "0.25.1"
 html5gum = "0.4.0"
+ip_network = "0.4.1"
 
 [dependencies.par-stream]
 version = "0.10.0"

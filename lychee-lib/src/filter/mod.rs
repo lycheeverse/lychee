@@ -1,7 +1,7 @@
 mod excludes;
 mod includes;
 
-use std::{collections::HashSet, net::IpAddr};
+use std::collections::HashSet;
 
 pub use excludes::Excludes;
 pub use includes::Includes;
@@ -61,19 +61,14 @@ impl Filter {
     #[must_use]
     /// Whether the IP address is excluded from checking
     pub fn is_ip_excluded(&self, uri: &Uri) -> bool {
-        match uri.host_ip() {
-            Some(ip_addr) if self.exclude_loopback_ips && ip_addr.is_loopback() => true,
-            // Note: in a pathological case, an IPv6 address can be IPv4-mapped
-            //       (IPv4 address embedded in a IPv6).  We purposefully
-            //       don't deal with it here, and assume if an address is IPv6,
-            //       we shouldn't attempt to map it to IPv4.
-            //       See: https://tools.ietf.org/html/rfc4291#section-2.5.5.2
-            Some(IpAddr::V4(v4_addr)) if self.exclude_private_ips && v4_addr.is_private() => true,
-            Some(IpAddr::V4(v4_addr)) if self.exclude_link_local_ips && v4_addr.is_link_local() => {
-                true
-            }
-            _ => false,
+        if (self.exclude_loopback_ips && uri.is_loopback())
+            || (self.exclude_private_ips && uri.is_private())
+            || (self.exclude_link_local_ips && uri.is_link_local())
+        {
+            return true;
         }
+
+        false
     }
 
     #[must_use]
