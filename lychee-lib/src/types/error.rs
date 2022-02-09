@@ -26,8 +26,8 @@ pub enum ErrorKind {
     /// Reqwest network error
     #[error("Network error (reqwest): {0}")]
     ReqwestError(#[from] reqwest::Error),
-    /// Network error while using Github API (via hubcaps)
-    #[error("Network error (hubcaps) {}", .0.as_ref().map_or(String::new(), std::string::ToString::to_string))]
+    /// Network error while using Github API
+    #[error("Network error (GitHub client) {}", .0.as_ref().map_or(String::new(), std::string::ToString::to_string))]
     GithubError(#[from] Option<octocrab::Error>),
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
     #[error("Cannot parse {0} as website url / file path or mail address: ({1:?})")]
