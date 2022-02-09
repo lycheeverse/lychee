@@ -1,3 +1,12 @@
+//! Handler of link checking operations.
+//!
+//! This module defines two structs, [`Client`] and [`ClientBuilder`].
+//! `Client` handles incoming requests and returns responses.
+//! `ClientBuilder` exposes a finer level of granularity for building
+//! a `Client`.
+//!
+//! For convenience, a free function [`check`] is provided for ad-hoc
+//! link checks.
 #![allow(
     clippy::module_name_repetitions,
     clippy::struct_excessive_bools,
@@ -24,132 +33,196 @@ use crate::{
     ErrorKind, Request, Response, Result, Status, Uri,
 };
 
-/// Default lychee user agent
-pub const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"));
-/// Number of redirects until a request gets declared as failed
+/// Default number of redirects before a request is deemed as failed, 5.
 pub const DEFAULT_MAX_REDIRECTS: usize = 5;
-/// Number of retries until a request gets declared as failed
+/// Default number of retries before a request is deemed as failed, 3.
 pub const DEFAULT_MAX_RETRIES: u64 = 3;
-/// Wait time in seconds between requests (will be doubled after every failure)
+/// Default wait time in seconds between requests, 1.
 pub const DEFAULT_RETRY_WAIT_TIME: u64 = 1;
-/// Total timeout per request until a request gets declared as failed
+/// Default timeout in seconds before a request is deemed as failed, 20.
 pub const DEFAULT_TIMEOUT: usize = 20;
+/// Default user agent, `lychee-<PKG_VERSION>`.
+pub const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"));
 
-/// Handles incoming requests and returns responses. Usually you would not
-/// initialize a `Client` yourself, but use the `ClientBuilder` because it
-/// provides sane defaults for all configuration options.
-#[derive(Debug, Clone)]
-pub struct Client {
-    /// Underlying reqwest client instance that handles the HTTP requests.
-    reqwest_client: reqwest::Client,
-    /// Github client.
-    github_client: Option<Github>,
-    /// Filtered domain handling.
-    filter: Filter,
-    /// Maximum number of retries
-    max_retries: u64,
-    /// Default request HTTP method to use.
-    method: reqwest::Method,
-    /// The set of accepted HTTP status codes for valid URIs.
-    accepted: Option<HashSet<StatusCode>>,
-    /// Require HTTPS URL when it's available.
-    require_https: bool,
-    /// Override behavior for certain known issues with URIs.
-    quirks: Quirks,
-}
-
-/// A link checker using an API token for Github links
-/// otherwise a normal HTTP client.
-#[allow(unreachable_pub)]
-#[derive(TypedBuilder, Debug)]
+/// Builder for [`Client`].
+///
+/// See crate-level documentation for usage example.
+#[derive(TypedBuilder, Debug, Clone)]
 #[builder(field_defaults(default, setter(into)))]
+#[builder(builder_method_doc = "
+Create a builder for building `ClientBuilder`.
+
+On the builder call, call methods with same name as its fields to set their values.
+
+Finally, call `.build()` to create the instance of `ClientBuilder`.
+")]
 pub struct ClientBuilder {
-    /// Set an optional Github token.
-    /// This allows for more requests before
-    /// getting rate-limited.
+    /// Optional GitHub token used for GitHub links.
+    ///
+    /// This allows much more request before getting rate-limited.
+    ///
+    /// ## Rate-limiting Defaults
+    ///
+    /// As of Feb 2022, it's 60 per hour without GitHub token v.s.
+    /// 5000 per hour with token.
     github_token: Option<String>,
-    /// Check links matching this set of regular expressions
+    /// Links matching this set of regular expressions are **always** checked.
+    ///
+    /// This has higher precedence over [`ClientBuilder::excludes`], **but**
+    /// has lower precedence over any other `exclude_` fields or
+    /// [`ClientBuilder::schemes`] below.
     includes: Option<RegexSet>,
-    /// Exclude links matching this set of regular expressions
+    /// Links matching this set of regular expressions are ignored, **except**
+    /// when a link also matches against [`ClientBuilder::includes`].
     excludes: Option<RegexSet>,
-    /// Exclude all private network addresses
+    /// When `true`, exclude all private network addresses.
+    ///
+    /// This effectively turns on the following fields:
+    /// - [`ClientBuilder::exclude_private_ips`]
+    /// - [`ClientBuilder::exclude_link_local_ips`]
+    /// - [`ClientBuilder::exclude_loopback_ips`]
     exclude_all_private: bool,
-    /// Exclude private IP addresses
+    /// When `true`, exclude private IP addresses.
+    ///
+    /// ## IPv4
+    ///
+    /// The private address ranges are defined in [IETF RFC 1918] and include:
+    ///
+    ///  - `10.0.0.0/8`
+    ///  - `172.16.0.0/12`
+    ///  - `192.168.0.0/16`
+    ///
+    /// ## IPv6
+    ///
+    /// The address is a unique local address (`fc00::/7`).
+    ///
+    /// This property is defined in [IETF RFC 4193].
+    ///
+    /// ## Note
+    ///
+    /// Unicast site-local network was defined in [IETF RFC 4291], but was fully deprecated in
+    /// [IETF RFC 3879]. So it is **NOT** considered as private on this purpose.
+    ///
+    /// [IETF RFC 1918]: https://tools.ietf.org/html/rfc1918
+    /// [IETF RFC 4193]: https://tools.ietf.org/html/rfc4193
+    /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
+    /// [IETF RFC 3879]: https://tools.ietf.org/html/rfc3879
     exclude_private_ips: bool,
-    /// Exclude link-local IPs
+    /// When `true`, exclude link-local IPs.
+    ///
+    /// ## IPv4
+    ///
+    /// The address is `169.254.0.0/16`.
+    ///
+    /// This property is defined by [IETF RFC 3927].
+    ///
+    /// ## IPv6
+    ///
+    /// The address is a unicast address with link-local scope,  as defined in [RFC 4291].
+    ///
+    /// A unicast address has link-local scope if it has the prefix `fe80::/10`, as per [RFC 4291 section 2.4].
+    ///
+    /// [IETF RFC 3927]: https://tools.ietf.org/html/rfc3927
+    /// [RFC 4291]: https://tools.ietf.org/html/rfc4291
+    /// [RFC 4291 section 2.4]: https://tools.ietf.org/html/rfc4291#section-2.4
     exclude_link_local_ips: bool,
-    /// Exclude loopback IP addresses (e.g. 127.0.0.1)
+    /// When `true`, exclude loopback IP addresses.
+    ///
+    /// ## IPv4
+    ///
+    /// This is a loopback address (`127.0.0.0/8`).
+    ///
+    /// This property is defined by [IETF RFC 1122].
+    ///
+    /// ## IPv6
+    ///
+    /// This is the loopback address (`::1`), as defined in [IETF RFC 4291 section 2.5.3].
+    ///
+    /// [IETF RFC 1122]: https://tools.ietf.org/html/rfc1122
+    /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
     exclude_loopback_ips: bool,
-    /// Don't check mail addresses
+    /// When `true`, don't check mail addresses.
     exclude_mail: bool,
-    /// Maximum number of redirects before returning error
+    /// Maximum number of redirects per request before returning an error.
     #[builder(default = DEFAULT_MAX_REDIRECTS)]
     max_redirects: usize,
-    /// Maximum number of retries before returning error
+    /// Maximum number of retries per request before returning an error.
     #[builder(default = DEFAULT_MAX_RETRIES)]
     max_retries: u64,
-    /// User agent used for checking links
+    /// User-agent used for checking links.
+    ///
+    /// *NOTE*: This may be helpful for bypassing certain firewalls.
     // Faking the user agent is necessary for some websites, unfortunately.
     // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
     #[builder(default_code = "String::from(DEFAULT_USER_AGENT)")]
     user_agent: String,
-    /// Ignore SSL errors
+    /// When `true`, accept invalid SSL certificates.
+    ///
+    /// ## Warning
+    ///
+    /// You should think very carefully before using this method. If
+    /// invalid certificates are trusted, any certificate for any site
+    /// will be trusted for use. This includes expired certificates. This
+    /// introduces significant vulnerabilities, and should only be used
+    /// as a last resort.
     allow_insecure: bool,
-    /// Set of allowed URI schemes (e.g. https, http).
-    /// This excludes all links from checking, which
-    /// don't specify any of these schemes in the URL.
+    /// When non-empty, only links with matched URI schemes are checked.
+    /// Otherwise, this has no effect.
     schemes: HashSet<String>,
-    /// Map of headers to send to each resource.
-    /// This allows working around validation issues
-    /// on some websites.
+    /// Sets the default [headers] for every request. See also [here].
+    ///
+    /// This allows working around validation issues on some websites.
+    ///
+    /// [headers]: https://docs.rs/http/latest/http/header/struct.HeaderName.html
+    /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.default_headers
     custom_headers: HeaderMap,
-    /// Request method (e.g. `GET` or `HEAD`)
+    /// HTTP method used for requests, e.g. `GET` or `HEAD`.
     #[builder(default = reqwest::Method::GET)]
     method: reqwest::Method,
-    /// Set of accepted return codes / status codes
+    /// Set of accepted return codes / status codes.
+    ///
+    /// Unmatched return codes/ status codes are deemed as errors.
     accepted: Option<HashSet<StatusCode>>,
-    /// Response timeout per request
+    /// Response timeout per request.
     timeout: Option<Duration>,
-    /// Treat HTTP links as errors when HTTPS is available
+    /// Requires using HTTPS when it's available.
+    ///
+    /// This would treat unecrypted links as errors when HTTPS is avaliable.
     require_https: bool,
 }
 
 impl Default for ClientBuilder {
+    #[must_use]
+    #[inline]
     fn default() -> Self {
         Self::builder().build()
     }
 }
 
 impl ClientBuilder {
-    fn build_filter(&self) -> Filter {
-        let includes = self.includes.clone().map(|regex| Includes { regex });
-        let excludes = self.excludes.clone().map(|regex| Excludes { regex });
-        let schemes = self.schemes.clone();
-
-        Filter {
-            includes,
-            excludes,
-            schemes,
-            // exclude_all_private option turns on all "private" excludes,
-            // including private IPs, link-local IPs and loopback IPs
-            exclude_private_ips: self.exclude_all_private || self.exclude_private_ips,
-            exclude_link_local_ips: self.exclude_all_private || self.exclude_link_local_ips,
-            exclude_loopback_ips: self.exclude_all_private || self.exclude_loopback_ips,
-            exclude_mail: self.exclude_mail,
-        }
-    }
-
-    /// The build method instantiates the client.
+    /// Instantiates a [`Client`].
     ///
     /// # Errors
     ///
     /// Returns an `Err` if:
-    /// - The user agent cannot be parsed
-    /// - The request client cannot be created
-    /// - The Github client cannot be created
-    pub fn client(&self) -> Result<Client> {
-        let mut headers = self.custom_headers.clone();
-        headers.insert(header::USER_AGENT, HeaderValue::from_str(&self.user_agent)?);
+    /// - The user-agent is invalid.
+    /// - The request client cannot be created.
+    ///   See [here](https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors).
+    /// - The Github client cannot be created.
+    pub fn client(self) -> Result<Client> {
+        let Self {
+            github_token,
+            includes,
+            excludes,
+            user_agent,
+            schemes,
+            custom_headers: mut headers,
+            method,
+            accepted,
+            ..
+        } = self;
+
+        headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
         headers.insert(
             header::TRANSFER_ENCODING,
             HeaderValue::from_static("chunked"),
@@ -167,29 +240,65 @@ impl ClientBuilder {
         })
         .build()?;
 
-        let github_token = match self.github_token {
-            Some(ref token) if !token.is_empty() => Some(Github::new(
-                self.user_agent.clone(),
-                Credentials::Token(token.clone()),
-            )?),
+        let github_client = match github_token {
+            Some(token) if !token.is_empty() => {
+                Some(Github::new(user_agent, Credentials::Token(token))?)
+            }
             _ => None,
         };
 
-        let filter = self.build_filter();
+        let filter = Filter {
+            includes: includes.map(|regex| Includes { regex }),
+            excludes: excludes.map(|regex| Excludes { regex }),
+            schemes,
+            // exclude_all_private option turns on all "private" excludes,
+            // including private IPs, link-local IPs and loopback IPs
+            exclude_private_ips: self.exclude_all_private || self.exclude_private_ips,
+            exclude_link_local_ips: self.exclude_all_private || self.exclude_link_local_ips,
+            exclude_loopback_ips: self.exclude_all_private || self.exclude_loopback_ips,
+            exclude_mail: self.exclude_mail,
+        };
 
         let quirks = Quirks::default();
 
         Ok(Client {
             reqwest_client,
-            github_client: github_token,
+            github_client,
             filter,
             max_retries: self.max_retries,
-            method: self.method.clone(),
-            accepted: self.accepted.clone(),
+            method,
+            accepted,
             require_https: self.require_https,
             quirks,
         })
     }
+}
+
+/// Handles incoming requests and returns responses.
+///
+/// See [`ClientBuilder`] which contains sane defaults for all configuration options.
+#[derive(Debug, Clone)]
+pub struct Client {
+    /// Underlying `reqwest` client instance that handles the HTTP requests.
+    reqwest_client: reqwest::Client,
+    /// Github client.
+    github_client: Option<Github>,
+    /// Rules to decided whether each link would be checked or ignored.
+    filter: Filter,
+    /// Maximum number of retries per request before returning an error.
+    max_retries: u64,
+    /// HTTP method used for requests, e.g. `GET` or `HEAD`.
+    method: reqwest::Method,
+    /// Set of accepted return codes / status codes.
+    ///
+    /// Unmatched return codes/ status codes are deemed as errors.
+    accepted: Option<HashSet<StatusCode>>,
+    /// Requires using HTTPS when it's available.
+    ///
+    /// This would treat unecrypted links as errors when HTTPS is avaliable.
+    require_https: bool,
+    /// Override behaviors for certain known issues with special URIs.
+    quirks: Quirks,
 }
 
 impl Client {
@@ -198,19 +307,16 @@ impl Client {
     /// # Errors
     ///
     /// This returns an `Err` if
-    /// - The request cannot be parsed
-    /// - An HTTP website with an invalid URI format gets checked
+    /// - `request` is invalid.
+    /// - The URI of the request is invalid.
+    /// - Encrypted connection for a HTTP URL is available but unused.
+    ///   (Only checked when `Client::require_https` is `true`.)
     pub async fn check<T, E>(&self, request: T) -> Result<Response>
     where
         Request: TryFrom<T, Error = E>,
         ErrorKind: From<E>,
     {
-        let Request {
-            uri,
-            source,
-            element: _element,
-            attribute: _attribute,
-        } = request.try_into()?;
+        let Request { uri, source, .. } = request.try_into()?;
 
         // TODO: Allow filtering based on element and attribute
         let status = if self.filter.is_excluded(&uri) {
@@ -224,7 +330,6 @@ impl Client {
                 Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                     let mut https_uri = uri.clone();
                     https_uri
-                        .url
                         .set_scheme("https")
                         .map_err(|_| ErrorKind::InvalidURI(uri.clone()))?;
                     if self.check_website(&https_uri).await.is_success() {
@@ -240,13 +345,15 @@ impl Client {
         Ok(Response::new(uri, status, source))
     }
 
-    /// Check if the given URI is filtered by the client
+    /// Returns whether the given `uri` should be ignored from checking.
     #[must_use]
     pub fn is_excluded(&self, uri: &Uri) -> bool {
         self.filter.is_excluded(uri)
     }
 
-    /// Check a website URI
+    /// Checks the given `uri` of a website.
+    ///
+    /// Here `uri` must has either `http` or `https` scheme.
     pub async fn check_website(&self, uri: &Uri) -> Status {
         let mut retries: u64 = 0;
         let mut wait = DEFAULT_RETRY_WAIT_TIME;
@@ -263,7 +370,7 @@ impl Client {
         }
 
         // Pull out the heavy machinery in case of a failed normal request.
-        // This could be a Github URL and we ran into the rate limiter.
+        // This could be a GitHub URL and we ran into the rate limiter.
         if let Some(github_uri) = uri.gh_org_and_repo() {
             return self.check_github(github_uri).await;
         }
@@ -271,11 +378,15 @@ impl Client {
         status
     }
 
-    /// Check a URI using the Github API.
+    /// Check a `uri` hosted on `GitHub` via the GitHub API.
     ///
-    /// Caveat: Files inside private repositories won't get checked and instead
+    /// # Caveats
+    ///
+    /// Files inside private repositories won't get checked and instead would
     /// be reported as valid if the repository itself is reachable through the
-    /// API. A better approach would be to download the file through the API or
+    /// API.
+    ///
+    /// A better approach would be to download the file through the API or
     /// clone the repo, but we chose the pragmatic approach.
     async fn check_github(&self, uri: GithubUri) -> Status {
         let client = match &self.github_client {
@@ -302,7 +413,7 @@ impl Client {
         Status::Ok(StatusCode::OK)
     }
 
-    /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest)
+    /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, uri: &Uri) -> Status {
         let request = match self
             .reqwest_client
@@ -321,7 +432,7 @@ impl Client {
         }
     }
 
-    /// Check a file URI
+    /// Check a `file` URI.
     pub async fn check_file(&self, uri: &Uri) -> Status {
         if let Ok(path) = uri.url.to_file_path() {
             if path.exists() {
@@ -331,7 +442,7 @@ impl Client {
         ErrorKind::InvalidFilePath(uri.clone()).into()
     }
 
-    /// Check a mail address
+    /// Check a mail address, or equivalently a `mailto` URI.
     pub async fn check_mail(&self, uri: &Uri) -> Status {
         let input = CheckEmailInput::new(vec![uri.as_str().to_owned()]);
         let result = &(check_email(&input).await)[0];
@@ -344,15 +455,16 @@ impl Client {
     }
 }
 
-/// A convenience function to check a single URI
-/// This is the most simple link check and avoids having to create a client manually.
-/// For more complex scenarios, look into using the [`ClientBuilder`] instead.
+/// A convenience function to check a single URI.
+///
+/// This provides the simplest link check utility without having to create a [`Client`].
+/// For more complex scenarios, see documentation of [`ClientBuilder`] instead.
 ///
 /// # Errors
 ///
 /// Returns an `Err` if:
-/// - The request client cannot be built
-/// - The request cannot be checked (see [check](Client::check) for failure cases)
+/// - The request client cannot be built (see [`ClientBuilder::client`] for failure cases).
+/// - The request cannot be checked (see [`Client::check`] for failure cases).
 pub async fn check<T, E>(request: T) -> Result<Response>
 where
     Request: TryFrom<T, Error = E>,
