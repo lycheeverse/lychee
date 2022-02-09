@@ -1,6 +1,6 @@
 //! Handler of link checking operations.
 //!
-//! This modules defines two structs, [`Client`] and [`ClientBuilder`].
+//! This module defines two structs, [`Client`] and [`ClientBuilder`].
 //! `Client` handles incoming requests and returns responses.
 //! `ClientBuilder` exposes a finer level of granularity for building
 //! a `Client`.
@@ -57,12 +57,14 @@ On the builder call, call methods with same name as its fields to set their valu
 Finally, call `.build()` to create the instance of `ClientBuilder`.
 ")]
 pub struct ClientBuilder {
-    /// Optional Github token used for Github links.
+    /// Optional GitHub token used for GitHub links.
     ///
     /// This allows much more request before getting rate-limited.
     ///
-    /// *P.S.* As of Feb 2022, it's 60 per hour without Github token
-    /// v.s. 5000 per hour with token.
+    /// ## Rate-limiting Defaults
+    ///
+    /// As of Feb 2022, it's 60 per hour without GitHub token v.s.
+    /// 5000 per hour with token.
     github_token: Option<String>,
     /// Links matching this set of regular expressions are **always** checked.
     ///
@@ -73,14 +75,14 @@ pub struct ClientBuilder {
     /// Links matching this set of regular expressions are ignored, **except**
     /// when a link also matches against [`ClientBuilder::includes`].
     excludes: Option<RegexSet>,
-    /// When it's `true`, exclude all private network addresses.
+    /// When `true`, exclude all private network addresses.
     ///
     /// This effectively turns on the following fields:
     /// - [`ClientBuilder::exclude_private_ips`]
     /// - [`ClientBuilder::exclude_link_local_ips`]
     /// - [`ClientBuilder::exclude_loopback_ips`]
     exclude_all_private: bool,
-    /// When it's `true`, exclude private IP addresses.
+    /// When `true`, exclude private IP addresses.
     ///
     /// ## IPv4
     ///
@@ -106,7 +108,7 @@ pub struct ClientBuilder {
     /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
     /// [IETF RFC 3879]: https://tools.ietf.org/html/rfc3879
     exclude_private_ips: bool,
-    /// When it's `true`, exclude link-local IPs.
+    /// When `true`, exclude link-local IPs.
     ///
     /// ## IPv4
     ///
@@ -124,7 +126,7 @@ pub struct ClientBuilder {
     /// [RFC 4291]: https://tools.ietf.org/html/rfc4291
     /// [RFC 4291 section 2.4]: https://tools.ietf.org/html/rfc4291#section-2.4
     exclude_link_local_ips: bool,
-    /// When it's `true`, exclude loopback IP addresses.
+    /// When `true`, exclude loopback IP addresses.
     ///
     /// ## IPv4
     ///
@@ -139,7 +141,7 @@ pub struct ClientBuilder {
     /// [IETF RFC 1122]: https://tools.ietf.org/html/rfc1122
     /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
     exclude_loopback_ips: bool,
-    /// When it's `true`, don't check mail addresses.
+    /// When `true`, don't check mail addresses.
     exclude_mail: bool,
     /// Maximum number of redirects per request before returning an error.
     #[builder(default = DEFAULT_MAX_REDIRECTS)]
@@ -154,7 +156,7 @@ pub struct ClientBuilder {
     // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
     #[builder(default_code = "String::from(DEFAULT_USER_AGENT)")]
     user_agent: String,
-    /// When `true`, accept invalid SSL certifcates.
+    /// When `true`, accept invalid SSL certificates.
     ///
     /// ## Warning
     ///
@@ -164,8 +166,8 @@ pub struct ClientBuilder {
     /// introduces significant vulnerabilities, and should only be used
     /// as a last resort.
     allow_insecure: bool,
-    /// When it's not empty, only links with matched URI schemes are checked.
-    /// When it's empty, this has no effect.
+    /// When non-empty, only links with matched URI schemes are checked.
+    /// Otherwise, this has no effect.
     schemes: HashSet<String>,
     /// Sets the default [headers] for every request. See also [here].
     ///
@@ -198,7 +200,7 @@ impl Default for ClientBuilder {
 }
 
 impl ClientBuilder {
-    /// Instantiates an [`Client`].
+    /// Instantiates n [`Client`].
     ///
     /// # Errors
     ///
@@ -307,7 +309,7 @@ impl Client {
     /// This returns an `Err` if
     /// - `request` is invalid.
     /// - The URI of the request is invalid.
-    /// - Encrypted connection for a HTTP URL is avaialbe but unused.
+    /// - Encrypted connection for a HTTP URL is available but unused.
     ///   (Only checked when `Client::require_https` is `true`.)
     pub async fn check<T, E>(&self, request: T) -> Result<Response>
     where
@@ -343,7 +345,7 @@ impl Client {
         Ok(Response::new(uri, status, source))
     }
 
-    /// Returns whehter the given `uri` should be ignored from checking.
+    /// Returns whether the given `uri` should be ignored from checking.
     #[must_use]
     pub fn is_excluded(&self, uri: &Uri) -> bool {
         self.filter.is_excluded(uri)
