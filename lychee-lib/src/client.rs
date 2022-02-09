@@ -11,7 +11,7 @@ use http::{
     header::{HeaderMap, HeaderValue},
     StatusCode,
 };
-use hubcaps::{Credentials, Github};
+use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::header;
 use tokio::time::sleep;
@@ -43,7 +43,7 @@ pub struct Client {
     /// Underlying reqwest client instance that handles the HTTP requests.
     reqwest_client: reqwest::Client,
     /// Github client.
-    github_client: Option<Github>,
+    github_client: Option<Octocrab>,
     /// Filtered domain handling.
     filter: Filter,
     /// Maximum number of retries
@@ -168,10 +168,9 @@ impl ClientBuilder {
         .build()?;
 
         let github_token = match self.github_token {
-            Some(ref token) if !token.is_empty() => Some(Github::new(
-                self.user_agent.clone(),
-                Credentials::Token(token.clone()),
-            )?),
+            Some(ref token) if !token.is_empty() => {
+                Some(Octocrab::builder().personal_token(token.clone()).build()?)
+            }
             _ => None,
         };
 
@@ -282,11 +281,11 @@ impl Client {
             Some(client) => client,
             None => return ErrorKind::MissingGitHubToken.into(),
         };
-        let repo = match client.repo(uri.owner, uri.repo).get().await {
+        let repo = match client.repos(uri.owner, uri.repo).get().await {
             Ok(repo) => repo,
             Err(e) => return ErrorKind::GithubError(Some(e)).into(),
         };
-        if repo.private {
+        if let Some(true) = repo.private {
             // The private repo exists. Assume a given endpoint exists as well
             // (e.g. `issues` in `github.com/org/private/issues`). This is not
             // always the case but simplifies the check.
