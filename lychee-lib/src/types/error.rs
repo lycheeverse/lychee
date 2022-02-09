@@ -41,8 +41,8 @@ pub enum ErrorKind {
     #[error("Invalid git repository")]
     InvalidGitRepo(String),
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
-    #[error("Cannot parse {0} as website url / file path or mail address: ({1:?})")]
-    ParseUrl(String, (url::ParseError, Option<fast_chemail::ParseError>)),
+    #[error("Cannot parse string `{0}` as website url")]
+    ParseUrl(#[source] url::ParseError, String),
     /// The given URI cannot be converted to a file path
     #[error("Cannot find file {0}")]
     InvalidFilePath(Uri),
@@ -138,7 +138,7 @@ impl Hash for ErrorKind {
             Self::InvalidGitRepo(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
-            Self::ParseUrl(s, e) => (s, e.type_id()).hash(state),
+            Self::ParseUrl(e, s) => (e.type_id(), s).hash(state),
             Self::InvalidURI(u) => u.hash(state),
             Self::InvalidUrlFromPath(p) => p.hash(state),
             Self::Utf8(e) => e.to_string().hash(state),
@@ -167,23 +167,11 @@ impl Serialize for ErrorKind {
     }
 }
 
-impl From<url::ParseError> for ErrorKind {
-    fn from(e: url::ParseError) -> Self {
-        Self::ParseUrl("Cannot parse URL".to_string(), (e, None))
-    }
-}
-
-impl From<(String, url::ParseError)> for ErrorKind {
-    fn from(value: (String, url::ParseError)) -> Self {
-        Self::ParseUrl(value.0, (value.1, None))
-    }
-}
-
-impl From<(String, url::ParseError, fast_chemail::ParseError)> for ErrorKind {
-    fn from(value: (String, url::ParseError, fast_chemail::ParseError)) -> Self {
-        Self::ParseUrl(value.0, (value.1, Some(value.2)))
-    }
-}
+// impl From<(String, url::ParseError, fast_chemail::ParseError)> for ErrorKind {
+//     fn from(value: (String, url::ParseError, fast_chemail::ParseError)) -> Self {
+//         Self::ParseUrl(value.0, (value.1, Some(value.2)))
+//     }
+// }
 
 impl From<Infallible> for ErrorKind {
     fn from(_: Infallible) -> Self {

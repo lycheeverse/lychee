@@ -154,7 +154,9 @@ mod test {
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
-                    Url::parse(&mock_server.uri()).map_err(|e| (mock_server.uri(), e))?,
+                    Url::parse(&mock_server.uri())
+                        .map_err(|e| (mock_server.uri(), e))
+                        .unwrap(),
                 )),
                 file_type_hint: None,
             },
