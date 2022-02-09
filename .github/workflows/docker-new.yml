@@ -7,6 +7,17 @@ on:
     types:
       - completed
       - requested
+  schedule:
+    - cron: '0 10 * * *'
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches:
+      - 'main'
+
 
 jobs:
   build:
