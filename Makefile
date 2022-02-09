@@ -18,10 +18,18 @@ docker-run: ## Run Docker image
 docker-push: ## Push image to Docker Hub
 	docker push $(IMAGE_NAME)
 
-.PHONY: build-local
+.PHONY: build
 build: ## Build Rust code locally
 	cargo build
 
+.PHONY: install
+install: ## Install project locally
+	cargo install --path lychee-bin --locked
+
 .PHONY: run
-run: ## Run Rust code locally
+run: ## Run project locally
 	cargo run
+
+.PHONY: docs
+docs: ## Generate and show documentation
+	cargo doc --open 

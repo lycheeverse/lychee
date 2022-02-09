@@ -1,59 +1,15 @@
-[package]
-authors = ["Matthias Endler <matthias-endler.de>"]
-description = "A glorious link checker"
-documentation = "https://github.com/lycheeverse/lychee/blob/master/README.md"
-edition = "2018"
-homepage = "https://github.com/lycheeverse/lychee"
-keywords = [
-    "link",
-    "checker",
-    "cli",
-    "link-checker",
-    "validator",
+[workspace]
+members = [
+    "lychee-bin",
+    "lychee-lib",
+    "examples/*",
+    "benches",
 ]
-license = "Apache-2.0/MIT"
-name = "lychee"
-repository = "https://github.com/lycheeverse/lychee"
-version = "0.4.0"
+resolver = "2"
 
-[dependencies]
-anyhow = "1.0.35"
-futures = "0.3"
-glob = "0.3"
-http = "0.2"
-hubcaps = "0.6"
-linkify = "0.4.0"
-regex = "1.4.2"
-url = "2.2.0"
-check-if-email-exists = "0.8.16"
-indicatif = "0.15.0"
-structopt = "0.3"
-toml = "0.5.7"
-serde = { version = "1.0", features = ["derive"] }
-pulldown-cmark = "0.8.0"
-quick-xml = "0.20.0"
-headers = "0.3.2"
-derive_builder = "0.9.0"
-deadpool = "0.6.0"
-shellexpand = "2.0"
-lazy_static = "1.1"
-wiremock = "0.3.0"
-openssl-sys = "0.9.59" 
-serde_json = "1.0.60"
+[patch.crates-io]
+# Switch back to version on crates.io after 0.6.3+ is released
+hubcaps = { git="https://github.com/softprops/hubcaps.git" }
 
-[dependencies.reqwest]
-features = ["gzip"]
-version = "0.10"
-
-[dependencies.tokio]
-features = ["full"]
-version = "0.2"
-
-[dev-dependencies]
-assert_cmd = "1.0"
-predicates = "1.0"
-uuid = { version = "0.8", features = ["v4"] }
-tempfile = "3.1"
-
-[features]
-vendored-openssl = ["openssl-sys/vendored"]
+[profile.release]
+debug = true

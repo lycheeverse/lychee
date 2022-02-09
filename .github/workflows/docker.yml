@@ -1,4 +1,6 @@
 on:
+  repository_dispatch:
+  workflow_dispatch:
   push:
     branches:
       - master
@@ -8,6 +10,7 @@ on:
 name: Publish Docker Image
 jobs:
   build:
+    if: github.repository_owner == 'lycheeverse'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master

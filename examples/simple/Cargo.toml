@@ -1,0 +1,12 @@
+[package]
+name = "simple"
+version = "0.1.0"
+edition = "2021"
+
+[[example]]
+name = "simple"
+path = "simple.rs"
+
+[dependencies]
+lychee-lib = { path = "../../lychee-lib", version = "0.8.2" }
+tokio = { version = "1.16.1", features = ["full"] }

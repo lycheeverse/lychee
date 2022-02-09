@@ -1,0 +1,14 @@
+[package]
+name = "client_pool"
+version = "0.1.0"
+edition = "2021"
+
+[[example]]
+name = "client_pool"
+path = "client_pool.rs"
+
+[dependencies]
+futures = "0.3.19"
+tokio-stream = "0.1.8"
+lychee-lib = { path = "../../lychee-lib", version = "0.8.2" }
+tokio = { version = "1.16.1", features = ["full"] }
