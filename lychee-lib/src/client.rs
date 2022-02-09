@@ -200,7 +200,7 @@ impl Default for ClientBuilder {
 }
 
 impl ClientBuilder {
-    /// Instantiates n [`Client`].
+    /// Instantiates a [`Client`].
     ///
     /// # Errors
     ///
