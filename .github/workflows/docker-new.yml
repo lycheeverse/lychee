@@ -18,6 +18,10 @@ on:
     branches:
       - 'main'
 
+env:
+  IMAGE_NAME: lycheeverse/lychee-dev
+  DOCKER_PLATFORMS: linux/amd64,linux/arm64/v8
+  DOCKERFILE: Dockerfile-CI.Dockerfile
 
 jobs:
   build:
@@ -32,7 +36,7 @@ jobs:
         with:
           # list of Docker images to use as base name for tags
           images: |
-            lycheeverse/lychee-dev
+            ${{ env.IMAGE_NAME }}
           # generate Docker tags based on the following events/attributes
           tags: |
             type=schedule
@@ -49,18 +53,35 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
+      - name: Build Image
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          platforms: ${{ env.DOCKER_PLATFORMS }}
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:test
+
+      - name: Test
+        run: |
+          for platform in ${DOCKER_PLATFORMS/,/ }; do
+            docker run --rm ${{ env.IMAGE_NAME }}:test --version
+          done
+
       - name: Login to DockerHub
+        if: github.repository_owner == 'lycheeverse'
         uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push
+      - name: Push Image
+        if: github.repository_owner == 'lycheeverse'
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: Dockerfile-CI.Dockerfile
-          platforms: linux/amd64,linux/arm64/v8
+          file: ${{ env.DOCKERFILE }}
+          platforms: ${{ env.DOCKER_PLATFORMS }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
