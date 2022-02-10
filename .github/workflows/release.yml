@@ -42,9 +42,6 @@ jobs:
           # - mipsel-unknown-linux-musl
       fail-fast: false
     steps:
-      - name: Install libssl-dev
-        run: sudo apt install libssl-dev
-      
       - name: Install musl tools
         if: ${{ contains(matrix.target, 'musl') }}
         run: sudo apt-get install -y musl-tools
@@ -73,7 +70,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --target ${{ matrix.target }}
+          args: --release --target ${{ matrix.target }} --features vendored-openssl
           use-cross: true 
 
       - name: Optimize and package binary
