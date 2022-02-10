@@ -90,6 +90,12 @@ impl Uri {
     }
 
     #[inline]
+    /// Changes this URL's scheme.
+    pub(crate) fn set_scheme(&mut self, scheme: &str) -> std::result::Result<(), ()> {
+        self.url.set_scheme(scheme)
+    }
+
+    #[inline]
     #[must_use]
     /// Returns the domain of the URI (e.g. `example.org`)
     pub fn domain(&self) -> Option<&str> {

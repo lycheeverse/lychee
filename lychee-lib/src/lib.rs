@@ -1,5 +1,7 @@
-//! `lychee` is a library for checking links.
+//! `lychee-lib` is the library component of [`lychee`], and is used for checking links.
+//!
 //! "Hello world" example:
+//!
 //! ```
 //! use lychee_lib::Result;
 //!
@@ -26,6 +28,8 @@
 //!   Ok(())
 //! }
 //! ```
+//!
+//! [`lychee`]: https://github.com/lycheeverse/lychee
 #![warn(clippy::all, clippy::pedantic)]
 #![warn(
     absolute_paths_not_starting_with_crate,
