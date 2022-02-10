@@ -53,21 +53,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
-      - name: Build Image
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ${{ env.DOCKERFILE }}
-          platforms: ${{ env.DOCKER_PLATFORMS }}
-          load: true
-          tags: ${{ env.IMAGE_NAME }}:test
-
-      - name: Test
-        run: |
-          for platform in ${DOCKER_PLATFORMS/,/ }; do
-            docker run --rm ${{ env.IMAGE_NAME }}:test --version
-          done
-
       - name: Login to DockerHub
         if: github.repository_owner == 'lycheeverse'
         uses: docker/login-action@v1
@@ -86,7 +71,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Update repo description
+      - name: Update Repo Description
         uses: peter-evans/dockerhub-description@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
