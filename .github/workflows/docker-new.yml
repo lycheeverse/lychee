@@ -8,15 +8,15 @@ on:
       - completed
       - requested
   schedule:
-    - cron: '0 10 * * *'
+    - cron: "0 10 * * *"
   push:
     branches:
-      - '**'
+      - "**"
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
   pull_request:
     branches:
-      - 'main'
+      - "main"
 
 env:
   IMAGE_NAME: lycheeverse/lychee-dev
@@ -85,3 +85,9 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Update repo description
+        uses: peter-evans/dockerhub-description@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
