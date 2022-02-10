@@ -72,6 +72,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Update Repo Description
+        if: github.repository_owner == 'lycheeverse'
         uses: peter-evans/dockerhub-description@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
