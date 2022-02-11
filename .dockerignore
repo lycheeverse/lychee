@@ -4,3 +4,11 @@ assets
 fixtures
 .github
 .vscode
+examples
+benches
+docs
+.editorconfig
+lychee.example.toml
+Makefile
+LICENSE-MIT
+LICENSE-APACHE
