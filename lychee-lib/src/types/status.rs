@@ -154,8 +154,8 @@ impl From<reqwest::Error> for Status {
     }
 }
 
-impl From<hubcaps::Error> for Status {
-    fn from(e: hubcaps::Error) -> Self {
+impl From<octocrab::Error> for Status {
+    fn from(e: octocrab::Error) -> Self {
         Self::Error(Box::new(e.into()))
     }
 }

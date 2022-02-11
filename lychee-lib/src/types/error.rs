@@ -26,20 +26,9 @@ pub enum ErrorKind {
     /// Reqwest network error
     #[error("Network error (reqwest): {0}")]
     ReqwestError(#[from] reqwest::Error),
-    /// Network error while using Github API (via hubcaps)
-    #[error("Network error (hubcaps) {}", match .0 {
-        Some(e) => match e {
-            hubcaps::Error::Fault { code, error } => format!(": {} [{}]", error.message.clone(), code),
-            hubcaps::Error::RateLimit { .. } => "Hit the rate limit".to_string(),
-            hubcaps::Error::Codec(e) => e.to_string(),
-            hubcaps::Error::Reqwest(e) => e.to_string(),
-            hubcaps::Error::Url(e) => e.to_string(),
-            hubcaps::Error::IO(e) => e.to_string(),
-            hubcaps::Error::JWT(e) => e.to_string(),
-        }
-        None => "".to_string(),
-    })]
-    GithubError(#[from] Option<hubcaps::Error>),
+    /// Network error while using Github API
+    #[error("Network error (GitHub client) {}", .0.as_ref().map_or(String::new(), std::string::ToString::to_string))]
+    GithubError(#[from] Option<octocrab::Error>),
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
     #[error("Cannot parse {0} as website url / file path or mail address: ({1:?})")]
     UrlParseError(String, (url::ParseError, Option<fast_chemail::ParseError>)),
