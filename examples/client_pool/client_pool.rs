@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
 
     // Finally, listen to incoming responses from lychee
     while let Some(response) = recv_resp.recv().await {
-        println!("{}", response);
+        println!("{response}");
     }
 
     Ok(())

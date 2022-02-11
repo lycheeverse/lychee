@@ -173,7 +173,7 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
     match cache {
         Ok(cache) => Some(cache),
         Err(e) => {
-            println!("Error while loading cache: {}. Continuing without.", e);
+            println!("Error while loading cache: {e}. Continuing without.");
             None
         }
     }
@@ -247,7 +247,7 @@ fn write_stats(stats: ResponseStats, cfg: &Config) -> Result<()> {
             println!();
         }
         // we assume that the formatted stats don't have a final newline
-        println!("{}", formatted);
+        println!("{formatted}");
     }
     Ok(())
 }

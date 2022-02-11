@@ -151,6 +151,6 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
         if (response.status().is_success() || response.status().is_excluded()) && !verbose {
             return;
         }
-        println!("{}", out);
+        println!("{out}");
     }
 }

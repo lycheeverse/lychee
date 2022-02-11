@@ -6,7 +6,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!   let response = lychee_lib::check("https://github.com/lycheeverse/lychee").await?;
-//!   println!("{}", response);
+//!   println!("{response}");
 //!   Ok(())
 //! }
 //! ```

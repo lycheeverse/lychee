@@ -25,7 +25,7 @@ where
         // to another program like `grep`.
         if let Err(e) = write(&request, verbose) {
             if e.kind() != io::ErrorKind::BrokenPipe {
-                eprintln!("{}", e);
+                eprintln!("{e}");
                 return Ok(ExitCode::UnexpectedFailure);
             }
         }
