@@ -330,7 +330,7 @@ mod test {
 
         let expected_urls = HashSet::from_iter([
             website("https://github.com/lycheeverse/lychee/"),
-            website(&format!("{}about", server_uri)),
+            website(&format!("{server_uri}about")),
         ]);
 
         assert_eq!(links, expected_urls);

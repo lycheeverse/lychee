@@ -6,9 +6,9 @@ pub(crate) fn error_from_output(o: &CheckEmailOutput) -> String {
     if let Err(_e) = o.misc.as_ref() {
         return "Error occurred connecting to this email server via SMTP".to_string();
     } else if let Err(e) = &o.smtp {
-        return format!("{:?}", e);
+        return format!("{e:?}");
     } else if let Err(e) = &o.mx {
-        return format!("{:?}", e);
+        return format!("{e:?}");
     }
     match &o.is_reachable {
         Reachable::Safe => "Safe: The email is safe to send",

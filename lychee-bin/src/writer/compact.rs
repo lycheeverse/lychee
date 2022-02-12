@@ -26,7 +26,7 @@ pub(crate) fn print_errors(stats: &ResponseStats) -> String {
     let mut err: Vec<_> = errors
         .into_iter()
         .filter(|(_, v)| *v > 0)
-        .map(|(k, v)| format!("{}:{}", k, v))
+        .map(|(k, v)| format!("{k}:{v}"))
         .collect();
     err.sort();
     err.join("|")
@@ -37,10 +37,16 @@ impl Display for CompactResponseStats {
         let stats = &self.0;
 
         if !stats.fail_map.is_empty() {
+            let input = if stats.fail_map.len() == 1 {
+                "input"
+            } else {
+                "inputs"
+            };
+
             color!(
                 f,
                 BOLD_PINK,
-                "Issues found in {} input(s). Find details below.\n\n",
+                "Issues found in {} {input}. Find details below.\n\n",
                 stats.fail_map.len()
             )?;
         }
