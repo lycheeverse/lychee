@@ -1818,6 +1818,7 @@ dependencies = [
  "regex",
  "reqwest",
  "ring",
+ "secrecy",
  "serde",
  "serde_json",
  "structopt",
@@ -1860,6 +1861,7 @@ dependencies = [
  "regex",
  "reqwest",
  "ring",
+ "secrecy",
  "serde",
  "shellexpand",
  "tempfile",
@@ -2851,6 +2853,16 @@ name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
+
+[[package]]
+name = "secrecy"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9bd1c54ea06cfd2f6b63219704de0b9b4f72dcc2b8fdef820be6cd799780e91e"
+dependencies = [
+ "serde",
+ "zeroize",
+]
 
 [[package]]
 name = "security-framework"
@@ -3881,3 +3893,9 @@ dependencies = [
  "serde_json",
  "tokio",
 ]
+
+[[package]]
+name = "zeroize"
+version = "1.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c88870063c39ee00ec285a2f8d6a966e5b6fb2becc4e8dac77ed0d370ed6006"

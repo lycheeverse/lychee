@@ -5,6 +5,7 @@ use const_format::{concatcp, formatcp};
 use lychee_lib::{
     Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT,
 };
+use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use structopt::StructOpt;
 
@@ -284,7 +285,7 @@ pub(crate) struct Config {
     /// GitHub API token to use when checking github.com links, to avoid rate limiting
     #[structopt(long, env = "GITHUB_TOKEN", hide_env_values = true)]
     #[serde(default)]
-    pub(crate) github_token: Option<String>,
+    pub(crate) github_token: Option<SecretString>,
 
     /// Skip missing input files (default is to error if they don't exist)
     #[structopt(long)]
@@ -364,11 +365,24 @@ impl Config {
             method: DEFAULT_METHOD;
             base: None;
             basic_auth: None;
-            github_token: None;
             skip_missing: false;
             glob_ignore_case: false;
             output: None;
             require_https: false;
+        }
+
+        if self
+            .github_token
+            .as_ref()
+            .map(ExposeSecret::expose_secret)
+            .is_none()
+            && toml
+                .github_token
+                .as_ref()
+                .map(ExposeSecret::expose_secret)
+                .is_some()
+        {
+            self.github_token = toml.github_token;
         }
     }
 }
