@@ -342,7 +342,7 @@ impl Client {
                         .set_scheme("https")
                         .map_err(|_| ErrorKind::InvalidURI(uri.clone()))?;
                     if self.check_website(&https_uri).await.is_success() {
-                        Status::Error(Box::new(ErrorKind::InsecureURL(https_uri)))
+                        Status::Error(ErrorKind::InsecureURL(https_uri))
                     } else {
                         Status::Ok(code)
                     }
@@ -411,12 +411,13 @@ impl Client {
             // (e.g. `issues` in `github.com/org/private/issues`). This is not
             // always the case but simplifies the check.
             return Status::Ok(StatusCode::OK);
-        } else if uri.endpoint.is_some() {
+        } else if let Some(endpoint) = uri.endpoint {
             // The URI returned a non-200 status code from a normal request and
             // now we find that this public repo is reachable through the API,
             // so that must mean the full URI (which includes the additional
             // endpoint) must be invalid.
-            return ErrorKind::InvalidGitRepo(format!("{}/{}", uri.owner, uri.repo)).into();
+            return ErrorKind::InvalidGithubUrl(format!("{}/{}/{}", uri.owner, uri.repo, endpoint))
+                .into();
         }
         // Found public repo without endpoint
         Status::Ok(StatusCode::OK)

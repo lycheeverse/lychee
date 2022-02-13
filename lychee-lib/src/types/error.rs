@@ -37,11 +37,11 @@ pub enum ErrorKind {
     /// Network error while using Github API
     #[error("Network error (GitHub client)")]
     Github(#[source] octocrab::Error),
-    /// The given git repository URL is invalid
-    #[error("Invalid git repository")]
-    InvalidGitRepo(String),
+    /// Invalid Github URL
+    #[error("Github URL is invalid: {0}")]
+    InvalidGithubUrl(String),
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
-    #[error("Cannot parse string `{0}` as website url")]
+    #[error("Cannot parse string `{1}` as website url")]
     ParseUrl(#[source] url::ParseError, String),
     /// The given URI cannot be converted to a file path
     #[error("Cannot find file {0}")]
@@ -107,7 +107,7 @@ impl PartialEq for ErrorKind {
             }
             (Self::ReadStdinInput(e1), Self::ReadStdinInput(e2)) => e1.kind() == e2.kind(),
             (Self::Github(e1), Self::Github(e2)) => e1.to_string() == e2.to_string(),
-            (Self::InvalidGitRepo(s1), Self::InvalidGitRepo(s2)) => s1 == s2,
+            (Self::InvalidGithubUrl(s1), Self::InvalidGithubUrl(s2)) => s1 == s2,
             (Self::ParseUrl(s1, e1), Self::ParseUrl(s2, e2)) => s1 == s2 && e1 == e2,
             (Self::UnreachableEmailAddress(u1, ..), Self::UnreachableEmailAddress(u2, ..)) => {
                 u1 == u2
@@ -139,7 +139,7 @@ impl Hash for ErrorKind {
             Self::ReadResponseBody(e) => e.to_string().hash(state),
             Self::BuildRequestClient(e) => e.to_string().hash(state),
             Self::Github(e) => e.type_id().hash(state),
-            Self::InvalidGitRepo(s) => s.hash(state),
+            Self::InvalidGithubUrl(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
             Self::ParseUrl(e, s) => (e.type_id(), s).hash(state),
@@ -168,12 +168,6 @@ impl Serialize for ErrorKind {
         serializer.collect_str(self)
     }
 }
-
-// impl From<(String, url::ParseError, fast_chemail::ParseError)> for ErrorKind {
-//     fn from(value: (String, url::ParseError, fast_chemail::ParseError)) -> Self {
-//         Self::ParseUrl(value.0, (value.1, Some(value.2)))
-//     }
-// }
 
 impl From<Infallible> for ErrorKind {
     fn from(_: Infallible) -> Self {
