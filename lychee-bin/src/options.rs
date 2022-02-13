@@ -376,11 +376,11 @@ impl Config {
             .as_ref()
             .map(ExposeSecret::expose_secret)
             .is_none()
-            && !toml
+            && toml
                 .github_token
                 .as_ref()
                 .map(ExposeSecret::expose_secret)
-                .is_none()
+                .is_some()
         {
             self.github_token = toml.github_token;
         }
