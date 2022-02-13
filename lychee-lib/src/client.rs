@@ -23,6 +23,7 @@ use http::{
 use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::header;
+use secrecy::{ExposeSecret, SecretString};
 use tokio::time::sleep;
 use typed_builder::TypedBuilder;
 
@@ -65,7 +66,7 @@ pub struct ClientBuilder {
     ///
     /// As of Feb 2022, it's 60 per hour without GitHub token v.s.
     /// 5000 per hour with token.
-    github_token: Option<String>,
+    github_token: Option<SecretString>,
     /// Links matching this set of regular expressions are **always** checked.
     ///
     /// This has higher precedence over [`ClientBuilder::excludes`], **but**
@@ -240,9 +241,9 @@ impl ClientBuilder {
         })
         .build()?;
 
-        let github_client = match github_token {
+        let github_client = match github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => {
-                Some(Octocrab::builder().personal_token(token).build()?)
+                Some(Octocrab::builder().personal_token(token.clone()).build()?)
             }
             _ => None,
         };
