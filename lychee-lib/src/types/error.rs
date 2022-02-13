@@ -86,6 +86,7 @@ pub enum ErrorKind {
     InvalidURI(Uri),
 }
 
+#[allow(clippy::match_same_arms)]
 impl PartialEq for ErrorKind {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -108,8 +109,10 @@ impl PartialEq for ErrorKind {
             (Self::Github(e1), Self::Github(e2)) => e1.to_string() == e2.to_string(),
             (Self::InvalidGitRepo(s1), Self::InvalidGitRepo(s2)) => s1 == s2,
             (Self::ParseUrl(s1, e1), Self::ParseUrl(s2, e2)) => s1 == s2 && e1 == e2,
-            (Self::UnreachableEmailAddress(u1, ..), Self::UnreachableEmailAddress(u2, ..))
-            | (Self::InsecureURL(u1), Self::InsecureURL(u2)) => u1 == u2,
+            (Self::UnreachableEmailAddress(u1, ..), Self::UnreachableEmailAddress(u2, ..)) => {
+                u1 == u2
+            }
+            (Self::InsecureURL(u1), Self::InsecureURL(u2)) => u1 == u2,
             (Self::InvalidGlobPattern(e1), Self::InvalidGlobPattern(e2)) => {
                 e1.msg == e2.msg && e1.pos == e2.pos
             }
@@ -122,6 +125,7 @@ impl PartialEq for ErrorKind {
 
 impl Eq for ErrorKind {}
 
+#[allow(clippy::match_same_arms)]
 impl Hash for ErrorKind {
     fn hash<H>(&self, state: &mut H)
     where
@@ -142,11 +146,9 @@ impl Hash for ErrorKind {
             Self::InvalidURI(u) => u.hash(state),
             Self::InvalidUrlFromPath(p) => p.hash(state),
             Self::Utf8(e) => e.to_string().hash(state),
-            Self::InvalidFilePath(u)
-            | Self::UnreachableEmailAddress(u, ..)
-            | Self::InsecureURL(u) => {
-                u.hash(state);
-            }
+            Self::InvalidFilePath(u) => u.hash(state),
+            Self::UnreachableEmailAddress(u, ..) => u.hash(state),
+            Self::InsecureURL(u, ..) => u.hash(state),
             Self::InvalidBase(base, e) => (base, e).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),

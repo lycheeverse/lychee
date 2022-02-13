@@ -78,14 +78,10 @@ pub(crate) fn create(
 }
 
 fn construct_url(base: &Option<Url>, text: &str) -> Option<Result<Url>> {
-    match base {
-        None => return None,
-        Some(base) => Some(
-            // In case of error, construct an invalid URL for easier troubleshooting
-            base.join(&text)
-                .map_err(|e| ErrorKind::ParseUrl(e, format!("{base}{text}"))),
-        ),
-    }
+    base.as_ref().map(|base| {
+        base.join(text)
+            .map_err(|e| ErrorKind::ParseUrl(e, format!("{base}{text}")))
+    })
 }
 
 fn create_uri_from_path(src: &Path, dst: &str, base: &Option<Base>) -> Result<Option<Url>> {

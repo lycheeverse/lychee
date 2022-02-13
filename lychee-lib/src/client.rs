@@ -251,7 +251,7 @@ impl ClientBuilder {
                 Octocrab::builder()
                     .personal_token(token.clone())
                     .build()
-                    .map_err(|e| ErrorKind::Github(e))?,
+                    .map_err(ErrorKind::Github)?,
             ),
             _ => None,
         };

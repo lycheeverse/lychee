@@ -218,7 +218,7 @@ impl TryFrom<&str> for Uri {
     fn try_from(s: &str) -> Result<Self> {
         let s = s.trim_start_matches("mailto:");
         // Silently ignore mail parse errors as they are very common and expected for most URIs
-        if let Err(_) = parse_email(s) {
+        if parse_email(s).is_err() {
             match Url::parse(s) {
                 Ok(uri) => Ok(uri.into()),
                 Err(url_err) => Err(ErrorKind::ParseUrl(url_err, s.to_owned())),
