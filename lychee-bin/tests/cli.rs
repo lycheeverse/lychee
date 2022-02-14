@@ -329,8 +329,11 @@ mod cli {
             .failure()
             .code(1)
             .stderr(contains(format!(
-            "Error: Failed to read from path: `{filename}`, reason: No such file or directory (os error 2)"
-        )));
+                "Cannot read input content from file `{filename}`"
+            )))
+            .stderr(contains(
+                "No such file or directory (os error 2)".to_string(),
+            ));
     }
 
     #[test]
