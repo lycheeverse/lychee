@@ -96,7 +96,7 @@ where
 
     let (pb, stats) = show_results_task
         .await
-        .map_err(ErrorKind::RuntimeJoinError)?;
+        .map_err(ErrorKind::RuntimeJoin)?;
 
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats

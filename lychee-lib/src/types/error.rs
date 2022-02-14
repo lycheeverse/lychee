@@ -15,7 +15,7 @@ use crate::Uri;
 pub enum ErrorKind {
     /// Error while executing a future on the Tokio runtime
     #[error("Task failed to execute to completion")]
-    RuntimeJoinError(#[source] JoinError),
+    RuntimeJoin(#[source] JoinError),
     /// Error while converting a file to an input
     #[error("Cannot read input content from file `{1}`")]
     ReadFileInput(#[source] std::io::Error, PathBuf),
@@ -99,7 +99,7 @@ impl PartialEq for ErrorKind {
             (Self::BuildRequestClient(e1), Self::BuildRequestClient(e2)) => {
                 e1.to_string() == e2.to_string()
             }
-            (Self::RuntimeJoinError(e1), Self::RuntimeJoinError(e2)) => {
+            (Self::RuntimeJoin(e1), Self::RuntimeJoin(e2)) => {
                 e1.to_string() == e2.to_string()
             }
             (Self::ReadFileInput(e1, s1), Self::ReadFileInput(e2, s2)) => {
@@ -132,7 +132,7 @@ impl Hash for ErrorKind {
         H: std::hash::Hasher,
     {
         match self {
-            Self::RuntimeJoinError(e) => e.to_string().hash(state),
+            Self::RuntimeJoin(e) => e.to_string().hash(state),
             Self::ReadFileInput(e, s) => (e.kind(), s).hash(state),
             Self::ReadStdinInput(e) => e.kind().hash(state),
             Self::NetworkRequest(e) => e.to_string().hash(state),
