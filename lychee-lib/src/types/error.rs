@@ -28,15 +28,15 @@ pub enum ErrorKind {
     /// Network error while making request
     #[error("Network error while handling request")]
     NetworkRequest(#[source] reqwest::Error),
+    /// Network error while using Github API
+    #[error("Network error (GitHub client)")]
+    GithubRequest(#[source] octocrab::Error),
     /// Cannot read the body of the received response
     #[error("Error reading response body")]
     ReadResponseBody(#[source] reqwest::Error),
     /// The network client required for making requests cannot be created
     #[error("Error creating request client")]
     BuildRequestClient(#[source] reqwest::Error),
-    /// Network error while using Github API
-    #[error("Network error (GitHub client)")]
-    Github(#[source] octocrab::Error),
     /// Invalid Github URL
     #[error("Github URL is invalid: {0}")]
     InvalidGithubUrl(String),
@@ -99,14 +99,12 @@ impl PartialEq for ErrorKind {
             (Self::BuildRequestClient(e1), Self::BuildRequestClient(e2)) => {
                 e1.to_string() == e2.to_string()
             }
-            (Self::RuntimeJoin(e1), Self::RuntimeJoin(e2)) => {
-                e1.to_string() == e2.to_string()
-            }
+            (Self::RuntimeJoin(e1), Self::RuntimeJoin(e2)) => e1.to_string() == e2.to_string(),
             (Self::ReadFileInput(e1, s1), Self::ReadFileInput(e2, s2)) => {
                 e1.kind() == e2.kind() && s1 == s2
             }
             (Self::ReadStdinInput(e1), Self::ReadStdinInput(e2)) => e1.kind() == e2.kind(),
-            (Self::Github(e1), Self::Github(e2)) => e1.to_string() == e2.to_string(),
+            (Self::GithubRequest(e1), Self::GithubRequest(e2)) => e1.to_string() == e2.to_string(),
             (Self::InvalidGithubUrl(s1), Self::InvalidGithubUrl(s2)) => s1 == s2,
             (Self::ParseUrl(s1, e1), Self::ParseUrl(s2, e2)) => s1 == s2 && e1 == e2,
             (Self::UnreachableEmailAddress(u1, ..), Self::UnreachableEmailAddress(u2, ..)) => {
@@ -138,7 +136,7 @@ impl Hash for ErrorKind {
             Self::NetworkRequest(e) => e.to_string().hash(state),
             Self::ReadResponseBody(e) => e.to_string().hash(state),
             Self::BuildRequestClient(e) => e.to_string().hash(state),
-            Self::Github(e) => e.type_id().hash(state),
+            Self::GithubRequest(e) => e.type_id().hash(state),
             Self::InvalidGithubUrl(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),

@@ -251,7 +251,7 @@ impl ClientBuilder {
                 Octocrab::builder()
                     .personal_token(token.clone())
                     .build()
-                    .map_err(ErrorKind::Github)?,
+                    .map_err(ErrorKind::GithubRequest)?,
             ),
             _ => None,
         };
@@ -404,7 +404,7 @@ impl Client {
         };
         let repo = match client.repos(&uri.owner, &uri.repo).get().await {
             Ok(repo) => repo,
-            Err(e) => return ErrorKind::Github(e).into(),
+            Err(e) => return ErrorKind::GithubRequest(e).into(),
         };
         if let Some(true) = repo.private {
             // The private repo exists. Assume a given endpoint exists as well

@@ -77,7 +77,7 @@ impl Display for ResponseBody {
                             "No status code".to_string()
                         }
                     }
-                    ErrorKind::Github(e) => match e {
+                    ErrorKind::GithubRequest(e) => match e {
                         octocrab::Error::GitHub { source, .. } => source.message.to_string(),
                         _ => "".to_string(),
                     },
