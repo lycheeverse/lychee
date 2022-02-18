@@ -54,7 +54,7 @@ octocrab = "0.15.4"
 secrecy = "0.8.0"
 
 [dependencies.par-stream]
-version = "0.10.0"
+version = "0.10.2"
 features = ["runtime-tokio"]
 
 [dev-dependencies]
