@@ -34,7 +34,7 @@ reqwest = { version = "0.11.9", features = ["gzip"] }
 # https://github.com/Homebrew/homebrew-core/pull/70216
 ring = "0.16.20"
 serde = { version = "1.0.133", features = ["derive"] }
-serde_json = "1.0.78"
+serde_json = "1.0.79"
 structopt = "0.3.26"
 tabled = "0.4.2"
 tokio = { version = "1.16.1", features = ["full"] }
