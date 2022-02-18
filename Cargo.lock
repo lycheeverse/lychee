@@ -2213,9 +2213,9 @@ dependencies = [
 
 [[package]]
 name = "papergrid"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daff3d017ba874371c984a4eb5662e446362f13d11ee6bdb7fadbe1e3c223333"
+checksum = "2c2b5b9ea36abb56e4f8a29889e67f878ebc4ab43c918abe32e85a012d27b819"
 dependencies = [
  "unicode-width",
 ]
@@ -3196,9 +3196,9 @@ dependencies = [
 
 [[package]]
 name = "tabled"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a0dca82254bf1031c194833992b10c8a8148a8f4966ae2d3b0afdabcb1bb4c8"
+checksum = "85fda0a52a50c85604747c6584cc79cfe6c7b6ee2349ffed082f965bdbef77ef"
 dependencies = [
  "papergrid",
  "tabled_derive",
