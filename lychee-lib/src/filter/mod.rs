@@ -242,7 +242,7 @@ mod test {
         // In this case, only the requests matching the include set will be checked
         let filter = Filter::default();
 
-        assert!(!filter.is_excluded(&website("https://example.org")));
+        assert!(!filter.is_excluded(&website("https://example.com")));
     }
 
     #[test]
@@ -253,7 +253,7 @@ mod test {
         assert!(filter.is_excluded(&website(
             "http://schemas.openxmlformats.org/markup-compatibility/2006"
         )));
-        assert!(!filter.is_excluded(&website("https://example.org")));
+        assert!(!filter.is_excluded(&website("https://example.com")));
     }
 
     #[test]
@@ -271,7 +271,7 @@ mod test {
     #[test]
     fn test_include_regex() {
         let includes = Includes {
-            regex: RegexSet::new(&[r"foo.example.org"]).unwrap(),
+            regex: RegexSet::new(&[r"foo.example.com"]).unwrap(),
         };
         let filter = Filter {
             includes: Some(includes),
@@ -279,9 +279,9 @@ mod test {
         };
 
         // Only the requests matching the include set will be checked
-        assert!(!filter.is_excluded(&website("https://foo.example.org")));
-        assert!(filter.is_excluded(&website("https://bar.example.org")));
-        assert!(filter.is_excluded(&website("https://example.org")));
+        assert!(!filter.is_excluded(&website("https://foo.example.com")));
+        assert!(filter.is_excluded(&website("https://bar.example.com")));
+        assert!(filter.is_excluded(&website("https://example.com")));
     }
 
     #[test]
@@ -291,7 +291,7 @@ mod test {
             ..Filter::default()
         };
 
-        assert!(filter.is_excluded(&mail("mail@example.org")));
+        assert!(filter.is_excluded(&mail("mail@example.com")));
         assert!(filter.is_excluded(&mail("foo@bar.dev")));
         assert!(!filter.is_excluded(&website("http://bar.dev")));
     }
@@ -299,7 +299,7 @@ mod test {
     #[test]
     fn test_exclude_regex() {
         let excludes = Excludes {
-            regex: RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.org"]).unwrap(),
+            regex: RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap(),
         };
         let filter = Filter {
             excludes: Some(excludes),
@@ -308,7 +308,7 @@ mod test {
 
         assert!(filter.is_excluded(&website("https://github.com")));
         assert!(filter.is_excluded(&website("http://exclude.org")));
-        assert!(filter.is_excluded(&mail("mail@example.org")));
+        assert!(filter.is_excluded(&mail("mail@example.com")));
 
         assert!(!filter.is_excluded(&website("http://bar.dev")));
         assert!(!filter.is_excluded(&mail("foo@bar.dev")));
@@ -316,10 +316,10 @@ mod test {
     #[test]
     fn test_exclude_include_regex() {
         let includes = Includes {
-            regex: RegexSet::new(&[r"foo.example.org"]).unwrap(),
+            regex: RegexSet::new(&[r"foo.example.com"]).unwrap(),
         };
         let excludes = Excludes {
-            regex: RegexSet::new(&[r"example.org"]).unwrap(),
+            regex: RegexSet::new(&[r"example.com"]).unwrap(),
         };
         let filter = Filter {
             includes: Some(includes),
@@ -328,10 +328,10 @@ mod test {
         };
 
         // Includes take preference over excludes
-        assert!(!filter.is_excluded(&website("https://foo.example.org")),);
+        assert!(!filter.is_excluded(&website("https://foo.example.com")),);
 
-        assert!(filter.is_excluded(&website("https://example.org")));
-        assert!(filter.is_excluded(&website("https://bar.example.org")));
+        assert!(filter.is_excluded(&website("https://example.com")));
+        assert!(filter.is_excluded(&website("https://bar.example.com")));
     }
 
     #[test]

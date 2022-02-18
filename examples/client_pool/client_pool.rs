@@ -13,7 +13,7 @@ async fn main() -> Result<()> {
     let (send_resp, mut recv_resp) = mpsc::channel(CONCURRENT_REQUESTS);
 
     // Add as many requests as you like
-    let requests = vec![Request::try_from("https://example.org")?];
+    let requests = vec![Request::try_from("https://example.com")?];
 
     // Queue requests
     tokio::spawn(async move {

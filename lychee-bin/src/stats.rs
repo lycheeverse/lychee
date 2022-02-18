@@ -136,7 +136,7 @@ mod test {
         stats.add(Response(
             InputSource::Stdin,
             ResponseBody {
-                uri: website("https://example.org/ok"),
+                uri: website("https://example.com/ok"),
                 status: Status::Ok(StatusCode::OK),
             },
         ));

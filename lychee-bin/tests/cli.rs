@@ -570,9 +570,8 @@ mod cli {
         cmd.current_dir(test_path)
             .arg("TEST.md")
             .assert()
-            .success()
-            .stdout(contains("9 Total"))
-            .stdout(contains("7 Excluded"));
+            .stdout(contains("7 Total"))
+            .stdout(contains("5 Excluded"));
 
         Ok(())
     }
@@ -589,8 +588,8 @@ mod cli {
             .arg(excludes_path)
             .assert()
             .success()
-            .stdout(contains("9 Total"))
-            .stdout(contains("8 Excluded"));
+            .stdout(contains("7 Total"))
+            .stdout(contains("6 Excluded"));
 
         Ok(())
     }

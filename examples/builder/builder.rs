@@ -11,7 +11,7 @@ async fn main() -> Result<()> {
     // Excludes
     let excludes = Some(RegexSet::new(&[r"example"]).unwrap());
     // Includes take precedence over excludes
-    let includes = Some(RegexSet::new(&[r"example.org"]).unwrap());
+    let includes = Some(RegexSet::new(&[r"example.com"]).unwrap());
 
     // Set custom request headers
     let mut headers = HeaderMap::new();
@@ -39,7 +39,7 @@ async fn main() -> Result<()> {
         .build()
         .client()?;
 
-    let response = client.check("https://example.org").await?;
+    let response = client.check("https://example.com").await?;
     dbg!(&response);
     assert!(response.status().is_success());
     Ok(())

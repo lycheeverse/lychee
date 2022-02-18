@@ -120,7 +120,7 @@ mod test {
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
-        let input = Input::new("https://example.org/", None, true);
+        let input = Input::new("https://example.com/", None, true);
         let contents: Vec<_> = input.get_contents(true).await.collect::<Vec<_>>().await;
 
         assert_eq!(contents.len(), 1);
@@ -286,7 +286,7 @@ mod test {
 
     #[tokio::test]
     async fn test_extract_html5_not_valid_xml_relative_links() {
-        let base = Base::try_from("https://example.org").unwrap();
+        let base = Base::try_from("https://example.com").unwrap();
         let input = load_fixture("TEST_HTML5.html");
 
         let input = Input {
@@ -297,13 +297,13 @@ mod test {
 
         let expected_links = HashSet::from_iter([
             // the body links wouldn't be present if the file was parsed strictly as XML
-            website("https://example.org/body/a"),
-            website("https://example.org/body/div_empty_a"),
-            website("https://example.org/css/style_full_url.css"),
-            website("https://example.org/css/style_relative_url.css"),
-            website("https://example.org/head/home"),
-            website("https://example.org/images/icon.png"),
-            website("https://example.org/js/script.js"),
+            website("https://example.com/body/a"),
+            website("https://example.com/body/div_empty_a"),
+            website("https://example.com/css/style_full_url.css"),
+            website("https://example.com/css/style_relative_url.css"),
+            website("https://example.com/head/home"),
+            website("https://example.com/images/icon.png"),
+            website("https://example.com/js/script.js"),
         ]);
 
         assert_eq!(links, expected_links);
