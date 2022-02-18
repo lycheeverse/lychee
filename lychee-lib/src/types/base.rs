@@ -102,13 +102,13 @@ mod test_base {
     #[test]
     fn test_get_base_from_url() {
         for (url, expected) in [
-            ("https://example.org", "https://example.org"),
-            ("https://example.org?query=something", "https://example.org"),
-            ("https://example.org/#anchor", "https://example.org"),
-            ("https://example.org/foo/bar", "https://example.org"),
+            ("https://example.com", "https://example.com"),
+            ("https://example.com?query=something", "https://example.com"),
+            ("https://example.com/#anchor", "https://example.com"),
+            ("https://example.com/foo/bar", "https://example.com"),
             (
-                "https://example.org:1234/foo/bar",
-                "https://example.org:1234",
+                "https://example.com:1234/foo/bar",
+                "https://example.com:1234",
             ),
         ] {
             let url = Url::parse(url).unwrap();

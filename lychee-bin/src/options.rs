@@ -108,7 +108,7 @@ fn parse_base(src: &str) -> Result<Base, lychee_lib::ErrorKind> {
 pub(crate) struct LycheeOptions {
     /// The inputs (where to get links to check from).
     /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
-    /// remote URLs (e.g. `https://example.org/README.md`) or standard input (`-`).
+    /// remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`).
     /// NOTE: Use `--` to separate inputs from options that allow multiple arguments.
     #[structopt(name = "inputs", required = true)]
     raw_inputs: Vec<String>,
@@ -272,7 +272,7 @@ pub(crate) struct Config {
     pub(crate) method: String,
 
     /// Base URL or website root directory to check relative URLs
-    /// e.g. https://example.org or `/path/to/public`
+    /// e.g. https://example.com or `/path/to/public`
     #[structopt(short, long, parse(try_from_str = parse_base))]
     #[serde(default)]
     pub(crate) base: Option<Base>,

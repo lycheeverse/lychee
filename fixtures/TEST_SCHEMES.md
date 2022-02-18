@@ -1,3 +1,3 @@
-https://example.org
-http://example.org
+https://example.com
+http://example.com
 slack://channel?id=123

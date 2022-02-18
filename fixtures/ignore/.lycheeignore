@@ -1,5 +1,5 @@
 .*\.example.com
-example.org/.+
+example.com/.+
 http://.*
 
 

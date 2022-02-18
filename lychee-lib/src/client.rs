@@ -611,7 +611,7 @@ mod test {
             .client()
             .unwrap();
         assert!(!client.is_excluded(&Uri {
-            url: "mailto://mail@example.org".try_into().unwrap()
+            url: "mailto://mail@example.com".try_into().unwrap()
         }));
 
         let client = ClientBuilder::builder()
@@ -621,14 +621,14 @@ mod test {
             .client()
             .unwrap();
         assert!(client.is_excluded(&Uri {
-            url: "mailto://mail@example.org".try_into().unwrap()
+            url: "mailto://mail@example.com".try_into().unwrap()
         }));
     }
 
     #[tokio::test]
     async fn test_require_https() {
         let client = ClientBuilder::builder().build().client().unwrap();
-        let res = client.check("http://example.org").await.unwrap();
+        let res = client.check("http://example.com").await.unwrap();
         assert!(res.status().is_success());
 
         // Same request will fail if HTTPS is required
@@ -637,7 +637,7 @@ mod test {
             .build()
             .client()
             .unwrap();
-        let res = client.check("http://example.org").await.unwrap();
+        let res = client.check("http://example.com").await.unwrap();
         assert!(res.status().is_failure());
     }
 

@@ -43,8 +43,8 @@ mod test_fs_tree {
             "/index.html"
         );
         assert_eq!(
-            remove_get_params_and_fragment("https://example.org/index.html?foo=bar"),
-            "https://example.org/index.html"
+            remove_get_params_and_fragment("https://example.com/index.html?foo=bar"),
+            "https://example.com/index.html"
         );
         assert_eq!(
             remove_get_params_and_fragment("test.png?foo=bar"),
@@ -52,12 +52,12 @@ mod test_fs_tree {
         );
 
         assert_eq!(
-            remove_get_params_and_fragment("https://example.org/index.html#anchor"),
-            "https://example.org/index.html"
+            remove_get_params_and_fragment("https://example.com/index.html#anchor"),
+            "https://example.com/index.html"
         );
         assert_eq!(
-            remove_get_params_and_fragment("https://example.org/index.html?foo=bar#anchor"),
-            "https://example.org/index.html"
+            remove_get_params_and_fragment("https://example.com/index.html?foo=bar#anchor"),
+            "https://example.com/index.html"
         );
         assert_eq!(
             remove_get_params_and_fragment("test.png?foo=bar#anchor"),

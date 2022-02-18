@@ -97,7 +97,7 @@ impl Uri {
 
     #[inline]
     #[must_use]
-    /// Returns the domain of the URI (e.g. `example.org`)
+    /// Returns the domain of the URI (e.g. `example.com`)
     pub fn domain(&self) -> Option<&str> {
         self.url.domain()
     }
@@ -278,20 +278,20 @@ mod test {
     fn test_uri_from_str() {
         assert!(Uri::try_from("").is_err());
         assert_eq!(
-            Uri::try_from("https://example.org"),
-            Ok(website("https://example.org"))
+            Uri::try_from("https://example.com"),
+            Ok(website("https://example.com"))
         );
         assert_eq!(
-            Uri::try_from("https://example.org/@test/testing"),
-            Ok(website("https://example.org/@test/testing"))
+            Uri::try_from("https://example.com/@test/testing"),
+            Ok(website("https://example.com/@test/testing"))
         );
         assert_eq!(
-            Uri::try_from("mail@example.org"),
-            Ok(mail("mail@example.org"))
+            Uri::try_from("mail@example.com"),
+            Ok(mail("mail@example.com"))
         );
         assert_eq!(
-            Uri::try_from("mailto:mail@example.org"),
-            Ok(mail("mail@example.org"))
+            Uri::try_from("mailto:mail@example.com"),
+            Ok(mail("mail@example.com"))
         );
     }
 

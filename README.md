@@ -227,7 +227,7 @@ FLAGS:
 OPTIONS:
     -a, --accept <accept>                      Comma-separated list of accepted status codes for valid links
     -b, --base <base>                          Base URL or website root directory to check relative URLs e.g.
-                                               https://example.org or `/path/to/public`
+                                               https://example.com or `/path/to/public`
         --basic-auth <basic-auth>              Basic authentication support. E.g. `username:password`
     -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
         --exclude <exclude>...                 Exclude URLs from checking (supports regex)
@@ -254,7 +254,7 @@ OPTIONS:
 
 ARGS:
     <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
-                   (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.org/README.md`) or standard
+                   (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard
                    input (`-`). NOTE: Use `--` to separate inputs from options that allow multiple arguments
 ```
 
