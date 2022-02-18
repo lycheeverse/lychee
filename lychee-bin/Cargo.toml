@@ -21,7 +21,7 @@ lychee-lib = { path = "../lychee-lib", version = "0.8.2", default-features = fal
 anyhow = "1.0.53"
 console = "0.15.0"
 const_format = "0.2.22"
-headers = "0.3.6"
+headers = "0.3.7"
 http = "0.2.6"
 indicatif = "0.16.2"
 openssl-sys = "0.9.72"
