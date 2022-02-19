@@ -2,7 +2,7 @@ use std::fmt::{self, Display};
 
 use super::StatsWriter;
 use anyhow::Result;
-use tabled::{style::Line, Alignment, Full, Modify, Table, Tabled};
+use tabled::{Alignment, Full, Modify, Table, Tabled};
 
 use crate::stats::ResponseStats;
 
@@ -45,7 +45,7 @@ fn stats_table(stats: &ResponseStats) -> String {
             count: stats.errors + stats.failures,
         },
     ];
-    let style = tabled::Style::GITHUB_MARKDOWN.header(Some(Line::bordered('-', '|', '|', '|')));
+    let style = tabled::Style::github_markdown().header_intersection('|');
 
     Table::new(stats)
         .with(Modify::new(Full).with(Alignment::left()))
@@ -97,5 +97,27 @@ impl StatsWriter for Markdown {
     fn write(&self, stats: ResponseStats) -> Result<String> {
         let markdown = MarkdownResponseStats(stats);
         Ok(markdown.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_render_markdown_table() {
+        let stats = ResponseStats::new();
+        let table = stats_table(&stats);
+        let expected = r#"| Status        | Count |
+|---------------|-------|
+| 🔍 Total      | 0     |
+| ✅ Successful | 0     |
+| ⏳ Timeouts   | 0     |
+| 🔀 Redirected | 0     |
+| 👻 Excluded   | 0     |
+| ❓ Unknown    | 0     |
+| 🚫 Errors     | 0     |
+"#;
+        assert_eq!(table, expected.to_string());
     }
 }
