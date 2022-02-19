@@ -341,6 +341,18 @@ mod test {
     };
 
     #[test]
+    fn test_ipv4_uri_is_loopback() {
+        let uri = Uri::try_from("http://127.0.0.0").unwrap();
+        assert!(uri.is_loopback());
+    }
+
+    #[test]
+    fn test_ipv6_uri_is_loopback() {
+        let uri = Uri::try_from("https://[::1]").unwrap();
+        assert!(uri.is_loopback());
+    }
+
+    #[test]
     fn test_uri_from_str() {
         assert!(Uri::try_from("").is_err());
         assert_eq!(

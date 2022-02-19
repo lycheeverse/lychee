@@ -168,13 +168,25 @@ impl Filter {
 }
 
 #[cfg(test)]
+impl Filter {
+    fn exclude_loopback_ips() -> Self {
+        let mut filter = Filter::default();
+        filter.exclude_loopback_ips = true;
+        filter
+    }
+}
+
+#[cfg(test)]
 mod test {
     use regex::RegexSet;
     use reqwest::Url;
     use url::Host;
 
     use super::{Excludes, Filter, Includes};
-    use crate::test_utils::{mail, website};
+    use crate::{
+        test_utils::{mail, website},
+        Uri,
+    };
 
     // Note: the standard library, as of Rust stable 1.47.0, does not expose
     // "link-local" or "private" IPv6 checks. However, one might argue
@@ -213,6 +225,13 @@ mod test {
             };
             std::assert!(res);
         };
+    }
+
+    #[test]
+    fn test_uri_is_loopback() {
+        let uri = Uri::try_from("https://[::1]").unwrap();
+        let filter = Filter::exclude_loopback_ips();
+        assert!(filter.is_excluded(&uri));
     }
 
     #[allow(clippy::shadow_unrelated)]
