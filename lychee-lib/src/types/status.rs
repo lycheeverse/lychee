@@ -24,7 +24,7 @@ pub enum Status {
     /// Request was successful
     Ok(StatusCode),
     /// Failed request
-    Error(Box<ErrorKind>),
+    Error(ErrorKind),
     /// Request timed out
     Timeout(Option<StatusCode>),
     /// Got redirected to different resource
@@ -36,7 +36,7 @@ pub enum Status {
     /// The request type is currently not supported,
     /// for example when the URL scheme is `slack://` or `file://`
     /// See https://github.com/lycheeverse/lychee/issues/199
-    Unsupported(Box<ErrorKind>),
+    Unsupported(ErrorKind),
     /// Cached request status from previous run
     Cached(CacheStatus),
 }
@@ -44,15 +44,15 @@ pub enum Status {
 impl Display for Status {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Status::Ok(c) => write!(f, "OK ({})", c),
-            Status::Redirected(c) => write!(f, "Redirect ({})", c),
-            Status::UnknownStatusCode(c) => write!(f, "Unknown status: {}", c),
+            Status::Ok(c) => write!(f, "OK ({c})"),
+            Status::Redirected(c) => write!(f, "Redirect ({c})"),
+            Status::UnknownStatusCode(c) => write!(f, "Unknown status: {c}"),
             Status::Excluded => f.write_str("Excluded"),
-            Status::Timeout(Some(c)) => write!(f, "Timeout ({})", c),
+            Status::Timeout(Some(c)) => write!(f, "Timeout ({c})"),
             Status::Timeout(None) => f.write_str("Timeout"),
-            Status::Unsupported(e) => write!(f, "Unsupported: {}", e),
-            Status::Error(e) => write!(f, "Failed: {}", e),
-            Status::Cached(s) => write!(f, "Cached: {}", s),
+            Status::Unsupported(e) => write!(f, "Unsupported: {e}"),
+            Status::Error(e) => write!(f, "Failed: {e}"),
+            Status::Cached(s) => write!(f, "Cached: {s}"),
         }
     }
 }
@@ -138,7 +138,7 @@ impl Status {
 
 impl From<ErrorKind> for Status {
     fn from(e: ErrorKind) -> Self {
-        Self::Error(Box::new(e))
+        Self::Error(e)
     }
 }
 
@@ -147,16 +147,18 @@ impl From<reqwest::Error> for Status {
         if e.is_timeout() {
             Self::Timeout(e.status())
         } else if e.is_builder() {
-            Self::Unsupported(Box::new(ErrorKind::ReqwestError(e)))
+            Self::Unsupported(ErrorKind::BuildRequestClient(e))
+        } else if e.is_body() || e.is_decode() {
+            Self::Unsupported(ErrorKind::ReadResponseBody(e))
         } else {
-            Self::Error(Box::new(ErrorKind::ReqwestError(e)))
+            Self::Error(ErrorKind::NetworkRequest(e))
         }
     }
 }
 
 impl From<octocrab::Error> for Status {
     fn from(e: octocrab::Error) -> Self {
-        Self::Error(Box::new(e.into()))
+        Self::Error(ErrorKind::GithubRequest(e))
     }
 }
 

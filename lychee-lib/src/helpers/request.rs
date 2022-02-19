@@ -21,7 +21,7 @@ pub(crate) fn create(
     input_content: &InputContent,
     base: &Option<Base>,
 ) -> Result<HashSet<Request>> {
-    let base_input = Base::from_source(&input_content.source);
+    let base_url = Base::from_source(&input_content.source);
 
     let requests: Result<Vec<Option<Request>>> = uris
         .into_iter()
@@ -56,7 +56,7 @@ pub(crate) fn create(
                     // it means that some preconditions were not met, e.g. the `base_url` wasn't set.
                     Ok(None)
                 }
-            } else if let Some(url) = base_input.as_ref().map(|u| u.join(&text)) {
+            } else if let Some(url) = construct_url(&base_url, &text) {
                 if base.is_some() {
                     Ok(None)
                 } else {
@@ -75,6 +75,13 @@ pub(crate) fn create(
         .collect();
     let requests: Vec<Request> = requests?.into_iter().flatten().collect();
     Ok(HashSet::from_iter(requests))
+}
+
+fn construct_url(base: &Option<Url>, text: &str) -> Option<Result<Url>> {
+    base.as_ref().map(|base| {
+        base.join(text)
+            .map_err(|e| ErrorKind::ParseUrl(e, format!("{base}{text}")))
+    })
 }
 
 fn create_uri_from_path(src: &Path, dst: &str, base: &Option<Base>) -> Result<Option<Url>> {

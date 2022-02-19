@@ -1,5 +1,5 @@
 These links are all the same and match those of TEST_REPETITION_2.txt.
 All links in both files should be counted as one and checked once only.
-https://example.org/
-https://example.org/
-https://example.org
+https://example.com/
+https://example.com/
+https://example.com

@@ -42,7 +42,7 @@ impl Display for DetailedResponseStats {
         for (source, responses) in &stats.fail_map {
             // Using leading newlines over trailing ones (e.g. `writeln!`)
             // lets us avoid extra newlines without any additional logic.
-            write!(f, "\n\nErrors in {}", source)?;
+            write!(f, "\n\nErrors in {source}")?;
             for response in responses {
                 write!(f, "\n{}", color_response(response))?;
             }

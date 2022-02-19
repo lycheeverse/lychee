@@ -23,6 +23,7 @@ use http::{
 use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::header;
+use secrecy::{ExposeSecret, SecretString};
 use tokio::time::sleep;
 use typed_builder::TypedBuilder;
 
@@ -65,7 +66,7 @@ pub struct ClientBuilder {
     ///
     /// As of Feb 2022, it's 60 per hour without GitHub token v.s.
     /// 5000 per hour with token.
-    github_token: Option<String>,
+    github_token: Option<SecretString>,
     /// Links matching this set of regular expressions are **always** checked.
     ///
     /// This has higher precedence over [`ClientBuilder::excludes`], **but**
@@ -187,7 +188,7 @@ pub struct ClientBuilder {
     timeout: Option<Duration>,
     /// Requires using HTTPS when it's available.
     ///
-    /// This would treat unecrypted links as errors when HTTPS is avaliable.
+    /// This would treat unencrypted links as errors when HTTPS is avaliable.
     require_https: bool,
 }
 
@@ -223,6 +224,7 @@ impl ClientBuilder {
         } = self;
 
         headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
+
         headers.insert(
             header::TRANSFER_ENCODING,
             HeaderValue::from_static("chunked"),
@@ -238,12 +240,16 @@ impl ClientBuilder {
             Some(t) => builder.timeout(t),
             None => builder,
         })
-        .build()?;
+        .build()
+        .map_err(ErrorKind::NetworkRequest)?;
 
-        let github_client = match github_token {
-            Some(token) if !token.is_empty() => {
-                Some(Octocrab::builder().personal_token(token).build()?)
-            }
+        let github_client = match github_token.as_ref().map(ExposeSecret::expose_secret) {
+            Some(token) if !token.is_empty() => Some(
+                Octocrab::builder()
+                    .personal_token(token.clone())
+                    .build()
+                    .map_err(ErrorKind::GithubRequest)?,
+            ),
             _ => None,
         };
 
@@ -333,7 +339,7 @@ impl Client {
                         .set_scheme("https")
                         .map_err(|_| ErrorKind::InvalidURI(uri.clone()))?;
                     if self.check_website(&https_uri).await.is_success() {
-                        Status::Error(Box::new(ErrorKind::InsecureURL(https_uri)))
+                        Status::Error(ErrorKind::InsecureURL(https_uri))
                     } else {
                         Status::Ok(code)
                     }
@@ -393,21 +399,22 @@ impl Client {
             Some(client) => client,
             None => return ErrorKind::MissingGitHubToken.into(),
         };
-        let repo = match client.repos(uri.owner, uri.repo).get().await {
+        let repo = match client.repos(&uri.owner, &uri.repo).get().await {
             Ok(repo) => repo,
-            Err(e) => return ErrorKind::GithubError(Some(e)).into(),
+            Err(e) => return ErrorKind::GithubRequest(e).into(),
         };
         if let Some(true) = repo.private {
             // The private repo exists. Assume a given endpoint exists as well
             // (e.g. `issues` in `github.com/org/private/issues`). This is not
             // always the case but simplifies the check.
             return Status::Ok(StatusCode::OK);
-        } else if uri.endpoint.is_some() {
+        } else if let Some(endpoint) = uri.endpoint {
             // The URI returned a non-200 status code from a normal request and
             // now we find that this public repo is reachable through the API,
             // so that must mean the full URI (which includes the additional
             // endpoint) must be invalid.
-            return ErrorKind::GithubError(None).into();
+            return ErrorKind::InvalidGithubUrl(format!("{}/{}/{}", uri.owner, uri.repo, endpoint))
+                .into();
         }
         // Found public repo without endpoint
         Status::Ok(StatusCode::OK)
@@ -610,7 +617,7 @@ mod test {
             .client()
             .unwrap();
         assert!(!client.is_excluded(&Uri {
-            url: "mailto://mail@example.org".try_into().unwrap()
+            url: "mailto://mail@example.com".try_into().unwrap()
         }));
 
         let client = ClientBuilder::builder()
@@ -620,14 +627,14 @@ mod test {
             .client()
             .unwrap();
         assert!(client.is_excluded(&Uri {
-            url: "mailto://mail@example.org".try_into().unwrap()
+            url: "mailto://mail@example.com".try_into().unwrap()
         }));
     }
 
     #[tokio::test]
     async fn test_require_https() {
         let client = ClientBuilder::builder().build().client().unwrap();
-        let res = client.check("http://example.org").await.unwrap();
+        let res = client.check("http://example.com").await.unwrap();
         assert!(res.status().is_success());
 
         // Same request will fail if HTTPS is required
@@ -636,7 +643,7 @@ mod test {
             .build()
             .client()
             .unwrap();
-        let res = client.check("http://example.org").await.unwrap();
+        let res = client.check("http://example.com").await.unwrap();
         assert!(res.status().is_failure());
     }
 

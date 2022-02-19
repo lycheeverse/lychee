@@ -124,13 +124,13 @@ mod test {
     #[test]
     fn test_non_markdown_links() {
         let input =
-            "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.org";
+            "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.com";
         let links: HashSet<Uri> = extract_uris(input, FileType::Plaintext);
 
         let expected = IntoIterator::into_iter([
             website("https://endler.dev"),
             website("https://hello-rust.show/foo/bar?lol=1"),
-            mail("test@example.org"),
+            mail("test@example.com"),
         ])
         .collect::<HashSet<Uri>>();
 
@@ -152,11 +152,11 @@ mod test {
         let links = extract_uris(&input, FileType::Html);
 
         let expected_links = IntoIterator::into_iter([
-            website("https://example.org/head/home"),
-            website("https://example.org/css/style_full_url.css"),
+            website("https://example.com/head/home"),
+            website("https://example.com/css/style_full_url.css"),
             // the body links wouldn't be present if the file was parsed strictly as XML
-            website("https://example.org/body/a"),
-            website("https://example.org/body/div_empty_a"),
+            website("https://example.com/body/a"),
+            website("https://example.com/body/div_empty_a"),
         ])
         .collect::<HashSet<Uri>>();
 
@@ -166,7 +166,7 @@ mod test {
     #[test]
     fn test_extract_relative_url() {
         let source = InputSource::RemoteUrl(Box::new(
-            Url::parse("https://example.org/some-post").unwrap(),
+            Url::parse("https://example.com/some-post").unwrap(),
         ));
 
         let contents = r#"<html>
@@ -210,7 +210,7 @@ mod test {
         let input = load_fixture("TEST_HTML5_LOWERCASE_DOCTYPE.html");
         let links = extract_uris(&input, FileType::Html);
 
-        let expected_links = IntoIterator::into_iter([website("https://example.org/body/a")])
+        let expected_links = IntoIterator::into_iter([website("https://example.com/body/a")])
             .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
@@ -223,11 +223,11 @@ mod test {
         let links = extract_uris(&input, FileType::Html);
 
         let expected_links = IntoIterator::into_iter([
-            website("https://example.org/"),
-            website("https://example.org/favicon.ico"),
+            website("https://example.com/"),
+            website("https://example.com/favicon.ico"),
             website("https://fonts.externalsite.com"),
-            website("https://example.org/docs/"),
-            website("https://example.org/forum"),
+            website("https://example.com/docs/"),
+            website("https://example.com/forum"),
         ])
         .collect::<HashSet<Uri>>();
 
@@ -240,7 +240,7 @@ mod test {
         let input = load_fixture("TEST_HTML5_MALFORMED_LINKS.html");
         let links = extract_uris(&input, FileType::Html);
 
-        let expected_links = IntoIterator::into_iter([website("https://example.org/valid")])
+        let expected_links = IntoIterator::into_iter([website("https://example.com/valid")])
             .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
@@ -253,10 +253,10 @@ mod test {
         let links = extract_uris(&input, FileType::Html);
 
         let expected_links = IntoIterator::into_iter([
-            website("https://example.org/some-weird-element"),
-            website("https://example.org/even-weirder-src"),
-            website("https://example.org/even-weirder-href"),
-            website("https://example.org/citations"),
+            website("https://example.com/some-weird-element"),
+            website("https://example.com/even-weirder-src"),
+            website("https://example.com/even-weirder-href"),
+            website("https://example.com/citations"),
         ])
         .collect::<HashSet<Uri>>();
 

@@ -5,6 +5,7 @@ use const_format::{concatcp, formatcp};
 use lychee_lib::{
     Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT,
 };
+use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use structopt::StructOpt;
 
@@ -107,7 +108,7 @@ fn parse_base(src: &str) -> Result<Base, lychee_lib::ErrorKind> {
 pub(crate) struct LycheeOptions {
     /// The inputs (where to get links to check from).
     /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
-    /// remote URLs (e.g. `https://example.org/README.md`) or standard input (`-`).
+    /// remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`).
     /// NOTE: Use `--` to separate inputs from options that allow multiple arguments.
     #[structopt(name = "inputs", required = true)]
     raw_inputs: Vec<String>,
@@ -271,7 +272,7 @@ pub(crate) struct Config {
     pub(crate) method: String,
 
     /// Base URL or website root directory to check relative URLs
-    /// e.g. https://example.org or `/path/to/public`
+    /// e.g. https://example.com or `/path/to/public`
     #[structopt(short, long, parse(try_from_str = parse_base))]
     #[serde(default)]
     pub(crate) base: Option<Base>,
@@ -284,7 +285,7 @@ pub(crate) struct Config {
     /// GitHub API token to use when checking github.com links, to avoid rate limiting
     #[structopt(long, env = "GITHUB_TOKEN", hide_env_values = true)]
     #[serde(default)]
-    pub(crate) github_token: Option<String>,
+    pub(crate) github_token: Option<SecretString>,
 
     /// Skip missing input files (default is to error if they don't exist)
     #[structopt(long)]
@@ -364,11 +365,24 @@ impl Config {
             method: DEFAULT_METHOD;
             base: None;
             basic_auth: None;
-            github_token: None;
             skip_missing: false;
             glob_ignore_case: false;
             output: None;
             require_https: false;
+        }
+
+        if self
+            .github_token
+            .as_ref()
+            .map(ExposeSecret::expose_secret)
+            .is_none()
+            && toml
+                .github_token
+                .as_ref()
+                .map(ExposeSecret::expose_secret)
+                .is_some()
+        {
+            self.github_token = toml.github_token;
         }
     }
 }
