@@ -95,9 +95,7 @@ fn create_uri_from_path(src: &Path, dst: &str, base: &Option<Base>) -> Result<Op
     // Ideally, only `src` and `base` should be URL encoded (as is done by
     // `from_file_path` at the moment) while `dst` gets left untouched and simply
     // appended to the end.
-    let decoded = percent_decode_str(dst)
-        .decode_utf8()
-        .map_err(ErrorKind::Utf8)?;
+    let decoded = percent_decode_str(dst).decode_utf8()?;
     let resolved = path::resolve(src, &PathBuf::from(&*decoded), base)?;
     match resolved {
         Some(path) => Url::from_file_path(&path)

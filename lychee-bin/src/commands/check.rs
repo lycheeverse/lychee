@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
-use lychee_lib::ErrorKind;
 use lychee_lib::Result;
 use lychee_lib::Status;
 use tokio::sync::mpsc;
@@ -94,7 +93,7 @@ where
     // the show_results_task to finish
     drop(send_req);
 
-    let (pb, stats) = show_results_task.await.map_err(ErrorKind::RuntimeJoin)?;
+    let (pb, stats) = show_results_task.await?;
 
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats

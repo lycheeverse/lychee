@@ -15,28 +15,28 @@ use crate::Uri;
 pub enum ErrorKind {
     /// Error while executing a future on the Tokio runtime
     #[error("Task failed to execute to completion")]
-    RuntimeJoin(#[source] JoinError),
+    RuntimeJoin(#[from] JoinError),
     /// Error while converting a file to an input
     #[error("Cannot read input content from file `{1}`")]
     ReadFileInput(#[source] std::io::Error, PathBuf),
     /// Error while reading stdin as input
     #[error("Cannot read input content from stdin")]
-    ReadStdinInput(#[source] std::io::Error),
+    ReadStdinInput(#[from] std::io::Error),
     /// Errors which can occur when attempting to interpret a sequence of u8 as a string
     #[error("Attempted to interpret an invalid sequence of bytes as a string")]
-    Utf8(#[source] std::str::Utf8Error),
+    Utf8(#[from] std::str::Utf8Error),
     /// Network error while making request
     #[error("Network error while handling request")]
     NetworkRequest(#[source] reqwest::Error),
-    /// Network error while using Github API
-    #[error("Network error (GitHub client)")]
-    GithubRequest(#[source] octocrab::Error),
     /// Cannot read the body of the received response
     #[error("Error reading response body")]
     ReadResponseBody(#[source] reqwest::Error),
     /// The network client required for making requests cannot be created
     #[error("Error creating request client")]
     BuildRequestClient(#[source] reqwest::Error),
+    /// Network error while using Github API
+    #[error("Network error (GitHub client)")]
+    GithubRequest(#[from] octocrab::Error),
     /// Invalid Github URL
     #[error("Github URL is invalid: {0}")]
     InvalidGithubUrl(String),
@@ -56,7 +56,7 @@ pub enum ErrorKind {
     /// A possible error when converting a `HeaderValue` from a string or byte
     /// slice.
     #[error("Header could not be parsed.")]
-    InvalidHeader(#[source] http::header::InvalidHeaderValue),
+    InvalidHeader(#[from] http::header::InvalidHeaderValue),
     /// The given string can not be parsed into a valid base URL or base directory
     #[error("Error with base dir `{0}` : {1}")]
     InvalidBase(String, String),

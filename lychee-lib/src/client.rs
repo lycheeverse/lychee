@@ -223,10 +223,7 @@ impl ClientBuilder {
             ..
         } = self;
 
-        headers.insert(
-            header::USER_AGENT,
-            HeaderValue::from_str(&user_agent).map_err(ErrorKind::InvalidHeader)?,
-        );
+        headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
 
         headers.insert(
             header::TRANSFER_ENCODING,
@@ -244,7 +241,7 @@ impl ClientBuilder {
             None => builder,
         })
         .build()
-        .map_err(ErrorKind::BuildRequestClient)?;
+        .map_err(ErrorKind::NetworkRequest)?;
 
         let github_client = match github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(

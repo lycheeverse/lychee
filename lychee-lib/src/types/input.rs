@@ -295,10 +295,7 @@ impl Input {
     async fn stdin_content(file_type_hint: Option<FileType>) -> Result<InputContent> {
         let mut content = String::new();
         let mut stdin = stdin();
-        stdin
-            .read_to_string(&mut content)
-            .await
-            .map_err(ErrorKind::ReadStdinInput)?;
+        stdin.read_to_string(&mut content).await?;
 
         let input_content = InputContent {
             source: InputSource::Stdin,
