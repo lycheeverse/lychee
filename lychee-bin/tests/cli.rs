@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod cli {
     use std::{
+        error::Error,
         fs::{self, File},
         io::Write,
         path::{Path, PathBuf},
@@ -8,10 +9,11 @@ mod cli {
 
     use assert_cmd::Command;
     use http::StatusCode;
-    use lychee_lib::Result;
     use predicates::str::contains;
     use pretty_assertions::assert_eq;
     use uuid::Uuid;
+
+    type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
     macro_rules! mock_server {
         ($status:expr $(, $func:tt ($($arg:expr),*))*) => {{
@@ -327,8 +329,11 @@ mod cli {
             .failure()
             .code(1)
             .stderr(contains(format!(
-            "Error: Failed to read from path: `{filename}`, reason: No such file or directory (os error 2)"
-        )));
+                "Cannot read input content from file `{filename}`"
+            )))
+            .stderr(contains(
+                "No such file or directory (os error 2)".to_string(),
+            ));
     }
 
     #[test]

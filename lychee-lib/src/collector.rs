@@ -106,10 +106,10 @@ mod test {
 
     #[tokio::test]
     async fn test_file_without_extension_is_plaintext() -> Result<()> {
-        let temp_dir = tempfile::tempdir()?;
+        let temp_dir = tempfile::tempdir().unwrap();
         // Treat as plaintext file (no extension)
         let file_path = temp_dir.path().join("README");
-        let _file = File::create(&file_path)?;
+        let _file = File::create(&file_path).unwrap();
         let input = Input::new(&file_path.as_path().display().to_string(), None, true);
         let contents: Vec<_> = input.get_contents(true).await.collect::<Vec<_>>().await;
 
@@ -130,20 +130,20 @@ mod test {
 
     #[tokio::test]
     async fn test_collect_links() -> Result<()> {
-        let temp_dir = tempfile::tempdir()?;
+        let temp_dir = tempfile::tempdir().unwrap();
         let temp_dir_path = temp_dir.path();
 
         let file_path = temp_dir_path.join("f");
         let file_glob_1_path = temp_dir_path.join("glob-1");
         let file_glob_2_path = temp_dir_path.join("glob-2");
 
-        let mut file = File::create(&file_path)?;
-        let mut file_glob_1 = File::create(file_glob_1_path)?;
-        let mut file_glob_2 = File::create(file_glob_2_path)?;
+        let mut file = File::create(&file_path).unwrap();
+        let mut file_glob_1 = File::create(file_glob_1_path).unwrap();
+        let mut file_glob_2 = File::create(file_glob_2_path).unwrap();
 
-        writeln!(file, "{}", TEST_FILE)?;
-        writeln!(file_glob_1, "{}", TEST_GLOB_1)?;
-        writeln!(file_glob_2, "{}", TEST_GLOB_2_MAIL)?;
+        writeln!(file, "{}", TEST_FILE).unwrap();
+        writeln!(file_glob_1, "{}", TEST_GLOB_1).unwrap();
+        writeln!(file_glob_2, "{}", TEST_GLOB_2_MAIL).unwrap();
 
         let mock_server = mock_server!(StatusCode::OK, set_body_string(TEST_URL));
 
@@ -154,7 +154,9 @@ mod test {
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
-                    Url::parse(&mock_server.uri()).map_err(|e| (mock_server.uri(), e))?,
+                    Url::parse(&mock_server.uri())
+                        .map_err(|e| (mock_server.uri(), e))
+                        .unwrap(),
                 )),
                 file_type_hint: None,
             },

@@ -3,6 +3,7 @@ use std::any::Any;
 use std::hash::Hash;
 use std::{convert::Infallible, path::PathBuf};
 use thiserror::Error;
+use tokio::task::JoinError;
 
 use super::InputContent;
 use crate::Uri;
@@ -12,26 +13,36 @@ use crate::Uri;
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    // TODO: maybe needs to be split; currently first element is `Some` only for
-    // reading files
-    /// Any form of I/O error occurred while reading from a given path.
-    #[error("Failed to read from path: `{}`, reason: {1}", match .0 {
-        Some(p) => p.to_str().unwrap_or("<MALFORMED PATH>"),
-        None => "<MALFORMED PATH>",
-    })]
-    IoError(Option<PathBuf>, std::io::Error),
+    /// Error while executing a future on the Tokio runtime
+    #[error("Task failed to execute to completion")]
+    RuntimeJoin(#[from] JoinError),
+    /// Error while converting a file to an input
+    #[error("Cannot read input content from file `{1}`")]
+    ReadFileInput(#[source] std::io::Error, PathBuf),
+    /// Error while reading stdin as input
+    #[error("Cannot read input content from stdin")]
+    ReadStdinInput(#[from] std::io::Error),
     /// Errors which can occur when attempting to interpret a sequence of u8 as a string
     #[error("Attempted to interpret an invalid sequence of bytes as a string")]
-    Utf8Error(#[from] std::str::Utf8Error),
-    /// Reqwest network error
-    #[error("Network error (reqwest): {0}")]
-    ReqwestError(#[from] reqwest::Error),
+    Utf8(#[from] std::str::Utf8Error),
+    /// Network error while making request
+    #[error("Network error while handling request")]
+    NetworkRequest(#[source] reqwest::Error),
+    /// Cannot read the body of the received response
+    #[error("Error reading response body")]
+    ReadResponseBody(#[source] reqwest::Error),
+    /// The network client required for making requests cannot be created
+    #[error("Error creating request client")]
+    BuildRequestClient(#[source] reqwest::Error),
     /// Network error while using Github API
-    #[error("Network error (GitHub client) {}", .0.as_ref().map_or(String::new(), std::string::ToString::to_string))]
-    GithubError(#[from] Option<octocrab::Error>),
+    #[error("Network error (GitHub client)")]
+    GithubRequest(#[from] octocrab::Error),
+    /// Invalid Github URL
+    #[error("Github URL is invalid: {0}")]
+    InvalidGithubUrl(String),
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
-    #[error("Cannot parse {0} as website url / file path or mail address: ({1:?})")]
-    UrlParseError(String, (url::ParseError, Option<fast_chemail::ParseError>)),
+    #[error("Cannot parse string `{1}` as website url")]
+    ParseUrl(#[source] url::ParseError, String),
     /// The given URI cannot be converted to a file path
     #[error("Cannot find file {0}")]
     InvalidFilePath(Uri),
@@ -66,7 +77,7 @@ pub enum ErrorKind {
     InsecureURL(Uri),
     /// Error while sending/receiving messages from MPSC channel
     #[error("Cannot send/receive message from channel")]
-    ChannelError(#[from] tokio::sync::mpsc::error::SendError<InputContent>),
+    Channel(#[from] tokio::sync::mpsc::error::SendError<InputContent>),
     /// An URL with an invalid host was found
     #[error("URL is missing a host")]
     InvalidUrlHost,
@@ -75,15 +86,31 @@ pub enum ErrorKind {
     InvalidURI(Uri),
 }
 
+#[allow(clippy::match_same_arms)]
 impl PartialEq for ErrorKind {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::IoError(p1, e1), Self::IoError(p2, e2)) => p1 == p2 && e1.kind() == e2.kind(),
-            (Self::ReqwestError(e1), Self::ReqwestError(e2)) => e1.to_string() == e2.to_string(),
-            (Self::GithubError(_e1), Self::GithubError(_e2)) => false, // hubcaps::Error doesn't impl PartialEq
-            (Self::UrlParseError(s1, e1), Self::UrlParseError(s2, e2)) => s1 == s2 && e1 == e2,
-            (Self::UnreachableEmailAddress(u1, ..), Self::UnreachableEmailAddress(u2, ..))
-            | (Self::InsecureURL(u1), Self::InsecureURL(u2)) => u1 == u2,
+            (Self::NetworkRequest(e1), Self::NetworkRequest(e2)) => {
+                e1.to_string() == e2.to_string()
+            }
+            (Self::ReadResponseBody(e1), Self::ReadResponseBody(e2)) => {
+                e1.to_string() == e2.to_string()
+            }
+            (Self::BuildRequestClient(e1), Self::BuildRequestClient(e2)) => {
+                e1.to_string() == e2.to_string()
+            }
+            (Self::RuntimeJoin(e1), Self::RuntimeJoin(e2)) => e1.to_string() == e2.to_string(),
+            (Self::ReadFileInput(e1, s1), Self::ReadFileInput(e2, s2)) => {
+                e1.kind() == e2.kind() && s1 == s2
+            }
+            (Self::ReadStdinInput(e1), Self::ReadStdinInput(e2)) => e1.kind() == e2.kind(),
+            (Self::GithubRequest(e1), Self::GithubRequest(e2)) => e1.to_string() == e2.to_string(),
+            (Self::InvalidGithubUrl(s1), Self::InvalidGithubUrl(s2)) => s1 == s2,
+            (Self::ParseUrl(s1, e1), Self::ParseUrl(s2, e2)) => s1 == s2 && e1 == e2,
+            (Self::UnreachableEmailAddress(u1, ..), Self::UnreachableEmailAddress(u2, ..)) => {
+                u1 == u2
+            }
+            (Self::InsecureURL(u1), Self::InsecureURL(u2)) => u1 == u2,
             (Self::InvalidGlobPattern(e1), Self::InvalidGlobPattern(e2)) => {
                 e1.msg == e2.msg && e1.pos == e2.pos
             }
@@ -96,30 +123,34 @@ impl PartialEq for ErrorKind {
 
 impl Eq for ErrorKind {}
 
+#[allow(clippy::match_same_arms)]
 impl Hash for ErrorKind {
     fn hash<H>(&self, state: &mut H)
     where
         H: std::hash::Hasher,
     {
         match self {
-            Self::IoError(p, e) => (p, e.kind()).hash(state),
-            Self::ReqwestError(e) => e.to_string().hash(state),
-            Self::GithubError(e) => e.type_id().hash(state),
+            Self::RuntimeJoin(e) => e.to_string().hash(state),
+            Self::ReadFileInput(e, s) => (e.kind(), s).hash(state),
+            Self::ReadStdinInput(e) => e.kind().hash(state),
+            Self::NetworkRequest(e) => e.to_string().hash(state),
+            Self::ReadResponseBody(e) => e.to_string().hash(state),
+            Self::BuildRequestClient(e) => e.to_string().hash(state),
+            Self::GithubRequest(e) => e.type_id().hash(state),
+            Self::InvalidGithubUrl(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
-            Self::UrlParseError(s, e) => (s, e.type_id()).hash(state),
+            Self::ParseUrl(e, s) => (e.type_id(), s).hash(state),
             Self::InvalidURI(u) => u.hash(state),
             Self::InvalidUrlFromPath(p) => p.hash(state),
-            Self::Utf8Error(e) => e.to_string().hash(state),
-            Self::InvalidFilePath(u)
-            | Self::UnreachableEmailAddress(u, ..)
-            | Self::InsecureURL(u) => {
-                u.hash(state);
-            }
+            Self::Utf8(e) => e.to_string().hash(state),
+            Self::InvalidFilePath(u) => u.hash(state),
+            Self::UnreachableEmailAddress(u, ..) => u.hash(state),
+            Self::InsecureURL(u, ..) => u.hash(state),
             Self::InvalidBase(base, e) => (base, e).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
-            Self::ChannelError(e) => e.to_string().hash(state),
+            Self::Channel(e) => e.to_string().hash(state),
             Self::MissingGitHubToken | Self::InvalidUrlHost => {
                 std::mem::discriminant(self).hash(state);
             }
@@ -133,42 +164,6 @@ impl Serialize for ErrorKind {
         S: Serializer,
     {
         serializer.collect_str(self)
-    }
-}
-
-impl From<(PathBuf, std::io::Error)> for ErrorKind {
-    fn from(value: (PathBuf, std::io::Error)) -> Self {
-        Self::IoError(Some(value.0), value.1)
-    }
-}
-
-impl From<std::io::Error> for ErrorKind {
-    fn from(e: std::io::Error) -> Self {
-        Self::IoError(None, e)
-    }
-}
-
-impl From<tokio::task::JoinError> for ErrorKind {
-    fn from(e: tokio::task::JoinError) -> Self {
-        Self::IoError(None, e.into())
-    }
-}
-
-impl From<url::ParseError> for ErrorKind {
-    fn from(e: url::ParseError) -> Self {
-        Self::UrlParseError("Cannot parse URL".to_string(), (e, None))
-    }
-}
-
-impl From<(String, url::ParseError)> for ErrorKind {
-    fn from(value: (String, url::ParseError)) -> Self {
-        Self::UrlParseError(value.0, (value.1, None))
-    }
-}
-
-impl From<(String, url::ParseError, fast_chemail::ParseError)> for ErrorKind {
-    fn from(value: (String, url::ParseError, fast_chemail::ParseError)) -> Self {
-        Self::UrlParseError(value.0, (value.1, Some(value.2)))
     }
 }
 

@@ -208,15 +208,7 @@ impl TryFrom<String> for Uri {
     type Error = ErrorKind;
 
     fn try_from(s: String) -> Result<Self> {
-        let s = s.trim_start_matches("mailto:");
-        if let Err(mail_err) = parse_email(s) {
-            match Url::parse(s) {
-                Ok(uri) => Ok(uri.into()),
-                Err(url_err) => Err((s.to_owned(), url_err, mail_err).into()),
-            }
-        } else {
-            Ok(Url::parse(&(String::from("mailto:") + s)).unwrap().into())
-        }
+        Uri::try_from(s.as_ref())
     }
 }
 
@@ -225,13 +217,14 @@ impl TryFrom<&str> for Uri {
 
     fn try_from(s: &str) -> Result<Self> {
         let s = s.trim_start_matches("mailto:");
-        if let Err(mail_err) = parse_email(s) {
+        // Silently ignore mail parse errors as they are very common and expected for most URIs
+        if parse_email(s).is_err() {
             match Url::parse(s) {
                 Ok(uri) => Ok(uri.into()),
-                Err(url_err) => Err((s.to_owned(), url_err, mail_err).into()),
+                Err(url_err) => Err(ErrorKind::ParseUrl(url_err, s.to_owned())),
             }
         } else {
-            Ok(Url::parse(&(String::from("mailto:") + s)).unwrap().into())
+            Ok(Url::parse(&format!("mailto:{s}")).unwrap().into())
         }
     }
 }
@@ -241,15 +234,7 @@ impl TryFrom<RawUri> for Uri {
 
     fn try_from(raw_uri: RawUri) -> Result<Self> {
         let s = raw_uri.text;
-        let s = s.trim_start_matches("mailto:");
-        if let Err(mail_err) = parse_email(s) {
-            match Url::parse(s) {
-                Ok(uri) => Ok(uri.into()),
-                Err(url_err) => Err((s.to_owned(), url_err, mail_err).into()),
-            }
-        } else {
-            Ok(Url::parse(&(String::from("mailto:") + s)).unwrap().into())
-        }
+        Uri::try_from(s.as_ref())
     }
 }
 

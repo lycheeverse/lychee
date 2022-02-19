@@ -188,7 +188,7 @@ pub struct ClientBuilder {
     timeout: Option<Duration>,
     /// Requires using HTTPS when it's available.
     ///
-    /// This would treat unecrypted links as errors when HTTPS is avaliable.
+    /// This would treat unencrypted links as errors when HTTPS is avaliable.
     require_https: bool,
 }
 
@@ -224,6 +224,7 @@ impl ClientBuilder {
         } = self;
 
         headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
+
         headers.insert(
             header::TRANSFER_ENCODING,
             HeaderValue::from_static("chunked"),
@@ -239,12 +240,16 @@ impl ClientBuilder {
             Some(t) => builder.timeout(t),
             None => builder,
         })
-        .build()?;
+        .build()
+        .map_err(ErrorKind::NetworkRequest)?;
 
         let github_client = match github_token.as_ref().map(ExposeSecret::expose_secret) {
-            Some(token) if !token.is_empty() => {
-                Some(Octocrab::builder().personal_token(token.clone()).build()?)
-            }
+            Some(token) if !token.is_empty() => Some(
+                Octocrab::builder()
+                    .personal_token(token.clone())
+                    .build()
+                    .map_err(ErrorKind::GithubRequest)?,
+            ),
             _ => None,
         };
 
@@ -334,7 +339,7 @@ impl Client {
                         .set_scheme("https")
                         .map_err(|_| ErrorKind::InvalidURI(uri.clone()))?;
                     if self.check_website(&https_uri).await.is_success() {
-                        Status::Error(Box::new(ErrorKind::InsecureURL(https_uri)))
+                        Status::Error(ErrorKind::InsecureURL(https_uri))
                     } else {
                         Status::Ok(code)
                     }
@@ -394,21 +399,22 @@ impl Client {
             Some(client) => client,
             None => return ErrorKind::MissingGitHubToken.into(),
         };
-        let repo = match client.repos(uri.owner, uri.repo).get().await {
+        let repo = match client.repos(&uri.owner, &uri.repo).get().await {
             Ok(repo) => repo,
-            Err(e) => return ErrorKind::GithubError(Some(e)).into(),
+            Err(e) => return ErrorKind::GithubRequest(e).into(),
         };
         if let Some(true) = repo.private {
             // The private repo exists. Assume a given endpoint exists as well
             // (e.g. `issues` in `github.com/org/private/issues`). This is not
             // always the case but simplifies the check.
             return Status::Ok(StatusCode::OK);
-        } else if uri.endpoint.is_some() {
+        } else if let Some(endpoint) = uri.endpoint {
             // The URI returned a non-200 status code from a normal request and
             // now we find that this public repo is reachable through the API,
             // so that must mean the full URI (which includes the additional
             // endpoint) must be invalid.
-            return ErrorKind::GithubError(None).into();
+            return ErrorKind::InvalidGithubUrl(format!("{}/{}/{}", uri.owner, uri.repo, endpoint))
+                .into();
         }
         // Found public repo without endpoint
         Status::Ok(StatusCode::OK)

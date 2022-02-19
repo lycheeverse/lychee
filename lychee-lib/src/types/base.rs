@@ -94,7 +94,7 @@ mod test_base {
 
     #[test]
     fn test_valid_local() -> Result<()> {
-        let dir = tempfile::tempdir()?;
+        let dir = tempfile::tempdir().unwrap();
         Base::try_from(dir.as_ref().to_str().unwrap())?;
         Ok(())
     }

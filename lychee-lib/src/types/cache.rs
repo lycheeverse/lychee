@@ -22,10 +22,10 @@ pub enum CacheStatus {
 impl Display for CacheStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Success => write!(f, "Success"),
-            Self::Fail => write!(f, "Fail"),
-            Self::Excluded => write!(f, "Excluded"),
-            Self::Unsupported => write!(f, "Unsupported"),
+            Self::Success => write!(f, "Success [cached]"),
+            Self::Fail => write!(f, "Fail [cached]"),
+            Self::Excluded => write!(f, "Excluded [cached]"),
+            Self::Unsupported => write!(f, "Unsupported [cached]"),
         }
     }
 }

@@ -1,8 +1,8 @@
-use std::fmt::Display;
+use std::{error::Error, fmt::Display};
 
 use serde::Serialize;
 
-use crate::{InputSource, Status, Uri};
+use crate::{ErrorKind, InputSource, Status, Uri};
 
 /// Response type returned by lychee after checking a URI
 #[derive(Debug)]
@@ -50,18 +50,51 @@ pub struct ResponseBody {
     pub status: Status,
 }
 
+// Extract as much information from the underlying error conditions as possible
+// without being too verbose. Some dependencies (rightfully) don't expose all
+// error fields to downstream crates, which is why we have to defer to pattern
+// matching in these cases.
 impl Display for ResponseBody {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {}", self.status.icon(), self.uri)?;
 
-        // TODO: Other errors?
         match &self.status {
             Status::Ok(code) | Status::Redirected(code) => {
                 write!(f, " [{}]", code)
             }
-            Status::Timeout(Some(code)) => write!(f, " [{}]", code),
-            Status::Error(e) => write!(f, ": {}", e),
-            _ => Ok(()),
+            Status::Timeout(Some(code)) => write!(f, "Timeout [{code}]"),
+            Status::Timeout(None) => write!(f, "Timeout"),
+            Status::UnknownStatusCode(code) => write!(f, "Unknown status code [{code}]"),
+            Status::Excluded => write!(f, "Excluded"),
+            Status::Unsupported(e) => write!(f, "Unsupported {}", e),
+            Status::Cached(status) => write!(f, "{status}"),
+            Status::Error(e) => {
+                let details = match e {
+                    ErrorKind::NetworkRequest(e) => {
+                        if let Some(status) = e.status() {
+                            status.to_string()
+                        } else {
+                            "No status code".to_string()
+                        }
+                    }
+                    ErrorKind::GithubRequest(e) => match e {
+                        octocrab::Error::GitHub { source, .. } => source.message.to_string(),
+                        _ => "".to_string(),
+                    },
+                    _ => {
+                        if let Some(source) = e.source() {
+                            source.to_string()
+                        } else {
+                            "".to_string()
+                        }
+                    }
+                };
+                if details.is_empty() {
+                    write!(f, ": {e}")
+                } else {
+                    write!(f, ": {e}: {details}")
+                }
+            }
         }
     }
 }

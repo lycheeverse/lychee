@@ -92,7 +92,7 @@ mod test_path {
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
             resolve(&dummy, &abs_path, &None)?,
-            Some(env::current_dir()?.join("foo.html"))
+            Some(env::current_dir().unwrap().join("foo.html"))
         );
         Ok(())
     }
@@ -105,7 +105,7 @@ mod test_path {
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
             resolve(&dummy, &abs_path, &None)?,
-            Some(env::current_dir()?.join("foo.html"))
+            Some(env::current_dir().unwrap().join("foo.html"))
         );
         Ok(())
     }
