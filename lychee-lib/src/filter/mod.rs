@@ -170,9 +170,10 @@ impl Filter {
 #[cfg(test)]
 impl Filter {
     fn exclude_loopback_ips() -> Self {
-        let mut filter = Filter::default();
-        filter.exclude_loopback_ips = true;
-        filter
+        Filter {
+            exclude_loopback_ips: true,
+            ..Default::default()
+        }
     }
 }
 
