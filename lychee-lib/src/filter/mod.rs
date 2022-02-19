@@ -168,16 +168,6 @@ impl Filter {
 }
 
 #[cfg(test)]
-impl Filter {
-    fn exclude_loopback_ips() -> Self {
-        Filter {
-            exclude_loopback_ips: true,
-            ..Default::default()
-        }
-    }
-}
-
-#[cfg(test)]
 mod test {
     use regex::RegexSet;
     use reqwest::Url;
@@ -228,13 +218,6 @@ mod test {
         };
     }
 
-    #[test]
-    fn test_uri_is_loopback() {
-        let uri = Uri::try_from("https://[::1]").unwrap();
-        let filter = Filter::exclude_loopback_ips();
-        assert!(filter.is_excluded(&uri));
-    }
-
     #[allow(clippy::shadow_unrelated)]
     #[test]
     fn test_const_sanity() -> Result<(), ()> {
@@ -249,6 +232,18 @@ mod test {
         assert_ip_address!(v4: V4_LINK_LOCAL_2, is_link_local);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_exclude_loopback_ips() {
+        let filter = Filter {
+            exclude_loopback_ips: true,
+            ..Default::default()
+        };
+        let uri = Uri::try_from("https://[::1]").unwrap();
+        assert!(filter.is_excluded(&uri));
+        let uri = Uri::try_from("https://127.0.0.1/8").unwrap();
+        assert!(filter.is_excluded(&uri));
     }
 
     #[test]
