@@ -238,7 +238,7 @@ mod test {
     fn test_exclude_loopback_ips() {
         let filter = Filter {
             exclude_loopback_ips: true,
-            ..Default::default()
+            ..Filter::default()
         };
         let uri = Uri::try_from("https://[::1]").unwrap();
         assert!(filter.is_excluded(&uri));
