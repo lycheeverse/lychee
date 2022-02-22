@@ -7,7 +7,7 @@ use crate::color::{DIM, GREEN, NORMAL, PINK, YELLOW};
 
 pub(crate) fn color_response(response: &ResponseBody) -> String {
     let out = match response.status {
-        Status::Ok(_) | Status::Cached(CacheStatus::Success) => GREEN.apply_to(response),
+        Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => GREEN.apply_to(response),
         Status::Excluded
         | Status::Unsupported(_)
         | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => {
@@ -15,7 +15,7 @@ pub(crate) fn color_response(response: &ResponseBody) -> String {
         }
         Status::Redirected(_) => NORMAL.apply_to(response),
         Status::UnknownStatusCode(_) | Status::Timeout(_) => YELLOW.apply_to(response),
-        Status::Error(_) | Status::Cached(CacheStatus::Fail) => PINK.apply_to(response),
+        Status::Error(_) | Status::Cached(CacheStatus::Fail(_)) => PINK.apply_to(response),
     };
     out.to_string()
 }
@@ -63,8 +63,8 @@ impl ResponseStats {
 
         if let Status::Cached(cache_status) = status {
             match cache_status {
-                CacheStatus::Success => self.successful += 1,
-                CacheStatus::Fail => self.failures += 1,
+                CacheStatus::Ok(_) => self.successful += 1,
+                CacheStatus::Fail(_) => self.failures += 1,
                 CacheStatus::Excluded | CacheStatus::Unsupported => self.excludes += 1,
             }
         }
@@ -74,7 +74,7 @@ impl ResponseStats {
             Status::Error(_)
                 | Status::Timeout(_)
                 | Status::Redirected(_)
-                | Status::Cached(CacheStatus::Fail)
+                | Status::Cached(CacheStatus::Fail(_))
         ) {
             let fail = self.fail_map.entry(source).or_default();
             fail.insert(response.1);

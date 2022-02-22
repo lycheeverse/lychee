@@ -22,9 +22,10 @@ impl From<&Status> for CacheValue {
     }
 }
 
-/// The cache stores previous response codes
-/// for faster checking. At the moment it is backed by `DashMap`, but this is an
-/// implementation detail, which may change in the future.
+/// The cache stores previous response codes for faster checking.
+///
+/// At the moment it is backed by `DashMap`, but this is an
+/// implementation detail, which should not be relied upon.
 pub(crate) type Cache = DashMap<Uri, CacheValue>;
 
 pub(crate) trait StoreExt {

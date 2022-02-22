@@ -56,25 +56,39 @@ pub struct ResponseBody {
 // matching in these cases.
 impl Display for ResponseBody {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {}", self.status.icon(), self.uri)?;
+        write!(
+            f,
+            "{} [{}] {}",
+            self.status.icon(),
+            self.status.code(),
+            self.uri
+        )?;
 
         match &self.status {
-            Status::Ok(code) | Status::Redirected(code) => {
-                write!(f, " [{}]", code)
-            }
-            Status::Timeout(Some(code)) => write!(f, "Timeout [{code}]"),
-            Status::Timeout(None) => write!(f, "Timeout"),
-            Status::UnknownStatusCode(code) => write!(f, "Unknown status code [{code}]"),
-            Status::Excluded => write!(f, "Excluded"),
-            Status::Unsupported(e) => write!(f, "Unsupported {}", e),
-            Status::Cached(status) => write!(f, "{status}"),
+            Status::Ok(code) => match code.canonical_reason() {
+                Some(reason) => write!(f, ": {reason}"),
+                None => write!(f, ": OK"),
+            },
+            Status::Redirected(code) => match code.canonical_reason() {
+                Some(reason) => write!(f, ": {reason}"),
+                None => write!(f, ": Redirected"),
+            },
+            Status::Timeout(Some(code)) => write!(f, ": Timeout [{code}]"),
+            Status::Timeout(None) => write!(f, ": Timeout"),
+            Status::UnknownStatusCode(code) => write!(f, ": Unknown status code [{code}]"),
+            Status::Excluded => write!(f, ": Excluded"),
+            Status::Unsupported(e) => write!(f, ": Unsupported {}", e),
+            Status::Cached(status) => write!(f, ": {status}"),
             Status::Error(e) => {
                 let details = match e {
                     ErrorKind::NetworkRequest(e) => {
                         if let Some(status) = e.status() {
-                            status.to_string()
+                            status
+                                .canonical_reason()
+                                .unwrap_or("<unknown status code>")
+                                .to_string()
                         } else {
-                            "No status code".to_string()
+                            "<no status code>".to_string()
                         }
                     }
                     ErrorKind::GithubRequest(e) => match e {

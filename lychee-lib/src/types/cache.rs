@@ -10,9 +10,9 @@ use crate::Status;
 #[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum CacheStatus {
     /// The cached request delivered a valid response
-    Success,
+    Ok(u16),
     /// The cached request failed before
-    Fail,
+    Fail(Option<u16>),
     /// The request was excluded (skipped)
     Excluded,
     /// The protocol is not yet supported
@@ -22,8 +22,8 @@ pub enum CacheStatus {
 impl Display for CacheStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Success => write!(f, "Success [cached]"),
-            Self::Fail => write!(f, "Fail [cached]"),
+            Self::Ok(_) => write!(f, "OK [cached]"),
+            Self::Fail(_) => write!(f, "Fail [cached]"),
             Self::Excluded => write!(f, "Excluded [cached]"),
             Self::Unsupported => write!(f, "Unsupported [cached]"),
         }
@@ -37,10 +37,12 @@ impl From<&Status> for CacheStatus {
             // Reqwest treats unknown status codes as Ok(StatusCode).
             // TODO: Use accepted status codes to decide whether this is a
             // success or failure
-            Status::Ok(_) | Status::UnknownStatusCode(_) => Self::Success,
+            Status::Ok(code) | Status::UnknownStatusCode(code) => Self::Ok(code.as_u16()),
             Status::Excluded => Self::Excluded,
             Status::Unsupported(_) => Self::Unsupported,
-            Status::Redirected(_) | Status::Error(_) | Status::Timeout(_) => Self::Fail,
+            Status::Redirected(code) => Self::Fail(Some(code.as_u16())),
+            Status::Timeout(code) => Self::Fail(code.map(|code| code.as_u16())),
+            Status::Error(_) => Self::Fail(None),
         }
     }
 }

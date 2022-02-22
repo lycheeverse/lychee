@@ -25,8 +25,8 @@ pub enum ErrorKind {
     /// Errors which can occur when attempting to interpret a sequence of u8 as a string
     #[error("Attempted to interpret an invalid sequence of bytes as a string")]
     Utf8(#[from] std::str::Utf8Error),
-    /// Network error while making request
-    #[error("Network error while handling request")]
+    /// Network error while handling request
+    #[error("Network error")]
     NetworkRequest(#[source] reqwest::Error),
     /// Cannot read the body of the received response
     #[error("Error reading response body")]
@@ -44,7 +44,7 @@ pub enum ErrorKind {
     #[error("Cannot parse string `{1}` as website url")]
     ParseUrl(#[source] url::ParseError, String),
     /// The given URI cannot be converted to a file path
-    #[error("Cannot find file {0}")]
+    #[error("Cannot find file")]
     InvalidFilePath(Uri),
     /// The given path cannot be converted to a URI
     #[error("Invalid path to URL conversion: {0}")]

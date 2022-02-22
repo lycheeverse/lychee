@@ -134,6 +134,40 @@ impl Status {
             Status::Cached(_) => ICON_CACHED,
         }
     }
+
+    /// Return the HTTP status code (if any)
+    #[must_use]
+    pub fn code(&self) -> String {
+        match self {
+            Status::Ok(code) | Status::Redirected(code) | Status::UnknownStatusCode(code) => {
+                code.as_str().to_string()
+            }
+            Status::Excluded => "EXCLUDED".to_string(),
+            Status::Error(e) => match e {
+                ErrorKind::NetworkRequest(e)
+                | ErrorKind::ReadResponseBody(e)
+                | ErrorKind::BuildRequestClient(e) => match e.status() {
+                    Some(code) => code.as_str().to_string(),
+                    None => "ERROR".to_string(),
+                },
+                _ => "ERROR".to_string(),
+            },
+            Status::Timeout(code) => match code {
+                Some(code) => code.as_str().to_string(),
+                None => "TIMEOUT".to_string(),
+            },
+            Status::Unsupported(_) => "IGNORED".to_string(),
+            Status::Cached(cache_status) => match cache_status {
+                CacheStatus::Ok(code) => code.to_string(),
+                CacheStatus::Fail(code) => match code {
+                    Some(code) => code.to_string(),
+                    None => "ERROR".to_string(),
+                },
+                CacheStatus::Excluded => "EXCLUDED".to_string(),
+                CacheStatus::Unsupported => "IGNORED".to_string(),
+            },
+        }
+    }
 }
 
 impl From<ErrorKind> for Status {
