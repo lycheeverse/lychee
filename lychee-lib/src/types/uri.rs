@@ -1,6 +1,7 @@
 use std::{collections::HashSet, convert::TryFrom, fmt::Display, net::IpAddr};
 
 use fast_chemail::parse_email;
+use ip_network::Ipv6Network;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -190,6 +191,86 @@ impl Uri {
     pub fn is_file(&self) -> bool {
         self.scheme() == "file"
     }
+
+    #[inline]
+    #[must_use]
+    /// Returns `true` if this is a loopback address.
+    ///
+    /// ## IPv4
+    ///
+    /// This is a loopback address (`127.0.0.0/8`).
+    ///
+    /// This property is defined by [IETF RFC 1122].
+    ///
+    /// ## IPv6
+    ///
+    /// This is the loopback address (`::1`), as defined in [IETF RFC 4291 section 2.5.3].
+    ///
+    /// [IETF RFC 1122]: https://tools.ietf.org/html/rfc1122
+    /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
+    pub fn is_loopback(&self) -> bool {
+        match self.url.host() {
+            Some(url::Host::Ipv4(addr)) => addr.is_loopback(),
+            Some(url::Host::Ipv6(addr)) => addr.is_loopback(),
+            _ => false,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    /// Returns `true` if this is a private IPv4 address, a unique local IPv6 address (`fc00::/7`).
+    ///
+    /// # IPv4
+    ///
+    /// The private address ranges are defined in [IETF RFC 1918] and include:
+    ///
+    ///  - `10.0.0.0/8`
+    ///  - `172.16.0.0/12`
+    ///  - `192.168.0.0/16`
+    ///
+    /// # IPv6
+    ///
+    /// Unique local address is defined in [IETF RFC 4193].
+    ///
+    /// ## Note
+    ///
+    /// Unicast site-local network was defined in [IETF RFC 4291], but was fully deprecated in
+    /// [IETF RFC 3879]. So it is **NOT** considered as private on this purpose.
+    ///
+    /// [IETF RFC 1918]: https://tools.ietf.org/html/rfc1918
+    /// [IETF RFC 4193]: https://tools.ietf.org/html/rfc4193
+    /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
+    /// [IETF RFC 3879]: https://tools.ietf.org/html/rfc3879
+    pub fn is_private(&self) -> bool {
+        match self.url.host() {
+            Some(url::Host::Ipv4(addr)) => addr.is_private(),
+            Some(url::Host::Ipv6(addr)) => Ipv6Network::from(addr).is_unique_local(),
+            _ => false,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    /// Returns `true` if the address is a link-local IPv4 address (`169.254.0.0/16`),
+    /// or an IPv6 unicast address with link-local scope (`fe80::/10`).
+    ///
+    /// # IPv4
+    ///
+    /// Link-local address is defined by [IETF RFC 3927].
+    ///
+    /// # IPv6
+    ///
+    /// Unicast address with link-local scope is defined in [IETF RFC 4291].
+    ///
+    /// [IETF RFC 3927]: https://tools.ietf.org/html/rfc3927
+    /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
+    pub fn is_link_local(&self) -> bool {
+        match self.url.host() {
+            Some(url::Host::Ipv4(addr)) => addr.is_link_local(),
+            Some(url::Host::Ipv6(addr)) => Ipv6Network::from(addr).is_unicast_link_local(),
+            _ => false,
+        }
+    }
 }
 
 impl AsRef<str> for Uri {
@@ -258,6 +339,18 @@ mod test {
         test_utils::{mail, website},
         types::uri::GithubUri,
     };
+
+    #[test]
+    fn test_ipv4_uri_is_loopback() {
+        let uri = Uri::try_from("http://127.0.0.0").unwrap();
+        assert!(uri.is_loopback());
+    }
+
+    #[test]
+    fn test_ipv6_uri_is_loopback() {
+        let uri = Uri::try_from("https://[::1]").unwrap();
+        assert!(uri.is_loopback());
+    }
 
     #[test]
     fn test_uri_from_str() {
