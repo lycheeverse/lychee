@@ -292,6 +292,11 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) skip_missing: bool,
 
+    /// Skip Markdown code blocks
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) skip_code_blocks: bool,
+
     /// Ignore case when expanding filesystem path glob inputs
     #[structopt(long)]
     #[serde(default)]
@@ -366,6 +371,7 @@ impl Config {
             base: None;
             basic_auth: None;
             skip_missing: false;
+            skip_code_blocks: true;
             glob_ignore_case: false;
             output: None;
             require_https: false;

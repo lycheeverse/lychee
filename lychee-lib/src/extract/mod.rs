@@ -11,31 +11,41 @@ use plaintext::extract_plaintext;
 /// A handler for extracting links from various input formats like Markdown and
 /// HTML. Allocations should be avoided if possible as this is a
 /// performance-critical section of the library.
-#[derive(Debug, Clone, Copy)]
-pub struct Extractor;
+#[derive(Default, Debug, Clone, Copy)]
+pub struct Extractor {
+    use_html5ever: bool,
+    skip_code_blocks: bool,
+}
 
 impl Extractor {
+    /// Creates a new extractor
+    ///
+    /// The extractor can be configured with the following settings:
+    ///
+    /// - `use_html5ever` enables the alternative HTML parser engine html5ever, that
+    ///   is also used in the Servo browser by Mozilla.
+    ///   The default is `html5gum`, which is more performant and well maintained.
+    ///
+    /// - `skip_code_blocks` ignores links inside Markdown code blocks.
+    ///   These can be denoted as a block starting with three backticks or an indented block.
+    ///   For more information, consult the `pulldown_cmark` documentation about code blocks
+    ///   [here](https://docs.rs/pulldown-cmark/latest/pulldown_cmark/enum.CodeBlockKind.html)
+    #[must_use]
+    pub const fn new(use_html5ever: bool, skip_code_blocks: bool) -> Self {
+        Self {
+            use_html5ever,
+            skip_code_blocks,
+        }
+    }
+
     /// Main entrypoint for extracting links from various sources
     /// (Markdown, HTML, and plaintext)
     #[must_use]
-    pub fn extract(input_content: &InputContent) -> Vec<RawUri> {
-        Self::extract_impl(input_content, false)
-    }
-
-    /// Main entrypoint for extracting links from various sources, legacy implementation using
-    /// html5ever
-    /// (Markdown, HTML, and plaintext)
-    #[must_use]
-    pub fn extract_html5ever(input_content: &InputContent) -> Vec<RawUri> {
-        Self::extract_impl(input_content, true)
-    }
-
-    #[must_use]
-    fn extract_impl(input_content: &InputContent, use_html5ever: bool) -> Vec<RawUri> {
+    pub fn extract(&self, input_content: &InputContent) -> Vec<RawUri> {
         match input_content.file_type {
-            FileType::Markdown => extract_markdown(&input_content.content),
+            FileType::Markdown => extract_markdown(&input_content.content, self.skip_code_blocks),
             FileType::Html => {
-                if use_html5ever {
+                if self.use_html5ever {
                     html::extract_html(&input_content.content)
                 } else {
                     html5gum::extract_html(&input_content.content)
@@ -63,12 +73,16 @@ mod test {
     fn extract_uris(input: &str, file_type: FileType) -> HashSet<Uri> {
         let input_content = InputContent::from_string(input, file_type);
 
-        let uris_html5gum = Extractor::extract(&input_content)
+        let extractor = Extractor::new(false, false);
+        let uris_html5gum = extractor
+            .extract(&input_content)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
 
-        let uris_html5ever = Extractor::extract_html5ever(&input_content)
+        let extractor = Extractor::new(true, false);
+        let uris_html5ever = extractor
+            .extract(&input_content)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
@@ -183,11 +197,8 @@ mod test {
         };
 
         for use_html5ever in [true, false] {
-            let links = if use_html5ever {
-                Extractor::extract_html5ever(input_content)
-            } else {
-                Extractor::extract(input_content)
-            };
+            let extractor = Extractor::new(use_html5ever, false);
+            let links = extractor.extract(input_content);
 
             let urls = links
                 .into_iter()

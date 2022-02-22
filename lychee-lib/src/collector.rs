@@ -13,6 +13,7 @@ use par_stream::ParStreamExt;
 pub struct Collector {
     base: Option<Base>,
     skip_missing_inputs: bool,
+    skip_code_blocks: bool,
     use_html5ever: bool,
 }
 
@@ -24,6 +25,7 @@ impl Collector {
             base,
             skip_missing_inputs: false,
             use_html5ever: false,
+            skip_code_blocks: false,
         }
     }
 
@@ -38,6 +40,13 @@ impl Collector {
     #[must_use]
     pub const fn use_html5ever(mut self, yes: bool) -> Self {
         self.use_html5ever = yes;
+        self
+    }
+
+    /// Skip over Markdown code blocks when parsing
+    #[must_use]
+    pub const fn skip_code_blocks(mut self, yes: bool) -> Self {
+        self.skip_code_blocks = yes;
         self
     }
 
@@ -63,11 +72,8 @@ impl Collector {
                 let base = base.clone();
                 async move {
                     let content = content?;
-                    let uris: Vec<RawUri> = if self.use_html5ever {
-                        Extractor::extract_html5ever(&content)
-                    } else {
-                        Extractor::extract(&content)
-                    };
+                    let extractor = Extractor::new(self.use_html5ever, self.skip_code_blocks);
+                    let uris: Vec<RawUri> = extractor.extract(&content);
                     let requests = request::create(uris, &content, &base)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }

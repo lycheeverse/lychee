@@ -600,6 +600,21 @@ mod cli {
     }
 
     #[test]
+    fn test_skip_code_blocks() -> Result<()> {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("TEST_CODE_BLOCKS.md");
+
+        cmd.arg("--exclude-all-private")
+            .arg("--skip-code-blocks")
+            .arg(input)
+            .assert()
+            .success()
+            .stdout(contains("1 Total"));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_require_https() -> Result<()> {
         let mut cmd = main_command();
         let test_path = fixtures_path().join("TEST_HTTP.html");

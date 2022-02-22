@@ -220,6 +220,7 @@ FLAGS:
                                  This is recommended for non-interactive shells (e.g. for continuous integration)
         --offline                Only check local files and block network requests
         --require-https          When HTTPS is available, treat HTTP links as errors
+        --skip-code-blocks       Skip Markdown code blocks
         --skip-missing           Skip missing input files (default is to error if they don't exist)
     -V, --version                Prints version information
     -v, --verbose                Verbose program output
