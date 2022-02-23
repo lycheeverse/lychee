@@ -15,7 +15,7 @@ pub(crate) fn color_response(response: &ResponseBody) -> String {
         }
         Status::Redirected(_) => NORMAL.apply_to(response),
         Status::UnknownStatusCode(_) | Status::Timeout(_) => YELLOW.apply_to(response),
-        Status::Error(_) | Status::Cached(CacheStatus::Fail(_)) => PINK.apply_to(response),
+        Status::Error(_) | Status::Cached(CacheStatus::Error(_)) => PINK.apply_to(response),
     };
     out.to_string()
 }
@@ -64,7 +64,7 @@ impl ResponseStats {
         if let Status::Cached(cache_status) = status {
             match cache_status {
                 CacheStatus::Ok(_) => self.successful += 1,
-                CacheStatus::Fail(_) => self.failures += 1,
+                CacheStatus::Error(_) => self.failures += 1,
                 CacheStatus::Excluded | CacheStatus::Unsupported => self.excludes += 1,
             }
         }
@@ -74,7 +74,7 @@ impl ResponseStats {
             Status::Error(_)
                 | Status::Timeout(_)
                 | Status::Redirected(_)
-                | Status::Cached(CacheStatus::Fail(_))
+                | Status::Cached(CacheStatus::Error(_))
         ) {
             let fail = self.fail_map.entry(source).or_default();
             fail.insert(response.1);

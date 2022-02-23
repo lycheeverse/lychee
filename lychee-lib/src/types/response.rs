@@ -1,5 +1,6 @@
 use std::{error::Error, fmt::Display};
 
+use http::StatusCode;
 use serde::Serialize;
 
 use crate::{ErrorKind, InputSource, Status, Uri};
@@ -64,31 +65,40 @@ impl Display for ResponseBody {
             self.uri
         )?;
 
+        if let Status::Ok(StatusCode::OK) = self.status {
+            // Don't print anything else if the status code is 200
+            // The output gets too verbose otherwise.
+            return Ok(());
+        }
+
+        // Add a separator between the URI and the additional details below.
+        write!(f, ": ",)?;
+
         match &self.status {
             Status::Ok(code) => match code.canonical_reason() {
-                Some(reason) => write!(f, ": {reason}"),
-                None => write!(f, ": OK"),
+                Some(reason) => write!(f, "{reason}"),
+                None => write!(f, "OK"),
             },
             Status::Redirected(code) => match code.canonical_reason() {
-                Some(reason) => write!(f, ": {reason}"),
-                None => write!(f, ": Redirected"),
+                Some(reason) => write!(f, "{reason}"),
+                None => write!(f, "Redirected"),
             },
-            Status::Timeout(Some(code)) => write!(f, ": Timeout [{code}]"),
-            Status::Timeout(None) => write!(f, ": Timeout"),
-            Status::UnknownStatusCode(code) => write!(f, ": Unknown status code [{code}]"),
-            Status::Excluded => write!(f, ": Excluded"),
-            Status::Unsupported(e) => write!(f, ": Unsupported {}", e),
-            Status::Cached(status) => write!(f, ": {status}"),
+            Status::Timeout(Some(code)) => write!(f, "Timeout [{code}]"),
+            Status::Timeout(None) => write!(f, "Timeout"),
+            Status::UnknownStatusCode(code) => write!(f, "Unknown status code [{code}]"),
+            Status::Excluded => write!(f, "Excluded"),
+            Status::Unsupported(e) => write!(f, "Unsupported {e}"),
+            Status::Cached(status) => write!(f, "{status}"),
             Status::Error(e) => {
                 let details = match e {
                     ErrorKind::NetworkRequest(e) => {
                         if let Some(status) = e.status() {
                             status
                                 .canonical_reason()
-                                .unwrap_or("<unknown status code>")
+                                .unwrap_or("Unknown status code")
                                 .to_string()
                         } else {
-                            "<no status code>".to_string()
+                            "No status code".to_string()
                         }
                     }
                     ErrorKind::GithubRequest(e) => match e {
@@ -104,9 +114,9 @@ impl Display for ResponseBody {
                     }
                 };
                 if details.is_empty() {
-                    write!(f, ": {e}")
+                    write!(f, "{e}")
                 } else {
-                    write!(f, ": {e}: {details}")
+                    write!(f, "{e}: {details}")
                 }
             }
         }

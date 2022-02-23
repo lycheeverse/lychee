@@ -159,7 +159,7 @@ impl Status {
             Status::Unsupported(_) => "IGNORED".to_string(),
             Status::Cached(cache_status) => match cache_status {
                 CacheStatus::Ok(code) => code.to_string(),
-                CacheStatus::Fail(code) => match code {
+                CacheStatus::Error(code) => match code {
                     Some(code) => code.to_string(),
                     None => "ERROR".to_string(),
                 },
