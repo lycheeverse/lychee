@@ -3,7 +3,8 @@ use std::{convert::TryFrom, fs, io::ErrorKind, path::PathBuf, str::FromStr, time
 use anyhow::{anyhow, Error, Result};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT,
+    Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
+    DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -33,7 +34,8 @@ expressions supported; one pattern per line. Automatically excludes
 patterns from `{}` if file exists",
     LYCHEE_IGNORE_FILE,
 );
-const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT);
+const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
+const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
 #[derive(Debug, Deserialize)]
 pub(crate) enum Format {
@@ -81,7 +83,8 @@ default_function! {
     max_concurrency: usize = DEFAULT_MAX_CONCURRENCY;
     max_cache_age: Duration = humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
     user_agent: String = DEFAULT_USER_AGENT.to_string();
-    timeout: usize = DEFAULT_TIMEOUT;
+    timeout: usize = DEFAULT_TIMEOUT_SECS;
+    retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
 }
 
@@ -260,10 +263,15 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) accept: Option<String>,
 
-    /// Website timeout from connect to response finished
+    /// Website timeout in seconds from connect to response finished
     #[structopt(short, long, default_value = &TIMEOUT_STR)]
     #[serde(default = "timeout")]
     pub(crate) timeout: usize,
+
+    /// Minimum wait time in seconds between retries of failed requests
+    #[structopt(short, long, default_value = &RETRY_WAIT_TIME_STR)]
+    #[serde(default = "retry_wait_time")]
+    pub(crate) retry_wait_time: usize,
 
     /// Request method
     // Using `-X` as a short param similar to curl
@@ -361,7 +369,8 @@ impl Config {
             exclude_mail: false;
             headers: Vec::<String>::new();
             accept: None;
-            timeout: DEFAULT_TIMEOUT;
+            timeout: DEFAULT_TIMEOUT_SECS;
+            retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
             method: DEFAULT_METHOD;
             base: None;
             basic_auth: None;

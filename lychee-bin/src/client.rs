@@ -1,5 +1,5 @@
 use crate::options::Config;
-use crate::parse::{parse_basic_auth, parse_headers, parse_statuscodes, parse_timeout};
+use crate::parse::{parse_basic_auth, parse_duration_secs, parse_headers, parse_statuscodes};
 use anyhow::{Context, Result};
 use headers::HeaderMapExt;
 use lychee_lib::{Client, ClientBuilder};
@@ -15,7 +15,8 @@ pub(crate) fn create(cfg: &Config) -> Result<Client> {
     }
 
     let accepted = cfg.accept.clone().and_then(|a| parse_statuscodes(&a).ok());
-    let timeout = parse_timeout(cfg.timeout);
+    let timeout = parse_duration_secs(cfg.timeout);
+    let retry_wait_time = parse_duration_secs(cfg.retry_wait_time);
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
     let include = RegexSet::new(&cfg.include)?;
     let exclude = RegexSet::new(&cfg.exclude)?;
@@ -41,6 +42,7 @@ pub(crate) fn create(cfg: &Config) -> Result<Client> {
         .custom_headers(headers)
         .method(method)
         .timeout(timeout)
+        .retry_wait_time(retry_wait_time)
         .github_token(cfg.github_token.clone())
         .schemes(HashSet::from_iter(schemes))
         .accepted(accepted)
