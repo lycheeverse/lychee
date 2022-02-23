@@ -66,23 +66,19 @@ impl Display for ResponseBody {
         )?;
 
         if let Status::Ok(StatusCode::OK) = self.status {
-            // Don't print anything else if the status code is 200
-            // The output gets too verbose otherwise.
+            // Don't print anything else if the status code is 200.
+            // The output gets too verbose then.
             return Ok(());
         }
 
         // Add a separator between the URI and the additional details below.
-        write!(f, ": ",)?;
+        write!(f, ": ")?;
 
         match &self.status {
-            Status::Ok(code) => match code.canonical_reason() {
-                Some(reason) => write!(f, "{reason}"),
-                None => write!(f, "OK"),
-            },
-            Status::Redirected(code) => match code.canonical_reason() {
-                Some(reason) => write!(f, "{reason}"),
-                None => write!(f, "Redirected"),
-            },
+            Status::Ok(code) => write!(f, "{}", code.canonical_reason().unwrap_or("OK")),
+            Status::Redirected(code) => {
+                write!(f, "{}", code.canonical_reason().unwrap_or("Redirected"))
+            }
             Status::Timeout(Some(code)) => write!(f, "Timeout [{code}]"),
             Status::Timeout(None) => write!(f, "Timeout"),
             Status::UnknownStatusCode(code) => write!(f, "Unknown status code [{code}]"),
@@ -105,13 +101,7 @@ impl Display for ResponseBody {
                         octocrab::Error::GitHub { source, .. } => source.message.to_string(),
                         _ => "".to_string(),
                     },
-                    _ => {
-                        if let Some(source) = e.source() {
-                            source.to_string()
-                        } else {
-                            "".to_string()
-                        }
-                    }
+                    _ => e.source().map_or("".to_string(), ToString::to_string),
                 };
                 if details.is_empty() {
                     write!(f, "{e}")
