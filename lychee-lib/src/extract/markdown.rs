@@ -56,10 +56,7 @@ pub(crate) fn extract_markdown(input: &str, skip_code_blocks: bool) -> Vec<RawUr
             Event::Html(html) => Some(extract_plaintext(&html.to_string())),
 
             // An inline code node.
-            Event::Code(code) => {
-                println!("found code block: {code}");
-                None
-            }
+            Event::Code(code) => None,
 
             // Silently skip over other events
             _ => None,
