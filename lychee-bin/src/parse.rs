@@ -14,8 +14,8 @@ fn read_header(input: &str) -> Result<(String, String)> {
     Ok((elements[0].into(), elements[1].into()))
 }
 
-pub(crate) const fn parse_timeout(timeout: usize) -> Duration {
-    Duration::from_secs(timeout as u64)
+pub(crate) const fn parse_duration_secs(secs: usize) -> Duration {
+    Duration::from_secs(secs as u64)
 }
 
 pub(crate) fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {

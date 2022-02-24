@@ -39,9 +39,9 @@ pub const DEFAULT_MAX_REDIRECTS: usize = 5;
 /// Default number of retries before a request is deemed as failed, 3.
 pub const DEFAULT_MAX_RETRIES: u64 = 3;
 /// Default wait time in seconds between requests, 1.
-pub const DEFAULT_RETRY_WAIT_TIME: u64 = 1;
+pub const DEFAULT_RETRY_WAIT_TIME_SECS: usize = 1;
 /// Default timeout in seconds before a request is deemed as failed, 20.
-pub const DEFAULT_TIMEOUT: usize = 20;
+pub const DEFAULT_TIMEOUT_SECS: usize = 20;
 /// Default user agent, `lychee-<PKG_VERSION>`.
 pub const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"));
 
@@ -67,15 +67,18 @@ pub struct ClientBuilder {
     /// As of Feb 2022, it's 60 per hour without GitHub token v.s.
     /// 5000 per hour with token.
     github_token: Option<SecretString>,
+
     /// Links matching this set of regular expressions are **always** checked.
     ///
     /// This has higher precedence over [`ClientBuilder::excludes`], **but**
     /// has lower precedence over any other `exclude_` fields or
     /// [`ClientBuilder::schemes`] below.
     includes: Option<RegexSet>,
+
     /// Links matching this set of regular expressions are ignored, **except**
     /// when a link also matches against [`ClientBuilder::includes`].
     excludes: Option<RegexSet>,
+
     /// When `true`, exclude all private network addresses.
     ///
     /// This effectively turns on the following fields:
@@ -83,6 +86,7 @@ pub struct ClientBuilder {
     /// - [`ClientBuilder::exclude_link_local_ips`]
     /// - [`ClientBuilder::exclude_loopback_ips`]
     exclude_all_private: bool,
+
     /// When `true`, exclude private IP addresses.
     ///
     /// ## IPv4
@@ -109,6 +113,7 @@ pub struct ClientBuilder {
     /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
     /// [IETF RFC 3879]: https://tools.ietf.org/html/rfc3879
     exclude_private_ips: bool,
+
     /// When `true`, exclude link-local IPs.
     ///
     /// ## IPv4
@@ -127,6 +132,7 @@ pub struct ClientBuilder {
     /// [RFC 4291]: https://tools.ietf.org/html/rfc4291
     /// [RFC 4291 section 2.4]: https://tools.ietf.org/html/rfc4291#section-2.4
     exclude_link_local_ips: bool,
+
     /// When `true`, exclude loopback IP addresses.
     ///
     /// ## IPv4
@@ -142,14 +148,18 @@ pub struct ClientBuilder {
     /// [IETF RFC 1122]: https://tools.ietf.org/html/rfc1122
     /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
     exclude_loopback_ips: bool,
+
     /// When `true`, don't check mail addresses.
     exclude_mail: bool,
+
     /// Maximum number of redirects per request before returning an error.
     #[builder(default = DEFAULT_MAX_REDIRECTS)]
     max_redirects: usize,
+
     /// Maximum number of retries per request before returning an error.
     #[builder(default = DEFAULT_MAX_RETRIES)]
     max_retries: u64,
+
     /// User-agent used for checking links.
     ///
     /// *NOTE*: This may be helpful for bypassing certain firewalls.
@@ -157,6 +167,7 @@ pub struct ClientBuilder {
     // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
     #[builder(default_code = "String::from(DEFAULT_USER_AGENT)")]
     user_agent: String,
+
     /// When `true`, accept invalid SSL certificates.
     ///
     /// ## Warning
@@ -167,9 +178,11 @@ pub struct ClientBuilder {
     /// introduces significant vulnerabilities, and should only be used
     /// as a last resort.
     allow_insecure: bool,
+
     /// When non-empty, only links with matched URI schemes are checked.
     /// Otherwise, this has no effect.
     schemes: HashSet<String>,
+
     /// Sets the default [headers] for every request. See also [here].
     ///
     /// This allows working around validation issues on some websites.
@@ -177,15 +190,24 @@ pub struct ClientBuilder {
     /// [headers]: https://docs.rs/http/latest/http/header/struct.HeaderName.html
     /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.default_headers
     custom_headers: HeaderMap,
+
     /// HTTP method used for requests, e.g. `GET` or `HEAD`.
     #[builder(default = reqwest::Method::GET)]
     method: reqwest::Method,
+
     /// Set of accepted return codes / status codes.
     ///
     /// Unmatched return codes/ status codes are deemed as errors.
     accepted: Option<HashSet<StatusCode>>,
+
     /// Response timeout per request.
     timeout: Option<Duration>,
+
+    /// Initial time between retries of failed requests
+    ///
+    /// The wait time will increase using an exponential backoff mechanism
+    retry_wait_time: Option<Duration>,
+
     /// Requires using HTTPS when it's available.
     ///
     /// This would treat unencrypted links as errors when HTTPS is avaliable.
@@ -265,6 +287,10 @@ impl ClientBuilder {
             exclude_mail: self.exclude_mail,
         };
 
+        let retry_wait_time = self
+            .retry_wait_time
+            .unwrap_or_else(|| Duration::from_secs(DEFAULT_RETRY_WAIT_TIME_SECS as u64));
+
         let quirks = Quirks::default();
 
         Ok(Client {
@@ -272,6 +298,7 @@ impl ClientBuilder {
             github_client,
             filter,
             max_retries: self.max_retries,
+            retry_wait_time,
             method,
             accepted,
             require_https: self.require_https,
@@ -287,22 +314,34 @@ impl ClientBuilder {
 pub struct Client {
     /// Underlying `reqwest` client instance that handles the HTTP requests.
     reqwest_client: reqwest::Client,
+
     /// Github client.
     github_client: Option<Octocrab>,
+
     /// Rules to decided whether each link would be checked or ignored.
     filter: Filter,
+
     /// Maximum number of retries per request before returning an error.
     max_retries: u64,
+
+    /// Initial time between retries of failed requests
+    retry_wait_time: Duration,
+
     /// HTTP method used for requests, e.g. `GET` or `HEAD`.
+    ///
+    /// The same method will be used for all links.
     method: reqwest::Method,
+
     /// Set of accepted return codes / status codes.
     ///
     /// Unmatched return codes/ status codes are deemed as errors.
     accepted: Option<HashSet<StatusCode>>,
+
     /// Requires using HTTPS when it's available.
     ///
-    /// This would treat unecrypted links as errors when HTTPS is avaliable.
+    /// This would treat unencrypted links as errors when HTTPS is avaliable.
     require_https: bool,
+
     /// Override behaviors for certain known issues with special URIs.
     quirks: Quirks,
 }
@@ -362,14 +401,14 @@ impl Client {
     /// Here `uri` must has either `http` or `https` scheme.
     pub async fn check_website(&self, uri: &Uri) -> Status {
         let mut retries: u64 = 0;
-        let mut wait = DEFAULT_RETRY_WAIT_TIME;
+        let mut wait = self.retry_wait_time;
 
         let mut status = self.check_default(uri).await;
         while retries < self.max_retries {
             if status.is_success() {
                 return status;
             }
-            sleep(Duration::from_secs(wait)).await;
+            sleep(wait).await;
             retries += 1;
             wait *= 2;
             status = self.check_default(uri).await;

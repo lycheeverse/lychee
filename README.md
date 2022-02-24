@@ -246,10 +246,13 @@ OPTIONS:
         --max-retries <max-retries>            Maximum number of retries per request [default: 3]
     -X, --method <method>                      Request method [default: get]
     -o, --output <output>                      Output file of status report
+    -r, --retry-wait-time <retry-wait-time>    Minimum wait time in seconds between retries of failed requests [default:
+                                               1]
     -s, --scheme <scheme>...                   Only test links with the given schemes (e.g. http and https)
     -T, --threads <threads>                    Number of threads to utilize. Defaults to number of cores available to
                                                the system
-    -t, --timeout <timeout>                    Website timeout from connect to response finished [default: 20]
+    -t, --timeout <timeout>                    Website timeout in seconds from connect to response finished [default:
+                                               20]
     -u, --user-agent <user-agent>              User agent [default: lychee/0.8.2]
 
 ARGS:
