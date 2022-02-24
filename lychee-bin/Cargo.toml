@@ -2,9 +2,9 @@
 name = "lychee"
 authors = ["Matthias Endler <matthias@endler.dev>"]
 description = "A glorious link checker"
-documentation = "https://github.com/lycheeverse/lychee/blob/master/README.md"
-edition = "2021"
+documentation = "https://docs.rs/lychee"
 homepage = "https://github.com/lycheeverse/lychee"
+edition = "2021"
 keywords = [
     "link",
     "checker",
