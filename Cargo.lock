@@ -470,25 +470,25 @@ checksum = "c1db59621ec70f09c5e9b597b220c7a2b43611f4710dc03ceb8748637775692c"
 
 [[package]]
 name = "cached"
-version = "0.30.0"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af4dfac631a8e77b2f327f7852bb6172771f5279c4512efe79fad6067b37be3d"
+checksum = "6c1f4c9703975381eac2ac9a2a846844968389e8d2173c088bdc7901088af70c"
 dependencies = [
  "async-mutex",
  "async-rwlock",
- "async-trait",
  "cached_proc_macro",
  "cached_proc_macro_types",
- "futures",
  "hashbrown",
  "once_cell",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]
 name = "cached_proc_macro"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "725f434d6da2814b989bd905c62ca28a9383feff7440210dc279665fbbbc9511"
+checksum = "528d0f15a4a808c6867cffcd965f6307f44a29d6369a3e9f6c6a2e5a615f1bf3"
 dependencies = [
  "cached_proc_macro_types",
  "darling",
