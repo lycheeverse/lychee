@@ -1,3 +1,4 @@
+use std::io::{self, Write};
 use std::sync::Arc;
 
 use indicatif::ProgressBar;
@@ -69,10 +70,10 @@ where
         let verbose = cfg.verbose;
         async move {
             while let Some(response) = recv_resp.recv().await {
-                show_progress(&pb, &response, verbose);
+                show_progress(&pb, &response, verbose)?;
                 stats.add(response);
             }
-            (pb, stats)
+            Ok((pb, stats))
         }
     });
 
@@ -93,7 +94,8 @@ where
     // the show_results_task to finish
     drop(send_req);
 
-    let (pb, stats) = show_results_task.await?;
+    let result: Result<(_, _)> = show_results_task.await?;
+    let (pb, stats) = result?;
 
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
@@ -139,7 +141,11 @@ async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Respons
     response
 }
 
-fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbose: bool) {
+fn show_progress(
+    progress_bar: &Option<ProgressBar>,
+    response: &Response,
+    verbose: bool,
+) -> Result<()> {
     let out = color_response(&response.1);
     if let Some(pb) = progress_bar {
         pb.inc(1);
@@ -149,8 +155,9 @@ fn show_progress(progress_bar: &Option<ProgressBar>, response: &Response, verbos
         }
     } else {
         if (response.status().is_success() || response.status().is_excluded()) && !verbose {
-            return;
+            return Ok(());
         }
-        println!("{out}");
+        writeln!(io::stdout(), "{out}")?;
     }
+    Ok(())
 }
