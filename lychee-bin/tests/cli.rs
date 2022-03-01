@@ -276,7 +276,7 @@ mod cli {
             .assert()
             .failure()
             .code(2)
-            .stdout(contains("https://github.com/mre/idiomatic-rust-doesnt-exist-man: \
+            .stdout(contains("https://github.com/mre/idiomatic-rust-doesnt-exist-man | \
             GitHub token not specified. To check GitHub links reliably, use `--github-token` flag / `GITHUB_TOKEN` env var."));
     }
 
