@@ -72,7 +72,9 @@ impl Display for ResponseBody {
         }
 
         // Add a separator between the URI and the additional details below.
-        write!(f, ": ")?;
+        // Note: To make the links clickable in some terminals,
+        // we add a space before the separator.
+        write!(f, " | ")?;
 
         match &self.status {
             Status::Ok(code) => write!(f, "{}", code.canonical_reason().unwrap_or("OK")),
