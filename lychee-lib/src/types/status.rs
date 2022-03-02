@@ -190,12 +190,6 @@ impl From<reqwest::Error> for Status {
     }
 }
 
-impl From<octocrab::Error> for Status {
-    fn from(e: octocrab::Error) -> Self {
-        Self::Error(ErrorKind::GithubRequest(e))
-    }
-}
-
 impl From<CacheStatus> for Status {
     fn from(s: CacheStatus) -> Self {
         Self::Cached(s)

@@ -34,9 +34,12 @@ pub enum ErrorKind {
     /// The network client required for making requests cannot be created
     #[error("Error creating request client")]
     BuildRequestClient(#[source] reqwest::Error),
+    /// The Github client required for making requests cannot be created
+    #[error("Error creating Github client")]
+    BuildGithubClient(#[source] octocrab::Error),
     /// Network error while using Github API
     #[error("Network error (GitHub client)")]
-    GithubRequest(#[from] octocrab::Error),
+    GithubRequest(#[source] octocrab::Error),
     /// Invalid Github URL
     #[error("Github URL is invalid: {0}")]
     InvalidGithubUrl(String),
@@ -136,6 +139,7 @@ impl Hash for ErrorKind {
             Self::NetworkRequest(e) => e.to_string().hash(state),
             Self::ReadResponseBody(e) => e.to_string().hash(state),
             Self::BuildRequestClient(e) => e.to_string().hash(state),
+            Self::BuildGithubClient(e) => e.to_string().hash(state),
             Self::GithubRequest(e) => e.type_id().hash(state),
             Self::InvalidGithubUrl(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),

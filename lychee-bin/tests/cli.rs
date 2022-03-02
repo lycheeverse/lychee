@@ -276,8 +276,12 @@ mod cli {
             .assert()
             .failure()
             .code(2)
-            .stdout(contains("https://github.com/mre/idiomatic-rust-doesnt-exist-man | \
-            GitHub token not specified. To check GitHub links reliably, use `--github-token` flag / `GITHUB_TOKEN` env var."));
+            .stdout(contains(
+                "https://github.com/mre/idiomatic-rust-doesnt-exist-man | Network error: Not Found",
+            ))
+            .stdout(contains(
+                "There were issues with Github URLs. You could try setting a Github token and running lychee again.",
+            ));
     }
 
     #[tokio::test]
