@@ -197,14 +197,10 @@ fn run_main() -> Result<i32> {
     };
 
     match runtime.block_on(run(&opts)) {
-        Ok(exit_code) => exit(exit_code),
         Err(e) if Some(ErrorKind::BrokenPipe) == underlying_io_error_kind(&e) => {
             exit(ExitCode::Success as i32);
         }
-        Err(e) => {
-            eprintln!("{}", e);
-            exit(ExitCode::UnexpectedFailure as i32);
-        }
+        res => res,
     }
 }
 
@@ -267,7 +263,7 @@ fn write_stats(stats: ResponseStats, cfg: &Config) -> Result<()> {
     } else {
         if cfg.verbose && !is_empty {
             // separate summary from the verbose list of links above
-            writeln!(io::stdout(), "")?;
+            writeln!(io::stdout())?;
         }
         // we assume that the formatted stats don't have a final newline
         writeln!(io::stdout(), "{formatted}")?;
