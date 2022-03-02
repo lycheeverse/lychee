@@ -266,7 +266,7 @@ impl Input {
                         let content: InputContent = Self::path_content(&path).await?;
                         yield content;
                     }
-                    Err(e) => println!("{e:?}"),
+                    Err(e) => eprintln!("{e:?}"),
                 }
             }
         }

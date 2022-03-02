@@ -62,11 +62,11 @@ use lychee_lib::Collector;
 // required for apple silicon
 use ring as _;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Error, Result};
 use openssl_sys as _; // required for vendored-openssl feature
 use ring as _;
 use std::fs::{self, File};
-use std::io::{BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, ErrorKind, Write};
 use std::sync::Arc;
 use structopt::StructOpt;
 
@@ -159,7 +159,7 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
             let modified = metadata.modified().ok()?;
             let elapsed = modified.elapsed().ok()?;
             if elapsed > cfg.max_cache_age {
-                println!(
+                eprintln!(
                     "Cache is too old (age: {}, max age: {}). Discarding",
                     humantime::format_duration(elapsed),
                     humantime::format_duration(cfg.max_cache_age)
@@ -173,7 +173,7 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
     match cache {
         Ok(cache) => Some(cache),
         Err(e) => {
-            println!("Error while loading cache: {e}. Continuing without.");
+            eprintln!("Error while loading cache: {e}. Continuing without.");
             None
         }
     }
@@ -181,6 +181,8 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
 
 /// Set up runtime and call lychee entrypoint
 fn run_main() -> Result<i32> {
+    use std::process::exit;
+
     let opts = load_config()?;
     let runtime = match opts.config.threads {
         Some(threads) => {
@@ -194,7 +196,24 @@ fn run_main() -> Result<i32> {
         None => tokio::runtime::Runtime::new()?,
     };
 
-    runtime.block_on(run(&opts))
+    match runtime.block_on(run(&opts)) {
+        Err(e) if Some(ErrorKind::BrokenPipe) == underlying_io_error_kind(&e) => {
+            exit(ExitCode::Success as i32);
+        }
+        res => res,
+    }
+}
+
+/// Check if the given error can be traced back to an `io::ErrorKind`
+/// This is helpful for troubleshooting the root cause of an error.
+/// Code is taken from the anyhow documentation.
+fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
+    for cause in error.chain() {
+        if let Some(io_error) = cause.downcast_ref::<io::Error>() {
+            return Some(io_error.kind());
+        }
+    }
+    None
 }
 
 /// Run lychee on the given inputs
@@ -244,10 +263,10 @@ fn write_stats(stats: ResponseStats, cfg: &Config) -> Result<()> {
     } else {
         if cfg.verbose && !is_empty {
             // separate summary from the verbose list of links above
-            println!();
+            writeln!(io::stdout())?;
         }
         // we assume that the formatted stats don't have a final newline
-        println!("{formatted}");
+        writeln!(io::stdout(), "{formatted}")?;
     }
     Ok(())
 }
