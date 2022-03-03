@@ -20,7 +20,10 @@ async fn main() -> Result<()> {
         },
     ];
 
-    let links = Collector::new(None) // base
+    // Set this to `true` to also extract links which don't have a scheme like `https://`
+    let no_scheme = false;
+    // first param is the base for relative URLs
+    let links = Collector::new(None, no_scheme)
         .skip_missing_inputs(false) // don't skip missing inputs? (default=false)
         .use_html5ever(false) // use html5ever for parsing? (default=false)
         .collect_links(inputs) // base url or directory

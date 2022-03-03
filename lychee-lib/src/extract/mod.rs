@@ -18,22 +18,26 @@ impl Extractor {
     /// Main entrypoint for extracting links from various sources
     /// (Markdown, HTML, and plaintext)
     #[must_use]
-    pub fn extract(input_content: &InputContent) -> Vec<RawUri> {
-        Self::extract_impl(input_content, false)
+    pub fn extract(input_content: &InputContent, no_scheme: bool) -> Vec<RawUri> {
+        Self::extract_impl(input_content, false, no_scheme)
     }
 
     /// Main entrypoint for extracting links from various sources, legacy implementation using
     /// html5ever
     /// (Markdown, HTML, and plaintext)
     #[must_use]
-    pub fn extract_html5ever(input_content: &InputContent) -> Vec<RawUri> {
-        Self::extract_impl(input_content, true)
+    pub fn extract_html5ever(input_content: &InputContent, no_scheme: bool) -> Vec<RawUri> {
+        Self::extract_impl(input_content, true, no_scheme)
     }
 
     #[must_use]
-    fn extract_impl(input_content: &InputContent, use_html5ever: bool) -> Vec<RawUri> {
+    fn extract_impl(
+        input_content: &InputContent,
+        use_html5ever: bool,
+        no_scheme: bool,
+    ) -> Vec<RawUri> {
         match input_content.file_type {
-            FileType::Markdown => extract_markdown(&input_content.content),
+            FileType::Markdown => extract_markdown(&input_content.content, no_scheme),
             FileType::Html => {
                 if use_html5ever {
                     html::extract_html(&input_content.content)
@@ -41,7 +45,7 @@ impl Extractor {
                     html5gum::extract_html(&input_content.content)
                 }
             }
-            FileType::Plaintext => extract_plaintext(&input_content.content),
+            FileType::Plaintext => extract_plaintext(&input_content.content, no_scheme),
         }
     }
 }
@@ -60,15 +64,15 @@ mod test {
         Uri,
     };
 
-    fn extract_uris(input: &str, file_type: FileType) -> HashSet<Uri> {
+    fn extract_uris(input: &str, file_type: FileType, no_scheme: bool) -> HashSet<Uri> {
         let input_content = InputContent::from_string(input, file_type);
 
-        let uris_html5gum = Extractor::extract(&input_content)
+        let uris_html5gum = Extractor::extract(&input_content, no_scheme)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
 
-        let uris_html5ever = Extractor::extract_html5ever(&input_content)
+        let uris_html5ever = Extractor::extract_html5ever(&input_content, no_scheme)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
@@ -93,14 +97,14 @@ mod test {
 
     #[test]
     fn test_skip_markdown_anchors() {
-        let links = extract_uris("This is [a test](#lol).", FileType::Markdown);
+        let links = extract_uris("This is [a test](#lol).", FileType::Markdown, false);
 
         assert!(links.is_empty());
     }
 
     #[test]
     fn test_skip_markdown_internal_urls() {
-        let links = extract_uris("This is [a test](./internal).", FileType::Markdown);
+        let links = extract_uris("This is [a test](./internal).", FileType::Markdown, false);
 
         assert!(links.is_empty());
     }
@@ -108,7 +112,7 @@ mod test {
     #[test]
     fn test_skip_markdown_email() {
         let input = "Get in touch - [Contact Us](mailto:test@test.com)";
-        let links = extract_uris(input, FileType::Markdown);
+        let links = extract_uris(input, FileType::Markdown, false);
         let expected = IntoIterator::into_iter([mail("test@test.com")]).collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected);
@@ -116,7 +120,7 @@ mod test {
 
     #[test]
     fn relative_urls() {
-        let links = extract_uris("This is [a test](/internal).", FileType::Markdown);
+        let links = extract_uris("This is [a test](/internal).", FileType::Markdown, false);
 
         assert!(links.is_empty());
     }
@@ -125,7 +129,7 @@ mod test {
     fn test_non_markdown_links() {
         let input =
             "https://endler.dev and https://hello-rust.show/foo/bar?lol=1 at test@example.com";
-        let links: HashSet<Uri> = extract_uris(input, FileType::Plaintext);
+        let links: HashSet<Uri> = extract_uris(input, FileType::Plaintext, false);
 
         let expected = IntoIterator::into_iter([
             website("https://endler.dev"),
@@ -140,7 +144,7 @@ mod test {
     #[test]
     fn test_md_escape() {
         let input = r#"http://msdn.microsoft.com/library/ie/ms535874\(v=vs.85\).aspx"#;
-        let links: Vec<_> = find_links(input).collect();
+        let links: Vec<_> = find_links(input, false).collect();
         let expected = "http://msdn.microsoft.com/library/ie/ms535874(v=vs.85).aspx)";
 
         matches!(&links[..], [link] if link.as_str() == expected);
@@ -149,7 +153,7 @@ mod test {
     #[test]
     fn test_extract_html5_not_valid_xml() {
         let input = load_fixture("TEST_HTML5.html");
-        let links = extract_uris(&input, FileType::Html);
+        let links = extract_uris(&input, FileType::Html, false);
 
         let expected_links = IntoIterator::into_iter([
             website("https://example.com/head/home"),
@@ -184,9 +188,9 @@ mod test {
 
         for use_html5ever in [true, false] {
             let links = if use_html5ever {
-                Extractor::extract_html5ever(input_content)
+                Extractor::extract_html5ever(input_content, false)
             } else {
-                Extractor::extract(input_content)
+                Extractor::extract(input_content, false)
             };
 
             let urls = links
@@ -208,7 +212,7 @@ mod test {
     fn test_extract_html5_lowercase_doctype() {
         // this has been problematic with previous XML based parser
         let input = load_fixture("TEST_HTML5_LOWERCASE_DOCTYPE.html");
-        let links = extract_uris(&input, FileType::Html);
+        let links = extract_uris(&input, FileType::Html, false);
 
         let expected_links = IntoIterator::into_iter([website("https://example.com/body/a")])
             .collect::<HashSet<Uri>>();
@@ -220,7 +224,7 @@ mod test {
     fn test_extract_html5_minified() {
         // minified HTML with some quirky elements such as href attribute values specified without quotes
         let input = load_fixture("TEST_HTML5_MINIFIED.html");
-        let links = extract_uris(&input, FileType::Html);
+        let links = extract_uris(&input, FileType::Html, false);
 
         let expected_links = IntoIterator::into_iter([
             website("https://example.com/"),
@@ -238,7 +242,7 @@ mod test {
     fn test_extract_html5_malformed() {
         // malformed links shouldn't stop the parser from further parsing
         let input = load_fixture("TEST_HTML5_MALFORMED_LINKS.html");
-        let links = extract_uris(&input, FileType::Html);
+        let links = extract_uris(&input, FileType::Html, false);
 
         let expected_links = IntoIterator::into_iter([website("https://example.com/valid")])
             .collect::<HashSet<Uri>>();
@@ -250,7 +254,7 @@ mod test {
     fn test_extract_html5_custom_elements() {
         // the element name shouldn't matter for attributes like href, src, cite etc
         let input = load_fixture("TEST_HTML5_CUSTOM_ELEMENTS.html");
-        let links = extract_uris(&input, FileType::Html);
+        let links = extract_uris(&input, FileType::Html, false);
 
         let expected_links = IntoIterator::into_iter([
             website("https://example.com/some-weird-element"),
@@ -267,7 +271,7 @@ mod test {
     fn test_extract_urls_with_at_sign_properly() {
         // note that these used to parse as emails
         let input = "https://example.com/@test/test http://otherdomain.com/test/@test".to_string();
-        let links = extract_uris(&input, FileType::Plaintext);
+        let links = extract_uris(&input, FileType::Plaintext, false);
 
         let expected_links = IntoIterator::into_iter([
             website("https://example.com/@test/test"),
@@ -281,7 +285,7 @@ mod test {
     #[test]
     fn test_extract_link_at_end_of_line() {
         let input = "https://www.apache.org/licenses/LICENSE-2.0\n";
-        let links = extract_uris(input, FileType::Plaintext);
+        let links = extract_uris(input, FileType::Plaintext, false);
 
         let expected_links =
             IntoIterator::into_iter([website("https://www.apache.org/licenses/LICENSE-2.0")])

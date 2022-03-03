@@ -13,6 +13,7 @@ struct LinkExtractor {
     current_attribute_name: Vec<u8>,
     current_attribute_value: Vec<u8>,
     last_start_element: Vec<u8>,
+    no_scheme: bool,
 }
 
 /// this is the same as `std::str::from_utf8_unchecked`, but with extra debug assertions for ease
@@ -23,7 +24,7 @@ unsafe fn from_utf8_unchecked(s: &[u8]) -> &str {
 }
 
 impl LinkExtractor {
-    pub(crate) const fn new() -> Self {
+    pub(crate) const fn new(no_scheme: bool) -> Self {
         LinkExtractor {
             links: Vec::new(),
             current_string: Vec::new(),
@@ -32,6 +33,7 @@ impl LinkExtractor {
             current_attribute_name: Vec::new(),
             current_attribute_value: Vec::new(),
             last_start_element: Vec::new(),
+            no_scheme,
         }
     }
 
@@ -86,7 +88,7 @@ impl LinkExtractor {
     fn flush_current_characters(&mut self) {
         // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
         let raw = unsafe { from_utf8_unchecked(&self.current_string) };
-        self.links.extend(extract_plaintext(raw));
+        self.links.extend(extract_plaintext(raw, self.no_scheme));
         self.current_string.clear();
     }
 
@@ -100,7 +102,7 @@ impl LinkExtractor {
             let urls = LinkExtractor::extract_urls_from_elem_attr(attr, name, value);
 
             let new_urls = match urls {
-                None => extract_plaintext(value),
+                None => extract_plaintext(value, self.no_scheme),
                 Some(urls) => urls
                     .into_iter()
                     .map(|url| RawUri {
@@ -200,7 +202,7 @@ impl Emitter for &mut LinkExtractor {
 
 /// Extract unparsed URL strings from an HTML string.
 pub(crate) fn extract_html(buf: &str) -> Vec<RawUri> {
-    let mut extractor = LinkExtractor::new();
+    let mut extractor = LinkExtractor::new(false);
     let mut tokenizer = Tokenizer::new_with_emitter(buf, &mut extractor).infallible();
     assert!(tokenizer.next().is_none());
     extractor.links

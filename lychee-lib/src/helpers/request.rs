@@ -14,65 +14,92 @@ use crate::{
 
 const MAX_TRUNCATED_STR_LEN: usize = 100;
 
+fn create_request(
+    raw_uri: RawUri,
+    input_content: &InputContent,
+    base: &Option<Base>,
+    no_scheme: bool,
+) -> Result<Option<Request>> {
+    let base_url = Base::from_source(&input_content.source);
+
+    let is_anchor = raw_uri.is_anchor();
+    let mut text = raw_uri.text.clone();
+    let element = raw_uri.element.clone();
+    let attribute = raw_uri.attribute.clone();
+
+    // Truncate the source in case it gets too long. Ideally we should
+    // avoid the initial String allocation for `source` altogether
+    let source = match &input_content.source {
+        InputSource::String(s) => {
+            InputSource::String(s.chars().take(MAX_TRUNCATED_STR_LEN).collect())
+        }
+        // Cloning is cheap here
+        c => c.clone(),
+    };
+
+    if no_scheme && !text.contains("://") {
+        // We found a link probably without a scheme.
+        // TODO: The scheme detection should not be string-based.
+        // We can use
+        //
+        // Assume `https://` as the scheme as this is most likely a web link (in contrast to, say, a file link)
+        // because we filtered by common TLDs already (see `tld.rs`).
+        // This assumption could be wrong however because the TLD could occur anywhere in the string.
+        // We justify this assumption on the basis that `no_scheme` is already just an educated guess.
+        // and the goal of that setting is to find and check as many links as possible.
+        // If this fails, we simply keep the URI as is.
+        text = format!("https://{text}");
+    }
+
+    if let Ok(uri) = Uri::try_from(raw_uri) {
+        println!("Uri try from");
+        Ok(Some(Request::new(uri, source, element, attribute)))
+    } else if let Some(url) = base.as_ref().and_then(|u| u.join(&text)) {
+        println!("base as ref");
+        Ok(Some(Request::new(Uri { url }, source, element, attribute)))
+    } else if let InputSource::FsPath(root) = &input_content.source {
+        if is_anchor {
+            // Silently ignore anchor links for now
+            Ok(None)
+        } else if let Some(url) = create_uri_from_path(root, &text, base)? {
+            println!("create uri from path");
+            Ok(Some(Request::new(Uri { url }, source, element, attribute)))
+        } else {
+            // In case we cannot create a URI from a path but we didn't receive an error,
+            // it means that some preconditions were not met, e.g. the `base_url` wasn't set.
+            Ok(None)
+        }
+    } else if let Some(url) = construct_url(&base_url, &text) {
+        println!("construct url");
+        if base.is_some() {
+            Ok(None)
+        } else {
+            Ok(Some(Request::new(
+                Uri { url: url? },
+                source,
+                element,
+                attribute,
+            )))
+        }
+    } else {
+        info!("Handling of `{}` not implemented yet", text);
+        Ok(None)
+    }
+}
+
 /// Create requests out of the collected URLs.
 /// Only keeps "valid" URLs. This filters out anchors for example.
 pub(crate) fn create(
     uris: Vec<RawUri>,
     input_content: &InputContent,
     base: &Option<Base>,
+    no_scheme: bool,
 ) -> Result<HashSet<Request>> {
-    let base_url = Base::from_source(&input_content.source);
-
     let requests: Result<Vec<Option<Request>>> = uris
         .into_iter()
-        .map(|raw_uri| {
-            let is_anchor = raw_uri.is_anchor();
-            let text = raw_uri.text.clone();
-            let element = raw_uri.element.clone();
-            let attribute = raw_uri.attribute.clone();
-
-            // Truncate the source in case it gets too long Ideally we should
-            // avoid the initial String allocation for `source` altogether
-            let source = match &input_content.source {
-                InputSource::String(s) => {
-                    InputSource::String(s.chars().take(MAX_TRUNCATED_STR_LEN).collect())
-                }
-                // Cloning is cheap here
-                c => c.clone(),
-            };
-
-            if let Ok(uri) = Uri::try_from(raw_uri) {
-                Ok(Some(Request::new(uri, source, element, attribute)))
-            } else if let Some(url) = base.as_ref().and_then(|u| u.join(&text)) {
-                Ok(Some(Request::new(Uri { url }, source, element, attribute)))
-            } else if let InputSource::FsPath(root) = &input_content.source {
-                if is_anchor {
-                    // Silently ignore anchor links for now
-                    Ok(None)
-                } else if let Some(url) = create_uri_from_path(root, &text, base)? {
-                    Ok(Some(Request::new(Uri { url }, source, element, attribute)))
-                } else {
-                    // In case we cannot create a URI from a path but we didn't receive an error,
-                    // it means that some preconditions were not met, e.g. the `base_url` wasn't set.
-                    Ok(None)
-                }
-            } else if let Some(url) = construct_url(&base_url, &text) {
-                if base.is_some() {
-                    Ok(None)
-                } else {
-                    Ok(Some(Request::new(
-                        Uri { url: url? },
-                        source,
-                        element,
-                        attribute,
-                    )))
-                }
-            } else {
-                info!("Handling of `{}` not implemented yet", text);
-                Ok(None)
-            }
-        })
+        .map(|raw_uri| create_request(raw_uri, input_content, base, no_scheme))
         .collect();
+
     let requests: Vec<Request> = requests?.into_iter().flatten().collect();
     Ok(HashSet::from_iter(requests))
 }

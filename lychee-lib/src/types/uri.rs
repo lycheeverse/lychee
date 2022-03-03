@@ -1,8 +1,8 @@
-use std::{collections::HashSet, convert::TryFrom, fmt::Display, net::IpAddr};
+use std::{convert::TryFrom, fmt::Display, net::IpAddr};
 
 use fast_chemail::parse_email;
 use ip_network::Ipv6Network;
-use lazy_static::lazy_static;
+use phf::phf_set;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -10,8 +10,7 @@ use crate::{ErrorKind, Result};
 
 use super::raw_uri::RawUri;
 
-lazy_static! {
-    static ref GITHUB_API_EXCLUDED_ENDPOINTS: HashSet<&'static str> = HashSet::from_iter([
+static GITHUB_API_EXCLUDED_ENDPOINTS: phf::Set<&'static str> = phf_set! {
         "about",
         "collections",
         "events",
@@ -26,8 +25,7 @@ lazy_static! {
         "sponsors",
         "topics",
         "watching",
-    ]);
-}
+};
 
 /// Uri path segments extracted from a Github URL
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]

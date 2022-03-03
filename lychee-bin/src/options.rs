@@ -151,6 +151,12 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) no_progress: bool,
 
+    /// Also extract links without a scheme (e.g. `example.com` without `https://`)
+    /// Note: This might result in a lot of false-positives.
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) no_scheme: bool,
+
     #[structopt(help = &STRUCTOPT_HELP_MSG_CACHE)]
     #[structopt(long)]
     #[serde(default)]
@@ -351,6 +357,7 @@ impl Config {
             verbose: false;
             cache: false;
             no_progress: false;
+            no_scheme: false;
             max_redirects: DEFAULT_MAX_REDIRECTS;
             max_retries: DEFAULT_MAX_RETRIES;
             max_concurrency: DEFAULT_MAX_CONCURRENCY;

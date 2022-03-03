@@ -27,7 +27,11 @@ impl RawUri {
 }
 impl Display for RawUri {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} (Attribute: {:?})", self.text, self.attribute)
+        write!(
+            f,
+            "{} (Element: {:?}, Attribute: {:?})",
+            self.text, self.element, self.attribute
+        )
     }
 }
 

@@ -10,6 +10,7 @@ use crate::types::raw_uri::RawUri;
 #[derive(Clone, Default)]
 struct LinkExtractor {
     links: Vec<RawUri>,
+    no_scheme: bool,
 }
 
 impl TokenSink for LinkExtractor {
@@ -18,7 +19,9 @@ impl TokenSink for LinkExtractor {
     #[allow(clippy::match_same_arms)]
     fn process_token(&mut self, token: Token, _line_number: u64) -> TokenSinkResult<()> {
         match token {
-            Token::CharacterTokens(raw) => self.links.extend(extract_plaintext(&raw)),
+            Token::CharacterTokens(raw) => {
+                self.links.extend(extract_plaintext(&raw, self.no_scheme));
+            }
             Token::TagToken(tag) => {
                 let Tag {
                     kind: _kind,
@@ -35,7 +38,7 @@ impl TokenSink for LinkExtractor {
                     );
 
                     let new_urls = match urls {
-                        None => extract_plaintext(&attr.value),
+                        None => extract_plaintext(&attr.value, self.no_scheme),
                         Some(urls) => urls
                             .into_iter()
                             .map(|url| RawUri {

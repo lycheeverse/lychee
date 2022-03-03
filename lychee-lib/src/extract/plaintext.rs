@@ -1,8 +1,21 @@
 use crate::{helpers::url, types::raw_uri::RawUri};
 
+/// Shortest valid URI that lychee extracts from plaintext.
+///
+/// The shortest valid URI without a scheme might be g.cn (Google China)
+/// At least I am not aware of a shorter one. We set this as a lower threshold
+/// for parsing URIs from plaintext to avoid false-positives and as a slight
+/// performance optimization, which could add up for big files.
+/// This threshold might be adjusted in the future.
+const MIN_URI_LENGTH: usize = 4;
+
 /// Extract unparsed URL strings from plaintext
-pub(crate) fn extract_plaintext(input: &str) -> Vec<RawUri> {
-    url::find_links(input)
+pub(crate) fn extract_plaintext(input: &str, no_scheme: bool) -> Vec<RawUri> {
+    if input.len() < MIN_URI_LENGTH {
+        // Immediately return for very small strings
+        return vec![];
+    }
+    url::find_links(input, no_scheme)
         .map(|uri| RawUri::from(uri.as_str()))
         .collect()
 }
@@ -14,7 +27,7 @@ mod tests {
     #[test]
     fn test_extract_local_links() {
         let input = "http://127.0.0.1/ and http://127.0.0.1:8888/ are local links.";
-        let links: Vec<RawUri> = extract_plaintext(input);
+        let links: Vec<RawUri> = extract_plaintext(input, false);
         assert_eq!(
             links,
             [
@@ -29,7 +42,25 @@ mod tests {
         let input = "https://www.apache.org/licenses/LICENSE-2.0\n";
         let uri = RawUri::from(input.trim_end());
 
-        let uris: Vec<RawUri> = extract_plaintext(input);
+        let uris: Vec<RawUri> = extract_plaintext(input, false);
         assert_eq!(vec![uri], uris);
+    }
+
+    #[test]
+    fn test_extract_links_without_a_scheme() {
+        let input = "www.apache.org/licenses/LICENSE-2.0 or example.com and [docs.rs]";
+        let expected = vec![
+            RawUri::from("www.apache.org/licenses/LICENSE-2.0"),
+            RawUri::from("example.com"),
+            RawUri::from("docs.rs"),
+        ];
+
+        let uris: Vec<RawUri> = extract_plaintext(input, true);
+        assert_eq!(expected, uris);
+
+        // Expect no links if `no_scheme` is set to false
+        let expected: Vec<RawUri> = vec![];
+        let uris: Vec<RawUri> = extract_plaintext(input, false);
+        assert_eq!(expected, uris);
     }
 }

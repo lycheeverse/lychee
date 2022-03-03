@@ -14,16 +14,18 @@ pub struct Collector {
     base: Option<Base>,
     skip_missing_inputs: bool,
     use_html5ever: bool,
+    no_scheme: bool,
 }
 
 impl Collector {
     /// Create a new collector with an empty cache
     #[must_use]
-    pub const fn new(base: Option<Base>) -> Self {
+    pub const fn new(base: Option<Base>, no_scheme: bool) -> Self {
         Collector {
             base,
             skip_missing_inputs: false,
             use_html5ever: false,
+            no_scheme,
         }
     }
 
@@ -64,11 +66,11 @@ impl Collector {
                 async move {
                     let content = content?;
                     let uris: Vec<RawUri> = if self.use_html5ever {
-                        Extractor::extract_html5ever(&content)
+                        Extractor::extract_html5ever(&content, self.no_scheme)
                     } else {
-                        Extractor::extract(&content)
+                        Extractor::extract(&content, self.no_scheme)
                     };
-                    let requests = request::create(uris, &content, &base)?;
+                    let requests = request::create(uris, &content, &base, self.no_scheme)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
             })
@@ -93,8 +95,9 @@ mod test {
     };
 
     // Helper function to run the collector on the given inputs
-    async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
-        let responses = Collector::new(base).collect_links(inputs).await;
+    // without creating a collector instance first
+    async fn collect(inputs: Vec<Input>, base: Option<Base>, no_scheme: bool) -> HashSet<Uri> {
+        let responses = Collector::new(base, no_scheme).collect_links(inputs).await;
         responses.map(|r| r.unwrap().uri).collect().await
     }
 
@@ -173,7 +176,7 @@ mod test {
             },
         ];
 
-        let links = collect(inputs, None).await;
+        let links = collect(inputs, None, false).await;
 
         let expected_links = HashSet::from_iter([
             website(TEST_STRING),
@@ -195,7 +198,7 @@ mod test {
             source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
             file_type_hint: Some(FileType::Markdown),
         };
-        let links = collect(vec![input], Some(base)).await;
+        let links = collect(vec![input], Some(base), false).await;
 
         let expected_links = HashSet::from_iter([
             website("https://endler.dev"),
@@ -220,7 +223,7 @@ mod test {
             ),
             file_type_hint: Some(FileType::Html),
         };
-        let links = collect(vec![input], Some(base)).await;
+        let links = collect(vec![input], Some(base), false).await;
 
         let expected_links = HashSet::from_iter([
             website("https://github.com/lycheeverse/lychee/"),
@@ -248,7 +251,7 @@ mod test {
             ),
             file_type_hint: Some(FileType::Html),
         };
-        let links = collect(vec![input], Some(base)).await;
+        let links = collect(vec![input], Some(base), false).await;
 
         let expected_links = HashSet::from_iter([
             website("https://example.com/static/image.png"),
@@ -274,7 +277,7 @@ mod test {
             file_type_hint: Some(FileType::Markdown),
         };
 
-        let links = collect(vec![input], Some(base)).await;
+        let links = collect(vec![input], Some(base), false).await;
 
         let expected = HashSet::from_iter([
             website("https://localhost.com/@/internal.md"),
@@ -295,7 +298,7 @@ mod test {
             source: InputSource::String(input),
             file_type_hint: Some(FileType::Html),
         };
-        let links = collect(vec![input], Some(base)).await;
+        let links = collect(vec![input], Some(base), false).await;
 
         let expected_links = HashSet::from_iter([
             // the body links wouldn't be present if the file was parsed strictly as XML
@@ -328,7 +331,7 @@ mod test {
             file_type_hint: None,
         };
 
-        let links = collect(vec![input], None).await;
+        let links = collect(vec![input], None, false).await;
 
         let expected_urls = HashSet::from_iter([
             website("https://github.com/lycheeverse/lychee/"),
