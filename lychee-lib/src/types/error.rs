@@ -39,7 +39,7 @@ pub enum ErrorKind {
     BuildGithubClient(#[source] octocrab::Error),
     /// Network error while using Github API
     #[error("Network error (GitHub client)")]
-    GithubRequest(#[source] octocrab::Error),
+    GithubRequest(#[from] octocrab::Error),
     /// Invalid Github URL
     #[error("Github URL is invalid: {0}")]
     InvalidGithubUrl(String),
