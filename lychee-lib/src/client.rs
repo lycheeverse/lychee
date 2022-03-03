@@ -270,7 +270,7 @@ impl ClientBuilder {
                 Octocrab::builder()
                     .personal_token(token.clone())
                     .build()
-                    .map_err(ErrorKind::GithubRequest)?,
+                    .map_err(ErrorKind::BuildGithubClient)?,
             ),
             _ => None,
         };
@@ -417,7 +417,12 @@ impl Client {
         // Pull out the heavy machinery in case of a failed normal request.
         // This could be a GitHub URL and we ran into the rate limiter.
         if let Some(github_uri) = uri.gh_org_and_repo() {
-            return self.check_github(github_uri).await;
+            let status = self.check_github(github_uri).await;
+            // Only return Github status in case of success
+            // Otherwise return the original error, which has more information
+            if status.is_success() {
+                return status;
+            }
         }
 
         status

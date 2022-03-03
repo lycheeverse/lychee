@@ -58,6 +58,7 @@
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 #![deny(missing_docs)]
 
+use color::YELLOW;
 use lychee_lib::Collector;
 // required for apple silicon
 use ring as _;
@@ -82,6 +83,7 @@ mod writer;
 
 use crate::{
     cache::{Cache, StoreExt},
+    color::color,
     options::{Config, Format, LycheeOptions, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE},
     stats::ResponseStats,
     writer::StatsWriter,
@@ -256,6 +258,11 @@ fn write_stats(stats: ResponseStats, cfg: &Config) -> Result<()> {
     };
 
     let is_empty = stats.is_empty();
+    let github_issues = stats
+        .fail_map
+        .values()
+        .flatten()
+        .any(|body| body.uri.domain() == Some("github.com"));
     let formatted = writer.write(stats)?;
 
     if let Some(output) = &cfg.output {
@@ -267,6 +274,11 @@ fn write_stats(stats: ResponseStats, cfg: &Config) -> Result<()> {
         }
         // we assume that the formatted stats don't have a final newline
         writeln!(io::stdout(), "{formatted}")?;
+    }
+
+    if github_issues && cfg.github_token.is_none() {
+        let mut f = io::stdout();
+        color!(f, YELLOW, "\u{1f4a1} There were issues with Github URLs. You could try setting a Github token and running lychee again.",)?;
     }
     Ok(())
 }
