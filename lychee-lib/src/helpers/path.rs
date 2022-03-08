@@ -8,14 +8,16 @@ use std::path::{Path, PathBuf};
 static CURRENT_DIR: Lazy<PathBuf> =
     Lazy::new(|| env::current_dir().expect("cannot get current dir from environment"));
 
-// Returns the base if it is a valid `PathBuf`
+/// Returns the base if it is a valid `PathBuf`
 fn get_base_dir(base: &Option<Base>) -> Option<PathBuf> {
     base.as_ref().and_then(Base::dir)
 }
 
-// The `clean` method is relatively expensive
-// Therefore we cache this call to reduce allocs and wall time
-// https://stackoverflow.com/a/54817755/270334
+/// Create an absolute path out of a `PathBuf`.
+///
+/// The `clean` method is relatively expensive
+/// Therefore we cache this call to reduce allocs and wall time
+/// https://stackoverflow.com/a/54817755/270334
 #[cached]
 pub(crate) fn absolute_path(path: PathBuf) -> PathBuf {
     if path.is_absolute() {
@@ -26,7 +28,7 @@ pub(crate) fn absolute_path(path: PathBuf) -> PathBuf {
     .clean()
 }
 
-// Get the directory name of a given `Path`.
+/// Get the directory name of a given `Path`.
 fn dirname(src: &'_ Path) -> Option<&'_ Path> {
     if src.is_file() {
         return src.parent();
@@ -34,8 +36,8 @@ fn dirname(src: &'_ Path) -> Option<&'_ Path> {
     Some(src)
 }
 
-// Resolve `dst` that was linked to from within `src`
-// Returns Ok(None) in case of an absolute local link without a `base_url`
+/// Resolve `dst` that was linked to from within `src`
+/// Returns Ok(None) in case of an absolute local link without a `base_url`
 pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Option<PathBuf>> {
     let resolved = match dst {
         relative if dst.is_relative() => {
@@ -48,7 +50,7 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Opt
         }
         absolute if dst.is_absolute() => {
             // Absolute local links (leading slash) require the `base_url` to
-            // define the document root. Silently ignore the link in case we
+            // define the document root. Silently ignore the link in case the
             // `base_url` is not defined.
             let base = match get_base_dir(base) {
                 Some(path) => path,
