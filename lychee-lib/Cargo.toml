@@ -24,7 +24,7 @@ http = "0.2.6"
 linkify = "0.8.0"
 openssl-sys = "0.9.72"
 pulldown-cmark = "0.9.1"
-regex = "1.5.4"
+regex = "1.5.5"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
 reqwest = { version = "0.11.9", features = ["gzip", "trust-dns"] }
