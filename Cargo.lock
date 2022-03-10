@@ -215,16 +215,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-rwlock"
-version = "1.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "261803dcc39ba9e72760ba6e16d0199b1eef9fc44e81bffabbebb9f5aea3906c"
-dependencies = [
- "async-mutex",
- "event-listener",
-]
-
-[[package]]
 name = "async-smtp"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -327,6 +317,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "async_once"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ce4f10ea3abcd6617873bae9f91d1c5332b4a778bd9ce34d0cd517474c1de82"
 
 [[package]]
 name = "atomic-waker"
@@ -470,15 +466,17 @@ checksum = "c1db59621ec70f09c5e9b597b220c7a2b43611f4710dc03ceb8748637775692c"
 
 [[package]]
 name = "cached"
-version = "0.33.0"
+version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f66c8f6ae13abbdc12268879b8070a441777b69157fb7653b4c7da7f2610c25d"
+checksum = "aadf76ddea74bab35ebeb8f1eb115b9bc04eaee42d8acc0d5f477dee6b176c9a"
 dependencies = [
- "async-mutex",
- "async-rwlock",
+ "async-trait",
+ "async_once",
  "cached_proc_macro",
  "cached_proc_macro_types",
+ "futures",
  "hashbrown 0.12.0",
+ "lazy_static",
  "once_cell",
  "thiserror",
  "tokio",
@@ -486,9 +484,9 @@ dependencies = [
 
 [[package]]
 name = "cached_proc_macro"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc8de7b947777686ee8f3c11f4c3e58c296d6bc598d9b2286a80a9404a538ff8"
+checksum = "bce0f37f9b77c6b93cdf3f060c89adca303d2ab052cacb3c3d1ab543e8cecd2f"
 dependencies = [
  "cached_proc_macro_types",
  "darling",
