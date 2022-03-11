@@ -4,6 +4,8 @@
 ![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
 [![docs.rs](https://docs.rs/lychee-lib/badge.svg)](https://docs.rs/lychee-lib)
 [![Check Links](https://github.com/lycheeverse/lychee/actions/workflows/links.yml/badge.svg)](https://github.com/lycheeverse/lychee/actions/workflows/links.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/lycheeverse/lychee?color=%23099cec&logo=Docker&style=flat-square)](https://hub.docker.com/r/lycheeverse/lychee)
+
 
 
 ⚡ A fast, async, stream-based link checker written in Rust.\
