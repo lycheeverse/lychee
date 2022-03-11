@@ -50,7 +50,7 @@ secrecy = { version = "0.8.0", features = ["serde"] }
 [dev-dependencies]
 assert_cmd = "2.0.4"
 predicates = "2.1.1"
-pretty_assertions = "1.1.0"
+pretty_assertions = "1.2.0"
 tempfile = "3.3.0"
 uuid = { version = "0.8.2", features = ["v4"] }
 wiremock = "0.5.11"
