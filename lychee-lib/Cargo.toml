@@ -41,7 +41,7 @@ url = { version = "2.2.2", features = ["serde"] }
 log = "0.4.14"
 path-clean = "0.1.0"
 percent-encoding = "2.1.0"
-async-stream = "0.3.2"
+async-stream = "0.3.3"
 jwalk = "0.6.0"
 cached = "0.34.0"
 once_cell = "1.10.0"
