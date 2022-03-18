@@ -70,7 +70,7 @@ impl Collector {
                     } else {
                         Extractor::extract(&content, self.no_scheme)
                     };
-                    let requests = request::create(uris, &content, &base, self.no_scheme)?;
+                    let requests = request::create(uris, &content, &base)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
             })

@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, fmt::Display, net::IpAddr};
+use std::{convert::TryFrom, fmt::Display, net::IpAddr, path::PathBuf};
 
 use fast_chemail::parse_email;
 use ip_network::Ipv6Network;
@@ -287,7 +287,8 @@ impl TryFrom<String> for Uri {
     type Error = ErrorKind;
 
     fn try_from(s: String) -> Result<Self> {
-        Uri::try_from(s.as_ref())
+        let s: &str = &s;
+        Uri::try_from(s)
     }
 }
 
@@ -313,7 +314,55 @@ impl TryFrom<RawUri> for Uri {
 
     fn try_from(raw_uri: RawUri) -> Result<Self> {
         let s = raw_uri.text;
-        Uri::try_from(s.as_ref())
+        if has_scheme(&s) {
+            // The uri already has a scheme.
+            // Try to convert it to a URI right away
+            Uri::try_from(s)
+        } else {
+            // There is no scheme prefix.
+            // We just assume it is reachable through the web.
+            Uri::try_from(format!("https://{s}"))
+        }
+    }
+}
+
+/// Try to convert a `PathBuf` to a URI
+///
+/// The conversion is done on a best effort basis and remains a fuzzy
+/// approximation.
+/// If the given path is not prefixed by a scheme like `https://` or `file://`,
+/// we assume `https://`. This assumption could be incorrect however and the URI
+/// might not be reachable through HTTPS.
+impl TryFrom<&PathBuf> for Uri {
+    type Error = ErrorKind;
+    fn try_from(path: &PathBuf) -> Result<Self> {
+        if path.is_absolute() {
+            // E.g. `/dirname`, which isn't a URI
+            return Err(ErrorKind::InvalidUrlFromPath(path.to_owned()));
+        }
+
+        if std::fs::metadata(path).is_ok() {
+            // Path maps to an existing file or directory
+            return Err(ErrorKind::InvalidUrlFromPath(path.to_owned()));
+        }
+
+        let path_str = path.display().to_string();
+
+        if path.starts_with("./") || path_str.contains("..") {
+            // Not handled yet
+            return Err(ErrorKind::InvalidUrlFromPath(path.to_owned()));
+        }
+
+        if has_scheme(&path_str) {
+            // The path is already prefixed with a scheme.
+            // Try to convert it to a URI right away, which should always
+            // be valid
+            Uri::try_from(path_str)
+        } else {
+            // There is no scheme prefix.
+            // We just *assume* it is reachable through HTTPS.
+            Uri::try_from(format!("https://{}", path_str))
+        }
     }
 }
 
@@ -323,20 +372,103 @@ impl Display for Uri {
     }
 }
 
+/// Taken from
+/// https://docs.rs/deno_core/latest/src/deno_core/module_specifier.rs.html#125-133
+///
+/// Returns true if the input string starts with a sequence of characters
+/// that could be a valid URI scheme, like 'https:', 'git+ssh:' or 'data:'.
+///
+/// According to RFC 3986 (https://tools.ietf.org/html/rfc3986#section-3.1),
+/// a valid scheme has the following format:
+///   scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+///
+/// We additionally require the scheme to be at least 2 characters long,
+/// because otherwise a windows path like c:/foo would be treated as a URL,
+/// while no schemes with a one-letter name actually exist.
+pub(crate) fn has_scheme(specifier: &str) -> bool {
+    let mut chars = specifier.chars();
+    let mut len = 0usize;
+    // THe first character must be a letter.
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() => len += 1,
+        _ => return false,
+    }
+    // Second and following characters must be either a letter, number,
+    // plus sign, minus sign, or dot.
+    loop {
+        match chars.next() {
+            Some(c) if c.is_ascii_alphanumeric() || "+-.".contains(c) => len += 1,
+            Some(':') if len >= 2 => return true,
+            _ => return false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
+
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, Ipv6Addr},
     };
 
+    use super::*;
     use pretty_assertions::assert_eq;
 
-    use super::Uri;
-    use crate::{
-        test_utils::{mail, website},
-        types::uri::GithubUri,
-    };
+    use crate::test_utils::{mail, website};
+
+    #[test]
+    fn test_invalid_schemes() {
+        assert!(!has_scheme("foo.com"));
+        assert!(!has_scheme(":foo.com"));
+        assert!(!has_scheme("h:foo.com"));
+        assert!(!has_scheme("h:/foo.com"));
+        assert!(!has_scheme("h://foo.com"));
+        assert!(!has_scheme("c:\\foo.com"));
+        assert!(!has_scheme("../assets/banner.svg"));
+    }
+
+    #[test]
+    fn test_schemes() {
+        assert!(has_scheme("xx://foo.com"));
+        assert!(has_scheme("file://foo.com"));
+        assert!(has_scheme("ftp://foo.com"));
+        assert!(has_scheme("https://foo.com"));
+        assert!(has_scheme("http://foo.com"));
+        assert!(has_scheme("ssh://foo.com"));
+    }
+
+    #[test]
+    fn test_uri_from_relative_path_is_error() {
+        let path = PathBuf::from("../assets/banner.svg");
+        assert!(Uri::try_from(&path).is_err());
+    }
+
+    #[test]
+    fn test_uri_from_path_with_slash_before_tld() {
+        let path = PathBuf::from("assets/banner.svg");
+        assert!(Uri::try_from(&path).is_err());
+    }
+
+    #[test]
+    fn test_uri_from_path_invalid_tld() {
+        let path = PathBuf::from("banner.svg");
+        assert!(Uri::try_from(&path).is_err());
+    }
+
+    #[test]
+    fn test_uri_from_invalidpath() {
+        assert!(Uri::try_from(&PathBuf::from("/dir")).is_err());
+        assert!(Uri::try_from(&PathBuf::from("./dir")).is_err());
+        assert!(Uri::try_from(&PathBuf::from("../dir")).is_err());
+        assert!(Uri::try_from(&PathBuf::from("bar/../dir")).is_err());
+    }
+
+    #[test]
+    fn test_uri_from_path() {
+        let path = PathBuf::from("banner.com");
+        assert_eq!(Uri::try_from(&path), Uri::try_from("https://banner.com"));
+    }
 
     #[test]
     fn test_ipv4_uri_is_loopback() {

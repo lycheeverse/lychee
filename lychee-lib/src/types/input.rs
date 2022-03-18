@@ -1,5 +1,5 @@
 use crate::types::FileType;
-use crate::{ErrorKind, Result};
+use crate::{ErrorKind, Result, Uri};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
@@ -205,7 +205,15 @@ impl Input {
                         let content = Self::path_content(path).await;
                         match content {
                             Err(_) if skip_missing => (),
-                            Err(e) => Err(e)?,
+                            Err(e) => {
+                                // Check if the path can be interpreted as a URI without a scheme
+                                if let Ok(uri) = Uri::try_from(path) {
+                                    let contents: InputContent = Self::url_contents(&uri.url).await?;
+                                    yield contents;
+                                } else {
+                                    Err(e)?
+                                }
+                            },
                             Ok(content) => yield content,
                         };
                     }
