@@ -3,7 +3,7 @@ use pulldown_cmark::{Event, Parser, Tag};
 use crate::{extract::plaintext::extract_plaintext, types::raw_uri::RawUri};
 
 /// Extract unparsed URL strings from a Markdown string.
-pub(crate) fn extract_markdown(input: &str, skip_code_blocks: bool) -> Vec<RawUri> {
+pub(crate) fn extract_markdown(input: &str, exclude_verbatim: bool) -> Vec<RawUri> {
     // In some cases it is undesirable to extract links from within code blocks,
     // which is why we keep track of entries and exits while traversing the input.
     let mut inside_code_block = false;
@@ -45,7 +45,7 @@ pub(crate) fn extract_markdown(input: &str, skip_code_blocks: bool) -> Vec<RawUr
 
             // A text node.
             Event::Text(txt) => {
-                if inside_code_block && skip_code_blocks {
+                if inside_code_block && exclude_verbatim {
                     None
                 } else {
                     Some(extract_plaintext(&txt))
@@ -56,7 +56,13 @@ pub(crate) fn extract_markdown(input: &str, skip_code_blocks: bool) -> Vec<RawUr
             Event::Html(html) => Some(extract_plaintext(&html.to_string())),
 
             // An inline code node.
-            Event::Code(code) => None,
+            Event::Code(code) => {
+                if exclude_verbatim {
+                    None
+                } else {
+                    Some(extract_plaintext(&code))
+                }
+            }
 
             // Silently skip over other events
             _ => None,
@@ -80,12 +86,14 @@ Code:
 https://bar.com/123
 ```
 
+or inline like `https://bar.org` for instance.
+
 [example](http://example.com)
         "#;
 
     #[test]
     fn test_skip_code_block() {
-        let links = vec![
+        let expected = vec![
             RawUri {
                 text: "https://foo.com".to_string(),
                 element: Some("a".to_string()),
@@ -99,12 +107,12 @@ https://bar.com/123
         ];
 
         let uris = extract_markdown(MD_INPUT, true);
-        assert_eq!(uris, links);
+        assert_eq!(uris, expected);
     }
 
     #[test]
     fn test_code_block() {
-        let links = vec![
+        let expected = vec![
             RawUri {
                 text: "https://foo.com".to_string(),
                 element: Some("a".to_string()),
@@ -116,6 +124,11 @@ https://bar.com/123
                 attribute: None,
             },
             RawUri {
+                text: "https://bar.org".to_string(),
+                element: None,
+                attribute: None,
+            },
+            RawUri {
                 text: "http://example.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
@@ -123,6 +136,6 @@ https://bar.com/123
         ];
 
         let uris = extract_markdown(MD_INPUT, false);
-        assert_eq!(uris, links);
+        assert_eq!(uris, expected);
     }
 }

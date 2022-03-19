@@ -13,7 +13,7 @@ use par_stream::ParStreamExt;
 pub struct Collector {
     base: Option<Base>,
     skip_missing_inputs: bool,
-    skip_code_blocks: bool,
+    exclude_verbatim: bool,
     use_html5ever: bool,
 }
 
@@ -25,7 +25,7 @@ impl Collector {
             base,
             skip_missing_inputs: false,
             use_html5ever: false,
-            skip_code_blocks: false,
+            exclude_verbatim: false,
         }
     }
 
@@ -43,10 +43,10 @@ impl Collector {
         self
     }
 
-    /// Skip over Markdown code blocks when parsing
+    /// Skip over links in verbatim sections (like Markdown code blocks)
     #[must_use]
-    pub const fn skip_code_blocks(mut self, yes: bool) -> Self {
-        self.skip_code_blocks = yes;
+    pub const fn exclude_verbatim(mut self, yes: bool) -> Self {
+        self.exclude_verbatim = yes;
         self
     }
 
@@ -72,7 +72,7 @@ impl Collector {
                 let base = base.clone();
                 async move {
                     let content = content?;
-                    let extractor = Extractor::new(self.use_html5ever, self.skip_code_blocks);
+                    let extractor = Extractor::new(self.use_html5ever, self.exclude_verbatim);
                     let uris: Vec<RawUri> = extractor.extract(&content);
                     let requests = request::create(uris, &content, &base)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))

@@ -600,12 +600,12 @@ mod cli {
     }
 
     #[test]
-    fn test_skip_code_blocks() -> Result<()> {
+    fn test_exclude_verbatim() -> Result<()> {
         let mut cmd = main_command();
         let input = fixtures_path().join("TEST_CODE_BLOCKS.md");
 
         cmd.arg("--exclude-all-private")
-            .arg("--skip-code-blocks")
+            .arg("--exclude-verbatim")
             .arg(input)
             .assert()
             .success()

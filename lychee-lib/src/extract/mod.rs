@@ -14,7 +14,7 @@ use plaintext::extract_plaintext;
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Extractor {
     use_html5ever: bool,
-    skip_code_blocks: bool,
+    exclude_verbatim: bool,
 }
 
 impl Extractor {
@@ -26,15 +26,15 @@ impl Extractor {
     ///   is also used in the Servo browser by Mozilla.
     ///   The default is `html5gum`, which is more performant and well maintained.
     ///
-    /// - `skip_code_blocks` ignores links inside Markdown code blocks.
+    /// - `exclude_verbatim` ignores links inside Markdown code blocks.
     ///   These can be denoted as a block starting with three backticks or an indented block.
     ///   For more information, consult the `pulldown_cmark` documentation about code blocks
     ///   [here](https://docs.rs/pulldown-cmark/latest/pulldown_cmark/enum.CodeBlockKind.html)
     #[must_use]
-    pub const fn new(use_html5ever: bool, skip_code_blocks: bool) -> Self {
+    pub const fn new(use_html5ever: bool, exclude_verbatim: bool) -> Self {
         Self {
             use_html5ever,
-            skip_code_blocks,
+            exclude_verbatim,
         }
     }
 
@@ -43,7 +43,7 @@ impl Extractor {
     #[must_use]
     pub fn extract(&self, input_content: &InputContent) -> Vec<RawUri> {
         match input_content.file_type {
-            FileType::Markdown => extract_markdown(&input_content.content, self.skip_code_blocks),
+            FileType::Markdown => extract_markdown(&input_content.content, self.exclude_verbatim),
             FileType::Html => {
                 if self.use_html5ever {
                     html::extract_html(&input_content.content)
