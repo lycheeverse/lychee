@@ -127,6 +127,7 @@ async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Respons
     }
 
     // Request was not cached; run a normal check
+    //
     // This can panic when the Url could not be parsed to a Uri.
     // See https://github.com/servo/rust-url/issues/554
     // See https://github.com/seanmonstar/reqwest/issues/668

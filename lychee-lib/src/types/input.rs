@@ -142,7 +142,6 @@ impl Input {
         }
     }
 
-    #[allow(clippy::missing_panics_doc)]
     /// Retrieve the contents from the input
     ///
     /// # Errors

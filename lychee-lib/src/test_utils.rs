@@ -31,7 +31,10 @@ where
 }
 
 /// Helper method to convert a string into a URI
-/// Note: This panics on error, so it should only be used for testing
+///
+/// # Panic
+///
+/// This panics on error, so it should only be used for testing
 pub(crate) fn website(url: &str) -> Uri {
     Uri::from(Url::parse(url).expect("Expected valid Website URI"))
 }

@@ -67,7 +67,6 @@ impl Serialize for Status {
 }
 
 impl Status {
-    #[allow(clippy::missing_panics_doc)]
     #[must_use]
     /// Create a status object from a response and the set of accepted status codes
     pub fn new(response: &Response, accepted: Option<HashSet<StatusCode>>) -> Self {
