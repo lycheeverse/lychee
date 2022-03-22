@@ -1,12 +1,25 @@
+use std::collections::HashSet;
+
 use crate::types::{raw_uri::RawUri, FileType, InputContent};
 
-mod html;
+mod html5ever;
 mod html5gum;
 mod markdown;
 mod plaintext;
 
 use markdown::extract_markdown;
+use once_cell::sync::Lazy;
 use plaintext::extract_plaintext;
+
+/// HTML elements that are deemed verbatim (i.e. preformatted).
+/// These will be excluded from link checking by default.
+static VERBATIM_ELEMENTS: Lazy<HashSet<String>> =
+    Lazy::new(|| HashSet::from_iter(["pre".into(), "code".into()]));
+
+/// Check if the given element is in the list of preformatted tags
+pub(crate) fn is_verbatim_elem(name: &str) -> bool {
+    VERBATIM_ELEMENTS.contains(name)
+}
 
 /// A handler for extracting links from various input formats like Markdown and
 /// HTML. Allocations should be avoided if possible as this is a
@@ -46,7 +59,7 @@ impl Extractor {
             FileType::Markdown => extract_markdown(&input_content.content, self.include_verbatim),
             FileType::Html => {
                 if self.use_html5ever {
-                    html::extract_html(&input_content.content, self.include_verbatim)
+                    html5ever::extract_html(&input_content.content, self.include_verbatim)
                 } else {
                     html5gum::extract_html(&input_content.content, self.include_verbatim)
                 }

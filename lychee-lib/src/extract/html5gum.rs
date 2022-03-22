@@ -1,5 +1,6 @@
 use html5gum::{Emitter, Error, Tokenizer};
 
+use super::is_verbatim_elem;
 use super::plaintext::extract_plaintext;
 use crate::types::raw_uri::RawUri;
 
@@ -40,7 +41,6 @@ impl LinkExtractor {
     /// Extract all semantically known links from a given html attribute.
     #[allow(clippy::unnested_or_patterns)]
     pub(crate) fn extract_urls_from_elem_attr<'a>(
-        include_verbatim: bool,
         attr_name: &str,
         elem_name: &str,
         attr_value: &'a str,
@@ -48,14 +48,6 @@ impl LinkExtractor {
         // For a comprehensive list of elements that might contain URLs/URIs
         // see https://www.w3.org/TR/REC-html40/index/attributes.html
         // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
-
-        if !include_verbatim {
-            if elem_name == "pre" || elem_name == "code" {
-                // Return an empty iterator to indicate that this element was handled;
-                // otherwise we'd use the fuzzy plaintext extractor.
-                return Some(vec![].into_iter());
-            }
-        }
 
         match (elem_name, attr_name) {
             // Common element/attribute combinations for links
@@ -97,6 +89,13 @@ impl LinkExtractor {
 
     fn flush_current_characters(&mut self) {
         // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
+        let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
+        if !self.include_verbatim && is_verbatim_elem(name) {
+            // Early return if we don't want to extract links from preformatted text
+            self.current_string.clear();
+            return;
+        }
+
         let raw = unsafe { from_utf8_unchecked(&self.current_string) };
         self.links.extend(extract_plaintext(raw));
         self.current_string.clear();
@@ -106,15 +105,14 @@ impl LinkExtractor {
         {
             // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
             let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
+            if !self.include_verbatim && is_verbatim_elem(name) {
+                // Early return if we don't want to extract links from preformatted text
+                return;
+            }
             let attr = unsafe { from_utf8_unchecked(&self.current_attribute_name) };
             let value = unsafe { from_utf8_unchecked(&self.current_attribute_value) };
 
-            let urls = LinkExtractor::extract_urls_from_elem_attr(
-                self.include_verbatim,
-                attr,
-                name,
-                value,
-            );
+            let urls = LinkExtractor::extract_urls_from_elem_attr(attr, name, value);
 
             let new_urls = match urls {
                 None => extract_plaintext(value),
@@ -222,7 +220,6 @@ pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
     assert!(tokenizer.next().is_none());
     extractor.links
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,24 +253,24 @@ mod tests {
     fn test_include_verbatim() {
         let expected = vec![
             RawUri {
+                text: "https://example.com".to_string(),
+                element: None,
+                attribute: None,
+            },
+            RawUri {
+                text: "https://example.org".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+            },
+            RawUri {
                 text: "https://foo.com".to_string(),
-                element: Some("a".to_string()),
-                attribute: Some("href".to_string()),
-            },
-            RawUri {
-                text: "https://bar.com/123".to_string(),
                 element: None,
                 attribute: None,
             },
             RawUri {
-                text: "https://bar.org".to_string(),
+                text: "http://bar.com/some/path".to_string(),
                 element: None,
                 attribute: None,
-            },
-            RawUri {
-                text: "http://example.com".to_string(),
-                element: Some("a".to_string()),
-                attribute: Some("href".to_string()),
             },
         ];
 

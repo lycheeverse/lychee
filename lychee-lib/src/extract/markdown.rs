@@ -2,7 +2,7 @@ use pulldown_cmark::{Event, Parser, Tag};
 
 use crate::{extract::plaintext::extract_plaintext, types::raw_uri::RawUri};
 
-use super::html::extract_html;
+use super::html5ever::extract_html;
 
 /// Extract unparsed URL strings from a Markdown string.
 pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUri> {
