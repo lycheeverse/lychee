@@ -6,7 +6,6 @@ on:
     workflows: ["release"]
     types:
       - completed
-      - requested
   push:
     branches:
       - "**"
