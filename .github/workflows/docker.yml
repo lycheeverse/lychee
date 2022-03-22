@@ -14,7 +14,7 @@ on:
       - "v*.*.*"
   pull_request:
     branches:
-      - "main"
+      - "master"
 
 env:
   IMAGE_NAME: lycheeverse/lychee
