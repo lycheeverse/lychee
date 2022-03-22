@@ -213,9 +213,9 @@ FLAGS:
         --exclude-loopback       Exclude loopback IP address range and localhost from checking
         --exclude-mail           Exclude all mail addresses from checking
         --exclude-private        Exclude private IP address ranges from checking
-        --exclude-verbatim       Skip all verbatim links inside pre- and code blocks
         --glob-ignore-case       Ignore case when expanding filesystem path glob inputs
         --help                   Prints help information
+        --include-verbatim       Find links in verbatim sections like `pre`- and `code` blocks
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
     -n, --no-progress            Do not show progress bar.
                                  This is recommended for non-interactive shells (e.g. for continuous integration)

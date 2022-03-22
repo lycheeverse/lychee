@@ -10,6 +10,7 @@ use crate::types::raw_uri::RawUri;
 #[derive(Clone, Default)]
 struct LinkExtractor {
     links: Vec<RawUri>,
+    include_verbatim: bool,
 }
 
 impl TokenSink for LinkExtractor {
@@ -29,6 +30,7 @@ impl TokenSink for LinkExtractor {
 
                 for attr in attrs {
                     let urls = LinkExtractor::extract_urls_from_elem_attr(
+                        self.include_verbatim,
                         attr.name.local.as_ref(),
                         name.as_ref(),
                         attr.value.as_ref(),
@@ -61,13 +63,17 @@ impl TokenSink for LinkExtractor {
 }
 
 impl LinkExtractor {
-    pub(crate) fn new() -> Self {
-        LinkExtractor::default()
+    pub(crate) fn new(include_verbatim: bool) -> Self {
+        Self {
+            links: vec![],
+            include_verbatim,
+        }
     }
 
     /// Extract all semantically known links from a given html attribute.
     #[allow(clippy::unnested_or_patterns)]
     pub(crate) fn extract_urls_from_elem_attr<'a>(
+        include_verbatim: bool,
         attr_name: &str,
         elem_name: &str,
         attr_value: &'a str,
@@ -75,6 +81,13 @@ impl LinkExtractor {
         // For a comprehensive list of elements that might contain URLs/URIs
         // see https://www.w3.org/TR/REC-html40/index/attributes.html
         // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
+
+        if !include_verbatim {
+            if elem_name == "pre" || elem_name == "code" {
+                return None;
+            }
+        }
+
         match (elem_name, attr_name) {
             // Common element/attribute combinations for links
             (_, "href" | "src" | "cite" | "usemap")
@@ -115,11 +128,14 @@ impl LinkExtractor {
 }
 
 /// Extract unparsed URL strings from an HTML string.
-pub(crate) fn extract_html(buf: &str) -> Vec<RawUri> {
+pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
     let mut input = BufferQueue::new();
     input.push_back(StrTendril::from(buf));
 
-    let mut tokenizer = Tokenizer::new(LinkExtractor::new(), TokenizerOpts::default());
+    let mut tokenizer = Tokenizer::new(
+        LinkExtractor::new(include_verbatim),
+        TokenizerOpts::default(),
+    );
     let _handle = tokenizer.feed(&mut input);
     tokenizer.end();
 

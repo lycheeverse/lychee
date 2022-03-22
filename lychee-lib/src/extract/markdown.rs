@@ -2,8 +2,10 @@ use pulldown_cmark::{Event, Parser, Tag};
 
 use crate::{extract::plaintext::extract_plaintext, types::raw_uri::RawUri};
 
+use super::html::extract_html;
+
 /// Extract unparsed URL strings from a Markdown string.
-pub(crate) fn extract_markdown(input: &str, exclude_verbatim: bool) -> Vec<RawUri> {
+pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUri> {
     // In some cases it is undesirable to extract links from within code blocks,
     // which is why we keep track of entries and exits while traversing the input.
     let mut inside_code_block = false;
@@ -45,7 +47,7 @@ pub(crate) fn extract_markdown(input: &str, exclude_verbatim: bool) -> Vec<RawUr
 
             // A text node.
             Event::Text(txt) => {
-                if inside_code_block && exclude_verbatim {
+                if inside_code_block && !include_verbatim {
                     None
                 } else {
                     Some(extract_plaintext(&txt))
@@ -53,14 +55,14 @@ pub(crate) fn extract_markdown(input: &str, exclude_verbatim: bool) -> Vec<RawUr
             }
 
             // An HTML node
-            Event::Html(html) => Some(extract_plaintext(&html.to_string())),
+            Event::Html(html) => Some(extract_html(&html.to_string(), include_verbatim)),
 
             // An inline code node.
             Event::Code(code) => {
-                if exclude_verbatim {
-                    None
-                } else {
+                if include_verbatim {
                     Some(extract_plaintext(&code))
+                } else {
+                    None
                 }
             }
 
@@ -92,7 +94,7 @@ or inline like `https://bar.org` for instance.
         "#;
 
     #[test]
-    fn test_skip_code_block() {
+    fn test_skip_verbatim() {
         let expected = vec![
             RawUri {
                 text: "https://foo.com".to_string(),
@@ -106,12 +108,12 @@ or inline like `https://bar.org` for instance.
             },
         ];
 
-        let uris = extract_markdown(MD_INPUT, true);
+        let uris = extract_markdown(MD_INPUT, false);
         assert_eq!(uris, expected);
     }
 
     #[test]
-    fn test_code_block() {
+    fn test_include_verbatim() {
         let expected = vec![
             RawUri {
                 text: "https://foo.com".to_string(),
@@ -135,7 +137,7 @@ or inline like `https://bar.org` for instance.
             },
         ];
 
-        let uris = extract_markdown(MD_INPUT, false);
+        let uris = extract_markdown(MD_INPUT, true);
         assert_eq!(uris, expected);
     }
 }

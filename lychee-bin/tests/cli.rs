@@ -9,7 +9,7 @@ mod cli {
 
     use assert_cmd::Command;
     use http::StatusCode;
-    use predicates::str::contains;
+    use predicates::str::{contains, is_empty};
     use pretty_assertions::assert_eq;
     use uuid::Uuid;
 
@@ -600,16 +600,33 @@ mod cli {
     }
 
     #[test]
+    fn test_include_verbatim() -> Result<()> {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("TEST_CODE_BLOCKS.md");
+
+        cmd.arg("--include-verbatim")
+            .arg(input)
+            .arg("--dump")
+            .assert()
+            .success()
+            .stdout(contains("http://127.0.0.1/pre"))
+            .stdout(contains("http://127.0.0.1/block"))
+            .stdout(contains("http://127.0.0.1/code"))
+            .stdout(contains("http://127.0.0.1/bash"));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_exclude_verbatim() -> Result<()> {
         let mut cmd = main_command();
         let input = fixtures_path().join("TEST_CODE_BLOCKS.md");
 
-        cmd.arg("--exclude-all-private")
-            .arg("--exclude-verbatim")
-            .arg(input)
+        cmd.arg(input)
+            .arg("--dump")
             .assert()
             .success()
-            .stdout(contains("1 Total"));
+            .stdout(is_empty());
 
         Ok(())
     }
