@@ -14,10 +14,10 @@ keywords = [
 ]
 license = "Apache-2.0/MIT"
 repository = "https://github.com/lycheeverse/lychee"
-version = "0.8.2"
+version = "0.9.0"
 
 [dependencies]
-lychee-lib = { path = "../lychee-lib", version = "0.8.2", default-features = false }
+lychee-lib = { path = "../lychee-lib", version = "0.9.0", default-features = false }
 anyhow = "1.0.56"
 console = "0.15.0"
 const_format = "0.2.22"

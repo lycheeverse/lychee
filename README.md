@@ -6,8 +6,6 @@
 [![Check Links](https://github.com/lycheeverse/lychee/actions/workflows/links.yml/badge.svg)](https://github.com/lycheeverse/lychee/actions/workflows/links.yml)
 [![Docker Pulls](https://img.shields.io/docker/pulls/lycheeverse/lychee?color=%23099cec&logo=Docker&style=flat-square)](https://hub.docker.com/r/lycheeverse/lychee)
 
-
-
 ⚡ A fast, async, stream-based link checker written in Rust.\
 Finds broken hyperlinks and mail addresses inside Markdown, HTML,
 reStructuredText, or any other text file or website!
@@ -257,7 +255,7 @@ OPTIONS:
                                                the system
     -t, --timeout <timeout>                    Website timeout in seconds from connect to response finished [default:
                                                20]
-    -u, --user-agent <user-agent>              User agent [default: lychee/0.8.2]
+    -u, --user-agent <user-agent>              User agent [default: lychee/0.9.0]
 
 ARGS:
     <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
