@@ -24,7 +24,7 @@ impl TokenSink for LinkExtractor {
                 if self.inside_excluded_element {
                     return TokenSinkResult::Continue;
                 }
-                self.links.extend(extract_plaintext(&raw))
+                self.links.extend(extract_plaintext(&raw));
             }
             Token::TagToken(tag) => {
                 let Tag {
@@ -73,7 +73,7 @@ impl TokenSink for LinkExtractor {
 }
 
 impl LinkExtractor {
-    pub(crate) fn new(include_verbatim: bool) -> Self {
+    pub(crate) const fn new(include_verbatim: bool) -> Self {
         Self {
             links: vec![],
             include_verbatim,
