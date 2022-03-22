@@ -22,7 +22,7 @@ use http::{
 };
 use octocrab::Octocrab;
 use regex::RegexSet;
-use reqwest::header;
+use reqwest::{header, Url};
 use secrecy::{ExposeSecret, SecretString};
 use tokio::time::sleep;
 use typed_builder::TypedBuilder;
@@ -466,6 +466,11 @@ impl Client {
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, uri: &Uri) -> Status {
+        // Workaround for upstream reqwest panic
+        if invalid(&uri.url) {
+            return Status::Error(ErrorKind::InvalidURI(uri.clone()));
+        }
+
         let request = match self
             .reqwest_client
             .request(self.method.clone(), uri.as_str())
@@ -504,6 +509,14 @@ impl Client {
             Status::Ok(StatusCode::OK)
         }
     }
+}
+
+// Check if the given `Url` would cause `reqwest` to panic.
+// This is a workaround for https://github.com/lycheeverse/lychee/issues/539
+// and can be removed once https://github.com/seanmonstar/reqwest/pull/1399
+// got merged.
+fn invalid(url: &Url) -> bool {
+    url.as_str().parse::<http::Uri>().is_err()
 }
 
 /// A convenience function to check a single URI.
@@ -710,5 +723,13 @@ mod test {
 
         let res = client.check(mock_server.uri()).await.unwrap();
         assert!(res.status().is_timeout());
+    }
+
+    #[tokio::test]
+    async fn test_avoid_reqwest_panic() {
+        let client = ClientBuilder::builder().build().client().unwrap();
+        // This request will fail, but it won't panic
+        let res = client.check("http://\"").await.unwrap();
+        assert!(res.status().is_failure());
     }
 }
