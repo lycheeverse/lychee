@@ -609,9 +609,8 @@ mod cli {
             .arg("--dump")
             .assert()
             .success()
-            .stdout(contains("http://127.0.0.1/pre"))
             .stdout(contains("http://127.0.0.1/block"))
-            .stdout(contains("http://127.0.0.1/code"))
+            .stdout(contains("http://127.0.0.1/inline"))
             .stdout(contains("http://127.0.0.1/bash"));
 
         Ok(())
