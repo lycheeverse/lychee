@@ -1,7 +1,21 @@
 use crate::{helpers::url, types::raw_uri::RawUri};
 
+/// Shortest valid URI that lychee extracts from plaintext.
+///
+/// The shortest valid URI without a scheme might be g.cn (Google China)
+/// At least I am not aware of a shorter one. We set this as a lower threshold
+/// for parsing URIs from plaintext to avoid false-positives and as a slight
+/// performance optimization, which could add up for big files.
+/// This threshold might be adjusted in the future.
+const MIN_URI_LENGTH: usize = 4;
+
 /// Extract unparsed URL strings from plaintext
 pub(crate) fn extract_plaintext(input: &str) -> Vec<RawUri> {
+    if input.len() < MIN_URI_LENGTH {
+        // Immediately return for very small strings which cannot be valid URIs
+        return vec![];
+    }
+
     url::find_links(input)
         .map(|uri| RawUri::from(uri.as_str()))
         .collect()
