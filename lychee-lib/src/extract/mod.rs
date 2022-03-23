@@ -13,8 +13,17 @@ use plaintext::extract_plaintext;
 
 /// HTML elements that are deemed verbatim (i.e. preformatted).
 /// These will be excluded from link checking by default.
-static VERBATIM_ELEMENTS: Lazy<HashSet<String>> =
-    Lazy::new(|| HashSet::from_iter(["pre".into(), "code".into()]));
+static VERBATIM_ELEMENTS: Lazy<HashSet<String>> = Lazy::new(|| {
+    HashSet::from_iter([
+        "pre".into(),
+        "code".into(),
+        "textarea".into(),
+        "samp".into(),
+        "xmp".into(),
+        "plaintext".into(),
+        "listing".into(),
+    ])
+});
 
 /// Check if the given element is in the list of preformatted tags
 pub(crate) fn is_verbatim_elem(name: &str) -> bool {

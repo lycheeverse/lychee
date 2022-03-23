@@ -2,7 +2,7 @@ use pulldown_cmark::{Event, Parser, Tag};
 
 use crate::{extract::plaintext::extract_plaintext, types::raw_uri::RawUri};
 
-use super::html5ever::extract_html;
+use super::html5gum::extract_html;
 
 /// Extract unparsed URL strings from a Markdown string.
 pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUri> {
@@ -55,7 +55,11 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
             }
 
             // An HTML node
-            Event::Html(html) => Some(extract_html(&html.to_string(), include_verbatim)),
+            Event::Html(html) => {
+                // This won't exclude verbatim links right now, because HTML gets passed in chunks
+                // by pulldown_cmark. So excluding `<pre>` and `<code>` is not handled right now.
+                Some(extract_html(&html.to_string(), include_verbatim))
+            }
 
             // An inline code node.
             Event::Code(code) => {
@@ -138,6 +142,23 @@ or inline like `https://bar.org` for instance.
         ];
 
         let uris = extract_markdown(MD_INPUT, true);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_skip_verbatim_html() {
+        let input = " 
+<code>
+http://link.com
+</code>
+<pre>
+Some pre-formatted http://pre.com 
+</pre>";
+
+        let expected = vec![];
+
+        let uris = extract_markdown(input, false);
         assert_eq!(uris, expected);
     }
 }
