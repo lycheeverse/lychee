@@ -632,4 +632,18 @@ mod cli {
 
         Ok(())
     }
+
+    #[test]
+    fn test_inputs_without_scheme() -> Result<()> {
+        let test_path = fixtures_path().join("TEST_HTTP.html");
+        let mut cmd = main_command();
+
+        cmd.arg("--dump")
+            .arg("example.com")
+            .arg(&test_path)
+            .arg("https://example.org")
+            .assert()
+            .success();
+        Ok(())
+    }
 }

@@ -110,7 +110,7 @@ mod test {
         // Treat as plaintext file (no extension)
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path).unwrap();
-        let input = Input::new(&file_path.as_path().display().to_string(), None, true);
+        let input = Input::new(&file_path.as_path().display().to_string(), None, true)?;
         let contents: Vec<_> = input.get_contents(true).await.collect::<Vec<_>>().await;
 
         assert_eq!(contents.len(), 1);
@@ -120,7 +120,7 @@ mod test {
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
-        let input = Input::new("https://example.com/", None, true);
+        let input = Input::new("https://example.com/", None, true)?;
         let contents: Vec<_> = input.get_contents(true).await.collect::<Vec<_>>().await;
 
         assert_eq!(contents.len(), 1);
