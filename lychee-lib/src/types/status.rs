@@ -88,21 +88,27 @@ impl Status {
     #[must_use]
     /// Returns `true` if the check was successful
     pub const fn is_success(&self) -> bool {
-        matches!(self, Status::Ok(_))
+        matches!(self, Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)))
     }
 
     #[inline]
     #[must_use]
     /// Returns `true` if the check was not successful
     pub const fn is_failure(&self) -> bool {
-        matches!(self, Status::Error(_))
+        matches!(
+            self,
+            Status::Error(_) | Status::Cached(CacheStatus::Error(_))
+        )
     }
 
     #[inline]
     #[must_use]
     /// Returns `true` if the check was excluded
     pub const fn is_excluded(&self) -> bool {
-        matches!(self, Status::Excluded)
+        matches!(
+            self,
+            Status::Excluded | Status::Cached(CacheStatus::Excluded)
+        )
     }
 
     #[inline]
@@ -116,7 +122,10 @@ impl Status {
     #[must_use]
     /// Returns `true` if a URI is unsupported
     pub const fn is_unsupported(&self) -> bool {
-        matches!(self, Status::Unsupported(_))
+        matches!(
+            self,
+            Status::Unsupported(_) | Status::Cached(CacheStatus::Unsupported)
+        )
     }
 
     #[must_use]

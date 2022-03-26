@@ -70,7 +70,7 @@ where
         let verbose = cfg.verbose;
         async move {
             while let Some(response) = recv_resp.recv().await {
-                show_progress(&pb, &response, verbose)?;
+                show_progress(&mut io::stdout(), &pb, &response, verbose)?;
                 stats.add(response);
             }
             Ok((pb, stats))
@@ -143,6 +143,7 @@ async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Respons
 }
 
 fn show_progress(
+    output: &mut dyn Write,
     progress_bar: &Option<ProgressBar>,
     response: &Response,
     verbose: bool,
@@ -155,10 +156,33 @@ fn show_progress(
             pb.println(out);
         }
     } else {
-        if (response.status().is_success() || response.status().is_excluded()) && !verbose {
+        if !verbose && (response.status().is_success() || response.status().is_excluded()) {
             return Ok(());
         }
-        writeln!(io::stdout(), "{out}")?;
+        writeln!(output, "{out}")?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use lychee_lib::{CacheStatus, InputSource, ResponseBody, Uri};
+
+    use super::*;
+
+    #[test]
+    fn test_skip_cached_responses_in_progress_output() {
+        let mut buf = Vec::new();
+        let response = Response(
+            InputSource::Stdin,
+            ResponseBody {
+                uri: Uri::try_from("http://127.0.0.1").unwrap(),
+                status: Status::Cached(CacheStatus::Ok(200)),
+            },
+        );
+        show_progress(&mut buf, &None, &response, true).unwrap();
+
+        println!("{:?}", String::from_utf8_lossy(&buf));
+        assert!(buf.is_empty());
+    }
 }
