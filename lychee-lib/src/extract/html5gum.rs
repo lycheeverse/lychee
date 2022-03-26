@@ -1,5 +1,6 @@
 use html5gum::{Emitter, Error, Tokenizer};
 
+use super::is_verbatim_elem;
 use super::plaintext::extract_plaintext;
 use crate::types::raw_uri::RawUri;
 
@@ -13,6 +14,7 @@ struct LinkExtractor {
     current_attribute_name: Vec<u8>,
     current_attribute_value: Vec<u8>,
     last_start_element: Vec<u8>,
+    include_verbatim: bool,
 }
 
 /// this is the same as `std::str::from_utf8_unchecked`, but with extra debug assertions for ease
@@ -23,7 +25,7 @@ unsafe fn from_utf8_unchecked(s: &[u8]) -> &str {
 }
 
 impl LinkExtractor {
-    pub(crate) const fn new() -> Self {
+    pub(crate) const fn new(include_verbatim: bool) -> Self {
         LinkExtractor {
             links: Vec::new(),
             current_string: Vec::new(),
@@ -32,6 +34,7 @@ impl LinkExtractor {
             current_attribute_name: Vec::new(),
             current_attribute_value: Vec::new(),
             last_start_element: Vec::new(),
+            include_verbatim,
         }
     }
 
@@ -45,6 +48,7 @@ impl LinkExtractor {
         // For a comprehensive list of elements that might contain URLs/URIs
         // see https://www.w3.org/TR/REC-html40/index/attributes.html
         // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
+
         match (elem_name, attr_name) {
             // Common element/attribute combinations for links
             (_, "href" | "src" | "cite" | "usemap")
@@ -85,6 +89,13 @@ impl LinkExtractor {
 
     fn flush_current_characters(&mut self) {
         // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
+        let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
+        if !self.include_verbatim && is_verbatim_elem(name) {
+            // Early return if we don't want to extract links from preformatted text
+            self.current_string.clear();
+            return;
+        }
+
         let raw = unsafe { from_utf8_unchecked(&self.current_string) };
         self.links.extend(extract_plaintext(raw));
         self.current_string.clear();
@@ -94,6 +105,10 @@ impl LinkExtractor {
         {
             // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
             let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
+            if !self.include_verbatim && is_verbatim_elem(name) {
+                // Early return if we don't want to extract links from preformatted text
+                return;
+            }
             let attr = unsafe { from_utf8_unchecked(&self.current_attribute_name) };
             let value = unsafe { from_utf8_unchecked(&self.current_attribute_value) };
 
@@ -199,9 +214,67 @@ impl Emitter for &mut LinkExtractor {
 }
 
 /// Extract unparsed URL strings from an HTML string.
-pub(crate) fn extract_html(buf: &str) -> Vec<RawUri> {
-    let mut extractor = LinkExtractor::new();
+pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
+    let mut extractor = LinkExtractor::new(include_verbatim);
     let mut tokenizer = Tokenizer::new_with_emitter(buf, &mut extractor).infallible();
     assert!(tokenizer.next().is_none());
     extractor.links
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const HTML_INPUT: &str = r#"
+<html>
+    <body>
+        <p>This is a paragraph with some inline <code>https://example.com</code> and a normal <a href="https://example.org">example</a></p>
+        <pre>
+        Some random text
+        https://foo.com and http://bar.com/some/path
+        Something else
+        </pre>
+        <p><b>bold</b></p>
+    </body>
+</html>"#;
+
+    #[test]
+    fn test_skip_verbatim() {
+        let expected = vec![RawUri {
+            text: "https://example.org".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+
+        let uris = extract_html(HTML_INPUT, false);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_include_verbatim() {
+        let expected = vec![
+            RawUri {
+                text: "https://example.com".to_string(),
+                element: None,
+                attribute: None,
+            },
+            RawUri {
+                text: "https://example.org".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+            },
+            RawUri {
+                text: "https://foo.com".to_string(),
+                element: None,
+                attribute: None,
+            },
+            RawUri {
+                text: "http://bar.com/some/path".to_string(),
+                element: None,
+                attribute: None,
+            },
+        ];
+
+        let uris = extract_html(HTML_INPUT, true);
+        assert_eq!(uris, expected);
+    }
 }

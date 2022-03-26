@@ -1,44 +1,76 @@
+use std::collections::HashSet;
+
 use crate::types::{raw_uri::RawUri, FileType, InputContent};
 
-mod html;
+mod html5ever;
 mod html5gum;
 mod markdown;
 mod plaintext;
 
 use markdown::extract_markdown;
+use once_cell::sync::Lazy;
 use plaintext::extract_plaintext;
+
+/// HTML elements that are deemed verbatim (i.e. preformatted).
+/// These will be excluded from link checking by default.
+static VERBATIM_ELEMENTS: Lazy<HashSet<String>> = Lazy::new(|| {
+    HashSet::from_iter([
+        "pre".into(),
+        "code".into(),
+        "textarea".into(),
+        "samp".into(),
+        "xmp".into(),
+        "plaintext".into(),
+        "listing".into(),
+    ])
+});
+
+/// Check if the given element is in the list of preformatted tags
+pub(crate) fn is_verbatim_elem(name: &str) -> bool {
+    VERBATIM_ELEMENTS.contains(name)
+}
 
 /// A handler for extracting links from various input formats like Markdown and
 /// HTML. Allocations should be avoided if possible as this is a
 /// performance-critical section of the library.
-#[derive(Debug, Clone, Copy)]
-pub struct Extractor;
+#[derive(Default, Debug, Clone, Copy)]
+pub struct Extractor {
+    use_html5ever: bool,
+    include_verbatim: bool,
+}
 
 impl Extractor {
+    /// Creates a new extractor
+    ///
+    /// The extractor can be configured with the following settings:
+    ///
+    /// - `use_html5ever` enables the alternative HTML parser engine html5ever, that
+    ///   is also used in the Servo browser by Mozilla.
+    ///   The default is `html5gum`, which is more performant and well maintained.
+    ///
+    /// - `include_verbatim` ignores links inside Markdown code blocks.
+    ///   These can be denoted as a block starting with three backticks or an indented block.
+    ///   For more information, consult the `pulldown_cmark` documentation about code blocks
+    ///   [here](https://docs.rs/pulldown-cmark/latest/pulldown_cmark/enum.CodeBlockKind.html)
+    #[must_use]
+    pub const fn new(use_html5ever: bool, include_verbatim: bool) -> Self {
+        Self {
+            use_html5ever,
+            include_verbatim,
+        }
+    }
+
     /// Main entrypoint for extracting links from various sources
     /// (Markdown, HTML, and plaintext)
     #[must_use]
-    pub fn extract(input_content: &InputContent) -> Vec<RawUri> {
-        Self::extract_impl(input_content, false)
-    }
-
-    /// Main entrypoint for extracting links from various sources, legacy implementation using
-    /// html5ever
-    /// (Markdown, HTML, and plaintext)
-    #[must_use]
-    pub fn extract_html5ever(input_content: &InputContent) -> Vec<RawUri> {
-        Self::extract_impl(input_content, true)
-    }
-
-    #[must_use]
-    fn extract_impl(input_content: &InputContent, use_html5ever: bool) -> Vec<RawUri> {
+    pub fn extract(&self, input_content: &InputContent) -> Vec<RawUri> {
         match input_content.file_type {
-            FileType::Markdown => extract_markdown(&input_content.content),
+            FileType::Markdown => extract_markdown(&input_content.content, self.include_verbatim),
             FileType::Html => {
-                if use_html5ever {
-                    html::extract_html(&input_content.content)
+                if self.use_html5ever {
+                    html5ever::extract_html(&input_content.content, self.include_verbatim)
                 } else {
-                    html5gum::extract_html(&input_content.content)
+                    html5gum::extract_html(&input_content.content, self.include_verbatim)
                 }
             }
             FileType::Plaintext => extract_plaintext(&input_content.content),
@@ -63,12 +95,16 @@ mod test {
     fn extract_uris(input: &str, file_type: FileType) -> HashSet<Uri> {
         let input_content = InputContent::from_string(input, file_type);
 
-        let uris_html5gum = Extractor::extract(&input_content)
+        let extractor = Extractor::new(false, false);
+        let uris_html5gum = extractor
+            .extract(&input_content)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
 
-        let uris_html5ever = Extractor::extract_html5ever(&input_content)
+        let extractor = Extractor::new(true, false);
+        let uris_html5ever = extractor
+            .extract(&input_content)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
@@ -183,11 +219,8 @@ mod test {
         };
 
         for use_html5ever in [true, false] {
-            let links = if use_html5ever {
-                Extractor::extract_html5ever(input_content)
-            } else {
-                Extractor::extract(input_content)
-            };
+            let extractor = Extractor::new(use_html5ever, false);
+            let links = extractor.extract(input_content);
 
             let urls = links
                 .into_iter()

@@ -300,6 +300,11 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) skip_missing: bool,
 
+    /// Find links in verbatim sections like `pre`- and `code` blocks
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) include_verbatim: bool,
+
     /// Ignore case when expanding filesystem path glob inputs
     #[structopt(long)]
     #[serde(default)]
@@ -375,6 +380,7 @@ impl Config {
             base: None;
             basic_auth: None;
             skip_missing: false;
+            include_verbatim: false;
             glob_ignore_case: false;
             output: None;
             require_https: false;
