@@ -324,23 +324,6 @@ mod cli {
     }
 
     #[test]
-    fn test_missing_file_error() {
-        let mut cmd = main_command();
-        let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
-
-        cmd.arg(&filename)
-            .assert()
-            .failure()
-            .code(1)
-            .stderr(contains(format!(
-                "Cannot read input content from file `{filename}`"
-            )))
-            .stderr(contains(
-                "No such file or directory (os error 2)".to_string(),
-            ));
-    }
-
-    #[test]
     fn test_missing_file_ok_if_skip_missing() {
         let mut cmd = main_command();
         let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
