@@ -156,6 +156,7 @@ fn show_progress(
             pb.println(out);
         }
     } else {
+        #[allow(clippy::collapsible_if)]
         if !verbose {
             if response.status().is_success() || response.status().is_excluded() {
                 return Ok(());
