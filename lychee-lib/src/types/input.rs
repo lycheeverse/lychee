@@ -143,7 +143,7 @@ impl Input {
             } else {
                 let path = PathBuf::from(value);
                 if path.exists() {
-                    InputSource::FsPath(value.into())
+                    InputSource::FsPath(path)
                 } else {
                     // Invalid path; check if a valid URL can be constructed from the input
                     // by prefixing it with a `http://` scheme.
