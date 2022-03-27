@@ -156,7 +156,7 @@ fn show_progress(
             pb.println(out);
         }
     } else {
-        if !verbose && (response.status().is_success() || response.status().is_excluded()) {
+        if verbose || !(response.status().is_success() || response.status().is_excluded()) {
             return Ok(());
         }
         writeln!(output, "{out}")?;
