@@ -114,11 +114,19 @@ pub struct Input {
 }
 
 impl Input {
-    #[must_use]
     /// Construct a new `Input` source. In case the input is a `glob` pattern,
     /// `glob_ignore_case` decides whether matching files against the `glob` is
     /// case-insensitive or not
-    pub fn new(value: &str, file_type_hint: Option<FileType>, glob_ignore_case: bool) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the input does not exist (i.e. invalid path)
+    /// and the input cannot be parsed as a URL.
+    pub fn new(
+        value: &str,
+        file_type_hint: Option<FileType>,
+        glob_ignore_case: bool,
+    ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
         } else if let Ok(url) = Url::parse(value) {
@@ -133,13 +141,25 @@ impl Input {
                     ignore_case: glob_ignore_case,
                 }
             } else {
-                InputSource::FsPath(value.into())
+                let path = PathBuf::from(value);
+                if path.exists() {
+                    InputSource::FsPath(path)
+                } else {
+                    // Invalid path; check if a valid URL can be constructed from the input
+                    // by prefixing it with a `http://` scheme.
+                    // Curl also uses http (i.e. not https), see
+                    // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
+                    let url = Url::parse(&format!("http://{value}")).map_err(|e| {
+                        ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string())
+                    })?;
+                    InputSource::RemoteUrl(Box::new(url))
+                }
             }
         };
-        Self {
+        Ok(Self {
             source,
             file_type_hint,
-        }
+        })
     }
 
     /// Retrieve the contents from the input
@@ -156,8 +176,12 @@ impl Input {
         try_stream! {
             match self.source {
                 InputSource::RemoteUrl(ref url) => {
-                    let contents: InputContent = Self::url_contents(url).await?;
-                    yield contents;
+                    let content = Self::url_contents(url).await;
+                    match content {
+                        Err(_) if skip_missing => (),
+                        Err(e) => Err(e)?,
+                        Ok(content) => yield content,
+                    }
                 },
                 InputSource::FsGlob {
                     ref pattern,
