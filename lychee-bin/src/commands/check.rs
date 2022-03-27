@@ -180,7 +180,7 @@ mod tests {
                 status: Status::Cached(CacheStatus::Ok(200)),
             },
         );
-        show_progress(&mut buf, &None, &response, true).unwrap();
+        show_progress(&mut buf, &None, &response, false).unwrap();
 
         println!("{:?}", String::from_utf8_lossy(&buf));
         assert!(buf.is_empty());
