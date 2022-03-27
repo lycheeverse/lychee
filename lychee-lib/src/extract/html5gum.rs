@@ -11,6 +11,7 @@ struct LinkExtractor {
     current_string: Vec<u8>,
     current_element_name: Vec<u8>,
     current_element_is_closing: bool,
+    current_element_nofollow: bool,
     current_attribute_name: Vec<u8>,
     current_attribute_value: Vec<u8>,
     last_start_element: Vec<u8>,
@@ -31,6 +32,7 @@ impl LinkExtractor {
             current_string: Vec::new(),
             current_element_name: Vec::new(),
             current_element_is_closing: false,
+            current_element_nofollow: false,
             current_attribute_name: Vec::new(),
             current_attribute_value: Vec::new(),
             last_start_element: Vec::new(),
@@ -112,6 +114,18 @@ impl LinkExtractor {
             let attr = unsafe { from_utf8_unchecked(&self.current_attribute_name) };
             let value = unsafe { from_utf8_unchecked(&self.current_attribute_value) };
 
+            // Ignore links with rel=nofollow
+            // This may be set on a different iteration on the same element/tag before,
+            // so we check the boolean separately right after
+            if attr == "rel" && value.contains("nofollow") {
+                self.current_element_nofollow = true;
+            }
+            if self.current_element_nofollow {
+                self.current_attribute_name.clear();
+                self.current_attribute_value.clear();
+                return;
+            }
+
             let urls = LinkExtractor::extract_urls_from_elem_attr(attr, name, value);
 
             let new_urls = match urls {
@@ -173,6 +187,7 @@ impl Emitter for &mut LinkExtractor {
 
     fn emit_current_tag(&mut self) {
         self.flush_old_attribute();
+        self.current_element_nofollow = false;
     }
 
     fn emit_current_doctype(&mut self) {}
@@ -275,6 +290,22 @@ mod tests {
         ];
 
         let uris = extract_html(HTML_INPUT, true);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_include_nofollow() {
+        let input = r#"
+        <a rel="nofollow" href="https://foo.com">do not follow me</a> 
+        <a rel="canonical,nofollow,dns-prefetch" href="https://example.com">do not follow me</a> 
+        <a href="https://example.org">i'm fine</a> 
+        "#;
+        let expected = vec![RawUri {
+            text: "https://example.org".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+        let uris = extract_html(input, false);
         assert_eq!(uris, expected);
     }
 }
