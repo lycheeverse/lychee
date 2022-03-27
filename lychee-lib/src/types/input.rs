@@ -176,8 +176,12 @@ impl Input {
         try_stream! {
             match self.source {
                 InputSource::RemoteUrl(ref url) => {
-                    let contents: InputContent = Self::url_contents(url).await?;
-                    yield contents;
+                    let content = Self::url_contents(url).await;
+                    match content {
+                        Err(_) if skip_missing => (),
+                        Err(e) => Err(e)?,
+                        Ok(content) => yield content,
+                    }
                 },
                 InputSource::FsGlob {
                     ref pattern,
