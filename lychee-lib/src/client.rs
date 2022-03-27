@@ -396,10 +396,23 @@ impl Client {
         self.filter.is_excluded(uri)
     }
 
-    /// Checks the given `uri` of a website.
+    /// Checks the given URI of a website.
     ///
-    /// Here `uri` must has either `http` or `https` scheme.
+    /// Unsupported schemes will be ignored
     pub async fn check_website(&self, uri: &Uri) -> Status {
+        // Workaround for upstream reqwest panic
+        if invalid(&uri.url) {
+            if matches!(uri.scheme(), "http" | "https") {
+                // This is a truly invalid URI with a known scheme.
+                // If we pass that to reqwest it would panic.
+                return Status::Error(ErrorKind::InvalidURI(uri.clone()));
+            }
+            // This is merely a URI with a scheme that is not supported by
+            // reqwest yet. It would be safe to pass that to reqwest and it wouldn't
+            // panic, but it's also unnecessary, because it would simply return an error.
+            return Status::Unsupported(ErrorKind::InvalidURI(uri.clone()));
+        }
+
         let mut retries: u64 = 0;
         let mut wait = self.retry_wait_time;
 
@@ -466,11 +479,6 @@ impl Client {
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, uri: &Uri) -> Status {
-        // Workaround for upstream reqwest panic
-        if invalid(&uri.url) {
-            return Status::Error(ErrorKind::InvalidURI(uri.clone()));
-        }
-
         let request = match self
             .reqwest_client
             .request(self.method.clone(), uri.as_str())
@@ -515,6 +523,8 @@ impl Client {
 // This is a workaround for https://github.com/lycheeverse/lychee/issues/539
 // and can be removed once https://github.com/seanmonstar/reqwest/pull/1399
 // got merged.
+// It is exactly the same check that reqwest runs internally, but unfortunately
+// it `unwrap`s (and panics!) instead of returning an error, which we could handle.
 fn invalid(url: &Url) -> bool {
     url.as_str().parse::<http::Uri>().is_err()
 }
