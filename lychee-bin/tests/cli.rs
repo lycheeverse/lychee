@@ -9,7 +9,7 @@ mod cli {
 
     use assert_cmd::Command;
     use http::StatusCode;
-    use predicates::str::contains;
+    use predicates::str::{contains, is_empty};
     use pretty_assertions::assert_eq;
     use uuid::Uuid;
 
@@ -324,23 +324,6 @@ mod cli {
     }
 
     #[test]
-    fn test_missing_file_error() {
-        let mut cmd = main_command();
-        let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
-
-        cmd.arg(&filename)
-            .assert()
-            .failure()
-            .code(1)
-            .stderr(contains(format!(
-                "Cannot read input content from file `{filename}`"
-            )))
-            .stderr(contains(
-                "No such file or directory (os error 2)".to_string(),
-            ));
-    }
-
-    #[test]
     fn test_missing_file_ok_if_skip_missing() {
         let mut cmd = main_command();
         let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
@@ -604,6 +587,37 @@ mod cli {
     }
 
     #[test]
+    fn test_include_verbatim() -> Result<()> {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("TEST_CODE_BLOCKS.md");
+
+        cmd.arg("--include-verbatim")
+            .arg(input)
+            .arg("--dump")
+            .assert()
+            .success()
+            .stdout(contains("http://127.0.0.1/block"))
+            .stdout(contains("http://127.0.0.1/inline"))
+            .stdout(contains("http://127.0.0.1/bash"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_exclude_verbatim() -> Result<()> {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("TEST_CODE_BLOCKS.md");
+
+        cmd.arg(input)
+            .arg("--dump")
+            .assert()
+            .success()
+            .stdout(is_empty());
+
+        Ok(())
+    }
+
+    #[test]
     fn test_require_https() -> Result<()> {
         let mut cmd = main_command();
         let test_path = fixtures_path().join("TEST_HTTP.html");
@@ -630,6 +644,20 @@ mod cli {
             .success()
             .stdout(contains("0 Total"));
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_inputs_without_scheme() -> Result<()> {
+        let test_path = fixtures_path().join("TEST_HTTP.html");
+        let mut cmd = main_command();
+
+        cmd.arg("--dump")
+            .arg("example.com")
+            .arg(&test_path)
+            .arg("https://example.org")
+            .assert()
+            .success();
         Ok(())
     }
 }

@@ -13,6 +13,7 @@ use par_stream::ParStreamExt;
 pub struct Collector {
     base: Option<Base>,
     skip_missing_inputs: bool,
+    include_verbatim: bool,
     use_html5ever: bool,
 }
 
@@ -24,6 +25,7 @@ impl Collector {
             base,
             skip_missing_inputs: false,
             use_html5ever: false,
+            include_verbatim: false,
         }
     }
 
@@ -38,6 +40,13 @@ impl Collector {
     #[must_use]
     pub const fn use_html5ever(mut self, yes: bool) -> Self {
         self.use_html5ever = yes;
+        self
+    }
+
+    /// Skip over links in verbatim sections (like Markdown code blocks)
+    #[must_use]
+    pub const fn include_verbatim(mut self, yes: bool) -> Self {
+        self.include_verbatim = yes;
         self
     }
 
@@ -63,11 +72,8 @@ impl Collector {
                 let base = base.clone();
                 async move {
                     let content = content?;
-                    let uris: Vec<RawUri> = if self.use_html5ever {
-                        Extractor::extract_html5ever(&content)
-                    } else {
-                        Extractor::extract(&content)
-                    };
+                    let extractor = Extractor::new(self.use_html5ever, self.include_verbatim);
+                    let uris: Vec<RawUri> = extractor.extract(&content);
                     let requests = request::create(uris, &content, &base)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
@@ -110,7 +116,7 @@ mod test {
         // Treat as plaintext file (no extension)
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path).unwrap();
-        let input = Input::new(&file_path.as_path().display().to_string(), None, true);
+        let input = Input::new(&file_path.as_path().display().to_string(), None, true)?;
         let contents: Vec<_> = input.get_contents(true).await.collect::<Vec<_>>().await;
 
         assert_eq!(contents.len(), 1);
@@ -120,7 +126,7 @@ mod test {
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
-        let input = Input::new("https://example.com/", None, true);
+        let input = Input::new("https://example.com/", None, true)?;
         let contents: Vec<_> = input.get_contents(true).await.collect::<Vec<_>>().await;
 
         assert_eq!(contents.len(), 1);

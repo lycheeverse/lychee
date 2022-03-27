@@ -1,15 +1,17 @@
 use html5ever::{
     buffer_queue::BufferQueue,
     tendril::StrTendril,
-    tokenizer::{Tag, Token, TokenSink, TokenSinkResult, Tokenizer, TokenizerOpts},
+    tokenizer::{Tag, TagKind, Token, TokenSink, TokenSinkResult, Tokenizer, TokenizerOpts},
 };
 
-use super::plaintext::extract_plaintext;
+use super::{is_verbatim_elem, plaintext::extract_plaintext};
 use crate::types::raw_uri::RawUri;
 
 #[derive(Clone, Default)]
 struct LinkExtractor {
     links: Vec<RawUri>,
+    include_verbatim: bool,
+    inside_excluded_element: bool,
 }
 
 impl TokenSink for LinkExtractor {
@@ -18,20 +20,30 @@ impl TokenSink for LinkExtractor {
     #[allow(clippy::match_same_arms)]
     fn process_token(&mut self, token: Token, _line_number: u64) -> TokenSinkResult<()> {
         match token {
-            Token::CharacterTokens(raw) => self.links.extend(extract_plaintext(&raw)),
+            Token::CharacterTokens(raw) => {
+                if self.inside_excluded_element {
+                    return TokenSinkResult::Continue;
+                }
+                self.links.extend(extract_plaintext(&raw));
+            }
             Token::TagToken(tag) => {
                 let Tag {
-                    kind: _kind,
+                    kind,
                     name,
                     self_closing: _self_closing,
                     attrs,
                 } = tag;
+                if !self.include_verbatim && is_verbatim_elem(&name) {
+                    // Skip content inside excluded elements until we see the end tag.
+                    self.inside_excluded_element = matches!(kind, TagKind::StartTag);
+                    return TokenSinkResult::Continue;
+                }
 
                 for attr in attrs {
                     let urls = LinkExtractor::extract_urls_from_elem_attr(
-                        attr.name.local.as_ref(),
-                        name.as_ref(),
-                        attr.value.as_ref(),
+                        &attr.name.local,
+                        &name,
+                        &attr.value,
                     );
 
                     let new_urls = match urls {
@@ -61,8 +73,12 @@ impl TokenSink for LinkExtractor {
 }
 
 impl LinkExtractor {
-    pub(crate) fn new() -> Self {
-        LinkExtractor::default()
+    pub(crate) const fn new(include_verbatim: bool) -> Self {
+        Self {
+            links: vec![],
+            include_verbatim,
+            inside_excluded_element: false,
+        }
     }
 
     /// Extract all semantically known links from a given html attribute.
@@ -75,6 +91,7 @@ impl LinkExtractor {
         // For a comprehensive list of elements that might contain URLs/URIs
         // see https://www.w3.org/TR/REC-html40/index/attributes.html
         // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
+
         match (elem_name, attr_name) {
             // Common element/attribute combinations for links
             (_, "href" | "src" | "cite" | "usemap")
@@ -115,13 +132,75 @@ impl LinkExtractor {
 }
 
 /// Extract unparsed URL strings from an HTML string.
-pub(crate) fn extract_html(buf: &str) -> Vec<RawUri> {
+pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
     let mut input = BufferQueue::new();
     input.push_back(StrTendril::from(buf));
 
-    let mut tokenizer = Tokenizer::new(LinkExtractor::new(), TokenizerOpts::default());
+    let mut tokenizer = Tokenizer::new(
+        LinkExtractor::new(include_verbatim),
+        TokenizerOpts::default(),
+    );
     let _handle = tokenizer.feed(&mut input);
     tokenizer.end();
 
     tokenizer.sink.links
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const HTML_INPUT: &str = r#"
+<html>
+    <body>
+        <p>This is a paragraph with some inline <code>https://example.com</code> and a normal <a href="https://example.org">example</a></p>
+        <pre>
+        Some random text
+        https://foo.com and http://bar.com/some/path
+        Something else
+        </pre>
+        <p><b>bold</b></p>
+    </body>
+</html>"#;
+
+    #[test]
+    fn test_skip_verbatim() {
+        let expected = vec![RawUri {
+            text: "https://example.org".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+
+        let uris = extract_html(HTML_INPUT, false);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_include_verbatim() {
+        let expected = vec![
+            RawUri {
+                text: "https://example.com".to_string(),
+                element: None,
+                attribute: None,
+            },
+            RawUri {
+                text: "https://example.org".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+            },
+            RawUri {
+                text: "https://foo.com".to_string(),
+                element: None,
+                attribute: None,
+            },
+            RawUri {
+                text: "http://bar.com/some/path".to_string(),
+                element: None,
+                attribute: None,
+            },
+        ];
+
+        let uris = extract_html(HTML_INPUT, true);
+        assert_eq!(uris, expected);
+    }
 }

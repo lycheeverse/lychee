@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, fs, io::ErrorKind, path::PathBuf, str::FromStr, time::Duration};
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Context, Error, Result};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
     Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
@@ -129,11 +129,12 @@ impl LycheeOptions {
     // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there,
     // but we'd get no access to `glob_ignore_case`.
     /// Get parsed inputs from options.
-    pub(crate) fn inputs(&self) -> Vec<Input> {
+    pub(crate) fn inputs(&self) -> Result<Vec<Input>> {
         self.raw_inputs
             .iter()
             .map(|s| Input::new(s, None, self.config.glob_ignore_case))
-            .collect()
+            .collect::<Result<_, _>>()
+            .context("Cannot parse inputs from arguments")
     }
 }
 
@@ -300,6 +301,11 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) skip_missing: bool,
 
+    /// Find links in verbatim sections like `pre`- and `code` blocks
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) include_verbatim: bool,
+
     /// Ignore case when expanding filesystem path glob inputs
     #[structopt(long)]
     #[serde(default)]
@@ -375,6 +381,7 @@ impl Config {
             base: None;
             basic_auth: None;
             skip_missing: false;
+            include_verbatim: false;
             glob_ignore_case: false;
             output: None;
             require_https: false;

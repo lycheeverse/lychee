@@ -220,9 +220,10 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 
 /// Run lychee on the given inputs
 async fn run(opts: &LycheeOptions) -> Result<i32> {
-    let inputs = opts.inputs();
+    let inputs = opts.inputs()?;
     let requests = Collector::new(opts.config.base.clone())
         .skip_missing_inputs(opts.config.skip_missing)
+        .include_verbatim(opts.config.include_verbatim)
         // File a bug if you rely on this envvar! It's going to go away eventually.
         .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").map_or(false, |x| x == "1"))
         .collect_links(inputs)
