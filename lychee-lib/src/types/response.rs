@@ -3,7 +3,7 @@ use std::{error::Error, fmt::Display};
 use http::StatusCode;
 use serde::Serialize;
 
-use crate::{ErrorKind, InputSource, Status, Uri};
+use crate::{helpers, ErrorKind, InputSource, Status, Uri};
 
 /// Response type returned by lychee after checking a URI
 #[derive(Debug)]
@@ -96,7 +96,7 @@ impl Display for ResponseBody {
                                 .unwrap_or("Unknown status code")
                                 .to_string()
                         } else {
-                            "No status code".to_string()
+                            helpers::reqwest::trim_error_output(e)
                         }
                     }
                     ErrorKind::GithubRequest(e) => match e {

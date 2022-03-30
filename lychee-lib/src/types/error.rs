@@ -87,6 +87,9 @@ pub enum ErrorKind {
     /// Cannot parse the given URI
     #[error("The given URI is invalid: {0}")]
     InvalidURI(Uri),
+    /// Regex error
+    #[error("Error when using regex engine: {0}")]
+    Regex(#[from] regex::Error),
 }
 
 #[allow(clippy::match_same_arms)]
@@ -158,6 +161,7 @@ impl Hash for ErrorKind {
             Self::MissingGitHubToken | Self::InvalidUrlHost => {
                 std::mem::discriminant(self).hash(state);
             }
+            Self::Regex(e) => e.to_string().hash(state),
         }
     }
 }
