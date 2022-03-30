@@ -35,9 +35,9 @@ timeout = 20
 # Proceed for server connections considered insecure (invalid TLS)
 insecure = false
 
-# Only test links with the given scheme (e.g. https)
+# Only test links with the given schemes (e.g. https)
 # Omit to check links with any scheme
-#scheme = "https"
+#scheme = [ "https" ]
 
 # Request method
 method = "get"
