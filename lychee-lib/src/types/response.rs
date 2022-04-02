@@ -1,9 +1,9 @@
-use std::{error::Error, fmt::Display};
+use std::fmt::Display;
 
 use http::StatusCode;
 use serde::Serialize;
 
-use crate::{ErrorKind, InputSource, Status, Uri};
+use crate::{InputSource, Status, Uri};
 
 /// Response type returned by lychee after checking a URI
 #[derive(Debug)]
@@ -88,27 +88,10 @@ impl Display for ResponseBody {
             Status::Unsupported(e) => write!(f, "Unsupported {e}"),
             Status::Cached(status) => write!(f, "{status}"),
             Status::Error(e) => {
-                let details = match e {
-                    ErrorKind::NetworkRequest(e) => {
-                        if let Some(status) = e.status() {
-                            status
-                                .canonical_reason()
-                                .unwrap_or("Unknown status code")
-                                .to_string()
-                        } else {
-                            "No status code".to_string()
-                        }
-                    }
-                    ErrorKind::GithubRequest(e) => match e {
-                        octocrab::Error::GitHub { source, .. } => source.message.to_string(),
-                        _ => "".to_string(),
-                    },
-                    _ => e.source().map_or("".to_string(), ToString::to_string),
-                };
-                if details.is_empty() {
-                    write!(f, "{e}")
-                } else {
+                if let Some(details) = e.details() {
                     write!(f, "{e}: {details}")
+                } else {
+                    write!(f, "{e}")
                 }
             }
         }
