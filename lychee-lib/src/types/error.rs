@@ -1,12 +1,12 @@
 use serde::{Serialize, Serializer};
-use std::any::Any;
+use std::error::Error;
 use std::hash::Hash;
 use std::{convert::Infallible, path::PathBuf};
 use thiserror::Error;
 use tokio::task::JoinError;
 
 use super::InputContent;
-use crate::Uri;
+use crate::{helpers, Uri};
 
 /// Kinds of status errors
 /// Note: The error messages can change over time, so don't match on the output
@@ -92,6 +92,36 @@ pub enum ErrorKind {
     Regex(#[from] regex::Error),
 }
 
+impl ErrorKind {
+    /// Return more details from the given [`ErrorKind`]
+    ///
+    /// What additional information we can extract depends on the underlying
+    /// request type. The output is purely meant for humans (e.g. for status
+    /// messages) and future changes are expected.
+    #[must_use]
+    pub fn details(&self) -> Option<String> {
+        match self {
+            ErrorKind::NetworkRequest(e) => {
+                if let Some(status) = e.status() {
+                    Some(
+                        status
+                            .canonical_reason()
+                            .unwrap_or("Unknown status code")
+                            .to_string(),
+                    )
+                } else {
+                    Some(helpers::reqwest::trim_error_output(e))
+                }
+            }
+            ErrorKind::GithubRequest(e) => match e {
+                octocrab::Error::GitHub { source, .. } => Some(source.message.to_string()),
+                _ => None,
+            },
+            _ => self.source().map(ToString::to_string),
+        }
+    }
+}
+
 #[allow(clippy::match_same_arms)]
 impl PartialEq for ErrorKind {
     fn eq(&self, other: &Self) -> bool {
@@ -143,11 +173,11 @@ impl Hash for ErrorKind {
             Self::ReadResponseBody(e) => e.to_string().hash(state),
             Self::BuildRequestClient(e) => e.to_string().hash(state),
             Self::BuildGithubClient(e) => e.to_string().hash(state),
-            Self::GithubRequest(e) => e.type_id().hash(state),
+            Self::GithubRequest(e) => e.to_string().hash(state),
             Self::InvalidGithubUrl(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
-            Self::ParseUrl(e, s) => (e.type_id(), s).hash(state),
+            Self::ParseUrl(e, s) => (e.to_string(), s).hash(state),
             Self::InvalidURI(u) => u.hash(state),
             Self::InvalidUrlFromPath(p) => p.hash(state),
             Self::Utf8(e) => e.to_string().hash(state),
