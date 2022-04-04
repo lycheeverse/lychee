@@ -155,13 +155,7 @@ fn show_progress(
         if verbose {
             pb.println(out);
         }
-    } else {
-        #[allow(clippy::collapsible_if)]
-        if !verbose {
-            if response.status().is_success() || response.status().is_excluded() {
-                return Ok(());
-            }
-        }
+    } else if verbose || (!response.status().is_success() && !response.status().is_excluded()) {
         writeln!(output, "{out}")?;
     }
     Ok(())
