@@ -39,6 +39,15 @@ impl TokenSink for LinkExtractor {
                     return TokenSinkResult::Continue;
                 }
 
+                // Check for rel=nofollow. We only extract the first `rel` attribute.
+                // This is correct as per https://html.spec.whatwg.org/multipage/syntax.html#attributes-0, which states
+                // "There must never be two or more attributes on the same start tag whose names are an ASCII case-insensitive match for each other."
+                if let Some(rel) = attrs.iter().find(|attr| &attr.name.local == "rel") {
+                    if rel.value.contains("nofollow") {
+                        return TokenSinkResult::Continue;
+                    }
+                }
+
                 for attr in attrs {
                     let urls = LinkExtractor::extract_urls_from_elem_attr(
                         &attr.name.local,
@@ -201,6 +210,22 @@ mod tests {
         ];
 
         let uris = extract_html(HTML_INPUT, true);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_include_nofollow() {
+        let input = r#"
+        <a rel="nofollow" href="https://foo.com">do not follow me</a> 
+        <a rel="canonical,nofollow,dns-prefetch" href="https://example.com">do not follow me</a> 
+        <a href="https://example.org">do not follow me</a> 
+        "#;
+        let expected = vec![RawUri {
+            text: "https://example.org".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+        let uris = extract_html(input, false);
         assert_eq!(uris, expected);
     }
 }
