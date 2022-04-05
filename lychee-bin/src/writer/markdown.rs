@@ -8,9 +8,9 @@ use crate::stats::ResponseStats;
 
 #[derive(Tabled)]
 struct StatsTableEntry {
-    #[header("Status")]
+    #[tabled(rename = "Status")]
     status: &'static str,
-    #[header("Count")]
+    #[tabled(rename = "Count")]
     count: usize,
 }
 
