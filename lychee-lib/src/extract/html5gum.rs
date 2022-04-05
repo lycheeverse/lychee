@@ -172,13 +172,12 @@ impl Emitter for &mut LinkExtractor {
     fn init_start_tag(&mut self) {
         self.flush_current_characters();
         self.current_element_name.clear();
+        self.current_element_nofollow = false;
         self.current_element_is_closing = false;
     }
 
     fn init_end_tag(&mut self) {
-        self.flush_current_characters();
-        self.current_element_name.clear();
-        self.current_element_is_closing = true;
+        self.init_start_tag();
     }
 
     fn init_comment(&mut self) {
@@ -187,7 +186,6 @@ impl Emitter for &mut LinkExtractor {
 
     fn emit_current_tag(&mut self) {
         self.flush_old_attribute();
-        self.current_element_nofollow = false;
     }
 
     fn emit_current_doctype(&mut self) {}
