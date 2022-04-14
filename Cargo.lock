@@ -3095,9 +3095,9 @@ dependencies = [
 
 [[package]]
 name = "tabled"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97353139cc8a4e3f726e54f78081883d1c133b8e1834f55f168122f99f989717"
+checksum = "d15827061abcf689257b1841c8e2732b1dfcc3ef825b24ce6c606e1e9e1a7bde"
 dependencies = [
  "papergrid",
  "tabled_derive",
