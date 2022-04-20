@@ -52,7 +52,7 @@ assert_cmd = "2.0.4"
 predicates = "2.1.1"
 pretty_assertions = "1.1.0"
 tempfile = "3.3.0"
-uuid = { version = "0.8.2", features = ["v4"] }
+uuid = { version = "1.0.0", features = ["v4"] }
 wiremock = "0.5.12"
 tracing-subscriber = { version = "0.3.10", default-features = false, features = ["fmt", "registry", "env-filter"] }
 
