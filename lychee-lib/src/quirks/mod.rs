@@ -92,7 +92,6 @@ impl Quirks {
 mod tests {
     use header::HeaderValue;
     use http::{header, Method};
-    use pretty_assertions::assert_eq;
     use reqwest::{Request, Url};
 
     use super::{Quirks, GOOGLEBOT};

@@ -3,23 +3,6 @@ use std::collections::{HashMap, HashSet};
 use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status};
 use serde::Serialize;
 
-use crate::color::{DIM, GREEN, NORMAL, PINK, YELLOW};
-
-pub(crate) fn color_response(response: &ResponseBody) -> String {
-    let out = match response.status {
-        Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => GREEN.apply_to(response),
-        Status::Excluded
-        | Status::Unsupported(_)
-        | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => {
-            DIM.apply_to(response)
-        }
-        Status::Redirected(_) => NORMAL.apply_to(response),
-        Status::UnknownStatusCode(_) | Status::Timeout(_) => YELLOW.apply_to(response),
-        Status::Error(_) | Status::Cached(CacheStatus::Error(_)) => PINK.apply_to(response),
-    };
-    out.to_string()
-}
-
 #[derive(Default, Serialize)]
 pub(crate) struct ResponseStats {
     pub(crate) total: usize,
@@ -98,7 +81,6 @@ mod test {
 
     use http::StatusCode;
     use lychee_lib::{ClientBuilder, InputSource, Response, ResponseBody, Status, Uri};
-    use pretty_assertions::assert_eq;
     use reqwest::Url;
     use wiremock::{matchers::path, Mock, MockServer, ResponseTemplate};
 

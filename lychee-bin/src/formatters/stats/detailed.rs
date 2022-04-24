@@ -1,5 +1,5 @@
-use super::StatsWriter;
-use crate::stats::{color_response, ResponseStats};
+use super::StatsFormatter;
+use crate::{formatters::color_response, stats::ResponseStats};
 
 use anyhow::Result;
 use pad::{Alignment, PadStr};
@@ -60,13 +60,13 @@ pub(crate) struct Detailed;
 
 impl Detailed {
     pub(crate) const fn new() -> Self {
-        Detailed {}
+        Self {}
     }
 }
 
-impl StatsWriter for Detailed {
-    fn write(&self, stats: ResponseStats) -> Result<String> {
+impl StatsFormatter for Detailed {
+    fn format_stats(&self, stats: ResponseStats) -> Result<Option<String>> {
         let detailed = DetailedResponseStats(stats);
-        Ok(detailed.to_string())
+        Ok(Some(detailed.to_string()))
     }
 }

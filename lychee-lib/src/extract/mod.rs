@@ -80,7 +80,6 @@ impl Extractor {
 
 #[cfg(test)]
 mod test {
-    use pretty_assertions::assert_eq;
     use reqwest::Url;
     use std::{collections::HashSet, convert::TryFrom, path::Path};
 

@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 
-use super::StatsWriter;
+use super::StatsFormatter;
 use anyhow::Result;
 use tabled::{Alignment, Full, Modify, Table, Tabled};
 
@@ -89,14 +89,14 @@ pub(crate) struct Markdown;
 
 impl Markdown {
     pub(crate) const fn new() -> Self {
-        Markdown {}
+        Self {}
     }
 }
 
-impl StatsWriter for Markdown {
-    fn write(&self, stats: ResponseStats) -> Result<String> {
+impl StatsFormatter for Markdown {
+    fn format_stats(&self, stats: ResponseStats) -> Result<Option<String>> {
         let markdown = MarkdownResponseStats(stats);
-        Ok(markdown.to_string())
+        Ok(Some(markdown.to_string()))
     }
 }
 
@@ -105,7 +105,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_render_markdown_table() {
+    fn test_render_stats() {
         let stats = ResponseStats::new();
         let table = stats_table(&stats);
         let expected = r#"| Status        | Count |

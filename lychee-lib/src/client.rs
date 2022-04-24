@@ -545,7 +545,7 @@ where
     ErrorKind: From<E>,
 {
     let client = ClientBuilder::builder().build().client()?;
-    client.check(request).await?
+    client.check(request).await
 }
 
 #[cfg(test)]

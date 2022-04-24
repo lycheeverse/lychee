@@ -87,7 +87,6 @@ mod test {
     use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
 
     use http::StatusCode;
-    use pretty_assertions::assert_eq;
     use reqwest::Url;
 
     use super::*;

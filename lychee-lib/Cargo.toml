@@ -21,7 +21,7 @@ check-if-email-exists = "0.8.29"
 fast_chemail = "0.9.6"
 glob = "0.3.0"
 http = "0.2.6"
-linkify = "0.8.0"
+linkify = "0.8.1"
 openssl-sys = "0.9.72"
 pulldown-cmark = "0.9.1"
 regex = "1.5.5"
@@ -33,9 +33,9 @@ reqwest = { version = "0.11.10", features = ["gzip", "trust-dns"] }
 # This is necessary for the homebrew build
 # https://github.com/Homebrew/homebrew-core/pull/70216
 ring = "0.16.20"
-serde = { version = "1.0.133", features = ["derive"] }
+serde = { version = "1.0.136", features = ["derive"] }
 shellexpand = "2.1.0"
-tokio = { version = "1.16.1", features = ["full"] }
+tokio = { version = "1.17.0", features = ["full"] }
 typed-builder = "0.10.0"
 url = { version = "2.2.2", features = ["serde"] }
 log = "0.4.16"
@@ -60,9 +60,8 @@ features = ["runtime-tokio"]
 
 [dev-dependencies]
 doc-comment = "0.3.3"
-pretty_assertions = "1.1.0"
 tempfile = "3.3.0"
-wiremock = "0.5.12"
+wiremock = "0.5.13"
 
 [features]
 vendored-openssl = ["openssl-sys/vendored"]
