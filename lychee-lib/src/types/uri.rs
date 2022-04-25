@@ -332,8 +332,6 @@ mod test {
         net::{IpAddr, Ipv4Addr, Ipv6Addr},
     };
 
-    use pretty_assertions::assert_eq;
-
     use super::Uri;
     use crate::{
         test_utils::{mail, website},

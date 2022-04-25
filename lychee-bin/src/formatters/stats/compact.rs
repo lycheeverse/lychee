@@ -5,10 +5,11 @@ use std::{
 
 use crate::{
     color::{color, BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, NORMAL, PINK},
-    stats::{color_response, ResponseStats},
+    formatters::color_response,
+    stats::ResponseStats,
 };
 
-use super::StatsWriter;
+use super::StatsFormatter;
 
 use anyhow::Result;
 
@@ -80,13 +81,13 @@ pub(crate) struct Compact;
 
 impl Compact {
     pub(crate) const fn new() -> Self {
-        Compact {}
+        Self {}
     }
 }
 
-impl StatsWriter for Compact {
-    fn write(&self, stats: ResponseStats) -> Result<String> {
+impl StatsFormatter for Compact {
+    fn format_stats(&self, stats: ResponseStats) -> Result<Option<String>> {
         let compact = CompactResponseStats(stats);
-        Ok(compact.to_string())
+        Ok(Some(compact.to_string()))
     }
 }

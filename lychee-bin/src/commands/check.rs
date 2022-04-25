@@ -9,29 +9,26 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
-use crate::{
-    cache::Cache,
-    options::Config,
-    stats::{color_response, ResponseStats},
-    ExitCode,
-};
+use crate::formatters::response::ResponseFormatter;
+use crate::{cache::Cache, stats::ResponseStats, ExitCode};
 use lychee_lib::{Client, Request, Response};
 
+use super::CommandParams;
+
 pub(crate) async fn check<S>(
-    client: Client,
-    cache: Arc<Cache>,
-    requests: S,
-    cfg: &Config,
+    params: CommandParams<S>,
 ) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
 where
     S: futures::Stream<Item = Result<Request>>,
 {
-    let (send_req, recv_req) = mpsc::channel(cfg.max_concurrency);
-    let (send_resp, mut recv_resp) = mpsc::channel(cfg.max_concurrency);
-    let max_concurrency = cfg.max_concurrency;
+    let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
+    let (send_resp, mut recv_resp) = mpsc::channel(params.cfg.max_concurrency);
+    let max_concurrency = params.cfg.max_concurrency;
     let mut stats = ResponseStats::new();
-    let cache_ref = cache.clone();
+    let cache_ref = params.cache.clone();
 
+    let client = params.client;
+    let cache = params.cache;
     // Start receiving requests
     tokio::spawn(async move {
         futures::StreamExt::for_each_concurrent(
@@ -50,7 +47,7 @@ where
         .await;
     });
 
-    let pb = if cfg.no_progress {
+    let pb = if params.cfg.no_progress {
         None
     } else {
         let bar = ProgressBar::new_spinner().with_style(ProgressStyle::default_bar().template(
@@ -66,17 +63,21 @@ where
     };
 
     let bar = pb.clone();
+
+    let formatter = Arc::new(params.formatter);
+
     let show_results_task = tokio::spawn({
-        let verbose = cfg.verbose;
+        let verbose = params.cfg.verbose;
         async move {
             while let Some(response) = recv_resp.recv().await {
-                show_progress(&mut io::stdout(), &pb, &response, verbose)?;
+                show_progress(&mut io::stdout(), &pb, &response, &formatter, verbose)?;
                 stats.add(response);
             }
             Ok((pb, stats))
         }
     });
 
+    let requests = params.requests;
     tokio::pin!(requests);
 
     while let Some(request) = requests.next().await {
@@ -146,9 +147,10 @@ fn show_progress(
     output: &mut dyn Write,
     progress_bar: &Option<ProgressBar>,
     response: &Response,
+    formatter: &Arc<Box<dyn ResponseFormatter>>,
     verbose: bool,
 ) -> Result<()> {
-    let out = color_response(&response.1);
+    let out = formatter.write_response(response)?;
     if let Some(pb) = progress_bar {
         pb.inc(1);
         pb.set_message(out.clone());
@@ -156,7 +158,7 @@ fn show_progress(
             pb.println(out);
         }
     } else if verbose || (!response.status().is_success() && !response.status().is_excluded()) {
-        writeln!(output, "{out}")?;
+        writeln!(output, "{}", out)?;
     }
     Ok(())
 }
@@ -164,6 +166,8 @@ fn show_progress(
 #[cfg(test)]
 mod tests {
     use lychee_lib::{CacheStatus, InputSource, ResponseBody, Uri};
+
+    use crate::formatters;
 
     use super::*;
 
@@ -177,7 +181,9 @@ mod tests {
                 status: Status::Cached(CacheStatus::Ok(200)),
             },
         );
-        show_progress(&mut buf, &None, &response, false).unwrap();
+        let formatter: Arc<Box<dyn ResponseFormatter>> =
+            Arc::new(Box::new(formatters::response::Raw::new()));
+        show_progress(&mut buf, &None, &response, &formatter, false).unwrap();
 
         println!("{:?}", String::from_utf8_lossy(&buf));
         assert!(buf.is_empty());

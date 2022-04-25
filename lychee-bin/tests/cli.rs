@@ -10,7 +10,6 @@ mod cli {
     use assert_cmd::Command;
     use http::StatusCode;
     use predicates::str::{contains, is_empty};
-    use pretty_assertions::assert_eq;
     use uuid::Uuid;
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;

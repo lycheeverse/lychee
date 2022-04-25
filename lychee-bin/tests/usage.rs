@@ -7,7 +7,6 @@ mod readme {
     };
 
     use assert_cmd::Command;
-    use pretty_assertions::assert_eq;
 
     fn main_command() -> Command {
         // this gets the "main" binary name (e.g. `lychee`)

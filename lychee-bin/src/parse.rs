@@ -53,7 +53,6 @@ mod test {
 
     use headers::{HeaderMap, HeaderMapExt};
     use http::StatusCode;
-    use pretty_assertions::assert_eq;
     use reqwest::header;
 
     use super::*;

@@ -37,23 +37,25 @@ patterns from `{}` if file exists",
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub(crate) enum Format {
     Compact,
     Detailed,
     Json,
     Markdown,
+    Raw,
 }
 
 impl FromStr for Format {
     type Err = Error;
     fn from_str(format: &str) -> Result<Self, Self::Err> {
-        match format {
+        match format.to_lowercase().as_str() {
             "compact" | "string" => Ok(Format::Compact),
             "detailed" => Ok(Format::Detailed),
             "json" => Ok(Format::Json),
             "markdown" | "md" => Ok(Format::Markdown),
-            _ => Err(anyhow!("Could not parse format {}", format)),
+            "raw" => Ok(Format::Raw),
+            _ => Err(anyhow!("Unknown format {}", format)),
         }
     }
 }
@@ -139,7 +141,7 @@ impl LycheeOptions {
 }
 
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Debug, Deserialize, StructOpt)]
+#[derive(Debug, Deserialize, StructOpt, Clone)]
 pub(crate) struct Config {
     /// Verbose program output
     #[structopt(short, long)]

@@ -59,6 +59,8 @@
 #![deny(missing_docs)]
 
 use color::YELLOW;
+use commands::CommandParams;
+use formatters::response::ResponseFormatter;
 use lychee_lib::Collector;
 // required for apple silicon
 use ring as _;
@@ -75,26 +77,26 @@ mod cache;
 mod client;
 mod color;
 mod commands;
+mod formatters;
 mod options;
 mod parse;
 mod stats;
 mod time;
-mod writer;
 
 use crate::{
     cache::{Cache, StoreExt},
     color::color,
+    formatters::stats::StatsFormatter,
     options::{Config, Format, LycheeOptions, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE},
-    stats::ResponseStats,
-    writer::StatsWriter,
 };
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
 enum ExitCode {
     Success = 0,
-    // NOTE: exit code 1 is used for any `Result::Err` bubbled up to `main()` using the `?` operator.
-    // For now, 1 acts as a catch-all for everything non-link related (including config errors),
-    // until we find a way to structure the error code handling better.
+    // NOTE: exit code 1 is used for any `Result::Err` bubbled up to `main()`
+    // using the `?` operator. For now, 1 acts as a catch-all for everything
+    // non-link related (including config errors), until we find a way to
+    // structure the error code handling better.
     #[allow(unused)]
     UnexpectedFailure = 1,
     LinkCheckFailure = 2,
@@ -117,12 +119,13 @@ fn read_lines(file: &File) -> Result<Vec<String>> {
     Ok(lines.into_iter().filter(|line| !line.is_empty()).collect())
 }
 
-/// Merge all provided config options into one
-/// This includes a potential config file, command-line- and environment variables
+/// Merge all provided config options into one This includes a potential config
+/// file, command-line- and environment variables
 fn load_config() -> Result<LycheeOptions> {
     let mut opts = LycheeOptions::from_args();
 
-    // Load a potentially existing config file and merge it into the config from the CLI
+    // Load a potentially existing config file and merge it into the config from
+    // the CLI
     if let Some(c) = Config::load_from_file(&opts.config_file)? {
         opts.config.merge(c);
     }
@@ -228,17 +231,60 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").map_or(false, |x| x == "1"))
         .collect_links(inputs)
         .await;
-
     let client = client::create(&opts.config)?;
+    let cache = load_cache(&opts.config).unwrap_or_default();
+    let cache = Arc::new(cache);
+
+    let response_formatter: Box<dyn ResponseFormatter> =
+        formatters::get_formatter(&opts.config.format);
+
+    let params = CommandParams {
+        client,
+        cache,
+        requests,
+        formatter: response_formatter,
+        cfg: opts.config.clone(),
+    };
 
     let exit_code = if opts.config.dump {
-        commands::dump(client, requests, opts.config.verbose).await?
+        commands::dump(params).await?
     } else {
-        let cache = load_cache(&opts.config).unwrap_or_default();
-        let cache = Arc::new(cache);
-        let (stats, cache, exit_code) =
-            commands::check(client, cache, requests, &opts.config).await?;
-        write_stats(stats, &opts.config)?;
+        let (stats, cache, exit_code) = commands::check(params).await?;
+
+        let github_issues = stats
+            .fail_map
+            .values()
+            .flatten()
+            .any(|body| body.uri.domain() == Some("github.com"));
+
+        let writer: Box<dyn StatsFormatter> = match opts.config.format {
+            Format::Compact => Box::new(formatters::stats::Compact::new()),
+            Format::Detailed => Box::new(formatters::stats::Detailed::new()),
+            Format::Json => Box::new(formatters::stats::Json::new()),
+            Format::Markdown => Box::new(formatters::stats::Markdown::new()),
+            Format::Raw => Box::new(formatters::stats::Raw::new()),
+        };
+        let is_empty = stats.is_empty();
+        let formatted = writer.format_stats(stats)?;
+
+        if let Some(formatted) = formatted {
+            if let Some(output) = &opts.config.output {
+                fs::write(output, formatted).context("Cannot write status output to file")?;
+            } else {
+                if opts.config.verbose && !is_empty {
+                    // separate summary from the verbose list of links above
+                    // with a newline
+                    writeln!(io::stdout())?;
+                }
+                // we assume that the formatted stats don't have a final newline
+                writeln!(io::stdout(), "{formatted}")?;
+            }
+        }
+
+        if github_issues && opts.config.github_token.is_none() {
+            let mut f = io::stdout();
+            color!(f, YELLOW, "\u{1f4a1} There were issues with Github URLs. You could try setting a Github token and running lychee again.",)?;
+        }
 
         if opts.config.cache {
             cache.store(LYCHEE_CACHE_FILE)?;
@@ -247,39 +293,4 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     };
 
     Ok(exit_code as i32)
-}
-
-/// Write final statistics to stdout or to file
-fn write_stats(stats: ResponseStats, cfg: &Config) -> Result<()> {
-    let writer: Box<dyn StatsWriter> = match cfg.format {
-        Format::Compact => Box::new(writer::Compact::new()),
-        Format::Detailed => Box::new(writer::Detailed::new()),
-        Format::Json => Box::new(writer::Json::new()),
-        Format::Markdown => Box::new(writer::Markdown::new()),
-    };
-
-    let is_empty = stats.is_empty();
-    let github_issues = stats
-        .fail_map
-        .values()
-        .flatten()
-        .any(|body| body.uri.domain() == Some("github.com"));
-    let formatted = writer.write(stats)?;
-
-    if let Some(output) = &cfg.output {
-        fs::write(output, formatted).context("Cannot write status output to file")?;
-    } else {
-        if cfg.verbose && !is_empty {
-            // separate summary from the verbose list of links above
-            writeln!(io::stdout())?;
-        }
-        // we assume that the formatted stats don't have a final newline
-        writeln!(io::stdout(), "{formatted}")?;
-    }
-
-    if github_issues && cfg.github_token.is_none() {
-        let mut f = io::stdout();
-        color!(f, YELLOW, "\u{1f4a1} There were issues with Github URLs. You could try setting a Github token and running lychee again.",)?;
-    }
-    Ok(())
 }
