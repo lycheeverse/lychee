@@ -50,7 +50,7 @@ futures = "0.3.21"
 lazy_static = "1.4.0"
 html5ever = "0.26.0"
 html5gum = "0.4.0"
-octocrab = "0.15.4"
+octocrab = "0.16.0"
 ip_network = "0.4.1"
 secrecy = "0.8.0"
 
