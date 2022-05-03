@@ -35,7 +35,7 @@ reqwest = { version = "0.11.10", features = ["gzip", "trust-dns"] }
 ring = "0.16.20"
 serde = { version = "1.0.136", features = ["derive"] }
 shellexpand = "2.1.0"
-tokio = { version = "1.18.0", features = ["full"] }
+tokio = { version = "1.18.1", features = ["full"] }
 typed-builder = "0.10.0"
 url = { version = "2.2.2", features = ["serde"] }
 log = "0.4.16"
