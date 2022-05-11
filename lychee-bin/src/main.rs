@@ -102,6 +102,9 @@ enum ExitCode {
     LinkCheckFailure = 2,
 }
 
+/// Ignore lines starting with this marker in `.lycheeignore` files
+const LYCHEEINGORE_COMMENT_MARKER: &str = "#";
+
 fn main() -> Result<()> {
     #[cfg(feature = "tokio-console")]
     console_subscriber::init();
@@ -116,7 +119,12 @@ fn main() -> Result<()> {
 /// Read lines from file; ignore empty lines
 fn read_lines(file: &File) -> Result<Vec<String>> {
     let lines: Vec<_> = BufReader::new(file).lines().collect::<Result<_, _>>()?;
-    Ok(lines.into_iter().filter(|line| !line.is_empty()).collect())
+    Ok(lines
+        .into_iter()
+        .filter(|line| {
+            !line.is_empty() && !line.trim_start().starts_with(LYCHEEINGORE_COMMENT_MARKER)
+        })
+        .collect())
 }
 
 /// Merge all provided config options into one This includes a potential config

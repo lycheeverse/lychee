@@ -2,6 +2,10 @@
 example.org/.+
 http://.*
 
+# This is just a comment.
+# The following line should be ignored,
+# so the URL still gets checked.
+#https://example.net
 
 github.com/.*/.*$
 ^file.*
