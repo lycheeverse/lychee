@@ -45,6 +45,13 @@ pub const DEFAULT_TIMEOUT_SECS: usize = 20;
 /// Default user agent, `lychee-<PKG_VERSION>`.
 pub const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"));
 
+// Constants currently not configurable by the user.
+/// A timeout for only the connect phase of a Client.
+const CONNECT_TIMEOUT: u64 = 10;
+/// TCP keepalive
+/// See `https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/overview.html` for more info
+const TCP_KEEPALIVE: u64 = 60;
+
 /// Builder for [`Client`].
 ///
 /// See crate-level documentation for usage example.
@@ -256,6 +263,8 @@ impl ClientBuilder {
             .gzip(true)
             .default_headers(headers)
             .danger_accept_invalid_certs(self.allow_insecure)
+            .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
+            .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
             .redirect(reqwest::redirect::Policy::limited(self.max_redirects));
 
         let reqwest_client = (match self.timeout {
