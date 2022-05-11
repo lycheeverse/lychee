@@ -659,4 +659,33 @@ mod cli {
             .success();
         Ok(())
     }
+
+    #[test]
+    fn test_print_excluded_links_in_verbose_mode() -> Result<()> {
+        let test_path = fixtures_path().join("TEST_DUMP_EXCLUDE.txt");
+        let mut cmd = main_command();
+
+        cmd.arg("--dump")
+            .arg("--verbose")
+            .arg("--exclude")
+            .arg("example.com*")
+            .arg("--")
+            .arg(&test_path)
+            .assert()
+            .success()
+            .stdout(contains(format!(
+                "https://example.com/ ({}) [excluded]",
+                test_path.display()
+            )))
+            .stdout(contains(format!(
+                "https://example.org/ ({})",
+                test_path.display()
+            )))
+            .stdout(contains(format!(
+                "https://example.com/foo/bar ({}) [excluded]",
+                test_path.display()
+            )));
+
+        Ok(())
+    }
 }
