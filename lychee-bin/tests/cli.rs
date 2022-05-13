@@ -692,7 +692,27 @@ mod cli {
                 "https://example.com/foo/bar ({}) [excluded]",
                 test_path.display()
             )));
+        Ok(())
+    }
 
+    #[test]
+    fn test_remap_uri() -> Result<()> {
+        let mut cmd = main_command();
+
+        cmd.arg("--dump")
+            .arg("--remap")
+            .arg("https://example.com http://127.0.0.1:8080")
+            .arg("--remap")
+            .arg("https://example.org https://staging.example.com")
+            .arg("--")
+            .arg("-")
+            .write_stdin("https://example.com\nhttps://example.org\nhttps://example.net")
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("http://127.0.0.1:8080/"))
+            .stdout(contains("https://staging.example.com/"))
+            .stdout(contains("https://example.net/"));
         Ok(())
     }
 }

@@ -1,6 +1,9 @@
 use anyhow::{anyhow, Result};
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderName};
 use http::StatusCode;
+use lychee_lib::remap::Remaps;
+use regex::Regex;
+use reqwest::Url;
 use std::{collections::HashSet, time::Duration};
 
 fn read_header(input: &str) -> Result<(String, String)> {
@@ -34,6 +37,27 @@ pub(crate) fn parse_statuscodes<T: AsRef<str>>(accept: T) -> Result<HashSet<Stat
         statuscodes.insert(code);
     }
     Ok(statuscodes)
+}
+
+/// Parse URI remaps
+pub(crate) fn parse_remaps(remaps: &[String]) -> Result<Remaps> {
+    let mut parsed = Vec::new();
+
+    for remap in remaps {
+        let params: Vec<_> = remap.split_whitespace().collect();
+        if params.len() != 2 {
+            return Err(anyhow!(
+                "Remap values must be of the form `pattern url`, got {}",
+                remap
+            ));
+        }
+
+        let pattern = Regex::new(params[0])?;
+        let url = Url::try_from(params[1])?;
+        parsed.push((pattern, url))
+    }
+
+    Ok(parsed)
 }
 
 pub(crate) fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
@@ -90,5 +114,18 @@ mod test {
         actual.typed_insert(auth_header);
 
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_parse_remap() {
+        let remaps =
+            parse_remaps(&["https://example.com http://127.0.0.1:8080".to_string()]).unwrap();
+        assert_eq!(remaps.len(), 1);
+        let (pattern, url) = remaps[0].to_owned();
+        assert_eq!(
+            pattern.to_string(),
+            Regex::new("https://example.com").unwrap().to_string()
+        );
+        assert_eq!(url, Url::try_from("http://127.0.0.1:8080").unwrap());
     }
 }

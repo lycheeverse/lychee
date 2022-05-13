@@ -60,6 +60,10 @@ mod types;
 /// Functionality to extract URIs from inputs
 pub mod extract;
 
+/// Remapping rules which allow to map URIs matching a pattern to a different
+/// URI. Use in moderation as there are no safety- or performance guarantees.
+pub mod remap;
+
 /// Filters are a way to define behavior when encountering
 /// URIs that need to be treated differently, such as
 /// local IPs or e-mail addresses
