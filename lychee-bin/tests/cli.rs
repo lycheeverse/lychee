@@ -558,11 +558,18 @@ mod cli {
         let mut cmd = main_command();
         let test_path = fixtures_path().join("ignore");
 
-        cmd.current_dir(test_path)
+        let cmd = cmd
+            .current_dir(test_path)
+            .arg("--dump")
             .arg("TEST.md")
             .assert()
-            .stdout(contains("7 Total"))
-            .stdout(contains("5 Excluded"));
+            .stdout(contains("https://example.com"))
+            .stdout(contains("https://example.com/bar"))
+            .stdout(contains("https://example.net"));
+
+        let output = cmd.get_output();
+        let output = std::str::from_utf8(&output.stdout).unwrap();
+        assert_eq!(output.lines().count(), 3);
 
         Ok(())
     }
@@ -579,7 +586,7 @@ mod cli {
             .arg(excludes_path)
             .assert()
             .success()
-            .stdout(contains("7 Total"))
+            .stdout(contains("8 Total"))
             .stdout(contains("6 Excluded"));
 
         Ok(())
