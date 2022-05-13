@@ -18,15 +18,18 @@ where
     while let Some(request) = requests.next().await {
         let request = request?;
 
-        if params.client.is_excluded(&request.uri) {
-            continue;
-        }
-
         // Avoid panic on broken pipe.
         // See https://github.com/rust-lang/rust/issues/46016
         // This can occur when piping the output of lychee
         // to another program like `grep`.
-        if let Err(e) = write(&request, params.cfg.verbose) {
+
+        let excluded = params.client.is_excluded(&request.uri);
+        let verbose = params.cfg.verbose;
+
+        if excluded && !verbose {
+            continue;
+        }
+        if let Err(e) = write(&request, verbose, excluded) {
             if e.kind() != io::ErrorKind::BrokenPipe {
                 eprintln!("{e}");
                 return Ok(ExitCode::UnexpectedFailure);
@@ -38,13 +41,17 @@ where
 }
 
 /// Dump request to stdout
-/// Only print source in verbose mode. This way the normal link output
-/// can be fed into another tool without data mangling.
-fn write(request: &Request, verbose: bool) -> io::Result<()> {
-    let output = if verbose {
+fn write(request: &Request, verbose: bool, excluded: bool) -> io::Result<()> {
+    let request = if verbose {
+        // Only print source in verbose mode. This way the normal link output
+        // can be fed into another tool without data mangling.
         request.to_string()
     } else {
         request.uri.to_string()
     };
-    writeln!(io::stdout(), "{}", output)
+    if excluded {
+        writeln!(io::stdout(), "{} [excluded]", request)
+    } else {
+        writeln!(io::stdout(), "{}", request)
+    }
 }
