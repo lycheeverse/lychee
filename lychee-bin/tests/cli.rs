@@ -675,7 +675,7 @@ mod cli {
         cmd.arg("--dump")
             .arg("--verbose")
             .arg("--exclude")
-            .arg("example.com*")
+            .arg("example.com")
             .arg("--")
             .arg(&test_path)
             .assert()

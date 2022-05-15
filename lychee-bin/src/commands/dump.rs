@@ -18,10 +18,6 @@ where
     while let Some(request) = requests.next().await {
         let mut request = request?;
 
-        if params.client.is_excluded(&request.uri) {
-            continue;
-        }
-
         // Apply URI remappings (if any)
         request.uri = params.client.remap(request.uri)?;
 
