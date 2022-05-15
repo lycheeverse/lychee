@@ -6,21 +6,24 @@ use regex::Regex;
 use reqwest::Url;
 use std::{collections::HashSet, time::Duration};
 
+/// Split a single HTTP header into a (key, value) tuple
 fn read_header(input: &str) -> Result<(String, String)> {
     let elements: Vec<_> = input.split('=').collect();
     if elements.len() != 2 {
         return Err(anyhow!(
-            "Header value should be of the form key=value, got {}",
+            "Header value must be of the form key=value, got {}",
             input
         ));
     }
     Ok((elements[0].into(), elements[1].into()))
 }
 
+/// Parse seconds into a `Duration`
 pub(crate) const fn parse_duration_secs(secs: usize) -> Duration {
     Duration::from_secs(secs as u64)
 }
 
+/// Parse HTTP headers into a `HeaderMap`
 pub(crate) fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {
     let mut out = HeaderMap::new();
     for header in headers {
@@ -30,6 +33,7 @@ pub(crate) fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {
     Ok(out)
 }
 
+/// Parse HTTP status codes into a set of `StatusCode`
 pub(crate) fn parse_statuscodes<T: AsRef<str>>(accept: T) -> Result<HashSet<StatusCode>> {
     let mut statuscodes = HashSet::new();
     for code in accept.as_ref().split(',') {
@@ -47,7 +51,7 @@ pub(crate) fn parse_remaps(remaps: &[String]) -> Result<Remaps> {
         let params: Vec<_> = remap.split_whitespace().collect();
         if params.len() != 2 {
             return Err(anyhow!(
-                "Remap values must be of the form `pattern url`, got {}",
+                "Remap rules must be of the form `pattern url` (separated by whitespace), got {}",
                 remap
             ));
         }
@@ -57,14 +61,15 @@ pub(crate) fn parse_remaps(remaps: &[String]) -> Result<Remaps> {
         parsed.push((pattern, url))
     }
 
-    Ok(parsed)
+    Ok(Remaps::new(parsed))
 }
 
+/// Parse a HTTP basic auth header into username and password
 pub(crate) fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
     let params: Vec<_> = auth.split(':').collect();
     if params.len() != 2 {
         return Err(anyhow!(
-            "Basic auth value should be of the form username:password, got {}",
+            "Basic auth value must be of the form username:password, got {}",
             auth
         ));
     }
