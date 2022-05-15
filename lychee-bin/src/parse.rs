@@ -1,9 +1,7 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderName};
 use http::StatusCode;
 use lychee_lib::remap::Remaps;
-use regex::Regex;
-use reqwest::Url;
 use std::{collections::HashSet, time::Duration};
 
 /// Split a single HTTP header into a (key, value) tuple
@@ -45,23 +43,8 @@ pub(crate) fn parse_statuscodes<T: AsRef<str>>(accept: T) -> Result<HashSet<Stat
 
 /// Parse URI remaps
 pub(crate) fn parse_remaps(remaps: &[String]) -> Result<Remaps> {
-    let mut parsed = Vec::new();
-
-    for remap in remaps {
-        let params: Vec<_> = remap.split_whitespace().collect();
-        if params.len() != 2 {
-            return Err(anyhow!(
-                "Remap rules must be of the form `pattern url` (separated by whitespace), got {}",
-                remap
-            ));
-        }
-
-        let pattern = Regex::new(params[0])?;
-        let url = Url::try_from(params[1])?;
-        parsed.push((pattern, url));
-    }
-
-    Ok(Remaps::new(parsed))
+    Remaps::try_from(remaps)
+        .context("Remaps must be of the form '<pattern> <uri>' (separated by whitespace)")
 }
 
 /// Parse a HTTP basic auth header into username and password
@@ -82,7 +65,8 @@ mod test {
 
     use headers::{HeaderMap, HeaderMapExt};
     use http::StatusCode;
-    use reqwest::header;
+    use regex::Regex;
+    use reqwest::{header, Url};
 
     use super::*;
 

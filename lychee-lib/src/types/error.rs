@@ -44,7 +44,7 @@ pub enum ErrorKind {
     #[error("Github URL is invalid: {0}")]
     InvalidGithubUrl(String),
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
-    #[error("Cannot parse string `{1}` as website url")]
+    #[error("Cannot parse string `{1}` as website url: {0}")]
     ParseUrl(#[source] url::ParseError, String),
     /// The given URI cannot be converted to a file path
     #[error("Cannot find file")]
@@ -65,7 +65,7 @@ pub enum ErrorKind {
     InvalidBase(String, String),
     /// The given input can not be parsed into a valid URI remapping
     #[error("Error with URI remap expression `{0}`")]
-    InvalidUrlRemap(String),
+    InvalidUriRemap(String),
     /// The given path does not resolve to a valid file
     #[error("Cannot find local file {0}")]
     FileNotFound(PathBuf),
@@ -188,7 +188,7 @@ impl Hash for ErrorKind {
             Self::UnreachableEmailAddress(u, ..) => u.hash(state),
             Self::InsecureURL(u, ..) => u.hash(state),
             Self::InvalidBase(base, e) => (base, e).hash(state),
-            Self::InvalidUrlRemap(remap) => (remap).hash(state),
+            Self::InvalidUriRemap(remap) => (remap).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
             Self::Channel(e) => e.to_string().hash(state),

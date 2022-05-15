@@ -1,6 +1,6 @@
 use std::ops::Index;
 
-use crate::Result;
+use crate::{ErrorKind, Result};
 use regex::Regex;
 use reqwest::Url;
 
@@ -59,6 +59,28 @@ impl Index<usize> for Remaps {
 
     fn index(&self, index: usize) -> &(regex::Regex, url::Url) {
         &self.0[index]
+    }
+}
+
+impl TryFrom<&[String]> for Remaps {
+    type Error = ErrorKind;
+
+    fn try_from(remaps: &[String]) -> std::result::Result<Self, Self::Error> {
+        let mut parsed = Vec::new();
+
+        for remap in remaps {
+            let params: Vec<_> = remap.split_whitespace().collect();
+            if params.len() != 2 {
+                return Err(ErrorKind::InvalidUriRemap(remap.to_string()));
+            }
+
+            let pattern = Regex::new(params[0])?;
+            let url = Url::try_from(params[1])
+                .map_err(|e| ErrorKind::ParseUrl(e, params[1].to_string()))?;
+            parsed.push((pattern, url));
+        }
+
+        Ok(Remaps::new(parsed))
     }
 }
 
