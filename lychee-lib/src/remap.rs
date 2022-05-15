@@ -21,23 +21,34 @@ pub struct Remaps(Vec<(Regex, Url)>);
 
 impl Remaps {
     /// Create a new remapper
+    #[must_use]
     pub fn new(patterns: Vec<(Regex, Url)>) -> Self {
         Self(patterns)
     }
 
     /// Remap URI using the client-defined remap patterns
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the remapping value is not a URI
     pub fn remap(&self, uri: Uri) -> Result<Uri> {
         let mut uri = uri;
-        for (pattern, new_url) in &self.0 {
+        for (pattern, new_uri) in &self.0 {
             if pattern.is_match(uri.as_str()) {
-                uri = Uri::try_from(new_url.to_owned())?
+                uri = Uri::try_from(new_uri.clone())?;
             }
         }
         Ok(uri)
     }
 
+    /// Returns `true` if there are no remappings defined.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// Get the number of defined remap rules
+    #[must_use]
     pub fn len(&self) -> usize {
         self.0.len()
     }

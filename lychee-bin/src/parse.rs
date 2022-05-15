@@ -58,7 +58,7 @@ pub(crate) fn parse_remaps(remaps: &[String]) -> Result<Remaps> {
 
         let pattern = Regex::new(params[0])?;
         let url = Url::try_from(params[1])?;
-        parsed.push((pattern, url))
+        parsed.push((pattern, url));
     }
 
     Ok(Remaps::new(parsed))

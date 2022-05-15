@@ -416,11 +416,14 @@ impl Client {
             }
         };
 
-        Ok(Response::new(uri.to_owned(), status, source))
+        Ok(Response::new(uri.clone(), status, source))
     }
 
     /// Remap URI using the client-defined remap patterns
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the remapping value is not a URI
     pub fn remap(&self, uri: Uri) -> Result<Uri> {
         match self.remaps {
             Some(ref remaps) => remaps.remap(uri),
