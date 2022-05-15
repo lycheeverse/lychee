@@ -422,17 +422,10 @@ impl Client {
     /// Remap URI using the client-defined remap patterns
     #[must_use]
     pub fn remap(&self, uri: Uri) -> Result<Uri> {
-        let remaps = match self.remaps {
-            Some(ref remaps) => remaps,
-            None => return Ok(uri),
-        };
-        let mut uri = uri;
-        for (pattern, new_url) in remaps {
-            if pattern.is_match(uri.as_str()) {
-                uri = Uri::try_from(new_url.to_owned())?
-            }
+        match self.remaps {
+            Some(ref remaps) => remaps.remap(uri),
+            None => Ok(uri),
         }
-        Ok(uri)
     }
 
     /// Returns whether the given `uri` should be ignored from checking.
