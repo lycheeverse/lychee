@@ -704,15 +704,19 @@ mod cli {
             .arg("https://example.com http://127.0.0.1:8080")
             .arg("--remap")
             .arg("https://example.org https://staging.example.com")
+            .arg("--remap")
+            .arg("../../issues https://github.com/usnistgov/OSCAL/issues")
             .arg("--")
             .arg("-")
-            .write_stdin("https://example.com\nhttps://example.org\nhttps://example.net")
+            .write_stdin("file://../../issues\nhttps://example.com\nhttps://example.org\nhttps://example.net\n")
             .env_clear()
             .assert()
             .success()
+            .stdout(contains("https://github.com/usnistgov/OSCAL/issues"))
             .stdout(contains("http://127.0.0.1:8080/"))
             .stdout(contains("https://staging.example.com/"))
             .stdout(contains("https://example.net/"));
+
         Ok(())
     }
 }
