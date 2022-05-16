@@ -6,7 +6,7 @@ use reqwest::Url;
 
 use crate::Uri;
 
-/// Remaps allow mapping from a URI pattern to a different URI
+/// Remaps allow mapping from a URI pattern to a specified URI
 ///
 /// Some use-cases are
 /// - Testing URIs prior to production deployment
@@ -14,8 +14,7 @@ use crate::Uri;
 ///
 /// Be careful when using this feature because checking every link against a
 /// large set of regular expressions has a performance impact. Also there are no
-/// constraints on the URI mapping, so the rules might contradict with each
-/// other.
+/// constraints on the URI mapping, so the rules might contradict each other.
 #[derive(Debug, Clone)]
 pub struct Remaps(Vec<(Regex, Url)>);
 
@@ -30,7 +29,7 @@ impl Remaps {
     ///
     /// # Errors
     ///
-    /// Returns an error if the remapping value is not a URI
+    /// Returns an error if the remapping value is not a valid URI
     pub fn remap(&self, uri: Uri) -> Result<Uri> {
         let mut uri = uri;
         for (pattern, new_uri) in &self.0 {
@@ -106,9 +105,22 @@ mod tests {
         let uri = Uri::try_from("https://example.com").unwrap();
         let remaps = Remaps::new(vec![(pattern, uri.clone().url)]);
 
-        let input = Uri::try_from("../../issues").unwrap();
+        let input = Uri::try_from("file://../../issues").unwrap();
         let remapped = remaps.remap(input).unwrap();
 
         assert_eq!(remapped, uri);
+    }
+
+    #[test]
+    fn test_remap_skip() {
+        let pattern = Regex::new("https://example.com").unwrap();
+        let uri = Uri::try_from("http://127.0.0.1:8080").unwrap();
+        let remaps = Remaps::new(vec![(pattern, uri.url)]);
+
+        let input = Uri::try_from("https://unrelated.example.com").unwrap();
+        let remapped = remaps.remap(input.clone()).unwrap();
+
+        // URI was not modified
+        assert_eq!(remapped, input);
     }
 }

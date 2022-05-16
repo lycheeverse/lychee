@@ -64,7 +64,7 @@ pub enum ErrorKind {
     #[error("Error with base dir `{0}` : {1}")]
     InvalidBase(String, String),
     /// The given input can not be parsed into a valid URI remapping
-    #[error("Error with URI remap expression `{0}`")]
+    #[error("Error handling URI remap expression. Cannot parse into URI remapping: `{0}`")]
     InvalidUriRemap(String),
     /// The given path does not resolve to a valid file
     #[error("Cannot find local file {0}")]

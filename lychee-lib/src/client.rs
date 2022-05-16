@@ -79,7 +79,7 @@ pub struct ClientBuilder {
     /// Remap URIs matching a pattern to a different URI
     ///
     /// This makes it possible to remap any HTTP/HTTPS endpoint to a different
-    /// HTTP/HTTPS endpoint. Also, this feature could also be used to proxy
+    /// HTTP/HTTPS endpoint. This feature could also be used to proxy
     /// certain requests.
     ///
     /// Use with caution because a large set of remapping rules may cause
