@@ -1,5 +1,5 @@
 use crate::types::FileType;
-use crate::{ErrorKind, Result};
+use crate::{helpers, ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
@@ -111,6 +111,8 @@ pub struct Input {
     pub source: InputSource,
     /// Hint to indicate which extractor to use
     pub file_type_hint: Option<FileType>,
+    /// Excluded paths that will be skipped when reading content
+    pub excluded_paths: Option<Vec<PathBuf>>,
 }
 
 impl Input {
@@ -126,6 +128,7 @@ impl Input {
         value: &str,
         file_type_hint: Option<FileType>,
         glob_ignore_case: bool,
+        excluded_paths: Option<Vec<PathBuf>>,
     ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
@@ -159,6 +162,7 @@ impl Input {
         Ok(Self {
             source,
             file_type_hint,
+            excluded_paths,
         })
     }
 
@@ -187,7 +191,7 @@ impl Input {
                     ref pattern,
                     ignore_case,
                 } => {
-                    for await content in Self::glob_contents(pattern, ignore_case).await {
+                    for await content in self.glob_contents(pattern, ignore_case).await {
                         let content = content?;
                         yield content;
                     }
@@ -195,12 +199,16 @@ impl Input {
                 InputSource::FsPath(ref path) => {
                     if path.is_dir() {
                         for entry in WalkDir::new(path).skip_hidden(true)
-                        .process_read_dir(|_, _, _, children| {
+                        .process_read_dir(move |_, _, _, children| {
                             children.retain(|child| {
                                 let entry = match child.as_ref() {
                                     Ok(x) => x,
                                     Err(_) => return true,
                                 };
+
+                                if self.is_excluded_path(&entry.path()) {
+                                    return false;
+                                }
 
                                 let file_type = entry.file_type();
 
@@ -225,6 +233,9 @@ impl Input {
                             yield content
                         }
                     } else {
+                        if self.is_excluded_path(path) {
+                            return ();
+                        }
                         let content = Self::path_content(path).await;
                         match content {
                             Err(_) if skip_missing => (),
@@ -266,6 +277,7 @@ impl Input {
     }
 
     async fn glob_contents(
+        &self,
         path_glob: &str,
         ignore_case: bool,
     ) -> impl Stream<Item = Result<InputContent>> + '_ {
@@ -282,8 +294,11 @@ impl Input {
                         // a file extension (like `foo.html`). This can lead to
                         // unexpected behavior with glob patterns like
                         // `**/*.html`. Therefore filter these out.
-                        // See https://github.com/lycheeverse/lychee/pull/262#issuecomment-913226819
+                        // See <https://github.com/lycheeverse/lychee/pull/262#issuecomment-913226819>
                         if path.is_dir() {
+                            continue;
+                        }
+                        if self.is_excluded_path(&path) {
                             continue;
                         }
                         let content: InputContent = Self::path_content(&path).await?;
@@ -293,6 +308,15 @@ impl Input {
                 }
             }
         }
+    }
+
+    /// Check if the given path was excluded from link checking
+    fn is_excluded_path(&self, path: &PathBuf) -> bool {
+        let excluded_paths = match &self.excluded_paths {
+            Some(excluded) => excluded,
+            None => return false,
+        };
+        is_excluded_path(excluded_paths, path)
     }
 
     /// Get the input content of a given path
@@ -334,6 +358,18 @@ impl Input {
     }
 }
 
+/// Function for path exclusion tests
+///
+/// This is a standalone function to allow for easier testing
+fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
+    for excluded in excluded_paths {
+        if let Ok(true) = helpers::path::contains(excluded, path) {
+            return true;
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -347,5 +383,30 @@ mod tests {
         assert!(valid_extension(Path::new("file.HTM")));
         assert!(!valid_extension(Path::new("file.txt")));
         assert!(!valid_extension(Path::new("file")));
+    }
+
+    #[test]
+    fn test_no_exclusions() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(!is_excluded_path(&[], &dir.path().to_path_buf()));
+    }
+
+    #[test]
+    fn test_excluded() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().to_path_buf();
+        assert!(is_excluded_path(&[path.clone()], &path));
+    }
+
+    #[test]
+    fn test_excluded_subdir() {
+        let parent_dir = tempfile::tempdir().unwrap();
+        let parent = parent_dir.path();
+        let child_dir = tempfile::tempdir_in(parent).unwrap();
+        let child = child_dir.path();
+        assert!(is_excluded_path(
+            &[parent.to_path_buf()],
+            &child.to_path_buf()
+        ));
     }
 }

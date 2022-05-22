@@ -58,20 +58,20 @@
 #![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
 #![deny(missing_docs)]
 
-use color::YELLOW;
-use commands::CommandParams;
-use formatters::response::ResponseFormatter;
-use lychee_lib::Collector;
-// required for apple silicon
-use ring as _;
-
-use anyhow::{Context, Error, Result};
-use openssl_sys as _; // required for vendored-openssl feature
-use ring as _;
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, ErrorKind, Write};
 use std::sync::Arc;
+
+use anyhow::{Context, Error, Result};
+use color::YELLOW;
+use commands::CommandParams;
+use formatters::response::ResponseFormatter;
+use log::warn;
+use openssl_sys as _; // required for vendored-openssl feature
+use ring as _; // required for apple silicon
 use structopt::StructOpt;
+
+use lychee_lib::Collector;
 
 mod cache;
 mod client;
@@ -140,6 +140,11 @@ fn load_config() -> Result<LycheeOptions> {
 
     if let Ok(lycheeignore) = File::open(LYCHEE_IGNORE_FILE) {
         opts.config.exclude.append(&mut read_lines(&lycheeignore)?);
+    }
+
+    // TODO: Remove this warning and the parameter in a future release
+    if !&opts.config.exclude_file.is_empty() {
+        warn!("WARNING: `--exclude-file` is deprecated and will soon be removed; use `{}` file to ignore URL patterns instead. To exclude paths of files and directories, use `--exclude-path`.", LYCHEE_IGNORE_FILE);
     }
 
     // Load excludes from file

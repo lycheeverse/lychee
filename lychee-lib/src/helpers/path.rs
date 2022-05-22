@@ -3,6 +3,7 @@ use cached::proc_macro::cached;
 use once_cell::sync::Lazy;
 use path_clean::PathClean;
 use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 static CURRENT_DIR: Lazy<PathBuf> =
@@ -37,6 +38,7 @@ fn dirname(src: &'_ Path) -> Option<&'_ Path> {
 }
 
 /// Resolve `dst` that was linked to from within `src`
+///
 /// Returns Ok(None) in case of an absolute local link without a `base_url`
 pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Option<PathBuf>> {
     let resolved = match dst {
@@ -72,13 +74,33 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Opt
     Ok(Some(absolute_path(resolved)))
 }
 
-// A cumbersome way to concatenate paths without checking their
-// existence on disk. See https://github.com/rust-lang/rust/issues/16507
+/// A cumbersome way to concatenate paths without checking their
+/// existence on disk. See <https://github.com/rust-lang/rust/issues/16507>
 fn join(base: PathBuf, dst: &Path) -> PathBuf {
     let mut abs = base.into_os_string();
     let target_str = dst.as_os_str();
     abs.push(target_str);
     PathBuf::from(abs)
+}
+
+/// Check if `child` is a subdirectory/file inside `parent`
+///
+/// Note that `contains(parent, parent)` will return `true`
+///
+/// See <https://stackoverflow.com/questions/30511331>
+/// See <https://stackoverflow.com/questions/62939265>
+///
+/// # Errors
+///
+/// Returns an error if the `path` does not exist
+/// or a non-final component in path is not a directory.
+//
+// Unfortunately requires real files for `fs::canonicalize`.
+pub(crate) fn contains(parent: &PathBuf, child: &PathBuf) -> Result<bool> {
+    let parent = fs::canonicalize(&parent)?;
+    let child = fs::canonicalize(&child)?;
+
+    Ok(child.starts_with(parent))
 }
 
 #[cfg(test)]
@@ -154,5 +176,49 @@ mod test_path {
             ))
         );
         Ok(())
+    }
+
+    #[test]
+    fn test_contains() {
+        let parent_dir = tempfile::tempdir().unwrap();
+        let parent = parent_dir.path();
+        let child_dir = tempfile::tempdir_in(parent).unwrap();
+        let child = child_dir.path();
+
+        assert_eq!(contains(&parent.to_owned(), &child.to_owned()), Ok(true));
+    }
+
+    #[test]
+    fn test_contains_not() {
+        let dir1 = tempfile::tempdir().unwrap();
+        let dir2 = tempfile::tempdir().unwrap();
+
+        assert_eq!(
+            contains(&dir1.path().to_owned(), &dir2.path().to_owned()),
+            Ok(false)
+        );
+    }
+
+    #[test]
+    fn test_contains_one_dir_does_not_exist() {
+        let dir1 = tempfile::tempdir().unwrap();
+
+        assert!(matches!(
+            contains(&dir1.path().to_owned(), &PathBuf::from("/does/not/exist")),
+            Err(crate::ErrorKind::ReadStdinInput(_))
+        ));
+    }
+
+    // Relative paths are supported, e.g.
+    // parent: `/path/to/parent`
+    // child:  `/path/to/parent/child/..`
+    #[test]
+    fn test_contains_one_dir_relative_path() {
+        let parent_dir = tempfile::tempdir().unwrap();
+        let parent = parent_dir.path();
+        let child_dir = tempfile::tempdir_in(parent).unwrap();
+        let child = child_dir.path().join("..");
+
+        assert_eq!(contains(&parent.to_owned(), &child), Ok(true));
     }
 }

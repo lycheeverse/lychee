@@ -49,7 +49,7 @@ pub const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"
 /// A timeout for only the connect phase of a Client.
 const CONNECT_TIMEOUT: u64 = 10;
 /// TCP keepalive
-/// See `https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/overview.html` for more info
+/// See <https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/overview.html> for more info
 const TCP_KEEPALIVE: u64 = 60;
 
 /// Builder for [`Client`].
