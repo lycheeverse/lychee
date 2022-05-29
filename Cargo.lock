@@ -1749,6 +1749,7 @@ dependencies = [
  "http",
  "humantime",
  "indicatif",
+ "log",
  "lychee-lib",
  "once_cell",
  "openssl-sys",

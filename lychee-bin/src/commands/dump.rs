@@ -8,7 +8,7 @@ use crate::ExitCode;
 use super::CommandParams;
 
 /// Dump all detected links to stdout without checking them
-pub(crate) async fn dump<'a, S>(params: CommandParams<S>) -> Result<ExitCode>
+pub(crate) async fn dump<S>(params: CommandParams<S>) -> Result<ExitCode>
 where
     S: futures::Stream<Item = Result<Request>>,
 {

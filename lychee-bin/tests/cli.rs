@@ -695,4 +695,27 @@ mod cli {
 
         Ok(())
     }
+
+    #[test]
+    fn test_excluded_paths() -> Result<()> {
+        let test_path = fixtures_path().join("exclude-path");
+
+        let excluded_path1 = test_path.join("dir1");
+        let excluded_path2 = test_path.join("dir2").join("subdir");
+        let mut cmd = main_command();
+
+        cmd.arg("--exclude-path")
+            .arg(&excluded_path1)
+            .arg(&excluded_path2)
+            .arg("--")
+            .arg(&test_path)
+            .assert()
+            .success()
+            // Links in excluded files are not taken into account in the total
+            // number of links.
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 OK"));
+
+        Ok(())
+    }
 }

@@ -234,9 +234,8 @@ OPTIONS:
         --basic-auth <basic-auth>              Basic authentication support. E.g. `username:password`
     -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
         --exclude <exclude>...                 Exclude URLs from checking (supports regex)
-        --exclude-file <exclude-file>...       File or files that contain URLs to be excluded from checking. Regular
-                                               expressions supported; one pattern per line. Automatically excludes
-                                               patterns from `.lycheeignore` if file exists
+        --exclude-file <exclude-file>...       Deprecated; use `--exclude-path` instead
+        --exclude-path <exclude-path>...       Exclude file path from getting checked
     -f, --format <format>                      Output format of final status report (compact, detailed, json, markdown)
                                                [default: compact]
         --github-token <github-token>          GitHub API token to use when checking github.com links, to avoid rate

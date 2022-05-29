@@ -28,12 +28,6 @@ const STRUCTOPT_HELP_MSG_CACHE: &str = formatcp!(
     "Use request cache stored on disk at `{}`",
     LYCHEE_CACHE_FILE,
 );
-const STRUCTOPT_HELP_MSG_IGNORE_FILE: &str = formatcp!(
-    "File or files that contain URLs to be excluded from checking. Regular
-expressions supported; one pattern per line. Automatically excludes
-patterns from `{}` if file exists",
-    LYCHEE_IGNORE_FILE,
-);
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
@@ -132,9 +126,14 @@ impl LycheeOptions {
     // but we'd get no access to `glob_ignore_case`.
     /// Get parsed inputs from options.
     pub(crate) fn inputs(&self) -> Result<Vec<Input>> {
+        let excluded = if self.config.exclude_path.is_empty() {
+            None
+        } else {
+            Some(self.config.exclude_path.clone())
+        };
         self.raw_inputs
             .iter()
-            .map(|s| Input::new(s, None, self.config.glob_ignore_case))
+            .map(|s| Input::new(s, None, self.config.glob_ignore_case, excluded.clone()))
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
@@ -225,10 +224,15 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) exclude: Vec<String>,
 
-    #[structopt(help = &STRUCTOPT_HELP_MSG_IGNORE_FILE)]
+    /// Deprecated; use `--exclude-path` instead
     #[structopt(long)]
     #[serde(default)]
     pub(crate) exclude_file: Vec<String>,
+
+    /// Exclude file path from getting checked.
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) exclude_path: Vec<PathBuf>,
 
     /// Exclude all private IPs from checking.
     /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
@@ -369,7 +373,8 @@ impl Config {
             scheme: Vec::<String>::new();
             include: Vec::<String>::new();
             exclude: Vec::<String>::new();
-            exclude_file: Vec::<String>::new();
+            exclude_file: Vec::<String>::new(); // deprecated
+            exclude_path: Vec::<PathBuf>::new();
             exclude_all_private: false;
             exclude_private: false;
             exclude_link_local: false;
