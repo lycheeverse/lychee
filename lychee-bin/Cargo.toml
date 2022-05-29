@@ -68,3 +68,13 @@ tracing-subscriber = { version = "0.3.11", default-features = false, features = 
 [features]
 #tokio-console = ["console-subscriber", "tracing-subscriber/registry"]
 vendored-openssl = ["openssl-sys/vendored"]
+check_example_domains = ["lychee-lib/check_example_domains"]
+
+# Unfortunately, it's not possible to automatically enable features
+# for cargo test. See rust-lang/cargo#2911.
+# As a workaround we introduce a new feature to allow example domains
+# in integration tests.
+[[test]]
+name = "cli"
+path = "tests/cli.rs"
+required-features = ["check_example_domains"]
