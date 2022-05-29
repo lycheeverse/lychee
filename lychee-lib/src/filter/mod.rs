@@ -18,6 +18,7 @@ lazy_static! {
         HashSet::from_iter(["example.com", "example.org", "example.net", "example.edu"]);
 }
 
+// Allow usage of example domains in tests
 #[cfg(any(test, feature = "check_example_domains"))]
 lazy_static! {
     static ref EXAMPLE_DOMAINS: HashSet<&'static str> = HashSet::new();
@@ -48,8 +49,8 @@ pub fn is_false_positive(input: &str) -> bool {
 pub fn is_example_domain(uri: &Uri) -> bool {
     let res = match uri.domain() {
         Some(domain) => {
-            // It is not enough to check if `EXAMPLE_DOMAINS.contains(domain)`
-            // as this would not include checks for subdomains such as
+            // It is not enough to use `EXAMPLE_DOMAINS.contains(domain)` here
+            // as this would not include checks for subdomains, such as
             // `foo.example.com`
             EXAMPLE_DOMAINS.iter().any(|tld| domain.ends_with(tld))
         }

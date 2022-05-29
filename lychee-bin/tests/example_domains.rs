@@ -1,3 +1,6 @@
+//! The rest of the integration tests make heavy use of example domains, so
+//! we use a separate module for testing that the exclusion of these domains
+//! works as expected for normal users.
 #[cfg(test)]
 mod cli {
     use std::{
