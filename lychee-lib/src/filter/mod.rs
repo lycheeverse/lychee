@@ -1,12 +1,28 @@
 mod excludes;
 mod includes;
 
+use lazy_static::lazy_static;
 use std::collections::HashSet;
 
 pub use excludes::Excludes;
 pub use includes::Includes;
 
 use crate::Uri;
+
+#[cfg(all(not(test), not(feature = "check_example_domains")))]
+lazy_static! {
+    /// These domains are explicitly defined by RFC 2606, section 3 Reserved Example
+    /// Second Level Domain Names for describing example cases and should not be
+    /// dereferenced as they should not have content.
+    static ref EXAMPLE_DOMAINS: HashSet<&'static str> =
+        HashSet::from_iter(["example.com", "example.org", "example.net", "example.edu"]);
+}
+
+// Allow usage of example domains in tests
+#[cfg(any(test, feature = "check_example_domains"))]
+lazy_static! {
+    static ref EXAMPLE_DOMAINS: HashSet<&'static str> = HashSet::new();
+}
 
 /// Pre-defined exclusions for known false-positives
 const FALSE_POSITIVE_PAT: &[&str] = &[
@@ -24,6 +40,23 @@ const FALSE_POSITIVE_PAT: &[&str] = &[
 /// `Include` pattern, which will match on a false positive
 pub fn is_false_positive(input: &str) -> bool {
     FALSE_POSITIVE_PAT.iter().any(|pat| input.starts_with(pat))
+}
+
+#[inline]
+#[must_use]
+/// Check if the host belongs to a known example domain as defined in
+/// [RFC 2606](https://datatracker.ietf.org/doc/html/rfc2606)
+pub fn is_example_domain(uri: &Uri) -> bool {
+    let res = match uri.domain() {
+        Some(domain) => {
+            // It is not enough to use `EXAMPLE_DOMAINS.contains(domain)` here
+            // as this would not include checks for subdomains, such as
+            // `foo.example.com`
+            EXAMPLE_DOMAINS.iter().any(|tld| domain.ends_with(tld))
+        }
+        None => false,
+    };
+    res
 }
 
 /// A generic URI filter
@@ -134,6 +167,7 @@ impl Filter {
             || self.is_ip_excluded(uri)
             || self.is_host_excluded(uri)
             || self.is_scheme_excluded(uri)
+            || is_example_domain(uri)
         {
             return true;
         }
@@ -151,14 +185,14 @@ impl Filter {
             return false;
         }
 
-        if is_false_positive(input)
         // Exclude well-known false-positives
         // Performed after checking includes to allow user-overwrites
-                || self.is_excludes_empty()
+        if is_false_positive(input)
                 // Previous checks imply input is not explicitly included.
                 // If exclude rules are empty, then *presumably excluded*
-            || self.is_excludes_match(input)
-        // If exclude rules match input, then *explicitly excluded*
+                || self.is_excludes_empty()
+                // If exclude rules match input, then *explicitly excluded*
+                || self.is_excludes_match(input)
         {
             return true;
         }

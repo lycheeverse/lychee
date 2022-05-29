@@ -64,4 +64,12 @@ tempfile = "3.3.0"
 wiremock = "0.5.13"
 
 [features]
+# Vendor OpenSSL instead of dynamically linking it at runtime.
 vendored-openssl = ["openssl-sys/vendored"]
+# Feature flag to include checking reserved example domains 
+# as per RFC 2606, section 3.
+# This flag is off by default and only exists to allow example domains in
+# integration tests, which don't respect `#[cfg(test)]`.
+# See https://users.rust-lang.org/t/36630
+check_example_domains = []
+default = []
