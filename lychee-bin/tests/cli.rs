@@ -675,7 +675,7 @@ mod cli {
         cmd.arg("--dump")
             .arg("--verbose")
             .arg("--exclude")
-            .arg("example.com*")
+            .arg("example.com")
             .arg("--")
             .arg(&test_path)
             .assert()
@@ -692,6 +692,30 @@ mod cli {
                 "https://example.com/foo/bar ({}) [excluded]",
                 test_path.display()
             )));
+        Ok(())
+    }
+
+    #[test]
+    fn test_remap_uri() -> Result<()> {
+        let mut cmd = main_command();
+
+        cmd.arg("--dump")
+            .arg("--remap")
+            .arg("https://example.com http://127.0.0.1:8080")
+            .arg("--remap")
+            .arg("https://example.org https://staging.example.com")
+            .arg("--remap")
+            .arg("../../issues https://github.com/usnistgov/OSCAL/issues")
+            .arg("--")
+            .arg("-")
+            .write_stdin("file://../../issues\nhttps://example.com\nhttps://example.org\nhttps://example.net\n")
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("https://github.com/usnistgov/OSCAL/issues"))
+            .stdout(contains("http://127.0.0.1:8080/"))
+            .stdout(contains("https://staging.example.com/"))
+            .stdout(contains("https://example.net/"));
 
         Ok(())
     }

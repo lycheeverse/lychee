@@ -260,6 +260,11 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) exclude_mail: bool,
 
+    /// Remap URI matching pattern to different URI
+    #[serde(default)]
+    #[structopt(long)]
+    pub(crate) remap: Vec<String>,
+
     /// Custom request headers
     #[structopt(short, long)]
     #[serde(default)]
@@ -380,6 +385,7 @@ impl Config {
             exclude_link_local: false;
             exclude_loopback: false;
             exclude_mail: false;
+            remap: Vec::<String>::new();
             headers: Vec::<String>::new();
             accept: None;
             timeout: DEFAULT_TIMEOUT_SECS;

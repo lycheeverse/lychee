@@ -30,6 +30,7 @@ use typed_builder::TypedBuilder;
 use crate::{
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
+    remap::Remaps,
     types::{mail, GithubUri},
     ErrorKind, Request, Response, Result, Status, Uri,
 };
@@ -74,6 +75,18 @@ pub struct ClientBuilder {
     /// As of Feb 2022, it's 60 per hour without GitHub token v.s.
     /// 5000 per hour with token.
     github_token: Option<SecretString>,
+
+    /// Remap URIs matching a pattern to a different URI
+    ///
+    /// This makes it possible to remap any HTTP/HTTPS endpoint to a different
+    /// HTTP/HTTPS endpoint. This feature could also be used to proxy
+    /// certain requests.
+    ///
+    /// Use with caution because a large set of remapping rules may cause
+    /// performance issues. Furthermore rules are executed in order and multiple
+    /// mappings for the same URI are allowed, so there is no guarantee that the
+    /// rules may not conflict with each other.
+    remaps: Option<Remaps>,
 
     /// Links matching this set of regular expressions are **always** checked.
     ///
@@ -242,6 +255,7 @@ impl ClientBuilder {
     pub fn client(self) -> Result<Client> {
         let Self {
             github_token,
+            remaps,
             includes,
             excludes,
             user_agent,
@@ -305,6 +319,7 @@ impl ClientBuilder {
         Ok(Client {
             reqwest_client,
             github_client,
+            remaps,
             filter,
             max_retries: self.max_retries,
             retry_wait_time,
@@ -326,6 +341,9 @@ pub struct Client {
 
     /// Github client.
     github_client: Option<Octocrab>,
+
+    /// Optional remapping rules for URIs matching pattern
+    remaps: Option<Remaps>,
 
     /// Rules to decided whether each link would be checked or ignored.
     filter: Filter,
@@ -372,6 +390,8 @@ impl Client {
     {
         let Request { uri, source, .. } = request.try_into()?;
 
+        let uri = self.remap(uri)?;
+
         // TODO: Allow filtering based on element and attribute
         let status = if self.filter.is_excluded(&uri) {
             Status::Excluded
@@ -396,7 +416,19 @@ impl Client {
             }
         };
 
-        Ok(Response::new(uri, status, source))
+        Ok(Response::new(uri.clone(), status, source))
+    }
+
+    /// Remap URI using the client-defined remap patterns
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the remapping value is not a URI
+    pub fn remap(&self, uri: Uri) -> Result<Uri> {
+        match self.remaps {
+            Some(ref remaps) => remaps.remap(uri),
+            None => Ok(uri),
+        }
     }
 
     /// Returns whether the given `uri` should be ignored from checking.

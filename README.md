@@ -248,6 +248,7 @@ OPTIONS:
         --max-retries <max-retries>            Maximum number of retries per request [default: 3]
     -X, --method <method>                      Request method [default: get]
     -o, --output <output>                      Output file of status report
+        --remap <remap>...                     Remap URI matching pattern to different URI
     -r, --retry-wait-time <retry-wait-time>    Minimum wait time in seconds between retries of failed requests [default:
                                                1]
     -s, --scheme <scheme>...                   Only test links with the given schemes (e.g. http and https)

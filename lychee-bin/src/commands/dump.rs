@@ -16,7 +16,10 @@ where
     tokio::pin!(requests);
 
     while let Some(request) = requests.next().await {
-        let request = request?;
+        let mut request = request?;
+
+        // Apply URI remappings (if any)
+        request.uri = params.client.remap(request.uri)?;
 
         // Avoid panic on broken pipe.
         // See https://github.com/rust-lang/rust/issues/46016

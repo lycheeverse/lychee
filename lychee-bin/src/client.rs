@@ -1,5 +1,7 @@
 use crate::options::Config;
-use crate::parse::{parse_basic_auth, parse_duration_secs, parse_headers, parse_statuscodes};
+use crate::parse::{
+    parse_basic_auth, parse_duration_secs, parse_headers, parse_remaps, parse_statuscodes,
+};
 use anyhow::{Context, Result};
 use headers::HeaderMapExt;
 use lychee_lib::{Client, ClientBuilder};
@@ -18,8 +20,10 @@ pub(crate) fn create(cfg: &Config) -> Result<Client> {
     let timeout = parse_duration_secs(cfg.timeout);
     let retry_wait_time = parse_duration_secs(cfg.retry_wait_time);
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
-    let include = RegexSet::new(&cfg.include)?;
-    let exclude = RegexSet::new(&cfg.exclude)?;
+
+    let remaps = parse_remaps(&cfg.remap)?;
+    let includes = RegexSet::new(&cfg.include)?;
+    let excludes = RegexSet::new(&cfg.exclude)?;
 
     // Offline mode overrides the scheme
     let schemes = if cfg.offline {
@@ -29,8 +33,9 @@ pub(crate) fn create(cfg: &Config) -> Result<Client> {
     };
 
     ClientBuilder::builder()
-        .includes(include)
-        .excludes(exclude)
+        .remaps(remaps)
+        .includes(includes)
+        .excludes(excludes)
         .exclude_all_private(cfg.exclude_all_private)
         .exclude_private_ips(cfg.exclude_private)
         .exclude_link_local_ips(cfg.exclude_link_local)
