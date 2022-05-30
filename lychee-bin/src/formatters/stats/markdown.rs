@@ -2,7 +2,7 @@ use std::fmt::{self, Display};
 
 use super::StatsFormatter;
 use anyhow::Result;
-use tabled::{Alignment, object::Segment, Modify, Table, Tabled};
+use tabled::{object::Segment, Alignment, Modify, Table, Tabled};
 
 use crate::stats::ResponseStats;
 
