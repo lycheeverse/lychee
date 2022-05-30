@@ -2,7 +2,7 @@ use std::fmt::{self, Display};
 
 use super::StatsFormatter;
 use anyhow::Result;
-use tabled::{Alignment, Full, Modify, Table, Tabled};
+use tabled::{Alignment, object::Segment, Modify, Table, Tabled};
 
 use crate::stats::ResponseStats;
 
@@ -48,7 +48,7 @@ fn stats_table(stats: &ResponseStats) -> String {
     let style = tabled::Style::github_markdown().header_intersection('|');
 
     Table::new(stats)
-        .with(Modify::new(Full).with(Alignment::left()))
+        .with(Modify::new(Segment::all()).with(Alignment::left()))
         .with(style)
         .to_string()
 }
