@@ -1736,7 +1736,7 @@ dependencies = [
 
 [[package]]
 name = "lychee"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1775,7 +1775,7 @@ dependencies = [
 
 [[package]]
 name = "lychee-lib"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "async-stream",
  "cached",
