@@ -9,6 +9,7 @@ use crate::{ErrorKind, InputSource};
 /// Both, local and remote targets are supported.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[allow(variant_size_differences)]
+#[serde(try_from = "&str")]
 pub enum Base {
     /// Local file path pointing to root directory
     Local(PathBuf),

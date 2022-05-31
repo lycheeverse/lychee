@@ -165,6 +165,7 @@ pub(crate) struct Config {
         default_value = &MAX_CACHE_AGE_STR
     )]
     #[serde(default = "max_cache_age")]
+    #[serde(with = "humantime_serde")]
     pub(crate) max_cache_age: Duration,
 
     /// Don't perform any link checking.
