@@ -17,8 +17,7 @@ no_progress = true
 cache = false
 
 # Discard all cached requests older than this duration.
-# Error: invalid type: string "2d", expected struct Duration for key `max_cache_age`
-# max_cache_age = "2d"
+max_cache_age = "2d"
 
 #############################  Runtime  #############################
 
@@ -69,8 +68,7 @@ headers = []
 remap = [ "https://example.com http://example.invalid" ]
 
 # Base URL or website root directory to check relative URLs.
-# Error: invalid type: unit variant, expected newtype variant for key `base`
-# base = "https://example.com"
+base = "https://example.com"
 
 # HTTP basic auth support. This will be the username and password passed to the
 # authorization HTTP header. See
