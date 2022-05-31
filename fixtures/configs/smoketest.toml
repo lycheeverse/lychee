@@ -1,19 +1,20 @@
 #############################  Display  #############################
 
 # Verbose program output
-verbose = false
+verbose = true
 
 # Don't show interactive progress bar while checking links.
-no_progress = false
+no_progress = true
 
 # Path to summary output file.
-output = "report.md"
+# Commented to avoid creating temporary files.
+# output = "report.md"
 
 #############################  Cache  ###############################
 
 # Enable link caching. This can be helpful to avoid checking the same links on
 # multiple runs.
-cache = true
+cache = false
 
 # Discard all cached requests older than this duration.
 # Error: invalid type: string "2d", expected struct Duration for key `max_cache_age`
@@ -37,7 +38,7 @@ max_concurrency = 14
 #############################  Requests  ############################
 
 # User agent to send with each request.
-user_agent = "curl/7.83. 1"
+user_agent = "curl/7.83.1"
 
 # Website timeout from connect to response finished.
 timeout = 20
