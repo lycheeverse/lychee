@@ -3,10 +3,10 @@
 # Verbose program output
 verbose = false
 
-# Don't show interactive progress bar while checking links
+# Don't show interactive progress bar while checking links.
 no_progress = false
 
-# Path to summary output file
+# Path to summary output file.
 output = "report.md"
 
 #############################  Cache  ###############################
@@ -25,7 +25,7 @@ cache = true
 # Defaults to number of cores available to the system if omitted.
 threads = 2
 
-# Maximum number of allowed redirects
+# Maximum number of allowed redirects.
 max_redirects = 10
 
 # Maximum number of allowed retries before a link is declared dead.
@@ -36,10 +36,10 @@ max_concurrency = 14
 
 #############################  Requests  ############################
 
-# User agent to send with each request
-user_agent = "curl/7.71.1"
+# User agent to send with each request.
+user_agent = "curl/7.83. 1"
 
-# Website timeout from connect to response finished
+# Website timeout from connect to response finished.
 timeout = 20
 
 # Minimum wait time in seconds between retries of failed requests.
@@ -48,11 +48,11 @@ retry_wait_time = 2
 # Comma-separated list of accepted status codes for valid links.
 accept = "403, 403"
 
-# Proceed for server connections considered insecure (invalid TLS)
+# Proceed for server connections considered insecure (invalid TLS).
 insecure = false
 
-# Only test links with the given schemes (e.g. https)
-# Omit to check links with any scheme
+# Only test links with the given schemes (e.g. https).
+# Omit to check links with any scheme.
 scheme = [ "https" ]
 
 # When links are available using HTTPS, treat HTTP links as errors.
@@ -64,7 +64,7 @@ method = "get"
 # Custom request headers
 headers = []
 
-# Remap URI matching pattern to different URI
+# Remap URI matching pattern to different URI.
 remap = [ "https://example.com http://example.invalid" ]
 
 # Base URL or website root directory to check relative URLs.
@@ -88,7 +88,7 @@ include_verbatim = false
 # Ignore case of paths when matching glob patterns.
 glob_ignore_case = false
 
-# Exclude URLs from checking (supports regex)
+# Exclude URLs from checking (supports regex).
 exclude = [ '.*\.github.com\.*' ]
 
 # Exclude these filesystem paths from getting checked.
