@@ -344,7 +344,7 @@ impl Config {
         // Read configuration file
         let result = fs::read(path);
 
-        // Ignore a file not found error
+        // Ignore a file-not-found error
         let contents = match result {
             Ok(c) => c,
             Err(e) => {
