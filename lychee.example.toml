@@ -1,43 +1,61 @@
-###
-### Display
-###
+#############################  Display  #############################
+
 # Verbose program output
 verbose = false
 
-# Show progress
-progress = false
+# TODO
+no_progress = false
 
+# TODO
+output = "report.md"
 
-###
-### Runtime
-###
+#############################  Cache  ###############################
+
+# TODO
+cache = true
+
+# TODO
+# Error: invalid type: string "2d", expected struct Duration for key `max_cache_age`
+# max_cache_age = "2d"
+
+#############################  Runtime  #############################
+
 # Number of threads to utilize.
 # Defaults to number of cores available to the system if omitted.
-#threads = 2
+threads = 2
 
 # Maximum number of allowed redirects
 max_redirects = 10
 
+# TODO
+max_retries = 2
 
-###
-### Requests
-###
+# TODO
+max_concurrency = 14
+
+#############################  Requests  ############################
+
 # User agent to send with each request
 user_agent = "curl/7.71.1"
 
 # Website timeout from connect to response finished
 timeout = 20
 
-# Comma-separated list of accepted status codes for valid links.
-# Omit to accept all response types.
-#accept = "text/html"
+# TODO
+retry_wait_time = 2
+
+# TODO
+accept = "403, 403"
 
 # Proceed for server connections considered insecure (invalid TLS)
 insecure = false
 
 # Only test links with the given schemes (e.g. https)
 # Omit to check links with any scheme
-#scheme = [ "https" ]
+scheme = [ "https" ]
+
+# TODO
+require_https = false
 
 # Request method
 method = "get"
@@ -45,15 +63,35 @@ method = "get"
 # Custom request headers
 headers = []
 
+# TODO # Remap URI matching pattern to different URI
+remap = [ "https://example.com http://example.invalid" ]
 
-###
-### Exclusions
-###
+# TODO
+# Error: invalid type: unit variant, expected newtype variant for key `base`
+# base = "https://example.com"
+
+# TODO
+basic_auth = "user:pwd"
+
+#############################  Exclusions  ##########################
+
+# TODO
+skip_missing = false
+
+# TODO
+include_verbatim = false
+
+# TODO
+glob_ignore_case = false
+
 # Exclude URLs from checking (supports regex)
-exclude = []
+exclude = [ "\\.github\\.com.*" ]
 
-# Exclude URLs contained in a file from checking
-# If a file named `.lycheeignore` exists in the current working directory,
+# TODO
+exclude_path = ["file/path/to/Ignore", "./other/file/path/to/Ignore"]
+
+# Deprecated: Exclude URLs contained in a file from checking
+# If a file named `.lycheeignore` exists in the current working directory, 
 # its contents will be excluded as well.
 exclude_file = []
 
