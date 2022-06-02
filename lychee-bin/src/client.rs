@@ -1,9 +1,8 @@
 use crate::options::Config;
-use crate::parse::{
-    parse_basic_auth, parse_duration_secs, parse_headers, parse_remaps, parse_statuscodes,
-};
+use crate::parse::{parse_basic_auth, parse_duration_secs, parse_headers, parse_remaps};
 use anyhow::{Context, Result};
 use headers::HeaderMapExt;
+use http::StatusCode;
 use lychee_lib::{Client, ClientBuilder};
 use regex::RegexSet;
 use std::{collections::HashSet, str::FromStr};
@@ -16,7 +15,6 @@ pub(crate) fn create(cfg: &Config) -> Result<Client> {
         headers.typed_insert(auth_header);
     }
 
-    let accepted = cfg.accept.clone().and_then(|a| parse_statuscodes(&a).ok());
     let timeout = parse_duration_secs(cfg.timeout);
     let retry_wait_time = parse_duration_secs(cfg.retry_wait_time);
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
@@ -30,6 +28,17 @@ pub(crate) fn create(cfg: &Config) -> Result<Client> {
         vec!["file".to_string()]
     } else {
         cfg.scheme.clone()
+    };
+
+    let accepted = match cfg.accept {
+        Some(ref accepted) => {
+            let accepted: Result<HashSet<_>, _> = accepted
+                .iter()
+                .map(|code| StatusCode::from_u16(*code))
+                .collect();
+            Some(accepted?)
+        }
+        None => None,
     };
 
     ClientBuilder::builder()

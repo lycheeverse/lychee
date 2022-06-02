@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderName};
-use http::StatusCode;
-use lychee_lib::remap::Remaps;
+use lychee_lib::{remap::Remaps, Base};
 use std::{collections::HashSet, time::Duration};
 
 /// Split a single HTTP header into a (key, value) tuple
@@ -31,16 +30,6 @@ pub(crate) fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {
     Ok(out)
 }
 
-/// Parse HTTP status codes into a set of `StatusCode`
-pub(crate) fn parse_statuscodes<T: AsRef<str>>(accept: T) -> Result<HashSet<StatusCode>> {
-    let mut statuscodes = HashSet::new();
-    for code in accept.as_ref().split(',') {
-        let code: StatusCode = StatusCode::from_bytes(code.as_bytes())?;
-        statuscodes.insert(code);
-    }
-    Ok(statuscodes)
-}
-
 /// Parse URI remaps
 pub(crate) fn parse_remaps(remaps: &[String]) -> Result<Remaps> {
     Remaps::try_from(remaps)
@@ -59,12 +48,25 @@ pub(crate) fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
     Ok(Authorization::basic(params[0], params[1]))
 }
 
+pub(crate) fn parse_base(src: &str) -> Result<Base, lychee_lib::ErrorKind> {
+    Base::try_from(src)
+}
+
+/// Parse HTTP status codes into a set of `StatusCode`
+pub(crate) fn parse_statuscodes<T: AsRef<str>>(accept: T) -> Result<HashSet<u16>> {
+    let mut statuscodes = HashSet::new();
+    for code in accept.as_ref().split(',') {
+        let code: u16 = code.parse::<u16>()?;
+        statuscodes.insert(code);
+    }
+    Ok(statuscodes)
+}
+
 #[cfg(test)]
 mod test {
     use std::collections::HashSet;
 
     use headers::{HeaderMap, HeaderMapExt};
-    use http::StatusCode;
     use regex::Regex;
     use reqwest::{header, Url};
 
@@ -80,13 +82,7 @@ mod test {
     #[test]
     fn test_parse_statuscodes() {
         let actual = parse_statuscodes("200,204,301").unwrap();
-        let expected = IntoIterator::into_iter([
-            StatusCode::OK,
-            StatusCode::NO_CONTENT,
-            StatusCode::MOVED_PERMANENTLY,
-        ])
-        .collect::<HashSet<_>>();
-
+        let expected = IntoIterator::into_iter([200, 204, 301]).collect::<HashSet<_>>();
         assert_eq!(actual, expected);
     }
 

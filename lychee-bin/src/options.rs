@@ -1,5 +1,4 @@
-use std::{convert::TryFrom, fs, io::ErrorKind, path::PathBuf, str::FromStr, time::Duration};
-
+use crate::parse::{parse_base, parse_statuscodes};
 use anyhow::{anyhow, Context, Error, Result};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
@@ -8,6 +7,7 @@ use lychee_lib::{
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
+use std::{collections::HashSet, fs, io::ErrorKind, path::PathBuf, str::FromStr, time::Duration};
 use structopt::StructOpt;
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
@@ -93,10 +93,6 @@ macro_rules! fold_in {
             }
         )*
     };
-}
-
-fn parse_base(src: &str) -> Result<Base, lychee_lib::ErrorKind> {
-    Base::try_from(src)
 }
 
 #[derive(Debug, StructOpt)]
@@ -272,9 +268,9 @@ pub(crate) struct Config {
     pub(crate) headers: Vec<String>,
 
     /// Comma-separated list of accepted status codes for valid links
-    #[structopt(short, long)]
+    #[structopt(short, long, parse(try_from_str = parse_statuscodes))]
     #[serde(default)]
-    pub(crate) accept: Option<String>,
+    pub(crate) accept: Option<HashSet<u16>>,
 
     /// Website timeout in seconds from connect to response finished
     #[structopt(short, long, default_value = &TIMEOUT_STR)]
