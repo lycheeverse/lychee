@@ -42,7 +42,7 @@ impl From<&str> for RawUri {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]

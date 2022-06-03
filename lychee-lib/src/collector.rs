@@ -1,5 +1,5 @@
 use crate::{
-    extract::Extractor, helpers::request, types::raw_uri::RawUri, Base, Input, Request, Result,
+    extract::Extractor, helpers::request, types::uri::raw::RawUri, Base, Input, Request, Result,
 };
 use futures::{
     stream::{self, Stream},
@@ -83,7 +83,7 @@ impl Collector {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
 
     use http::StatusCode;

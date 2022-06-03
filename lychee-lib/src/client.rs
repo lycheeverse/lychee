@@ -31,7 +31,7 @@ use crate::{
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
     remap::Remaps,
-    types::{mail, GithubUri},
+    types::{mail, uri::github::GithubUri},
     ErrorKind, Request, Response, Result, Status, Uri,
 };
 
@@ -470,7 +470,7 @@ impl Client {
 
         // Pull out the heavy machinery in case of a failed normal request.
         // This could be a GitHub URL and we ran into the rate limiter.
-        if let Some(github_uri) = uri.gh_org_and_repo() {
+        if let Ok(github_uri) = GithubUri::try_from(uri) {
             let status = self.check_github(github_uri).await;
             // Only return Github status in case of success
             // Otherwise return the original error, which has more information
@@ -590,7 +590,7 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::{
         fs::File,
         time::{Duration, Instant},

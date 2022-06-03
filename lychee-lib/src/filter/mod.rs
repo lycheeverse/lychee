@@ -202,7 +202,7 @@ impl Filter {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use regex::RegexSet;
     use reqwest::Url;
     use url::Host;

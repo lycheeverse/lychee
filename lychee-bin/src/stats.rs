@@ -76,7 +76,7 @@ impl ResponseStats {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::collections::{HashMap, HashSet};
 
     use http::StatusCode;

@@ -63,7 +63,7 @@ pub(crate) fn parse_statuscodes<T: AsRef<str>>(accept: T) -> Result<HashSet<u16>
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::collections::HashSet;
 
     use headers::{HeaderMap, HeaderMapExt};

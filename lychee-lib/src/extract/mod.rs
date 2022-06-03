@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::types::{raw_uri::RawUri, FileType, InputContent};
+use crate::types::{uri::raw::RawUri, FileType, InputContent};
 
 mod html5ever;
 mod html5gum;
@@ -79,9 +79,9 @@ impl Extractor {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use reqwest::Url;
-    use std::{collections::HashSet, convert::TryFrom, path::Path};
+    use std::{collections::HashSet, path::Path};
 
     use super::*;
     use crate::{
