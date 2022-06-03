@@ -1,65 +1,13 @@
-use std::{collections::HashSet, convert::TryFrom, fmt::Display, net::IpAddr};
+use std::{convert::TryFrom, fmt::Display, net::IpAddr};
 
 use fast_chemail::parse_email;
 use ip_network::Ipv6Network;
-use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{ErrorKind, Result};
 
-use super::raw_uri::RawUri;
-
-lazy_static! {
-    static ref GITHUB_API_EXCLUDED_ENDPOINTS: HashSet<&'static str> = HashSet::from_iter([
-        "about",
-        "collections",
-        "events",
-        "explore",
-        "features",
-        "issues",
-        "marketplace",
-        "new",
-        "notifications",
-        "pricing",
-        "pulls",
-        "sponsors",
-        "topics",
-        "watching",
-    ]);
-}
-
-/// Uri path segments extracted from a Github URL
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct GithubUri {
-    /// Organization name
-    pub owner: String,
-    /// Repository name
-    pub repo: String,
-    /// e.g. `issues` in `/org/repo/issues`
-    pub endpoint: Option<String>,
-}
-
-impl GithubUri {
-    /// Create a new Github URI without an endpoint
-    #[cfg(test)]
-    fn new<T: Into<String>>(owner: T, repo: T) -> Self {
-        GithubUri {
-            owner: owner.into(),
-            repo: repo.into(),
-            endpoint: None,
-        }
-    }
-
-    #[cfg(test)]
-    fn with_endpoint<T: Into<String>>(owner: T, repo: T, endpoint: T) -> Self {
-        GithubUri {
-            owner: owner.into(),
-            repo: repo.into(),
-            endpoint: Some(endpoint.into()),
-        }
-    }
-}
+use super::raw::RawUri;
 
 /// Lychee's own representation of a URI, which encapsulates all supported
 /// formats.
@@ -123,59 +71,6 @@ impl Uri {
             url::Host::Ipv4(v4_addr) => Some(v4_addr.into()),
             url::Host::Ipv6(v6_addr) => Some(v6_addr.into()),
         }
-    }
-
-    // TODO: Support GitLab etc.
-    pub(crate) fn gh_org_and_repo(&self) -> Option<GithubUri> {
-        fn remove_suffix<'a>(input: &'a str, suffix: &str) -> &'a str {
-            if let Some(stripped) = input.strip_suffix(suffix) {
-                return stripped;
-            }
-            input
-        }
-
-        debug_assert!(!self.is_mail(), "Should only be called on a Website type!");
-
-        if matches!(
-            self.domain()?,
-            "github.com" | "www.github.com" | "raw.githubusercontent.com"
-        ) {
-            let parts: Vec<_> = self.path_segments()?.collect();
-            if parts.len() < 2 {
-                // Not a valid org/repo pair.
-                // Note: We don't check for exactly 2 here, because the Github
-                // API doesn't handle checking individual files inside repos or
-                // paths like `github.com/org/repo/issues`, so we are more
-                // permissive and only check for repo existence. This is the
-                // only way to get a basic check for private repos. Public repos
-                // are not affected and should work with a normal check.
-                return None;
-            }
-
-            let owner = parts[0];
-            if GITHUB_API_EXCLUDED_ENDPOINTS.contains(owner) {
-                return None;
-            }
-
-            let repo = parts[1];
-            // If the URL ends with `.git`, assume this is an SSH URL and strip
-            // the suffix. See https://github.com/lycheeverse/lychee/issues/384
-            let repo = remove_suffix(repo, ".git");
-
-            let endpoint = if parts.len() > 2 && !parts[2].is_empty() {
-                Some(parts[2..].join("/"))
-            } else {
-                None
-            };
-
-            return Some(GithubUri {
-                owner: owner.to_string(),
-                repo: repo.to_string(),
-                endpoint,
-            });
-        }
-
-        None
     }
 
     #[inline]
@@ -326,16 +221,12 @@ impl Display for Uri {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
+    use super::*;
+    use crate::test_utils::{mail, website};
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, Ipv6Addr},
-    };
-
-    use super::Uri;
-    use crate::{
-        test_utils::{mail, website},
-        types::uri::GithubUri,
     };
 
     #[test]
@@ -397,72 +288,6 @@ mod test {
         assert_eq!(
             website("http://127.0.0.1").host_ip(),
             Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))
-        );
-    }
-
-    #[test]
-    fn test_github() {
-        assert_eq!(
-            website("http://github.com/lycheeverse/lychee").gh_org_and_repo(),
-            Some(GithubUri::new("lycheeverse", "lychee"))
-        );
-
-        assert_eq!(
-            website("http://www.github.com/lycheeverse/lychee").gh_org_and_repo(),
-            Some(GithubUri::new("lycheeverse", "lychee"))
-        );
-
-        assert_eq!(
-            website("https://github.com/lycheeverse/lychee").gh_org_and_repo(),
-            Some(GithubUri::new("lycheeverse", "lychee"))
-        );
-
-        assert_eq!(
-            website("https://github.com/lycheeverse/lychee/").gh_org_and_repo(),
-            Some(GithubUri::new("lycheeverse", "lychee"))
-        );
-
-        assert_eq!(
-            website("https://github.com/Microsoft/python-language-server.git").gh_org_and_repo(),
-            Some(GithubUri::new("Microsoft", "python-language-server"))
-        );
-
-        assert_eq!(
-            website("https://github.com/lycheeverse/lychee/foo/bar").gh_org_and_repo(),
-            Some(GithubUri::with_endpoint("lycheeverse", "lychee", "foo/bar"))
-        );
-
-        assert_eq!(
-            website("https://github.com/lycheeverse/lychee/blob/master/NON_EXISTENT_FILE.md")
-                .gh_org_and_repo(),
-            Some(GithubUri::with_endpoint(
-                "lycheeverse",
-                "lychee",
-                "blob/master/NON_EXISTENT_FILE.md"
-            ))
-        );
-    }
-
-    #[test]
-    fn test_github_false_positives() {
-        assert!(website("https://github.com/sponsors/analysis-tools-dev ")
-            .gh_org_and_repo()
-            .is_none());
-
-        assert!(
-            website("https://github.com/marketplace/actions/lychee-broken-link-checker")
-                .gh_org_and_repo()
-                .is_none()
-        );
-
-        assert!(website("https://github.com/features/actions")
-            .gh_org_and_repo()
-            .is_none());
-
-        assert!(
-            website("https://pkg.go.dev/github.com/Debian/pkg-go-tools/cmd/pgt-gopath")
-                .gh_org_and_repo()
-                .is_none()
         );
     }
 }

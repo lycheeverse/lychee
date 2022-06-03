@@ -2,7 +2,7 @@ use html5gum::{Emitter, Error, Tokenizer};
 
 use super::is_verbatim_elem;
 use super::plaintext::extract_plaintext;
-use crate::types::raw_uri::RawUri;
+use crate::types::uri::raw::RawUri;
 
 #[derive(Clone)]
 struct LinkExtractor {

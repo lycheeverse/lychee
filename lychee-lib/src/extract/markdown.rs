@@ -1,6 +1,6 @@
 use pulldown_cmark::{Event, Parser, Tag};
 
-use crate::{extract::plaintext::extract_plaintext, types::raw_uri::RawUri};
+use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
 
 use super::html5gum::extract_html;
 

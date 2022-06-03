@@ -5,7 +5,7 @@ use html5ever::{
 };
 
 use super::{is_verbatim_elem, plaintext::extract_plaintext};
-use crate::types::raw_uri::RawUri;
+use crate::types::uri::raw::RawUri;
 
 #[derive(Clone, Default)]
 struct LinkExtractor {
