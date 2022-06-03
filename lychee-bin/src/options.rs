@@ -2,7 +2,7 @@ use crate::parse::{parse_base, parse_statuscodes};
 use anyhow::{anyhow, Context, Error, Result};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
+    Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_MIN_RETRY_WAIT_TIME_SECS,
     DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
@@ -29,7 +29,7 @@ const STRUCTOPT_HELP_MSG_CACHE: &str = formatcp!(
     LYCHEE_CACHE_FILE,
 );
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
-const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
+const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_MIN_RETRY_WAIT_TIME_SECS);
 
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) enum Format {
@@ -75,12 +75,12 @@ macro_rules! default_function {
 // Generate the functions for serde defaults
 default_function! {
     max_redirects: usize = DEFAULT_MAX_REDIRECTS;
-    max_retries: u64 = DEFAULT_MAX_RETRIES;
+    max_retries: u32 = DEFAULT_MAX_RETRIES;
     max_concurrency: usize = DEFAULT_MAX_CONCURRENCY;
     max_cache_age: Duration = humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
     user_agent: String = DEFAULT_USER_AGENT.to_string();
     timeout: usize = DEFAULT_TIMEOUT_SECS;
-    retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
+    retry_wait_time: usize = DEFAULT_MIN_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
 }
 
@@ -178,7 +178,7 @@ pub(crate) struct Config {
     /// Maximum number of retries per request
     #[structopt(long, default_value = &MAX_RETRIES_STR)]
     #[serde(default = "max_retries")]
-    pub(crate) max_retries: u64,
+    pub(crate) max_retries: u32,
 
     /// Maximum number of concurrent network requests
     #[structopt(long, default_value = &MAX_CONCURRENCY_STR)]
@@ -386,7 +386,7 @@ impl Config {
             headers: Vec::<String>::new();
             accept: None;
             timeout: DEFAULT_TIMEOUT_SECS;
-            retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
+            retry_wait_time: DEFAULT_MIN_RETRY_WAIT_TIME_SECS;
             method: DEFAULT_METHOD;
             base: None;
             basic_auth: None;

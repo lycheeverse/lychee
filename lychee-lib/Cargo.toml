@@ -28,6 +28,8 @@ regex = "1.5.6"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
 reqwest = { version = "0.11.10", features = ["gzip", "trust-dns"] }
+reqwest-middleware = "0.1.1"
+reqwest-retry = "0.1.1"
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build

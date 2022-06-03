@@ -23,8 +23,9 @@ use http::{
 use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::{header, Url};
+use reqwest_middleware::{ClientBuilder as MiddlewareClientBuilder, ClientWithMiddleware};
+use reqwest_retry::{policies::ExponentialBackoff, RetryTransientMiddleware};
 use secrecy::{ExposeSecret, SecretString};
-use tokio::time::sleep;
 use typed_builder::TypedBuilder;
 
 use crate::{
@@ -38,9 +39,11 @@ use crate::{
 /// Default number of redirects before a request is deemed as failed, 5.
 pub const DEFAULT_MAX_REDIRECTS: usize = 5;
 /// Default number of retries before a request is deemed as failed, 3.
-pub const DEFAULT_MAX_RETRIES: u64 = 3;
-/// Default wait time in seconds between requests, 1.
-pub const DEFAULT_RETRY_WAIT_TIME_SECS: usize = 1;
+pub const DEFAULT_MAX_RETRIES: u32 = 3;
+/// Minimum default wait time in seconds between requests
+pub const DEFAULT_MIN_RETRY_WAIT_TIME_SECS: usize = 1;
+/// Maximum default wait time in seconds between requests
+const DEFAULT_MAX_RETRY_WAIT_TIME_SECS: usize = 10;
 /// Default timeout in seconds before a request is deemed as failed, 20.
 pub const DEFAULT_TIMEOUT_SECS: usize = 20;
 /// Default user agent, `lychee-<PKG_VERSION>`.
@@ -178,7 +181,7 @@ pub struct ClientBuilder {
 
     /// Maximum number of retries per request before returning an error.
     #[builder(default = DEFAULT_MAX_RETRIES)]
-    max_retries: u64,
+    max_retries: u32,
 
     /// User-agent used for checking links.
     ///
@@ -281,12 +284,26 @@ impl ClientBuilder {
             .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
             .redirect(reqwest::redirect::Policy::limited(self.max_redirects));
 
-        let reqwest_client = (match self.timeout {
+        let reqwest_client_inner = (match self.timeout {
             Some(t) => builder.timeout(t),
             None => builder,
         })
         .build()
         .map_err(ErrorKind::NetworkRequest)?;
+
+        let min_retry_wait_time = self
+            .retry_wait_time
+            .unwrap_or_else(|| Duration::from_secs(DEFAULT_MIN_RETRY_WAIT_TIME_SECS as u64));
+        let max_retry_wait_time = Duration::from_secs(DEFAULT_MAX_RETRY_WAIT_TIME_SECS as u64);
+
+        let retry_policy = ExponentialBackoff::builder()
+            .retry_bounds(min_retry_wait_time, max_retry_wait_time)
+            .build_with_max_retries(self.max_retries);
+
+        let reqwest_client = MiddlewareClientBuilder::new(reqwest_client_inner)
+            // Retry failed requests.
+            .with(RetryTransientMiddleware::new_with_policy(retry_policy))
+            .build();
 
         let github_client = match github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(
@@ -310,10 +327,6 @@ impl ClientBuilder {
             exclude_mail: self.exclude_mail,
         };
 
-        let retry_wait_time = self
-            .retry_wait_time
-            .unwrap_or_else(|| Duration::from_secs(DEFAULT_RETRY_WAIT_TIME_SECS as u64));
-
         let quirks = Quirks::default();
 
         Ok(Client {
@@ -321,8 +334,6 @@ impl ClientBuilder {
             github_client,
             remaps,
             filter,
-            max_retries: self.max_retries,
-            retry_wait_time,
             method,
             accepted,
             require_https: self.require_https,
@@ -337,7 +348,7 @@ impl ClientBuilder {
 #[derive(Debug, Clone)]
 pub struct Client {
     /// Underlying `reqwest` client instance that handles the HTTP requests.
-    reqwest_client: reqwest::Client,
+    reqwest_client: ClientWithMiddleware,
 
     /// Github client.
     github_client: Option<Octocrab>,
@@ -347,12 +358,6 @@ pub struct Client {
 
     /// Rules to decided whether each link would be checked or ignored.
     filter: Filter,
-
-    /// Maximum number of retries per request before returning an error.
-    max_retries: u64,
-
-    /// Initial time between retries of failed requests
-    retry_wait_time: Duration,
 
     /// HTTP method used for requests, e.g. `GET` or `HEAD`.
     ///
@@ -454,18 +459,9 @@ impl Client {
             return Status::Unsupported(ErrorKind::InvalidURI(uri.clone()));
         }
 
-        let mut retries: u64 = 0;
-        let mut wait = self.retry_wait_time;
-
-        let mut status = self.check_default(uri).await;
-        while retries < self.max_retries {
-            if status.is_success() {
-                return status;
-            }
-            sleep(wait).await;
-            retries += 1;
-            wait *= 2;
-            status = self.check_default(uri).await;
+        let status = self.check_default(uri).await;
+        if status.is_success() {
+            return status;
         }
 
         // Pull out the heavy machinery in case of a failed normal request.
@@ -760,13 +756,14 @@ mod tests {
         // Note: this checks response timeout, not connect timeout.
         // To check connect timeout, we'd have to do something more involved,
         // see: https://github.com/LukeMathWalker/wiremock-rs/issues/19
-        let mock_delay = Duration::from_millis(20);
-        let checker_timeout = Duration::from_millis(10);
+        let mock_delay = Duration::from_millis(10);
+        let checker_timeout = Duration::from_millis(1);
         assert!(mock_delay > checker_timeout);
 
         let mock_server = mock_server!(StatusCode::OK, set_delay(mock_delay));
 
         let client = ClientBuilder::builder()
+            .max_retries(0_u32)
             .timeout(checker_timeout)
             .build()
             .client()

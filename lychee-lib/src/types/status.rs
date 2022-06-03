@@ -198,6 +198,17 @@ impl From<reqwest::Error> for Status {
     }
 }
 
+impl From<reqwest_middleware::Error> for Status {
+    fn from(e: reqwest_middleware::Error) -> Self {
+        match e {
+            reqwest_middleware::Error::Middleware(_) => {
+                Self::Error(ErrorKind::RequestClientMiddleware(e))
+            }
+            reqwest_middleware::Error::Reqwest(e) => e.into(),
+        }
+    }
+}
+
 impl From<CacheStatus> for Status {
     fn from(s: CacheStatus) -> Self {
         Self::Cached(s)

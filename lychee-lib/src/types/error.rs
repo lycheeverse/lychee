@@ -34,6 +34,9 @@ pub enum ErrorKind {
     /// The network client required for making requests cannot be created
     #[error("Error creating request client")]
     BuildRequestClient(#[source] reqwest::Error),
+    /// Error using reqwest middleware
+    #[error("Error using reqwest middleware")]
+    RequestClientMiddleware(#[source] reqwest_middleware::Error),
     /// The Github client required for making requests cannot be created
     #[error("Error creating Github client")]
     BuildGithubClient(#[source] octocrab::Error),
@@ -175,6 +178,7 @@ impl Hash for ErrorKind {
             Self::NetworkRequest(e) => e.to_string().hash(state),
             Self::ReadResponseBody(e) => e.to_string().hash(state),
             Self::BuildRequestClient(e) => e.to_string().hash(state),
+            Self::RequestClientMiddleware(e) => e.to_string().hash(state),
             Self::BuildGithubClient(e) => e.to_string().hash(state),
             Self::GithubRequest(e) => e.to_string().hash(state),
             Self::InvalidGithubUrl(s) => s.hash(state),
