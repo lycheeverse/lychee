@@ -43,7 +43,7 @@ pub const DEFAULT_MAX_RETRIES: u32 = 3;
 /// Minimum default wait time in seconds between requests
 pub const DEFAULT_MIN_RETRY_WAIT_TIME_SECS: usize = 1;
 /// Maximum default wait time in seconds between requests
-const DEFAULT_MAX_RETRY_WAIT_TIME_SECS: usize = 10;
+const DEFAULT_MAX_RETRY_WAIT_TIME_SECS: usize = 2 * DEFAULT_MIN_RETRY_WAIT_TIME_SECS;
 /// Default timeout in seconds before a request is deemed as failed, 20.
 pub const DEFAULT_TIMEOUT_SECS: usize = 20;
 /// Default user agent, `lychee-<PKG_VERSION>`.
@@ -298,6 +298,7 @@ impl ClientBuilder {
 
         let retry_policy = ExponentialBackoff::builder()
             .retry_bounds(min_retry_wait_time, max_retry_wait_time)
+            .backoff_exponent(2)
             .build_with_max_retries(self.max_retries);
 
         let reqwest_client = MiddlewareClientBuilder::new(reqwest_client_inner)
@@ -615,7 +616,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_exponential_backoff() {
-        let mock_server = mock_server!(StatusCode::NOT_FOUND);
+        let mock_server = mock_server!(StatusCode::REQUEST_TIMEOUT);
 
         let start = Instant::now();
         let res = get_mock_client_response(mock_server.uri()).await;
@@ -623,9 +624,12 @@ mod tests {
 
         assert!(res.status().is_failure());
 
-        // on slow connections, this might take a bit longer than nominal backed-off timeout (7 secs)
-        assert!(end.as_secs() >= 7);
-        assert!(end.as_secs() <= 8);
+        // Default min wait time:
+        // NUM_RETRIES * MIN_WAIT_TIME = 3 * 1 = 3 by default
+        // Default max wait time:
+        // NUM_RETRIES * MAX_WAIT_TIME = NUM_RETRIES * 2 * MIN_WAIT_TIME = 3 * 2 * 1 = 6
+        assert!(end.as_secs() >= 3);
+        assert!(end.as_secs() <= 6);
     }
 
     #[tokio::test]
