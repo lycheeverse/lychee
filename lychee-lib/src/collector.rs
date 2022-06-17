@@ -352,4 +352,20 @@ mod tests {
 
         assert_eq!(links, expected_urls);
     }
+
+    #[tokio::test]
+    async fn test_email_with_query_params() {
+        let input = Input {
+            source: InputSource::String(
+                r#"This is a mailto:user@example.com?subject=Hello link"#.to_string(),
+            ),
+            file_type_hint: None,
+            excluded_paths: None,
+        };
+        let links = collect(vec![input], None).await;
+
+        let expected_links = HashSet::from_iter([mail("user@example.com")]);
+
+        assert_eq!(links, expected_links);
+    }
 }
