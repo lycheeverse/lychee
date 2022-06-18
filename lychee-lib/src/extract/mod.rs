@@ -1,5 +1,3 @@
-
-
 use crate::types::{uri::raw::RawUri, FileType, InputContent};
 
 mod html5ever;
@@ -10,20 +8,14 @@ mod plaintext;
 use markdown::extract_markdown;
 use plaintext::extract_plaintext;
 
-
 /// Check if the given element is in the list of preformatted tags
 ///
 /// preformatted tags are HTML elements that are deemed verbatim (i.e. preformatted).  These will
 /// be excluded from link checking by default.
 pub(crate) fn is_verbatim_elem(name: &str) -> bool {
-    matches!(name, 
-        "pre"|
-        "code"|
-        "textarea"|
-        "samp"|
-        "xmp"|
-        "plaintext"|
-        "listing"
+    matches!(
+        name,
+        "pre" | "code" | "textarea" | "samp" | "xmp" | "plaintext" | "listing"
     )
 }
 
