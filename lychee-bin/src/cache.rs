@@ -56,6 +56,8 @@ impl StoreExt for Cache {
         let current_ts = timestamp();
         for result in rdr.deserialize() {
             let (uri, value): (Uri, CacheValue) = result?;
+            // Discard entries older than `max_age_secs`.
+            // This allows gradually updating the cache over multiple runs.
             if current_ts - value.timestamp < max_age_secs {
                 map.insert(uri, value);
             }
