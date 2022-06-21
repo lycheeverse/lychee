@@ -18,7 +18,7 @@ version = "0.10.0"
 
 [dependencies]
 lychee-lib = { path = "../lychee-lib", version = "0.10.0", default-features = false }
-anyhow = "1.0.57"
+anyhow = "1.0.58"
 console = "0.15.0"
 const_format = "0.2.24"
 headers = "0.3.7"
@@ -27,7 +27,7 @@ indicatif = "0.16.2"
 openssl-sys = "0.9.74"
 pad = "0.1.6"
 regex = "1.5.6"
-reqwest = { version = "0.11.10", features = ["gzip"] }
+reqwest = { version = "0.11.11", features = ["gzip"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
@@ -54,7 +54,7 @@ log = "0.4.17"
 assert_cmd = "2.0.4"
 predicates = "2.1.1"
 tempfile = "3.3.0"
-uuid = { version = "1.1.1", features = ["v4"] }
+uuid = { version = "1.1.2", features = ["v4"] }
 wiremock = "0.5.13"
 tracing-subscriber = { version = "0.3.11", default-features = false, features = ["fmt", "registry", "env-filter"] }
 
