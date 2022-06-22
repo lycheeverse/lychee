@@ -1,4 +1,4 @@
-use html5gum::{Emitter, Error, Tokenizer};
+use html5gum::{Emitter, Error, State, Tokenizer};
 
 use super::is_verbatim_elem;
 use super::plaintext::extract_plaintext;
@@ -178,14 +178,24 @@ impl Emitter for &mut LinkExtractor {
 
     fn init_end_tag(&mut self) {
         self.init_start_tag();
+        self.current_element_is_closing = true;
     }
 
     fn init_comment(&mut self) {
         self.flush_current_characters();
     }
 
-    fn emit_current_tag(&mut self) {
+    fn emit_current_tag(&mut self) -> Option<State> {
+        let next_state = if self.current_element_is_closing {
+            None
+        } else {
+            self.last_start_element.clear();
+            self.last_start_element.extend(&self.current_element_name);
+            html5gum::naive_next_state(&self.current_element_name)
+        };
+
         self.flush_old_attribute();
+        next_state
     }
 
     fn emit_current_doctype(&mut self) {}
