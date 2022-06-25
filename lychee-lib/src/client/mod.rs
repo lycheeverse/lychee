@@ -13,18 +13,19 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
+use futures::Future;
+use http::header::{HeaderMap, HeaderValue};
+use http::{Request as HttpRequest, Response as HttpResponse, StatusCode};
+use std::pin::Pin;
 use std::{collections::HashSet, time::Duration};
 
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
-use http::{
-    header::{HeaderMap, HeaderValue},
-    StatusCode,
-};
 use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::{header, Url};
 use secrecy::{ExposeSecret, SecretString};
 use tokio::time::sleep;
+use tower::Service;
 use typed_builder::TypedBuilder;
 
 use crate::{
@@ -252,7 +253,7 @@ impl ClientBuilder {
     /// - The request client cannot be created.
     ///   See [here](https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors).
     /// - The Github client cannot be created.
-    pub fn client(self) -> Result<Client> {
+    pub fn client(self) -> Result<impl Service<Request, Response = Response, Error = ErrorKind>> {
         let Self {
             github_token,
             remaps,
@@ -371,6 +372,23 @@ pub struct Client {
 
     /// Override behaviors for certain known issues with special URIs.
     quirks: Quirks,
+}
+
+impl<HttpRequest> Service<HttpRequest> for Client {
+    type Response = Response;
+    type Error = ErrorKind;
+    type Future = Pin<Box<dyn Future<Output = std::result::Result<Self::Response, Self::Error>>>>;
+
+    fn poll_ready(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::result::Result<(), Self::Error>> {
+        todo!()
+    }
+
+    fn call(&mut self, req: HttpRequest) -> Self::Future {
+        todo!()
+    }
 }
 
 impl Client {
@@ -585,8 +603,9 @@ where
     Request: TryFrom<T, Error = E>,
     ErrorKind: From<E>,
 {
-    let client = ClientBuilder::builder().build().client()?;
-    client.check(request).await
+    let mut client = ClientBuilder::builder().build().client()?;
+    let request: Request = request.try_into()?;
+    client.call(request.into()).await
 }
 
 #[cfg(test)]
@@ -599,6 +618,7 @@ mod tests {
     use http::{header::HeaderMap, StatusCode};
     use reqwest::header;
     use tempfile::tempdir;
+    use tower::Service;
 
     use super::ClientBuilder;
     use crate::{mock_server, test_utils::get_mock_client_response, Uri};
@@ -683,7 +703,7 @@ mod tests {
             .build()
             .client()
             .unwrap()
-            .check("https://expired.badssl.com/")
+            .call("https://expired.badssl.com/")
             .await
             .unwrap();
         assert!(res.status().is_success());

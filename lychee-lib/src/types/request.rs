@@ -80,3 +80,13 @@ impl TryFrom<&str> for Request {
         ))
     }
 }
+
+impl Into<http::Request<()>> for Request {
+    fn into(self) -> http::Request<()> {
+        http::Request::builder()
+            .method("GET")
+            .uri(self.uri.url.as_str())
+            .body(())
+            .unwrap()
+    }
+}

@@ -8,9 +8,10 @@ use crate::ExitCode;
 use super::CommandParams;
 
 /// Dump all detected links to stdout without checking them
-pub(crate) async fn dump<S>(params: CommandParams<S>) -> Result<ExitCode>
+pub(crate) async fn dump<T, S>(params: CommandParams<T, S>) -> Result<ExitCode>
 where
     S: futures::Stream<Item = Result<Request>>,
+    T: tower::Service<lychee_lib::Request>,
 {
     let requests = params.requests;
     tokio::pin!(requests);

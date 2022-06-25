@@ -3,12 +3,15 @@ use crate::parse::{parse_basic_auth, parse_duration_secs, parse_headers, parse_r
 use anyhow::{Context, Result};
 use headers::HeaderMapExt;
 use http::StatusCode;
-use lychee_lib::{Client, ClientBuilder};
+use lychee_lib::{ClientBuilder, ErrorKind, Request, Response};
 use regex::RegexSet;
 use std::{collections::HashSet, str::FromStr};
+use tower::Service;
 
 /// Creates a client according to the command-line config
-pub(crate) fn create(cfg: &Config) -> Result<Client> {
+pub(crate) fn create(
+    cfg: &Config,
+) -> Result<impl Service<Request, Response = Response, Error = ErrorKind>> {
     let mut headers = parse_headers(&cfg.headers)?;
     if let Some(auth) = &cfg.basic_auth {
         let auth_header = parse_basic_auth(auth)?;

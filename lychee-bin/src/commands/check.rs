@@ -15,11 +15,12 @@ use lychee_lib::{Client, Request, Response};
 
 use super::CommandParams;
 
-pub(crate) async fn check<S>(
-    params: CommandParams<S>,
+pub(crate) async fn check<T, S>(
+    params: CommandParams<T, S>,
 ) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
 where
     S: futures::Stream<Item = Result<Request>>,
+    T: tower::Service<lychee_lib::Request> + Send + Sync + 'static,
 {
     let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
     let (send_resp, mut recv_resp) = mpsc::channel(params.cfg.max_concurrency);
@@ -113,7 +114,7 @@ where
 }
 
 /// Handle a single request
-async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Response {
+async fn handle<T>(client: &T, cache: Arc<Cache>, request: Request) -> Response {
     let uri = request.uri.clone();
     if let Some(v) = cache.get(&uri) {
         // Found a cached request
