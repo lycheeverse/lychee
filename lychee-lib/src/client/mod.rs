@@ -13,10 +13,8 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use futures::Future;
 use http::header::{HeaderMap, HeaderValue};
-use http::{Request as HttpRequest, Response as HttpResponse, StatusCode};
-use std::pin::Pin;
+use http::StatusCode;
 use std::{collections::HashSet, time::Duration};
 
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
@@ -25,6 +23,7 @@ use regex::RegexSet;
 use reqwest::{header, Url};
 use secrecy::{ExposeSecret, SecretString};
 use tokio::time::sleep;
+use tower::util::BoxService;
 use tower::Service;
 use typed_builder::TypedBuilder;
 
@@ -253,7 +252,7 @@ impl ClientBuilder {
     /// - The request client cannot be created.
     ///   See [here](https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors).
     /// - The Github client cannot be created.
-    pub fn client(self) -> Result<impl Service<Request, Response = Response, Error = ErrorKind>> {
+    pub fn client(self) -> Result<Client> {
         let Self {
             github_token,
             remaps,
@@ -282,7 +281,7 @@ impl ClientBuilder {
             .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
             .redirect(reqwest::redirect::Policy::limited(self.max_redirects));
 
-        let reqwest_client = (match self.timeout {
+        let client = (match self.timeout {
             Some(t) => builder.timeout(t),
             None => builder,
         })
@@ -318,7 +317,8 @@ impl ClientBuilder {
         let quirks = Quirks::default();
 
         Ok(Client {
-            reqwest_client,
+            client,
+            service: Self::build_client(client.clone()),
             github_client,
             remaps,
             filter,
@@ -330,15 +330,37 @@ impl ClientBuilder {
             quirks,
         })
     }
+
+    pub fn build_client(
+        client: reqwest::Client,
+    ) -> BoxService<reqwest::Request, reqwest::Response, reqwest::Error> {
+        let svc = tower::ServiceBuilder::new()
+            // .rate_limit(100, Duration::new(10, 0)) // 100 requests every 10 seconds
+            // .retry(Limit(50))
+            .service(tower::service_fn(move |req| client.execute(req)));
+
+        // let mut req = Request::new(Method::POST, Url::parse("http://httpbin.org/post")?);
+        // *req.body_mut() = Some(Body::from("the exact body that is sent"));
+
+        // let res = svc.ready_and().await?.call(req).await?;
+        BoxService::new(svc)
+    }
 }
 
 /// Handles incoming requests and returns responses.
 ///
 /// See [`ClientBuilder`] which contains sane defaults for all configuration options.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Client {
-    /// Underlying `reqwest` client instance that handles the HTTP requests.
-    reqwest_client: reqwest::Client,
+    /// HTTP request client.
+    ///
+    /// [reqwest]: https://docs.rs/reqwest/latest/reqwest/struct.Client.html
+    pub client: reqwest::Client,
+
+    /// Underlying [tower] service that handles the HTTP requests.
+    ///
+    /// [tower]: https://docs.rs/tower/latest/tower/struct.Service.html
+    pub service: BoxService<reqwest::Request, reqwest::Response, reqwest::Error>,
 
     /// Github client.
     github_client: Option<Octocrab>,
@@ -374,22 +396,22 @@ pub struct Client {
     quirks: Quirks,
 }
 
-impl<HttpRequest> Service<HttpRequest> for Client {
-    type Response = Response;
-    type Error = ErrorKind;
-    type Future = Pin<Box<dyn Future<Output = std::result::Result<Self::Response, Self::Error>>>>;
+// impl<HttpRequest> Service<HttpRequest> for Client {
+//     type Response = Response;
+//     type Error = ErrorKind;
+//     type Future = Pin<Box<dyn Future<Output = std::result::Result<Self::Response, Self::Error>>>>;
 
-    fn poll_ready(
-        &mut self,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<std::result::Result<(), Self::Error>> {
-        todo!()
-    }
+//     fn poll_ready(
+//         &mut self,
+//         cx: &mut std::task::Context<'_>,
+//     ) -> std::task::Poll<std::result::Result<(), Self::Error>> {
+//         todo!()
+//     }
 
-    fn call(&mut self, req: HttpRequest) -> Self::Future {
-        todo!()
-    }
-}
+//     fn call(&mut self, req: HttpRequest) -> Self::Future {
+//         todo!()
+//     }
+// }
 
 impl Client {
     /// Check a single request
@@ -539,7 +561,7 @@ impl Client {
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, uri: &Uri) -> Status {
         let request = match self
-            .reqwest_client
+            .client
             .request(self.method.clone(), uri.as_str())
             .build()
         {
@@ -549,7 +571,7 @@ impl Client {
 
         let request = self.quirks.apply(request);
 
-        match self.reqwest_client.execute(request).await {
+        match self.client.execute(request).await {
             Ok(ref response) => Status::new(response, self.accepted.clone()),
             Err(e) => e.into(),
         }
@@ -605,7 +627,7 @@ where
 {
     let mut client = ClientBuilder::builder().build().client()?;
     let request: Request = request.try_into()?;
-    client.call(request.into()).await
+    client.service.call(request.into()).await
 }
 
 #[cfg(test)]

@@ -90,3 +90,9 @@ impl Into<http::Request<()>> for Request {
             .unwrap()
     }
 }
+
+impl Into<reqwest::Request> for Request {
+    fn into(self) -> reqwest::Request {
+        reqwest::Request::new(reqwest::Method::GET, self.uri.url)
+    }
+}
