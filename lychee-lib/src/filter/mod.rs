@@ -27,6 +27,7 @@ lazy_static! {
 /// Pre-defined exclusions for known false-positives
 const FALSE_POSITIVE_PAT: &[&str] = &[
     r"http://www.w3.org/1999/xhtml",
+    r"http://www.w3.org/1999/xlink",
     r"http://www.w3.org/2000/svg",
     r"https://schemas.microsoft.com",
     r"http://schemas.zune.net",
