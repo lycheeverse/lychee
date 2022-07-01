@@ -2,8 +2,8 @@ use crate::parse::{parse_base, parse_statuscodes};
 use anyhow::{anyhow, Context, Error, Result};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
-    DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+    Base, Input, FileType, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -122,6 +122,11 @@ impl LycheeOptions {
     // but we'd get no access to `glob_ignore_case`.
     /// Get parsed inputs from options.
     pub(crate) fn inputs(&self) -> Result<Vec<Input>> {
+        let file_type_hint = if self.config.html {
+            Some(FileType::Html)
+        } else {
+            None
+        };
         let excluded = if self.config.exclude_path.is_empty() {
             None
         } else {
@@ -129,7 +134,7 @@ impl LycheeOptions {
         };
         self.raw_inputs
             .iter()
-            .map(|s| Input::new(s, None, self.config.glob_ignore_case, excluded.clone()))
+            .map(|s| Input::new(s, file_type_hint, self.config.glob_ignore_case, excluded.clone()))
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
@@ -319,6 +324,11 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) glob_ignore_case: bool,
 
+    /// Treat the input as HTML
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) html: bool,
+
     /// Output file of status report
     #[structopt(short, long, parse(from_os_str))]
     #[serde(default)]
@@ -393,6 +403,7 @@ impl Config {
             skip_missing: false;
             include_verbatim: false;
             glob_ignore_case: false;
+            html: false;
             output: None;
             require_https: false;
         }

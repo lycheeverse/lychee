@@ -3,7 +3,7 @@ use crate::{helpers, ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
-use jwalk::WalkDir;
+use jwalk::WalkDirGeneric;
 use reqwest::Url;
 use serde::Serialize;
 use shellexpand::tilde;
@@ -198,7 +198,7 @@ impl Input {
                 }
                 InputSource::FsPath(ref path) => {
                     if path.is_dir() {
-                        for entry in WalkDir::new(path).skip_hidden(true)
+                        for entry in WalkDirGeneric::<((usize), (Option<FileType>))>::new(path).skip_hidden(true)
                         .process_read_dir(move |_, _, _, children| {
                             children.retain(|child| {
                                 let entry = match child.as_ref() {
@@ -224,19 +224,24 @@ impl Input {
                                 }
                                 return valid_extension(&entry.path());
                             });
+                            children.first_mut().map(|child| {
+                                if let Ok(entry) = child {
+                                    entry.client_state = self.file_type_hint;
+                                }
+                            });
                         }) {
                             let entry = entry?;
                             if entry.file_type().is_dir() {
                                 continue;
                             }
-                            let content = Self::path_content(entry.path()).await?;
+                            let content = Self::path_content(entry.path(), entry.client_state).await?;
                             yield content
                         }
                     } else {
                         if self.is_excluded_path(path) {
                             return ();
                         }
-                        let content = Self::path_content(path).await;
+                        let content = Self::path_content(path, self.file_type_hint).await;
                         match content {
                             Err(_) if skip_missing => (),
                             Err(e) => Err(e)?,
@@ -301,7 +306,7 @@ impl Input {
                         if self.is_excluded_path(&path) {
                             continue;
                         }
-                        let content: InputContent = Self::path_content(&path).await?;
+                        let content: InputContent = Self::path_content(&path, self.file_type_hint).await?;
                         yield content;
                     }
                     Err(e) => eprintln!("{e:?}"),
@@ -325,13 +330,19 @@ impl Input {
     /// Will return `Err` if file contents can't be read
     pub async fn path_content<P: Into<PathBuf> + AsRef<Path> + Clone>(
         path: P,
+        file_type_hint: Option<FileType>,
     ) -> Result<InputContent> {
         let path = path.into();
         let content = tokio::fs::read_to_string(&path)
             .await
             .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))?;
+        let file_type = if file_type_hint.is_none() {
+            FileType::from(&path)
+        } else {
+            file_type_hint.unwrap_or_default()
+        };
         let input_content = InputContent {
-            file_type: FileType::from(&path),
+            file_type: file_type,
             source: InputSource::FsPath(path),
             content,
         };
