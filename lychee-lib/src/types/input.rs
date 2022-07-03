@@ -342,7 +342,7 @@ impl Input {
             file_type_hint.unwrap_or_default()
         };
         let input_content = InputContent {
-            file_type: file_type,
+            file_type,
             source: InputSource::FsPath(path),
             content,
         };

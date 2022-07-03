@@ -2,7 +2,7 @@ use crate::parse::{parse_base, parse_statuscodes};
 use anyhow::{anyhow, Context, Error, Result};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, Input, FileType, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+    Base, FileType, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
@@ -134,7 +134,14 @@ impl LycheeOptions {
         };
         self.raw_inputs
             .iter()
-            .map(|s| Input::new(s, file_type_hint, self.config.glob_ignore_case, excluded.clone()))
+            .map(|s| {
+                Input::new(
+                    s,
+                    file_type_hint,
+                    self.config.glob_ignore_case,
+                    excluded.clone(),
+                )
+            })
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
