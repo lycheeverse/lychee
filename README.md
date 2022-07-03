@@ -217,6 +217,7 @@ FLAGS:
         --exclude-private        Exclude private IP address ranges from checking
         --glob-ignore-case       Ignore case when expanding filesystem path glob inputs
         --help                   Prints help information
+        --html                   Treat the input as HTML
         --include-verbatim       Find links in verbatim sections like `pre`- and `code` blocks
     -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
     -n, --no-progress            Do not show progress bar.
@@ -273,9 +274,9 @@ ARGS:
 ### Ignoring links
 
 You can exclude links from getting checked by specifying regex patterns
-with `--exclude` (e.g. `--exclude example\.(com|org)`).  
+with `--exclude` (e.g. `--exclude example\.(com|org)`).
 If a file named `.lycheeignore` exists in the current working directory, its
-contents are excluded as well. The file allows you to list multiple regular 
+contents are excluded as well. The file allows you to list multiple regular
 expressions for exclusion (one pattern per line).
 
 ### Caching
