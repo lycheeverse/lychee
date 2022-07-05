@@ -105,6 +105,8 @@ impl StatsFormatter for Markdown {
 
 #[cfg(test)]
 mod tests {
+    use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status, Uri};
+
     use super::*;
 
     #[test]
@@ -122,5 +124,38 @@ mod tests {
 | 🚫 Errors     | 0     |
 "#;
         assert_eq!(table, expected.to_string());
+    }
+
+    #[test]
+    fn test_render_summary() {
+        let mut stats = ResponseStats::new();
+        let response = Response(
+            InputSource::Stdin,
+            ResponseBody {
+                uri: Uri::try_from("http://127.0.0.1").unwrap(),
+                status: Status::Cached(CacheStatus::Error(Some(404))),
+            },
+        );
+        stats.add(response);
+        let summary = MarkdownResponseStats(stats);
+        let expected = r#"## Summary
+
+| Status        | Count |
+|---------------|-------|
+| 🔍 Total      | 1     |
+| ✅ Successful | 0     |
+| ⏳ Timeouts   | 0     |
+| 🔀 Redirected | 0     |
+| 👻 Excluded   | 0     |
+| ❓ Unknown    | 0     |
+| 🚫 Errors     | 1     |
+
+
+## Errors per input
+### Errors in stdin
+* [http://127.0.0.1/](http://127.0.0.1/): Cached: Error (cached) (status code: 404)
+
+"#;
+        assert_eq!(summary.to_string(), expected.to_string());
     }
 }
