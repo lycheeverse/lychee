@@ -73,8 +73,11 @@ impl Display for MarkdownResponseStats {
                 for response in responses {
                     writeln!(
                         f,
-                        "* [{}]({}): {}",
-                        response.uri, response.uri, response.status
+                        "* [{}]({}): {} (status code: {})",
+                        response.uri,
+                        response.uri,
+                        response.status,
+                        response.status.code()
                     )?;
                 }
                 writeln!(f)?;
