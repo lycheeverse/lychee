@@ -9,7 +9,7 @@ publish = false
 
 [dependencies]
 lychee-lib = { path = "../lychee-lib"}
-criterion = "0.3.5"
+criterion = "0.3.6"
 
 [[bench]]
 name = "extract"
