@@ -9,7 +9,7 @@ use std::{collections::HashSet, str::FromStr};
 use tower::Service;
 
 /// Creates a client according to the command-line config
-pub(crate) fn create(
+pub(crate) async fn create(
     cfg: &Config,
 ) -> Result<impl Service<Request, Response = Response, Error = ErrorKind>> {
     let mut headers = parse_headers(&cfg.headers)?;
@@ -66,5 +66,6 @@ pub(crate) fn create(
         .require_https(cfg.require_https)
         .build()
         .client()
+        .await
         .context("Failed to create request client")
 }

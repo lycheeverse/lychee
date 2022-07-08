@@ -11,7 +11,7 @@ use tokio_stream::StreamExt;
 
 use crate::formatters::response::ResponseFormatter;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
-use lychee_lib::{Client, Request, Response};
+use lychee_lib::{Request, Response};
 
 use super::CommandParams;
 
@@ -134,7 +134,7 @@ async fn handle<T>(client: &T, cache: Arc<Cache>, request: Request) -> Response 
     // See https://github.com/servo/rust-url/issues/554
     // See https://github.com/seanmonstar/reqwest/issues/668
     // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
-    let response = client.check(request).await.expect("cannot check URI");
+    let response = client.call(request).await.expect("cannot check URI");
 
     // Never cache filesystem access as it is fast already so caching has no
     // benefit

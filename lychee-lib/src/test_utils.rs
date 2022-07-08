@@ -1,6 +1,7 @@
 use std::{convert::TryFrom, fs, path::Path};
 
 use reqwest::Url;
+use tower::Service;
 
 use crate::{ClientBuilder, ErrorKind, Request, Uri};
 
@@ -24,8 +25,9 @@ where
 {
     ClientBuilder::default()
         .client()
+        .await
         .unwrap()
-        .check(request)
+        .call(request)
         .await
         .unwrap()
 }
