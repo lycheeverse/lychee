@@ -5,6 +5,7 @@ mod cli {
         fs::{self, File},
         io::Write,
         path::{Path, PathBuf},
+        time::SystemTime,
     };
 
     use assert_cmd::Command;
@@ -34,6 +35,18 @@ mod cli {
             .parent()
             .unwrap()
             .join("fixtures")
+    }
+
+    fn generate_lycheecache_file(data: &str) {
+        fs::write(fixtures_path().join("cache").join(".lycheecache"), data)
+            .expect("Unable to write to .lycheecache file");
+    }
+
+    fn timestamp() -> u64 {
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("SystemTime before UNIX EPOCH!")
+            .as_secs()
     }
 
     #[derive(Default)]
@@ -602,6 +615,49 @@ mod cli {
             .success()
             .stdout(contains("8 Total"))
             .stdout(contains("6 Excluded"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_lycheecache_file() -> Result<()> {
+        // populate the .lycheecache file
+        generate_lycheecache_file(&format!(
+            r#"
+http://example.org/,200,{0}
+http://foo.example.org/,,{0}
+http://example.com/,Excluded,{0}
+https://www.rust-lang.org/,200,{0}
+https://github.com/rust-lang/rust,200,{0}
+http://example.net/foo/bar,404,{0}"#,
+            timestamp()
+        ));
+
+        let mut cmd = main_command();
+        let test_base_path = fixtures_path().join("cache");
+        let test_file_path = fixtures_path().join("TEST_EXAMPLE_DOMAINS.md");
+
+        cmd.current_dir(test_base_path)
+            .arg("--verbose")
+            .arg("--cache")
+            .arg("--exclude")
+            .arg("example.com")
+            .arg("--")
+            .arg(test_file_path)
+            .assert()
+            .stderr(contains("[200] http://example.org/ | OK (cached)"))
+            .stderr(contains("[ERR] http://foo.example.org/ | Error (cached)"))
+            .stderr(contains("[EXCLUDED] http://example.com/ | Excluded"))
+            .stderr(contains("[200] https://www.rust-lang.org/ | OK (cached)"))
+            .stderr(contains(
+                "[200] https://github.com/rust-lang/rust | OK (cached)",
+            ))
+            .stderr(contains(
+                "[404] http://example.net/foo/bar | Error (cached)",
+            ));
+
+        // reset the .lycheecache file
+        generate_lycheecache_file("");
 
         Ok(())
     }
