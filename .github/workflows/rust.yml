@@ -4,10 +4,13 @@ on:
   workflow_dispatch:
   push:
     branches:
-    - master
+      - master
   pull_request:
     branches:
-    - master
+      - master
+    types:
+      - opened
+      - synchronize
 
 env:
   CARGO_TERM_COLOR: always
