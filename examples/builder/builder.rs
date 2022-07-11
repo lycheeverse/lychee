@@ -37,7 +37,8 @@ async fn main() -> Result<()> {
         ]))
         .accepted(accepted)
         .build()
-        .client()?;
+        .client()
+        .await?;
 
     let response = client.check("https://example.com").await?;
     dbg!(&response);

@@ -244,7 +244,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").map_or(false, |x| x == "1"))
         .collect_links(inputs)
         .await;
-    let client = client::create(&opts.config)?;
+    let client = client::create(&opts.config).await?;
     let cache = load_cache(&opts.config).unwrap_or_default();
     let cache = Arc::new(cache);
 

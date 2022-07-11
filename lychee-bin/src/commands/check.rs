@@ -3,11 +3,12 @@ use std::sync::Arc;
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
-use lychee_lib::Result;
 use lychee_lib::Status;
+use lychee_lib::{ClientExt, Result};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
+use tower::Service;
 
 use crate::formatters::response::ResponseFormatter;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
@@ -20,7 +21,8 @@ pub(crate) async fn check<T, S>(
 ) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
 where
     S: futures::Stream<Item = Result<Request>>,
-    T: tower::Service<lychee_lib::Request> + Send + Sync + 'static,
+    T: tower::Service<lychee_lib::Request> + Send + Sync + 'static + ClientExt,
+    <T as Service<lychee_lib::Request>>::Error: std::fmt::Debug,
 {
     let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
     let (send_resp, mut recv_resp) = mpsc::channel(params.cfg.max_concurrency);
@@ -114,7 +116,11 @@ where
 }
 
 /// Handle a single request
-async fn handle<T>(client: &T, cache: Arc<Cache>, request: Request) -> Response {
+async fn handle<T>(client: &T, cache: Arc<Cache>, request: Request) -> Response
+where
+    T: tower::Service<lychee_lib::Request> + Send + Sync + 'static + ClientExt,
+    <T as Service<lychee_lib::Request>>::Error: std::fmt::Debug,
+{
     let uri = request.uri.clone();
     if let Some(v) = cache.get(&uri) {
         // Found a cached request

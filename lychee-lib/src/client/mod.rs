@@ -24,7 +24,7 @@ use reqwest::{header, Url};
 use secrecy::{ExposeSecret, SecretString};
 use tokio::time::sleep;
 use tower::util::BoxService;
-use tower::{service_fn, Service, ServiceBuilder};
+use tower::{Service, ServiceBuilder};
 use typed_builder::TypedBuilder;
 
 use crate::{
@@ -252,7 +252,12 @@ impl ClientBuilder {
     /// - The request client cannot be created.
     ///   See [here](https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors).
     /// - The Github client cannot be created.
-    pub async fn client(self) -> Result<BoxService<Request, Response, ErrorKind>> {
+    pub async fn client<T, E>(self) -> Result<BoxService<T, Response, ErrorKind>>
+    where
+        Request: TryFrom<T, Error = E>,
+        ErrorKind: From<E>,
+        T: Send + 'static,
+    {
         let Self {
             github_token,
             remaps,
@@ -335,10 +340,12 @@ impl ClientBuilder {
         Ok(service)
     }
 
-    pub(crate) async fn build_service(
-        // client: &'static Client,
-        client: Client,
-    ) -> BoxService<Request, Response, ErrorKind> {
+    pub(crate) async fn build_service<T, E>(client: Client) -> BoxService<T, Response, ErrorKind>
+    where
+        Request: TryFrom<T, Error = E>,
+        ErrorKind: From<E>,
+        T: Send + 'static,
+    {
         let service = ServiceBuilder::new()
             // .rate_limit(100, Duration::new(10, 0)) // 100 requests every 10 seconds
             // .retry(Limit(50))
@@ -613,6 +620,25 @@ impl Client {
     }
 }
 
+/// Some docs
+pub trait ClientExt {
+    /// Test method
+    fn is_excluded(&self, uri: &Uri) -> bool;
+
+    /// Test method
+    fn remap(&self, uri: Uri) -> Result<Uri>;
+}
+
+impl ClientExt for Client {
+    fn is_excluded(&self, uri: &Uri) -> bool {
+        self.is_excluded(uri)
+    }
+
+    fn remap(&self, uri: Uri) -> Result<Uri> {
+        self.remap(uri)
+    }
+}
+
 // Check if the given `Url` would cause `reqwest` to panic.
 // This is a workaround for https://github.com/lycheeverse/lychee/issues/539
 // and can be removed once https://github.com/seanmonstar/reqwest/pull/1399
@@ -637,10 +663,10 @@ pub async fn check<T, E>(request: T) -> Result<Response>
 where
     Request: TryFrom<T, Error = E>,
     ErrorKind: From<E>,
+    T: Send + 'static,
 {
     let mut client = ClientBuilder::builder().build().client().await?;
-    let request: Request = request.try_into()?;
-    client.call(request.into()).await
+    client.call(request).await
 }
 
 #[cfg(test)]
@@ -655,7 +681,7 @@ mod tests {
     use tempfile::tempdir;
     use tower::Service;
 
-    use super::ClientBuilder;
+    use super::*;
     use crate::{mock_server, test_utils::get_mock_client_response, Uri};
 
     #[tokio::test]
@@ -765,8 +791,9 @@ mod tests {
             .custom_headers(custom)
             .build()
             .client()
+            .await
             .unwrap()
-            .check("https://crates.io/crates/lychee")
+            .call("https://crates.io/crates/lychee")
             .await
             .unwrap();
         assert!(res.status().is_success());
@@ -779,6 +806,7 @@ mod tests {
             .exclude_all_private(true)
             .build()
             .client()
+            .await
             .unwrap();
         assert!(!client.is_excluded(&Uri {
             url: "mailto://mail@example.com".try_into().unwrap()
@@ -799,7 +827,7 @@ mod tests {
     #[tokio::test]
     async fn test_require_https() {
         let client = ClientBuilder::builder().build().client().await.unwrap();
-        let res = client.check("http://example.com").await.unwrap();
+        let res = client.call("http://example.com").await.unwrap();
         assert!(res.status().is_success());
 
         // Same request will fail if HTTPS is required
@@ -809,7 +837,7 @@ mod tests {
             .client()
             .await
             .unwrap();
-        let res = client.check("http://example.com").await.unwrap();
+        let res = client.call("http://example.com").await.unwrap();
         assert!(res.status().is_failure());
     }
 
@@ -831,7 +859,7 @@ mod tests {
             .await
             .unwrap();
 
-        let res = client.check(mock_server.uri()).await.unwrap();
+        let res = client.call(mock_server.uri()).await.unwrap();
         assert!(res.status().is_timeout());
     }
 

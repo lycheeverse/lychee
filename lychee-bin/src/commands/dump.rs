@@ -1,3 +1,4 @@
+use lychee_lib::ClientExt;
 use lychee_lib::Request;
 use lychee_lib::Result;
 use std::io::{self, Write};
@@ -11,7 +12,7 @@ use super::CommandParams;
 pub(crate) async fn dump<T, S>(params: CommandParams<T, S>) -> Result<ExitCode>
 where
     S: futures::Stream<Item = Result<Request>>,
-    T: tower::Service<lychee_lib::Request>,
+    T: tower::Service<lychee_lib::Request> + ClientExt,
 {
     let requests = params.requests;
     tokio::pin!(requests);
