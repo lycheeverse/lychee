@@ -656,9 +656,6 @@ http://example.net/foo/bar,404,{0}"#,
                 "[404] http://example.net/foo/bar | Error (cached)",
             ));
 
-        // reset the .lycheecache file
-        generate_lycheecache_file("");
-
         Ok(())
     }
 

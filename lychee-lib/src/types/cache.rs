@@ -32,7 +32,7 @@ impl<'de> Deserialize<'de> for CacheStatus {
                 Ok(code) => match code {
                     // classify successful status codes as cache status success
                     200..=299 => Ok(CacheStatus::Ok(code)),
-                    // classify redirects, client errors, & server errors as cache status errors
+                    // classify redirects, client errors, & server errors as cache status error
                     _ => Ok(CacheStatus::Error(Some(code))),
                 },
                 Err(_) => Ok(CacheStatus::Error(None)),
@@ -84,53 +84,43 @@ mod tests {
 
     use crate::CacheStatus;
 
+    fn deserialize_cache_status(s: &str) -> Result<CacheStatus, DeserializerError> {
+        let deserializer: BorrowedStrDeserializer<DeserializerError> =
+            BorrowedStrDeserializer::new(s);
+        CacheStatus::deserialize(deserializer)
+    }
+
     #[test]
     fn test_deserialize_cache_status_success_code() {
-        let deserializer: BorrowedStrDeserializer<DeserializerError> =
-            BorrowedStrDeserializer::new("200");
-        assert_eq!(
-            CacheStatus::deserialize(deserializer),
-            Ok(CacheStatus::Ok(200))
-        );
+        assert_eq!(deserialize_cache_status("200"), Ok(CacheStatus::Ok(200)));
     }
 
     #[test]
     fn test_deserialize_cache_status_error_code() {
-        let deserializer: BorrowedStrDeserializer<DeserializerError> =
-            BorrowedStrDeserializer::new("404");
         assert_eq!(
-            CacheStatus::deserialize(deserializer),
+            deserialize_cache_status("404"),
             Ok(CacheStatus::Error(Some(404)))
         );
     }
 
     #[test]
     fn test_deserialize_cache_status_excluded() {
-        let deserializer: BorrowedStrDeserializer<DeserializerError> =
-            BorrowedStrDeserializer::new("Excluded");
         assert_eq!(
-            CacheStatus::deserialize(deserializer),
+            deserialize_cache_status("Excluded"),
             Ok(CacheStatus::Excluded)
         );
     }
 
     #[test]
     fn test_deserialize_cache_status_unsupported() {
-        let deserializer: BorrowedStrDeserializer<DeserializerError> =
-            BorrowedStrDeserializer::new("Unsupported");
         assert_eq!(
-            CacheStatus::deserialize(deserializer),
+            deserialize_cache_status("Unsupported"),
             Ok(CacheStatus::Unsupported)
         );
     }
 
     #[test]
     fn test_deserialize_cache_status_blank() {
-        let deserializer: BorrowedStrDeserializer<DeserializerError> =
-            BorrowedStrDeserializer::new("");
-        assert_eq!(
-            CacheStatus::deserialize(deserializer),
-            Ok(CacheStatus::Error(None))
-        );
+        assert_eq!(deserialize_cache_status(""), Ok(CacheStatus::Error(None)));
     }
 }
