@@ -5,7 +5,6 @@ mod cli {
         fs::{self, File},
         io::Write,
         path::{Path, PathBuf},
-        time::SystemTime,
     };
 
     use assert_cmd::Command;
@@ -35,18 +34,6 @@ mod cli {
             .parent()
             .unwrap()
             .join("fixtures")
-    }
-
-    fn generate_lycheecache_file(data: &str) {
-        fs::write(fixtures_path().join("cache").join(".lycheecache"), data)
-            .expect("Unable to write to .lycheecache file");
-    }
-
-    fn timestamp() -> u64 {
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("SystemTime before UNIX EPOCH!")
-            .as_secs()
     }
 
     #[derive(Default)]
@@ -619,42 +606,76 @@ mod cli {
         Ok(())
     }
 
-    #[test]
-    fn test_lycheecache_file() -> Result<()> {
-        // populate the .lycheecache file
-        generate_lycheecache_file(&format!(
-            r#"
-http://example.org/,200,{0}
-http://foo.example.org/,,{0}
-http://example.com/,Excluded,{0}
-https://www.rust-lang.org/,200,{0}
-https://github.com/rust-lang/rust,200,{0}
-http://example.net/foo/bar,404,{0}"#,
-            timestamp()
-        ));
-
+    #[tokio::test]
+    async fn test_lycheecache_file() -> Result<()> {
         let mut cmd = main_command();
-        let test_base_path = fixtures_path().join("cache");
-        let test_file_path = fixtures_path().join("TEST_EXAMPLE_DOMAINS.md");
 
-        cmd.current_dir(test_base_path)
+        let test_base_path = fixtures_path().join("cache");
+        assert!(
+            fs::metadata(test_base_path.join(".lycheecache")).is_err(),
+            ".lycheecache file should not exist before this test"
+        );
+
+        let mock_server_ok = mock_server!(StatusCode::OK);
+        let mock_server_err = mock_server!(StatusCode::NOT_FOUND);
+        let mock_server_exclude = mock_server!(StatusCode::OK);
+
+        let dir = tempfile::tempdir()?;
+        let mut file = File::create(dir.path().join("c.md"))?;
+
+        writeln!(file, "{}", mock_server_ok.uri().as_str())?;
+        writeln!(file, "{}", mock_server_err.uri().as_str())?;
+        writeln!(file, "{}", mock_server_exclude.uri().as_str())?;
+
+        // run first without cache to generate the .lycheecache file
+        cmd.current_dir(&test_base_path)
+            .arg(dir.path().join("c.md"))
             .arg("--verbose")
             .arg("--cache")
             .arg("--exclude")
-            .arg("example.com")
-            .arg("--")
-            .arg(test_file_path)
+            .arg(mock_server_exclude.uri())
             .assert()
-            .stderr(contains("[200] http://example.org/ | OK (cached)"))
-            .stderr(contains("[ERR] http://foo.example.org/ | Error (cached)"))
-            .stderr(contains("[EXCLUDED] http://example.com/ | Excluded"))
-            .stderr(contains("[200] https://www.rust-lang.org/ | OK (cached)"))
-            .stderr(contains(
-                "[200] https://github.com/rust-lang/rust | OK (cached)",
-            ))
-            .stderr(contains(
-                "[404] http://example.net/foo/bar | Error (cached)",
-            ));
+            .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
+            .stderr(contains(format!(
+                "[404] {}/ | Network error: Not Found\n",
+                mock_server_err.uri()
+            )))
+            .stderr(contains(format!(
+                "[EXCLUDED] {}/ | Excluded\n",
+                mock_server_exclude.uri()
+            )));
+
+        // check content of .lycheecache file
+        let data = fs::read_to_string(fixtures_path().join("cache").join(".lycheecache"))?;
+        assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
+        assert!(data.contains(&format!("{}/,404", mock_server_err.uri())));
+        assert!(data.contains(&format!("{}/,Excluded", mock_server_exclude.uri())));
+
+        let mut cmd = main_command();
+
+        // run again to verify cache behavior
+        cmd.current_dir(&test_base_path)
+            .arg(dir.path().join("c.md"))
+            .arg("--verbose")
+            .arg("--cache")
+            .arg("--exclude")
+            .arg(mock_server_exclude.uri())
+            .assert()
+            .stderr(contains(format!(
+                "[200] {}/ | OK (cached)\n",
+                mock_server_ok.uri()
+            )))
+            .stderr(contains(format!(
+                "[404] {}/ | Error (cached)\n",
+                mock_server_err.uri()
+            )))
+            .stderr(contains(format!(
+                "[EXCLUDED] {}/ | Excluded\n",
+                mock_server_exclude.uri()
+            )));
+
+        // clear the .lycheecache file
+        fs::remove_file(fixtures_path().join("cache").join(".lycheecache"))?;
 
         Ok(())
     }
