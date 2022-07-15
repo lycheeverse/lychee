@@ -147,6 +147,8 @@ impl Input {
                 let path = PathBuf::from(value);
                 if path.exists() {
                     InputSource::FsPath(path)
+                } else if path.is_relative() {
+                    return Err(ErrorKind::FileNotFound(path));
                 } else {
                     // Invalid path; check if a valid URL can be constructed from the input
                     // by prefixing it with a `http://` scheme.
@@ -373,6 +375,13 @@ fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_input_gracefully_handles_nonexistent_relative_paths() {
+        let input = Input::new("./relative/path", None, false, None);
+        assert!(input.is_err());
+        assert!(matches!(input, Err(ErrorKind::FileNotFound(..))));
+    }
 
     #[test]
     fn test_valid_extension() {
