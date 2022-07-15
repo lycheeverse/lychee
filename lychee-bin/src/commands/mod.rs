@@ -3,8 +3,7 @@ pub(crate) mod dump;
 
 pub(crate) use check::check;
 pub(crate) use dump::dump;
-use lychee_lib::ClientExt;
-use tower::Service;
+use lychee_lib::ClientWrapper;
 
 use std::sync::Arc;
 
@@ -15,11 +14,8 @@ use lychee_lib::Request;
 use lychee_lib::Result;
 
 /// Parameters passed to every command
-pub(crate) struct CommandParams<
-    T: Service<Request> + ClientExt,
-    S: futures::Stream<Item = Result<Request>>,
-> {
-    pub(crate) client: T,
+pub(crate) struct CommandParams<T, S: futures::Stream<Item = Result<Request>>> {
+    pub(crate) client: ClientWrapper<T>,
     pub(crate) cache: Arc<Cache>,
     pub(crate) requests: S,
     pub(crate) formatter: Box<dyn ResponseFormatter>,

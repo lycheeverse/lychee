@@ -2,7 +2,6 @@ use lychee_lib::{ClientBuilder, Request, Result};
 use std::convert::TryFrom;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tower::Service;
 
 const CONCURRENT_REQUESTS: usize = 4;
 
@@ -33,7 +32,7 @@ async fn main() -> Result<()> {
             ReceiverStream::new(recv_req),
             CONCURRENT_REQUESTS,
             |req| async {
-                let resp = client.call(req).await.unwrap();
+                let resp = client.check(req).await.unwrap();
                 send_resp.send(resp).await.unwrap();
             },
         )

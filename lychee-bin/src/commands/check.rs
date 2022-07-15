@@ -3,12 +3,11 @@ use std::sync::Arc;
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
-use lychee_lib::Status;
-use lychee_lib::{ClientExt, Result};
+use lychee_lib::{ClientWrapper, Result};
+use lychee_lib::{ErrorKind, Status};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
-use tower::Service;
 
 use crate::formatters::response::ResponseFormatter;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
@@ -16,30 +15,31 @@ use lychee_lib::{Request, Response};
 
 use super::CommandParams;
 
-pub(crate) async fn check<T, S>(
+pub(crate) async fn check<T, S, E>(
     params: CommandParams<T, S>,
 ) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
 where
     S: futures::Stream<Item = Result<Request>>,
-    T: tower::Service<lychee_lib::Request> + Send + Sync + 'static + ClientExt,
-    <T as Service<lychee_lib::Request>>::Error: std::fmt::Debug,
+    Request: TryFrom<T, Error = E>,
+    ErrorKind: From<E>,
 {
-    let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
-    let (send_resp, mut recv_resp) = mpsc::channel(params.cfg.max_concurrency);
     let max_concurrency = params.cfg.max_concurrency;
     let mut stats = ResponseStats::new();
     let cache_ref = params.cache.clone();
-
     let client = params.client;
     let cache = params.cache;
+
+    let (send_req, recv_req) = mpsc::channel(max_concurrency);
+    let (send_resp, mut recv_resp) = mpsc::channel(max_concurrency);
+
     // Start receiving requests
     tokio::spawn(async move {
         futures::StreamExt::for_each_concurrent(
             ReceiverStream::new(recv_req),
             max_concurrency,
-            |request: Result<Request>| async {
+            |request: Result<T>| async {
                 let request = request.expect("cannot read request");
-                let response = handle(&client, cache.clone(), request).await;
+                let response = handle(&mut client, cache.clone(), request).await;
 
                 send_resp
                     .send(response)
@@ -73,6 +73,7 @@ where
         let verbose = params.cfg.verbose;
         async move {
             while let Some(response) = recv_resp.recv().await {
+                let response = response?;
                 show_progress(&mut io::stdout(), &pb, &response, &formatter, verbose)?;
                 stats.add(response);
             }
@@ -116,11 +117,16 @@ where
 }
 
 /// Handle a single request
-async fn handle<T>(client: &T, cache: Arc<Cache>, request: Request) -> Response
+async fn handle<T, E>(
+    client: &mut ClientWrapper<T>,
+    cache: Arc<Cache>,
+    request: T,
+) -> Result<Response>
 where
-    T: tower::Service<lychee_lib::Request> + Send + Sync + 'static + ClientExt,
-    <T as Service<lychee_lib::Request>>::Error: std::fmt::Debug,
+    Request: TryFrom<T, Error = E>,
+    ErrorKind: From<E>,
 {
+    let request: Request = request.try_into()?;
     let uri = request.uri.clone();
     if let Some(v) = cache.get(&uri) {
         // Found a cached request
@@ -131,7 +137,7 @@ where
         } else {
             Status::from(v.value().status)
         };
-        return Response::new(uri.clone(), status, request.source);
+        return Ok(Response::new(uri.clone(), status, request.source));
     }
 
     // Request was not cached; run a normal check
@@ -140,14 +146,14 @@ where
     // See https://github.com/servo/rust-url/issues/554
     // See https://github.com/seanmonstar/reqwest/issues/668
     // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
-    let response = client.call(request).await.expect("cannot check URI");
+    let response = client.check(request).await.expect("cannot check URI");
 
     // Never cache filesystem access as it is fast already so caching has no
     // benefit
     if !uri.is_file() {
         cache.insert(uri, response.status().into());
     }
-    response
+    Ok(response)
 }
 
 fn show_progress(

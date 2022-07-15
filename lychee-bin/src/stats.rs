@@ -104,6 +104,7 @@ mod tests {
 
         ClientBuilder::default()
             .client()
+            .await
             .unwrap()
             .check(mock_server.uri())
             .await

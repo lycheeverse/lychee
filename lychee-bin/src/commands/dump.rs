@@ -1,4 +1,3 @@
-use lychee_lib::ClientExt;
 use lychee_lib::Request;
 use lychee_lib::Result;
 use std::io::{self, Write};
@@ -12,16 +11,16 @@ use super::CommandParams;
 pub(crate) async fn dump<T, S>(params: CommandParams<T, S>) -> Result<ExitCode>
 where
     S: futures::Stream<Item = Result<Request>>,
-    T: tower::Service<lychee_lib::Request> + ClientExt,
 {
     let requests = params.requests;
     tokio::pin!(requests);
 
     while let Some(request) = requests.next().await {
-        let mut request = request?;
+        let request = request?;
 
         // Apply URI remappings (if any)
-        request.uri = params.client.remap(request.uri)?;
+        // TODO: Move to service
+        // request.uri = params.client.remap(request.uri)?;
 
         // Avoid panic on broken pipe.
         // See https://github.com/rust-lang/rust/issues/46016
