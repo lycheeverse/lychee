@@ -449,8 +449,9 @@ impl Client {
                 return Status::Error(ErrorKind::InvalidURI(uri.clone()));
             }
             // This is merely a URI with a scheme that is not supported by
-            // reqwest yet. It would be safe to pass that to reqwest and it wouldn't
-            // panic, but it's also unnecessary, because it would simply return an error.
+            // reqwest yet. It would be safe to pass that to reqwest and it
+            // wouldn't panic, but it's also unnecessary, because it would
+            // simply return an error.
             return Status::Unsupported(ErrorKind::InvalidURI(uri.clone()));
         }
 

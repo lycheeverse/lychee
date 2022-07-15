@@ -16,6 +16,11 @@ pub enum CacheStatus {
     /// The request was excluded (skipped)
     Excluded,
     /// The protocol is not yet supported
+    // We no longer cache unsupported files as they might be supported in future
+    // versions.
+    // Nevertheless, keep for compatibility when deserializing older cache
+    // files, even though this no longer gets serialized. Can be removed at a
+    // later point in time.
     Unsupported,
 }
 
@@ -27,6 +32,9 @@ impl<'de> Deserialize<'de> for CacheStatus {
         let status = <&str as Deserialize<'de>>::deserialize(deserializer)?;
         match status {
             "Excluded" => Ok(CacheStatus::Excluded),
+            // Keep for compatibility with older cache files, even though this
+            // no longer gets serialized. Can be removed at a later point in
+            // time.
             "Unsupported" => Ok(CacheStatus::Unsupported),
             other => match other.parse::<u16>() {
                 Ok(code) => match code {

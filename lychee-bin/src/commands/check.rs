@@ -135,10 +135,14 @@ async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Respons
     // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
     let response = client.check(request).await.expect("cannot check URI");
 
-    // Never cache filesystem access as it is fast already so caching has no
-    // benefit
-    if !uri.is_file() {
-        cache.insert(uri, response.status().into());
+    // - Never cache filesystem access as it is fast already so caching has no
+    //   benefit.
+    // - Skip caching unsupported URLs as they might be supported in a
+    //   future run.
+    // - Skip caching excluded links; they might not be excluded in the next run
+    let status = response.status();
+    if !uri.is_file() && !status.is_excluded() && !status.is_unsupported() {
+        cache.insert(uri, status.into());
     }
     response
 }
