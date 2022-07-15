@@ -31,6 +31,7 @@ impl<'de> Deserialize<'de> for CacheStatus {
             other => match other.parse::<u16>() {
                 Ok(code) => match code {
                     // classify successful status codes as cache status success
+                    // TODO does not account for status code overrides passed through the 'accept' flag
                     200..=299 => Ok(CacheStatus::Ok(code)),
                     // classify redirects, client errors, & server errors as cache status error
                     _ => Ok(CacheStatus::Error(Some(code))),
