@@ -148,6 +148,7 @@ impl Input {
                 if path.exists() {
                     InputSource::FsPath(path)
                 } else if path.is_relative() {
+                    // If the file does not exist and it is a relative path exit immediately
                     return Err(ErrorKind::FileNotFound(path));
                 } else {
                     // Invalid path; check if a valid URL can be constructed from the input
@@ -377,10 +378,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_input_gracefully_handles_nonexistent_relative_paths() {
-        let input = Input::new("./relative/path", None, false, None);
+    fn test_input_handles_real_relative_paths() {
+        let test_file = "./Cargo.toml";
+        let path = Path::new(test_file);
+
+        assert!(path.exists());
+        assert!(path.is_relative());
+
+        let input = Input::new(test_file, None, false, None);
+        assert!(input.is_ok());
+        assert!(matches!(
+            input,
+            Ok(Input {
+                source: InputSource::FsPath(PathBuf { .. }),
+                file_type_hint: None,
+                excluded_paths: None
+            })
+        ));
+    }
+
+    #[test]
+    fn test_input_handles_nonexistent_relative_paths() {
+        let input = Input::new("./nonexistent/relative/path", None, false, None);
         assert!(input.is_err());
-        assert!(matches!(input, Err(ErrorKind::FileNotFound(..))));
+        assert!(matches!(
+            input,
+            Err(ErrorKind::FileNotFound(PathBuf { .. }))
+        ));
     }
 
     #[test]
