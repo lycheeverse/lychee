@@ -606,6 +606,77 @@ mod cli {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_lycheecache_file() -> Result<()> {
+        let base_path = fixtures_path().join("cache");
+        let cache_file = base_path.join(".lycheecache");
+
+        let mock_server_ok = mock_server!(StatusCode::OK);
+        let mock_server_err = mock_server!(StatusCode::NOT_FOUND);
+        let mock_server_exclude = mock_server!(StatusCode::OK);
+
+        let dir = tempfile::tempdir()?;
+        let mut file = File::create(dir.path().join("c.md"))?;
+
+        writeln!(file, "{}", mock_server_ok.uri().as_str())?;
+        writeln!(file, "{}", mock_server_err.uri().as_str())?;
+        writeln!(file, "{}", mock_server_exclude.uri().as_str())?;
+
+        let mut cmd = main_command();
+        let test_cmd = cmd
+            .current_dir(&base_path)
+            .arg(dir.path().join("c.md"))
+            .arg("--verbose")
+            .arg("--cache")
+            .arg("--exclude")
+            .arg(mock_server_exclude.uri());
+
+        assert!(
+            !cache_file.exists(),
+            "cache file should not exist before this test"
+        );
+
+        // run first without cache to generate the cache file
+        test_cmd
+            .assert()
+            .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
+            .stderr(contains(format!(
+                "[404] {}/ | Network error: Not Found\n",
+                mock_server_err.uri()
+            )))
+            .stderr(contains(format!(
+                "[EXCLUDED] {}/ | Excluded\n",
+                mock_server_exclude.uri()
+            )));
+
+        // check content of cache file file
+        let data = fs::read_to_string(&cache_file)?;
+        assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
+        assert!(data.contains(&format!("{}/,404", mock_server_err.uri())));
+        assert!(data.contains(&format!("{}/,Excluded", mock_server_exclude.uri())));
+
+        // run again to verify cache behavior
+        test_cmd
+            .assert()
+            .stderr(contains(format!(
+                "[200] {}/ | OK (cached)\n",
+                mock_server_ok.uri()
+            )))
+            .stderr(contains(format!(
+                "[404] {}/ | Error (cached)\n",
+                mock_server_err.uri()
+            )))
+            .stderr(contains(format!(
+                "[EXCLUDED] {}/ | Excluded\n",
+                mock_server_exclude.uri()
+            )));
+
+        // clear the cache file
+        fs::remove_file(&cache_file)?;
+
+        Ok(())
+    }
+
     #[test]
     fn test_include_verbatim() -> Result<()> {
         let mut cmd = main_command();
