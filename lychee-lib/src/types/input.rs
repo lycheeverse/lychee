@@ -399,7 +399,13 @@ mod tests {
 
     #[test]
     fn test_input_handles_nonexistent_relative_paths() {
-        let input = Input::new("./nonexistent/relative/path", None, false, None);
+        let test_file = "./nonexistent/relative/path";
+        let path = Path::new(test_file);
+
+        assert!(!path.exists());
+        assert!(path.is_relative());
+
+        let input = Input::new(test_file, None, false, None);
         assert!(input.is_err());
         assert!(matches!(
             input,
