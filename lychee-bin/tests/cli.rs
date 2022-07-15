@@ -608,13 +608,8 @@ mod cli {
 
     #[tokio::test]
     async fn test_lycheecache_file() -> Result<()> {
-        let mut cmd = main_command();
-
-        let test_base_path = fixtures_path().join("cache");
-        assert!(
-            fs::metadata(test_base_path.join(".lycheecache")).is_err(),
-            ".lycheecache file should not exist before this test"
-        );
+        let base_path = fixtures_path().join("cache");
+        let cache_file = base_path.join(".lycheecache");
 
         let mock_server_ok = mock_server!(StatusCode::OK);
         let mock_server_err = mock_server!(StatusCode::NOT_FOUND);
@@ -627,13 +622,22 @@ mod cli {
         writeln!(file, "{}", mock_server_err.uri().as_str())?;
         writeln!(file, "{}", mock_server_exclude.uri().as_str())?;
 
-        // run first without cache to generate the .lycheecache file
-        cmd.current_dir(&test_base_path)
+        let mut cmd = main_command();
+        let test_cmd = cmd
+            .current_dir(&base_path)
             .arg(dir.path().join("c.md"))
             .arg("--verbose")
             .arg("--cache")
             .arg("--exclude")
-            .arg(mock_server_exclude.uri())
+            .arg(mock_server_exclude.uri());
+
+        assert!(
+            !cache_file.exists(),
+            "cache file should not exist before this test"
+        );
+
+        // run first without cache to generate the cache file
+        test_cmd
             .assert()
             .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
             .stderr(contains(format!(
@@ -645,21 +649,14 @@ mod cli {
                 mock_server_exclude.uri()
             )));
 
-        // check content of .lycheecache file
-        let data = fs::read_to_string(fixtures_path().join("cache").join(".lycheecache"))?;
+        // check content of cache file file
+        let data = fs::read_to_string(&cache_file)?;
         assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
         assert!(data.contains(&format!("{}/,404", mock_server_err.uri())));
         assert!(data.contains(&format!("{}/,Excluded", mock_server_exclude.uri())));
 
-        let mut cmd = main_command();
-
         // run again to verify cache behavior
-        cmd.current_dir(&test_base_path)
-            .arg(dir.path().join("c.md"))
-            .arg("--verbose")
-            .arg("--cache")
-            .arg("--exclude")
-            .arg(mock_server_exclude.uri())
+        test_cmd
             .assert()
             .stderr(contains(format!(
                 "[200] {}/ | OK (cached)\n",
@@ -674,8 +671,8 @@ mod cli {
                 mock_server_exclude.uri()
             )));
 
-        // clear the .lycheecache file
-        fs::remove_file(fixtures_path().join("cache").join(".lycheecache"))?;
+        // clear the cache file
+        fs::remove_file(&cache_file)?;
 
         Ok(())
     }
