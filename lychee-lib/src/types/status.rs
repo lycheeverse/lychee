@@ -34,7 +34,7 @@ pub enum Status {
     /// Resource was excluded from checking
     Excluded,
     /// The request type is currently not supported,
-    /// for example when the URL scheme is `slack://` or `file://`
+    /// for example when the URL scheme is `slack://`.
     /// See https://github.com/lycheeverse/lychee/issues/199
     Unsupported(ErrorKind),
     /// Cached request status from previous run
