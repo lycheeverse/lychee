@@ -148,7 +148,7 @@ impl Input {
                 if path.exists() {
                     InputSource::FsPath(path)
                 } else if path.is_relative() {
-                    // If the file does not exist and it is a relative path exit immediately
+                    // If the file does not exist and it is a relative path, exit immediately
                     return Err(ErrorKind::FileNotFound(path));
                 } else {
                     // Invalid path; check if a valid URL can be constructed from the input
