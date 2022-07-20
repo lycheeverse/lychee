@@ -174,6 +174,11 @@ lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
 acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
 ```
 
+lychee parses other file formats as plaintext and extracts links using [linkify](https://github.com/robinst/linkify). 
+This generally works well if there are no format or encoding specifics,
+but in case you need dedicated support for a new file format, please consider creating an issue.
+
+
 ### Docker Usage
 
 Here's how to mount a local directory into the container and check some input
