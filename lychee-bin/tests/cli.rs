@@ -874,4 +874,43 @@ mod cli {
 
         Ok(())
     }
+
+    #[test]
+    fn test_handle_relative_paths_as_input() -> Result<()> {
+        let test_path = fixtures_path();
+        let mut cmd = main_command();
+
+        cmd.current_dir(&test_path)
+            .arg("--verbose")
+            .arg("--exclude")
+            .arg("example.*")
+            .arg("--")
+            .arg("./TEST_DUMP_EXCLUDE.txt")
+            .assert()
+            .success()
+            .stdout(contains("3 Total"))
+            .stdout(contains("3 Excluded"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_handle_nonexistent_relative_paths_as_input() -> Result<()> {
+        let test_path = fixtures_path();
+        let mut cmd = main_command();
+
+        cmd.current_dir(&test_path)
+            .arg("--verbose")
+            .arg("--exclude")
+            .arg("example.*")
+            .arg("--")
+            .arg("./NOT-A-REAL-TEST-FIXTURE.md")
+            .assert()
+            .failure()
+            .stderr(contains(
+                "Cannot find local file ./NOT-A-REAL-TEST-FIXTURE.md",
+            ));
+
+        Ok(())
+    }
 }
