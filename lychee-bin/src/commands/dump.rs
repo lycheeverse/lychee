@@ -1,6 +1,8 @@
 use lychee_lib::Request;
 use lychee_lib::Result;
+use std::fs;
 use std::io::{self, Write};
+use std::path::PathBuf;
 use tokio_stream::StreamExt;
 
 use crate::ExitCode;
@@ -32,7 +34,7 @@ where
         if excluded && !verbose {
             continue;
         }
-        if let Err(e) = write(&request, verbose, excluded) {
+        if let Err(e) = write(&params.cfg.output, &request, verbose, excluded) {
             if e.kind() != io::ErrorKind::BrokenPipe {
                 eprintln!("{e}");
                 return Ok(ExitCode::UnexpectedFailure);
@@ -44,7 +46,12 @@ where
 }
 
 /// Dump request to stdout
-fn write(request: &Request, verbose: bool, excluded: bool) -> io::Result<()> {
+fn write(
+    output: &Option<PathBuf>,
+    request: &Request,
+    verbose: bool,
+    excluded: bool,
+) -> io::Result<()> {
     let request = if verbose {
         // Only print source in verbose mode. This way the normal link output
         // can be fed into another tool without data mangling.
@@ -52,9 +59,19 @@ fn write(request: &Request, verbose: bool, excluded: bool) -> io::Result<()> {
     } else {
         request.uri.to_string()
     };
-    if excluded {
-        writeln!(io::stdout(), "{} [excluded]", request)
+
+    let out_str = if excluded {
+        format!("{request} [excluded]")
     } else {
-        writeln!(io::stdout(), "{}", request)
+        format!("{request}")
+    };
+    write_out(output, out_str)
+}
+
+fn write_out(output: &Option<PathBuf>, out_str: String) -> io::Result<()> {
+    if let Some(output) = output {
+        fs::write(output, out_str)
+    } else {
+        writeln!(io::stdout(), "{}", out_str)
     }
 }
