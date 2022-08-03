@@ -52,7 +52,7 @@ where
         None
     } else {
         let bar = ProgressBar::new_spinner().with_style(ProgressStyle::default_bar().template(
-            "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
+            "{spinner:.197.bright} {pos}/{len:.dim} ETA {eta} {bar:.dim} {wide_msg}",
         ).expect("Valid progress bar"));
         bar.set_length(0);
         bar.set_message("Extracting links");
