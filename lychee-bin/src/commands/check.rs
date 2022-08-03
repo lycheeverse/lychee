@@ -1,5 +1,6 @@
 use std::io::{self, Write};
 use std::sync::Arc;
+use std::time::Duration;
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
@@ -52,13 +53,11 @@ where
     } else {
         let bar = ProgressBar::new_spinner().with_style(ProgressStyle::default_bar().template(
             "{spinner:.red.bright} {pos}/{len:.dim} [{elapsed_precise}] {bar:25} {wide_msg}",
-        ));
+        ).expect("Valid progress bar"));
         bar.set_length(0);
         bar.set_message("Extracting links");
-        // 10 updates per second = report status at _most_ every 100ms
-        bar.set_draw_rate(10);
         // report status _at least_ every 500ms
-        bar.enable_steady_tick(500);
+        bar.enable_steady_tick(Duration::from_millis(500));
         Some(bar)
     };
 
