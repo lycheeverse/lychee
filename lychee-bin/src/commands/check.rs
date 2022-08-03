@@ -51,9 +51,12 @@ where
     let pb = if params.cfg.no_progress {
         None
     } else {
-        let bar = ProgressBar::new_spinner().with_style(ProgressStyle::default_bar().template(
-            "{spinner:.197.bright} {pos}/{len:.dim} ETA {eta} {bar:.dim} {wide_msg}",
-        ).expect("Valid progress bar"));
+        let bar = ProgressBar::new_spinner().with_style(
+            ProgressStyle::with_template(
+                "{spinner:.197.bright} {pos}/{len:.dim} ETA {eta} {bar:.dim} {wide_msg}",
+            )
+            .expect("Valid progress bar"),
+        );
         bar.set_length(0);
         bar.set_message("Extracting links");
         // report status _at least_ every 500ms
