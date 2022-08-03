@@ -73,11 +73,11 @@ impl Display for MarkdownResponseStats {
                 for response in responses {
                     writeln!(
                         f,
-                        "* [{}]({}): {} (status code: {})",
+                        "* [{}] [{}]({}) | {}",
+                        response.status.code(),
                         response.uri,
                         response.uri,
-                        response.status,
-                        response.status.code()
+                        response.status
                     )?;
                 }
                 writeln!(f)?;
@@ -151,7 +151,7 @@ mod tests {
 
 ## Errors per input
 ### Errors in stdin
-* [http://127.0.0.1/](http://127.0.0.1/): Cached: Error (cached) (status code: 404)
+* [404] [http://127.0.0.1/](http://127.0.0.1/) | Cached: Error (cached)
 
 "#;
         assert_eq!(summary.to_string(), expected.to_string());
