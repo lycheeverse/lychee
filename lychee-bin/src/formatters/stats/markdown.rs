@@ -45,7 +45,7 @@ fn stats_table(stats: &ResponseStats) -> String {
             count: stats.errors + stats.failures,
         },
     ];
-    let style = tabled::Style::github_markdown().header_intersection('|');
+    let style = tabled::Style::markdown();
 
     Table::new(stats)
         .with(Modify::new(Segment::all()).with(Alignment::left()))
@@ -121,8 +121,7 @@ mod tests {
 | 🔀 Redirected | 0     |
 | 👻 Excluded   | 0     |
 | ❓ Unknown    | 0     |
-| 🚫 Errors     | 0     |
-"#;
+| 🚫 Errors     | 0     |"#;
         assert_eq!(table, expected.to_string());
     }
 
@@ -149,7 +148,6 @@ mod tests {
 | 👻 Excluded   | 0     |
 | ❓ Unknown    | 0     |
 | 🚫 Errors     | 1     |
-
 
 ## Errors per input
 ### Errors in stdin
