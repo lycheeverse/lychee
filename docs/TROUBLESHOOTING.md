@@ -56,7 +56,7 @@ See more info about the Accept header
 [over at MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept).
 
 
-## Unreachable mail address
+## Unreachable Mail Address
 
 We use https://github.com/reacherhq/check-if-email-exists for email checking.
 You can test your mail address with curl:
