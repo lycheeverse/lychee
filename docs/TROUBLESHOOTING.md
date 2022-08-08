@@ -68,7 +68,7 @@ You can test your mail address with curl:
   -d '{"to_email": "box@domain.test"}'
 ```
 Some settings on your mail server (such as SPF Policy, DNSBL) may prevent your email from being verified.
-If you have an error with checking a working email, you can disable this checks using the
+If you have an error with checking a working email, you can disable this check using the
 [commandline parameter](https://github.com/lycheeverse/lychee#commandline-parameters) `--exclude-mail`.
 
 
