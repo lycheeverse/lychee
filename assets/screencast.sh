@@ -42,7 +42,7 @@ main() {
 
     enter "lychee README.md"
 
-    enter "lychee --verbose --format=json fixtures/test.html"
+    enter "lychee --verbose --format=json fixtures/TEST.html"
 
     enter "lychee --no-progress --format detailed https://example.com"
 
