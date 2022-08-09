@@ -36,4 +36,4 @@ docs: ## Generate and show documentation
 
 .PHONY: screencast
 screencast: ## Create a screencast for the docs
-	svg-term --command="bash assets/screencast.sh" --out assets/screencast.svg --padding=10 --window --width 100
+	svg-term --command 'assets/screencast.sh' --out 'assets/screencast.svg' --width 100 --padding 10 --window
