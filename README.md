@@ -12,7 +12,7 @@ reStructuredText, or any other text file or website!
 
 Available as a command-line utility, a library and a [GitHub Action](https://github.com/lycheeverse/lychee-action).
 
-![Lychee demo](./assets/lychee.gif)
+![Lychee demo](./assets/screencast.svg)
 
 ## Installation
 

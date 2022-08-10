@@ -33,3 +33,7 @@ run: ## Run project locally
 .PHONY: docs
 docs: ## Generate and show documentation
 	cargo doc --open 
+
+.PHONY: screencast
+screencast: ## Create a screencast for the docs
+	svg-term --command 'assets/screencast.sh' --out 'assets/screencast.svg' --width 100 --padding 10 --window
