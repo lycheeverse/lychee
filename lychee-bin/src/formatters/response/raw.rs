@@ -2,7 +2,7 @@ use super::ResponseFormatter;
 
 use lychee_lib::{Response, Result};
 
-/// Formatter which retruns an unmodified response status
+/// Formatter which returns an unmodified response status
 pub(crate) struct Raw;
 
 impl Raw {

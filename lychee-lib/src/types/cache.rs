@@ -1,13 +1,13 @@
 use std::fmt::Display;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{ErrorKind, Status};
 
 /// Representation of the status of a cached request. This is kept simple on
 /// purpose because the type gets serialized to a cache file and might need to
 /// be parsed by other tools or edited by humans.
-#[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, Serialize, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum CacheStatus {
     /// The cached request delivered a valid response
     Ok(u16),
@@ -16,7 +16,38 @@ pub enum CacheStatus {
     /// The request was excluded (skipped)
     Excluded,
     /// The protocol is not yet supported
+    // We no longer cache unsupported files as they might be supported in future
+    // versions.
+    // Nevertheless, keep for compatibility when deserializing older cache
+    // files, even though this no longer gets serialized. Can be removed at a
+    // later point in time.
     Unsupported,
+}
+
+impl<'de> Deserialize<'de> for CacheStatus {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let status = <&str as Deserialize<'de>>::deserialize(deserializer)?;
+        match status {
+            "Excluded" => Ok(CacheStatus::Excluded),
+            // Keep for compatibility with older cache files, even though this
+            // no longer gets serialized. Can be removed at a later point in
+            // time.
+            "Unsupported" => Ok(CacheStatus::Unsupported),
+            other => match other.parse::<u16>() {
+                Ok(code) => match code {
+                    // classify successful status codes as cache status success
+                    // TODO does not account for status code overrides passed through the 'accept' flag
+                    200..=299 => Ok(CacheStatus::Ok(code)),
+                    // classify redirects, client errors, & server errors as cache status error
+                    _ => Ok(CacheStatus::Error(Some(code))),
+                },
+                Err(_) => Ok(CacheStatus::Error(None)),
+            },
+        }
+    }
 }
 
 impl Display for CacheStatus {
@@ -52,5 +83,53 @@ impl From<&Status> for CacheStatus {
                 _ => Self::Error(None),
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::de::value::{BorrowedStrDeserializer, Error as DeserializerError};
+    use serde::Deserialize;
+
+    use crate::CacheStatus;
+
+    fn deserialize_cache_status(s: &str) -> Result<CacheStatus, DeserializerError> {
+        let deserializer: BorrowedStrDeserializer<DeserializerError> =
+            BorrowedStrDeserializer::new(s);
+        CacheStatus::deserialize(deserializer)
+    }
+
+    #[test]
+    fn test_deserialize_cache_status_success_code() {
+        assert_eq!(deserialize_cache_status("200"), Ok(CacheStatus::Ok(200)));
+    }
+
+    #[test]
+    fn test_deserialize_cache_status_error_code() {
+        assert_eq!(
+            deserialize_cache_status("404"),
+            Ok(CacheStatus::Error(Some(404)))
+        );
+    }
+
+    #[test]
+    fn test_deserialize_cache_status_excluded() {
+        assert_eq!(
+            deserialize_cache_status("Excluded"),
+            Ok(CacheStatus::Excluded)
+        );
+    }
+
+    #[test]
+    fn test_deserialize_cache_status_unsupported() {
+        assert_eq!(
+            deserialize_cache_status("Unsupported"),
+            Ok(CacheStatus::Unsupported)
+        );
+    }
+
+    #[test]
+    fn test_deserialize_cache_status_blank() {
+        assert_eq!(deserialize_cache_status(""), Ok(CacheStatus::Error(None)));
     }
 }

@@ -3,7 +3,12 @@ on:
   repository_dispatch:
   workflow_dispatch:
   push:
+    branches:
+      - master
   pull_request:
+    types:
+      - opened
+      - synchronize
 
 env:
   CARGO_TERM_COLOR: always

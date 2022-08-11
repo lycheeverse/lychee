@@ -14,6 +14,11 @@ mod cli {
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
+    // The lychee cache file name is used for some tests.
+    // Since it is currently static and can't be overwritten, declare it as a
+    // constant.
+    const LYCHEE_CACHE_FILE: &str = ".lycheecache";
+
     macro_rules! mock_server {
         ($status:expr $(, $func:tt ($($arg:expr),*))*) => {{
             let mock_server = wiremock::MockServer::start().await;
@@ -606,6 +611,119 @@ mod cli {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_lycheecache_file() -> Result<()> {
+        let base_path = fixtures_path().join("cache");
+        let cache_file = base_path.join(LYCHEE_CACHE_FILE);
+
+        // Unconditionally remove cache file if it exists
+        let _ = fs::remove_file(&cache_file);
+
+        let mock_server_ok = mock_server!(StatusCode::OK);
+        let mock_server_err = mock_server!(StatusCode::NOT_FOUND);
+        let mock_server_exclude = mock_server!(StatusCode::OK);
+
+        let dir = tempfile::tempdir()?;
+        let mut file = File::create(dir.path().join("c.md"))?;
+
+        writeln!(file, "{}", mock_server_ok.uri().as_str())?;
+        writeln!(file, "{}", mock_server_err.uri().as_str())?;
+        writeln!(file, "{}", mock_server_exclude.uri().as_str())?;
+
+        let mut cmd = main_command();
+        let test_cmd = cmd
+            .current_dir(&base_path)
+            .arg(dir.path().join("c.md"))
+            .arg("--verbose")
+            .arg("--cache")
+            .arg("--exclude")
+            .arg(mock_server_exclude.uri());
+
+        assert!(
+            !cache_file.exists(),
+            "cache file should not exist before this test"
+        );
+
+        // run first without cache to generate the cache file
+        test_cmd
+            .assert()
+            .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
+            .stderr(contains(format!(
+                "[404] {}/ | Network error: Not Found\n",
+                mock_server_err.uri()
+            )))
+            .stderr(contains(format!(
+                "[EXCLUDED] {}/ | Excluded\n",
+                mock_server_exclude.uri()
+            )));
+
+        // check content of cache file
+        let data = fs::read_to_string(&cache_file)?;
+        assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
+        assert!(data.contains(&format!("{}/,404", mock_server_err.uri())));
+        assert!(data.contains(&format!("{}/,Excluded", mock_server_exclude.uri())));
+
+        // run again to verify cache behavior
+        test_cmd
+            .assert()
+            .stderr(contains(format!(
+                "[200] {}/ | OK (cached)\n",
+                mock_server_ok.uri()
+            )))
+            .stderr(contains(format!(
+                "[404] {}/ | Error (cached)\n",
+                mock_server_err.uri()
+            )))
+            .stderr(contains(format!(
+                "[EXCLUDED] {}/ | Excluded\n",
+                mock_server_exclude.uri()
+            )));
+
+        // clear the cache file
+        fs::remove_file(&cache_file)?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_skip_cache_unsupported() -> Result<()> {
+        let base_path = fixtures_path().join("cache");
+        let cache_file = base_path.join(LYCHEE_CACHE_FILE);
+
+        // Unconditionally remove cache file if it exists
+        let _ = fs::remove_file(&cache_file);
+
+        let unsupported_url = "slack://user".to_string();
+        let excluded_url = "https://example.com/";
+
+        // run first without cache to generate the cache file
+        main_command()
+            .current_dir(&base_path)
+            .write_stdin(format!("{unsupported_url}\n{excluded_url}"))
+            .arg("--cache")
+            .arg("--verbose")
+            .arg("--exclude")
+            .arg(excluded_url)
+            .arg("--")
+            .arg("-")
+            .assert()
+            .stderr(contains(format!(
+                "[IGNORED] {unsupported_url} | Unsupported Error creating request client\n"
+            )))
+            .stderr(contains(format!("[EXCLUDED] {excluded_url} | Excluded\n")));
+
+        // The cache file should be empty, because the only checked URL is
+        // unsupported and we don't want to cache that. It might be supported in
+        // future versions.
+        let buf = fs::read(&cache_file).unwrap();
+        assert!(buf.is_empty());
+
+        // clear the cache file
+        fs::remove_file(&cache_file)?;
+
+        Ok(())
+    }
+
     #[test]
     fn test_include_verbatim() -> Result<()> {
         let mut cmd = main_command();
@@ -753,6 +871,45 @@ mod cli {
             // number of links.
             .stdout(contains("1 Total"))
             .stdout(contains("1 OK"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_handle_relative_paths_as_input() -> Result<()> {
+        let test_path = fixtures_path();
+        let mut cmd = main_command();
+
+        cmd.current_dir(&test_path)
+            .arg("--verbose")
+            .arg("--exclude")
+            .arg("example.*")
+            .arg("--")
+            .arg("./TEST_DUMP_EXCLUDE.txt")
+            .assert()
+            .success()
+            .stdout(contains("3 Total"))
+            .stdout(contains("3 Excluded"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_handle_nonexistent_relative_paths_as_input() -> Result<()> {
+        let test_path = fixtures_path();
+        let mut cmd = main_command();
+
+        cmd.current_dir(&test_path)
+            .arg("--verbose")
+            .arg("--exclude")
+            .arg("example.*")
+            .arg("--")
+            .arg("./NOT-A-REAL-TEST-FIXTURE.md")
+            .assert()
+            .failure()
+            .stderr(contains(
+                "Cannot find local file ./NOT-A-REAL-TEST-FIXTURE.md",
+            ));
 
         Ok(())
     }
