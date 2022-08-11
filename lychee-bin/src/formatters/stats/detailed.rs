@@ -60,7 +60,7 @@ pub(crate) struct Detailed;
 
 impl Detailed {
     pub(crate) const fn new() -> Self {
-        Self {}
+        Self
     }
 }
 
