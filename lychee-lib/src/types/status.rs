@@ -44,15 +44,15 @@ pub enum Status {
 impl Display for Status {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Status::Ok(c) => write!(f, "OK ({c})"),
-            Status::Redirected(c) => write!(f, "Redirect ({c})"),
-            Status::UnknownStatusCode(c) => write!(f, "Unknown status: {c}"),
+            Status::Ok(code) => write!(f, "OK ({code})"),
+            Status::Redirected(code) => write!(f, "Redirect ({code})"),
+            Status::UnknownStatusCode(code) => write!(f, "Unknown status ({code})"),
             Status::Excluded => f.write_str("Excluded"),
-            Status::Timeout(Some(c)) => write!(f, "Timeout ({c})"),
+            Status::Timeout(Some(code)) => write!(f, "Timeout ({code})"),
             Status::Timeout(None) => f.write_str("Timeout"),
             Status::Unsupported(e) => write!(f, "Unsupported: {e}"),
             Status::Error(e) => write!(f, "Failed: {e}"),
-            Status::Cached(s) => write!(f, "Cached: {s}"),
+            Status::Cached(status) => write!(f, "Cached: {status}"),
         }
     }
 }
@@ -81,6 +81,28 @@ impl Status {
                 Ok(_) => Self::UnknownStatusCode(code),
                 Err(e) => e.into(),
             }
+        }
+    }
+
+    /// Return more details about the status (if any)
+    ///
+    /// Which additional information we can extract depends on the underlying
+    /// request type. The output is purely meant for humans and future changes
+    /// are expected.
+    ///
+    /// It is modeled after reqwest's `details` method.
+    #[must_use]
+    #[allow(clippy::match_same_arms)]
+    pub fn details(&self) -> Option<String> {
+        match &self {
+            Status::Ok(code) => code.canonical_reason().map(String::from),
+            Status::Redirected(code) => code.canonical_reason().map(String::from),
+            Status::Error(e) => e.details(),
+            Status::Timeout(_) => None,
+            Status::UnknownStatusCode(_) => None,
+            Status::Unsupported(_) => None,
+            Status::Cached(_) => None,
+            Status::Excluded => None,
         }
     }
 

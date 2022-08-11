@@ -58,7 +58,7 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
             Event::Html(html) => {
                 // This won't exclude verbatim links right now, because HTML gets passed in chunks
                 // by pulldown_cmark. So excluding `<pre>` and `<code>` is not handled right now.
-                Some(extract_html(&html.to_string(), include_verbatim))
+                Some(extract_html(&html, include_verbatim))
             }
 
             // An inline code node.

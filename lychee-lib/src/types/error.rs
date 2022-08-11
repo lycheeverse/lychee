@@ -96,9 +96,9 @@ pub enum ErrorKind {
 }
 
 impl ErrorKind {
-    /// Return more details from the given [`ErrorKind`]
+    /// Return more details about the given [`ErrorKind`]
     ///
-    /// What additional information we can extract depends on the underlying
+    /// Which additional information we can extract depends on the underlying
     /// request type. The output is purely meant for humans (e.g. for status
     /// messages) and future changes are expected.
     #[must_use]
