@@ -400,6 +400,7 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 
 ## Users
 
+- https://github.com/InnerSourceCommons/InnerSourcePatterns
 - https://github.com/opensearch-project/OpenSearch
 - https://github.com/ramitsurana/awesome-kubernetes
 - https://github.com/papers-we-love/papers-we-love
