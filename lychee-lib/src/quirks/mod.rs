@@ -1,11 +1,8 @@
 use header::HeaderValue;
-use http::{header, Method};
+use http::header;
 use regex::Regex;
 use reqwest::{Request, Url};
 use std::collections::HashMap;
-
-/// Sadly some pages only return plaintext results if Google is trying to crawl them.
-const GOOGLEBOT: &str = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://google.com/bot.html)";
 
 // Retrieve a map of query params for the given request
 fn query(request: &Request) -> HashMap<String, String> {
@@ -28,25 +25,26 @@ impl Default for Quirks {
         let quirks = vec![
             Quirk {
                 // Twitter cut off the ability to read a tweet by fetching its
-                // URL with a normal HTTP GET. Only Googlebot will get a plain
-                // HTML response.
-                // See https://twitter.com/zarfeblong/status/1339742840142872577
+                // URL with a normal HTTP GET. Previously Googlebot would still
+                // receive a plain HTML response (see
+                // https://twitter.com/zarfeblong/status/1339742840142872577),
+                // but as of today this is no longer the case.
+                //
+                // Instead we use <nitter.net>, which is an alternative Twitter
+                // front-end that serves plain HTML.
                 pattern: Regex::new(r"^(https?://)?(www\.)?twitter.com").unwrap(),
-                rewrite: |request| {
-                    let mut out = request;
-                    *out.method_mut() = Method::HEAD;
-                    out.headers_mut()
-                        .insert(header::USER_AGENT, GOOGLEBOT.parse().unwrap());
-                    out
+                rewrite: |mut request| {
+                    request.url_mut().set_host(Some("nitter.net")).unwrap();
+                    request
                 },
             },
             Quirk {
                 pattern: Regex::new(r"^(https?://)?(www\.)?crates.io").unwrap(),
-                rewrite: |request| {
-                    let mut out = request;
-                    out.headers_mut()
+                rewrite: |mut request| {
+                    request
+                        .headers_mut()
                         .insert(header::ACCEPT, HeaderValue::from_static("text/html"));
-                    out
+                    request
                 },
             },
             Quirk {
@@ -56,16 +54,15 @@ impl Default for Quirks {
                 // This works for all known video visibilities.
                 // See https://github.com/lycheeverse/lychee/issues/214#issuecomment-819103393)
                 pattern: Regex::new(r"^(https?://)?(www\.)?(youtube\.com|youtu\.?be)").unwrap(),
-                rewrite: |request| {
+                rewrite: |mut request| {
                     if request.url().path() != "/watch" {
                         return request;
                     }
-                    let mut out = request;
-                    if let Some(id) = query(&out).get("v") {
-                        *out.url_mut() =
+                    if let Some(id) = query(&request).get("v") {
+                        *request.url_mut() =
                             Url::parse(&format!("https://img.youtube.com/vi/{id}/0.jpg")).unwrap();
                     }
-                    out
+                    request
                 },
             },
         ];
@@ -94,7 +91,7 @@ mod tests {
     use http::{header, Method};
     use reqwest::{Request, Url};
 
-    use super::{Quirks, GOOGLEBOT};
+    use super::Quirks;
 
     #[derive(Debug)]
     struct MockRequest(Request);
@@ -113,15 +110,30 @@ mod tests {
 
     #[test]
     fn test_twitter_request() {
-        let url = Url::parse("https://twitter.com/zarfeblong/status/1339742840142872577").unwrap();
-        let request = Request::new(Method::GET, url.clone());
-        let modified = Quirks::default().apply(request);
+        let cases = vec![
+            (
+                "https://twitter.com/search?q=rustlang",
+                "https://nitter.net/search?q=rustlang",
+            ),
+            ("http://twitter.com/jack", "http://nitter.net/jack"),
+            (
+                "https://twitter.com/notifications",
+                "https://nitter.net/notifications",
+            ),
+        ];
 
-        assert_eq!(
-            modified.headers().get(header::USER_AGENT).unwrap(),
-            &GOOGLEBOT
-        );
-        assert_eq!(MockRequest(modified), MockRequest::new(Method::HEAD, url));
+        for (input, output) in cases {
+            let url = Url::parse(input).unwrap();
+            let expected = Url::parse(output).unwrap();
+
+            let request = Request::new(Method::GET, url.clone());
+            let modified = Quirks::default().apply(request);
+
+            assert_eq!(
+                MockRequest(modified),
+                MockRequest::new(Method::GET, expected)
+            );
+        }
     }
 
     #[test]
