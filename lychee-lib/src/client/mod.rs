@@ -369,7 +369,7 @@ pub struct ClientWrapper<T> {
 }
 
 impl<T> ClientWrapper<T> {
-    /// TODO
+    /// Check a request using the tower service
     pub async fn check<E>(&mut self, request: T) -> Result<Response>
     where
         Request: TryFrom<T, Error = E>,
@@ -688,9 +688,7 @@ mod tests {
     use http::{header::HeaderMap, StatusCode};
     use reqwest::header;
     use tempfile::tempdir;
-    use tower::Service;
 
-    use super::ClientExt;
     use super::*;
     use crate::{mock_server, test_utils::get_mock_client_response, Uri};
 
