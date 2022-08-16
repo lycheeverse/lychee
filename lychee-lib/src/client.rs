@@ -550,8 +550,8 @@ impl Client {
 
     /// Check a mail address, or equivalently a `mailto` URI.
     pub async fn check_mail(&self, uri: &Uri) -> Status {
-        let input = CheckEmailInput::new(vec![uri.as_str().to_owned()]);
-        let result = &(check_email(&input).await)[0];
+        let input = CheckEmailInput::new(uri.as_str().to_owned());
+        let result = &(check_email(&input).await);
 
         if let Reachable::Invalid = result.is_reachable {
             ErrorKind::UnreachableEmailAddress(uri.clone(), mail::error_from_output(result)).into()
