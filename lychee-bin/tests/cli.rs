@@ -182,16 +182,10 @@ mod cli {
             "TEST_QUIRKS.txt",
             MockResponseStats {
                 total: 3,
-                successful: 2,
-                excludes: 1,
+                successful: 3,
+                excludes: 0,
                 ..MockResponseStats::default()
-            },
-            // Currently getting a 429 with Googlebot.
-            // See https://github.com/lycheeverse/lychee/issues/448
-            // See https://twitter.com/matthiasendler/status/1479224185125748737
-            // TODO: Remove this exclusion in the future
-            "--exclude",
-            "twitter"
+            }
         )
     }
 
