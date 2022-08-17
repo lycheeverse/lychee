@@ -1,13 +1,9 @@
-use crate::{types::uri::raw::RawUri, Result};
+use crate::{types::uri::raw::RawUri, InputContent, Result};
 use mupdf::Document;
 
-/// Constant passed to `mupdf::Document::open_file` to determine the type of
-/// file to open.
-const MUPDF_MAGIC_DOCUMENT_TYPE: &str = "pdf";
-
 /// Extract unparsed URL strings from a PDF document.
-pub(crate) fn extract_pdf(input: &[u8], _include_verbatim: bool) -> Result<Vec<RawUri>> {
-    let document = Document::from_bytes(input, MUPDF_MAGIC_DOCUMENT_TYPE)?;
+pub(crate) fn extract_pdf(input: &InputContent, _include_verbatim: bool) -> Result<Vec<RawUri>> {
+    let document = Document::from_bytes(&input.content, &input.file_type.to_string())?;
 
     let mut urls = Vec::new();
     for page in &document {

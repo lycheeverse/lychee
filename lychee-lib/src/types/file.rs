@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{fmt::Display, path::Path};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 /// `FileType` defines which file types lychee can handle
@@ -6,6 +6,9 @@ pub enum FileType {
     /// PDF file type
     #[cfg(feature = "pdf")]
     Pdf,
+    /// EPUB file type
+    #[cfg(feature = "epub")]
+    Epub,
     /// File in HTML format
     Html,
     /// File in Markdown format
@@ -17,6 +20,20 @@ pub enum FileType {
 impl Default for FileType {
     fn default() -> Self {
         Self::Plaintext
+    }
+}
+
+impl Display for FileType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            #[cfg(feature = "pdf")]
+            FileType::Pdf => write!(f, "pdf"),
+            #[cfg(feature = "epub")]
+            FileType::Epub => write!(f, "epub"),
+            FileType::Html => write!(f, "html"),
+            FileType::Markdown => write!(f, "md"),
+            FileType::Plaintext => write!(f, "txt"),
+        }
     }
 }
 
@@ -44,6 +61,8 @@ impl<P: AsRef<Path>> From<P> for FileType {
             Some("htm" | "html") => FileType::Html,
             #[cfg(feature = "pdf")]
             Some("pdf") => FileType::Pdf,
+            #[cfg(feature = "epub")]
+            Some("epub") => FileType::Epub,
             None if is_url => FileType::Html,
             _ => FileType::Plaintext,
         }
@@ -73,5 +92,8 @@ mod tests {
             FileType::from(Path::new("http://foo.com/index.html")),
             FileType::Html
         );
+
+        assert_eq!(FileType::from(Path::new("foo.pdf")), FileType::Pdf);
+        assert_eq!(FileType::from(Path::new("foo.epub")), FileType::Epub);
     }
 }

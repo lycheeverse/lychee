@@ -910,7 +910,7 @@ mod cli {
 
     #[test]
     fn test_handle_pdf() -> Result<()> {
-        let test_path = fixtures_path().join("pdf").join("basic-link-1.pdf");
+        let test_path = fixtures_path().join("test.pdf");
         let mut cmd = main_command();
 
         cmd.arg("--dump")
@@ -919,6 +919,28 @@ mod cli {
             .success()
             .stdout(contains("https://www.antennahouse.com/"))
             .stdout(contains("file://./attachment-sample-1.pdf"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_handle_epub() -> Result<()> {
+        let test_dir = fixtures_path();
+        let test_path = test_dir.join("test.epub");
+        let mut cmd = main_command();
+
+        cmd.arg("--dump")
+            .arg(test_path)
+            .assert()
+            .success()
+            .stdout(contains(format!("Basic-functionality-tests.xhtml")))
+            .stdout(contains("front.xhtml"))
+            .stdout(contains("http://www.epubtest.org/instructions"))
+            .stdout(contains("supplement.xhtml"))
+            .stdout(contains("introduction.xhtml"))
+            .stdout(contains("cover.xhtml"))
+            .stdout(contains("http://www.daisy.org/"))
+            .stdout(contains("http://epubtest.org/instructions"));
 
         Ok(())
     }

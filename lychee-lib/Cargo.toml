@@ -75,4 +75,6 @@ vendored-openssl = ["openssl-sys/vendored"]
 check_example_domains = []
 # PDF support, which is enabled by default.
 pdf = ["dep:mupdf"]
-default = ["pdf"]
+# Epub support, which is enabled by default.
+epub = ["dep:mupdf"]
+default = ["epub", "pdf"]

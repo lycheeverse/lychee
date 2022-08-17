@@ -52,7 +52,7 @@ log = "0.4.17"
 path = "../lychee-lib"
 version = "0.10.1"
 default-features = false 
-features = ["pdf"]
+features = ["epub", "pdf"]
 
 [dependencies.clap]
 version = "3.2.17"

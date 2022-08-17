@@ -62,22 +62,26 @@ impl Extractor {
     ///
     /// The method returns an error if the input cannot be handled by the
     /// extractor.
-    pub fn extract(&self, input_content: &InputContent) -> Result<Vec<RawUri>> {
-        match input_content.file_type {
+    pub fn extract(&self, input: &InputContent) -> Result<Vec<RawUri>> {
+        match input.file_type {
             #[cfg(feature = "pdf")]
-            FileType::Pdf => extract_pdf(&input_content.content, self.include_verbatim),
-            FileType::Markdown => extract_markdown(&input_content.content, self.include_verbatim),
+            FileType::Pdf => extract_pdf(input, self.include_verbatim),
+            // PDF and EPUB files get handled by the same extractor
+            #[cfg(feature = "epub")]
+            FileType::Epub => extract_pdf(input, self.include_verbatim),
+
+            FileType::Markdown => extract_markdown(&input.content, self.include_verbatim),
             FileType::Html => {
                 if self.use_html5ever {
-                    html5ever::extract_html(&input_content.content, self.include_verbatim)
+                    html5ever::extract_html(&input.content, self.include_verbatim)
                 } else {
                     Ok(html5gum::extract_html(
-                        &input_content.content,
+                        &input.content,
                         self.include_verbatim,
                     ))
                 }
             }
-            FileType::Plaintext => extract_plaintext(&input_content.content),
+            FileType::Plaintext => extract_plaintext(&input.content),
         }
     }
 }
