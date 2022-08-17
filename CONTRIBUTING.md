@@ -19,7 +19,7 @@ Try one of these links to get started:
 - [good first issues](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 
-If you would like to contribute a new feauture, the best way to get started is to
+If you would like to contribute a new feature, the best way to get started is to
 ask for some early feedback by creating an issue yourself and asking for feedback.
 
 ## Thanks!
