@@ -53,6 +53,7 @@ html5gum = "0.5.2"
 octocrab = "0.17.0"
 ip_network = "0.4.1"
 secrecy = "0.8.0"
+mupdf= { version = "0.4.0", optional = true }
 
 [dependencies.par-stream]
 version = "0.10.2"
@@ -72,4 +73,6 @@ vendored-openssl = ["openssl-sys/vendored"]
 # integration tests, which don't respect `#[cfg(test)]`.
 # See https://users.rust-lang.org/t/36630
 check_example_domains = []
-default = []
+# PDF support, which is enabled by default.
+pdf = ["dep:mupdf"]
+default = ["pdf"]

@@ -73,7 +73,7 @@ impl Collector {
                 async move {
                     let content = content?;
                     let extractor = Extractor::new(self.use_html5ever, self.include_verbatim);
-                    let uris: Vec<RawUri> = extractor.extract(&content);
+                    let uris: Vec<RawUri> = extractor.extract(&content)?;
                     let requests = request::create(uris, &content, &base)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
@@ -154,7 +154,7 @@ mod tests {
 
         let inputs = vec![
             Input {
-                source: InputSource::String(TEST_STRING.to_owned()),
+                source: InputSource::Raw(TEST_STRING.as_bytes().to_owned()),
                 file_type_hint: None,
                 excluded_paths: None,
             },
@@ -201,7 +201,7 @@ mod tests {
     async fn test_collect_markdown_links() {
         let base = Base::try_from("https://github.com/hello-rust/lychee/").unwrap();
         let input = Input {
-            source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
+            source: InputSource::Raw("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".as_bytes().to_vec()),
             file_type_hint: Some(FileType::Markdown),
                 excluded_paths: None,
         };
@@ -219,14 +219,15 @@ mod tests {
     async fn test_collect_html_links() {
         let base = Base::try_from("https://github.com/lycheeverse/").unwrap();
         let input = Input {
-            source: InputSource::String(
+            source: InputSource::Raw(
                 r#"<html>
                 <div class="row">
                     <a href="https://github.com/lycheeverse/lychee/">
                     <a href="blob/master/README.md">README</a>
                 </div>
             </html>"#
-                    .to_string(),
+                    .as_bytes()
+                    .to_owned(),
             ),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
@@ -245,7 +246,7 @@ mod tests {
     async fn test_collect_html_srcset() {
         let base = Base::try_from("https://example.com/").unwrap();
         let input = Input {
-            source: InputSource::String(
+            source: InputSource::Raw(
                 r#"
             <img
                 src="/static/image.png"
@@ -255,7 +256,8 @@ mod tests {
                 "
             />
           "#
-                .to_string(),
+                .as_bytes()
+                .to_owned(),
             ),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
@@ -276,12 +278,13 @@ mod tests {
         let base = Base::try_from("https://localhost.com/").unwrap();
 
         let input = Input {
-            source: InputSource::String(
+            source: InputSource::Raw(
                 r#"This is [an internal url](@/internal.md)
         This is [an internal url](@/internal.markdown)
         This is [an internal url](@/internal.markdown#example)
         This is [an internal url](@/internal.md#example)"#
-                    .to_string(),
+                    .as_bytes()
+                    .to_owned(),
             ),
             file_type_hint: Some(FileType::Markdown),
             excluded_paths: None,
@@ -305,7 +308,7 @@ mod tests {
         let input = load_fixture("TEST_HTML5.html");
 
         let input = Input {
-            source: InputSource::String(input),
+            source: InputSource::Raw(input.as_bytes().to_owned()),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
         };
@@ -356,8 +359,10 @@ mod tests {
     #[tokio::test]
     async fn test_email_with_query_params() {
         let input = Input {
-            source: InputSource::String(
-                r#"This is a mailto:user@example.com?subject=Hello link"#.to_string(),
+            source: InputSource::Raw(
+                r#"This is a mailto:user@example.com?subject=Hello link"#
+                    .as_bytes()
+                    .to_owned(),
             ),
             file_type_hint: None,
             excluded_paths: None,

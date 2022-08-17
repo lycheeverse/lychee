@@ -182,16 +182,10 @@ mod cli {
             "TEST_QUIRKS.txt",
             MockResponseStats {
                 total: 3,
-                successful: 2,
-                excludes: 1,
+                successful: 3,
+                excludes: 0,
                 ..MockResponseStats::default()
-            },
-            // Currently getting a 429 with Googlebot.
-            // See https://github.com/lycheeverse/lychee/issues/448
-            // See https://twitter.com/matthiasendler/status/1479224185125748737
-            // TODO: Remove this exclusion in the future
-            "--exclude",
-            "twitter"
+            }
         )
     }
 
@@ -910,6 +904,21 @@ mod cli {
             .stderr(contains(
                 "Cannot find local file ./NOT-A-REAL-TEST-FIXTURE.md",
             ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_handle_pdf() -> Result<()> {
+        let test_path = fixtures_path().join("pdf").join("basic-link-1.pdf");
+        let mut cmd = main_command();
+
+        cmd.arg("--dump")
+            .arg(test_path)
+            .assert()
+            .success()
+            .stdout(contains("https://www.antennahouse.com/"))
+            .stdout(contains("file://./attachment-sample-1.pdf"));
 
         Ok(())
     }

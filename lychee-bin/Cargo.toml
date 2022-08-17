@@ -17,7 +17,6 @@ repository = "https://github.com/lycheeverse/lychee"
 version = "0.10.1"
 
 [dependencies]
-lychee-lib = { path = "../lychee-lib", version = "0.10.1", default-features = false }
 anyhow = "1.0.62"
 console = "0.15.1"
 const_format = "0.2.26"
@@ -48,6 +47,12 @@ humantime-serde = "1.1.1"
 secrecy = { version = "0.8.0", features = ["serde"] }
 supports-color = "1.3.0"
 log = "0.4.17"
+
+[dependencies.lychee-lib]
+path = "../lychee-lib"
+version = "0.10.1"
+default-features = false 
+features = ["pdf"]
 
 [dependencies.clap]
 version = "3.2.17"

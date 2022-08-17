@@ -7,7 +7,7 @@ fn extract(paths: &[PathBuf]) {
     for path in paths {
         let content: InputContent = path.try_into().unwrap();
         let extractor = Extractor::default();
-        let extracted = extractor.extract(&content);
+        let extracted = extractor.extract(&content).unwrap();
         println!("{}", extracted.len());
     }
 }

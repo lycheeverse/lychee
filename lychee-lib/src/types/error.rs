@@ -93,6 +93,10 @@ pub enum ErrorKind {
     /// Regex error
     #[error("Error when using regex engine: {0}")]
     Regex(#[from] regex::Error),
+    /// Error handling PDF
+    #[error("Error while handling PDF input: {0}")]
+    #[cfg(feature = "pdf")]
+    Pdf(#[from] mupdf::Error),
 }
 
 impl ErrorKind {
@@ -196,6 +200,8 @@ impl Hash for ErrorKind {
                 std::mem::discriminant(self).hash(state);
             }
             Self::Regex(e) => e.to_string().hash(state),
+            #[cfg(feature = "pdf")]
+            Self::Pdf(e) => e.to_string().hash(state),
         }
     }
 }

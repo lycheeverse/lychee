@@ -1,17 +1,22 @@
 use pulldown_cmark::{Event, Parser, Tag};
+use std::str;
 
-use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
+use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri, Result};
 
 use super::html5gum::extract_html;
 
 /// Extract unparsed URL strings from a Markdown string.
-pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUri> {
+pub(crate) fn extract_markdown<T: AsRef<[u8]>>(
+    input: T,
+    include_verbatim: bool,
+) -> Result<Vec<RawUri>> {
     // In some cases it is undesirable to extract links from within code blocks,
     // which is why we keep track of entries and exits while traversing the input.
     let mut inside_code_block = false;
 
-    let parser = Parser::new(input);
-    parser
+    // Parser expects a UTF-8 string.
+    let parser = Parser::new(str::from_utf8(input.as_ref())?);
+    let extracted = parser
         .filter_map(|event| match event {
             // A link. The first field is the link type, the second the destination URL and the third is a title.
             Event::Start(Tag::Link(_, uri, _)) => {
@@ -50,7 +55,7 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
                 if inside_code_block && !include_verbatim {
                     None
                 } else {
-                    Some(extract_plaintext(&txt))
+                    extract_plaintext(txt.as_ref()).ok()
                 }
             }
 
@@ -58,13 +63,13 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
             Event::Html(html) => {
                 // This won't exclude verbatim links right now, because HTML gets passed in chunks
                 // by pulldown_cmark. So excluding `<pre>` and `<code>` is not handled right now.
-                Some(extract_html(&html, include_verbatim))
+                Some(extract_html(html.as_ref(), include_verbatim))
             }
 
             // An inline code node.
             Event::Code(code) => {
                 if include_verbatim {
-                    Some(extract_plaintext(&code))
+                    extract_plaintext(code.as_ref()).ok()
                 } else {
                     None
                 }
@@ -74,7 +79,8 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
             _ => None,
         })
         .flatten()
-        .collect()
+        .collect();
+    Ok(extracted)
 }
 
 #[cfg(test)]
@@ -112,7 +118,7 @@ or inline like `https://bar.org` for instance.
             },
         ];
 
-        let uris = extract_markdown(MD_INPUT, false);
+        let uris = extract_markdown(MD_INPUT, false).unwrap();
         assert_eq!(uris, expected);
     }
 
@@ -141,7 +147,7 @@ or inline like `https://bar.org` for instance.
             },
         ];
 
-        let uris = extract_markdown(MD_INPUT, true);
+        let uris = extract_markdown(MD_INPUT, true).unwrap();
         assert_eq!(uris, expected);
     }
 
@@ -158,7 +164,7 @@ Some pre-formatted http://pre.com
 
         let expected = vec![];
 
-        let uris = extract_markdown(input, false);
+        let uris = extract_markdown(input, false).unwrap();
         assert_eq!(uris, expected);
     }
 }

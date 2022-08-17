@@ -1,3 +1,5 @@
+use std::str;
+
 use html5ever::{
     buffer_queue::BufferQueue,
     tendril::StrTendril,
@@ -5,7 +7,7 @@ use html5ever::{
 };
 
 use super::{is_verbatim_elem, plaintext::extract_plaintext};
-use crate::types::uri::raw::RawUri;
+use crate::{types::uri::raw::RawUri, Result};
 
 #[derive(Clone, Default)]
 struct LinkExtractor {
@@ -24,7 +26,8 @@ impl TokenSink for LinkExtractor {
                 if self.inside_excluded_element {
                     return TokenSinkResult::Continue;
                 }
-                self.links.extend(extract_plaintext(&raw));
+                self.links
+                    .extend(extract_plaintext(raw.as_bytes()).unwrap());
             }
             Token::TagToken(tag) => {
                 let Tag {
@@ -56,7 +59,7 @@ impl TokenSink for LinkExtractor {
                     );
 
                     let new_urls = match urls {
-                        None => extract_plaintext(&attr.value),
+                        None => extract_plaintext(attr.value.as_bytes()).unwrap(),
                         Some(urls) => urls
                             .into_iter()
                             .map(|url| RawUri {
@@ -141,9 +144,10 @@ impl LinkExtractor {
 }
 
 /// Extract unparsed URL strings from an HTML string.
-pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
+pub(crate) fn extract_html<T: AsRef<[u8]>>(buf: T, include_verbatim: bool) -> Result<Vec<RawUri>> {
     let mut input = BufferQueue::new();
-    input.push_back(StrTendril::from(buf));
+    // html5ever only handles UTF-8, so we need to convert the input
+    input.push_back(StrTendril::from(str::from_utf8(buf.as_ref())?));
 
     let mut tokenizer = Tokenizer::new(
         LinkExtractor::new(include_verbatim),
@@ -152,7 +156,7 @@ pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
     let _handle = tokenizer.feed(&mut input);
     tokenizer.end();
 
-    tokenizer.sink.links
+    Ok(tokenizer.sink.links)
 }
 
 #[cfg(test)]
@@ -180,7 +184,7 @@ mod tests {
             attribute: Some("href".to_string()),
         }];
 
-        let uris = extract_html(HTML_INPUT, false);
+        let uris = extract_html(HTML_INPUT, false).unwrap();
         assert_eq!(uris, expected);
     }
 
@@ -209,7 +213,7 @@ mod tests {
             },
         ];
 
-        let uris = extract_html(HTML_INPUT, true);
+        let uris = extract_html(HTML_INPUT, true).unwrap();
         assert_eq!(uris, expected);
     }
 
@@ -225,7 +229,7 @@ mod tests {
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
         }];
-        let uris = extract_html(input, false);
+        let uris = extract_html(input, false).unwrap();
         assert_eq!(uris, expected);
     }
 }

@@ -63,7 +63,7 @@ impl TryFrom<String> for Request {
 
     fn try_from(s: String) -> Result<Self, Self::Error> {
         let uri = Uri::try_from(s.as_str())?;
-        Ok(Request::new(uri, InputSource::String(s), None, None))
+        Self::try_from(uri)
     }
 }
 
@@ -74,7 +74,7 @@ impl TryFrom<&str> for Request {
         let uri = Uri::try_from(s)?;
         Ok(Request::new(
             uri,
-            InputSource::String(s.to_owned()),
+            InputSource::Raw(s.as_bytes().to_owned()),
             None,
             None,
         ))

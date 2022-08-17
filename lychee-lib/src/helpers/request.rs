@@ -31,11 +31,16 @@ pub(crate) fn create(
             let element = raw_uri.element.clone();
             let attribute = raw_uri.attribute.clone();
 
-            // Truncate the source in case it gets too long Ideally we should
+            // Truncate the source in case it gets too long. Ideally we should
             // avoid the initial String allocation for `source` altogether
             let source = match &input_content.source {
-                InputSource::String(s) => {
-                    InputSource::String(s.chars().take(MAX_TRUNCATED_STR_LEN).collect())
+                InputSource::Raw(s) => {
+                    let s = if s.len() > MAX_TRUNCATED_STR_LEN {
+                        &s[..MAX_TRUNCATED_STR_LEN]
+                    } else {
+                        s
+                    };
+                    InputSource::Raw(s.to_owned())
                 }
                 // Cloning is cheap here
                 c => c.clone(),

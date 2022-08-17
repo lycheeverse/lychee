@@ -1,4 +1,5 @@
 use crate::types::{uri::raw::RawUri, FileType, InputContent};
+use crate::Result;
 
 mod html5ever;
 mod html5gum;
@@ -7,6 +8,12 @@ mod plaintext;
 
 use markdown::extract_markdown;
 use plaintext::extract_plaintext;
+
+#[cfg(feature = "pdf")]
+mod pdf;
+
+#[cfg(feature = "pdf")]
+use self::pdf::extract_pdf;
 
 /// Check if the given element is in the list of preformatted ("verbatim") tags.
 ///
@@ -50,15 +57,24 @@ impl Extractor {
 
     /// Main entrypoint for extracting links from various sources
     /// (Markdown, HTML, and plaintext)
-    #[must_use]
-    pub fn extract(&self, input_content: &InputContent) -> Vec<RawUri> {
+    ///
+    /// # Errors
+    ///
+    /// The method returns an error if the input cannot be handled by the
+    /// extractor.
+    pub fn extract(&self, input_content: &InputContent) -> Result<Vec<RawUri>> {
         match input_content.file_type {
+            #[cfg(feature = "pdf")]
+            FileType::Pdf => extract_pdf(&input_content.content, self.include_verbatim),
             FileType::Markdown => extract_markdown(&input_content.content, self.include_verbatim),
             FileType::Html => {
                 if self.use_html5ever {
                     html5ever::extract_html(&input_content.content, self.include_verbatim)
                 } else {
-                    html5gum::extract_html(&input_content.content, self.include_verbatim)
+                    Ok(html5gum::extract_html(
+                        &input_content.content,
+                        self.include_verbatim,
+                    ))
                 }
             }
             FileType::Plaintext => extract_plaintext(&input_content.content),
@@ -79,12 +95,13 @@ mod tests {
         Uri,
     };
 
-    fn extract_uris(input: &str, file_type: FileType) -> HashSet<Uri> {
-        let input_content = InputContent::from_string(input, file_type);
+    fn extract_uris<T: AsRef<[u8]>>(input: T, file_type: FileType) -> HashSet<Uri> {
+        let input_content = InputContent::from_bytes(input.as_ref(), file_type);
 
         let extractor = Extractor::new(false, false);
         let uris_html5gum = extractor
             .extract(&input_content)
+            .unwrap()
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
@@ -92,6 +109,7 @@ mod tests {
         let extractor = Extractor::new(true, false);
         let uris_html5ever = extractor
             .extract(&input_content)
+            .unwrap()
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
@@ -192,7 +210,7 @@ mod tests {
             Url::parse("https://example.com/some-post").unwrap(),
         ));
 
-        let contents = r#"<html>
+        let content = r#"<html>
             <div class="row">
                 <a href="https://github.com/lycheeverse/lychee/">Github</a>
                 <a href="/about">About</a>
@@ -202,12 +220,12 @@ mod tests {
         let input_content = &InputContent {
             source,
             file_type: FileType::Html,
-            content: contents.to_string(),
+            content: content.as_bytes().to_vec(),
         };
 
         for use_html5ever in [true, false] {
             let extractor = Extractor::new(use_html5ever, false);
-            let links = extractor.extract(input_content);
+            let links = extractor.extract(input_content).unwrap();
 
             let urls = links
                 .into_iter()

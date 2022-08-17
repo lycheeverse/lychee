@@ -28,18 +28,19 @@ pub struct InputContent {
     /// File type of given input
     pub file_type: FileType,
     /// Raw UTF-8 string content
-    pub content: String,
+    pub content: Vec<u8>,
 }
 
 impl InputContent {
     #[must_use]
     /// Create an instance of `InputContent` from an input string
-    pub fn from_string(s: &str, file_type: FileType) -> Self {
+    pub fn from_bytes<T: AsRef<[u8]>>(s: T, file_type: FileType) -> Self {
         // TODO: consider using Cow (to avoid one .clone() for String types)
+        let raw = s.as_ref().to_owned();
         Self {
-            source: InputSource::String(s.to_owned()),
+            source: InputSource::Raw(raw.clone()),
             file_type,
-            content: s.to_owned(),
+            content: raw,
         }
     }
 }
@@ -48,11 +49,10 @@ impl TryFrom<&PathBuf> for InputContent {
     type Error = crate::ErrorKind;
 
     fn try_from(path: &PathBuf) -> std::result::Result<Self, Self::Error> {
-        let input =
-            fs::read_to_string(&path).map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))?;
+        let input = fs::read(&path).map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))?;
 
         Ok(Self {
-            source: InputSource::String(input.clone()),
+            source: InputSource::Raw(input.clone()),
             file_type: FileType::from(path),
             content: input,
         })
@@ -76,8 +76,8 @@ pub enum InputSource {
     FsPath(PathBuf),
     /// Standard Input.
     Stdin,
-    /// Raw string input.
-    String(String),
+    /// Raw byte input.
+    Raw(Vec<u8>),
 }
 
 // Custom serialization for enum is needed
@@ -99,7 +99,7 @@ impl Display for InputSource {
             Self::FsGlob { pattern, .. } => pattern,
             Self::FsPath(path) => path.to_str().unwrap_or_default(),
             Self::Stdin => "stdin",
-            Self::String(s) => s,
+            Self::Raw(r) => std::str::from_utf8(r).unwrap_or_default(),
         })
     }
 }
@@ -251,8 +251,8 @@ impl Input {
                     let content = Self::stdin_content(self.file_type_hint).await?;
                     yield content;
                 },
-                InputSource::String(ref s) => {
-                    let content = Self::string_content(s, self.file_type_hint);
+                InputSource::Raw(ref raw) => {
+                    let content = Self::content(raw, self.file_type_hint);
                     yield content;
                 },
             }
@@ -273,7 +273,11 @@ impl Input {
         let input_content = InputContent {
             source: InputSource::RemoteUrl(Box::new(url.clone())),
             file_type,
-            content: res.text().await.map_err(ErrorKind::ReadResponseBody)?,
+            content: res
+                .bytes()
+                .await
+                .map_err(ErrorKind::ReadResponseBody)?
+                .to_vec(),
         };
 
         Ok(input_content)
@@ -330,7 +334,7 @@ impl Input {
         path: P,
     ) -> Result<InputContent> {
         let path = path.into();
-        let content = tokio::fs::read_to_string(&path)
+        let content = tokio::fs::read(&path)
             .await
             .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))?;
         let input_content = InputContent {
@@ -343,9 +347,9 @@ impl Input {
     }
 
     async fn stdin_content(file_type_hint: Option<FileType>) -> Result<InputContent> {
-        let mut content = String::new();
         let mut stdin = stdin();
-        stdin.read_to_string(&mut content).await?;
+        let mut content = Vec::new();
+        stdin.read_to_end(&mut content).await?;
 
         let input_content = InputContent {
             source: InputSource::Stdin,
@@ -356,8 +360,8 @@ impl Input {
         Ok(input_content)
     }
 
-    fn string_content(s: &str, file_type_hint: Option<FileType>) -> InputContent {
-        InputContent::from_string(s, file_type_hint.unwrap_or_default())
+    fn content(s: &[u8], file_type_hint: Option<FileType>) -> InputContent {
+        InputContent::from_bytes(s, file_type_hint.unwrap_or_default())
     }
 }
 

@@ -1,8 +1,10 @@
+use std::str::from_utf8;
+
 use html5gum::{Emitter, Error, State, Tokenizer};
 
 use super::is_verbatim_elem;
 use super::plaintext::extract_plaintext;
-use crate::types::uri::raw::RawUri;
+use crate::{types::uri::raw::RawUri, Result};
 
 #[derive(Clone)]
 struct LinkExtractor {
@@ -16,13 +18,6 @@ struct LinkExtractor {
     current_attribute_value: Vec<u8>,
     last_start_element: Vec<u8>,
     include_verbatim: bool,
-}
-
-/// this is the same as `std::str::from_utf8_unchecked`, but with extra debug assertions for ease
-/// of debugging
-unsafe fn from_utf8_unchecked(s: &[u8]) -> &str {
-    debug_assert!(std::str::from_utf8(s).is_ok());
-    std::str::from_utf8_unchecked(s)
 }
 
 impl LinkExtractor {
@@ -89,30 +84,29 @@ impl LinkExtractor {
         }
     }
 
-    fn flush_current_characters(&mut self) {
-        // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
-        let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
+    fn flush_current_characters(&mut self) -> Result<()> {
+        let name = from_utf8(&self.current_element_name)?;
         if !self.include_verbatim && is_verbatim_elem(name) {
             // Early return if we don't want to extract links from preformatted text
             self.current_string.clear();
-            return;
+            return Ok(());
         }
 
-        let raw = unsafe { from_utf8_unchecked(&self.current_string) };
-        self.links.extend(extract_plaintext(raw));
+        self.links.extend(extract_plaintext(&self.current_string)?);
         self.current_string.clear();
+        Ok(())
     }
 
-    fn flush_old_attribute(&mut self) {
+    fn flush_old_attribute(&mut self) -> Result<()> {
         {
             // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
-            let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
+            let name = from_utf8(&self.current_element_name)?;
             if !self.include_verbatim && is_verbatim_elem(name) {
                 // Early return if we don't want to extract links from preformatted text
-                return;
+                return Ok(());
             }
-            let attr = unsafe { from_utf8_unchecked(&self.current_attribute_name) };
-            let value = unsafe { from_utf8_unchecked(&self.current_attribute_value) };
+            let attr = from_utf8(&self.current_attribute_name)?;
+            let value = from_utf8(&self.current_attribute_value)?;
 
             // Ignore links with rel=nofollow
             // This may be set on a different iteration on the same element/tag before,
@@ -123,13 +117,14 @@ impl LinkExtractor {
             if self.current_element_nofollow {
                 self.current_attribute_name.clear();
                 self.current_attribute_value.clear();
-                return;
+                return Ok(());
             }
 
+            let name = from_utf8(&self.current_element_name)?;
             let urls = LinkExtractor::extract_urls_from_elem_attr(attr, name, value);
 
             let new_urls = match urls {
-                None => extract_plaintext(value),
+                None => extract_plaintext(&self.current_attribute_value).unwrap(),
                 Some(urls) => urls
                     .into_iter()
                     .map(|url| RawUri {
@@ -145,6 +140,7 @@ impl LinkExtractor {
 
         self.current_attribute_name.clear();
         self.current_attribute_value.clear();
+        Ok(())
     }
 }
 
@@ -158,7 +154,7 @@ impl Emitter for &mut LinkExtractor {
     }
 
     fn emit_eof(&mut self) {
-        self.flush_current_characters();
+        self.flush_current_characters().expect("emit eof");
     }
     fn emit_error(&mut self, _: Error) {}
     fn pop_token(&mut self) -> Option<()> {
@@ -170,7 +166,7 @@ impl Emitter for &mut LinkExtractor {
     }
 
     fn init_start_tag(&mut self) {
-        self.flush_current_characters();
+        self.flush_current_characters().expect("init start tag");
         self.current_element_name.clear();
         self.current_element_nofollow = false;
         self.current_element_is_closing = false;
@@ -182,7 +178,7 @@ impl Emitter for &mut LinkExtractor {
     }
 
     fn init_comment(&mut self) {
-        self.flush_current_characters();
+        self.flush_current_characters().expect("init comment");
     }
 
     fn emit_current_tag(&mut self) -> Option<State> {
@@ -194,7 +190,7 @@ impl Emitter for &mut LinkExtractor {
             html5gum::naive_next_state(&self.current_element_name)
         };
 
-        self.flush_old_attribute();
+        self.flush_old_attribute().expect("emit current tag");
         next_state
     }
 
@@ -211,10 +207,10 @@ impl Emitter for &mut LinkExtractor {
     fn push_comment(&mut self, _: &[u8]) {}
     fn push_doctype_name(&mut self, _: &[u8]) {}
     fn init_doctype(&mut self) {
-        self.flush_current_characters();
+        self.flush_current_characters().expect("init doctype");
     }
     fn init_attribute(&mut self) {
-        self.flush_old_attribute();
+        self.flush_old_attribute().expect("init attribute");
     }
     fn push_attribute_name(&mut self, s: &[u8]) {
         self.current_attribute_name.extend(s);
@@ -237,12 +233,13 @@ impl Emitter for &mut LinkExtractor {
 }
 
 /// Extract unparsed URL strings from an HTML string.
-pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
+pub(crate) fn extract_html<T: AsRef<[u8]>>(buf: T, include_verbatim: bool) -> Vec<RawUri> {
     let mut extractor = LinkExtractor::new(include_verbatim);
-    let mut tokenizer = Tokenizer::new_with_emitter(buf, &mut extractor).infallible();
+    let mut tokenizer = Tokenizer::new_with_emitter(buf.as_ref(), &mut extractor).infallible();
     assert!(tokenizer.next().is_none());
     extractor.links
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -3,6 +3,9 @@ use std::path::Path;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 /// `FileType` defines which file types lychee can handle
 pub enum FileType {
+    /// PDF file type
+    #[cfg(feature = "pdf")]
+    Pdf,
     /// File in HTML format
     Html,
     /// File in Markdown format
@@ -39,6 +42,8 @@ impl<P: AsRef<Path>> From<P> for FileType {
         {
             Some("md" | "markdown") => FileType::Markdown,
             Some("htm" | "html") => FileType::Html,
+            #[cfg(feature = "pdf")]
+            Some("pdf") => FileType::Pdf,
             None if is_url => FileType::Html,
             _ => FileType::Plaintext,
         }
