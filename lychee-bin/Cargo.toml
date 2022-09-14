@@ -50,7 +50,7 @@ supports-color = "1.3.0"
 log = "0.4.17"
 
 [dependencies.clap]
-version = "3.2.20"
+version = "3.2.21"
 features = ["env", "derive"]
 
 [dev-dependencies]
