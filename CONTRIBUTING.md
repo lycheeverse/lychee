@@ -22,6 +22,16 @@ Try one of these links to get started:
 If you would like to contribute a new feature, the best way to get started is to
 ask for some early feedback by creating an issue yourself and asking for feedback.
 
+## Development Workflow
+
+1. Create a new development branch for your feature or bugfix.
+2. Make your changes and commit them.
+3. Run `cargo test` and `cargo clippy` to make sure your changes don't break anything.
+   We provide a few `make` targets to make this easier:
+   - `make lint` runs `cargo clippy` on all crates
+   - `make help` lists all available targets
+4. Push your changes to your fork and create a pull request.
+
 ## Thanks!
 
 No matter how small, we appreciate very contribution. You're awesome!
