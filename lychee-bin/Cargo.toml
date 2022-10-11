@@ -20,7 +20,7 @@ version = "0.10.1"
 lychee-lib = { path = "../lychee-lib", version = "0.10.1", default-features = false }
 anyhow = "1.0.65"
 console = "0.15.2"
-const_format = "0.2.28"
+const_format = "0.2.30"
 headers = "0.3.8"
 http = "0.2.8"
 indicatif = "0.17.1"
