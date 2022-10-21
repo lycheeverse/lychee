@@ -54,7 +54,7 @@ version = "3.2.22"
 features = ["env", "derive"]
 
 [dev-dependencies]
-assert_cmd = "2.0.4"
+assert_cmd = "2.0.5"
 predicates = "2.1.1"
 tempfile = "3.3.0"
 uuid = { version = "1.1.2", features = ["v4"] }
