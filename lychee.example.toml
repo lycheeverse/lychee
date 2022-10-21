@@ -86,7 +86,7 @@ include_verbatim = false
 # Ignore case of paths when matching glob patterns.
 glob_ignore_case = false
 
-# Exclude URLs from checking (supports regex).
+# Exclude URLs and mail addresses from checking (supports regex).
 exclude = [ '.*\.github.com\.*' ]
 
 # Exclude these filesystem paths from getting checked.

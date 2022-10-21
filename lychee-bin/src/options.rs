@@ -216,7 +216,7 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) include: Vec<String>,
 
-    /// Exclude URLs from checking (supports regex)
+    /// Exclude URLs and mail addresses from checking (supports regex)
     #[clap(long)]
     #[serde(default)]
     pub(crate) exclude: Vec<String>,
