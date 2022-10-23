@@ -243,7 +243,7 @@ OPTIONS:
             Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
 
         --exclude <EXCLUDE>
-            Exclude URLs from checking (supports regex)
+            Exclude URLs and mail addresses from checking (supports regex)
 
         --exclude-file <EXCLUDE_FILE>
             Deprecated; use `--exclude-path` instead
