@@ -58,7 +58,7 @@ where
 
 /// Dump request to stdout
 fn write(
-    mut writer: &mut Box<dyn Write>,
+    writer: &mut Box<dyn Write>,
     request: &Request,
     verbose: bool,
     excluded: bool,
@@ -71,15 +71,16 @@ fn write(
         request.uri.to_string()
     };
 
+    // Mark excluded links
     let out_str = if excluded {
         format!("{request} [excluded]")
     } else {
-        format!("{request}")
+        request
     };
 
-    write_out(&mut writer, out_str)
+    write_out(writer, &out_str)
 }
 
-fn write_out(writer: &mut Box<dyn Write>, out_str: String) -> io::Result<()> {
+fn write_out(writer: &mut Box<dyn Write>, out_str: &str) -> io::Result<()> {
     writeln!(writer, "{}", out_str)
 }
