@@ -63,13 +63,13 @@ use std::io::{self, BufRead, BufReader, ErrorKind, Write};
 use std::sync::Arc;
 
 use anyhow::{Context, Error, Result};
+use clap::Parser;
 use color::YELLOW;
 use commands::CommandParams;
 use formatters::response::ResponseFormatter;
 use log::warn;
 use openssl_sys as _; // required for vendored-openssl feature
 use ring as _; // required for apple silicon
-use structopt::StructOpt;
 
 use lychee_lib::Collector;
 
@@ -130,7 +130,7 @@ fn read_lines(file: &File) -> Result<Vec<String>> {
 /// Merge all provided config options into one This includes a potential config
 /// file, command-line- and environment variables
 fn load_config() -> Result<LycheeOptions> {
-    let mut opts = LycheeOptions::from_args();
+    let mut opts = LycheeOptions::parse();
 
     // Load a potentially existing config file and merge it into the config from
     // the CLI
@@ -202,6 +202,7 @@ fn run_main() -> Result<i32> {
     use std::process::exit;
 
     let opts = load_config()?;
+
     let runtime = match opts.config.threads {
         Some(threads) => {
             // We define our own runtime instead of the `tokio::main` attribute

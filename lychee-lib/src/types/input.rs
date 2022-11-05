@@ -147,6 +147,9 @@ impl Input {
                 let path = PathBuf::from(value);
                 if path.exists() {
                     InputSource::FsPath(path)
+                } else if path.is_relative() {
+                    // If the file does not exist and it is a relative path, exit immediately
+                    return Err(ErrorKind::FileNotFound(path));
                 } else {
                     // Invalid path; check if a valid URL can be constructed from the input
                     // by prefixing it with a `http://` scheme.
@@ -373,6 +376,42 @@ fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_input_handles_real_relative_paths() {
+        let test_file = "./Cargo.toml";
+        let path = Path::new(test_file);
+
+        assert!(path.exists());
+        assert!(path.is_relative());
+
+        let input = Input::new(test_file, None, false, None);
+        assert!(input.is_ok());
+        assert!(matches!(
+            input,
+            Ok(Input {
+                source: InputSource::FsPath(PathBuf { .. }),
+                file_type_hint: None,
+                excluded_paths: None
+            })
+        ));
+    }
+
+    #[test]
+    fn test_input_handles_nonexistent_relative_paths() {
+        let test_file = "./nonexistent/relative/path";
+        let path = Path::new(test_file);
+
+        assert!(!path.exists());
+        assert!(path.is_relative());
+
+        let input = Input::new(test_file, None, false, None);
+        assert!(input.is_err());
+        assert!(matches!(
+            input,
+            Err(ErrorKind::FileNotFound(PathBuf { .. }))
+        ));
+    }
 
     #[test]
     fn test_valid_extension() {

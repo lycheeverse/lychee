@@ -396,7 +396,7 @@ impl Client {
         let status = if self.filter.is_excluded(&uri) {
             Status::Excluded
         } else if uri.is_file() {
-            self.check_file(&uri).await
+            self.check_file(&uri)
         } else if uri.is_mail() {
             self.check_mail(&uri).await
         } else {
@@ -539,7 +539,7 @@ impl Client {
     }
 
     /// Check a `file` URI.
-    pub async fn check_file(&self, uri: &Uri) -> Status {
+    pub fn check_file(&self, uri: &Uri) -> Status {
         if let Ok(path) = uri.url.to_file_path() {
             if path.exists() {
                 return Status::Ok(StatusCode::OK);
@@ -550,8 +550,8 @@ impl Client {
 
     /// Check a mail address, or equivalently a `mailto` URI.
     pub async fn check_mail(&self, uri: &Uri) -> Status {
-        let input = CheckEmailInput::new(vec![uri.as_str().to_owned()]);
-        let result = &(check_email(&input).await)[0];
+        let input = CheckEmailInput::new(uri.as_str().to_owned());
+        let result = &(check_email(&input).await);
 
         if let Reachable::Invalid = result.is_reachable {
             ErrorKind::UnreachableEmailAddress(uri.clone(), mail::error_from_output(result)).into()

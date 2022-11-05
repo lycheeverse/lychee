@@ -182,16 +182,10 @@ mod cli {
             "TEST_QUIRKS.txt",
             MockResponseStats {
                 total: 3,
-                successful: 2,
-                excludes: 1,
+                successful: 3,
+                excludes: 0,
                 ..MockResponseStats::default()
-            },
-            // Currently getting a 429 with Googlebot.
-            // See https://github.com/lycheeverse/lychee/issues/448
-            // See https://twitter.com/matthiasendler/status/1479224185125748737
-            // TODO: Remove this exclusion in the future
-            "--exclude",
-            "twitter"
+            }
         )
     }
 
@@ -871,6 +865,45 @@ mod cli {
             // number of links.
             .stdout(contains("1 Total"))
             .stdout(contains("1 OK"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_handle_relative_paths_as_input() -> Result<()> {
+        let test_path = fixtures_path();
+        let mut cmd = main_command();
+
+        cmd.current_dir(&test_path)
+            .arg("--verbose")
+            .arg("--exclude")
+            .arg("example.*")
+            .arg("--")
+            .arg("./TEST_DUMP_EXCLUDE.txt")
+            .assert()
+            .success()
+            .stdout(contains("3 Total"))
+            .stdout(contains("3 Excluded"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_handle_nonexistent_relative_paths_as_input() -> Result<()> {
+        let test_path = fixtures_path();
+        let mut cmd = main_command();
+
+        cmd.current_dir(&test_path)
+            .arg("--verbose")
+            .arg("--exclude")
+            .arg("example.*")
+            .arg("--")
+            .arg("./NOT-A-REAL-TEST-FIXTURE.md")
+            .assert()
+            .failure()
+            .stderr(contains(
+                "Cannot find local file ./NOT-A-REAL-TEST-FIXTURE.md",
+            ));
 
         Ok(())
     }
