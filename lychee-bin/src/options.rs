@@ -333,6 +333,13 @@ pub(crate) struct Config {
     #[clap(long)]
     #[serde(default)]
     pub(crate) require_https: bool,
+
+    /// Enable recursion (make sub-requests for detected links)
+    // At the moment this is only supported for HTTP(S) inputs
+    // and not for filesystem inputs
+    #[structopt(long)]
+    #[serde(default)]
+    pub(crate) recursive: bool,
 }
 
 impl Config {
@@ -395,6 +402,7 @@ impl Config {
             glob_ignore_case: false;
             output: None;
             require_https: false;
+            recursive: false;
         }
 
         if self

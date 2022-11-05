@@ -537,6 +537,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "chrono_utils"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f69ed74e2117892a1a4e05d31f6612178e8e827bfbd83bbf8ca8c1bcfbda710"
+dependencies = [
+ "chrono",
+]
+
+[[package]]
 name = "ciborium"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1824,6 +1833,7 @@ dependencies = [
  "secrecy",
  "serde",
  "shellexpand",
+ "sitemap",
  "tempfile",
  "thiserror",
  "tokio",
@@ -2901,6 +2911,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7bd3e3206899af3f8b12af284fafc038cc1dc2b41d1b89dd17297221c5d225de"
 
 [[package]]
+name = "sitemap"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c697e1d88854f66d7d805e8b532e341661a4b8f49fab419be8e82b0cafdeb4d"
+dependencies = [
+ "chrono",
+ "chrono_utils",
+ "url",
+ "xml-rs",
+]
+
+[[package]]
 name = "slab"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3740,6 +3762,12 @@ dependencies = [
  "serde_json",
  "tokio",
 ]
+
+[[package]]
+name = "xml-rs"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2d7d3948613f75c98fd9328cfdcc45acc4d360655289d0a7d4ec931392200a3"
 
 [[package]]
 name = "zeroize"
