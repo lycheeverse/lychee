@@ -220,8 +220,8 @@ impl TryFrom<&str> for Uri {
                 //   (`foo@example?subject=bar`), which are common for website
                 //   contact forms
                 // - `check_if_email_exists` does additional spam detection,
-                //   which only want to execute when checking the email addresses,
-                //   but not when printing all links with `--dump`.
+                //   which we only want to execute when checking the email
+                //   addresses, but not when printing all links with `--dump`.
                 if EmailAddress::is_valid(s) {
                     // Use the `mailto:` scheme for mail addresses,
                     // which will allow `Url::parse` to parse them.
