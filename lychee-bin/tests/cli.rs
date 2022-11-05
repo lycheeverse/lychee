@@ -436,6 +436,11 @@ mod cli {
             .success();
 
         let output = fs::read_to_string(&outfile)?;
+
+        // We expect 11 links in the test file
+        // Running the command from the command line will print 9 links,
+        // because the actual `--dump` command filters out the two
+        // http(s)://example.com links
         assert_eq!(output.lines().count(), 11);
         fs::remove_file(outfile)?;
         Ok(())
