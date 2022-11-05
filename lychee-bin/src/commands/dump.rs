@@ -2,11 +2,30 @@ use lychee_lib::Request;
 use lychee_lib::Result;
 use std::fs;
 use std::io::{self, Write};
+use std::path::PathBuf;
 use tokio_stream::StreamExt;
 
 use crate::ExitCode;
 
 use super::CommandParams;
+
+// Helper function to create an output writer.
+//
+// If the output file is not specified, it will write to `stdout`.
+//
+// # Errors
+//
+// If the output file cannot be opened, an error is returned.
+fn create_writer(output: Option<PathBuf>) -> Result<Box<dyn Write>> {
+    let out = if let Some(output) = output {
+        let out = fs::OpenOptions::new().append(true).open(output)?;
+        Box::new(out) as Box<dyn Write>
+    } else {
+        let out = io::stdout();
+        Box::new(out.lock()) as Box<dyn Write>
+    };
+    Ok(out)
+}
 
 /// Dump all detected links to stdout without checking them
 pub(crate) async fn dump<S>(params: CommandParams<S>) -> Result<ExitCode>
@@ -20,13 +39,7 @@ where
         fs::File::create(outfile)?;
     }
 
-    let mut writer = if let Some(output) = &params.cfg.output {
-        let out = fs::OpenOptions::new().append(true).open(output)?;
-        Box::new(out) as Box<dyn Write>
-    } else {
-        let out = io::stdout();
-        Box::new(out.lock()) as Box<dyn Write>
-    };
+    let mut writer = create_writer(params.cfg.output)?;
 
     while let Some(request) = requests.next().await {
         let mut request = request?;
