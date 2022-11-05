@@ -1,7 +1,7 @@
 use check_if_email_exists::{CheckEmailOutput, Reachable};
 
 /// A crude way to extract error details from the mail output.
-/// This was added because `CheckEmailOutput` doesn't impl `Display`
+/// This was added because `CheckEmailOutput` doesn't impl `Display`.
 pub(crate) fn error_from_output(o: &CheckEmailOutput) -> String {
     if let Err(_e) = o.misc.as_ref() {
         return "Error occurred connecting to this email server via SMTP".to_string();

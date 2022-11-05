@@ -127,6 +127,34 @@ mod cli {
         )
     }
 
+    #[test]
+    fn test_email_html_with_subject() -> Result<()> {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("TEST_EMAIL_QUERY_PARAMS.html");
+
+        cmd.arg("--dump")
+            .arg(input)
+            .assert()
+            .success()
+            .stdout(contains("hello@example.org?subject=%5BHello%5D"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_email_markdown_with_subject() -> Result<()> {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("TEST_EMAIL_QUERY_PARAMS.md");
+
+        cmd.arg("--dump")
+            .arg(input)
+            .assert()
+            .success()
+            .stdout(contains("hello@example.org?subject=%5BHello%5D"));
+
+        Ok(())
+    }
+
     /// Test that a GitHub link can be checked without specifying the token.
     #[test]
     fn test_check_github_no_token() -> Result<()> {

@@ -97,8 +97,8 @@ fn join(base: PathBuf, dst: &Path) -> PathBuf {
 //
 // Unfortunately requires real files for `fs::canonicalize`.
 pub(crate) fn contains(parent: &PathBuf, child: &PathBuf) -> Result<bool> {
-    let parent = fs::canonicalize(&parent)?;
-    let child = fs::canonicalize(&child)?;
+    let parent = fs::canonicalize(parent)?;
+    let child = fs::canonicalize(child)?;
 
     Ok(child.starts_with(parent))
 }
