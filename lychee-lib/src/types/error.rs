@@ -43,6 +43,9 @@ pub enum ErrorKind {
     /// Invalid Github URL
     #[error("Github URL is invalid: {0}")]
     InvalidGithubUrl(String),
+    /// The input is empty and not accepted as a valid URL
+    #[error("URL cannot be empty")]
+    EmptyUrl,
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
     #[error("Cannot parse string `{1}` as website url: {0}")]
     ParseUrl(#[source] url::ParseError, String),
@@ -180,6 +183,7 @@ impl Hash for ErrorKind {
             Self::InvalidGithubUrl(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
+            Self::EmptyUrl => "Empty URL".hash(state),
             Self::ParseUrl(e, s) => (e.to_string(), s).hash(state),
             Self::InvalidURI(u) => u.hash(state),
             Self::InvalidUrlFromPath(p) => p.hash(state),
