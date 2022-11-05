@@ -117,10 +117,10 @@ pub(crate) struct LycheeOptions {
 }
 
 impl LycheeOptions {
-    // This depends on config, which is why a method is required (we could
-    // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there,
-    // but we'd get no access to `glob_ignore_case`.
     /// Get parsed inputs from options.
+    // This depends on the config, which is why a method is required (we could
+    // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there, but
+    // we wouldn't get access to `glob_ignore_case`.
     pub(crate) fn inputs(&self) -> Result<Vec<Input>> {
         let excluded = if self.config.exclude_path.is_empty() {
             None
