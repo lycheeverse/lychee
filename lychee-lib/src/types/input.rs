@@ -313,6 +313,11 @@ impl Input {
         }
     }
 
+    /// Returns true if the input is a remote URL
+    pub fn is_remote_url(&self) -> bool {
+        matches!(self.source, InputSource::RemoteUrl(_))
+    }
+
     /// Check if the given path was excluded from link checking
     fn is_excluded_path(&self, path: &PathBuf) -> bool {
         let excluded_paths = match &self.excluded_paths {

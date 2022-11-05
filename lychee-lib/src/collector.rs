@@ -1,5 +1,8 @@
 use crate::{
-    extract::Extractor, helpers::request, types::uri::raw::RawUri, Base, Input, Request, Result,
+    extract::Extractor,
+    helpers::{request, url::sitemap_url},
+    types::{uri::raw::RawUri, Sitemap},
+    Base, Input, InputSource, Request, Result,
 };
 use futures::{
     stream::{self, Stream},
@@ -12,6 +15,7 @@ use par_stream::ParStreamExt;
 #[derive(Debug, Clone)]
 pub struct Collector {
     base: Option<Base>,
+    recursive: bool,
     skip_missing_inputs: bool,
     include_verbatim: bool,
     use_html5ever: bool,
@@ -23,6 +27,7 @@ impl Collector {
     pub const fn new(base: Option<Base>) -> Self {
         Collector {
             base,
+            recursive: false,
             skip_missing_inputs: false,
             use_html5ever: false,
             include_verbatim: false,
@@ -50,6 +55,16 @@ impl Collector {
         self
     }
 
+    /// Recursively follow links in HTML files
+    /// (default is to only follow links in the initial input files)
+    ///
+    /// This is currently only supported for `InputSource::RemoteUrl`.
+    #[must_use]
+    pub const fn recursive(mut self, yes: bool) -> Self {
+        self.recursive = yes;
+        self
+    }
+
     /// Fetch all unique links from inputs
     /// All relative URLs get prefixed with `base` (if given).
     /// (This can be a directory or a base URL)
@@ -64,6 +79,35 @@ impl Collector {
                 input.get_contents(skip_missing_inputs).await
             })
             .flatten();
+
+        if self.recursive {
+            // Also load the sitemap if the input is a `InputSource::RemoteUrl`
+            // and the sitemap exists.
+            inputs
+                .into_iter()
+                .filter_map(|input| {
+                    if let InputSource::RemoteUrl(url) = input.source {
+                        if url.cannot_be_a_base() {
+                            // return potential sitemap URL
+                            return Some(sitemap_url(&url).unwrap());
+                        }
+                    }
+                    return None;
+                })
+                .map(|sitemap| Sitemap::urls(sitemap))
+                .flatten()
+                .chain(contents);
+
+            //     Input::RemoteUrl(url) => Some(url),
+            //     _ => None,
+            // })
+            // .par_then_unordered(None, |url| async move {
+            //     let sitemap = url.get_sitemap().await;
+            //     sitemap.map(|s| s.into_iter().map(|u| u.into()))
+            // })
+            // .flatten()
+            // .chain(contents)
+        }
 
         let base = self.base;
         contents

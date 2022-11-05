@@ -8,9 +8,11 @@ mod input;
 pub(crate) mod mail;
 mod request;
 mod response;
+mod sitemap;
 mod status;
 pub(crate) mod uri;
 
+pub use self::sitemap::Sitemap;
 pub use base::Base;
 pub use cache::CacheStatus;
 pub use error::ErrorKind;
