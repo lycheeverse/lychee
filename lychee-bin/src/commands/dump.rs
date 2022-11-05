@@ -2,7 +2,6 @@ use lychee_lib::Request;
 use lychee_lib::Result;
 use std::fs;
 use std::io::{self, Write};
-use std::path::PathBuf;
 use tokio_stream::StreamExt;
 
 use crate::ExitCode;
@@ -21,6 +20,14 @@ where
         fs::File::create(outfile)?;
     }
 
+    let mut writer = if let Some(output) = &params.cfg.output {
+        let out = fs::OpenOptions::new().append(true).open(output)?;
+        Box::new(out) as Box<dyn Write>
+    } else {
+        let out = io::stdout();
+        Box::new(out.lock()) as Box<dyn Write>
+    };
+
     while let Some(request) = requests.next().await {
         let mut request = request?;
 
@@ -38,7 +45,7 @@ where
         if excluded && !verbose {
             continue;
         }
-        if let Err(e) = write(&params.cfg.output, &request, verbose, excluded) {
+        if let Err(e) = write(&mut writer, &request, verbose, excluded) {
             if e.kind() != io::ErrorKind::BrokenPipe {
                 eprintln!("{e}");
                 return Ok(ExitCode::UnexpectedFailure);
@@ -51,7 +58,7 @@ where
 
 /// Dump request to stdout
 fn write(
-    output: &Option<PathBuf>,
+    mut writer: &mut Box<dyn Write>,
     request: &Request,
     verbose: bool,
     excluded: bool,
@@ -69,20 +76,10 @@ fn write(
     } else {
         format!("{request}")
     };
-    write_out(output, out_str)
+
+    write_out(&mut writer, out_str)
 }
 
-fn write_out(output: &Option<PathBuf>, out_str: String) -> io::Result<()> {
-    if let Some(output) = output {
-        // Append to file;
-        // TODO: To avoid opening and closing the file for every request, we
-        // should probably use a buffered writer and pass it in from the caller.
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .append(true)
-            .open(output)?;
-        writeln!(file, "{}", out_str)
-    } else {
-        writeln!(io::stdout(), "{}", out_str)
-    }
+fn write_out(writer: &mut Box<dyn Write>, out_str: String) -> io::Result<()> {
+    writeln!(writer, "{}", out_str)
 }
