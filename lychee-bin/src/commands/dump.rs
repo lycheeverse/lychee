@@ -11,7 +11,7 @@ use super::CommandParams;
 
 // Helper function to create an output writer.
 //
-// If the output file is not specified, it will write to `stdout`.
+// If the output file is not specified, it will use `stdout`.
 //
 // # Errors
 //
