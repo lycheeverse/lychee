@@ -17,6 +17,10 @@ where
     let requests = params.requests;
     tokio::pin!(requests);
 
+    if let Some(outfile) = &params.cfg.output {
+        fs::File::create(outfile)?;
+    }
+
     while let Some(request) = requests.next().await {
         let mut request = request?;
 
@@ -70,7 +74,14 @@ fn write(
 
 fn write_out(output: &Option<PathBuf>, out_str: String) -> io::Result<()> {
     if let Some(output) = output {
-        fs::write(output, out_str)
+        // Append to file;
+        // TODO: To avoid opening and closing the file for every request, we
+        // should probably use a buffered writer and pass it in from the caller.
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .append(true)
+            .open(output)?;
+        writeln!(file, "{}", out_str)
     } else {
         writeln!(io::stdout(), "{}", out_str)
     }
