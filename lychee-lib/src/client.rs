@@ -549,8 +549,13 @@ impl Client {
     }
 
     /// Check a mail address, or equivalently a `mailto` URI.
+    ///
+    /// URIs may contain query parameters (e.g. `contact@example.com?subject="Hello"`),
+    /// which are ignored by this check. The are not part of the mail address
+    /// and instead passed to a mail client.
     pub async fn check_mail(&self, uri: &Uri) -> Status {
-        let input = CheckEmailInput::new(uri.as_str().to_owned());
+        let address = uri.url.path().to_string();
+        let input = CheckEmailInput::new(address);
         let result = &(check_email(&input).await);
 
         if let Reachable::Invalid = result.is_reachable {

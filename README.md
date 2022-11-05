@@ -175,10 +175,9 @@ lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
 acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
 ```
 
-lychee parses other file formats as plaintext and extracts links using [linkify](https://github.com/robinst/linkify). 
+lychee parses other file formats as plaintext and extracts links using [linkify](https://github.com/robinst/linkify).
 This generally works well if there are no format or encoding specifics,
 but in case you need dedicated support for a new file format, please consider creating an issue.
-
 
 ### Docker Usage
 
@@ -333,7 +332,7 @@ OPTIONS:
             Number of threads to utilize. Defaults to number of cores available to the system
 
     -u, --user-agent <USER_AGENT>
-            User agent [default: lychee/0.10.1]
+            User agent [default: lychee/0.10.2]
 
     -v, --verbose
             Verbose program output
@@ -353,7 +352,7 @@ OPTIONS:
 You can exclude links from getting checked by specifying regex patterns
 with `--exclude` (e.g. `--exclude example\.(com|org)`).  
 If a file named `.lycheeignore` exists in the current working directory, its
-contents are excluded as well. The file allows you to list multiple regular 
+contents are excluded as well. The file allows you to list multiple regular
 expressions for exclusion (one pattern per line).
 
 ### Caching
