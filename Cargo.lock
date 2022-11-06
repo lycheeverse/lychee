@@ -1814,6 +1814,7 @@ dependencies = [
 name = "lychee-lib"
 version = "0.10.2"
 dependencies = [
+ "async-recursion",
  "async-stream",
  "cached",
  "check-if-email-exists",

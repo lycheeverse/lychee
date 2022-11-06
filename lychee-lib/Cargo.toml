@@ -54,6 +54,7 @@ html5gum = "0.5.2"
 octocrab = "0.17.0"
 ip_network = "0.4.1"
 secrecy = "0.8.0"
+async-recursion = "1.0.0"
 
 [dependencies.par-stream]
 version = "0.10.2"

@@ -83,20 +83,20 @@ impl Collector {
         if self.recursive {
             // Also load the sitemap if the input is a `InputSource::RemoteUrl`
             // and the sitemap exists.
-            inputs
-                .into_iter()
-                .filter_map(|input| {
-                    if let InputSource::RemoteUrl(url) = input.source {
-                        if url.cannot_be_a_base() {
-                            // return potential sitemap URL
-                            return Some(sitemap_url(&url).unwrap());
-                        }
-                    }
-                    return None;
-                })
-                .map(|sitemap| Sitemap::urls(sitemap))
-                .flatten()
-                .chain(contents);
+            // inputs
+            //     .into_iter()
+            //     .filter_map(|input| {
+            //         if let InputSource::RemoteUrl(url) = input.source {
+            //             if url.cannot_be_a_base() {
+            //                 // return potential sitemap URL
+            //                 return Some(sitemap_url(&url).unwrap());
+            //             }
+            //         }
+            //         return None;
+            //     })
+            //     .map(|sitemap| Sitemap::urls(sitemap))
+            //     .flatten()
+            //     .chain(contents);
 
             //     Input::RemoteUrl(url) => Some(url),
             //     _ => None,
