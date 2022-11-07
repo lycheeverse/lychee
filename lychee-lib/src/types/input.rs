@@ -169,6 +169,19 @@ impl Input {
         })
     }
 
+    /// Create an `Input` from a given `InputSource`
+    pub(crate) fn from_source(
+        source: InputSource,
+        file_type_hint: Option<FileType>,
+        excluded_paths: Option<Vec<PathBuf>>,
+    ) -> Self {
+        Self {
+            source,
+            file_type_hint,
+            excluded_paths,
+        }
+    }
+
     /// Retrieve the contents from the input
     ///
     /// # Errors

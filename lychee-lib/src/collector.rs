@@ -2,13 +2,14 @@ use crate::{
     extract::Extractor,
     helpers::{request, url::sitemap_url},
     types::{uri::raw::RawUri, Sitemap},
-    Base, Input, InputSource, Request, Result,
+    Base, FileType, Input, InputSource, Request, Result,
 };
 use futures::{
     stream::{self, Stream},
     StreamExt, TryStreamExt,
 };
 use par_stream::ParStreamExt;
+// use tokio_stream::StreamExt;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -74,40 +75,42 @@ impl Collector {
     /// Will return `Err` if links cannot be extracted from an input
     pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
+
+        if self.recursive {
+            // Also load the sitemap if the input is a `InputSource::RemoteUrl`
+            // and the sitemap exists.
+            inputs
+                .iter()
+                .filter_map(|input| {
+                    if let InputSource::RemoteUrl(url) = &input.source {
+                        if url.cannot_be_a_base() {
+                            // return potential sitemap URL
+                            return Some(sitemap_url(url).unwrap());
+                        }
+                    }
+                    return None;
+                })
+                .map(move |sitemap| async move {
+                    let stream = Sitemap::urls(sitemap).await;
+                    stream
+                })
+                .map(|stream| async move {
+                    stream.await.map(|url| {
+                        let url = url.unwrap();
+                        Input::from_source(
+                            InputSource::RemoteUrl(Box::new(url)),
+                            Some(FileType::Html),
+                            None,
+                        )
+                    })
+                });
+        }
+
         let contents = stream::iter(inputs)
             .par_then_unordered(None, move |input| async move {
                 input.get_contents(skip_missing_inputs).await
             })
             .flatten();
-
-        if self.recursive {
-            // Also load the sitemap if the input is a `InputSource::RemoteUrl`
-            // and the sitemap exists.
-            // inputs
-            //     .into_iter()
-            //     .filter_map(|input| {
-            //         if let InputSource::RemoteUrl(url) = input.source {
-            //             if url.cannot_be_a_base() {
-            //                 // return potential sitemap URL
-            //                 return Some(sitemap_url(&url).unwrap());
-            //             }
-            //         }
-            //         return None;
-            //     })
-            //     .map(|sitemap| Sitemap::urls(sitemap))
-            //     .flatten()
-            //     .chain(contents);
-
-            //     Input::RemoteUrl(url) => Some(url),
-            //     _ => None,
-            // })
-            // .par_then_unordered(None, |url| async move {
-            //     let sitemap = url.get_sitemap().await;
-            //     sitemap.map(|s| s.into_iter().map(|u| u.into()))
-            // })
-            // .flatten()
-            // .chain(contents)
-        }
 
         let base = self.base;
         contents

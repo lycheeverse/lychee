@@ -32,7 +32,8 @@ pub(crate) fn remove_get_params_and_fragment(url: &str) -> &str {
 /// let base = get_base("https://example.com/path/to/file.html?query=param#fragment");
 /// assert_eq!(base, "https://example.com");
 /// ```
-pub fn base_url(mut url: Url) -> Result<Url> {
+pub fn base_url(url: &Url) -> Result<Url> {
+    let mut url = url.clone();
     match url.path_segments_mut() {
         Ok(mut path) => {
             path.clear();
@@ -78,8 +79,8 @@ pub fn base_url(mut url: Url) -> Result<Url> {
 /// let sitemap_url = get_sitemap_url("https://example.com/sitemap.xml?query=param#fragment");
 /// assert_eq!(sitemap_url, "https://example.com/sitemap.xml");
 /// ```
-pub fn sitemap_url(url: Url) -> Result<Url> {
-    let base = base_url(url)?;
+pub fn sitemap_url(url: &Url) -> Result<Url> {
+    let base = base_url(&url)?;
     base.join("sitemap.xml")
         .map_err(|e| ErrorKind::ParseUrl(e, "Unable to join sitemap URL".to_string()))
 }

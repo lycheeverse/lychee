@@ -1847,6 +1847,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "tokio-stream",
  "typed-builder",
  "url",
  "wiremock",
