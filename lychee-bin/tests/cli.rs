@@ -449,6 +449,31 @@ mod cli {
         Ok(())
     }
 
+    /// Test writing output of `--dump` command to file
+    #[test]
+    fn test_dump_to_file() -> Result<()> {
+        let mut cmd = main_command();
+        let test_path = fixtures_path().join("TEST.md");
+        let outfile = format!("{}", Uuid::new_v4());
+
+        cmd.arg("--output")
+            .arg(&outfile)
+            .arg("--dump")
+            .arg(test_path)
+            .assert()
+            .success();
+
+        let output = fs::read_to_string(&outfile)?;
+
+        // We expect 11 links in the test file
+        // Running the command from the command line will print 9 links,
+        // because the actual `--dump` command filters out the two
+        // http(s)://example.com links
+        assert_eq!(output.lines().count(), 11);
+        fs::remove_file(outfile)?;
+        Ok(())
+    }
+
     /// Test excludes
     #[test]
     fn test_exclude_wildcard() -> Result<()> {
