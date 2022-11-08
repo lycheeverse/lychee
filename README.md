@@ -332,7 +332,7 @@ OPTIONS:
             Number of threads to utilize. Defaults to number of cores available to the system
 
     -u, --user-agent <USER_AGENT>
-            User agent [default: lychee/0.10.2]
+            User agent [default: lychee/0.10.3]
 
     -v, --verbose
             Verbose program output
