@@ -104,6 +104,9 @@ jobs:
         with:
           command: publish
           args: --manifest-path lychee-lib/Cargo.toml
+      - name: Wait for crates.io publication
+        run: sleep 60s
+        shell: bash
       - name: cargo publish lychee
         uses: actions-rs/cargo@v1
         env:
