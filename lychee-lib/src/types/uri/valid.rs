@@ -53,6 +53,13 @@ impl Uri {
 
     #[inline]
     #[must_use]
+    /// Returns the path of the URI (e.g. `/path/to/resource`)
+    pub fn path(&self) -> &str {
+        self.url.path()
+    }
+
+    #[inline]
+    #[must_use]
     /// Unless this URL is cannot-be-a-base,
     /// return an iterator of '/' slash-separated path segments,
     /// each as a percent-encoded ASCII string.

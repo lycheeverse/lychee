@@ -55,7 +55,16 @@ pub fn is_example_domain(uri: &Uri) -> bool {
             // `foo.example.com`
             EXAMPLE_DOMAINS.iter().any(|tld| domain.ends_with(tld))
         }
-        None => false,
+        None => {
+            // Check if the URI is an email address.
+            // e.g. `mailto:mail@example.com`
+            // In this case, the domain is part of the path
+            if uri.is_mail() {
+                EXAMPLE_DOMAINS.iter().any(|tld| uri.path().ends_with(tld))
+            } else {
+                false
+            }
+        }
     };
     res
 }
