@@ -11,6 +11,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
 use crate::formatters::response::ResponseFormatter;
+use crate::verbosity::{Verbosity, WarnLevel};
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
 use lychee_lib::{Client, Request, Response};
 
@@ -69,7 +70,7 @@ where
         let verbose = params.cfg.verbose;
         async move {
             while let Some(response) = recv_resp.recv().await {
-                show_progress(&mut io::stdout(), &pb, &response, &formatter, verbose)?;
+                show_progress(&mut io::stdout(), &pb, &response, &formatter, &verbose)?;
                 stats.add(response);
             }
             Ok((pb, stats))
@@ -151,16 +152,18 @@ fn show_progress(
     progress_bar: &Option<ProgressBar>,
     response: &Response,
     formatter: &Arc<Box<dyn ResponseFormatter>>,
-    verbose: bool,
+    verbose: &Verbosity<WarnLevel>,
 ) -> Result<()> {
     let out = formatter.write_response(response)?;
     if let Some(pb) = progress_bar {
         pb.inc(1);
         pb.set_message(out.clone());
-        if verbose {
+        if verbose.is_verbose() {
             pb.println(out);
         }
-    } else if verbose || (!response.status().is_success() && !response.status().is_excluded()) {
+    } else if verbose.is_verbose()
+        || (!response.status().is_success() && !response.status().is_excluded())
+    {
         writeln!(output, "{}", out)?;
     }
     Ok(())
@@ -168,6 +171,7 @@ fn show_progress(
 
 #[cfg(test)]
 mod tests {
+    use log::info;
     use lychee_lib::{CacheStatus, InputSource, ResponseBody, Uri};
 
     use crate::formatters;
@@ -186,9 +190,16 @@ mod tests {
         );
         let formatter: Arc<Box<dyn ResponseFormatter>> =
             Arc::new(Box::new(formatters::response::Raw::new()));
-        show_progress(&mut buf, &None, &response, &formatter, false).unwrap();
+        show_progress(
+            &mut buf,
+            &None,
+            &response,
+            &formatter,
+            &Verbosity::new(0, 0),
+        )
+        .unwrap();
 
-        println!("{:?}", String::from_utf8_lossy(&buf));
+        info!("{:?}", String::from_utf8_lossy(&buf));
         assert!(buf.is_empty());
     }
 }

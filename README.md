@@ -310,6 +310,9 @@ OPTIONS:
         --offline
             Only check local files and block network requests
 
+    -q, --quiet
+            Less output per occurrence (e.g. `-q` or `-qq`)
+
     -r, --retry-wait-time <RETRY_WAIT_TIME>
             Minimum wait time in seconds between retries of failed requests [default: 1]
 
@@ -335,7 +338,7 @@ OPTIONS:
             User agent [default: lychee/0.10.3]
 
     -v, --verbose
-            Verbose program output
+            Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)
 
     -X, --method <METHOD>
             Request method [default: get]

@@ -96,6 +96,13 @@ impl Uri {
 
     #[inline]
     #[must_use]
+    /// Check if the URI is a `data` URI
+    pub fn is_data(&self) -> bool {
+        self.scheme() == "data"
+    }
+
+    #[inline]
+    #[must_use]
     /// Returns `true` if this is a loopback address.
     ///
     /// ## IPv4

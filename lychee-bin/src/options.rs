@@ -1,4 +1,5 @@
 use crate::parse::{parse_base, parse_statuscodes};
+use crate::verbosity::{Verbosity, WarnLevel};
 use anyhow::{anyhow, Context, Error, Result};
 use clap::StructOpt;
 use const_format::{concatcp, formatcp};
@@ -139,9 +140,8 @@ impl LycheeOptions {
 #[derive(Debug, Deserialize, StructOpt, Clone)]
 pub(crate) struct Config {
     /// Verbose program output
-    #[clap(short, long)]
-    #[serde(default)]
-    pub(crate) verbose: bool,
+    #[clap(flatten)]
+    pub(crate) verbose: Verbosity<WarnLevel>,
 
     /// Do not show progress bar.
     /// This is recommended for non-interactive shells (e.g. for continuous integration)
@@ -362,7 +362,7 @@ impl Config {
             self, toml;
 
             // Keys with defaults to assign
-            verbose: false;
+            verbose: Verbosity::new(0, 0);
             cache: false;
             no_progress: false;
             max_redirects: DEFAULT_MAX_REDIRECTS;
