@@ -350,10 +350,17 @@ OPTIONS:
 ### Ignoring links
 
 You can exclude links from getting checked by specifying regex patterns
-with `--exclude` (e.g. `--exclude example\.(com|org)`).  
+with `--exclude` (e.g. `--exclude example\.(com|org)`).
 If a file named `.lycheeignore` exists in the current working directory, its
 contents are excluded as well. The file allows you to list multiple regular
 expressions for exclusion (one pattern per line).
+
+For excluding files/directories from being scanned use `lychee.toml`
+and `exclude_path`.
+
+```toml
+exclude_path = ["some/path", "*/dev/*]
+```
 
 ### Caching
 
