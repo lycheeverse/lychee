@@ -238,6 +238,7 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 /// Run lychee on the given inputs
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
+
     let requests = Collector::new(opts.config.base.clone())
         .skip_missing_inputs(opts.config.skip_missing)
         .include_verbatim(opts.config.include_verbatim)
@@ -262,6 +263,8 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
 
     let exit_code = if opts.config.dump {
         commands::dump(params).await?
+    } else if opts.config.dump_inputs {
+        commands::dump_inputs(params).await?
     } else {
         let (stats, cache, exit_code) = commands::check(params).await?;
 

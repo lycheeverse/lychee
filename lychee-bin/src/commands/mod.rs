@@ -1,8 +1,11 @@
 pub(crate) mod check;
 pub(crate) mod dump;
+pub(crate) mod dump_inputs;
+pub(crate) mod helpers;
 
 pub(crate) use check::check;
 pub(crate) use dump::dump;
+pub(crate) use dump_inputs::dump_inputs;
 
 use std::sync::Arc;
 

@@ -170,6 +170,12 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) dump: bool,
 
+    /// Don't perform any link checking.
+    /// Instead, dump all the inputs that would be checked
+    #[clap(long)]
+    #[serde(default)]
+    pub(crate) dump_inputs: bool,
+
     /// Maximum number of allowed redirects
     #[clap(short, long, default_value = &MAX_REDIRECTS_STR)]
     #[serde(default = "max_redirects")]
