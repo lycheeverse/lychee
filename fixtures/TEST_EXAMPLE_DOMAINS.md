@@ -1,7 +1,13 @@
 http://example.com
 https://github.com/rust-lang/rust
 https://example.com
+hi@example.edu
 http://example.org
 https://www.rust-lang.org/
+test@foo.example.org
 http://foo.example.org
+mailto:foo@bar.dev
+mailto:hello@example.com?subject=hello
 http://example.net/foo/bar
+mail@example.com
+mail@somedomain.com

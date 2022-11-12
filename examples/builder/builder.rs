@@ -9,9 +9,9 @@ use std::{collections::HashSet, time::Duration};
 #[allow(clippy::trivial_regex)]
 async fn main() -> Result<()> {
     // Excludes
-    let excludes = Some(RegexSet::new(&[r"example"]).unwrap());
+    let excludes = Some(RegexSet::new([r"example"]).unwrap());
     // Includes take precedence over excludes
-    let includes = Some(RegexSet::new(&[r"example.com"]).unwrap());
+    let includes = Some(RegexSet::new([r"example.com"]).unwrap());
 
     // Set custom request headers
     let mut headers = HeaderMap::new();

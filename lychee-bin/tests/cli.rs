@@ -127,6 +127,34 @@ mod cli {
         )
     }
 
+    #[test]
+    fn test_email_html_with_subject() -> Result<()> {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("TEST_EMAIL_QUERY_PARAMS.html");
+
+        cmd.arg("--dump")
+            .arg(input)
+            .assert()
+            .success()
+            .stdout(contains("hello@example.org?subject=%5BHello%5D"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_email_markdown_with_subject() -> Result<()> {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("TEST_EMAIL_QUERY_PARAMS.md");
+
+        cmd.arg("--dump")
+            .arg(input)
+            .assert()
+            .success()
+            .stdout(contains("hello@example.org?subject=%5BHello%5D"));
+
+        Ok(())
+    }
+
     /// Test that a GitHub link can be checked without specifying the token.
     #[test]
     fn test_check_github_no_token() -> Result<()> {
@@ -182,16 +210,10 @@ mod cli {
             "TEST_QUIRKS.txt",
             MockResponseStats {
                 total: 3,
-                successful: 2,
-                excludes: 1,
+                successful: 3,
+                excludes: 0,
                 ..MockResponseStats::default()
-            },
-            // Currently getting a 429 with Googlebot.
-            // See https://github.com/lycheeverse/lychee/issues/448
-            // See https://twitter.com/matthiasendler/status/1479224185125748737
-            // TODO: Remove this exclusion in the future
-            "--exclude",
-            "twitter"
+            }
         )
     }
 
@@ -423,6 +445,31 @@ mod cli {
         let expected = r#"{"total":11,"successful":11,"failures":0,"unknown":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"cached":0,"fail_map":{}}"#;
         let output = fs::read_to_string(&outfile)?;
         assert_eq!(output.split_whitespace().collect::<String>(), expected);
+        fs::remove_file(outfile)?;
+        Ok(())
+    }
+
+    /// Test writing output of `--dump` command to file
+    #[test]
+    fn test_dump_to_file() -> Result<()> {
+        let mut cmd = main_command();
+        let test_path = fixtures_path().join("TEST.md");
+        let outfile = format!("{}", Uuid::new_v4());
+
+        cmd.arg("--output")
+            .arg(&outfile)
+            .arg("--dump")
+            .arg(test_path)
+            .assert()
+            .success();
+
+        let output = fs::read_to_string(&outfile)?;
+
+        // We expect 11 links in the test file
+        // Running the command from the command line will print 9 links,
+        // because the actual `--dump` command filters out the two
+        // http(s)://example.com links
+        assert_eq!(output.lines().count(), 11);
         fs::remove_file(outfile)?;
         Ok(())
     }

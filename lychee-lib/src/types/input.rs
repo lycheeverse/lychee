@@ -49,7 +49,7 @@ impl TryFrom<&PathBuf> for InputContent {
 
     fn try_from(path: &PathBuf) -> std::result::Result<Self, Self::Error> {
         let input =
-            fs::read_to_string(&path).map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))?;
+            fs::read_to_string(path).map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))?;
 
         Ok(Self {
             source: InputSource::String(input.clone()),
