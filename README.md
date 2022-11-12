@@ -237,6 +237,9 @@ OPTIONS:
             Don't perform any link checking. Instead, dump all the links extracted from inputs that
             would be checked
 
+        --dump-inputs
+            Don't perform any link checking. Instead, dump all the inputs that would be checked
+
     -E, --exclude-all-private
             Exclude all private IPs from checking.
             Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
