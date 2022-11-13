@@ -209,94 +209,159 @@ See below for a full list.
 ```text
 A fast, async link checker
 
+Finds broken URLs and mail addresses inside Markdown, HTML, `reStructuredText`, websites and more!
+
 Usage: lychee [OPTIONS] <inputs>...
 
 Arguments:
-  <inputs>...  The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`). NOTE: Use `--` to separate inputs from options that allow multiple arguments
+  <inputs>...
+          The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`). NOTE: Use `--` to separate inputs from options that allow multiple arguments
 
 Options:
   -c, --config <CONFIG_FILE>
-          Configuration file to use [default: ./lychee.toml]
+          Configuration file to use
+          
+          [default: ./lychee.toml]
+
   -v, --verbose
           Verbose program output
+
   -n, --no-progress
           Do not show progress bar.
           This is recommended for non-interactive shells (e.g. for continuous integration)
+
       --cache
           Use request cache stored on disk at `.lycheecache`
+
       --max-cache-age <MAX_CACHE_AGE>
-          Discard all cached requests older than this duration [default: 1d]
+          Discard all cached requests older than this duration
+          
+          [default: 1d]
+
       --dump
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
+
   -m, --max-redirects <MAX_REDIRECTS>
-          Maximum number of allowed redirects [default: 5]
+          Maximum number of allowed redirects
+          
+          [default: 5]
+
       --max-retries <MAX_RETRIES>
-          Maximum number of retries per request [default: 3]
+          Maximum number of retries per request
+          
+          [default: 3]
+
       --max-concurrency <MAX_CONCURRENCY>
-          Maximum number of concurrent network requests [default: 128]
+          Maximum number of concurrent network requests
+          
+          [default: 128]
+
   -T, --threads <THREADS>
           Number of threads to utilize. Defaults to number of cores available to the system
+
   -u, --user-agent <USER_AGENT>
-          User agent [default: lychee/0.10.3]
+          User agent
+          
+          [default: lychee/0.10.3]
+
   -i, --insecure
           Proceed for server connections considered insecure (invalid TLS)
+
   -s, --scheme <SCHEME>
           Only test links with the given schemes (e.g. http and https)
+
       --offline
           Only check local files and block network requests
+
       --include <INCLUDE>
           URLs to check (supports regex). Has preference over all excludes
+
       --exclude <EXCLUDE>
           Exclude URLs and mail addresses from checking (supports regex)
+
       --exclude-file <EXCLUDE_FILE>
           Deprecated; use `--exclude-path` instead
+
       --exclude-path <EXCLUDE_PATH>
           Exclude file path from getting checked
+
   -E, --exclude-all-private
           Exclude all private IPs from checking.
           Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
+
       --exclude-private
           Exclude private IP address ranges from checking
+
       --exclude-link-local
           Exclude link-local IP address range from checking
+
       --exclude-loopback
           Exclude loopback IP address range and localhost from checking
+
       --exclude-mail
           Exclude all mail addresses from checking
+
       --remap <REMAP>
           Remap URI matching pattern to different URI
+
       --header <HEADER>
           Custom request header
+
   -a, --accept <ACCEPT>
           Comma-separated list of accepted status codes for valid links
+
   -t, --timeout <TIMEOUT>
-          Website timeout in seconds from connect to response finished [default: 20]
+          Website timeout in seconds from connect to response finished
+          
+          [default: 20]
+
   -r, --retry-wait-time <RETRY_WAIT_TIME>
-          Minimum wait time in seconds between retries of failed requests [default: 1]
+          Minimum wait time in seconds between retries of failed requests
+          
+          [default: 1]
+
   -X, --method <METHOD>
-          Request method [default: get]
+          Request method
+          
+          [default: get]
+
   -b, --base <BASE>
           Base URL or website root directory to check relative URLs e.g. https://example.com or `/path/to/public`
+
       --basic-auth <BASIC_AUTH>
           Basic authentication support. E.g. `username:password`
+
       --github-token <GITHUB_TOKEN>
-          GitHub API token to use when checking github.com links, to avoid rate limiting [env: GITHUB_TOKEN]
+          GitHub API token to use when checking github.com links, to avoid rate limiting
+          
+          [env: GITHUB_TOKEN]
+
       --skip-missing
           Skip missing input files (default is to error if they don't exist)
+
       --include-verbatim
           Find links in verbatim sections like `pre`- and `code` blocks
+
       --glob-ignore-case
           Ignore case when expanding filesystem path glob inputs
+
   -o, --output <OUTPUT>
           Output file of status report
+
   -f, --format <FORMAT>
-          Output format of final status report (compact, detailed, json, markdown) [default: compact]
+          Output format of final status report (compact, detailed, json, markdown)
+          
+          [default: compact]
+
       --require-https
           When HTTPS is available, treat HTTP links as errors
+
   -h, --help
-          Print help information
+          Print help information (use `-h` for a summary)
+
   -V, --version
           Print version information
+
 ```
 
 ### Exit codes
