@@ -1,7 +1,7 @@
 [package]
 name = "lychee"
 authors = ["Matthias Endler <matthias@endler.dev>"]
-description = "A glorious link checker"
+description = "A fast, async link checker"
 documentation = "https://docs.rs/lychee"
 homepage = "https://github.com/lycheeverse/lychee"
 edition = "2021"
@@ -50,11 +50,12 @@ supports-color = "1.3.0"
 log = "0.4.17"
 
 [dependencies.clap]
-version = "3.2.23"
+version = "4.0.22"
 features = ["env", "derive"]
 
 [dev-dependencies]
 assert_cmd = "2.0.5"
+pretty_assertions = "1.3.0"
 predicates = "2.1.1"
 tempfile = "3.3.0"
 uuid = { version = "1.2.1", features = ["v4"] }

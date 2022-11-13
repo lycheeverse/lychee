@@ -1,7 +1,7 @@
 [package]
 name = "lychee-lib"
 authors = ["Matthias Endler <matthias@endler.dev>"]
-description = "A glorious link checker"
+description = "A fast, async link checker"
 documentation = "https://docs.rs/lychee_lib"
 edition = "2021"
 homepage = "https://github.com/lycheeverse/lychee"

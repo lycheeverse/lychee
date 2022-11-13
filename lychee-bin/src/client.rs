@@ -9,7 +9,7 @@ use std::{collections::HashSet, str::FromStr};
 
 /// Creates a client according to the command-line config
 pub(crate) fn create(cfg: &Config) -> Result<Client> {
-    let mut headers = parse_headers(&cfg.headers)?;
+    let mut headers = parse_headers(&cfg.header)?;
     if let Some(auth) = &cfg.basic_auth {
         let auth_header = parse_basic_auth(auth)?;
         headers.typed_insert(auth_header);
