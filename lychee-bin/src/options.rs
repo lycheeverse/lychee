@@ -96,10 +96,8 @@ macro_rules! fold_in {
 }
 
 #[derive(Parser, Debug)]
-#[command(
-    name = "lychee",
-    about = "A glorious link checker.\n\nProject home page: https://github.com/lycheeverse/lychee"
-)]
+#[command(version, about)]
+/// A fast, async link checker
 pub(crate) struct LycheeOptions {
     /// The inputs (where to get links to check from).
     /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),

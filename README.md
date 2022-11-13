@@ -207,9 +207,7 @@ There is an extensive list of commandline parameters to customize the behavior.
 See below for a full list.
 
 ```text
-A glorious link checker.
-
-Project home page: https://github.com/lycheeverse/lychee
+A fast, async link checker
 
 Usage: lychee [OPTIONS] <inputs>...
 
@@ -297,6 +295,8 @@ Options:
           When HTTPS is available, treat HTTP links as errors
   -h, --help
           Print help information
+  -V, --version
+          Print version information
 ```
 
 ### Exit codes
