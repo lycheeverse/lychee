@@ -1,6 +1,6 @@
 use crate::parse::{parse_base, parse_statuscodes};
 use anyhow::{anyhow, Context, Error, Result};
-use clap::StructOpt;
+use clap::{arg, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
     Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
@@ -95,8 +95,8 @@ macro_rules! fold_in {
     };
 }
 
-#[derive(Debug, StructOpt)]
-#[clap(
+#[derive(Parser, Debug)]
+#[command(
     name = "lychee",
     about = "A glorious link checker.\n\nProject home page: https://github.com/lycheeverse/lychee"
 )]
@@ -105,14 +105,14 @@ pub(crate) struct LycheeOptions {
     /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
     /// remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`).
     /// NOTE: Use `--` to separate inputs from options that allow multiple arguments.
-    #[clap(name = "inputs", required = true)]
+    #[arg(name = "inputs", required = true)]
     raw_inputs: Vec<String>,
 
     /// Configuration file to use
-    #[clap(short, long = "config", default_value = "./lychee.toml")]
+    #[arg(short, long = "config", default_value = "./lychee.toml")]
     pub(crate) config_file: String,
 
-    #[clap(flatten)]
+    #[command(flatten)]
     pub(crate) config: Config,
 }
 
@@ -136,28 +136,28 @@ impl LycheeOptions {
 }
 
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Debug, Deserialize, StructOpt, Clone)]
+#[derive(Parser, Debug, Deserialize, Clone)]
 pub(crate) struct Config {
     /// Verbose program output
-    #[clap(short, long)]
+    #[arg(short, long)]
     #[serde(default)]
     pub(crate) verbose: bool,
 
     /// Do not show progress bar.
     /// This is recommended for non-interactive shells (e.g. for continuous integration)
-    #[clap(short, long, verbatim_doc_comment)]
+    #[arg(short, long, verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) no_progress: bool,
 
-    #[clap(help = HELP_MSG_CACHE)]
-    #[clap(long)]
+    #[arg(help = HELP_MSG_CACHE)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) cache: bool,
 
     /// Discard all cached requests older than this duration
-    #[clap(
+    #[arg(
         long,
-        parse(try_from_str = humantime::parse_duration),
+        value_parser = humantime::parse_duration,
         default_value = &MAX_CACHE_AGE_STR
     )]
     #[serde(default = "max_cache_age")]
@@ -166,171 +166,171 @@ pub(crate) struct Config {
 
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) dump: bool,
 
     /// Maximum number of allowed redirects
-    #[clap(short, long, default_value = &MAX_REDIRECTS_STR)]
+    #[arg(short, long, default_value = &MAX_REDIRECTS_STR)]
     #[serde(default = "max_redirects")]
     pub(crate) max_redirects: usize,
 
     /// Maximum number of retries per request
-    #[clap(long, default_value = &MAX_RETRIES_STR)]
+    #[arg(long, default_value = &MAX_RETRIES_STR)]
     #[serde(default = "max_retries")]
     pub(crate) max_retries: u64,
 
     /// Maximum number of concurrent network requests
-    #[clap(long, default_value = &MAX_CONCURRENCY_STR)]
+    #[arg(long, default_value = &MAX_CONCURRENCY_STR)]
     #[serde(default = "max_concurrency")]
     pub(crate) max_concurrency: usize,
 
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
-    #[clap(short = 'T', long)]
+    #[arg(short = 'T', long)]
     #[serde(default)]
     pub(crate) threads: Option<usize>,
 
     /// User agent
-    #[clap(short, long, default_value = DEFAULT_USER_AGENT)]
+    #[arg(short, long, default_value = DEFAULT_USER_AGENT)]
     #[serde(default = "user_agent")]
     pub(crate) user_agent: String,
 
     /// Proceed for server connections considered insecure (invalid TLS)
-    #[clap(short, long)]
+    #[arg(short, long)]
     #[serde(default)]
     pub(crate) insecure: bool,
 
     /// Only test links with the given schemes (e.g. http and https)
-    #[clap(short, long)]
+    #[arg(short, long)]
     #[serde(default)]
     pub(crate) scheme: Vec<String>,
 
     /// Only check local files and block network requests.
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) offline: bool,
 
     /// URLs to check (supports regex). Has preference over all excludes.
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) include: Vec<String>,
 
     /// Exclude URLs and mail addresses from checking (supports regex)
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) exclude: Vec<String>,
 
     /// Deprecated; use `--exclude-path` instead
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) exclude_file: Vec<String>,
 
     /// Exclude file path from getting checked.
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) exclude_path: Vec<PathBuf>,
 
     /// Exclude all private IPs from checking.
     /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
-    #[clap(short = 'E', long, verbatim_doc_comment)]
+    #[arg(short = 'E', long, verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) exclude_all_private: bool,
 
     /// Exclude private IP address ranges from checking
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) exclude_private: bool,
 
     /// Exclude link-local IP address range from checking
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) exclude_link_local: bool,
 
     /// Exclude loopback IP address range and localhost from checking
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) exclude_loopback: bool,
 
     /// Exclude all mail addresses from checking
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) exclude_mail: bool,
 
     /// Remap URI matching pattern to different URI
     #[serde(default)]
-    #[clap(long)]
+    #[arg(long)]
     pub(crate) remap: Vec<String>,
 
-    /// Custom request headers
-    #[clap(short, long)]
+    /// Custom request header
+    #[arg(long)]
     #[serde(default)]
-    pub(crate) headers: Vec<String>,
+    pub(crate) header: Vec<String>,
 
     /// Comma-separated list of accepted status codes for valid links
-    #[clap(short, long, parse(try_from_str = parse_statuscodes))]
+    #[arg(short, long, value_parser = parse_statuscodes)]
     #[serde(default)]
     pub(crate) accept: Option<HashSet<u16>>,
 
     /// Website timeout in seconds from connect to response finished
-    #[clap(short, long, default_value = &TIMEOUT_STR)]
+    #[arg(short, long, default_value = &TIMEOUT_STR)]
     #[serde(default = "timeout")]
     pub(crate) timeout: usize,
 
     /// Minimum wait time in seconds between retries of failed requests
-    #[clap(short, long, default_value = &RETRY_WAIT_TIME_STR)]
+    #[arg(short, long, default_value = &RETRY_WAIT_TIME_STR)]
     #[serde(default = "retry_wait_time")]
     pub(crate) retry_wait_time: usize,
 
     /// Request method
     // Using `-X` as a short param similar to curl
-    #[clap(short = 'X', long, default_value = DEFAULT_METHOD)]
+    #[arg(short = 'X', long, default_value = DEFAULT_METHOD)]
     #[serde(default = "method")]
     pub(crate) method: String,
 
     /// Base URL or website root directory to check relative URLs
     /// e.g. https://example.com or `/path/to/public`
-    #[clap(short, long, parse(try_from_str = parse_base))]
+    #[arg(short, long, value_parser= parse_base)]
     #[serde(default)]
     pub(crate) base: Option<Base>,
 
     /// Basic authentication support. E.g. `username:password`
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) basic_auth: Option<String>,
 
     /// GitHub API token to use when checking github.com links, to avoid rate limiting
-    #[clap(long, env = "GITHUB_TOKEN", hide_env_values = true)]
+    #[arg(long, env = "GITHUB_TOKEN", hide_env_values = true)]
     #[serde(default)]
     pub(crate) github_token: Option<SecretString>,
 
     /// Skip missing input files (default is to error if they don't exist)
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) skip_missing: bool,
 
     /// Find links in verbatim sections like `pre`- and `code` blocks
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) include_verbatim: bool,
 
     /// Ignore case when expanding filesystem path glob inputs
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) glob_ignore_case: bool,
 
     /// Output file of status report
-    #[clap(short, long, parse(from_os_str))]
+    #[arg(short, long, value_parser)]
     #[serde(default)]
     pub(crate) output: Option<PathBuf>,
 
     /// Output format of final status report (compact, detailed, json, markdown)
-    #[clap(short, long, default_value = "compact")]
+    #[arg(short, long, default_value = "compact")]
     #[serde(default)]
     pub(crate) format: Format,
 
     /// When HTTPS is available, treat HTTP links as errors
-    #[clap(long)]
+    #[arg(long)]
     #[serde(default)]
     pub(crate) require_https: bool,
 }
@@ -383,7 +383,7 @@ impl Config {
             exclude_loopback: false;
             exclude_mail: false;
             remap: Vec::<String>::new();
-            headers: Vec::<String>::new();
+            header: Vec::<String>::new();
             accept: None;
             timeout: DEFAULT_TIMEOUT_SECS;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
