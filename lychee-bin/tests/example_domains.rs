@@ -35,12 +35,14 @@ mod cli {
             .arg("--dump")
             .assert()
             .success()
+            .stdout(contains("mail@somedomain.com"))
+            .stdout(contains("foo@bar.dev"))
             .stdout(contains("https://github.com/rust-lang/rust"))
             .stdout(contains("https://www.rust-lang.org/"));
 
         let output = cmd.get_output();
         let output = std::str::from_utf8(&output.stdout).unwrap();
-        assert_eq!(output.lines().count(), 2);
+        assert_eq!(output.lines().count(), 4);
 
         Ok(())
     }
