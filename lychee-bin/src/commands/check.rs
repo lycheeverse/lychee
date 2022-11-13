@@ -16,15 +16,6 @@ use lychee_lib::{Request, Response};
 
 use super::CommandParams;
 
-// pub(crate) async fn check<T: , S, E>(
-//     params: CommandParams<T, S>,
-// ) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
-// where
-//     S: futures::Stream<Item = Result<Request>>,
-//     Request: TryFrom<T, Error = E>,
-//     ErrorKind: From<E>,
-// {
-
 pub(crate) async fn check<T, S, E>(
     params: CommandParams<T, S>,
 ) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
