@@ -359,7 +359,7 @@ For excluding files/directories from being scanned use `lychee.toml`
 and `exclude_path`.
 
 ```toml
-exclude_path = ["some/path", "*/dev/*]
+exclude_path = ["some/path", "*/dev/*"]
 ```
 
 ### Caching
