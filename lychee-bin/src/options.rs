@@ -98,6 +98,9 @@ macro_rules! fold_in {
 #[derive(Parser, Debug)]
 #[command(version, about)]
 /// A fast, async link checker
+///
+/// Finds broken URLs and mail addresses inside Markdown, HTML,
+/// `reStructuredText`, websites and more!
 pub(crate) struct LycheeOptions {
     /// The inputs (where to get links to check from).
     /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
