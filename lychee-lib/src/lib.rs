@@ -89,6 +89,6 @@ pub use crate::{
     filter::{Excludes, Filter, Includes},
     types::{
         uri::valid::Uri, Base, CacheStatus, ErrorKind, FileType, Input, InputContent, InputSource,
-        Request, Response, ResponseBody, Result, Status,
+        PathExcludes, Request, Response, ResponseBody, Result, Status,
     },
 };

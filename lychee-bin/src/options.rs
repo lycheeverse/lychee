@@ -3,12 +3,14 @@ use anyhow::{anyhow, Context, Error, Result};
 use clap::{arg, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
-    DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+    Base, Input, InputSource, PathExcludes, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
-use std::{collections::HashSet, fs, io::ErrorKind, path::PathBuf, str::FromStr, time::Duration};
+use std::{
+    collections::HashSet, env, fs, io::ErrorKind, path::PathBuf, str::FromStr, time::Duration,
+};
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
@@ -123,14 +125,28 @@ impl LycheeOptions {
     // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there, but
     // we wouldn't get access to `glob_ignore_case`.
     pub(crate) fn inputs(&self) -> Result<Vec<Input>> {
-        let excluded = if self.config.exclude_path.is_empty() {
-            None
-        } else {
-            Some(self.config.exclude_path.clone())
-        };
         self.raw_inputs
             .iter()
-            .map(|s| Input::new(s, None, self.config.glob_ignore_case, excluded.clone()))
+            .map(|s| {
+                let source = InputSource::new(s, self.config.glob_ignore_case)?;
+                if let InputSource::FsPath(ref src) = source {
+                    let path_excludes = PathExcludes::new(
+                        src.parent().unwrap().to_path_buf(),
+                        self.config.exclude_path.clone(),
+                        !self.config.no_ignore,
+                    )?;
+                    Input::new(source, None, Some(path_excludes))
+                } else if source.is_glob() {
+                    let path_excludes = PathExcludes::new(
+                        env::current_dir()?,
+                        self.config.exclude_path.clone(),
+                        !self.config.no_ignore,
+                    )?;
+                    Input::new(source, None, Some(path_excludes))
+                } else {
+                    Input::new(source, None, None)
+                }
+            })
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
@@ -319,6 +335,11 @@ pub(crate) struct Config {
     #[arg(long)]
     #[serde(default)]
     pub(crate) glob_ignore_case: bool,
+
+    /// Don't respect ignore files (`.gitignore`)
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) no_ignore: bool,
 
     /// Output file of status report
     #[arg(short, long, value_parser)]

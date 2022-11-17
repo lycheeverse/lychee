@@ -1,5 +1,5 @@
 use crate::types::FileType;
-use crate::{helpers, ErrorKind, Result};
+use crate::{ErrorKind, PathExcludes, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
@@ -80,6 +80,90 @@ pub enum InputSource {
     String(String),
 }
 
+impl InputSource {
+    /// Returns the input source from a given string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the given string is not a valid input source.
+    pub fn new(value: &str, glob_ignore_case: bool) -> Result<Self> {
+        if value == STDIN {
+            return Ok(InputSource::Stdin);
+        }
+
+        if let Ok(url) = Url::parse(value) {
+            return Ok(InputSource::RemoteUrl(Box::new(url)));
+        }
+
+        // This seems to be the only way to determine a glob pattern
+        let is_glob = glob::Pattern::escape(value) != value;
+
+        if is_glob {
+            return Ok(InputSource::FsGlob {
+                pattern: value.to_owned(),
+                ignore_case: glob_ignore_case,
+            });
+        }
+
+        let path = PathBuf::from(value);
+        if path.exists() {
+            return Ok(InputSource::FsPath(path));
+        } else if path.is_relative() {
+            // If the file does not exist and it is a relative path, exit immediately
+            return Err(ErrorKind::FileNotFound(path));
+        }
+
+        // Invalid path; check if a valid URL can be constructed from the input
+        // by prefixing it with a `http://` scheme.
+        // Curl also uses http (i.e. not https) as a fallback, see
+        // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
+        let url = Url::parse(&format!("http://{value}"))
+            .map_err(|e| ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string()))?;
+        Ok(InputSource::RemoteUrl(Box::new(url)))
+    }
+
+    /// Returns true if the input source is a path
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lychee_lib::types::InputSource;
+    ///
+    /// let path = InputSource::FsPath("foo/bar".into());
+    /// assert!(path.is_path());
+    ///
+    /// let url = InputSource::RemoteUrl("https://example.com".parse().unwrap());
+    /// assert!(!url.is_path());
+    /// ```
+    #[must_use]
+    pub const fn is_path(&self) -> bool {
+        matches!(self, InputSource::FsPath(_))
+    }
+
+    /// Returns true if the input source is a glob pattern
+    /// (i.e. Unix shell-style glob pattern)
+    /// See <https://docs.rs/glob/0.3.0/glob/#syntax>
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lychee_lib::types::InputSource;
+    ///
+    /// let glob = InputSource::FsGlob {
+    ///    pattern: "foo/bar".into(),
+    ///   ignore_case: false,
+    /// };
+    /// assert!(glob.is_glob());
+    ///
+    /// let url = InputSource::RemoteUrl("https://example.com".parse().unwrap());
+    /// assert!(!url.is_glob());
+    /// ```
+    #[must_use]
+    pub const fn is_glob(&self) -> bool {
+        matches!(self, InputSource::FsGlob { .. })
+    }
+}
+
 // Custom serialization for enum is needed
 // Otherwise we get "key must be a string" when using the JSON writer
 // Related: https://github.com/serde-rs/json/issues/45
@@ -112,7 +196,9 @@ pub struct Input {
     /// Hint to indicate which extractor to use
     pub file_type_hint: Option<FileType>,
     /// Excluded paths that will be skipped when reading content
-    pub excluded_paths: Option<Vec<PathBuf>>,
+    /// Excluded paths require a base path to be set, so they are
+    /// only relevant for `InputSource::FsPath` and `InputSource::FsGlob`
+    pub excluded_paths: Option<PathExcludes>,
 }
 
 impl Input {
@@ -124,44 +210,11 @@ impl Input {
     ///
     /// Returns an error if the input does not exist (i.e. invalid path)
     /// and the input cannot be parsed as a URL.
-    pub fn new(
-        value: &str,
+    pub const fn new(
+        source: InputSource,
         file_type_hint: Option<FileType>,
-        glob_ignore_case: bool,
-        excluded_paths: Option<Vec<PathBuf>>,
+        excluded_paths: Option<PathExcludes>,
     ) -> Result<Self> {
-        let source = if value == STDIN {
-            InputSource::Stdin
-        } else if let Ok(url) = Url::parse(value) {
-            InputSource::RemoteUrl(Box::new(url))
-        } else {
-            // this seems to be the only way to determine if this is a glob pattern
-            let is_glob = glob::Pattern::escape(value) != value;
-
-            if is_glob {
-                InputSource::FsGlob {
-                    pattern: value.to_owned(),
-                    ignore_case: glob_ignore_case,
-                }
-            } else {
-                let path = PathBuf::from(value);
-                if path.exists() {
-                    InputSource::FsPath(path)
-                } else if path.is_relative() {
-                    // If the file does not exist and it is a relative path, exit immediately
-                    return Err(ErrorKind::FileNotFound(path));
-                } else {
-                    // Invalid path; check if a valid URL can be constructed from the input
-                    // by prefixing it with a `http://` scheme.
-                    // Curl also uses http (i.e. not https), see
-                    // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
-                    let url = Url::parse(&format!("http://{value}")).map_err(|e| {
-                        ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string())
-                    })?;
-                    InputSource::RemoteUrl(Box::new(url))
-                }
-            }
-        };
         Ok(Self {
             source,
             file_type_hint,
@@ -315,11 +368,11 @@ impl Input {
 
     /// Check if the given path was excluded from link checking
     fn is_excluded_path(&self, path: &PathBuf) -> bool {
-        let excluded_paths = match &self.excluded_paths {
-            Some(excluded) => excluded,
-            None => return false,
-        };
-        is_excluded_path(excluded_paths, path)
+        if let Some(excludes) = &self.excluded_paths {
+            excludes.is_excluded(path)
+        } else {
+            false
+        }
     }
 
     /// Get the input content of a given path
@@ -361,18 +414,6 @@ impl Input {
     }
 }
 
-/// Function for path exclusion tests
-///
-/// This is a standalone function to allow for easier testing
-fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
-    for excluded in excluded_paths {
-        if let Ok(true) = helpers::path::contains(excluded, path) {
-            return true;
-        }
-    }
-    false
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -385,27 +426,19 @@ mod tests {
         assert!(path.exists());
         assert!(path.is_relative());
 
-        let input = Input::new(test_file, None, false, None);
-        assert!(input.is_ok());
-        assert!(matches!(
-            input,
-            Ok(Input {
-                source: InputSource::FsPath(PathBuf { .. }),
-                file_type_hint: None,
-                excluded_paths: None
-            })
-        ));
+        let input = InputSource::new(test_file, false).unwrap();
+        assert!(matches!(input, InputSource::FsPath(PathBuf { .. })));
     }
 
     #[test]
-    fn test_input_handles_nonexistent_relative_paths() {
+    fn test_input_errors_on_nonexistent_relative_paths() {
         let test_file = "./nonexistent/relative/path";
         let path = Path::new(test_file);
 
         assert!(!path.exists());
         assert!(path.is_relative());
 
-        let input = Input::new(test_file, None, false, None);
+        let input = InputSource::new(test_file, false);
         assert!(input.is_err());
         assert!(matches!(
             input,
@@ -422,30 +455,5 @@ mod tests {
         assert!(valid_extension(Path::new("file.HTM")));
         assert!(!valid_extension(Path::new("file.txt")));
         assert!(!valid_extension(Path::new("file")));
-    }
-
-    #[test]
-    fn test_no_exclusions() {
-        let dir = tempfile::tempdir().unwrap();
-        assert!(!is_excluded_path(&[], &dir.path().to_path_buf()));
-    }
-
-    #[test]
-    fn test_excluded() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().to_path_buf();
-        assert!(is_excluded_path(&[path.clone()], &path));
-    }
-
-    #[test]
-    fn test_excluded_subdir() {
-        let parent_dir = tempfile::tempdir().unwrap();
-        let parent = parent_dir.path();
-        let child_dir = tempfile::tempdir_in(parent).unwrap();
-        let child = child_dir.path();
-        assert!(is_excluded_path(
-            &[parent.to_path_buf()],
-            &child.to_path_buf()
-        ));
     }
 }

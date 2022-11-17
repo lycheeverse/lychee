@@ -13,6 +13,10 @@ use crate::{helpers, Uri};
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
+    /// An error occurred while reading the .gitignore file
+    // `ignore::Error` does not implement `Hash`, so we can't use it directly.
+    #[error("Gitignore error: {0}")]
+    GitignoreError(String),
     /// Error while executing a future on the Tokio runtime
     #[error("Task failed to execute to completion")]
     RuntimeJoin(#[from] JoinError),
@@ -172,6 +176,7 @@ impl Hash for ErrorKind {
         H: std::hash::Hasher,
     {
         match self {
+            Self::GitignoreError(e) => e.hash(state),
             Self::RuntimeJoin(e) => e.to_string().hash(state),
             Self::ReadFileInput(e, s) => (e.kind(), s).hash(state),
             Self::ReadStdinInput(e) => e.kind().hash(state),

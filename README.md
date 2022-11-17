@@ -345,6 +345,9 @@ Options:
       --glob-ignore-case
           Ignore case when expanding filesystem path glob inputs
 
+      --no-ignore
+          Don't respect ignore files (`.gitignore`)
+
   -o, --output <OUTPUT>
           Output file of status report
 

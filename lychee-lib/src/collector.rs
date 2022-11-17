@@ -115,7 +115,8 @@ mod tests {
         // Treat as plaintext file (no extension)
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path).unwrap();
-        let input = Input::new(&file_path.as_path().display().to_string(), None, true, None)?;
+        let source = InputSource::new(&file_path.as_path().display().to_string(), true).unwrap();
+        let input = Input::new(source, None, None)?;
         let contents: Vec<_> = input.get_contents(true).await.collect::<Vec<_>>().await;
 
         assert_eq!(contents.len(), 1);
@@ -125,7 +126,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
-        let input = Input::new("https://example.com/", None, true, None)?;
+        let source = InputSource::new("https://example.com/", true)?;
+        let input = Input::new(source, None, None)?;
         let contents: Vec<_> = input.get_contents(true).await.collect::<Vec<_>>().await;
 
         assert_eq!(contents.len(), 1);
@@ -203,7 +205,7 @@ mod tests {
         let input = Input {
             source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
             file_type_hint: Some(FileType::Markdown),
-                excluded_paths: None,
+            excluded_paths: None,
         };
         let links = collect(vec![input], Some(base)).await;
 
