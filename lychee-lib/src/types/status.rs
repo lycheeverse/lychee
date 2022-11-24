@@ -84,6 +84,36 @@ impl Status {
         }
     }
 
+    /// Create a status object from a cached status (from a previous run of
+    /// lychee) and the set of accepted status codes.
+    ///
+    /// The set of accepted status codes can change between runs,
+    /// necessitating more complex logic than just using the cached status.
+    ///
+    /// Note that the accepted status codes are not of type `StatusCode`,
+    /// because they are provided by the user and can be invalid according to
+    /// the HTTP spec and IANA, but the user might still want to accept them.
+    #[must_use]
+    pub fn from_cache_status(s: CacheStatus, accepted: Option<HashSet<u16>>) -> Self {
+        match s {
+            CacheStatus::Ok(code) => {
+                if accepted.map(|a| a.contains(&code)) == Some(true) {
+                    return Self::Cached(CacheStatus::Ok(code));
+                };
+                Self::Cached(CacheStatus::Error(Some(code)))
+            }
+            CacheStatus::Error(code) => {
+                if let Some(code) = code {
+                    if accepted.map(|a| a.contains(&code)) == Some(true) {
+                        return Self::Cached(CacheStatus::Ok(code));
+                    };
+                }
+                Self::Cached(CacheStatus::Error(code))
+            }
+            _ => Self::Cached(s),
+        }
+    }
+
     /// Return more details about the status (if any)
     ///
     /// Which additional information we can extract depends on the underlying
@@ -217,11 +247,5 @@ impl From<reqwest::Error> for Status {
         } else {
             Self::Error(ErrorKind::NetworkRequest(e))
         }
-    }
-}
-
-impl From<CacheStatus> for Status {
-    fn from(s: CacheStatus) -> Self {
-        Self::Cached(s)
     }
 }
