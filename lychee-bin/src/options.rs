@@ -130,8 +130,18 @@ impl LycheeOptions {
             .map(|s| {
                 let source = InputSource::new(s, self.config.glob_ignore_case)?;
                 if let InputSource::FsPath(ref src) = source {
+                    let root = src.parent().unwrap().to_path_buf();
+                    println!("root: {:?}", root);
+                    // If root is empty, use the current directory
+                    let root = if root == PathBuf::from("") {
+                        env::current_dir()
+                    } else {
+                        Ok(root)
+                    }?;
+                    println!("Final root: {:?}", root);
+
                     let path_excludes = PathExcludes::new(
-                        src.parent().unwrap().to_path_buf(),
+                        root,
                         self.config.exclude_path.clone(),
                         !self.config.no_ignore,
                     )?;

@@ -369,7 +369,7 @@ impl Input {
     /// Check if the given path was excluded from link checking
     fn is_excluded_path(&self, path: &PathBuf) -> bool {
         if let Some(excludes) = &self.excluded_paths {
-            excludes.is_excluded(path)
+            excludes.is_excluded_path(path)
         } else {
             false
         }

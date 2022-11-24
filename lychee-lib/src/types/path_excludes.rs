@@ -50,11 +50,9 @@ impl PathExcludes {
     pub fn new(root: PathBuf, excludes: Vec<PathBuf>, load_gitignore: bool) -> Result<Self> {
         let excluded_paths = parse_excludes(excludes);
         let gitignore = if load_gitignore {
-            println!("Loading .gitignore");
             // It is common that paths don't contain a `.gitignore` file,
             // in which case we just return an empty Gitignore instance.
-            parse_gitignore(&root)?
-            // parse_gitignore().unwrap_or(Gitignore::empty())
+            parse_gitignore(&root).unwrap_or_else(|_| Gitignore::empty())
         } else {
             Gitignore::empty()
         };
@@ -76,7 +74,7 @@ impl PathExcludes {
     /// Returns `false` if the path cannot be canonicalized (i.e. does not
     /// exist)
     #[must_use]
-    pub fn is_excluded(&self, path: &PathBuf) -> bool {
+    pub fn is_excluded_path(&self, path: &PathBuf) -> bool {
         let path = match fs::canonicalize(path) {
             Ok(path) => path,
             Err(_) => return false,
@@ -108,8 +106,11 @@ fn parse_excludes(excludes: Vec<PathBuf>) -> Vec<PathBuf> {
 ///
 // Standalone function for easier testing
 fn parse_gitignore(root: &PathBuf) -> Result<Gitignore> {
+    println!("Loading gitignore file from {:?}", root);
     let mut builder = GitignoreBuilder::new(root);
+    println!("Loading gitignore file from {:?}", root.join(".gitignore"));
     if let Some(error) = builder.add(root.join(".gitignore")) {
+        println!("Error loading gitignore file: {:?}", error);
         return Err(ErrorKind::GitignoreError(error.to_string()));
     };
 
@@ -126,11 +127,12 @@ fn is_excluded(excluded_paths: &[PathBuf], path: &Path) -> bool {
         .any(|excluded| helpers::path::contains(excluded, path))
 }
 
-/// Standalone function to make testing easier
+/// Check if a given path is ignored by the `.gitignore` file
+// Standalone function to make testing easier
 fn is_in_gitingore(path: &PathBuf, is_dir: bool, gitignore: &Gitignore) -> bool {
-    let ignored = gitignore.matched(path, is_dir).is_ignore();
-    println!("{} is ignored: {}", path.display(), ignored);
-    ignored
+    let ign = gitignore.matched(path, is_dir).is_ignore();
+    println!("{}: {}", path.display(), ign);
+    ign
 }
 
 #[cfg(test)]
@@ -190,7 +192,7 @@ mod tests {
         std::fs::write(&path, "foo").unwrap();
         let excludes = vec![path.clone()];
         let path_excludes = PathExcludes::new(env::current_dir().unwrap(), excludes, true).unwrap();
-        assert!(path_excludes.is_excluded(&path));
+        assert!(path_excludes.is_excluded_path(&path));
     }
 
     #[test]
@@ -202,7 +204,7 @@ mod tests {
         std::fs::write(&gitignore_path, "foo").unwrap();
         let excludes = vec![];
         let path_excludes = PathExcludes::new(env::current_dir().unwrap(), excludes, true).unwrap();
-        assert!(path_excludes.is_excluded(&path));
+        assert!(path_excludes.is_excluded_path(&path));
     }
 
     #[test]
