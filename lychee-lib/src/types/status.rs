@@ -97,6 +97,9 @@ impl Status {
     pub fn from_cache_status(s: CacheStatus, accepted: Option<HashSet<u16>>) -> Self {
         match s {
             CacheStatus::Ok(code) => {
+                // Not sure if we should change the status based on the
+                // accepted status codes. If we find out that this is
+                // counter-intuitive, we can change it.
                 if accepted.map(|a| a.contains(&code)) == Some(true) {
                     return Self::Cached(CacheStatus::Ok(code));
                 };
