@@ -14,8 +14,8 @@ use lychee_lib::Request;
 use lychee_lib::Result;
 
 /// Parameters passed to every command
-pub(crate) struct CommandParams<T, S: futures::Stream<Item = Result<Request>>> {
-    pub(crate) client: ClientWrapper<T>,
+pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request>>> {
+    pub(crate) client: ClientWrapper,
     pub(crate) cache: Arc<Cache>,
     pub(crate) requests: S,
     pub(crate) formatter: Box<dyn ResponseFormatter>,

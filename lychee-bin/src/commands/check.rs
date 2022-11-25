@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
+use lychee_lib::Status;
 use lychee_lib::{ClientWrapper, Result};
-use lychee_lib::{ErrorKind, Status};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
@@ -16,19 +16,16 @@ use lychee_lib::{Request, Response};
 
 use super::CommandParams;
 
-pub(crate) async fn check<T, S, E>(
-    params: CommandParams<T, S>,
+pub(crate) async fn check<S>(
+    params: CommandParams<S>,
 ) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
 where
-    T: std::fmt::Debug,
     S: futures::Stream<Item = Result<Request>>,
-    Request: TryFrom<T, Error = E>,
-    ErrorKind: From<E>,
 {
     let max_concurrency = params.cfg.max_concurrency;
     let mut stats = ResponseStats::new();
     let cache_ref = params.cache.clone();
-    let client = params.client;
+    let mut client = params.client;
     let cache = params.cache;
 
     let (send_req, recv_req) = mpsc::channel(max_concurrency);
@@ -39,7 +36,7 @@ where
         futures::StreamExt::for_each_concurrent(
             ReceiverStream::new(recv_req),
             max_concurrency,
-            |request: Result<T>| async {
+            |request: Result<Request>| async {
                 let request = request.expect("cannot read request");
                 let response = handle(&mut client, cache.clone(), request).await;
 
@@ -117,16 +114,11 @@ where
 }
 
 /// Handle a single request
-async fn handle<T, E>(
-    client: &mut ClientWrapper<T>,
+async fn handle(
+    client: &mut ClientWrapper,
     cache: Arc<Cache>,
-    request: T,
-) -> Result<Response>
-where
-    Request: TryFrom<T, Error = E>,
-    ErrorKind: From<E>,
-{
-    let request: Request = request.try_into()?;
+    request: Request,
+) -> Result<Response> {
     let uri = request.uri.clone();
     if let Some(v) = cache.get(&uri) {
         // Found a cached request

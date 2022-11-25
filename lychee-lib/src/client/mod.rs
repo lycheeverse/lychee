@@ -252,12 +252,7 @@ impl ClientBuilder {
     /// - The request client cannot be created.
     ///   See [here](https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors).
     /// - The Github client cannot be created.
-    pub async fn client<T, E>(self) -> Result<ClientWrapper<T>>
-    where
-        Request: TryFrom<T, Error = E>,
-        ErrorKind: From<E>,
-        T: Send + 'static,
-    {
+    pub async fn client(self) -> Result<ClientWrapper> {
         let Self {
             github_token,
             remaps,
@@ -363,18 +358,14 @@ impl ClientBuilder {
 
 /// TODO
 #[derive(Debug)]
-pub struct ClientWrapper<T> {
-    service: BoxService<T, Response, ErrorKind>,
+pub struct ClientWrapper {
+    service: BoxService<Request, Response, ErrorKind>,
     client: Client,
 }
 
-impl<T> ClientWrapper<T> {
+impl ClientWrapper {
     /// Check a request using the tower service
-    pub async fn check<E>(&mut self, request: T) -> Result<Response>
-    where
-        Request: TryFrom<T, Error = E>,
-        ErrorKind: From<E>,
-    {
+    pub async fn check(&mut self, request: Request) -> Result<Response> {
         self.service.call(request).await
     }
 
@@ -673,12 +664,7 @@ fn invalid(url: &Url) -> bool {
 /// Returns an `Err` if:
 /// - The request client cannot be built (see [`ClientBuilder::client`] for failure cases).
 /// - The request cannot be checked (see [`Client::check`] for failure cases).
-pub async fn check<T, E>(request: T) -> Result<Response>
-where
-    Request: TryFrom<T, Error = E>,
-    ErrorKind: From<E>,
-    T: Send + 'static,
-{
+pub async fn check(request: Request) -> Result<Response> {
     let mut client = ClientBuilder::builder().build().client().await?;
     client.check(request).await
 }
@@ -778,7 +764,7 @@ mod tests {
             .client()
             .await
             .unwrap()
-            .check("https://expired.badssl.com/")
+            .check("https://expired.badssl.com/".try_into().unwrap())
             .await
             .unwrap();
         assert!(res.status().is_success());
@@ -806,7 +792,7 @@ mod tests {
             .client()
             .await
             .unwrap()
-            .check("https://crates.io/crates/lychee")
+            .check("https://crates.io/crates/lychee".try_into().unwrap())
             .await
             .unwrap();
         assert!(res.status().is_success());
@@ -840,7 +826,10 @@ mod tests {
     #[tokio::test]
     async fn test_require_https() {
         let client = ClientBuilder::builder().build().client().await.unwrap();
-        let res = client.check("http://example.com").await.unwrap();
+        let res = client
+            .check("http://example.com".try_into().unwrap())
+            .await
+            .unwrap();
         assert!(res.status().is_success());
 
         // Same request will fail if HTTPS is required
@@ -850,7 +839,10 @@ mod tests {
             .client()
             .await
             .unwrap();
-        let res = client.check("http://example.com").await.unwrap();
+        let res = client
+            .check("http://example.com".try_into().unwrap())
+            .await
+            .unwrap();
         assert!(res.status().is_failure());
     }
 
@@ -872,7 +864,10 @@ mod tests {
             .await
             .unwrap();
 
-        let res = client.check(mock_server.uri()).await.unwrap();
+        let res = client
+            .check(mock_server.uri().try_into().unwrap())
+            .await
+            .unwrap();
         assert!(res.status().is_timeout());
     }
 
@@ -880,7 +875,7 @@ mod tests {
     async fn test_avoid_reqwest_panic() {
         let client = ClientBuilder::builder().build().client().await.unwrap();
         // This request will fail, but it won't panic
-        let res = client.check("http://\"").await.unwrap();
+        let res = client.check("http://\"".try_into().unwrap()).await.unwrap();
         assert!(res.status().is_failure());
     }
 }

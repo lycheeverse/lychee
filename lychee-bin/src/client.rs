@@ -8,11 +8,7 @@ use regex::RegexSet;
 use std::{collections::HashSet, str::FromStr};
 
 /// Creates a client according to the command-line config
-pub(crate) async fn create<T>(cfg: &Config) -> Result<ClientWrapper<T>>
-where
-    lychee_lib::Request: From<T>,
-    T: Send + 'static,
-{
+pub(crate) async fn create(cfg: &Config) -> Result<ClientWrapper> {
     let mut headers = parse_headers(&cfg.headers)?;
     if let Some(auth) = &cfg.basic_auth {
         let auth_header = parse_basic_auth(auth)?;

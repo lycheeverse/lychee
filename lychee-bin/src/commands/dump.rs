@@ -28,7 +28,7 @@ fn create_writer(output: Option<PathBuf>) -> Result<Box<dyn Write>> {
 }
 
 /// Dump all detected links to stdout without checking them
-pub(crate) async fn dump<T, S>(params: CommandParams<T, S>) -> Result<ExitCode>
+pub(crate) async fn dump<S>(params: CommandParams<S>) -> Result<ExitCode>
 where
     S: futures::Stream<Item = Result<Request>>,
 {
