@@ -81,6 +81,7 @@ impl TryFrom<&str> for Request {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<http::Request<()>> for Request {
     fn into(self) -> http::Request<()> {
         http::Request::builder()
@@ -91,6 +92,7 @@ impl Into<http::Request<()>> for Request {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<reqwest::Request> for Request {
     fn into(self) -> reqwest::Request {
         reqwest::Request::new(reqwest::Method::GET, self.uri.url)
