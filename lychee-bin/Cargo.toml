@@ -36,7 +36,7 @@ ring = "0.16.20"
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.89"
 tabled = "0.10.0"
-tokio = { version = "1.21.2", features = ["full"] }
+tokio = { version = "1.22.0", features = ["full"] }
 toml = "0.5.9"
 futures = "0.3.25"
 tokio-stream = "0.1.11"
@@ -51,7 +51,7 @@ log = "0.4.17"
 tower = "0.4.13"
 
 [dependencies.clap]
-version = "4.0.26"
+version = "4.0.27"
 features = ["env", "derive"]
 
 [dev-dependencies]
