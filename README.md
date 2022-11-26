@@ -392,7 +392,7 @@ use lychee_lib::{ClientBuilder, Result, Status};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-  let client = ClientBuilder::default().client()?;
+  let mut client = ClientBuilder::default().client().await?;
   let response = client.check("https://github.com/lycheeverse/lychee").await?;
   assert!(response.status().is_success());
   Ok(())

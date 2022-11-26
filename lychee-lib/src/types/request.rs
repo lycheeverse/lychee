@@ -81,14 +81,18 @@ impl TryFrom<&str> for Request {
     }
 }
 
-impl From<Request> for http::Request<()> {
-    fn from(req: Request) -> Self {
-        http::Request::get(req.uri.url.as_str()).body(()).unwrap()
+impl Into<http::Request<()>> for Request {
+    fn into(self) -> http::Request<()> {
+        http::Request::builder()
+            .method("GET")
+            .uri(self.uri.url.as_str())
+            .body(())
+            .unwrap()
     }
 }
 
-impl From<Request> for reqwest::Request {
-    fn from(req: Request) -> Self {
-        reqwest::Request::new(reqwest::Method::GET, req.uri.url)
+impl Into<reqwest::Request> for Request {
+    fn into(self) -> reqwest::Request {
+        reqwest::Request::new(reqwest::Method::GET, self.uri.url)
     }
 }
