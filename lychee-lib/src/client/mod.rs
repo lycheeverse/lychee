@@ -328,8 +328,7 @@ impl ClientBuilder {
             accepted,
             self.require_https,
             quirks,
-        )
-        .await;
+        );
 
         let service = Self::build_service(client.clone()).await;
 
@@ -341,7 +340,7 @@ impl ClientBuilder {
 
     pub(crate) async fn build_service<T, E>(client: Client) -> BoxService<T, Response, ErrorKind>
     where
-        Request: TryFrom<T, Error = E>,
+        T: TryInto<Request, Error = E>,
         ErrorKind: From<E>,
         T: Send + 'static,
     {
@@ -366,15 +365,24 @@ pub struct ClientWrapper {
 
 impl ClientWrapper {
     /// Check a request using the tower service
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Err` if the request cannot be converted into a [`Request`].
     pub async fn check<T, E>(&mut self, request: T) -> Result<Response>
     where
-        Request: TryFrom<T, Error = E>,
+        T: TryInto<Request, Error = E>,
         ErrorKind: From<E>,
     {
         self.service.call(request.try_into()?).await
     }
 
     /// Returns whether the given `uri` should be ignored from checking.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the client is poisoned.
+    /// See [here](https://doc.rust-lang.org/std/sync/struct.Mutex.html#poisoning).
     #[must_use]
     pub fn is_excluded(&self, uri: &Uri) -> bool {
         self.client.lock().unwrap().is_excluded(uri)
@@ -431,7 +439,8 @@ impl Client {
     /// This constructor does not get publicly exposed because it is not
     /// intended to be used directly. Instead, use the [`ClientBuilder`] to
     /// create a client.
-    pub(self) async fn new(
+    #[allow(clippy::too_many_arguments)]
+    pub(self) const fn new(
         reqwest_client: reqwest::Client,
         github_client: Option<Octocrab>,
         remaps: Option<Remaps>,
@@ -468,7 +477,7 @@ impl Client {
     ///   (Only checked when `Client::require_https` is `true`.)
     pub async fn check<T, E>(&self, request: T) -> Result<Response>
     where
-        Request: TryFrom<T, Error = E>,
+        T: TryInto<Request, Error = E>,
         ErrorKind: From<E>,
     {
         let Request { uri, source, .. } = request.try_into()?;
@@ -671,7 +680,7 @@ fn invalid(url: &Url) -> bool {
 /// - The request cannot be checked (see [`Client::check`] for failure cases).
 pub async fn check<T, E>(request: T) -> Result<Response>
 where
-    Request: TryFrom<T, Error = E>,
+    T: TryInto<Request, Error = E>,
     ErrorKind: From<E>,
 {
     let mut client = ClientBuilder::builder().build().client().await?;

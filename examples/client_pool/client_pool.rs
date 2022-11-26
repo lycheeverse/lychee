@@ -1,6 +1,6 @@
 use futures::lock::Mutex;
 use lychee_lib::{ClientBuilder, Request, Result};
-use std::{convert::TryFrom, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
