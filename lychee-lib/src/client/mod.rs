@@ -15,7 +15,8 @@
 )]
 use http::header::{HeaderMap, HeaderValue};
 use http::StatusCode;
-use std::sync::{Arc, Mutex};
+use parking_lot::Mutex;
+use std::sync::Arc;
 use std::{collections::HashSet, time::Duration};
 
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
@@ -390,7 +391,7 @@ impl ClientWrapper {
     /// See [here](https://doc.rust-lang.org/std/sync/struct.Mutex.html#poisoning).
     #[must_use]
     pub fn is_excluded(&self, uri: &Uri) -> bool {
-        self.client.lock().unwrap().is_excluded(uri)
+        self.client.lock().is_excluded(uri)
     }
 
     /// Remap URI using the client-defined remap patterns
@@ -399,11 +400,7 @@ impl ClientWrapper {
     ///
     /// Returns an error if the remapping value is not a URI
     pub fn remap(&self, uri: Uri) -> Result<Uri> {
-        // self.client.lock()?.remap(uri)
-        self.client
-            .lock()
-            .map_err(|_| ErrorKind::PoisonedClient)?
-            .remap(uri)
+        self.client.lock().remap(uri)
     }
 }
 

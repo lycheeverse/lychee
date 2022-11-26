@@ -2044,6 +2044,7 @@ dependencies = [
  "once_cell",
  "openssl-sys",
  "par-stream",
+ "parking_lot",
  "path-clean",
  "percent-encoding",
  "pulldown-cmark",
