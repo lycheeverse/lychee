@@ -366,14 +366,17 @@ pub struct ClientWrapper {
 
 impl ClientWrapper {
     /// Check a request using the tower service
-    pub async fn check(&mut self, request: Request) -> Result<Response> {
-        self.service.call(request).await
+    pub async fn check<T, E>(&mut self, request: T) -> Result<Response>
+    where
+        Request: TryFrom<T, Error = E>,
+        ErrorKind: From<E>,
+    {
+        self.service.call(request.try_into()?).await
     }
 
     /// Returns whether the given `uri` should be ignored from checking.
     #[must_use]
     pub fn is_excluded(&self, uri: &Uri) -> bool {
-        // self.client.is_excluded(uri)
         self.client.lock().unwrap().is_excluded(uri)
     }
 }
@@ -672,7 +675,7 @@ where
     ErrorKind: From<E>,
 {
     let mut client = ClientBuilder::builder().build().client().await?;
-    client.check(request.try_into()?).await
+    client.check(request).await
 }
 
 #[cfg(test)]
@@ -770,7 +773,7 @@ mod tests {
             .client()
             .await
             .unwrap()
-            .check("https://expired.badssl.com/".try_into().unwrap())
+            .check("https://expired.badssl.com/")
             .await
             .unwrap();
         assert!(res.status().is_success());
@@ -798,7 +801,7 @@ mod tests {
             .client()
             .await
             .unwrap()
-            .check("https://crates.io/crates/lychee".try_into().unwrap())
+            .check("https://crates.io/crates/lychee")
             .await
             .unwrap();
         assert!(res.status().is_success());
@@ -832,10 +835,7 @@ mod tests {
     #[tokio::test]
     async fn test_require_https() {
         let mut client = ClientBuilder::builder().build().client().await.unwrap();
-        let res = client
-            .check("http://example.com".try_into().unwrap())
-            .await
-            .unwrap();
+        let res = client.check("http://example.com").await.unwrap();
         assert!(res.status().is_success());
 
         // Same request will fail if HTTPS is required
@@ -845,10 +845,7 @@ mod tests {
             .client()
             .await
             .unwrap();
-        let res = client
-            .check("http://example.com".try_into().unwrap())
-            .await
-            .unwrap();
+        let res = client.check("http://example.com").await.unwrap();
         assert!(res.status().is_failure());
     }
 
@@ -870,10 +867,7 @@ mod tests {
             .await
             .unwrap();
 
-        let res = client
-            .check(mock_server.uri().try_into().unwrap())
-            .await
-            .unwrap();
+        let res = client.check(mock_server.uri()).await.unwrap();
         assert!(res.status().is_timeout());
     }
 
@@ -881,7 +875,7 @@ mod tests {
     async fn test_avoid_reqwest_panic() {
         let mut client = ClientBuilder::builder().build().client().await.unwrap();
         // This request will fail, but it won't panic
-        let res = client.check("http://\"".try_into().unwrap()).await.unwrap();
+        let res = client.check("http://\"").await.unwrap();
         assert!(res.status().is_failure());
     }
 }

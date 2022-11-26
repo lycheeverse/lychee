@@ -40,9 +40,7 @@ async fn main() -> Result<()> {
         .client()
         .await?;
 
-    let response = client
-        .check("https://example.com".try_into().unwrap())
-        .await?;
+    let response = client.check("https://example.com").await?;
     dbg!(&response);
     assert!(response.status().is_success());
     Ok(())
