@@ -356,7 +356,12 @@ impl ClientBuilder {
     }
 }
 
-/// TODO
+/// A wrapper around [`Client`] that implements tower's [`Service`] trait.
+///
+/// This is the main entry point for the library.
+///
+/// [`Client`]: struct.Client.html
+/// [`Service`]: https://docs.rs/tower/latest/tower/trait.Service.html
 #[derive(Debug)]
 pub struct ClientWrapper {
     service: BoxService<Request, Response, ErrorKind>,
@@ -386,6 +391,19 @@ impl ClientWrapper {
     #[must_use]
     pub fn is_excluded(&self, uri: &Uri) -> bool {
         self.client.lock().unwrap().is_excluded(uri)
+    }
+
+    /// Remap URI using the client-defined remap patterns
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the remapping value is not a URI
+    pub fn remap(&self, uri: Uri) -> Result<Uri> {
+        // self.client.lock()?.remap(uri)
+        self.client
+            .lock()
+            .map_err(|_| ErrorKind::PoisonedClient)?
+            .remap(uri)
     }
 }
 

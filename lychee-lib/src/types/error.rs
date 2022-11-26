@@ -96,6 +96,11 @@ pub enum ErrorKind {
     /// Regex error
     #[error("Error when using regex engine: {0}")]
     Regex(#[from] regex::Error),
+    /// The client is poisoned
+    /// This error is returned when a task on the runtime has panicked.
+    /// The client is no longer usable and must be recreated.
+    #[error("The client is poisoned")]
+    PoisonedClient,
 }
 
 impl ErrorKind {
@@ -200,6 +205,7 @@ impl Hash for ErrorKind {
                 std::mem::discriminant(self).hash(state);
             }
             Self::Regex(e) => e.to_string().hash(state),
+            Self::PoisonedClient => std::mem::discriminant(self).hash(state),
         }
     }
 }
