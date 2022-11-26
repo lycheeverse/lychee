@@ -1,5 +1,6 @@
+use futures::lock::Mutex;
 use lychee_lib::{ClientBuilder, Request, Result};
-use std::convert::TryFrom;
+use std::{convert::TryFrom, sync::Arc};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -23,7 +24,8 @@ async fn main() -> Result<()> {
     });
 
     // Create a default lychee client
-    let mut client = ClientBuilder::default().client().await?;
+    let client = ClientBuilder::default().client().await?;
+    let client = Arc::new(Mutex::new(client));
 
     // Start receiving requests
     // Requests get streamed into the client and run concurrently
@@ -32,7 +34,7 @@ async fn main() -> Result<()> {
             ReceiverStream::new(recv_req),
             CONCURRENT_REQUESTS,
             |req| async {
-                let resp = client.check(req).await.unwrap();
+                let resp = client.lock().await.check(req).await.unwrap();
                 send_resp.send(resp).await.unwrap();
             },
         )

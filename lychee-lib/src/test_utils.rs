@@ -1,8 +1,8 @@
-use std::{convert::TryFrom, fs, path::Path};
+use std::{fs, path::Path};
 
 use reqwest::Url;
 
-use crate::{ClientBuilder, ErrorKind, Request, Uri};
+use crate::{ClientBuilder, Request, Uri};
 
 #[macro_export]
 /// Creates a mock web server, which responds with a predefined status when
@@ -17,16 +17,16 @@ macro_rules! mock_server {
     }};
 }
 
-pub(crate) async fn get_mock_client_response<T, E>(request: T) -> crate::Response
+pub(crate) async fn get_mock_client_response<T>(request: T) -> crate::Response
 where
-    Request: TryFrom<T, Error = E>,
-    ErrorKind: From<E>,
+    T: TryInto<Request>,
+    T::Error: std::fmt::Debug,
 {
     ClientBuilder::default()
         .client()
         .await
         .unwrap()
-        .check(request)
+        .check(request.try_into().unwrap())
         .await
         .unwrap()
 }

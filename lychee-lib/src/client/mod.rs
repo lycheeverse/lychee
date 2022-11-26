@@ -15,6 +15,7 @@
 )]
 use http::header::{HeaderMap, HeaderValue};
 use http::StatusCode;
+use std::sync::{Arc, Mutex};
 use std::{collections::HashSet, time::Duration};
 
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
@@ -334,7 +335,7 @@ impl ClientBuilder {
 
         Ok(ClientWrapper {
             service: BoxService::new(service),
-            client: client,
+            client: Arc::new(Mutex::new(client)),
         })
     }
 
@@ -360,7 +361,7 @@ impl ClientBuilder {
 #[derive(Debug)]
 pub struct ClientWrapper {
     service: BoxService<Request, Response, ErrorKind>,
-    client: Client,
+    client: Arc<Mutex<Client>>,
 }
 
 impl ClientWrapper {
@@ -372,7 +373,8 @@ impl ClientWrapper {
     /// Returns whether the given `uri` should be ignored from checking.
     #[must_use]
     pub fn is_excluded(&self, uri: &Uri) -> bool {
-        self.client.is_excluded(uri)
+        // self.client.is_excluded(uri)
+        self.client.lock().unwrap().is_excluded(uri)
     }
 }
 
@@ -664,9 +666,13 @@ fn invalid(url: &Url) -> bool {
 /// Returns an `Err` if:
 /// - The request client cannot be built (see [`ClientBuilder::client`] for failure cases).
 /// - The request cannot be checked (see [`Client::check`] for failure cases).
-pub async fn check(request: Request) -> Result<Response> {
+pub async fn check<T, E>(request: T) -> Result<Response>
+where
+    Request: TryFrom<T, Error = E>,
+    ErrorKind: From<E>,
+{
     let mut client = ClientBuilder::builder().build().client().await?;
-    client.check(request).await
+    client.check(request.try_into()?).await
 }
 
 #[cfg(test)]
@@ -825,7 +831,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_require_https() {
-        let client = ClientBuilder::builder().build().client().await.unwrap();
+        let mut client = ClientBuilder::builder().build().client().await.unwrap();
         let res = client
             .check("http://example.com".try_into().unwrap())
             .await
@@ -833,7 +839,7 @@ mod tests {
         assert!(res.status().is_success());
 
         // Same request will fail if HTTPS is required
-        let client = ClientBuilder::builder()
+        let mut client = ClientBuilder::builder()
             .require_https(true)
             .build()
             .client()
@@ -857,7 +863,7 @@ mod tests {
 
         let mock_server = mock_server!(StatusCode::OK, set_delay(mock_delay));
 
-        let client = ClientBuilder::builder()
+        let mut client = ClientBuilder::builder()
             .timeout(checker_timeout)
             .build()
             .client()
@@ -873,7 +879,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_avoid_reqwest_panic() {
-        let client = ClientBuilder::builder().build().client().await.unwrap();
+        let mut client = ClientBuilder::builder().build().client().await.unwrap();
         // This request will fail, but it won't panic
         let res = client.check("http://\"".try_into().unwrap()).await.unwrap();
         assert!(res.status().is_failure());

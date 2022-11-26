@@ -22,7 +22,7 @@ async fn main() -> Result<()> {
         StatusCode::NO_CONTENT,
     ]));
 
-    let client = ClientBuilder::builder()
+    let mut client = ClientBuilder::builder()
         .excludes(excludes)
         .includes(includes)
         .max_redirects(3u8)
@@ -40,7 +40,9 @@ async fn main() -> Result<()> {
         .client()
         .await?;
 
-    let response = client.check("https://example.com").await?;
+    let response = client
+        .check("https://example.com".try_into().unwrap())
+        .await?;
     dbg!(&response);
     assert!(response.status().is_success());
     Ok(())

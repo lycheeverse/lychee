@@ -6,7 +6,7 @@ use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 use lychee_lib::Status;
 use lychee_lib::{ClientWrapper, Result};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
@@ -25,7 +25,8 @@ where
     let max_concurrency = params.cfg.max_concurrency;
     let mut stats = ResponseStats::new();
     let cache_ref = params.cache.clone();
-    let mut client = params.client;
+    let client = Arc::new(Mutex::new(params.client));
+
     let cache = params.cache;
 
     let (send_req, recv_req) = mpsc::channel(max_concurrency);
@@ -38,6 +39,7 @@ where
             max_concurrency,
             |request: Result<Request>| async {
                 let request = request.expect("cannot read request");
+                let mut client = client.lock().await;
                 let response = handle(&mut client, cache.clone(), request).await;
 
                 send_resp

@@ -106,7 +106,7 @@ mod tests {
             .client()
             .await
             .unwrap()
-            .check(mock_server.uri())
+            .check(mock_server.uri().try_into().unwrap())
             .await
             .unwrap()
     }
