@@ -56,7 +56,6 @@ secrecy = "0.8.0"
 # Move back to crates.io as soon as a version bigger than 0.4.13 is released
 # tower = { version = "0.4.13", features = ["full"] }
 tower = { git="https://github.com/tower-rs/tower", features = ["full"]}
-parking_lot = "0.12.1"
 
 [dependencies.par-stream]
 version = "0.10.2"

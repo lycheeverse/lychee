@@ -15,7 +15,6 @@
 )]
 use http::header::{HeaderMap, HeaderValue};
 use http::StatusCode;
-use parking_lot::Mutex;
 use std::sync::Arc;
 use std::{collections::HashSet, time::Duration};
 
@@ -335,7 +334,7 @@ impl ClientBuilder {
 
         Ok(ClientWrapper {
             service: BoxService::new(service),
-            client: Arc::new(Mutex::new(client)),
+            inner: Arc::new(client),
         })
     }
 
@@ -366,7 +365,7 @@ impl ClientBuilder {
 #[derive(Debug)]
 pub struct ClientWrapper {
     service: BoxService<Request, Response, ErrorKind>,
-    client: Arc<Mutex<Client>>,
+    inner: Arc<Client>,
 }
 
 impl ClientWrapper {
@@ -391,7 +390,7 @@ impl ClientWrapper {
     /// See [here](https://doc.rust-lang.org/std/sync/struct.Mutex.html#poisoning).
     #[must_use]
     pub fn is_excluded(&self, uri: &Uri) -> bool {
-        self.client.lock().is_excluded(uri)
+        self.inner.is_excluded(uri)
     }
 
     /// Remap URI using the client-defined remap patterns
@@ -400,7 +399,7 @@ impl ClientWrapper {
     ///
     /// Returns an error if the remapping value is not a URI
     pub fn remap(&self, uri: Uri) -> Result<Uri> {
-        self.client.lock().remap(uri)
+        self.inner.remap(uri)
     }
 }
 
