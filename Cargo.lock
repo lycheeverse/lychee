@@ -3556,7 +3556,7 @@ dependencies = [
 [[package]]
 name = "tower"
 version = "0.4.12"
-source = "git+https://github.com/tower-rs/tower?branch=david/box-service-sync#6a5d4b76e154957fd93abd117af513e86eabb311"
+source = "git+https://github.com/tower-rs/tower#c34182d0b37ce7011ec582db9f719ae527b62448"
 dependencies = [
  "futures-core",
  "futures-util",
@@ -3567,7 +3567,7 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tokio-util",
- "tower-layer 0.3.1 (git+https://github.com/tower-rs/tower?branch=david/box-service-sync)",
+ "tower-layer 0.3.1 (git+https://github.com/tower-rs/tower)",
  "tower-service 0.3.1",
  "tracing",
 ]
@@ -3592,12 +3592,12 @@ checksum = "343bc9466d3fe6b0f960ef45960509f84480bf4fd96f92901afe7ff3df9d3a62"
 [[package]]
 name = "tower-layer"
 version = "0.3.1"
-source = "git+https://github.com/tower-rs/tower?branch=david/box-service-sync#6a5d4b76e154957fd93abd117af513e86eabb311"
+source = "git+https://github.com/tower-rs/tower#c34182d0b37ce7011ec582db9f719ae527b62448"
 
 [[package]]
 name = "tower-service"
 version = "0.3.1"
-source = "git+https://github.com/tower-rs/tower?branch=david/box-service-sync#6a5d4b76e154957fd93abd117af513e86eabb311"
+source = "git+https://github.com/tower-rs/tower#c34182d0b37ce7011ec582db9f719ae527b62448"
 
 [[package]]
 name = "tower-service"

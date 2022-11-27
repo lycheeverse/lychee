@@ -53,9 +53,9 @@ html5gum = "0.5.2"
 octocrab = "0.17.0"
 ip_network = "0.4.1"
 secrecy = "0.8.0"
-# Move to upstream as soon as https://github.com/tower-rs/tower/pull/702 is merged
+# Move back to crates.io as soon as a version bigger than 0.4.13 is released
 # tower = { version = "0.4.13", features = ["full"] }
-tower = { git="https://github.com/tower-rs/tower", branch="david/box-service-sync", features = ["full"]}
+tower = { git="https://github.com/tower-rs/tower", features = ["full"]}
 parking_lot = "0.12.1"
 
 [dependencies.par-stream]
