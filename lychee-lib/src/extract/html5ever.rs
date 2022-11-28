@@ -228,4 +228,21 @@ mod tests {
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
     }
+
+    #[test]
+    fn test_exclude_script_tags() {
+        let input = r#"
+        <script>
+        var foo = "https://example.com";
+        </script>
+        <a href="https://example.org">i'm fine</a> 
+        "#;
+        let expected = vec![RawUri {
+            text: "https://example.org".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
+    }
 }

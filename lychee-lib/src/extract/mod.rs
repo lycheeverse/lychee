@@ -11,10 +11,13 @@ use plaintext::extract_plaintext;
 /// Check if the given element is in the list of preformatted ("verbatim") tags.
 ///
 /// These will be excluded from link checking by default.
+// Including the <script> tag is debatable, but the alternative is to
+// have a separate list of tags which need a separate config setting and that
+// seems worse.
 pub(crate) fn is_verbatim_elem(name: &str) -> bool {
     matches!(
         name,
-        "pre" | "code" | "textarea" | "samp" | "xmp" | "plaintext" | "listing"
+        "code" | "listing" | "plaintext" | "samp" | "script" | "textarea" | "xmp" | "pre"
     )
 }
 
