@@ -319,7 +319,6 @@ mod tests {
             website("https://example.com/css/style_relative_url.css"),
             website("https://example.com/head/home"),
             website("https://example.com/images/icon.png"),
-            website("https://example.com/js/script.js"),
         ]);
 
         assert_eq!(links, expected_links);
