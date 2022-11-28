@@ -1,3 +1,4 @@
+use log::error;
 use lychee_lib::Request;
 use lychee_lib::Result;
 use std::fs;
@@ -5,6 +6,8 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use tokio_stream::StreamExt;
 
+use crate::verbosity::Verbosity;
+use crate::verbosity::WarnLevel;
 use crate::ExitCode;
 
 use super::CommandParams;
@@ -53,14 +56,13 @@ where
         // to another program like `grep`.
 
         let excluded = params.client.is_excluded(&request.uri);
-        let verbose = params.cfg.verbose;
 
-        if excluded && !verbose {
+        if excluded && !params.cfg.verbose.is_verbose() {
             continue;
         }
-        if let Err(e) = write(&mut writer, &request, verbose, excluded) {
+        if let Err(e) = write(&mut writer, &request, &params.cfg.verbose, excluded) {
             if e.kind() != io::ErrorKind::BrokenPipe {
-                eprintln!("{e}");
+                error!("{e}");
                 return Ok(ExitCode::UnexpectedFailure);
             }
         }
@@ -73,10 +75,15 @@ where
 fn write(
     writer: &mut Box<dyn Write>,
     request: &Request,
-    verbose: bool,
+    verbosity: &Verbosity<WarnLevel>,
     excluded: bool,
 ) -> io::Result<()> {
-    let request = if verbose {
+    // Only print `data:` URIs if verbose mode is enabled
+    if request.uri.is_data() && !verbosity.is_verbose() {
+        return Ok(());
+    }
+
+    let request = if verbosity.is_verbose() {
         // Only print source in verbose mode. This way the normal link output
         // can be fed into another tool without data mangling.
         request.to_string()
