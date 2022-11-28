@@ -207,141 +207,164 @@ There is an extensive list of commandline parameters to customize the behavior.
 See below for a full list.
 
 ```text
-USAGE:
-    lychee [OPTIONS] <inputs>...
+A fast, async link checker
 
-ARGS:
-    <inputs>...    The inputs (where to get links to check from). These can be: files (e.g.
-                   `README.md`), file globs (e.g. `"~/git/*/README.md"`), remote URLs (e.g.
-                   `https://example.com/README.md`) or standard input (`-`). NOTE: Use `--` to
-                   separate inputs from options that allow multiple arguments
+Finds broken URLs and mail addresses inside Markdown, HTML, `reStructuredText`, websites and more!
 
-OPTIONS:
-    -a, --accept <ACCEPT>
-            Comma-separated list of accepted status codes for valid links
+Usage: lychee [OPTIONS] <inputs>...
 
-    -b, --base <BASE>
-            Base URL or website root directory to check relative URLs e.g. https://example.com or
-            `/path/to/public`
+Arguments:
+  <inputs>...
+          The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`). NOTE: Use `--` to separate inputs from options that allow multiple arguments
 
-        --basic-auth <BASIC_AUTH>
-            Basic authentication support. E.g. `username:password`
+Options:
+  -c, --config <CONFIG_FILE>
+          Configuration file to use
+          
+          [default: ./lychee.toml]
 
-    -c, --config <CONFIG_FILE>
-            Configuration file to use [default: ./lychee.toml]
+  -v, --verbose...
+          Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)
 
-        --cache
-            Use request cache stored on disk at `.lycheecache`
+  -q, --quiet...
+          Less output per occurrence (e.g. `-q` or `-qq`)
 
-        --dump
-            Don't perform any link checking. Instead, dump all the links extracted from inputs that
-            would be checked
+  -n, --no-progress
+          Do not show progress bar.
+          This is recommended for non-interactive shells (e.g. for continuous integration)
 
-    -E, --exclude-all-private
-            Exclude all private IPs from checking.
-            Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
+      --cache
+          Use request cache stored on disk at `.lycheecache`
 
-        --exclude <EXCLUDE>
-            Exclude URLs and mail addresses from checking (supports regex)
+      --max-cache-age <MAX_CACHE_AGE>
+          Discard all cached requests older than this duration
+          
+          [default: 1d]
 
-        --exclude-file <EXCLUDE_FILE>
-            Deprecated; use `--exclude-path` instead
+      --dump
+          Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
 
-        --exclude-link-local
-            Exclude link-local IP address range from checking
+  -m, --max-redirects <MAX_REDIRECTS>
+          Maximum number of allowed redirects
+          
+          [default: 5]
 
-        --exclude-loopback
-            Exclude loopback IP address range and localhost from checking
+      --max-retries <MAX_RETRIES>
+          Maximum number of retries per request
+          
+          [default: 3]
 
-        --exclude-mail
-            Exclude all mail addresses from checking
+      --max-concurrency <MAX_CONCURRENCY>
+          Maximum number of concurrent network requests
+          
+          [default: 128]
 
-        --exclude-path <EXCLUDE_PATH>
-            Exclude file path from getting checked
+  -T, --threads <THREADS>
+          Number of threads to utilize. Defaults to number of cores available to the system
 
-        --exclude-private
-            Exclude private IP address ranges from checking
+  -u, --user-agent <USER_AGENT>
+          User agent
+          
+          [default: lychee/0.10.3]
 
-    -f, --format <FORMAT>
-            Output format of final status report (compact, detailed, json, markdown) [default:
-            compact]
+  -i, --insecure
+          Proceed for server connections considered insecure (invalid TLS)
 
-        --github-token <GITHUB_TOKEN>
-            GitHub API token to use when checking github.com links, to avoid rate limiting [env:
-            GITHUB_TOKEN]
+  -s, --scheme <SCHEME>
+          Only test links with the given schemes (e.g. http and https)
 
-        --glob-ignore-case
-            Ignore case when expanding filesystem path glob inputs
+      --offline
+          Only check local files and block network requests
 
-    -h, --headers <HEADERS>
-            Custom request headers
+      --include <INCLUDE>
+          URLs to check (supports regex). Has preference over all excludes
 
-        --help
-            Print help information
+      --exclude <EXCLUDE>
+          Exclude URLs and mail addresses from checking (supports regex)
 
-    -i, --insecure
-            Proceed for server connections considered insecure (invalid TLS)
+      --exclude-file <EXCLUDE_FILE>
+          Deprecated; use `--exclude-path` instead
 
-        --include <INCLUDE>
-            URLs to check (supports regex). Has preference over all excludes
+      --exclude-path <EXCLUDE_PATH>
+          Exclude file path from getting checked
 
-        --include-verbatim
-            Find links in verbatim sections like `pre`- and `code` blocks
+  -E, --exclude-all-private
+          Exclude all private IPs from checking.
+          Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
 
-    -m, --max-redirects <MAX_REDIRECTS>
-            Maximum number of allowed redirects [default: 5]
+      --exclude-private
+          Exclude private IP address ranges from checking
 
-        --max-cache-age <MAX_CACHE_AGE>
-            Discard all cached requests older than this duration [default: 1d]
+      --exclude-link-local
+          Exclude link-local IP address range from checking
 
-        --max-concurrency <MAX_CONCURRENCY>
-            Maximum number of concurrent network requests [default: 128]
+      --exclude-loopback
+          Exclude loopback IP address range and localhost from checking
 
-        --max-retries <MAX_RETRIES>
-            Maximum number of retries per request [default: 3]
+      --exclude-mail
+          Exclude all mail addresses from checking
 
-    -n, --no-progress
-            Do not show progress bar.
-            This is recommended for non-interactive shells (e.g. for continuous integration)
+      --remap <REMAP>
+          Remap URI matching pattern to different URI
 
-    -o, --output <OUTPUT>
-            Output file of status report
+      --header <HEADER>
+          Custom request header
 
-        --offline
-            Only check local files and block network requests
+  -a, --accept <ACCEPT>
+          Comma-separated list of accepted status codes for valid links
 
-    -q, --quiet
-            Less output per occurrence (e.g. `-q` or `-qq`)
+  -t, --timeout <TIMEOUT>
+          Website timeout in seconds from connect to response finished
+          
+          [default: 20]
 
-    -r, --retry-wait-time <RETRY_WAIT_TIME>
-            Minimum wait time in seconds between retries of failed requests [default: 1]
+  -r, --retry-wait-time <RETRY_WAIT_TIME>
+          Minimum wait time in seconds between retries of failed requests
+          
+          [default: 1]
 
-        --remap <REMAP>
-            Remap URI matching pattern to different URI
+  -X, --method <METHOD>
+          Request method
+          
+          [default: get]
 
-        --require-https
-            When HTTPS is available, treat HTTP links as errors
+  -b, --base <BASE>
+          Base URL or website root directory to check relative URLs e.g. https://example.com or `/path/to/public`
 
-    -s, --scheme <SCHEME>
-            Only test links with the given schemes (e.g. http and https)
+      --basic-auth <BASIC_AUTH>
+          Basic authentication support. E.g. `username:password`
 
-        --skip-missing
-            Skip missing input files (default is to error if they don't exist)
+      --github-token <GITHUB_TOKEN>
+          GitHub API token to use when checking github.com links, to avoid rate limiting
+          
+          [env: GITHUB_TOKEN]
 
-    -t, --timeout <TIMEOUT>
-            Website timeout in seconds from connect to response finished [default: 20]
+      --skip-missing
+          Skip missing input files (default is to error if they don't exist)
 
-    -T, --threads <THREADS>
-            Number of threads to utilize. Defaults to number of cores available to the system
+      --include-verbatim
+          Find links in verbatim sections like `pre`- and `code` blocks
 
-    -u, --user-agent <USER_AGENT>
-            User agent [default: lychee/0.10.3]
+      --glob-ignore-case
+          Ignore case when expanding filesystem path glob inputs
 
-    -v, --verbose
-            Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)
+  -o, --output <OUTPUT>
+          Output file of status report
 
-    -X, --method <METHOD>
-            Request method [default: get]
+  -f, --format <FORMAT>
+          Output format of final status report (compact, detailed, json, markdown)
+          
+          [default: compact]
+
+      --require-https
+          When HTTPS is available, treat HTTP links as errors
+
+  -h, --help
+          Print help information (use `-h` for a summary)
+
+  -V, --version
+          Print version information
+
 ```
 
 ### Exit codes
@@ -353,10 +376,17 @@ OPTIONS:
 ### Ignoring links
 
 You can exclude links from getting checked by specifying regex patterns
-with `--exclude` (e.g. `--exclude example\.(com|org)`).  
+with `--exclude` (e.g. `--exclude example\.(com|org)`).
 If a file named `.lycheeignore` exists in the current working directory, its
 contents are excluded as well. The file allows you to list multiple regular
 expressions for exclusion (one pattern per line).
+
+For excluding files/directories from being scanned use `lychee.toml`
+and `exclude_path`.
+
+```toml
+exclude_path = ["some/path", "*/dev/*"]
+```
 
 ### Caching
 

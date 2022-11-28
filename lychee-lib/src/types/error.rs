@@ -93,6 +93,9 @@ pub enum ErrorKind {
     /// Cannot parse the given URI
     #[error("The given URI is invalid: {0}")]
     InvalidURI(Uri),
+    /// The given status code is invalid (not in the range 100-1000)
+    #[error("Invalid status code: {0}")]
+    InvalidStatusCode(u16),
     /// Regex error
     #[error("Error when using regex engine: {0}")]
     Regex(#[from] regex::Error),
@@ -195,6 +198,7 @@ impl Hash for ErrorKind {
             Self::InvalidUriRemap(remap) => (remap).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
+            Self::InvalidStatusCode(c) => c.hash(state),
             Self::Channel(e) => e.to_string().hash(state),
             Self::MissingGitHubToken | Self::InvalidUrlHost => {
                 std::mem::discriminant(self).hash(state);

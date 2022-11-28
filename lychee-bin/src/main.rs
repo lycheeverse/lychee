@@ -190,7 +190,7 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
             let elapsed = modified.elapsed().ok()?;
             if elapsed > cfg.max_cache_age {
                 warn!(
-                    "Cache is too old (age: {}, max age: {}). Discarding.",
+                    "Cache is too old (age: {}, max age: {}). Discarding and recreating.",
                     humantime::format_duration(elapsed),
                     humantime::format_duration(cfg.max_cache_age)
                 );

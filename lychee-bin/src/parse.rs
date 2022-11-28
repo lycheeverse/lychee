@@ -53,9 +53,14 @@ pub(crate) fn parse_base(src: &str) -> Result<Base, lychee_lib::ErrorKind> {
 }
 
 /// Parse HTTP status codes into a set of `StatusCode`
-pub(crate) fn parse_statuscodes<T: AsRef<str>>(accept: T) -> Result<HashSet<u16>> {
+///
+/// Note that this function does not convert the status codes into
+/// `StatusCode` but rather into `u16` to avoid the need for
+/// `http` as a dependency and to support custom status codes, which are
+/// necessary for some websites, which don't adhere to the HTTP spec or IANA.
+pub(crate) fn parse_statuscodes(accept: &str) -> Result<HashSet<u16>> {
     let mut statuscodes = HashSet::new();
-    for code in accept.as_ref().split(',') {
+    for code in accept.split(',') {
         let code: u16 = code.parse::<u16>()?;
         statuscodes.insert(code);
     }

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::io::{self, Write};
 use std::sync::Arc;
 use std::time::Duration;
@@ -31,6 +32,7 @@ where
 
     let client = params.client;
     let cache = params.cache;
+    let accept = params.cfg.accept;
     // Start receiving requests
     tokio::spawn(async move {
         futures::StreamExt::for_each_concurrent(
@@ -38,7 +40,7 @@ where
             max_concurrency,
             |request: Result<Request>| async {
                 let request = request.expect("cannot read request");
-                let response = handle(&client, cache.clone(), request).await;
+                let response = handle(&client, cache.clone(), request, accept.clone()).await;
 
                 send_resp
                     .send(response)
@@ -113,7 +115,12 @@ where
 }
 
 /// Handle a single request
-async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Response {
+async fn handle(
+    client: &Client,
+    cache: Arc<Cache>,
+    request: Request,
+    accept: Option<HashSet<u16>>,
+) -> Response {
     let uri = request.uri.clone();
     if let Some(v) = cache.get(&uri) {
         // Found a cached request
@@ -122,7 +129,11 @@ async fn handle(client: &Client, cache: Arc<Cache>, request: Request) -> Respons
         let status = if client.is_excluded(&uri) {
             Status::Excluded
         } else {
-            Status::from(v.value().status)
+            // Can't impl `Status::from(v.value().status)` here because the
+            // `accepted` status codes might have changed from the previous run
+            // and they may have an impact on the interpretation of the status
+            // code.
+            Status::from_cache_status(v.value().status, accept)
         };
         return Response::new(uri.clone(), status, request.source);
     }
