@@ -85,6 +85,7 @@ mod stats;
 mod time;
 mod verbosity;
 
+use crate::formatters::duration::Duration;
 use crate::{
     cache::{Cache, StoreExt},
     color::color,
@@ -191,15 +192,15 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
             if elapsed > cfg.max_cache_age {
                 warn!(
                     "Cache is too old (age: {}, max age: {}). Discarding and recreating.",
-                    humantime::format_duration(elapsed),
-                    humantime::format_duration(cfg.max_cache_age)
+                    Duration::from_secs(elapsed.as_secs()),
+                    Duration::from_secs(cfg.max_cache_age.as_secs())
                 );
                 return None;
             }
             info!(
                 "Cache is recent (age: {}, max age: {}). Using.",
-                humantime::format_duration(elapsed),
-                humantime::format_duration(cfg.max_cache_age)
+                Duration::from_secs(elapsed.as_secs()),
+                Duration::from_secs(cfg.max_cache_age.as_secs())
             );
         }
     }
