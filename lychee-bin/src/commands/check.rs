@@ -106,11 +106,6 @@ where
     Ok(())
 }
 
-/// let progress_bar = ProgressBar::new(...);
-/// progress_bar.update_loop(recv_resp);
-
-
-
 /// Reads from the request channel and updates the progress bar status
 async fn progress_bar_task(
     mut recv_resp: mpsc::Receiver<Response>,
@@ -162,7 +157,7 @@ async fn request_channel_task(
                 .expect("cannot send response to queue");
         },
     )
-    .await
+    .await;
 }
 
 /// Handle a single request
