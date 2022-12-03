@@ -112,7 +112,7 @@ impl<L: LogLevel> Verbosity<L> {
     /// Shorthand to check if the user requested "more verbose" output
     /// (assuming the default log level is `Warn`)
     pub(crate) fn is_verbose(&self) -> bool {
-        self.log_level() > log::LevelFilter::Error.to_level()
+        self.log_level() >= log::LevelFilter::Info.to_level()
     }
 
     fn verbosity(&self) -> i8 {
