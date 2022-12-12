@@ -47,6 +47,12 @@ nix-env -iA nixos.lychee
 pkg install lychee
 ```
 
+### Scoop
+
+```sh
+scoop install lychee
+```
+
 ### Termux
 
 ```sh
