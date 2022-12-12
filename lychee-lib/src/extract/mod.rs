@@ -104,6 +104,24 @@ mod tests {
     }
 
     #[test]
+    fn test_verbatim_matching() {
+        assert!(is_verbatim_elem("pre"));
+        assert!(is_verbatim_elem("code"));
+        assert!(is_verbatim_elem("listing"));
+    }
+
+    #[test]
+    fn verbatim_elem() {
+        let input = r#"
+        <pre>
+        https://example.com
+        </pre>
+        "#;
+        let uris = extract_uris(input, FileType::Html);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
     fn test_file_type() {
         assert_eq!(FileType::from(Path::new("/")), FileType::Plaintext);
         assert_eq!(FileType::from("test.md"), FileType::Markdown);
