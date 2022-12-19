@@ -152,7 +152,7 @@ impl Status {
     pub const fn is_failure(&self) -> bool {
         matches!(
             self,
-            Status::Error(_) | Status::Cached(CacheStatus::Error(_))
+            Status::Error(_) | Status::Cached(CacheStatus::Error(_)) | Status::Timeout(_)
         )
     }
 

@@ -28,7 +28,11 @@ where
     let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
     let (send_resp, recv_resp) = mpsc::channel(params.cfg.max_concurrency);
     let max_concurrency = params.cfg.max_concurrency;
-    let stats = ResponseStats::new();
+    let stats = if params.cfg.verbose.is_verbose() {
+        ResponseStats::extended()
+    } else {
+        ResponseStats::default()
+    };
     let cache_ref = params.cache.clone();
 
     let client = params.client;

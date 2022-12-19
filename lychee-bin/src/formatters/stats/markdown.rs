@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn test_render_stats() {
-        let stats = ResponseStats::new();
+        let stats = ResponseStats::default();
         let table = stats_table(&stats);
         let expected = r#"| Status        | Count |
 |---------------|-------|
@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_render_summary() {
-        let mut stats = ResponseStats::new();
+        let mut stats = ResponseStats::default();
         let response = Response(
             InputSource::Stdin,
             ResponseBody {
