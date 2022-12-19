@@ -100,7 +100,7 @@ impl Display for MarkdownResponseStats {
             for (source, responses) in &stats.fail_map {
                 // Using leading newlines over trailing ones (e.g. `writeln!`)
                 // lets us avoid extra newlines without any additional logic.
-                writeln!(f, "### Errors in {}\n", source)?;
+                writeln!(f, "### Errors in {source}\n")?;
                 for response in responses {
                     writeln!(
                         f,

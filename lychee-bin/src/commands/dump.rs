@@ -102,5 +102,5 @@ fn write(
 }
 
 fn write_out(writer: &mut Box<dyn Write>, out_str: &str) -> io::Result<()> {
-    writeln!(writer, "{}", out_str)
+    writeln!(writer, "{out_str}")
 }

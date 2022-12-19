@@ -221,7 +221,7 @@ fn show_progress(
     } else if verbose.is_verbose()
         || (!response.status().is_success() && !response.status().is_excluded())
     {
-        writeln!(output, "{}", out)?;
+        writeln!(output, "{out}")?;
     }
     Ok(())
 }

@@ -77,7 +77,7 @@ impl Display for ResponseBody {
         write!(f, " | {}", self.status)?;
 
         if let Some(details) = self.status.details() {
-            write!(f, ": {}", details)
+            write!(f, ": {details}")
         } else {
             Ok(())
         }
