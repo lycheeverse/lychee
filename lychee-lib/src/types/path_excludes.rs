@@ -47,7 +47,7 @@ impl PathExcludes {
     /// # Errors
     ///
     /// Returns an error if the `.gitignore` file cannot be parsed
-    pub fn new(root: PathBuf, excludes: Vec<PathBuf>, load_gitignore: bool) -> Result<Self> {
+    pub fn new(root: &Path, excludes: Vec<PathBuf>, load_gitignore: bool) -> Result<Self> {
         let excluded_paths = parse_excludes(excludes);
         let gitignore = if load_gitignore {
             // It is common that paths don't contain a `.gitignore` file,
@@ -58,7 +58,7 @@ impl PathExcludes {
         };
 
         Ok(Self {
-            root,
+            root: root.to_path_buf(),
             excluded_paths,
             gitignore,
         })
@@ -105,7 +105,7 @@ fn parse_excludes(excludes: Vec<PathBuf>) -> Vec<PathBuf> {
 /// `.gitignore` file.
 ///
 // Standalone function for easier testing
-fn parse_gitignore(root: &PathBuf) -> Result<Gitignore> {
+fn parse_gitignore(root: &Path) -> Result<Gitignore> {
     println!("Loading gitignore file from {:?}", root);
     let mut builder = GitignoreBuilder::new(root);
     println!("Loading gitignore file from {:?}", root.join(".gitignore"));
@@ -148,6 +148,7 @@ mod tests {
 
     impl PathExcludes {
         /// Create an empty instance of `PathExcludes` which never matches any path
+        /// for testing
         ///
         /// # Panics
         ///
@@ -188,23 +189,24 @@ mod tests {
     #[test]
     fn test_path_excludes() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("foo");
-        std::fs::write(&path, "foo").unwrap();
-        let excludes = vec![path.clone()];
-        let path_excludes = PathExcludes::new(env::current_dir().unwrap(), excludes, true).unwrap();
-        assert!(path_excludes.is_excluded_path(&path));
+        let root = dir.path();
+        let foo = root.join("foo");
+        std::fs::write(&foo, "foo").unwrap();
+        let excludes = vec![foo.clone()];
+        let path_excludes = PathExcludes::new(root, excludes, true).unwrap();
+        assert!(path_excludes.is_excluded_path(&foo));
     }
 
     #[test]
     fn test_path_excludes_gitignore_works() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("foo");
-        std::fs::write(&path, "foo").unwrap();
-        let gitignore_path = dir.path().join(".gitignore");
+        let root = dir.path();
+        let foo = root.join("foo");
+        std::fs::write(&foo, "foo").unwrap();
+        let gitignore_path = root.join(".gitignore");
         std::fs::write(&gitignore_path, "foo").unwrap();
-        let excludes = vec![];
-        let path_excludes = PathExcludes::new(env::current_dir().unwrap(), excludes, true).unwrap();
-        assert!(path_excludes.is_excluded_path(&path));
+        let path_excludes = PathExcludes::new(root, vec![], true).unwrap();
+        assert!(path_excludes.is_excluded_path(&foo));
     }
 
     #[test]
