@@ -1,4 +1,5 @@
 use crate::parse::{parse_base, parse_statuscodes};
+use crate::verbosity::{Verbosity, WarnLevel};
 use anyhow::{anyhow, Context, Error, Result};
 use clap::{arg, Parser};
 use const_format::{concatcp, formatcp};
@@ -84,6 +85,7 @@ default_function! {
     timeout: usize = DEFAULT_TIMEOUT_SECS;
     retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
+    verbosity: Verbosity<WarnLevel> = Verbosity::new(1, 0);
 }
 
 // Macro for merging configuration values
@@ -115,7 +117,7 @@ pub(crate) struct LycheeOptions {
     #[arg(short, long = "config", default_value = "./lychee.toml")]
     pub(crate) config_file: String,
 
-    #[command(flatten)]
+    #[clap(flatten)]
     pub(crate) config: Config,
 }
 
@@ -166,9 +168,9 @@ impl LycheeOptions {
 #[derive(Parser, Debug, Deserialize, Clone)]
 pub(crate) struct Config {
     /// Verbose program output
-    #[arg(short, long)]
-    #[serde(default)]
-    pub(crate) verbose: bool,
+    #[clap(flatten)]
+    #[serde(default = "verbosity")]
+    pub(crate) verbose: Verbosity<WarnLevel>,
 
     /// Do not show progress bar.
     /// This is recommended for non-interactive shells (e.g. for continuous integration)
@@ -394,7 +396,7 @@ impl Config {
             self, toml;
 
             // Keys with defaults to assign
-            verbose: false;
+            verbose: Verbosity::new(1, 0);
             cache: false;
             no_progress: false;
             max_redirects: DEFAULT_MAX_REDIRECTS;

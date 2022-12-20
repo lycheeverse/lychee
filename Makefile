@@ -42,6 +42,10 @@ docs: ## Generate and show documentation
 lint: ## Run linter
 	cargo clippy --all-targets --all-features -- -D warnings
 
+.PHONY: test
+test: ## Run tests
+	cargo test --all-targets --all-features
+
 .PHONY: screencast
 screencast: ## Create a screencast for the docs
 	svg-term --command 'assets/screencast.sh' --out 'assets/screencast.svg' --width 100 --padding 10 --window

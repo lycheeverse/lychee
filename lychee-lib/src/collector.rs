@@ -148,9 +148,9 @@ mod tests {
         let mut file_glob_1 = File::create(file_glob_1_path).unwrap();
         let mut file_glob_2 = File::create(file_glob_2_path).unwrap();
 
-        writeln!(file, "{}", TEST_FILE).unwrap();
-        writeln!(file_glob_1, "{}", TEST_GLOB_1).unwrap();
-        writeln!(file_glob_2, "{}", TEST_GLOB_2_MAIL).unwrap();
+        writeln!(file, "{TEST_FILE}").unwrap();
+        writeln!(file_glob_1, "{TEST_GLOB_1}").unwrap();
+        writeln!(file_glob_2, "{TEST_GLOB_2_MAIL}").unwrap();
 
         let mock_server = mock_server!(StatusCode::OK, set_body_string(TEST_URL));
 
@@ -321,7 +321,6 @@ mod tests {
             website("https://example.com/css/style_relative_url.css"),
             website("https://example.com/head/home"),
             website("https://example.com/images/icon.png"),
-            website("https://example.com/js/script.js"),
         ]);
 
         assert_eq!(links, expected_links);

@@ -771,6 +771,81 @@ mod cli {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_lycheecache_accept_custom_status_codes() -> Result<()> {
+        let base_path = fixtures_path().join("cache");
+        let cache_file = base_path.join(LYCHEE_CACHE_FILE);
+
+        // Unconditionally remove cache file if it exists
+        let _ = fs::remove_file(&cache_file);
+
+        let mock_server_ok = mock_server!(StatusCode::OK);
+        let mock_server_teapot = mock_server!(StatusCode::IM_A_TEAPOT);
+        let mock_server_server_error = mock_server!(StatusCode::INTERNAL_SERVER_ERROR);
+
+        let dir = tempfile::tempdir()?;
+        let mut file = File::create(dir.path().join("c.md"))?;
+
+        writeln!(file, "{}", mock_server_ok.uri().as_str())?;
+        writeln!(file, "{}", mock_server_teapot.uri().as_str())?;
+        writeln!(file, "{}", mock_server_server_error.uri().as_str())?;
+
+        let mut cmd = main_command();
+        let test_cmd = cmd
+            .current_dir(&base_path)
+            .arg(dir.path().join("c.md"))
+            .arg("--verbose")
+            .arg("--cache");
+
+        assert!(
+            !cache_file.exists(),
+            "cache file should not exist before this test"
+        );
+
+        // run first without cache to generate the cache file
+        // ignore exit code
+        test_cmd
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains(format!(
+                "[418] {}/ | Failed: Network error: I'm a teapot\n",
+                mock_server_teapot.uri()
+            )))
+            .stdout(contains(format!(
+                "[500] {}/ | Failed: Network error: Internal Server Error\n",
+                mock_server_server_error.uri()
+            )));
+
+        // check content of cache file
+        let data = fs::read_to_string(&cache_file)?;
+        assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
+        assert!(data.contains(&format!("{}/,418", mock_server_teapot.uri())));
+        assert!(data.contains(&format!("{}/,500", mock_server_server_error.uri())));
+
+        // run again to verify cache behavior
+        // this time accept 418 and 500 as valid status codes
+        test_cmd
+            .arg("--no-progress")
+            .arg("--accept")
+            .arg("200,418,500")
+            .assert()
+            .success()
+            .stdout(contains(format!(
+                "[418] {}/ | Cached: OK (cached)\n",
+                mock_server_teapot.uri()
+            )))
+            .stdout(contains(format!(
+                "[500] {}/ | Cached: OK (cached)\n",
+                mock_server_server_error.uri()
+            )));
+
+        // clear the cache file
+        fs::remove_file(&cache_file)?;
+
+        Ok(())
+    }
+
     #[test]
     fn test_include_verbatim() -> Result<()> {
         let mut cmd = main_command();

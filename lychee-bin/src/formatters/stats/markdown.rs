@@ -45,7 +45,7 @@ fn stats_table(stats: &ResponseStats) -> String {
         },
         StatsTableEntry {
             status: "\u{1f6ab} Errors",
-            count: stats.errors + stats.failures,
+            count: stats.errors,
         },
     ];
     let style = tabled::Style::markdown();
@@ -100,7 +100,7 @@ impl Display for MarkdownResponseStats {
             for (source, responses) in &stats.fail_map {
                 // Using leading newlines over trailing ones (e.g. `writeln!`)
                 // lets us avoid extra newlines without any additional logic.
-                writeln!(f, "### Errors in {}\n", source)?;
+                writeln!(f, "### Errors in {source}\n")?;
                 for response in responses {
                     writeln!(
                         f,
@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn test_render_stats() {
-        let stats = ResponseStats::new();
+        let stats = ResponseStats::default();
         let table = stats_table(&stats);
         let expected = r#"| Status        | Count |
 |---------------|-------|
@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_render_summary() {
-        let mut stats = ResponseStats::new();
+        let mut stats = ResponseStats::default();
         let response = Response(
             InputSource::Stdin,
             ResponseBody {

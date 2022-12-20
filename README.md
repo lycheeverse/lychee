@@ -47,6 +47,12 @@ nix-env -iA nixos.lychee
 pkg install lychee
 ```
 
+### Scoop
+
+```sh
+scoop install lychee
+```
+
 ### Termux
 
 ```sh
@@ -223,8 +229,11 @@ Options:
           
           [default: ./lychee.toml]
 
-  -v, --verbose
-          Verbose program output
+  -v, --verbose...
+          Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)
+
+  -q, --quiet...
+          Less output per occurrence (e.g. `-q` or `-qq`)
 
   -n, --no-progress
           Do not show progress bar.
