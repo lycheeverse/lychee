@@ -8,8 +8,8 @@ pub(crate) struct ResponseStats {
     pub(crate) detailed_stats: bool,
     pub(crate) total: usize,
     pub(crate) successful: usize,
-    pub(crate) failures: usize,
     pub(crate) unknown: usize,
+    pub(crate) unsupported: usize,
     pub(crate) timeouts: usize,
     pub(crate) redirects: usize,
     pub(crate) excludes: usize,
@@ -32,18 +32,19 @@ impl ResponseStats {
     pub(crate) fn increment_status_counters(&mut self, status: &Status) {
         match status {
             Status::Ok(_) => self.successful += 1,
-            Status::Error(_) => self.failures += 1,
+            Status::Error(_) => self.errors += 1,
             Status::UnknownStatusCode(_) => self.unknown += 1,
             Status::Timeout(_) => self.timeouts += 1,
             Status::Redirected(_) => self.redirects += 1,
             Status::Excluded => self.excludes += 1,
-            Status::Unsupported(_) => (), // Just skip unsupported URI
+            Status::Unsupported(_) => self.unsupported += 1,
             Status::Cached(cache_status) => {
                 self.cached += 1;
                 match cache_status {
                     CacheStatus::Ok(_) => self.successful += 1,
-                    CacheStatus::Error(_) => self.failures += 1,
-                    CacheStatus::Excluded | CacheStatus::Unsupported => self.excludes += 1,
+                    CacheStatus::Error(_) => self.errors += 1,
+                    CacheStatus::Excluded => self.excludes += 1,
+                    CacheStatus::Unsupported => self.unsupported += 1,
                 }
             }
         }

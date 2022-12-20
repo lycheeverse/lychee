@@ -45,7 +45,7 @@ fn stats_table(stats: &ResponseStats) -> String {
         },
         StatsTableEntry {
             status: "\u{1f6ab} Errors",
-            count: stats.errors + stats.failures,
+            count: stats.errors,
         },
     ];
     let style = tabled::Style::markdown();
