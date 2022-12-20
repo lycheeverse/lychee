@@ -106,10 +106,17 @@ fn parse_excludes(excludes: Vec<PathBuf>) -> Vec<PathBuf> {
 ///
 // Standalone function for easier testing
 fn parse_gitignore(root: &Path) -> Result<Gitignore> {
-    println!("Loading gitignore file from {:?}", root);
+    let gitignore = root.join(".gitignore");
+    println!("Loading gitignore file from {:?}", gitignore);
+    // If the .gitignore file does not exist, we just return an empty Gitignore
+    // instance.
+    if !gitignore.exists() {
+        println!("No gitignore file found at {:?}. Ignoring", gitignore);
+        return Ok(Gitignore::empty());
+    }
+
     let mut builder = GitignoreBuilder::new(root);
-    println!("Loading gitignore file from {:?}", root.join(".gitignore"));
-    if let Some(error) = builder.add(root.join(".gitignore")) {
+    if let Some(error) = builder.add(gitignore) {
         println!("Error loading gitignore file: {:?}", error);
         return Err(ErrorKind::GitignoreError(error.to_string()));
     };
