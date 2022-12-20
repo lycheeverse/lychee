@@ -143,14 +143,14 @@ impl LycheeOptions {
                     println!("Final root: {:?}", root);
 
                     let path_excludes = PathExcludes::new(
-                        root,
+                        &root,
                         self.config.exclude_path.clone(),
                         !self.config.no_ignore,
                     )?;
                     Input::new(source, None, Some(path_excludes))
                 } else if source.is_glob() {
                     let path_excludes = PathExcludes::new(
-                        env::current_dir()?,
+                        &env::current_dir()?,
                         self.config.exclude_path.clone(),
                         !self.config.no_ignore,
                     )?;
