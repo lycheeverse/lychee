@@ -18,7 +18,10 @@ struct CompactResponseStats(ResponseStats);
 // Helper function, which prints the detailed list of errors
 pub(crate) fn print_errors(stats: &ResponseStats) -> String {
     let mut errors = HashMap::new();
-    errors.insert("HTTP", stats.failures);
+    errors.insert(
+        "HTTP",
+        stats.errors - stats.redirects - stats.timeouts - stats.unknown,
+    );
     errors.insert("Redirects", stats.redirects);
     errors.insert("Timeouts", stats.timeouts);
     errors.insert("Unknown", stats.unknown);
@@ -62,7 +65,7 @@ impl Display for CompactResponseStats {
         color!(f, NORMAL, "\u{1F50D} {} Total", stats.total)?;
         color!(f, BOLD_GREEN, " \u{2705} {} OK", stats.successful)?;
 
-        let total_errors = stats.errors + stats.failures;
+        let total_errors = stats.errors;
 
         let err_str = if total_errors == 1 { "Error" } else { "Errors" };
         color!(f, BOLD_PINK, " \u{1f6ab} {} {}", total_errors, err_str)?;
