@@ -85,6 +85,7 @@ impl ResponseStats {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
     use std::collections::{HashMap, HashSet};
 
     use http::StatusCode;
@@ -137,12 +138,6 @@ mod tests {
         stats.add(dummy_error());
         stats.add(dummy_ok());
 
-        // let mut expected_fail_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
-        // let Response(source, response_body) = dummy_error();
-        // let entry = expected_fail_map.entry(source).or_default();
-        // entry.insert(response_body);
-        // assert_eq!(stats.fail_map, expected_fail_map);
-
         let Response(source, body) = dummy_error();
         let expected_fail_map: HashMap<InputSource, HashSet<ResponseBody>> =
             HashMap::from_iter([(source, HashSet::from_iter([body]))]);
@@ -153,7 +148,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_detailed_stats() {
-        let mut stats = ResponseStats::default();
+        let mut stats = ResponseStats::extended();
         assert!(stats.success_map.is_empty());
         assert!(stats.fail_map.is_empty());
         assert!(stats.excluded_map.is_empty());

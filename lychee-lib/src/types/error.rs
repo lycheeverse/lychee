@@ -161,6 +161,12 @@ impl PartialEq for ErrorKind {
             }
             (Self::InvalidHeader(_), Self::InvalidHeader(_))
             | (Self::MissingGitHubToken, Self::MissingGitHubToken) => true,
+            (Self::InvalidStatusCode(c1), Self::InvalidStatusCode(c2)) => c1 == c2,
+            (Self::InvalidUrlHost, Self::InvalidUrlHost) => true,
+            (Self::InvalidURI(u1), Self::InvalidURI(u2)) => u1 == u2,
+            (Self::Regex(e1), Self::Regex(e2)) => e1.to_string() == e2.to_string(),
+            (Self::DirTraversal(e1), Self::DirTraversal(e2)) => e1.to_string() == e2.to_string(),
+            (Self::Channel(_), Self::Channel(_)) => true,
             _ => false,
         }
     }
