@@ -24,7 +24,7 @@ const_format = "0.2.30"
 headers = "0.3.8"
 http = "0.2.8"
 indicatif = "0.17.2"
-openssl-sys = "0.9.79"
+openssl-sys = "0.9.80"
 pad = "0.1.6"
 regex = "1.7.0"
 reqwest = { version = "0.11.13", features = ["gzip"] }
