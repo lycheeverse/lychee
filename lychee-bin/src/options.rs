@@ -9,6 +9,7 @@ use lychee_lib::{
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
+use std::path::Path;
 use std::{
     collections::HashSet, env, fs, io::ErrorKind, path::PathBuf, str::FromStr, time::Duration,
 };
@@ -121,38 +122,43 @@ pub(crate) struct LycheeOptions {
     pub(crate) config: Config,
 }
 
+fn root(src: &Path) -> Result<PathBuf> {
+    if let Some(parent) = src.parent() {
+        // If root is empty, use the current directory
+        if parent == Path::new("") {
+            return Ok(env::current_dir()?);
+        }
+        Ok(parent.to_path_buf())
+    } else {
+        // No parent. Assume current directory
+        // to be the root.
+        return Ok(env::current_dir()?);
+    }
+}
+
 impl LycheeOptions {
     /// Get parsed inputs from options.
     // This depends on the config, which is why a method is required (we could
     // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there, but
     // we wouldn't get access to `glob_ignore_case`.
     pub(crate) fn inputs(&self) -> Result<Vec<Input>> {
+        let load_gitignore = !self.config.no_ignore;
+
         self.raw_inputs
             .iter()
             .map(|s| {
                 let source = InputSource::new(s, self.config.glob_ignore_case)?;
                 if let InputSource::FsPath(ref src) = source {
-                    let root = src.parent().unwrap().to_path_buf();
-                    println!("root: {:?}", root);
-                    // If root is empty, use the current directory
-                    let root = if root == PathBuf::from("") {
-                        env::current_dir()
-                    } else {
-                        Ok(root)
-                    }?;
-                    println!("Final root: {:?}", root);
+                    let root = root(src).unwrap();
 
-                    let path_excludes = PathExcludes::new(
-                        &root,
-                        self.config.exclude_path.clone(),
-                        !self.config.no_ignore,
-                    )?;
+                    let path_excludes =
+                        PathExcludes::new(&root, self.config.exclude_path.clone(), load_gitignore)?;
                     Input::new(source, None, Some(path_excludes))
                 } else if source.is_glob() {
                     let path_excludes = PathExcludes::new(
                         &env::current_dir()?,
                         self.config.exclude_path.clone(),
-                        !self.config.no_ignore,
+                        load_gitignore,
                     )?;
                     Input::new(source, None, Some(path_excludes))
                 } else {
