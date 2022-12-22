@@ -214,11 +214,49 @@ mod tests {
     }
 
     #[test]
+    fn test_include_verbatim_recursive() {
+        const HTML_INPUT: &str = r#"
+        <a href="https://example.com/">valid link</a>
+        <code>
+            <pre>
+                <span>https://example.org</span>
+            </pre>
+        </code>
+        "#;
+
+        let expected = vec![RawUri {
+            text: "https://example.com/".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+
+        let uris = extract_html(HTML_INPUT, false);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
     fn test_include_nofollow() {
         let input = r#"
         <a rel="nofollow" href="https://foo.com">do not follow me</a> 
         <a rel="canonical,nofollow,dns-prefetch" href="https://example.com">do not follow me</a> 
         <a href="https://example.org">do not follow me</a> 
+        "#;
+        let expected = vec![RawUri {
+            text: "https://example.org".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_exclude_script_tags() {
+        let input = r#"
+        <script>
+        var foo = "https://example.com";
+        </script>
+        <a href="https://example.org">i'm fine</a> 
         "#;
         let expected = vec![RawUri {
             text: "https://example.org".to_string(),

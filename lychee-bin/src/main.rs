@@ -63,13 +63,14 @@ use std::io::{self, BufRead, BufReader, ErrorKind, Write};
 use std::sync::Arc;
 
 use anyhow::{Context, Error, Result};
+use clap::Parser;
 use color::YELLOW;
 use commands::CommandParams;
 use formatters::response::ResponseFormatter;
-use log::warn;
-use openssl_sys as _; // required for vendored-openssl feature
+use log::{info, warn};
+use openssl_sys as _;
+// required for vendored-openssl feature
 use ring as _; // required for apple silicon
-use structopt::StructOpt;
 
 use lychee_lib::Collector;
 
@@ -82,7 +83,9 @@ mod options;
 mod parse;
 mod stats;
 mod time;
+mod verbosity;
 
+use crate::formatters::duration::Duration;
 use crate::{
     cache::{Cache, StoreExt},
     color::color,
@@ -130,7 +133,17 @@ fn read_lines(file: &File) -> Result<Vec<String>> {
 /// Merge all provided config options into one This includes a potential config
 /// file, command-line- and environment variables
 fn load_config() -> Result<LycheeOptions> {
-    let mut opts = LycheeOptions::from_args();
+    let mut opts = LycheeOptions::parse();
+
+    env_logger::Builder::new()
+        // super basic formatting; no timestamps, no module path, no target
+        .format_timestamp(None)
+        .format_indent(Some(0))
+        .format_module_path(false)
+        .format_target(false)
+        .filter_module("lychee", opts.config.verbose.log_level_filter())
+        .filter_module("lychee_lib", opts.config.verbose.log_level_filter())
+        .init();
 
     // Load a potentially existing config file and merge it into the config from
     // the CLI
@@ -177,13 +190,18 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
             let modified = metadata.modified().ok()?;
             let elapsed = modified.elapsed().ok()?;
             if elapsed > cfg.max_cache_age {
-                eprintln!(
-                    "Cache is too old (age: {}, max age: {}). Discarding",
-                    humantime::format_duration(elapsed),
-                    humantime::format_duration(cfg.max_cache_age)
+                warn!(
+                    "Cache is too old (age: {}, max age: {}). Discarding and recreating.",
+                    Duration::from_secs(elapsed.as_secs()),
+                    Duration::from_secs(cfg.max_cache_age.as_secs())
                 );
                 return None;
             }
+            info!(
+                "Cache is recent (age: {}, max age: {}). Using.",
+                Duration::from_secs(elapsed.as_secs()),
+                Duration::from_secs(cfg.max_cache_age.as_secs())
+            );
         }
     }
 
@@ -191,7 +209,7 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
     match cache {
         Ok(cache) => Some(cache),
         Err(e) => {
-            eprintln!("Error while loading cache: {e}. Continuing without.");
+            warn!("Error while loading cache: {e}. Continuing without.");
             None
         }
     }
@@ -202,6 +220,7 @@ fn run_main() -> Result<i32> {
     use std::process::exit;
 
     let opts = load_config()?;
+
     let runtime = match opts.config.threads {
         Some(threads) => {
             // We define our own runtime instead of the `tokio::main` attribute
@@ -284,7 +303,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             if let Some(output) = &opts.config.output {
                 fs::write(output, formatted).context("Cannot write status output to file")?;
             } else {
-                if opts.config.verbose && !is_empty {
+                if opts.config.verbose.log_level() == Some(log::Level::Debug) && !is_empty {
                     // separate summary from the verbose list of links above
                     // with a newline
                     writeln!(io::stdout())?;

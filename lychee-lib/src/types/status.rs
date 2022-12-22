@@ -44,15 +44,15 @@ pub enum Status {
 impl Display for Status {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Status::Ok(c) => write!(f, "OK ({c})"),
-            Status::Redirected(c) => write!(f, "Redirect ({c})"),
-            Status::UnknownStatusCode(c) => write!(f, "Unknown status: {c}"),
+            Status::Ok(code) => write!(f, "OK ({code})"),
+            Status::Redirected(code) => write!(f, "Redirect ({code})"),
+            Status::UnknownStatusCode(code) => write!(f, "Unknown status ({code})"),
             Status::Excluded => f.write_str("Excluded"),
-            Status::Timeout(Some(c)) => write!(f, "Timeout ({c})"),
+            Status::Timeout(Some(code)) => write!(f, "Timeout ({code})"),
             Status::Timeout(None) => f.write_str("Timeout"),
             Status::Unsupported(e) => write!(f, "Unsupported: {e}"),
             Status::Error(e) => write!(f, "Failed: {e}"),
-            Status::Cached(s) => write!(f, "Cached: {s}"),
+            Status::Cached(status) => write!(f, "Cached: {status}"),
         }
     }
 }
@@ -84,6 +84,61 @@ impl Status {
         }
     }
 
+    /// Create a status object from a cached status (from a previous run of
+    /// lychee) and the set of accepted status codes.
+    ///
+    /// The set of accepted status codes can change between runs,
+    /// necessitating more complex logic than just using the cached status.
+    ///
+    /// Note that the accepted status codes are not of type `StatusCode`,
+    /// because they are provided by the user and can be invalid according to
+    /// the HTTP spec and IANA, but the user might still want to accept them.
+    #[must_use]
+    pub fn from_cache_status(s: CacheStatus, accepted: Option<HashSet<u16>>) -> Self {
+        match s {
+            CacheStatus::Ok(code) => {
+                // Not sure if we should change the status based on the
+                // accepted status codes. If we find out that this is
+                // counter-intuitive, we can change it.
+                if accepted.map(|a| a.contains(&code)) == Some(true) {
+                    return Self::Cached(CacheStatus::Ok(code));
+                };
+                Self::Cached(CacheStatus::Error(Some(code)))
+            }
+            CacheStatus::Error(code) => {
+                if let Some(code) = code {
+                    if accepted.map(|a| a.contains(&code)) == Some(true) {
+                        return Self::Cached(CacheStatus::Ok(code));
+                    };
+                }
+                Self::Cached(CacheStatus::Error(code))
+            }
+            _ => Self::Cached(s),
+        }
+    }
+
+    /// Return more details about the status (if any)
+    ///
+    /// Which additional information we can extract depends on the underlying
+    /// request type. The output is purely meant for humans and future changes
+    /// are expected.
+    ///
+    /// It is modeled after reqwest's `details` method.
+    #[must_use]
+    #[allow(clippy::match_same_arms)]
+    pub fn details(&self) -> Option<String> {
+        match &self {
+            Status::Ok(code) => code.canonical_reason().map(String::from),
+            Status::Redirected(code) => code.canonical_reason().map(String::from),
+            Status::Error(e) => e.details(),
+            Status::Timeout(_) => None,
+            Status::UnknownStatusCode(_) => None,
+            Status::Unsupported(_) => None,
+            Status::Cached(_) => None,
+            Status::Excluded => None,
+        }
+    }
+
     #[inline]
     #[must_use]
     /// Returns `true` if the check was successful
@@ -97,7 +152,7 @@ impl Status {
     pub const fn is_failure(&self) -> bool {
         matches!(
             self,
-            Status::Error(_) | Status::Cached(CacheStatus::Error(_))
+            Status::Error(_) | Status::Cached(CacheStatus::Error(_)) | Status::Timeout(_)
         )
     }
 
@@ -195,11 +250,5 @@ impl From<reqwest::Error> for Status {
         } else {
             Self::Error(ErrorKind::NetworkRequest(e))
         }
-    }
-}
-
-impl From<CacheStatus> for Status {
-    fn from(s: CacheStatus) -> Self {
-        Self::Cached(s)
     }
 }

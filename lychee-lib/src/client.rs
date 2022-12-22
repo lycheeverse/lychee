@@ -396,7 +396,7 @@ impl Client {
         let status = if self.filter.is_excluded(&uri) {
             Status::Excluded
         } else if uri.is_file() {
-            self.check_file(&uri).await
+            self.check_file(&uri)
         } else if uri.is_mail() {
             self.check_mail(&uri).await
         } else {
@@ -512,7 +512,7 @@ impl Client {
             // now we find that this public repo is reachable through the API,
             // so that must mean the full URI (which includes the additional
             // endpoint) must be invalid.
-            return ErrorKind::InvalidGithubUrl(format!("{}/{}/{}", uri.owner, uri.repo, endpoint))
+            return ErrorKind::InvalidGithubUrl(format!("{}/{}/{endpoint}", uri.owner, uri.repo))
                 .into();
         }
         // Found public repo without endpoint
@@ -539,7 +539,7 @@ impl Client {
     }
 
     /// Check a `file` URI.
-    pub async fn check_file(&self, uri: &Uri) -> Status {
+    pub fn check_file(&self, uri: &Uri) -> Status {
         if let Ok(path) = uri.url.to_file_path() {
             if path.exists() {
                 return Status::Ok(StatusCode::OK);
@@ -549,9 +549,14 @@ impl Client {
     }
 
     /// Check a mail address, or equivalently a `mailto` URI.
+    ///
+    /// URIs may contain query parameters (e.g. `contact@example.com?subject="Hello"`),
+    /// which are ignored by this check. The are not part of the mail address
+    /// and instead passed to a mail client.
     pub async fn check_mail(&self, uri: &Uri) -> Status {
-        let input = CheckEmailInput::new(vec![uri.as_str().to_owned()]);
-        let result = &(check_email(&input).await)[0];
+        let address = uri.url.path().to_string();
+        let input = CheckEmailInput::new(address);
+        let result = &(check_email(&input).await);
 
         if let Reachable::Invalid = result.is_reachable {
             ErrorKind::UnreachableEmailAddress(uri.clone(), mail::error_from_output(result)).into()

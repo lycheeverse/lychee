@@ -30,14 +30,14 @@ impl Display for DetailedResponseStats {
         let separator = "-".repeat(MAX_PADDING + 1);
 
         writeln!(f, "\u{1f4dd} Summary")?; // 📝
-        writeln!(f, "{}", separator)?;
+        writeln!(f, "{separator}")?;
         write_stat(f, "\u{1f50d} Total", stats.total, true)?; // 🔍
         write_stat(f, "\u{2705} Successful", stats.successful, true)?; // ✅
         write_stat(f, "\u{23f3} Timeouts", stats.timeouts, true)?; // ⏳
         write_stat(f, "\u{1f500} Redirected", stats.redirects, true)?; // 🔀
         write_stat(f, "\u{1f47b} Excluded", stats.excludes, true)?; // 👻
         write_stat(f, "\u{2753} Unknown", stats.unknown, true)?; //❓
-        write_stat(f, "\u{1f6ab} Errors", stats.errors + stats.failures, false)?; // 🚫
+        write_stat(f, "\u{1f6ab} Errors", stats.errors, false)?; // 🚫
 
         for (source, responses) in &stats.fail_map {
             // Using leading newlines over trailing ones (e.g. `writeln!`)
@@ -60,7 +60,7 @@ pub(crate) struct Detailed;
 
 impl Detailed {
     pub(crate) const fn new() -> Self {
-        Self {}
+        Self
     }
 }
 

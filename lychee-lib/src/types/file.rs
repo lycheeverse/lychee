@@ -37,7 +37,10 @@ impl<P: AsRef<Path>> From<P> for FileType {
             .map(str::to_lowercase)
             .as_deref()
         {
-            Some("md" | "markdown") => FileType::Markdown,
+            // https://superuser.com/a/285878
+            Some("markdown" | "mkdown" | "mkdn" | "mdwn" | "mdown" | "mdx" | "mkd" | "md") => {
+                FileType::Markdown
+            }
             Some("htm" | "html") => FileType::Html,
             None if is_url => FileType::Html,
             _ => FileType::Plaintext,
@@ -53,6 +56,7 @@ mod tests {
     fn test_extension() {
         assert_eq!(FileType::from(Path::new("foo.md")), FileType::Markdown);
         assert_eq!(FileType::from(Path::new("foo.MD")), FileType::Markdown);
+        assert_eq!(FileType::from(Path::new("foo.mdx")), FileType::Markdown);
 
         assert_eq!(
             FileType::from(Path::new("test.unknown")),

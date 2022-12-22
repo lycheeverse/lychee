@@ -127,6 +127,34 @@ mod cli {
         )
     }
 
+    #[test]
+    fn test_email_html_with_subject() -> Result<()> {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("TEST_EMAIL_QUERY_PARAMS.html");
+
+        cmd.arg("--dump")
+            .arg(input)
+            .assert()
+            .success()
+            .stdout(contains("hello@example.org?subject=%5BHello%5D"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_email_markdown_with_subject() -> Result<()> {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("TEST_EMAIL_QUERY_PARAMS.md");
+
+        cmd.arg("--dump")
+            .arg(input)
+            .assert()
+            .success()
+            .stdout(contains("hello@example.org?subject=%5BHello%5D"));
+
+        Ok(())
+    }
+
     /// Test that a GitHub link can be checked without specifying the token.
     #[test]
     fn test_check_github_no_token() -> Result<()> {
@@ -182,16 +210,10 @@ mod cli {
             "TEST_QUIRKS.txt",
             MockResponseStats {
                 total: 3,
-                successful: 2,
-                excludes: 1,
+                successful: 3,
+                excludes: 0,
                 ..MockResponseStats::default()
-            },
-            // Currently getting a 429 with Googlebot.
-            // See https://github.com/lycheeverse/lychee/issues/448
-            // See https://twitter.com/matthiasendler/status/1479224185125748737
-            // TODO: Remove this exclusion in the future
-            "--exclude",
-            "twitter"
+            }
         )
     }
 
@@ -423,6 +445,31 @@ mod cli {
         let expected = r#"{"total":11,"successful":11,"failures":0,"unknown":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"cached":0,"fail_map":{}}"#;
         let output = fs::read_to_string(&outfile)?;
         assert_eq!(output.split_whitespace().collect::<String>(), expected);
+        fs::remove_file(outfile)?;
+        Ok(())
+    }
+
+    /// Test writing output of `--dump` command to file
+    #[test]
+    fn test_dump_to_file() -> Result<()> {
+        let mut cmd = main_command();
+        let test_path = fixtures_path().join("TEST.md");
+        let outfile = format!("{}", Uuid::new_v4());
+
+        cmd.arg("--output")
+            .arg(&outfile)
+            .arg("--dump")
+            .arg(test_path)
+            .assert()
+            .success();
+
+        let output = fs::read_to_string(&outfile)?;
+
+        // We expect 11 links in the test file
+        // Running the command from the command line will print 9 links,
+        // because the actual `--dump` command filters out the two
+        // http(s)://example.com links
+        assert_eq!(output.lines().count(), 11);
         fs::remove_file(outfile)?;
         Ok(())
     }
@@ -717,6 +764,81 @@ mod cli {
         // future versions.
         let buf = fs::read(&cache_file).unwrap();
         assert!(buf.is_empty());
+
+        // clear the cache file
+        fs::remove_file(&cache_file)?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_lycheecache_accept_custom_status_codes() -> Result<()> {
+        let base_path = fixtures_path().join("cache");
+        let cache_file = base_path.join(LYCHEE_CACHE_FILE);
+
+        // Unconditionally remove cache file if it exists
+        let _ = fs::remove_file(&cache_file);
+
+        let mock_server_ok = mock_server!(StatusCode::OK);
+        let mock_server_teapot = mock_server!(StatusCode::IM_A_TEAPOT);
+        let mock_server_server_error = mock_server!(StatusCode::INTERNAL_SERVER_ERROR);
+
+        let dir = tempfile::tempdir()?;
+        let mut file = File::create(dir.path().join("c.md"))?;
+
+        writeln!(file, "{}", mock_server_ok.uri().as_str())?;
+        writeln!(file, "{}", mock_server_teapot.uri().as_str())?;
+        writeln!(file, "{}", mock_server_server_error.uri().as_str())?;
+
+        let mut cmd = main_command();
+        let test_cmd = cmd
+            .current_dir(&base_path)
+            .arg(dir.path().join("c.md"))
+            .arg("--verbose")
+            .arg("--cache");
+
+        assert!(
+            !cache_file.exists(),
+            "cache file should not exist before this test"
+        );
+
+        // run first without cache to generate the cache file
+        // ignore exit code
+        test_cmd
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains(format!(
+                "[418] {}/ | Failed: Network error: I'm a teapot\n",
+                mock_server_teapot.uri()
+            )))
+            .stdout(contains(format!(
+                "[500] {}/ | Failed: Network error: Internal Server Error\n",
+                mock_server_server_error.uri()
+            )));
+
+        // check content of cache file
+        let data = fs::read_to_string(&cache_file)?;
+        assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
+        assert!(data.contains(&format!("{}/,418", mock_server_teapot.uri())));
+        assert!(data.contains(&format!("{}/,500", mock_server_server_error.uri())));
+
+        // run again to verify cache behavior
+        // this time accept 418 and 500 as valid status codes
+        test_cmd
+            .arg("--no-progress")
+            .arg("--accept")
+            .arg("200,418,500")
+            .assert()
+            .success()
+            .stdout(contains(format!(
+                "[418] {}/ | Cached: OK (cached)\n",
+                mock_server_teapot.uri()
+            )))
+            .stdout(contains(format!(
+                "[500] {}/ | Cached: OK (cached)\n",
+                mock_server_server_error.uri()
+            )));
 
         // clear the cache file
         fs::remove_file(&cache_file)?;

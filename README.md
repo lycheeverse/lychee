@@ -1,10 +1,11 @@
 ![lychee](assets/logo.svg)
 
+[![Homepage](https://img.shields.io/badge/Homepage-Online-EA3A97)](https://lycheeverse.github.io)
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-lychee-blue.svg?colorA=24292e&colorB=0366d6&style=flat&longCache=true&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAM6wAADOsB5dZE0gAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAERSURBVCiRhZG/SsMxFEZPfsVJ61jbxaF0cRQRcRJ9hlYn30IHN/+9iquDCOIsblIrOjqKgy5aKoJQj4O3EEtbPwhJbr6Te28CmdSKeqzeqr0YbfVIrTBKakvtOl5dtTkK+v4HfA9PEyBFCY9AGVgCBLaBp1jPAyfAJ/AAdIEG0dNAiyP7+K1qIfMdonZic6+WJoBJvQlvuwDqcXadUuqPA1NKAlexbRTAIMvMOCjTbMwl1LtI/6KWJ5Q6rT6Ht1MA58AX8Apcqqt5r2qhrgAXQC3CZ6i1+KMd9TRu3MvA3aH/fFPnBodb6oe6HM8+lYHrGdRXW8M9bMZtPXUji69lmf5Cmamq7quNLFZXD9Rq7v0Bpc1o/tp0fisAAAAASUVORK5CYII=)](https://github.com/marketplace/actions/lychee-broken-link-checker)
-![Rust](https://github.com/hello-rust/lychee/workflows/Rust/badge.svg)
+![Rust](https://github.com/hello-rust/lychee/workflows/CI/badge.svg)
 [![docs.rs](https://docs.rs/lychee-lib/badge.svg)](https://docs.rs/lychee-lib)
 [![Check Links](https://github.com/lycheeverse/lychee/actions/workflows/links.yml/badge.svg)](https://github.com/lycheeverse/lychee/actions/workflows/links.yml)
-[![Docker Pulls](https://img.shields.io/docker/pulls/lycheeverse/lychee?color=%23099cec&logo=Docker&style=flat-square)](https://hub.docker.com/r/lycheeverse/lychee)
+[![Docker Pulls](https://img.shields.io/docker/pulls/lycheeverse/lychee?color=%23099cec&logo=Docker)](https://hub.docker.com/r/lycheeverse/lychee)
 
 ⚡ A fast, async, stream-based link checker written in Rust.\
 Finds broken hyperlinks and mail addresses inside Markdown, HTML,
@@ -12,7 +13,7 @@ reStructuredText, or any other text file or website!
 
 Available as a command-line utility, a library and a [GitHub Action](https://github.com/lycheeverse/lychee-action).
 
-![Lychee demo](./assets/lychee.gif)
+![Lychee demo](./assets/screencast.svg)
 
 ## Installation
 
@@ -44,6 +45,12 @@ nix-env -iA nixos.lychee
 
 ```sh
 pkg install lychee
+```
+
+### Scoop
+
+```sh
+scoop install lychee
 ```
 
 ### Termux
@@ -174,10 +181,9 @@ lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
 acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
 ```
 
-lychee parses other file formats as plaintext and extracts links using [linkify](https://github.com/robinst/linkify). 
+lychee parses other file formats as plaintext and extracts links using [linkify](https://github.com/robinst/linkify).
 This generally works well if there are no format or encoding specifics,
 but in case you need dedicated support for a new file format, please consider creating an issue.
-
 
 ### Docker Usage
 
@@ -206,67 +212,165 @@ token with no extra permissions is enough to be able to check public repos links
 There is an extensive list of commandline parameters to customize the behavior.
 See below for a full list.
 
-```ignore
-USAGE:
-    lychee [FLAGS] [OPTIONS] <inputs>...
+```text
+A fast, async link checker
 
-FLAGS:
-        --cache                  Use request cache stored on disk at `.lycheecache`
-        --dump                   Don't perform any link checking. Instead, dump all the links extracted from inputs that
-                                 would be checked
-    -E, --exclude-all-private    Exclude all private IPs from checking.
-                                 Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
-        --exclude-link-local     Exclude link-local IP address range from checking
-        --exclude-loopback       Exclude loopback IP address range and localhost from checking
-        --exclude-mail           Exclude all mail addresses from checking
-        --exclude-private        Exclude private IP address ranges from checking
-        --glob-ignore-case       Ignore case when expanding filesystem path glob inputs
-        --help                   Prints help information
-        --include-verbatim       Find links in verbatim sections like `pre`- and `code` blocks
-    -i, --insecure               Proceed for server connections considered insecure (invalid TLS)
-    -n, --no-progress            Do not show progress bar.
-                                 This is recommended for non-interactive shells (e.g. for continuous integration)
-        --offline                Only check local files and block network requests
-        --require-https          When HTTPS is available, treat HTTP links as errors
-        --skip-missing           Skip missing input files (default is to error if they don't exist)
-    -V, --version                Prints version information
-    -v, --verbose                Verbose program output
+Finds broken URLs and mail addresses inside Markdown, HTML, `reStructuredText`, websites and more!
 
-OPTIONS:
-    -a, --accept <accept>                      Comma-separated list of accepted status codes for valid links
-    -b, --base <base>                          Base URL or website root directory to check relative URLs e.g.
-                                               https://example.com or `/path/to/public`
-        --basic-auth <basic-auth>              Basic authentication support. E.g. `username:password`
-    -c, --config <config-file>                 Configuration file to use [default: ./lychee.toml]
-        --exclude <exclude>...                 Exclude URLs from checking (supports regex)
-        --exclude-file <exclude-file>...       Deprecated; use `--exclude-path` instead
-        --exclude-path <exclude-path>...       Exclude file path from getting checked
-    -f, --format <format>                      Output format of final status report (compact, detailed, json, markdown)
-                                               [default: compact]
-        --github-token <github-token>          GitHub API token to use when checking github.com links, to avoid rate
-                                               limiting [env: GITHUB_TOKEN]
-    -h, --headers <headers>...                 Custom request headers
-        --include <include>...                 URLs to check (supports regex). Has preference over all excludes
-        --max-cache-age <max-cache-age>        Discard all cached requests older than this duration [default: 1d]
-        --max-concurrency <max-concurrency>    Maximum number of concurrent network requests [default: 128]
-    -m, --max-redirects <max-redirects>        Maximum number of allowed redirects [default: 5]
-        --max-retries <max-retries>            Maximum number of retries per request [default: 3]
-    -X, --method <method>                      Request method [default: get]
-    -o, --output <output>                      Output file of status report
-        --remap <remap>...                     Remap URI matching pattern to different URI
-    -r, --retry-wait-time <retry-wait-time>    Minimum wait time in seconds between retries of failed requests [default:
-                                               1]
-    -s, --scheme <scheme>...                   Only test links with the given schemes (e.g. http and https)
-    -T, --threads <threads>                    Number of threads to utilize. Defaults to number of cores available to
-                                               the system
-    -t, --timeout <timeout>                    Website timeout in seconds from connect to response finished [default:
-                                               20]
-    -u, --user-agent <user-agent>              User agent [default: lychee/0.10.1]
+Usage: lychee [OPTIONS] <inputs>...
 
-ARGS:
-    <inputs>...    The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs
-                   (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard
-                   input (`-`). NOTE: Use `--` to separate inputs from options that allow multiple arguments
+Arguments:
+  <inputs>...
+          The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`). NOTE: Use `--` to separate inputs from options that allow multiple arguments
+
+Options:
+  -c, --config <CONFIG_FILE>
+          Configuration file to use
+          
+          [default: ./lychee.toml]
+
+  -v, --verbose...
+          Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)
+
+  -q, --quiet...
+          Less output per occurrence (e.g. `-q` or `-qq`)
+
+  -n, --no-progress
+          Do not show progress bar.
+          This is recommended for non-interactive shells (e.g. for continuous integration)
+
+      --cache
+          Use request cache stored on disk at `.lycheecache`
+
+      --max-cache-age <MAX_CACHE_AGE>
+          Discard all cached requests older than this duration
+          
+          [default: 1d]
+
+      --dump
+          Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
+
+  -m, --max-redirects <MAX_REDIRECTS>
+          Maximum number of allowed redirects
+          
+          [default: 5]
+
+      --max-retries <MAX_RETRIES>
+          Maximum number of retries per request
+          
+          [default: 3]
+
+      --max-concurrency <MAX_CONCURRENCY>
+          Maximum number of concurrent network requests
+          
+          [default: 128]
+
+  -T, --threads <THREADS>
+          Number of threads to utilize. Defaults to number of cores available to the system
+
+  -u, --user-agent <USER_AGENT>
+          User agent
+          
+          [default: lychee/0.10.3]
+
+  -i, --insecure
+          Proceed for server connections considered insecure (invalid TLS)
+
+  -s, --scheme <SCHEME>
+          Only test links with the given schemes (e.g. http and https)
+
+      --offline
+          Only check local files and block network requests
+
+      --include <INCLUDE>
+          URLs to check (supports regex). Has preference over all excludes
+
+      --exclude <EXCLUDE>
+          Exclude URLs and mail addresses from checking (supports regex)
+
+      --exclude-file <EXCLUDE_FILE>
+          Deprecated; use `--exclude-path` instead
+
+      --exclude-path <EXCLUDE_PATH>
+          Exclude file path from getting checked
+
+  -E, --exclude-all-private
+          Exclude all private IPs from checking.
+          Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
+
+      --exclude-private
+          Exclude private IP address ranges from checking
+
+      --exclude-link-local
+          Exclude link-local IP address range from checking
+
+      --exclude-loopback
+          Exclude loopback IP address range and localhost from checking
+
+      --exclude-mail
+          Exclude all mail addresses from checking
+
+      --remap <REMAP>
+          Remap URI matching pattern to different URI
+
+      --header <HEADER>
+          Custom request header
+
+  -a, --accept <ACCEPT>
+          Comma-separated list of accepted status codes for valid links
+
+  -t, --timeout <TIMEOUT>
+          Website timeout in seconds from connect to response finished
+          
+          [default: 20]
+
+  -r, --retry-wait-time <RETRY_WAIT_TIME>
+          Minimum wait time in seconds between retries of failed requests
+          
+          [default: 1]
+
+  -X, --method <METHOD>
+          Request method
+          
+          [default: get]
+
+  -b, --base <BASE>
+          Base URL or website root directory to check relative URLs e.g. https://example.com or `/path/to/public`
+
+      --basic-auth <BASIC_AUTH>
+          Basic authentication support. E.g. `username:password`
+
+      --github-token <GITHUB_TOKEN>
+          GitHub API token to use when checking github.com links, to avoid rate limiting
+          
+          [env: GITHUB_TOKEN]
+
+      --skip-missing
+          Skip missing input files (default is to error if they don't exist)
+
+      --include-verbatim
+          Find links in verbatim sections like `pre`- and `code` blocks
+
+      --glob-ignore-case
+          Ignore case when expanding filesystem path glob inputs
+
+  -o, --output <OUTPUT>
+          Output file of status report
+
+  -f, --format <FORMAT>
+          Output format of final status report (compact, detailed, json, markdown)
+          
+          [default: compact]
+
+      --require-https
+          When HTTPS is available, treat HTTP links as errors
+
+  -h, --help
+          Print help information (use `-h` for a summary)
+
+  -V, --version
+          Print version information
+
 ```
 
 ### Exit codes
@@ -278,10 +382,17 @@ ARGS:
 ### Ignoring links
 
 You can exclude links from getting checked by specifying regex patterns
-with `--exclude` (e.g. `--exclude example\.(com|org)`).  
+with `--exclude` (e.g. `--exclude example\.(com|org)`).
 If a file named `.lycheeignore` exists in the current working directory, its
-contents are excluded as well. The file allows you to list multiple regular 
+contents are excluded as well. The file allows you to list multiple regular
 expressions for exclusion (one pattern per line).
+
+For excluding files/directories from being scanned use `lychee.toml`
+and `exclude_path`.
+
+```toml
+exclude_path = ["some/path", "*/dev/*"]
+```
 
 ### Caching
 
@@ -360,15 +471,7 @@ Try one of these links to get started:
 - [good first issues](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 - [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 
-Lychee is written in Rust. Install [rust-up](https://rustup.rs/) to get started.
-Begin by making sure the following commands succeed without errors.
-
-```sh
-cargo test # runs tests
-cargo clippy # lints code
-cargo install cargo-publish-all
-cargo-publish-all --dry-run --yes # dry run release
-```
+For more detailed instructions, head over to [`CONTRIBUTING.md`](/CONTRIBUTING.md).
 
 ## Debugging and improving async code
 
@@ -400,6 +503,7 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 
 ## Users
 
+- https://github.com/InnerSourceCommons/InnerSourcePatterns
 - https://github.com/opensearch-project/OpenSearch
 - https://github.com/ramitsurana/awesome-kubernetes
 - https://github.com/papers-we-love/papers-we-love

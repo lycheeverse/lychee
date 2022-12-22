@@ -43,6 +43,9 @@ pub enum ErrorKind {
     /// Invalid Github URL
     #[error("Github URL is invalid: {0}")]
     InvalidGithubUrl(String),
+    /// The input is empty and not accepted as a valid URL
+    #[error("URL cannot be empty")]
+    EmptyUrl,
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
     #[error("Cannot parse string `{1}` as website url: {0}")]
     ParseUrl(#[source] url::ParseError, String),
@@ -90,15 +93,18 @@ pub enum ErrorKind {
     /// Cannot parse the given URI
     #[error("The given URI is invalid: {0}")]
     InvalidURI(Uri),
+    /// The given status code is invalid (not in the range 100-1000)
+    #[error("Invalid status code: {0}")]
+    InvalidStatusCode(u16),
     /// Regex error
     #[error("Error when using regex engine: {0}")]
     Regex(#[from] regex::Error),
 }
 
 impl ErrorKind {
-    /// Return more details from the given [`ErrorKind`]
+    /// Return more details about the given [`ErrorKind`]
     ///
-    /// What additional information we can extract depends on the underlying
+    /// Which additional information we can extract depends on the underlying
     /// request type. The output is purely meant for humans (e.g. for status
     /// messages) and future changes are expected.
     #[must_use]
@@ -155,6 +161,12 @@ impl PartialEq for ErrorKind {
             }
             (Self::InvalidHeader(_), Self::InvalidHeader(_))
             | (Self::MissingGitHubToken, Self::MissingGitHubToken) => true,
+            (Self::InvalidStatusCode(c1), Self::InvalidStatusCode(c2)) => c1 == c2,
+            (Self::InvalidUrlHost, Self::InvalidUrlHost) => true,
+            (Self::InvalidURI(u1), Self::InvalidURI(u2)) => u1 == u2,
+            (Self::Regex(e1), Self::Regex(e2)) => e1.to_string() == e2.to_string(),
+            (Self::DirTraversal(e1), Self::DirTraversal(e2)) => e1.to_string() == e2.to_string(),
+            (Self::Channel(_), Self::Channel(_)) => true,
             _ => false,
         }
     }
@@ -180,6 +192,7 @@ impl Hash for ErrorKind {
             Self::InvalidGithubUrl(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
             Self::FileNotFound(e) => e.to_string_lossy().hash(state),
+            Self::EmptyUrl => "Empty URL".hash(state),
             Self::ParseUrl(e, s) => (e.to_string(), s).hash(state),
             Self::InvalidURI(u) => u.hash(state),
             Self::InvalidUrlFromPath(p) => p.hash(state),
@@ -191,6 +204,7 @@ impl Hash for ErrorKind {
             Self::InvalidUriRemap(remap) => (remap).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
+            Self::InvalidStatusCode(c) => c.hash(state),
             Self::Channel(e) => e.to_string().hash(state),
             Self::MissingGitHubToken | Self::InvalidUrlHost => {
                 std::mem::discriminant(self).hash(state);

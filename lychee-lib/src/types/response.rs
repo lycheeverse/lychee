@@ -74,26 +74,12 @@ impl Display for ResponseBody {
         // Add a separator between the URI and the additional details below.
         // Note: To make the links clickable in some terminals,
         // we add a space before the separator.
-        write!(f, " | ")?;
+        write!(f, " | {}", self.status)?;
 
-        match &self.status {
-            Status::Ok(code) => write!(f, "{}", code.canonical_reason().unwrap_or("OK")),
-            Status::Redirected(code) => {
-                write!(f, "{}", code.canonical_reason().unwrap_or("Redirected"))
-            }
-            Status::Timeout(Some(code)) => write!(f, "Timeout [{code}]"),
-            Status::Timeout(None) => write!(f, "Timeout"),
-            Status::UnknownStatusCode(code) => write!(f, "Unknown status code [{code}]"),
-            Status::Excluded => write!(f, "Excluded"),
-            Status::Unsupported(e) => write!(f, "Unsupported {e}"),
-            Status::Cached(status) => write!(f, "{status}"),
-            Status::Error(e) => {
-                if let Some(details) = e.details() {
-                    write!(f, "{e}: {details}")
-                } else {
-                    write!(f, "{e}")
-                }
-            }
+        if let Some(details) = self.status.details() {
+            write!(f, ": {details}")
+        } else {
+            Ok(())
         }
     }
 }

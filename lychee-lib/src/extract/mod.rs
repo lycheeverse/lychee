@@ -11,10 +11,13 @@ use plaintext::extract_plaintext;
 /// Check if the given element is in the list of preformatted ("verbatim") tags.
 ///
 /// These will be excluded from link checking by default.
+// Including the <script> tag is debatable, but the alternative is to
+// have a separate list of tags which need a separate config setting and that
+// seems worse.
 pub(crate) fn is_verbatim_elem(name: &str) -> bool {
     matches!(
         name,
-        "pre" | "code" | "textarea" | "samp" | "xmp" | "plaintext" | "listing"
+        "code" | "listing" | "plaintext" | "samp" | "script" | "textarea" | "xmp" | "pre"
     )
 }
 
@@ -98,6 +101,24 @@ mod tests {
 
         assert_eq!(uris_html5gum, uris_html5ever);
         uris_html5gum
+    }
+
+    #[test]
+    fn test_verbatim_matching() {
+        assert!(is_verbatim_elem("pre"));
+        assert!(is_verbatim_elem("code"));
+        assert!(is_verbatim_elem("listing"));
+    }
+
+    #[test]
+    fn verbatim_elem() {
+        let input = r#"
+        <pre>
+        https://example.com
+        </pre>
+        "#;
+        let uris = extract_uris(input, FileType::Html);
+        assert!(uris.is_empty());
     }
 
     #[test]

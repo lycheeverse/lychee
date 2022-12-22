@@ -1,12 +1,11 @@
 #[cfg(test)]
 mod readme {
-    use std::{
-        fs::File,
-        io::{BufReader, Read},
-        path::Path,
-    };
+    use std::{fs, path::Path};
 
     use assert_cmd::Command;
+    use pretty_assertions::assert_eq;
+
+    const USAGE_STRING: &str = "Usage: lychee [OPTIONS] <inputs>...\n";
 
     fn main_command() -> Command {
         // this gets the "main" binary name (e.g. `lychee`)
@@ -18,15 +17,7 @@ mod readme {
             .parent()
             .unwrap()
             .join("README.md");
-        let file = File::open(readme_path).expect("Couldn't open README.md");
-        let mut buf_reader = BufReader::new(file);
-        let mut text = String::new();
-
-        buf_reader
-            .read_to_string(&mut text)
-            .expect("Unable to read README.md file contents");
-
-        text
+        fs::read_to_string(readme_path).unwrap()
     }
 
     /// Test that the USAGE section in `README.md` is up to date with
@@ -36,35 +27,20 @@ mod readme {
     /// involved parsing).
     #[test]
     #[cfg(unix)]
-    fn test_readme_usage_up_to_date() {
+    fn test_readme_usage_up_to_date() -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = main_command();
 
-        let result = cmd.env_clear().arg("--help").assert().success();
-        let help_output = std::str::from_utf8(&result.get_output().stdout)
-            .expect("Invalid utf8 output for `--help`");
-        let readme = load_readme_text();
-
-        const BACKTICKS_OFFSET: usize = 9; // marker: ```ignore
-        const NEWLINE_OFFSET: usize = 1;
-
-        let usage_start = BACKTICKS_OFFSET
-            + NEWLINE_OFFSET
-            + readme
-                .find("```ignore\nUSAGE:\n")
-                .expect("Couldn't find USAGE section in README.md");
-
-        let usage_end = readme[usage_start..]
-            .find("\n```")
-            .expect("Couldn't find USAGE section end in README.md");
-
-        // include final newline in usage text
-        let usage_in_readme = &readme[usage_start..usage_start + usage_end + NEWLINE_OFFSET];
-
-        let usage_in_help_start = help_output
-            .find("USAGE:\n")
-            .expect("Couldn't find USAGE section in `--help` output");
+        let help_cmd = cmd.env_clear().arg("--help").assert().success();
+        let help_output = std::str::from_utf8(&help_cmd.get_output().stdout).unwrap();
+        let usage_in_help_start = help_output.find(USAGE_STRING).unwrap();
         let usage_in_help = &help_output[usage_in_help_start..];
 
+        let readme = load_readme_text();
+        let usage_start = readme.find(USAGE_STRING).unwrap();
+        let usage_end = readme[usage_start..].find("\n```").unwrap();
+        let usage_in_readme = &readme[usage_start..usage_start + usage_end];
+
         assert_eq!(usage_in_readme, usage_in_help);
+        Ok(())
     }
 }

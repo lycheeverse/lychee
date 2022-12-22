@@ -55,7 +55,16 @@ pub fn is_example_domain(uri: &Uri) -> bool {
             // `foo.example.com`
             EXAMPLE_DOMAINS.iter().any(|tld| domain.ends_with(tld))
         }
-        None => false,
+        None => {
+            // Check if the URI is an email address.
+            // e.g. `mailto:mail@example.com`
+            // In this case, the domain is part of the path
+            if uri.is_mail() {
+                EXAMPLE_DOMAINS.iter().any(|tld| uri.path().ends_with(tld))
+            } else {
+                false
+            }
+        }
     };
     res
 }
@@ -304,7 +313,7 @@ mod tests {
     #[test]
     fn test_overwrite_false_positives() {
         let includes = Includes {
-            regex: RegexSet::new(&[r"http://www.w3.org/1999/xhtml"]).unwrap(),
+            regex: RegexSet::new([r"http://www.w3.org/1999/xhtml"]).unwrap(),
         };
         let filter = Filter {
             includes: Some(includes),
@@ -316,7 +325,7 @@ mod tests {
     #[test]
     fn test_include_regex() {
         let includes = Includes {
-            regex: RegexSet::new(&[r"foo.example.com"]).unwrap(),
+            regex: RegexSet::new([r"foo.example.com"]).unwrap(),
         };
         let filter = Filter {
             includes: Some(includes),
@@ -344,7 +353,7 @@ mod tests {
     #[test]
     fn test_exclude_regex() {
         let excludes = Excludes {
-            regex: RegexSet::new(&[r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap(),
+            regex: RegexSet::new([r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap(),
         };
         let filter = Filter {
             excludes: Some(excludes),
@@ -361,10 +370,10 @@ mod tests {
     #[test]
     fn test_exclude_include_regex() {
         let includes = Includes {
-            regex: RegexSet::new(&[r"foo.example.com"]).unwrap(),
+            regex: RegexSet::new([r"foo.example.com"]).unwrap(),
         };
         let excludes = Excludes {
-            regex: RegexSet::new(&[r"example.com"]).unwrap(),
+            regex: RegexSet::new([r"example.com"]).unwrap(),
         };
         let filter = Filter {
             includes: Some(includes),

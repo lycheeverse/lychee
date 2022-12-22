@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, fmt::Display, net::IpAddr};
 
-use fast_chemail::parse_email;
+use email_address::EmailAddress;
 use ip_network::Ipv6Network;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -53,6 +53,13 @@ impl Uri {
 
     #[inline]
     #[must_use]
+    /// Returns the path of the URI (e.g. `/path/to/resource`)
+    pub fn path(&self) -> &str {
+        self.url.path()
+    }
+
+    #[inline]
+    #[must_use]
     /// Unless this URL is cannot-be-a-base,
     /// return an iterator of '/' slash-separated path segments,
     /// each as a percent-encoded ASCII string.
@@ -85,6 +92,13 @@ impl Uri {
     /// Check if the URI is a file
     pub fn is_file(&self) -> bool {
         self.scheme() == "file"
+    }
+
+    #[inline]
+    #[must_use]
+    /// Check if the URI is a `data` URI
+    pub fn is_data(&self) -> bool {
+        self.scheme() == "data"
     }
 
     #[inline]
@@ -191,16 +205,48 @@ impl TryFrom<String> for Uri {
 impl TryFrom<&str> for Uri {
     type Error = ErrorKind;
 
+    /// Create a new URI from a string
+    ///
+    /// Note:
+    /// We do not handle relative URLs here, as we do not know the base URL.
+    /// Furthermore paths also cannot be resolved, as we do not know the file system.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the string is not a valid URI
+    ///
     fn try_from(s: &str) -> Result<Self> {
-        let s = s.trim_start_matches("mailto:");
-        // Silently ignore mail parse errors as they are very common and expected for most URIs
-        if parse_email(s).is_err() {
-            match Url::parse(s) {
-                Ok(uri) => Ok(uri.into()),
-                Err(url_err) => Err(ErrorKind::ParseUrl(url_err, s.to_owned())),
+        // Empty strings are accepted when being parsed with `Url::parse`,
+        // but we don't want to accept them because there is no clear definition
+        // of "validity" in this case.
+        if s.is_empty() {
+            return Err(ErrorKind::EmptyUrl);
+        }
+
+        match Url::parse(s) {
+            Ok(uri) => Ok(uri.into()),
+            Err(err) => {
+                // This could be a relative URL or a mail address or something
+                // else entirely. Try the mail address check first, as it's the
+                // most common case. Note that we use a relatively weak check
+                // here because
+                // - `fast_chemail::parse_email` does not accept parameters
+                //   (`foo@example?subject=bar`), which are common for website
+                //   contact forms
+                // - `check_if_email_exists` does additional spam detection,
+                //   which we only want to execute when checking the email
+                //   addresses, but not when printing all links with `--dump`.
+                if EmailAddress::is_valid(s) {
+                    // Use the `mailto:` scheme for mail addresses,
+                    // which will allow `Url::parse` to parse them.
+                    if let Ok(uri) = Url::parse(&format!("mailto:{s}")) {
+                        return Ok(uri.into());
+                    };
+                };
+
+                // We do not handle relative URLs here, as we do not know the base URL.
+                Err(ErrorKind::ParseUrl(err, s.to_owned()))
             }
-        } else {
-            Ok(Url::parse(&format!("mailto:{s}")).unwrap().into())
         }
     }
 }
@@ -242,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn test_uri_from_str() {
+    fn test_uri_from_url() {
         assert!(Uri::try_from("").is_err());
         assert_eq!(
             Uri::try_from("https://example.com"),
@@ -252,6 +298,10 @@ mod tests {
             Uri::try_from("https://example.com/@test/testing"),
             Ok(website("https://example.com/@test/testing"))
         );
+    }
+
+    #[test]
+    fn test_uri_from_email_str() {
         assert_eq!(
             Uri::try_from("mail@example.com"),
             Ok(mail("mail@example.com"))
@@ -259,6 +309,10 @@ mod tests {
         assert_eq!(
             Uri::try_from("mailto:mail@example.com"),
             Ok(mail("mail@example.com"))
+        );
+        assert_eq!(
+            Uri::try_from("mail@example.com?foo=bar"),
+            Ok(mail("mail@example.com?foo=bar"))
         );
     }
 

@@ -16,6 +16,7 @@ struct LinkExtractor {
     current_attribute_value: Vec<u8>,
     last_start_element: Vec<u8>,
     include_verbatim: bool,
+    current_verbatim_element_name: Option<Vec<u8>>,
 }
 
 /// this is the same as `std::str::from_utf8_unchecked`, but with extra debug assertions for ease
@@ -37,6 +38,7 @@ impl LinkExtractor {
             current_attribute_value: Vec::new(),
             last_start_element: Vec::new(),
             include_verbatim,
+            current_verbatim_element_name: None,
         }
     }
 
@@ -92,7 +94,8 @@ impl LinkExtractor {
     fn flush_current_characters(&mut self) {
         // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
         let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
-        if !self.include_verbatim && is_verbatim_elem(name) {
+        if !self.include_verbatim && (is_verbatim_elem(name) || self.inside_verbatim_block()) {
+            self.update_verbatim_element_name();
             // Early return if we don't want to extract links from preformatted text
             self.current_string.clear();
             return;
@@ -103,14 +106,47 @@ impl LinkExtractor {
         self.current_string.clear();
     }
 
+    /// Check if we are currently inside a verbatim element.
+    const fn inside_verbatim_block(&self) -> bool {
+        self.current_verbatim_element_name.is_some()
+    }
+
+    /// Update the current verbatim element name.
+    ///
+    /// Keeps track of the last verbatim element name, so that we can
+    /// properly handle nested verbatim blocks.
+    fn update_verbatim_element_name(&mut self) {
+        if self.current_element_is_closing {
+            if self.inside_verbatim_block() {
+                // If we are closing a verbatim element, we need to check if it is the
+                // top-level verbatim element. If it is, we need to reset the verbatim block.
+                if Some(&self.current_element_name) == self.current_verbatim_element_name.as_ref() {
+                    self.current_verbatim_element_name = None;
+                }
+            }
+        } else if !self.include_verbatim
+            && is_verbatim_elem(unsafe { from_utf8_unchecked(&self.current_element_name) })
+        {
+            // If we are opening a verbatim element, we need to check if we are already
+            // inside a verbatim element. If so, we need to ignore this element.
+            if !self.inside_verbatim_block() {
+                self.current_verbatim_element_name = Some(self.current_element_name.clone());
+            }
+        }
+    }
+
     fn flush_old_attribute(&mut self) {
         {
             // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
             let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
-            if !self.include_verbatim && is_verbatim_elem(name) {
-                // Early return if we don't want to extract links from preformatted text
+
+            // Early return if we don't want to extract links from verbatim
+            // blocks (e.g. preformatted text)
+            if !self.include_verbatim && (is_verbatim_elem(name) || self.inside_verbatim_block()) {
+                self.update_verbatim_element_name();
                 return;
             }
+
             let attr = unsafe { from_utf8_unchecked(&self.current_attribute_name) };
             let value = unsafe { from_utf8_unchecked(&self.current_attribute_value) };
 
@@ -302,10 +338,48 @@ mod tests {
     }
 
     #[test]
+    fn test_include_verbatim_recursive() {
+        const HTML_INPUT: &str = r#"
+        <a href="https://example.com/">valid link</a>
+        <code>
+            <pre>
+                <span>https://example.org</span>
+            </pre>
+        </code>
+        "#;
+
+        let expected = vec![RawUri {
+            text: "https://example.com/".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+
+        let uris = extract_html(HTML_INPUT, false);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
     fn test_include_nofollow() {
         let input = r#"
         <a rel="nofollow" href="https://foo.com">do not follow me</a> 
         <a rel="canonical,nofollow,dns-prefetch" href="https://example.com">do not follow me</a> 
+        <a href="https://example.org">i'm fine</a> 
+        "#;
+        let expected = vec![RawUri {
+            text: "https://example.org".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_exclude_script_tags() {
+        let input = r#"
+        <script>
+        var foo = "https://example.com";
+        </script>
         <a href="https://example.org">i'm fine</a> 
         "#;
         let expected = vec![RawUri {
