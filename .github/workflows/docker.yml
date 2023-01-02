@@ -7,8 +7,6 @@ on:
     types:
       - completed
   push:
-    branches:
-      - "**"
     tags:
       - "v*.*.*"
   pull_request:
