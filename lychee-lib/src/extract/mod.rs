@@ -17,7 +17,18 @@ use plaintext::extract_plaintext;
 pub(crate) fn is_verbatim_elem(name: &str) -> bool {
     matches!(
         name,
-        "code" | "listing" | "plaintext" | "samp" | "script" | "textarea" | "xmp" | "pre"
+        "address"
+            | "code"
+            | "kbd"
+            | "listing"
+            | "noscript"
+            | "plaintext"
+            | "pre"
+            | "samp"
+            | "script"
+            | "textarea"
+            | "var"
+            | "xmp"
     )
 }
 
@@ -108,6 +119,7 @@ mod tests {
         assert!(is_verbatim_elem("pre"));
         assert!(is_verbatim_elem("code"));
         assert!(is_verbatim_elem("listing"));
+        assert!(is_verbatim_elem("script"));
     }
 
     #[test]

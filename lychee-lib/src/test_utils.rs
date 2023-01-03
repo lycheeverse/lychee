@@ -39,6 +39,7 @@ pub(crate) fn website(url: &str) -> Uri {
     Uri::from(Url::parse(url).expect("Expected valid Website URI"))
 }
 
+/// Creates a mail URI from a string
 pub(crate) fn mail(address: &str) -> Uri {
     if address.starts_with("mailto:") {
         Url::parse(address)
@@ -49,6 +50,7 @@ pub(crate) fn mail(address: &str) -> Uri {
     .into()
 }
 
+/// Loads a fixture from the `fixtures` directory
 pub(crate) fn load_fixture(filename: &str) -> String {
     let fixture_path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()

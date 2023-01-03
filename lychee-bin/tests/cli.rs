@@ -19,6 +19,7 @@ mod cli {
     // constant.
     const LYCHEE_CACHE_FILE: &str = ".lycheecache";
 
+    /// Helper macro to create a mock server which returns a custom status code.
     macro_rules! mock_server {
         ($status:expr $(, $func:tt ($($arg:expr),*))*) => {{
             let mock_server = wiremock::MockServer::start().await;
@@ -29,11 +30,25 @@ mod cli {
         }};
     }
 
+    /// Helper macro to create a mock server which returns a 200 OK and a custom response body.
+    macro_rules! mock_response {
+        ($body:expr) => {{
+            let mock_server = wiremock::MockServer::start().await;
+            let template = wiremock::ResponseTemplate::new(200).set_body_string($body);
+            wiremock::Mock::given(wiremock::matchers::method("GET"))
+                .respond_with(template)
+                .mount(&mock_server)
+                .await;
+            mock_server
+        }};
+    }
+
+    /// Gets the "main" binary name (e.g. `lychee`)
     fn main_command() -> Command {
-        // this gets the "main" binary name (e.g. `lychee`)
         Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name")
     }
 
+    /// Helper function to get the path to the fixtures directory.
     fn fixtures_path() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
@@ -82,6 +97,7 @@ mod cli {
         }
     }
 
+    /// Helper macro to test the output of the JSON format.
     macro_rules! test_json_output {
         ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
             let mut cmd = main_command();
@@ -847,6 +863,20 @@ mod cli {
     }
 
     #[test]
+    fn test_verbatim_skipped_by_default() -> Result<()> {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("TEST_CODE_BLOCKS.md");
+
+        cmd.arg(input)
+            .arg("--dump")
+            .assert()
+            .success()
+            .stdout(is_empty());
+
+        Ok(())
+    }
+
+    #[test]
     fn test_include_verbatim() -> Result<()> {
         let mut cmd = main_command();
         let input = fixtures_path().join("TEST_CODE_BLOCKS.md");
@@ -863,17 +893,41 @@ mod cli {
         Ok(())
     }
 
-    #[test]
-    fn test_exclude_verbatim() -> Result<()> {
+    #[tokio::test]
+    async fn test_verbatim_skipped_by_default_via_remote_url() -> Result<()> {
         let mut cmd = main_command();
-        let input = fixtures_path().join("TEST_CODE_BLOCKS.md");
+        let file = fixtures_path().join("TEST_VERBATIM.html");
+        let body = fs::read_to_string(file)?;
+        let mock_server = mock_response!(body);
 
-        cmd.arg(input)
-            .arg("--dump")
+        cmd.arg("--dump")
+            .arg(mock_server.uri())
             .assert()
             .success()
             .stdout(is_empty());
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_include_verbatim_via_remote_url() -> Result<()> {
+        let mut cmd = main_command();
+        let file = fixtures_path().join("TEST_VERBATIM.html");
+        let body = fs::read_to_string(file)?;
+        let mock_server = mock_response!(body);
+
+        cmd.arg("--include-verbatim")
+            .arg("--dump")
+            .arg(mock_server.uri())
+            .assert()
+            .success()
+            .stdout(contains("http://www.example.com/pre"))
+            .stdout(contains("http://www.example.com/code"))
+            .stdout(contains("http://www.example.com/samp"))
+            .stdout(contains("http://www.example.com/kbd"))
+            .stdout(contains("http://www.example.com/var"))
+            .stdout(contains("http://www.example.com/address"))
+            .stdout(contains("http://www.example.com/script"));
         Ok(())
     }
 
