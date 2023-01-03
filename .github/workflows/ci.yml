@@ -26,7 +26,7 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
       - name: Run cargo test
-        run: cargo nextest run
+        run: cargo nextest run --all-targets --all-features
 
   lint:
     runs-on: ubuntu-latest
@@ -47,7 +47,7 @@ jobs:
         with:
           command: clippy
           # --all-targets makes it lint tests too
-          args: --all-targets -- --deny warnings
+          args: --all-targets --all-features -- -D warnings
 
   publish-check:
     runs-on: ubuntu-latest
