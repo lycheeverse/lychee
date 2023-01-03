@@ -27,6 +27,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+          args: --all-targets --all-features
 
   lint:
     runs-on: ubuntu-latest
@@ -46,7 +47,7 @@ jobs:
         with:
           command: clippy
           # --all-targets makes it lint tests too
-          args: --all-targets -- --deny warnings
+          args: --all-targets --all-features -- -D warnings
 
   publish-check:
     needs:
