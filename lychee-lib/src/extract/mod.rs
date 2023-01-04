@@ -17,8 +17,7 @@ use plaintext::extract_plaintext;
 pub(crate) fn is_verbatim_elem(name: &str) -> bool {
     matches!(
         name,
-        "address"
-            | "code"
+        "code"
             | "kbd"
             | "listing"
             | "noscript"
