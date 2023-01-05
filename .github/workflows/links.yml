@@ -4,13 +4,16 @@ on:
   repository_dispatch:
   workflow_dispatch:
   schedule:
+    # runs at 18-th hour every day
     - cron: "00 18 * * *"
 
 jobs:
   linkChecker:
+    name: Self-check links
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout lychee source code
+        uses: actions/checkout@v3
 
       - name: Link Checker
         uses: lycheeverse/lychee-action@master

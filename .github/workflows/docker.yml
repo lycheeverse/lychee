@@ -22,10 +22,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     if: github.repository_owner == 'lycheeverse' &&
-        github.actor != 'dependabot[bot]' && 
+        github.actor != 'dependabot[bot]' &&
         ( github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == github.event.pull_request.base.repo.owner.login )
     steps:
-      - name: Checkout
+      - name: Checkout lychee source code
         uses: actions/checkout@v3
 
       - name: Docker meta
