@@ -30,7 +30,7 @@ jobs:
           override: true
 
       - name: Run cargo check
-        uses: actions-rs/cargo@v2
+        uses: actions-rs/cargo@v1
         with:
           command: check
 
@@ -48,7 +48,7 @@ jobs:
           override: true
 
       - name: Run cargo test
-        uses: actions-rs/cargo@v2
+        uses: actions-rs/cargo@v1
         with:
           command: test
 
@@ -67,7 +67,7 @@ jobs:
           override: true
 
       - name: Run cargo fmt in check mode
-        uses: actions-rs/cargo@v2
+        uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
@@ -87,7 +87,7 @@ jobs:
           override: true
 
       - name: Run cargo clippy (deny warnings)
-        uses: actions-rs/cargo@v2
+        uses: actions-rs/cargo@v1
         with:
           command: clippy
           # --all-targets makes it lint tests too
@@ -105,12 +105,12 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Fetch cargo dependencies
-        uses: actions-rs/cargo@v2
+        uses: actions-rs/cargo@v1
         with:
           command: fetch
 
       - name: Publish checks for lychee-lib
-        uses: actions-rs/cargo@v2
+        uses: actions-rs/cargo@v1
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         with:
@@ -144,12 +144,12 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Fetch cargo dependencies
-        uses: actions-rs/cargo@v2
+        uses: actions-rs/cargo@v1
         with:
           command: fetch
 
       - name: Publish lychee-lib
-        uses: actions-rs/cargo@v2
+        uses: actions-rs/cargo@v1
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         with:
@@ -161,7 +161,7 @@ jobs:
         shell: bash
 
       - name: Publish lychee-bin
-        uses: actions-rs/cargo@v2
+        uses: actions-rs/cargo@v1
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         with:

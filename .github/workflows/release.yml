@@ -84,7 +84,7 @@ jobs:
 
       - name: Build binary (${{ matrix.target }}-linux)
         if: ${{ matrix.os == 'ubuntu-latest' }}
-        uses: actions-rs/cargo@v2
+        uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release --target ${{ matrix.target }} --features vendored-openssl
@@ -92,7 +92,7 @@ jobs:
 
       - name: Build binary (macos and windows)
         if: ${{ matrix.os != 'ubuntu-latest' }}
-        uses: actions-rs/cargo@v2
+        uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release
