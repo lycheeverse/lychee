@@ -53,7 +53,7 @@ impl Default for Quirks {
                 // (https://img.youtube.com/vi/{video_id}/0.jpg).
                 // This works for all known video visibilities.
                 // See https://github.com/lycheeverse/lychee/issues/214#issuecomment-819103393)
-                pattern: Regex::new(r"^(https?://)?(www\.)?(youtube\.com|youtu\.?be)").unwrap(),
+                pattern: Regex::new(r"^(https?://)?(www\.)?(youtube\.com)").unwrap(),
                 rewrite: |mut request| {
                     if request.url().path() != "/watch" {
                         return request;
@@ -62,6 +62,19 @@ impl Default for Quirks {
                         *request.url_mut() =
                             Url::parse(&format!("https://img.youtube.com/vi/{id}/0.jpg")).unwrap();
                     }
+                    request
+                },
+            },
+            Quirk {
+                pattern: Regex::new(r"^(https?://)?(www\.)?(youtu\.?be)").unwrap(),
+                rewrite: |mut request| {
+                    // Short links use the path as video id
+                    let id = request.url().path().trim_start_matches('/');
+                    if id.is_empty() {
+                        return request;
+                    }
+                    *request.url_mut() =
+                        Url::parse(&format!("https://img.youtube.com/vi/{id}/0.jpg")).unwrap();
                     request
                 },
             },
@@ -154,6 +167,19 @@ mod tests {
         let request = Request::new(Method::GET, url);
         let modified = Quirks::default().apply(request);
         let expected_url = Url::parse("https://img.youtube.com/vi/NlKuICiT470/0.jpg").unwrap();
+
+        assert_eq!(
+            MockRequest(modified),
+            MockRequest::new(Method::GET, expected_url)
+        );
+    }
+
+    #[test]
+    fn test_youtube_video_shortlink_request() {
+        let url = Url::parse("https://youtu.be/Rvu7N4wyFpk?t=42").unwrap();
+        let request = Request::new(Method::GET, url);
+        let modified = Quirks::default().apply(request);
+        let expected_url = Url::parse("https://img.youtube.com/vi/Rvu7N4wyFpk/0.jpg").unwrap();
 
         assert_eq!(
             MockRequest(modified),
