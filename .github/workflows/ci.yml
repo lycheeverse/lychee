@@ -26,6 +26,7 @@ jobs:
       - name: Install minimal rust toolchain
         uses: actions-rs/toolchain@v1
         with:
+          toolchain: stable
           profile: minimal
           override: true
 
@@ -44,6 +45,7 @@ jobs:
       - name: Install minimal rust toolchain
         uses: actions-rs/toolchain@v1
         with:
+          toolchain: stable
           profile: minimal
           override: true
 
@@ -62,6 +64,7 @@ jobs:
       - name: Install minimal rust toolchain with rustfmt
         uses: actions-rs/toolchain@v1
         with:
+          toolchain: stable
           profile: minimal
           components: rustfmt
           override: true
@@ -82,6 +85,7 @@ jobs:
       - name: Install minimal rust toolchain with clippy
         uses: actions-rs/toolchain@v1
         with:
+          toolchain: stable
           profile: minimal
           components: clippy
           override: true
