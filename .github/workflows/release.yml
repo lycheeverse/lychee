@@ -130,7 +130,7 @@ jobs:
           esac
 
       - name: Upload binary
-        uses: softprops/upload-release-asset@v1
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
