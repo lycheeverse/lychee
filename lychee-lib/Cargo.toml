@@ -19,7 +19,7 @@ version = "0.10.3"
 [dependencies]
 check-if-email-exists = "0.9.0"
 email_address = "0.2.4"
-glob = "0.3.0"
+glob = "0.3.1"
 http = "0.2.8"
 linkify = "0.9.0"
 openssl-sys = "0.9.80"
