@@ -20,7 +20,7 @@ use http::{
     header::{HeaderMap, HeaderValue},
     StatusCode,
 };
-use octocrab::Octocrab;
+use octocrab::{models::Repository, Octocrab};
 use regex::RegexSet;
 use reqwest::{header, Url};
 use secrecy::{ExposeSecret, SecretString};
@@ -439,7 +439,7 @@ impl Client {
         } else if uri.is_mail() {
             self.check_mail(uri).await
         } else {
-            match self.check_website(uri).await {
+            match self.check_website(&uri).await? {
                 Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                     let mut https_uri = uri.clone();
                     {
@@ -448,7 +448,7 @@ impl Client {
                         debug_assert!(!https_uri.url.cannot_be_a_base());
                         https_uri.set_scheme("https").unwrap();
                     }
-                    if self.check_website(&https_uri).await.is_success() {
+                    if self.check_website(&https_uri).await?.is_success() {
                         Status::Error(ErrorKind::InsecureURL(https_uri))
                     } else {
                         Status::Ok(code)
@@ -478,19 +478,26 @@ impl Client {
     /// Checks the given URI of a website.
     ///
     /// Unsupported schemes will be ignored
-    pub async fn check_website(&self, uri: &Uri) -> Status {
+    ///
+    /// # Errors
+    ///
+    /// This returns an `Err` if
+    /// - The URI is invalid.
+    /// - The request failed.
+    /// - The response status code is not accepted.
+    pub async fn check_website(&self, uri: &Uri) -> Result<Status> {
         // Workaround for upstream reqwest panic
         if validate_url(&uri.url) {
             if matches!(uri.scheme(), "http" | "https") {
                 // This is a truly invalid URI with a known scheme.
                 // If we pass that to reqwest it would panic.
-                return Status::Error(ErrorKind::InvalidURI(uri.clone()));
+                return Ok(Status::Error(ErrorKind::InvalidURI(uri.clone())));
             }
             // This is merely a URI with a scheme that is not supported by
             // reqwest yet. It would be safe to pass that to reqwest and it
             // wouldn't panic, but it's also unnecessary, because it would
             // simply return an error.
-            return Status::Unsupported(ErrorKind::InvalidURI(uri.clone()));
+            return Ok(Status::Unsupported(ErrorKind::InvalidURI(uri.clone())));
         }
 
         let mut retries: u64 = 0;
@@ -499,7 +506,7 @@ impl Client {
         let mut status = self.check_default(uri).await;
         while retries < self.max_retries {
             if status.is_success() {
-                return status;
+                return Ok(status);
             }
             sleep(wait_time).await;
             retries += 1;
@@ -511,15 +518,15 @@ impl Client {
         // This could be a GitHub URL and we ran into the rate limiter.
         // TODO: We should first try to parse the URI as GitHub URI first (Lucius, Jan 2023)
         if let Ok(github_uri) = GithubUri::try_from(uri) {
-            let status = self.check_github(github_uri).await;
+            let status = self.check_github(github_uri).await?;
             // Only return Github status in case of success
             // Otherwise return the original error, which has more information
             if status.is_success() {
-                return status;
+                return Ok(status);
             }
         }
 
-        status
+        Ok(status)
     }
 
     /// Check a `uri` hosted on `GitHub` via the GitHub API.
@@ -532,27 +539,38 @@ impl Client {
     ///
     /// A better approach would be to download the file through the API or
     /// clone the repo, but we chose the pragmatic approach.
-    async fn check_github(&self, uri: GithubUri) -> Status {
-        let Some(client) = &self.github_client else { return ErrorKind::MissingGitHubToken.into() };
-        let repo = match client.repos(&uri.owner, &uri.repo).get().await {
-            Ok(repo) => repo,
-            Err(e) => return ErrorKind::GithubRequest(e).into(),
-        };
+    async fn check_github(&self, uri: GithubUri) -> Result<Status> {
+        let client = self
+            .github_client
+            .as_ref()
+            .ok_or(ErrorKind::MissingGitHubToken)?;
+
+        let repo = Self::get_repo(client, &uri).await?;
         if let Some(true) = repo.private {
             // The private repo exists. Assume a given endpoint exists as well
             // (e.g. `issues` in `github.com/org/private/issues`). This is not
             // always the case but simplifies the check.
-            return Status::Ok(StatusCode::OK);
+            return Ok(Status::Ok(StatusCode::OK));
         } else if let Some(endpoint) = uri.endpoint {
             // The URI returned a non-200 status code from a normal request and
             // now we find that this public repo is reachable through the API,
             // so that must mean the full URI (which includes the additional
             // endpoint) must be invalid.
-            return ErrorKind::InvalidGithubUrl(format!("{}/{}/{endpoint}", uri.owner, uri.repo))
-                .into();
+            return Err(ErrorKind::InvalidGithubUrl(format!(
+                "{}/{}/{endpoint}",
+                uri.owner, uri.repo
+            )));
         }
         // Found public repo without endpoint
-        Status::Ok(StatusCode::OK)
+        Ok(Status::Ok(StatusCode::OK))
+    }
+
+    /// Get a repository from GitHub
+    async fn get_repo(client: &Octocrab, uri: &GithubUri) -> Result<Repository> {
+        match client.repos(&uri.owner, &uri.repo).get().await {
+            Ok(repo) => Ok(repo),
+            Err(e) => Err(ErrorKind::GithubRequest(e)),
+        }
     }
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
@@ -612,7 +630,7 @@ fn validate_url(url: &Url) -> bool {
     http::Uri::try_from(url.as_str()).is_err()
 }
 
-/// A convenience function to check a single URI.
+/// A shorthand function to check a single URI.
 ///
 /// This provides the simplest link check utility without having to create a
 /// [`Client`]. For more complex scenarios, see documentation of
