@@ -24,7 +24,6 @@ use octocrab::{models::Repository, Octocrab};
 use regex::RegexSet;
 use reqwest::{header, Url};
 use secrecy::{ExposeSecret, SecretString};
-use tokio::time::sleep;
 use typed_builder::TypedBuilder;
 
 use crate::{
@@ -509,19 +508,7 @@ impl Client {
             return Ok(Status::Unsupported(ErrorKind::InvalidURI(uri.clone())));
         }
 
-        let mut retries: u64 = 0;
-        let mut wait_time = self.retry_wait_time;
-
-        let mut status = self.check_default(uri).await?;
-        while retries < self.max_retries {
-            if status.is_success() {
-                return Ok(status);
-            }
-            sleep(wait_time).await;
-            retries += 1;
-            wait_time = wait_time.saturating_mul(2);
-            status = self.check_default(uri).await?;
-        }
+        let status = self.retry_request(uri).await?;
 
         // Pull out the heavy machinery in case of a failed normal request.
         // This could be a GitHub URL and we ran into the rate limiter.
@@ -536,6 +523,32 @@ impl Client {
         }
 
         Ok(status)
+    }
+
+    /// Retry requests up to `max_retries` times
+    /// with an exponential backoff.
+    async fn retry_request(&self, uri: &Uri) -> Result<Status> {
+        let mut retries = self.max_retries;
+        let mut wait_time = self.retry_wait_time;
+
+        loop {
+            match self.check_default(uri).await {
+                Ok(status) => {
+                    if status.is_success() {
+                        return Ok(status);
+                    }
+                }
+                Err(e) => {
+                    if retries == 0 {
+                        return Err(e);
+                    }
+                    retries -= 1;
+                }
+            }
+
+            tokio::time::sleep(wait_time).await;
+            wait_time = wait_time.saturating_mul(2);
+        }
     }
 
     /// Check a `uri` hosted on `GitHub` via the GitHub API.
