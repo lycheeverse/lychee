@@ -400,7 +400,10 @@ impl Client {
         } else if uri.is_mail() {
             self.check_mail(&uri).await
         } else {
-            self.check_website_https(&uri).await?
+            match self.check_website_https(&uri).await {
+                Ok(status) => status,
+                Err(e) => Status::Error(e),
+            }
         };
 
         Ok(Response::new(uri.clone(), status, source))
@@ -712,9 +715,8 @@ mod tests {
             .client()
             .unwrap()
             .check("https://expired.badssl.com/")
-            .await
-            .unwrap();
-        assert!(res.status().is_success());
+            .await;
+        assert!(res.unwrap().status().is_success());
     }
 
     #[tokio::test]
@@ -801,6 +803,7 @@ mod tests {
             .unwrap();
 
         let res = client.check(mock_server.uri()).await.unwrap();
+        println!("{:?}", res);
         assert!(res.status().is_timeout());
     }
 
