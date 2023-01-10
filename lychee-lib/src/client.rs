@@ -412,14 +412,10 @@ impl Client {
     /// is HTTP, this will check if HTTPS is available
     /// and return an error if it is.
     async fn check_website_https(&self, uri: &Uri) -> Result<Status> {
-        match self.check_website(&uri).await? {
+        match self.check_website(uri).await? {
             Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
-                let mut https_uri = uri.clone();
-                https_uri
-                    .set_scheme("https")
-                    .map_err(|_| ErrorKind::InvalidURI(uri.clone()))?;
-                if self.check_website(&https_uri).await?.is_success() {
-                    Ok(Status::Error(ErrorKind::InsecureURL(https_uri)))
+                if self.check_website(&uri.to_https()?).await?.is_success() {
+                    Ok(Status::Error(ErrorKind::InsecureURL(uri.clone())))
                 } else {
                     Ok(Status::Ok(code))
                 }

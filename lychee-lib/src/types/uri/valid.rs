@@ -39,9 +39,18 @@ impl Uri {
     }
 
     #[inline]
-    /// Changes this URL's scheme.
+    /// Changes this URI's scheme.
     pub(crate) fn set_scheme(&mut self, scheme: &str) -> std::result::Result<(), ()> {
         self.url.set_scheme(scheme)
+    }
+
+    /// Create a new URI with a `https` scheme
+    pub(crate) fn to_https(&self) -> Result<Uri> {
+        let mut https_uri = self.clone();
+        https_uri
+            .set_scheme("https")
+            .map_err(|_| ErrorKind::InvalidURI(self.clone()))?;
+        Ok(https_uri)
     }
 
     #[inline]
@@ -342,6 +351,19 @@ mod tests {
         assert_eq!(
             website("http://127.0.0.1").host_ip(),
             Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))
+        );
+    }
+
+    #[test]
+    fn test_convert_to_https() {
+        assert_eq!(
+            website("http://example.com").to_https().unwrap(),
+            website("https://example.com")
+        );
+
+        assert_eq!(
+            website("https://example.com").to_https().unwrap(),
+            website("https://example.com")
         );
     }
 }
