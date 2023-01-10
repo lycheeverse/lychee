@@ -470,7 +470,7 @@ impl Client {
         let mut retries: u64 = 0;
         let mut wait = self.retry_wait_time;
 
-        let mut status = self.check_default(uri).await;
+        let mut status = self.check_default(uri).await?;
         while retries < self.max_retries {
             if status.is_success() {
                 return Ok(status);
@@ -478,7 +478,7 @@ impl Client {
             sleep(wait).await;
             retries += 1;
             wait *= 2;
-            status = self.check_default(uri).await;
+            status = self.check_default(uri).await?;
         }
 
         // Pull out the heavy machinery in case of a failed normal request.
@@ -540,22 +540,23 @@ impl Client {
     }
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
-    async fn check_default(&self, uri: &Uri) -> Status {
-        let request = match self
-            .reqwest_client
-            .request(self.method.clone(), uri.as_str())
-            .build()
-        {
-            Ok(r) => r,
-            Err(e) => return e.into(),
-        };
+    async fn check_default(&self, uri: &Uri) -> Result<Status> {
+        let request = self.build_request(uri)?;
 
         let request = self.quirks.apply(request);
 
         match self.reqwest_client.execute(request).await {
-            Ok(ref response) => Status::new(response, self.accepted.clone()),
-            Err(e) => e.into(),
+            Ok(ref response) => Ok(Status::new(response, self.accepted.clone())),
+            Err(e) => Err(ErrorKind::NetworkRequest(e)),
         }
+    }
+
+    /// Build a request for a given `uri`.
+    fn build_request(&self, uri: &Uri) -> Result<reqwest::Request> {
+        self.reqwest_client
+            .request(self.method.clone(), uri.as_str())
+            .build()
+            .map_err(ErrorKind::BuildRequest)
     }
 
     /// Check a `file` URI.

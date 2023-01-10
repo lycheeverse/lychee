@@ -34,6 +34,9 @@ pub enum ErrorKind {
     /// The network client required for making requests cannot be created
     #[error("Error creating request client")]
     BuildRequestClient(#[source] reqwest::Error),
+    /// The request object cannot be created
+    #[error("Error creating request")]
+    BuildRequest(#[source] reqwest::Error),
     /// The Github client required for making requests cannot be created
     #[error("Error creating Github client")]
     BuildGithubClient(#[source] octocrab::Error),
@@ -167,6 +170,7 @@ impl PartialEq for ErrorKind {
             (Self::Regex(e1), Self::Regex(e2)) => e1.to_string() == e2.to_string(),
             (Self::DirTraversal(e1), Self::DirTraversal(e2)) => e1.to_string() == e2.to_string(),
             (Self::Channel(_), Self::Channel(_)) => true,
+            (Self::BuildRequest(e1), Self::BuildRequest(e2)) => e1.to_string() == e2.to_string(),
             _ => false,
         }
     }
@@ -210,6 +214,7 @@ impl Hash for ErrorKind {
                 std::mem::discriminant(self).hash(state);
             }
             Self::Regex(e) => e.to_string().hash(state),
+            Self::BuildRequest(e) => e.to_string().hash(state),
         }
     }
 }
