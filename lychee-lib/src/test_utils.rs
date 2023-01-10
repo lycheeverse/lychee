@@ -2,7 +2,7 @@ use std::{convert::TryFrom, fs, path::Path};
 
 use reqwest::Url;
 
-use crate::{ClientBuilder, ErrorKind, Request, Uri};
+use crate::{ClientBuilder, ErrorKind, Request, Result, Uri};
 
 #[macro_export]
 /// Creates a mock web server, which responds with a predefined status when
@@ -17,7 +17,7 @@ macro_rules! mock_server {
     }};
 }
 
-pub(crate) async fn get_mock_client_response<T, E>(request: T) -> crate::Response
+pub(crate) async fn get_mock_client_response<T, E>(request: T) -> Result<crate::Response>
 where
     Request: TryFrom<T, Error = E>,
     ErrorKind: From<E>,
@@ -27,7 +27,6 @@ where
         .unwrap()
         .check(request)
         .await
-        .unwrap()
 }
 
 /// Helper method to convert a string into a URI

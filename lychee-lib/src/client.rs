@@ -439,33 +439,46 @@ impl Client {
         } else if uri.is_mail() {
             self.check_mail(uri).await
         } else {
-            match self.check_website(&uri).await? {
-                Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
-                    let mut https_uri = uri.clone();
-                    {
-                        // here `uri` must be valid, otherwise `check_website` won't
-                        // return `Ok`, thus `set_scheme` won't fail
-                        debug_assert!(!https_uri.url.cannot_be_a_base());
-                        https_uri.set_scheme("https").unwrap();
-                    }
-                    if self.check_website(&https_uri).await?.is_success() {
-                        Status::Error(ErrorKind::InsecureURL(https_uri))
-                    } else {
-                        Status::Ok(code)
-                    }
-                }
-                s => s,
-            }
+            self.check_website_https(&uri).await?
         };
 
         Ok(Response::new(uri.clone(), status, source))
     }
 
-    /// Remap `uri` using the client-defined remapping rules.
-    pub fn remap(&self, uri: &mut Uri) {
-        // TODO: this should be logged (Lucius, Jan 2023)
-        if let Some(ref remaps) = self.remaps {
-            remaps.remap(&mut uri.url);
+    /// Check website
+    ///
+    /// If HTTPS URI are required and the given URI
+    /// is HTTP, this will check if HTTPS is available
+    /// and return an error if it is.
+    async fn check_website_https(&self, uri: &Uri) -> Result<Status> {
+        match self.check_website(&uri).await? {
+            Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
+                let mut https_uri = uri.clone();
+                {
+                    // here `uri` must be valid, otherwise `check_website` won't
+                    // return `Ok`, thus `set_scheme` won't fail
+                    debug_assert!(!https_uri.url.cannot_be_a_base());
+                    https_uri.set_scheme("https").unwrap();
+                }
+                if self.check_website(&https_uri).await?.is_success() {
+                    Ok(Status::Error(ErrorKind::InsecureURL(https_uri)))
+                } else {
+                    Ok(Status::Ok(code))
+                }
+            }
+            s => Ok(s),
+        }
+    }
+
+    /// Remap URI using the client-defined remap patterns
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the remapping value is not a URI
+    pub fn remap(&self, uri: Uri) -> Result<Uri> {
+        match self.remaps {
+            Some(ref remaps) => remaps.remap(uri),
+            None => Ok(uri),
         }
     }
 
@@ -670,13 +683,13 @@ mod tests {
         let mock_server = mock_server!(StatusCode::NOT_FOUND);
         let res = get_mock_client_response(mock_server.uri()).await;
 
-        assert!(res.status().is_failure());
+        assert!(res.unwrap().status().is_failure());
     }
 
     #[tokio::test]
     async fn test_nonexistent_with_path() {
         let res = get_mock_client_response("http://127.0.0.1/invalid").await;
-        assert!(res.status().is_failure());
+        assert!(res.unwrap().status().is_failure());
     }
 
     #[tokio::test]
@@ -687,7 +700,7 @@ mod tests {
         let res = get_mock_client_response(mock_server.uri()).await;
         let end = start.elapsed();
 
-        assert!(res.status().is_failure());
+        assert!(res.unwrap().status().is_failure());
 
         // on slow connections, this might take a bit longer than nominal
         // backed-off timeout (7 secs)
@@ -697,13 +710,14 @@ mod tests {
     #[tokio::test]
     async fn test_github() {
         let res = get_mock_client_response("https://github.com/lycheeverse/lychee").await;
-        assert!(res.status().is_success());
+        assert!(res.unwrap().status().is_success());
     }
 
     #[tokio::test]
     async fn test_github_nonexistent_repo() {
         let res = get_mock_client_response("https://github.com/lycheeverse/not-lychee").await;
-        assert!(res.status().is_failure());
+        // assert!(matches!(Err(ErrorKind::GithubRequest), res));
+        assert!(res.is_err());
     }
 
     #[tokio::test]
@@ -712,17 +726,17 @@ mod tests {
             "https://github.com/lycheeverse/lychee/blob/master/NON_EXISTENT_FILE.md",
         )
         .await;
-        assert!(res.status().is_failure());
+        assert!(res.is_err());
     }
 
     #[tokio::test]
     async fn test_youtube() {
         // This is applying a quirk. See the quirks module.
         let res = get_mock_client_response("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
-        assert!(res.status().is_success());
+        assert!(res.unwrap().status().is_success());
 
         let res = get_mock_client_response("https://www.youtube.com/watch?v=invalidNlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
-        assert!(res.status().is_failure());
+        assert!(res.unwrap().status().is_failure());
     }
 
     #[tokio::test]
@@ -730,14 +744,14 @@ mod tests {
         let mock_server = mock_server!(StatusCode::OK);
         let res = get_mock_client_response(mock_server.uri()).await;
 
-        assert!(res.status().is_success());
+        assert!(res.unwrap().status().is_success());
     }
 
     #[tokio::test]
     async fn test_invalid_ssl() {
         let res = get_mock_client_response("https://expired.badssl.com/").await;
 
-        assert!(res.status().is_failure());
+        assert!(res.unwrap().status().is_failure());
 
         // Same, but ignore certificate error
         let res = ClientBuilder::builder()
@@ -759,7 +773,7 @@ mod tests {
         let uri = format!("file://{}", dir.path().join("temp").to_str().unwrap());
 
         let res = get_mock_client_response(uri).await;
-        assert!(res.status().is_success());
+        assert!(res.unwrap().status().is_success());
     }
 
     #[tokio::test]
