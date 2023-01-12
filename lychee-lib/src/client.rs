@@ -256,7 +256,7 @@ pub struct ClientBuilder {
     /// 2 ^ (N-1) seconds before the N-th retry.
     ///
     /// This prevents spending too much system resources on slow responders and
-    /// prioritize on other requests.
+    /// prioritizes other requests.
     #[builder(default_code = "Duration::from_secs(DEFAULT_RETRY_WAIT_TIME_SECS as u64)")]
     retry_wait_time: Duration,
 
