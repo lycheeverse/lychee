@@ -91,7 +91,7 @@ pub struct ClientBuilder {
     /// performance issues.
     ///
     /// Furthermore rules are executed sequentially and multiple mappings for
-    /// a same URI are allowed, so it is up to the library user's discretion to
+    /// the same URI are allowed, so it is up to the library user's discretion to
     /// make sure rules don't conflict with each other.
     remaps: Option<Remaps>,
 
