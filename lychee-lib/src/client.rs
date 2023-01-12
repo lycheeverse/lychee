@@ -34,6 +34,8 @@ use crate::{
     ErrorKind, Request, Response, Result, Status, Uri,
 };
 
+use crate::retryable::RetryExt;
+
 /// Default number of redirects before a request is deemed as failed, 5.
 pub const DEFAULT_MAX_REDIRECTS: usize = 5;
 /// Default number of retries before a request is deemed as failed, 3.
@@ -401,7 +403,9 @@ impl Client {
         } else {
             match self.check_website_https(&uri).await {
                 Ok(status) => status,
-                Err(e) => Status::Error(e),
+                // We always want to return a status (even on failure)
+                // so we return the error as a status
+                Err(error_status) => error_status.into(),
             }
         };
 
@@ -469,20 +473,24 @@ impl Client {
             return Ok(Status::Unsupported(ErrorKind::InvalidURI(uri.clone())));
         }
 
-        let status = self.retry_request(uri).await?;
+        let status = self.retry_request(uri).await;
+        if status.is_ok() {
+            return status;
+        }
 
         // Pull out the heavy machinery in case of a failed normal request.
         // This could be a GitHub URL and we ran into the rate limiter.
         if let Ok(github_uri) = GithubUri::try_from(uri) {
             let status = self.check_github(github_uri).await?;
             // Only return Github status in case of success
-            // Otherwise return the original error, which has more information
+            // Otherwise return the original status,
+            // which has more information
             if status.is_success() {
                 return Ok(status);
             }
         }
 
-        Ok(status)
+        status
     }
 
     /// Retry requests up to `max_retries` times
@@ -493,8 +501,9 @@ impl Client {
 
         loop {
             match self.check_default(uri).await {
-                Ok(status) => {
-                    if status.is_success() {
+                Ok(response) => {
+                    let status = Status::new(&response, self.accepted.clone());
+                    if status.is_success() || !response.should_retry() || retries == 0 {
                         return Ok(status);
                     }
                 }
@@ -502,9 +511,16 @@ impl Client {
                     if retries == 0 {
                         return Err(e);
                     }
-                    retries -= 1;
+                    // If the error is a reqwest error, check if it's a
+                    // transient error and retry in that case.
+                    if let Some(r) = e.reqwest_error() {
+                        if !r.should_retry() {
+                            return Err(e);
+                        }
+                    }
                 }
             }
+            retries -= 1;
 
             tokio::time::sleep(wait_time).await;
             wait_time *= 2;
@@ -556,15 +572,14 @@ impl Client {
     }
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
-    async fn check_default(&self, uri: &Uri) -> Result<Status> {
+    async fn check_default(&self, uri: &Uri) -> Result<reqwest::Response> {
         let request = self.build_request(uri)?;
-
         let request = self.quirks.apply(request);
 
-        match self.reqwest_client.execute(request).await {
-            Ok(ref response) => Ok(Status::new(response, self.accepted.clone())),
-            Err(e) => Err(ErrorKind::NetworkRequest(e)),
-        }
+        self.reqwest_client
+            .execute(request)
+            .await
+            .map_err(ErrorKind::NetworkRequest)
     }
 
     /// Build a request for a given `uri`.
@@ -651,24 +666,24 @@ mod tests {
         let mock_server = mock_server!(StatusCode::NOT_FOUND);
         let res = get_mock_client_response(mock_server.uri()).await;
 
-        assert!(res.unwrap().status().is_failure());
+        assert!(res.unwrap().status().is_error());
     }
 
     #[tokio::test]
     async fn test_nonexistent_with_path() {
         let res = get_mock_client_response("http://127.0.0.1/invalid").await;
-        assert!(res.unwrap().status().is_failure());
+        assert!(res.unwrap().status().is_error());
     }
 
     #[tokio::test]
     async fn test_exponential_backoff() {
-        let mock_server = mock_server!(StatusCode::NOT_FOUND);
+        let mock_server = mock_server!(StatusCode::TOO_MANY_REQUESTS);
 
         let start = Instant::now();
         let res = get_mock_client_response(mock_server.uri()).await;
         let end = start.elapsed();
 
-        assert!(res.unwrap().status().is_failure());
+        assert!(res.unwrap().status().is_error());
 
         // on slow connections, this might take a bit longer than nominal backed-off timeout (7 secs)
         assert!(end.as_secs() >= 7);
@@ -684,8 +699,7 @@ mod tests {
     #[tokio::test]
     async fn test_github_nonexistent_repo() {
         let res = get_mock_client_response("https://github.com/lycheeverse/not-lychee").await;
-        // assert!(matches!(Err(ErrorKind::GithubRequest), res));
-        assert!(res.is_err());
+        assert!(res.unwrap().status().is_error());
     }
 
     #[tokio::test]
@@ -694,7 +708,7 @@ mod tests {
             "https://github.com/lycheeverse/lychee/blob/master/NON_EXISTENT_FILE.md",
         )
         .await;
-        assert!(res.is_err());
+        assert!(res.unwrap().status().is_error());
     }
 
     #[tokio::test]
@@ -704,7 +718,7 @@ mod tests {
         assert!(res.unwrap().status().is_success());
 
         let res = get_mock_client_response("https://www.youtube.com/watch?v=invalidNlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
-        assert!(res.unwrap().status().is_failure());
+        assert!(res.unwrap().status().is_error());
     }
 
     #[tokio::test]
@@ -719,7 +733,7 @@ mod tests {
     async fn test_invalid_ssl() {
         let res = get_mock_client_response("https://expired.badssl.com/").await;
 
-        assert!(res.unwrap().status().is_failure());
+        assert!(res.unwrap().status().is_error());
 
         // Same, but ignore certificate error
         let res = ClientBuilder::builder()
@@ -795,7 +809,7 @@ mod tests {
             .client()
             .unwrap();
         let res = client.check("http://example.com").await.unwrap();
-        assert!(res.status().is_failure());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]
@@ -816,7 +830,6 @@ mod tests {
             .unwrap();
 
         let res = client.check(mock_server.uri()).await.unwrap();
-        println!("{:?}", res);
         assert!(res.status().is_timeout());
     }
 
@@ -825,6 +838,6 @@ mod tests {
         let client = ClientBuilder::builder().build().client().unwrap();
         // This request will fail, but it won't panic
         let res = client.check("http://\"").await.unwrap();
-        assert!(res.status().is_failure());
+        assert!(res.status().is_error());
     }
 }

@@ -2034,6 +2034,7 @@ dependencies = [
  "html5ever",
  "html5gum",
  "http",
+ "hyper",
  "ip_network",
  "jwalk",
  "lazy_static",
