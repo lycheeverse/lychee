@@ -26,7 +26,7 @@ use reqwest::Url;
 
 use crate::ErrorKind;
 
-/// Rules that remaps URL matching patterns.
+/// Rules that remap matching URL patterns.
 ///
 /// Some use-cases are:
 /// - Testing URLs prior to production deployment.
