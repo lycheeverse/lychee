@@ -113,7 +113,7 @@ impl TryFrom<&[String]> for Remaps {
     }
 }
 
-// implementation for mutable iterator and moving iterator are deliberately
+// Implementation for mutable iterator and moving iterator are deliberately
 // avoided
 impl<'a> IntoIterator for &'a Remaps {
     type Item = &'a (Regex, Url);
