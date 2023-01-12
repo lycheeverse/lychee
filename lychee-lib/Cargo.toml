@@ -61,7 +61,7 @@ features = ["runtime-tokio"]
 [dev-dependencies]
 doc-comment = "0.3.3"
 tempfile = "3.3.0"
-wiremock = "0.5.16"
+wiremock = "0.5.17"
 
 [features]
 # Vendor OpenSSL instead of dynamically linking it at runtime.
