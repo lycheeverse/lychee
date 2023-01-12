@@ -39,7 +39,7 @@ use crate::{
 pub const DEFAULT_MAX_REDIRECTS: usize = 5;
 /// Default number of retries before a request is deemed as failed, 3.
 pub const DEFAULT_MAX_RETRIES: u64 = 3;
-/// Default wait time in seconds between requests, 1.
+/// Default wait time in seconds between retries, 1.
 pub const DEFAULT_RETRY_WAIT_TIME_SECS: usize = 1;
 /// Default timeout in seconds before a request is deemed as failed, 20.
 pub const DEFAULT_TIMEOUT_SECS: usize = 20;
@@ -47,10 +47,12 @@ pub const DEFAULT_TIMEOUT_SECS: usize = 20;
 pub const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"));
 
 // Constants currently not configurable by the user.
-/// A timeout for only the connect phase of a Client.
+/// A timeout for only the connect phase of a [`Client`].
 const CONNECT_TIMEOUT: u64 = 10;
-/// TCP keepalive
-/// See <https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/overview.html> for more info
+/// TCP keepalive.
+///
+/// See <https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/overview.html> for more
+/// infomation.
 const TCP_KEEPALIVE: u64 = 60;
 
 /// Builder for [`Client`].
@@ -61,7 +63,8 @@ const TCP_KEEPALIVE: u64 = 60;
 #[builder(builder_method_doc = "
 Create a builder for building `ClientBuilder`.
 
-On the builder call, call methods with same name as its fields to set their values.
+On the builder call, call methods with the same names as its fields to set their
+ values.
 
 Finally, call `.build()` to create the instance of `ClientBuilder`.
 ")]
@@ -70,28 +73,32 @@ pub struct ClientBuilder {
     ///
     /// This allows much more request before getting rate-limited.
     ///
-    /// ## Rate-limiting Defaults
+    /// # Rate-limiting Defaults
     ///
     /// As of Feb 2022, it's 60 per hour without GitHub token v.s.
     /// 5000 per hour with token.
     github_token: Option<SecretString>,
 
-    /// Remap URIs matching a pattern to a different URI
+    /// Remap URIs matching a pattern to a different URI.
     ///
     /// This makes it possible to remap any HTTP/HTTPS endpoint to a different
-    /// HTTP/HTTPS endpoint. This feature could also be used to proxy
+    /// HTTP/HTTPS one. This feature could also be used to proxy
     /// certain requests.
     ///
+    /// # Usage Notes
+    ///
     /// Use with caution because a large set of remapping rules may cause
-    /// performance issues. Furthermore rules are executed in order and multiple
-    /// mappings for the same URI are allowed, so there is no guarantee that the
-    /// rules may not conflict with each other.
+    /// performance issues.
+    ///
+    /// Furthermore rules are executed sequentially and multiple mappings for
+    /// a same URI are allowed, so it is up to the library user's discretion to
+    /// make sure rules don't conflict with each other.
     remaps: Option<Remaps>,
 
     /// Links matching this set of regular expressions are **always** checked.
     ///
     /// This has higher precedence over [`ClientBuilder::excludes`], **but**
-    /// has lower precedence over any other `exclude_` fields or
+    /// has lower precedence comparing to any other `exclude_` fields or
     /// [`ClientBuilder::schemes`] below.
     includes: Option<RegexSet>,
 
@@ -109,7 +116,7 @@ pub struct ClientBuilder {
 
     /// When `true`, exclude private IP addresses.
     ///
-    /// ## IPv4
+    /// # IPv4
     ///
     /// The private address ranges are defined in [IETF RFC 1918] and include:
     ///
@@ -117,16 +124,17 @@ pub struct ClientBuilder {
     ///  - `172.16.0.0/12`
     ///  - `192.168.0.0/16`
     ///
-    /// ## IPv6
+    /// # IPv6
     ///
     /// The address is a unique local address (`fc00::/7`).
     ///
     /// This property is defined in [IETF RFC 4193].
     ///
-    /// ## Note
+    /// # Note
     ///
-    /// Unicast site-local network was defined in [IETF RFC 4291], but was fully deprecated in
-    /// [IETF RFC 3879]. So it is **NOT** considered as private on this purpose.
+    /// Unicast site-local network was defined in [IETF RFC 4291], but was fully
+    /// deprecated in [IETF RFC 3879]. So it is **NOT** considered as private on
+    /// this purpose.
     ///
     /// [IETF RFC 1918]: https://tools.ietf.org/html/rfc1918
     /// [IETF RFC 4193]: https://tools.ietf.org/html/rfc4193
@@ -136,17 +144,19 @@ pub struct ClientBuilder {
 
     /// When `true`, exclude link-local IPs.
     ///
-    /// ## IPv4
+    /// # IPv4
     ///
     /// The address is `169.254.0.0/16`.
     ///
     /// This property is defined by [IETF RFC 3927].
     ///
-    /// ## IPv6
+    /// # IPv6
     ///
-    /// The address is a unicast address with link-local scope,  as defined in [RFC 4291].
+    /// The address is a unicast address with link-local scope,  as defined in
+    /// [RFC 4291].
     ///
-    /// A unicast address has link-local scope if it has the prefix `fe80::/10`, as per [RFC 4291 section 2.4].
+    /// A unicast address has link-local scope if it has the prefix `fe80::/10`,
+    /// as per [RFC 4291 section 2.4].
     ///
     /// [IETF RFC 3927]: https://tools.ietf.org/html/rfc3927
     /// [RFC 4291]: https://tools.ietf.org/html/rfc4291
@@ -155,15 +165,16 @@ pub struct ClientBuilder {
 
     /// When `true`, exclude loopback IP addresses.
     ///
-    /// ## IPv4
+    /// # IPv4
     ///
     /// This is a loopback address (`127.0.0.0/8`).
     ///
     /// This property is defined by [IETF RFC 1122].
     ///
-    /// ## IPv6
+    /// # IPv6
     ///
-    /// This is the loopback address (`::1`), as defined in [IETF RFC 4291 section 2.5.3].
+    /// This is the loopback address (`::1`), as defined in
+    /// [IETF RFC 4291 section 2.5.3].
     ///
     /// [IETF RFC 1122]: https://tools.ietf.org/html/rfc1122
     /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
@@ -173,16 +184,24 @@ pub struct ClientBuilder {
     exclude_mail: bool,
 
     /// Maximum number of redirects per request before returning an error.
+    ///
+    /// Defaults to [`DEFAULT_MAX_REDIRECTS`].
     #[builder(default = DEFAULT_MAX_REDIRECTS)]
     max_redirects: usize,
 
     /// Maximum number of retries per request before returning an error.
+    ///
+    /// Defaults to [`DEFAULT_MAX_RETRIES`].
     #[builder(default = DEFAULT_MAX_RETRIES)]
     max_retries: u64,
 
     /// User-agent used for checking links.
     ///
-    /// *NOTE*: This may be helpful for bypassing certain firewalls.
+    /// Defaults to [`DEFAULT_USER_AGENT`].
+    ///
+    /// # Notes
+    ///
+    /// This may be helpful for bypassing certain firewalls.
     // Faking the user agent is necessary for some websites, unfortunately.
     // Otherwise we get a 403 from the firewall (e.g. Sucuri/Cloudproxy on ldra.com).
     #[builder(default_code = "String::from(DEFAULT_USER_AGENT)")]
@@ -190,22 +209,25 @@ pub struct ClientBuilder {
 
     /// When `true`, accept invalid SSL certificates.
     ///
-    /// ## Warning
+    /// # Warning
     ///
-    /// You should think very carefully before using this method. If
-    /// invalid certificates are trusted, any certificate for any site
-    /// will be trusted for use. This includes expired certificates. This
-    /// introduces significant vulnerabilities, and should only be used
-    /// as a last resort.
+    /// You should think very carefully before allowing invalid SSL
+    /// certificates. It will accepts any certificate for any site to be trusted
+    /// including expired certificates. This introduces significant
+    /// vulnerabilities, and should only be used as a last resort.
+    // TODO: We should add a warning message in CLI. (Lucius, Jan 2023)
     allow_insecure: bool,
 
-    /// When non-empty, only links with matched URI schemes are checked.
-    /// Otherwise, this has no effect.
+    /// Set of accepted URL schemes.
+    ///
+    /// Only links with matched URI schemes are checked. This has no effect when
+    /// it's empty.
     schemes: HashSet<String>,
 
-    /// Sets the default [headers] for every request. See also [here].
+    /// Default [headers] for every request.
     ///
-    /// This allows working around validation issues on some websites.
+    /// This allows working around validation issues on some websites. See also
+    /// [here] for usage examples.
     ///
     /// [headers]: https://docs.rs/http/latest/http/header/struct.HeaderName.html
     /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.default_headers
@@ -220,17 +242,29 @@ pub struct ClientBuilder {
     /// Unmatched return codes/ status codes are deemed as errors.
     accepted: Option<HashSet<StatusCode>>,
 
-    /// Response timeout per request.
+    /// Response timeout per request in seconds.
     timeout: Option<Duration>,
 
-    /// Initial time between retries of failed requests
+    /// Initial time between retries of failed requests.
     ///
-    /// The wait time will increase using an exponential backoff mechanism
-    retry_wait_time: Option<Duration>,
+    /// Defaults to [`DEFAULT_RETRY_WAIT_TIME_SECS`].
+    ///
+    /// # Notes
+    ///
+    /// For each request, the wait time increases using an exponential backoff
+    /// mechanism. For example, if the value is 1 second, then it waits for
+    /// 2 ^ (N-1) seconds before the N-th retry.
+    ///
+    /// This prevents spending too much system resources on slow responders and
+    /// prioritize on other requests.
+    #[builder(default_code = "Duration::from_secs(DEFAULT_RETRY_WAIT_TIME_SECS as u64)")]
+    retry_wait_time: Duration,
 
-    /// Requires using HTTPS when it's available.
+    /// When `true`, requires using HTTPS when it's available.
     ///
     /// This would treat unencrypted links as errors when HTTPS is avaliable.
+    /// It has no effect on non-HTTP schemes or if the URL doesn't support
+    /// HTTPS.
     require_https: bool,
 }
 
@@ -248,25 +282,31 @@ impl ClientBuilder {
     /// # Errors
     ///
     /// Returns an `Err` if:
-    /// - The user-agent is invalid.
-    /// - The request client cannot be created.
-    ///   See [here](https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors).
-    /// - The Github client cannot be created.
+    /// - The user-agent is contains charachters other than ASCII 32-127.
+    /// - The reqwest client cannot be instantiated. This occurs if a TLS
+    ///   backend cannot be initialized or if the resolver fails to load system
+    ///   configuration. See [here].
+    /// - The Github client cannot be created. Since the implementation also
+    ///   uses reqwest under the hood, this error in the same circumstances as
+    ///   the last one.
+    ///
+    /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors
     pub fn client(self) -> Result<Client> {
         let Self {
-            github_token,
-            remaps,
-            includes,
-            excludes,
             user_agent,
-            schemes,
             custom_headers: mut headers,
-            method,
-            accepted,
             ..
         } = self;
 
-        headers.insert(header::USER_AGENT, HeaderValue::from_str(&user_agent)?);
+        if let Some(prev_user_agent) =
+            headers.insert(header::USER_AGENT, HeaderValue::try_from(&user_agent)?)
+        {
+            // TODO: make this configurable according to verbosity (Lucius, Jan 2023)
+            println!(
+                "Found user-agent in headers: {}. Overriding it with {user_agent}.",
+                prev_user_agent.to_str().unwrap_or("�"),
+            );
+        };
 
         headers.insert(
             header::TRANSFER_ENCODING,
@@ -288,20 +328,22 @@ impl ClientBuilder {
         .build()
         .map_err(ErrorKind::NetworkRequest)?;
 
-        let github_client = match github_token.as_ref().map(ExposeSecret::expose_secret) {
+        let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(
                 Octocrab::builder()
                     .personal_token(token.clone())
                     .build()
+                    // this is essentially the same reqwest::ClientBuilder::build error
+                    // see https://docs.rs/octocrab/0.18.1/src/octocrab/lib.rs.html#360-364
                     .map_err(ErrorKind::BuildGithubClient)?,
             ),
             _ => None,
         };
 
         let filter = Filter {
-            includes: includes.map(|regex| Includes { regex }),
-            excludes: excludes.map(|regex| Excludes { regex }),
-            schemes,
+            includes: self.includes.map(|regex| Includes { regex }),
+            excludes: self.excludes.map(|regex| Excludes { regex }),
+            schemes: self.schemes,
             // exclude_all_private option turns on all "private" excludes,
             // including private IPs, link-local IPs and loopback IPs
             exclude_private_ips: self.exclude_all_private || self.exclude_private_ips,
@@ -310,21 +352,17 @@ impl ClientBuilder {
             exclude_mail: self.exclude_mail,
         };
 
-        let retry_wait_time = self
-            .retry_wait_time
-            .unwrap_or_else(|| Duration::from_secs(DEFAULT_RETRY_WAIT_TIME_SECS as u64));
-
         let quirks = Quirks::default();
 
         Ok(Client {
             reqwest_client,
             github_client,
-            remaps,
+            remaps: self.remaps,
             filter,
             max_retries: self.max_retries,
-            retry_wait_time,
-            method,
-            accepted,
+            retry_wait_time: self.retry_wait_time,
+            method: self.method,
+            accepted: self.accepted,
             require_https: self.require_https,
             quirks,
         })
@@ -333,16 +371,17 @@ impl ClientBuilder {
 
 /// Handles incoming requests and returns responses.
 ///
-/// See [`ClientBuilder`] which contains sane defaults for all configuration options.
+/// See [`ClientBuilder`] which contains sane defaults for all configuration
+/// options.
 #[derive(Debug, Clone)]
 pub struct Client {
     /// Underlying `reqwest` client instance that handles the HTTP requests.
     reqwest_client: reqwest::Client,
 
-    /// Github client.
+    /// Optional GitHub client that handles communications with GitHub.
     github_client: Option<Octocrab>,
 
-    /// Optional remapping rules for URIs matching pattern
+    /// Optional remapping rules for URIs matching pattern.
     remaps: Option<Remaps>,
 
     /// Rules to decided whether each link would be checked or ignored.
@@ -351,7 +390,8 @@ pub struct Client {
     /// Maximum number of retries per request before returning an error.
     max_retries: u64,
 
-    /// Initial time between retries of failed requests
+    /// Initial wait time between retries of failed requests. This doubles after
+    /// each failure.
     retry_wait_time: Duration,
 
     /// HTTP method used for requests, e.g. `GET` or `HEAD`.
@@ -374,38 +414,42 @@ pub struct Client {
 }
 
 impl Client {
-    /// Check a single request
+    /// Check a single request.
+    ///
+    /// `request` can be either a [`Request`] or a type that can be converted
+    /// into it. In any case, it must represent a valid URI.
     ///
     /// # Errors
     ///
-    /// This returns an `Err` if
-    /// - `request` is invalid.
-    /// - The URI of the request is invalid.
-    /// - Encrypted connection for a HTTP URL is available but unused.
-    ///   (Only checked when `Client::require_https` is `true`.)
+    /// Returns an `Err` if `request` does not represent a valid URI.
+    #[allow(clippy::missing_panics_doc)]
     pub async fn check<T, E>(&self, request: T) -> Result<Response>
     where
         Request: TryFrom<T, Error = E>,
         ErrorKind: From<E>,
     {
-        let Request { uri, source, .. } = request.try_into()?;
+        let Request {
+            ref mut uri,
+            source,
+            ..
+        } = request.try_into()?;
 
-        let uri = self.remap(uri)?;
+        self.remap(uri);
 
         // TODO: Allow filtering based on element and attribute
-        let status = if self.filter.is_excluded(&uri) {
+        let status = if self.is_excluded(uri) {
             Status::Excluded
         } else if uri.is_file() {
-            self.check_file(&uri)
+            self.check_file(uri)
         } else if uri.is_mail() {
-            self.check_mail(&uri).await
+            self.check_mail(uri).await
         } else {
-            match self.check_website(&uri).await {
+            match self.check_website(uri).await {
                 Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                     let mut https_uri = uri.clone();
-                    https_uri
-                        .set_scheme("https")
-                        .map_err(|_| ErrorKind::InvalidURI(uri.clone()))?;
+                    // here `uri` must be valid, otherwise `check_website` won't
+                    // return `Ok`, thus `set_scheme` won't fail
+                    https_uri.set_scheme("https").unwrap();
                     if self.check_website(&https_uri).await.is_success() {
                         Status::Error(ErrorKind::InsecureURL(https_uri))
                     } else {
@@ -419,15 +463,11 @@ impl Client {
         Ok(Response::new(uri.clone(), status, source))
     }
 
-    /// Remap URI using the client-defined remap patterns
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the remapping value is not a URI
-    pub fn remap(&self, uri: Uri) -> Result<Uri> {
-        match self.remaps {
-            Some(ref remaps) => remaps.remap(uri),
-            None => Ok(uri),
+    /// Remap `uri` using the client-defined remapping rules.
+    pub fn remap(&self, uri: &mut Uri) {
+        // TODO: this should be logged (Lucius, Jan 2023)
+        if let Some(ref remaps) = self.remaps {
+            remaps.remap(&mut uri.url);
         }
     }
 
@@ -442,7 +482,7 @@ impl Client {
     /// Unsupported schemes will be ignored
     pub async fn check_website(&self, uri: &Uri) -> Status {
         // Workaround for upstream reqwest panic
-        if invalid(&uri.url) {
+        if validate_url(&uri.url) {
             if matches!(uri.scheme(), "http" | "https") {
                 // This is a truly invalid URI with a known scheme.
                 // If we pass that to reqwest it would panic.
@@ -456,21 +496,22 @@ impl Client {
         }
 
         let mut retries: u64 = 0;
-        let mut wait = self.retry_wait_time;
+        let mut wait_time = self.retry_wait_time;
 
         let mut status = self.check_default(uri).await;
         while retries < self.max_retries {
             if status.is_success() {
                 return status;
             }
-            sleep(wait).await;
+            sleep(wait_time).await;
             retries += 1;
-            wait *= 2;
+            wait_time = wait_time.saturating_mul(2);
             status = self.check_default(uri).await;
         }
 
         // Pull out the heavy machinery in case of a failed normal request.
         // This could be a GitHub URL and we ran into the rate limiter.
+        // TODO: We should first try to parse the URI as GitHub URI first (Lucius, Jan 2023)
         if let Ok(github_uri) = GithubUri::try_from(uri) {
             let status = self.check_github(github_uri).await;
             // Only return Github status in case of success
@@ -494,10 +535,7 @@ impl Client {
     /// A better approach would be to download the file through the API or
     /// clone the repo, but we chose the pragmatic approach.
     async fn check_github(&self, uri: GithubUri) -> Status {
-        let client = match &self.github_client {
-            Some(client) => client,
-            None => return ErrorKind::MissingGitHubToken.into(),
-        };
+        let Some(client) = &self.github_client else { return ErrorKind::MissingGitHubToken.into() };
         let repo = match client.repos(&uri.owner, &uri.repo).get().await {
             Ok(repo) => repo,
             Err(e) => return ErrorKind::GithubRequest(e).into(),
@@ -572,19 +610,21 @@ impl Client {
 // got merged.
 // It is exactly the same check that reqwest runs internally, but unfortunately
 // it `unwrap`s (and panics!) instead of returning an error, which we could handle.
-fn invalid(url: &Url) -> bool {
-    url.as_str().parse::<http::Uri>().is_err()
+fn validate_url(url: &Url) -> bool {
+    http::Uri::try_from(url.as_str()).is_err()
 }
 
 /// A convenience function to check a single URI.
 ///
-/// This provides the simplest link check utility without having to create a [`Client`].
-/// For more complex scenarios, see documentation of [`ClientBuilder`] instead.
+/// This provides the simplest link check utility without having to create a
+/// [`Client`]. For more complex scenarios, see documentation of
+/// [`ClientBuilder`] instead.
 ///
 /// # Errors
 ///
 /// Returns an `Err` if:
-/// - The request client cannot be built (see [`ClientBuilder::client`] for failure cases).
+/// - The request client cannot be built (see [`ClientBuilder::client`] for
+///   failure cases).
 /// - The request cannot be checked (see [`Client::check`] for failure cases).
 pub async fn check<T, E>(request: T) -> Result<Response>
 where
@@ -633,9 +673,9 @@ mod tests {
 
         assert!(res.status().is_failure());
 
-        // on slow connections, this might take a bit longer than nominal backed-off timeout (7 secs)
-        assert!(end.as_secs() >= 7);
-        assert!(end.as_secs() <= 8);
+        // on slow connections, this might take a bit longer than nominal
+        // backed-off timeout (7 secs)
+        assert!((7..=8).contains(&end.as_secs()));
     }
 
     #[tokio::test]
