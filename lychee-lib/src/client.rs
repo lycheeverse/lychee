@@ -287,7 +287,7 @@ impl ClientBuilder {
     ///   backend cannot be initialized or the resolver fails to load the system
     ///   configuration. See [here].
     /// - The Github client cannot be created. Since the implementation also
-    ///   uses reqwest under the hood, this error in the same circumstances as
+    ///   uses reqwest under the hood, this errors in the same circumstances as
     ///   the last one.
     ///
     /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors
