@@ -284,7 +284,7 @@ impl ClientBuilder {
     /// Returns an `Err` if:
     /// - The user-agent contains characters other than ASCII 32-127.
     /// - The reqwest client cannot be instantiated. This occurs if a TLS
-    ///   backend cannot be initialized or if the resolver fails to load system
+    ///   backend cannot be initialized or the resolver fails to load the system
     ///   configuration. See [here].
     /// - The Github client cannot be created. Since the implementation also
     ///   uses reqwest under the hood, this error in the same circumstances as
