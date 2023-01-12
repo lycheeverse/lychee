@@ -98,7 +98,7 @@ pub struct ClientBuilder {
     /// Links matching this set of regular expressions are **always** checked.
     ///
     /// This has higher precedence over [`ClientBuilder::excludes`], **but**
-    /// has lower precedence comparing to any other `exclude_` fields or
+    /// has lower precedence compared to any other `exclude_` fields or
     /// [`ClientBuilder::schemes`] below.
     includes: Option<RegexSet>,
 
