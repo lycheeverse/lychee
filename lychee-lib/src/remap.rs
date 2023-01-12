@@ -85,7 +85,7 @@ impl TryFrom<&[String]> for Remaps {
 
     /// Try to convert a slice of `String`s to remapping rules.
     ///
-    /// Each string should contains a Regex pattern and a URL, separated by
+    /// Each string should contain a Regex pattern and a URL, separated by
     /// whitespaces.
     ///
     /// # Errors
