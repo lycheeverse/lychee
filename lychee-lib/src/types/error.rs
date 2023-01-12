@@ -13,18 +13,6 @@ use crate::{helpers, Uri};
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    /// Error while executing a future on the Tokio runtime
-    #[error("Task failed to execute to completion")]
-    RuntimeJoin(#[from] JoinError),
-    /// Error while converting a file to an input
-    #[error("Cannot read input content from file `{1}`")]
-    ReadFileInput(#[source] std::io::Error, PathBuf),
-    /// Error while reading stdin as input
-    #[error("Cannot read input content from stdin")]
-    ReadStdinInput(#[from] std::io::Error),
-    /// Errors which can occur when attempting to interpret a sequence of u8 as a string
-    #[error("Attempted to interpret an invalid sequence of bytes as a string")]
-    Utf8(#[from] std::str::Utf8Error),
     /// Network error while handling request
     #[error("Network error")]
     NetworkRequest(#[source] reqwest::Error),
@@ -37,6 +25,19 @@ pub enum ErrorKind {
     /// The request object cannot be created
     #[error("Error creating request")]
     BuildRequest(#[source] reqwest::Error),
+
+    /// Error while executing a future on the Tokio runtime
+    #[error("Task failed to execute to completion")]
+    RuntimeJoin(#[from] JoinError),
+    /// Error while converting a file to an input
+    #[error("Cannot read input content from file `{1}`")]
+    ReadFileInput(#[source] std::io::Error, PathBuf),
+    /// Error while reading stdin as input
+    #[error("Cannot read input content from stdin")]
+    ReadStdinInput(#[from] std::io::Error),
+    /// Errors which can occur when attempting to interpret a sequence of u8 as a string
+    #[error("Attempted to interpret an invalid sequence of bytes as a string")]
+    Utf8(#[from] std::str::Utf8Error),
     /// The Github client required for making requests cannot be created
     #[error("Error creating Github client")]
     BuildGithubClient(#[source] octocrab::Error),
@@ -131,6 +132,16 @@ impl ErrorKind {
             },
             _ => self.source().map(ToString::to_string),
         }
+    }
+
+    /// Return the underlying source of the given [`ErrorKind`]
+    /// if it is a `reqwest::Error`.
+    /// This is useful for extracting the status code of a failed request.
+    /// If the error is not a `reqwest::Error`, `None` is returned.
+    #[must_use]
+    pub(crate) fn reqwest_error(&self) -> Option<&reqwest::Error> {
+        self.source()
+            .and_then(|e| e.downcast_ref::<reqwest::Error>())
     }
 }
 
