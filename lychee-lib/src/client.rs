@@ -212,7 +212,7 @@ pub struct ClientBuilder {
     /// # Warning
     ///
     /// You should think very carefully before allowing invalid SSL
-    /// certificates. It will accepts any certificate for any site to be trusted
+    /// certificates. It will accept any certificate for any site to be trusted
     /// including expired certificates. This introduces significant
     /// vulnerabilities, and should only be used as a last resort.
     // TODO: We should add a warning message in CLI. (Lucius, Jan 2023)
