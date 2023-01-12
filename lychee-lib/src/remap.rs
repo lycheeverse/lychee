@@ -14,7 +14,7 @@
 // The major difference between URI(Uniform Resource Identifier) and
 // URL(Uniform Resource Locator) is that the former is an indentifier for
 // resources and the later is a locator.
-// We are not interested in differentiate resources by names and the purpose of
+// We are not interested in differentiating resources by names and the purpose of
 // remapping is to provide an alternative **location** in certain
 // circumanstances. Thus the documentation should be about remapping URLs
 // (locations), not remapping URIs (identities).
