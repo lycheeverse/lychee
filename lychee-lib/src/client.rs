@@ -282,7 +282,7 @@ impl ClientBuilder {
     /// # Errors
     ///
     /// Returns an `Err` if:
-    /// - The user-agent is contains charachters other than ASCII 32-127.
+    /// - The user-agent contains characters other than ASCII 32-127.
     /// - The reqwest client cannot be instantiated. This occurs if a TLS
     ///   backend cannot be initialized or if the resolver fails to load system
     ///   configuration. See [here].
