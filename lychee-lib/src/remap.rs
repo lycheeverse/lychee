@@ -11,7 +11,7 @@
 //!   match every link against all rules.
 
 // Notes on terminology:
-// The major difference between URI(Uniform Resource Identifier) and
+// The major difference between URI (Uniform Resource Identifier) and
 // URL(Uniform Resource Locator) is that the former is an indentifier for
 // resources and the latter is a locator.
 // We are not interested in differentiating resources by names and the purpose of
