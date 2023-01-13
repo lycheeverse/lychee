@@ -4,7 +4,7 @@
 //! # Notes
 //! Use in moderation as there are no sanity or performance guarantees.
 //!
-//! - There is no constraints on remapping rules upon instantiation or during
+//! - There is no constraint on remapping rules upon instantiation or during
 //!   remapping. In particular, rules are checked sequentially so later rules
 //!   might contradict with earlier ones if they both match a URL.
 //! - A large rule set has a performance impact because the client needs to
