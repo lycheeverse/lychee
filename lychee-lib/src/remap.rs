@@ -12,7 +12,7 @@
 
 // Notes on terminology:
 // The major difference between URI (Uniform Resource Identifier) and
-// URL(Uniform Resource Locator) is that the former is an indentifier for
+// URL (Uniform Resource Locator) is that the former is an indentifier for
 // resources and the latter is a locator.
 // We are not interested in differentiating resources by names and the purpose of
 // remapping is to provide an alternative **location** in certain
