@@ -157,7 +157,7 @@ mod tests {
     fn test_remap_skip() {
         let pattern = Regex::new("https://example.com").unwrap();
         let new_url = Url::try_from("http://127.0.0.1:8080").unwrap();
-        let remaps = Remaps::new(vec![(pattern, new_url.clone())]);
+        let remaps = Remaps::new(vec![(pattern, new_url)]);
 
         let mut input = Url::try_from("https://unrelated.example.com").unwrap();
         remaps.remap(&mut input);
