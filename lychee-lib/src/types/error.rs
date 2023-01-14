@@ -139,6 +139,7 @@ impl ErrorKind {
     /// This is useful for extracting the status code of a failed request.
     /// If the error is not a `reqwest::Error`, `None` is returned.
     #[must_use]
+    #[allow(clippy::redundant_closure_for_method_calls)]
     pub(crate) fn reqwest_error(&self) -> Option<&reqwest::Error> {
         self.source()
             .and_then(|e| e.downcast_ref::<reqwest::Error>())
