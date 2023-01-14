@@ -13,6 +13,7 @@ pub(crate) trait RetryExt {
 
 impl RetryExt for reqwest::Response {
     /// Try to map a `reqwest` response into `Retryable`.
+    #[allow(clippy::if_same_then_else)]
     fn should_retry(&self) -> bool {
         let status = self.status();
         if status.is_server_error() {
@@ -24,10 +25,8 @@ impl RetryExt for reqwest::Response {
             false
         } else if status.is_success() {
             false
-        } else if status == StatusCode::REQUEST_TIMEOUT || status == StatusCode::TOO_MANY_REQUESTS {
-            true
         } else {
-            false
+            status == StatusCode::REQUEST_TIMEOUT || status == StatusCode::TOO_MANY_REQUESTS
         }
     }
 }
@@ -69,12 +68,12 @@ impl RetryExt for reqwest::Error {
     }
 }
 
-/// Classifies an io::Error into retryable or not.
+/// Classifies an `io::Error` into retryable or not.
 fn classify_io_error(error: &io::Error) -> bool {
-    match error.kind() {
-        io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted => true,
-        _ => false,
-    }
+    matches!(
+        error.kind(),
+        io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
+    )
 }
 
 /// Downcasts the given err source into T.

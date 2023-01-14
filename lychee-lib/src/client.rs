@@ -389,22 +389,27 @@ impl Client {
         Request: TryFrom<T, Error = E>,
         ErrorKind: From<E>,
     {
+        // Convert to our own request type
         let Request { uri, source, .. } = request.try_into()?;
 
+        // Apply any optional remaps
         let uri = self.remap(uri)?;
 
+        // Immediately return on excluded URIs
         // TODO: Allow filtering based on element and attribute
-        let status = if self.filter.is_excluded(&uri) {
-            Status::Excluded
-        } else if uri.is_file() {
+        if self.filter.is_excluded(&uri) {
+            return Ok(Response::new(uri.clone(), Status::Excluded, source));
+        };
+
+        let status = if uri.is_file() {
             self.check_file(&uri)
         } else if uri.is_mail() {
             self.check_mail(&uri).await
         } else {
+            // We always want to return a status (even on failure)
+            // so we convert the error to a status here
             match self.check_website_https(&uri).await {
                 Ok(status) => status,
-                // We always want to return a status (even on failure)
-                // so we return the error as a status
                 Err(error_status) => error_status.into(),
             }
         };
@@ -511,6 +516,7 @@ impl Client {
                     if retries == 0 {
                         return Err(e);
                     }
+                    println!("Retrying request for {} due to error: {}", uri, e);
                     // If the error is a reqwest error, check if it's a
                     // transient error and retry in that case.
                     if let Some(r) = e.reqwest_error() {
@@ -666,13 +672,13 @@ mod tests {
         let mock_server = mock_server!(StatusCode::NOT_FOUND);
         let res = get_mock_client_response(mock_server.uri()).await;
 
-        assert!(res.unwrap().status().is_error());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]
     async fn test_nonexistent_with_path() {
         let res = get_mock_client_response("http://127.0.0.1/invalid").await;
-        assert!(res.unwrap().status().is_error());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]
@@ -683,7 +689,7 @@ mod tests {
         let res = get_mock_client_response(mock_server.uri()).await;
         let end = start.elapsed();
 
-        assert!(res.unwrap().status().is_error());
+        assert!(res.status().is_error());
 
         // on slow connections, this might take a bit longer than nominal backed-off timeout (7 secs)
         assert!(end.as_secs() >= 7);
@@ -693,13 +699,13 @@ mod tests {
     #[tokio::test]
     async fn test_github() {
         let res = get_mock_client_response("https://github.com/lycheeverse/lychee").await;
-        assert!(res.unwrap().status().is_success());
+        assert!(res.status().is_success());
     }
 
     #[tokio::test]
     async fn test_github_nonexistent_repo() {
         let res = get_mock_client_response("https://github.com/lycheeverse/not-lychee").await;
-        assert!(res.unwrap().status().is_error());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]
@@ -708,17 +714,17 @@ mod tests {
             "https://github.com/lycheeverse/lychee/blob/master/NON_EXISTENT_FILE.md",
         )
         .await;
-        assert!(res.unwrap().status().is_error());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]
     async fn test_youtube() {
         // This is applying a quirk. See the quirks module.
         let res = get_mock_client_response("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
-        assert!(res.unwrap().status().is_success());
+        assert!(res.status().is_success());
 
         let res = get_mock_client_response("https://www.youtube.com/watch?v=invalidNlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
-        assert!(res.unwrap().status().is_error());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]
@@ -726,14 +732,14 @@ mod tests {
         let mock_server = mock_server!(StatusCode::OK);
         let res = get_mock_client_response(mock_server.uri()).await;
 
-        assert!(res.unwrap().status().is_success());
+        assert!(res.status().is_success());
     }
 
     #[tokio::test]
     async fn test_invalid_ssl() {
         let res = get_mock_client_response("https://expired.badssl.com/").await;
 
-        assert!(res.unwrap().status().is_error());
+        assert!(res.status().is_error());
 
         // Same, but ignore certificate error
         let res = ClientBuilder::builder()
@@ -742,8 +748,9 @@ mod tests {
             .client()
             .unwrap()
             .check("https://expired.badssl.com/")
-            .await;
-        assert!(res.unwrap().status().is_success());
+            .await
+            .unwrap();
+        assert!(res.status().is_success());
     }
 
     #[tokio::test]
@@ -754,7 +761,7 @@ mod tests {
         let uri = format!("file://{}", dir.path().join("temp").to_str().unwrap());
 
         let res = get_mock_client_response(uri).await;
-        assert!(res.unwrap().status().is_success());
+        assert!(res.status().is_success());
     }
 
     #[tokio::test]
