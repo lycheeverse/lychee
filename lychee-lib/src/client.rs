@@ -421,7 +421,10 @@ impl Client {
     ///
     /// # Errors
     ///
-    /// Returns an `Err` if `request` does not represent a valid URI.
+    /// Returns an `Err` if:
+    /// - `request` does not represent a valid URI.
+    /// - Encrypted connection for a HTTP URL is available but unused.  (Only
+    ///   checked when `Client::require_https` is `true`.)
     #[allow(clippy::missing_panics_doc)]
     pub async fn check<T, E>(&self, request: T) -> Result<Response>
     where
