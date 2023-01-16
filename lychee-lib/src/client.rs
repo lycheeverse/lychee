@@ -450,9 +450,12 @@ impl Client {
             match self.check_website(uri).await {
                 Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                     let mut https_uri = uri.clone();
-                    // here `uri` must be valid, otherwise `check_website` won't
-                    // return `Ok`, thus `set_scheme` won't fail
-                    https_uri.set_scheme("https").unwrap();
+                    {
+                        // here `uri` must be valid, otherwise `check_website` won't
+                        // return `Ok`, thus `set_scheme` won't fail
+                        debug_assert!(!https_uri.url.cannot_be_a_base());
+                        https_uri.set_scheme("https").unwrap();
+                    }
                     if self.check_website(&https_uri).await.is_success() {
                         Status::Error(ErrorKind::InsecureURL(https_uri))
                     } else {
