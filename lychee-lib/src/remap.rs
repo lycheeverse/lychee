@@ -1,20 +1,39 @@
+//! Remapping rules which allow to map URLs matching a pattern to a different
+//! URL.
+//!
+//! # Notes
+//! Use in moderation as there are no sanity or performance guarantees.
+//!
+//! - There is no constraint on remapping rules upon instantiation or during
+//!   remapping. In particular, rules are checked sequentially so later rules
+//!   might contradict with earlier ones if they both match a URL.
+//! - A large rule set has a performance impact because the client needs to
+//!   match every link against all rules.
+
+// Notes on terminology:
+// The major difference between URI (Uniform Resource Identifier) and
+// URL (Uniform Resource Locator) is that the former is an indentifier for
+// resources and the latter is a locator.
+// We are not interested in differentiating resources by names and the purpose of
+// remapping is to provide an alternative **location** in certain
+// circumanstances. Thus the documentation should be about remapping URLs
+// (locations), not remapping URIs (identities).
+
 use std::ops::Index;
 
-use crate::{ErrorKind, Result};
 use regex::Regex;
 use reqwest::Url;
 
-use crate::Uri;
+use crate::ErrorKind;
 
-/// Remaps allow mapping from a URI pattern to a specified URI
+/// Rules that remap matching URL patterns.
 ///
-/// Some use-cases are
-/// - Testing URIs prior to production deployment
-/// - Testing URIs behind a proxy
+/// Some use-cases are:
+/// - Testing URLs prior to production deployment.
+/// - Testing URLs behind a proxy.
 ///
-/// Be careful when using this feature because checking every link against a
-/// large set of regular expressions has a performance impact. Also there are no
-/// constraints on the URI mapping, so the rules might contradict each other.
+/// # Notes
+/// See module level documentation of usage notes.
 #[derive(Debug, Clone)]
 pub struct Remaps(Vec<(Regex, Url)>);
 
@@ -25,28 +44,28 @@ impl Remaps {
         Self(patterns)
     }
 
-    /// Remap URI using the client-defined remap patterns
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the remapping value is not a valid URI
-    pub fn remap(&self, uri: Uri) -> Result<Uri> {
-        let mut uri = uri;
-        for (pattern, new_uri) in &self.0 {
-            if pattern.is_match(uri.as_str()) {
-                uri = Uri::try_from(new_uri.clone())?;
-            }
-        }
-        Ok(uri)
+    /// Returns an iterator over the rules.
+    // `iter_mut` is deliberately avoided.
+    pub fn iter(&self) -> std::slice::Iter<(Regex, Url)> {
+        self.0.iter()
     }
 
-    /// Returns `true` if there are no remappings defined.
+    /// Remap URL against remapping rules.
+    pub fn remap(&self, url: &mut Url) {
+        for (pattern, new_url) in self {
+            if pattern.is_match(url.as_str()) {
+                *url = new_url.clone();
+            }
+        }
+    }
+
+    /// Returns `true` if there is no remapping rule defined.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
-    /// Get the number of defined remap rules
+    /// Get the number of remapping rules.
     #[must_use]
     pub fn len(&self) -> usize {
         self.0.len()
@@ -64,13 +83,24 @@ impl Index<usize> for Remaps {
 impl TryFrom<&[String]> for Remaps {
     type Error = ErrorKind;
 
+    /// Try to convert a slice of `String`s to remapping rules.
+    ///
+    /// Each string should contain a Regex pattern and a URL, separated by
+    /// whitespaces.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Err` if:
+    /// - Any string in the slice is not of the form `REGEX URL`.
+    /// - REGEX is not a valid regular expression.
+    /// - URL is not a valid URL.
     fn try_from(remaps: &[String]) -> std::result::Result<Self, Self::Error> {
         let mut parsed = Vec::new();
 
         for remap in remaps {
             let params: Vec<_> = remap.split_whitespace().collect();
             if params.len() != 2 {
-                return Err(ErrorKind::InvalidUriRemap(remap.to_string()));
+                return Err(ErrorKind::InvalidUrlRemap(remap.to_string()));
             }
 
             let pattern = Regex::new(params[0])?;
@@ -83,6 +113,18 @@ impl TryFrom<&[String]> for Remaps {
     }
 }
 
+// Implementation for mutable iterator and moving iterator are deliberately
+// avoided
+impl<'a> IntoIterator for &'a Remaps {
+    type Item = &'a (Regex, Url);
+
+    type IntoIter = std::slice::Iter<'a, (Regex, Url)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -90,37 +132,37 @@ mod tests {
     #[test]
     fn test_remap() {
         let pattern = Regex::new("https://example.com").unwrap();
-        let uri = Uri::try_from("http://127.0.0.1:8080").unwrap();
-        let remaps = Remaps::new(vec![(pattern, uri.clone().url)]);
+        let new_url = Url::try_from("http://127.0.0.1:8080").unwrap();
+        let remaps = Remaps::new(vec![(pattern, new_url.clone())]);
 
-        let input = Uri::try_from("https://example.com").unwrap();
-        let remapped = remaps.remap(input).unwrap();
+        let mut input = Url::try_from("https://example.com").unwrap();
+        remaps.remap(&mut input);
 
-        assert_eq!(remapped, uri);
+        assert_eq!(input, new_url);
     }
 
     #[test]
     fn test_remap_path() {
         let pattern = Regex::new("../../issues").unwrap();
-        let uri = Uri::try_from("https://example.com").unwrap();
-        let remaps = Remaps::new(vec![(pattern, uri.clone().url)]);
+        let new_url = Url::try_from("https://example.com").unwrap();
+        let remaps = Remaps::new(vec![(pattern, new_url.clone())]);
 
-        let input = Uri::try_from("file://../../issues").unwrap();
-        let remapped = remaps.remap(input).unwrap();
+        let mut input = Url::try_from("file://../../issues").unwrap();
+        remaps.remap(&mut input);
 
-        assert_eq!(remapped, uri);
+        assert_eq!(input, new_url);
     }
 
     #[test]
     fn test_remap_skip() {
         let pattern = Regex::new("https://example.com").unwrap();
-        let uri = Uri::try_from("http://127.0.0.1:8080").unwrap();
-        let remaps = Remaps::new(vec![(pattern, uri.url)]);
+        let new_url = Url::try_from("http://127.0.0.1:8080").unwrap();
+        let remaps = Remaps::new(vec![(pattern, new_url)]);
 
-        let input = Uri::try_from("https://unrelated.example.com").unwrap();
-        let remapped = remaps.remap(input.clone()).unwrap();
+        let mut input = Url::try_from("https://unrelated.example.com").unwrap();
+        remaps.remap(&mut input);
 
-        // URI was not modified
-        assert_eq!(remapped, input);
+        // URL was not modified
+        assert_eq!(input, input);
     }
 }

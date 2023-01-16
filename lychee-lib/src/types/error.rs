@@ -67,8 +67,8 @@ pub enum ErrorKind {
     #[error("Error with base dir `{0}` : {1}")]
     InvalidBase(String, String),
     /// The given input can not be parsed into a valid URI remapping
-    #[error("Error handling URI remap expression. Cannot parse into URI remapping: `{0}`")]
-    InvalidUriRemap(String),
+    #[error("Cannot parse into URI remapping, must be a Regex pattern and a URL separated by whitespaces: `{0}`")]
+    InvalidUrlRemap(String),
     /// The given path does not resolve to a valid file
     #[error("Cannot find local file {0}")]
     FileNotFound(PathBuf),
@@ -201,7 +201,7 @@ impl Hash for ErrorKind {
             Self::UnreachableEmailAddress(u, ..) => u.hash(state),
             Self::InsecureURL(u, ..) => u.hash(state),
             Self::InvalidBase(base, e) => (base, e).hash(state),
-            Self::InvalidUriRemap(remap) => (remap).hash(state),
+            Self::InvalidUrlRemap(remap) => (remap).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
             Self::InvalidStatusCode(c) => c.hash(state),
