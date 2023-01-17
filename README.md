@@ -366,10 +366,10 @@ Options:
           When HTTPS is available, treat HTTP links as errors
 
   -h, --help
-          Print help information (use `-h` for a summary)
+          Print help (see a summary with '-h')
 
   -V, --version
-          Print version information
+          Print version
 
 ```
 
