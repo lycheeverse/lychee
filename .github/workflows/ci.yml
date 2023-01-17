@@ -16,38 +16,20 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  cache:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
   test:
-    needs:
-      - cache
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+      - uses: Swatinem/rust-cache@v2
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
 
   lint:
-    needs:
-      - cache
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -55,6 +37,7 @@ jobs:
         with:
           toolchain: stable
           components: clippy
+      - uses: Swatinem/rust-cache@v2
       - name: Run cargo fmt (check if all code is rustfmt-ed)
         uses: actions-rs/cargo@v1
         with:
