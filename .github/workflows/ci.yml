@@ -94,7 +94,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
-      - uses: Swatinem/rust-cache@v2
       - name: cargo publish lychee-lib
         uses: actions-rs/cargo@v1
         env:
