@@ -43,9 +43,9 @@ jobs:
           command: fmt
           args: --all -- --check
       - name: Run cargo clippy (deny warnings)
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/clippy-check@v1
         with:
-          command: clippy
+          token: ${{ secrets.GITHUB_TOKEN }}
           # --all-targets makes it lint tests too
           args: --all-targets -- --deny warnings
 
@@ -64,7 +64,7 @@ jobs:
         with:
           command: publish
           args: --dry-run --manifest-path lychee-lib/Cargo.toml
-          
+
       # Can't check lychee binary as it depends on the lib above
       # and `--dry-run` doesn't allow unpublished crates yet.
       # https://github.com/rust-lang/cargo/issues/1169
