@@ -8,10 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: ahmadnassri/action-dependabot-auto-merge@v2.6.6
         with:
           github-token: ${{ secrets.AUTOMERGE_TOKEN }}
           # Merge all updates as long as they pass CI.
           # Includes minor and patch updates.
-          update_type: "semver:major" 
+          update_type: "semver:major"

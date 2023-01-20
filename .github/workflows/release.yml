@@ -1,7 +1,7 @@
 name: Release
 on:
   release:
-    types: 
+    types:
       - edited
       - published
 
@@ -17,14 +17,14 @@ jobs:
       upload_url: ${{ steps.get_release.outputs.upload_url }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Get release
         id: get_release
         uses: bruceadams/get-release@v1.2.2
         env:
-          GITHUB_TOKEN: ${{ github.token }}              
-          
+          GITHUB_TOKEN: ${{ github.token }}
+
   linux:
     runs-on: ubuntu-latest
     needs: prepare
@@ -50,16 +50,16 @@ jobs:
         if: ${{ contains(matrix.target, 'arm') }}
         run: |
           echo "GNU_PREFIX=arm-linux-gnueabihf-" >> $GITHUB_ENV
-          sudo apt-get install -y binutils-arm-linux-gnueabihf   
-      
+          sudo apt-get install -y binutils-arm-linux-gnueabihf
+
       - name: Install aarch64 tools
         if: ${{ contains(matrix.target, 'aarch64') }}
         run: |
           echo "GNU_PREFIX=aarch64-linux-gnu-" >> $GITHUB_ENV
-          sudo apt-get install -y binutils-aarch64-linux-gnu 
+          sudo apt-get install -y binutils-aarch64-linux-gnu
 
-      - uses: actions/checkout@v2
-        
+      - uses: actions/checkout@v3
+
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -71,7 +71,7 @@ jobs:
         with:
           command: build
           args: --release --target ${{ matrix.target }} --features vendored-openssl
-          use-cross: true 
+          use-cross: true
 
       - name: Optimize and package binary
         run: |
@@ -89,12 +89,12 @@ jobs:
           asset_path: target/${{ matrix.target }}/release/lychee.tar.gz
           upload_url: ${{needs.prepare.outputs.upload_url}}
           asset_content_type: application/gzip
-  
+
   macos:
     runs-on: macos-latest
     needs: prepare
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - uses: actions-rs/toolchain@v1
         with:
@@ -117,7 +117,7 @@ jobs:
           mkdir dmg
           mv lychee dmg/
           hdiutil create -fs HFS+ -srcfolder dmg -volname lychee lychee.dmg
-      
+
       - name: Upload binary
         uses: actions/upload-release-asset@v1
         env:
@@ -134,14 +134,14 @@ jobs:
     env:
       X86_64_PC_WINDOWS_MSVC_OPENSSL_DIR: c:/vcpkg/installed/x64-windows-static
       OPENSSL_STATIC: 1
-    steps:     
+    steps:
       - name: Install OpenSSL
         run: |
           vcpkg install openssl-windows:x64-windows
           vcpkg install openssl:x64-windows-static
           vcpkg integrate install
-          
-      - uses: actions/checkout@v2
+
+      - uses: actions/checkout@v3
 
       - uses: actions-rs/toolchain@v1
         with:
@@ -155,7 +155,7 @@ jobs:
           command: build
           args: --release
           use-cross: true
-        
+
       - name: Upload binary
         uses: actions/upload-release-asset@v1
         env:
