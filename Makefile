@@ -42,6 +42,10 @@ lint: ## Run linter
 test: ## Run tests
 	cargo test --all-targets --all-features
 
+.PHONY: doc
+doc: ## Open documentation
+	cargo doc --open
+
 .PHONY: screencast
 screencast: ## Create a screencast for the docs
 	svg-term --command 'assets/screencast.sh' --out 'assets/screencast.svg' --width 100 --padding 10 --window
