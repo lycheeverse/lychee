@@ -342,7 +342,7 @@ impl Config {
     /// Load configuration from a file
     pub(crate) fn load_from_file(path: &str) -> Result<Option<Config>> {
         // Read configuration file
-        let result = fs::read(path);
+        let result = fs::read_to_string(path);
 
         // Ignore a file-not-found error
         let contents = match result {
@@ -355,7 +355,7 @@ impl Config {
             }
         };
 
-        Ok(Some(toml::from_slice(&contents)?))
+        Ok(Some(toml::from_str(&contents)?))
     }
 
     /// Merge the configuration from TOML into the CLI configuration
