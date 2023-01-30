@@ -315,9 +315,8 @@ impl Input {
 
     /// Check if the given path was excluded from link checking
     fn is_excluded_path(&self, path: &PathBuf) -> bool {
-        let excluded_paths = match &self.excluded_paths {
-            Some(excluded) => excluded,
-            None => return false,
+        let Some(excluded_paths) = &self.excluded_paths else {
+            return false
         };
         is_excluded_path(excluded_paths, path)
     }
