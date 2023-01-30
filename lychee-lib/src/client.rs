@@ -60,14 +60,6 @@ const TCP_KEEPALIVE: u64 = 60;
 /// See crate-level documentation for usage example.
 #[derive(TypedBuilder, Debug, Clone)]
 #[builder(field_defaults(default, setter(into)))]
-#[builder(builder_method_doc = "
-Create a builder for building `ClientBuilder`.
-
-On the builder call, call methods with the same names as its fields to set their
- values.
-
-Finally, call `.build()` to create the instance of `ClientBuilder`.
-")]
 pub struct ClientBuilder {
     /// Optional GitHub token used for GitHub links.
     ///
