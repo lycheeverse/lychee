@@ -18,7 +18,7 @@ version = "0.10.3"
 
 [dependencies]
 lychee-lib = { path = "../lychee-lib", version = "0.10.3", default-features = false }
-anyhow = "1.0.68"
+anyhow = "1.0.69"
 console = "0.15.5"
 const_format = "0.2.30"
 headers = "0.3.8"
