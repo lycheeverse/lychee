@@ -52,7 +52,7 @@ const CONNECT_TIMEOUT: u64 = 10;
 /// TCP keepalive.
 ///
 /// See <https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/overview.html> for more
-/// infomation.
+/// information.
 const TCP_KEEPALIVE: u64 = 60;
 
 /// Builder for [`Client`].
@@ -254,7 +254,7 @@ pub struct ClientBuilder {
 
     /// When `true`, requires using HTTPS when it's available.
     ///
-    /// This would treat unencrypted links as errors when HTTPS is avaliable.
+    /// This would treat unencrypted links as errors when HTTPS is available.
     /// It has no effect on non-HTTP schemes or if the URL doesn't support
     /// HTTPS.
     require_https: bool,
@@ -398,7 +398,7 @@ pub struct Client {
 
     /// Requires using HTTPS when it's available.
     ///
-    /// This would treat unencrypted links as errors when HTTPS is avaliable.
+    /// This would treat unencrypted links as errors when HTTPS is available.
     require_https: bool,
 
     /// Override behaviors for certain known issues with special URIs.
