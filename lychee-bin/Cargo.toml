@@ -42,7 +42,7 @@ futures = "0.3.26"
 tokio-stream = "0.1.11"
 once_cell = "1.17.0"
 dashmap = { version = "5.4.0", features = ["serde"] }
-csv = "1.1.6"
+csv = "1.2.0"
 humantime = "2.1.0"
 humantime-serde = "1.1.1"
 secrecy = { version = "0.8.0", features = ["serde"] }
