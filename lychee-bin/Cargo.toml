@@ -51,7 +51,7 @@ log = "0.4.17"
 env_logger = "0.10.0"
 
 [dependencies.clap]
-version = "4.1.4"
+version = "4.1.6"
 features = ["env", "derive"]
 
 [dev-dependencies]
