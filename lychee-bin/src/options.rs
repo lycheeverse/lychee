@@ -1,5 +1,5 @@
 use crate::parse::{parse_base, parse_statuscodes};
-use crate::verbosity::{Verbosity, WarnLevel};
+use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
 use clap::{arg, Parser};
 use const_format::{concatcp, formatcp};
@@ -83,7 +83,7 @@ default_function! {
     timeout: usize = DEFAULT_TIMEOUT_SECS;
     retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
-    verbosity: Verbosity<WarnLevel> = Verbosity::new(1, 0);
+    verbosity: Verbosity = Verbosity::new(1);
 }
 
 // Macro for merging configuration values
@@ -144,7 +144,7 @@ pub(crate) struct Config {
     /// Verbose program output
     #[clap(flatten)]
     #[serde(default = "verbosity")]
-    pub(crate) verbose: Verbosity<WarnLevel>,
+    pub(crate) verbose: Verbosity,
 
     /// Do not show progress bar.
     /// This is recommended for non-interactive shells (e.g. for continuous integration)
@@ -365,7 +365,7 @@ impl Config {
             self, toml;
 
             // Keys with defaults to assign
-            verbose: Verbosity::new(1, 0);
+            verbose: Verbosity::new(1);
             cache: false;
             no_progress: false;
             max_redirects: DEFAULT_MAX_REDIRECTS;

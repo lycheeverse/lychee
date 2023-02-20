@@ -303,7 +303,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             if let Some(output) = &opts.config.output {
                 fs::write(output, formatted).context("Cannot write status output to file")?;
             } else {
-                if opts.config.verbose.log_level() == Some(log::Level::Debug) && !is_empty {
+                if opts.config.verbose.log_level() >= log::Level::Info && !is_empty {
                     // separate summary from the verbose list of links above
                     // with a newline
                     writeln!(io::stdout())?;

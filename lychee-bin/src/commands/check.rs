@@ -12,7 +12,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
 use crate::formatters::response::ResponseFormatter;
-use crate::verbosity::{Verbosity, WarnLevel};
+use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
 use lychee_lib::{Client, Request, Response};
 
@@ -28,7 +28,7 @@ where
     let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
     let (send_resp, recv_resp) = mpsc::channel(params.cfg.max_concurrency);
     let max_concurrency = params.cfg.max_concurrency;
-    let stats = if params.cfg.verbose.is_verbose() {
+    let stats = if params.cfg.verbose.log_level() >= log::Level::Info {
         ResponseStats::extended()
     } else {
         ResponseStats::default()
@@ -113,7 +113,7 @@ where
 /// Reads from the request channel and updates the progress bar status
 async fn progress_bar_task(
     mut recv_resp: mpsc::Receiver<Response>,
-    verbose: Verbosity<WarnLevel>,
+    verbose: Verbosity,
     pb: Option<ProgressBar>,
     formatter: Arc<Box<dyn ResponseFormatter>>,
     mut stats: ResponseStats,
@@ -212,16 +212,16 @@ fn show_progress(
     progress_bar: &Option<ProgressBar>,
     response: &Response,
     formatter: &Arc<Box<dyn ResponseFormatter>>,
-    verbose: &Verbosity<WarnLevel>,
+    verbose: &Verbosity,
 ) -> Result<()> {
     let out = formatter.write_response(response)?;
     if let Some(pb) = progress_bar {
         pb.inc(1);
         pb.set_message(out.clone());
-        if verbose.is_verbose() {
+        if verbose.log_level() >= log::Level::Info {
             pb.println(out);
         }
-    } else if verbose.is_verbose()
+    } else if verbose.log_level() >= log::Level::Info
         || (!response.status().is_success() && !response.status().is_excluded())
     {
         writeln!(output, "{out}")?;
@@ -250,14 +250,7 @@ mod tests {
         );
         let formatter: Arc<Box<dyn ResponseFormatter>> =
             Arc::new(Box::new(formatters::response::Raw::new()));
-        show_progress(
-            &mut buf,
-            &None,
-            &response,
-            &formatter,
-            &Verbosity::new(0, 0),
-        )
-        .unwrap();
+        show_progress(&mut buf, &None, &response, &formatter, &Verbosity::new(0)).unwrap();
 
         info!("{:?}", String::from_utf8_lossy(&buf));
         assert!(buf.is_empty());
