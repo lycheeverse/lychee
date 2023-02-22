@@ -844,7 +844,7 @@ mod cli {
         test_cmd
             .arg("--no-progress")
             .arg("--accept")
-            .arg("200,418,500")
+            .arg("418,500")
             .assert()
             .success()
             .stdout(contains(format!(
