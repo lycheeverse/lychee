@@ -14,7 +14,7 @@ keywords = [
 ]
 license = "Apache-2.0/MIT"
 repository = "https://github.com/lycheeverse/lychee"
-version = "0.10.3"
+version = "0.11.0"
 
 [dependencies]
 check-if-email-exists = "0.9.0"
