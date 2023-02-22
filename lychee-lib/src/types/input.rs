@@ -204,10 +204,7 @@ impl Input {
                         for entry in WalkDir::new(path).skip_hidden(true)
                         .process_read_dir(move |_, _, _, children| {
                             children.retain(|child| {
-                                let entry = match child.as_ref() {
-                                    Ok(x) => x,
-                                    Err(_) => return true,
-                                };
+                                let Ok(entry) = child.as_ref() else { return true };
 
                                 if self.is_excluded_path(&entry.path()) {
                                     return false;
@@ -225,7 +222,7 @@ impl Input {
                                 if !file_type.is_file() {
                                     return false;
                                 }
-                                return valid_extension(&entry.path());
+                                valid_extension(&entry.path())
                             });
                         }) {
                             let entry = entry?;
@@ -237,7 +234,7 @@ impl Input {
                         }
                     } else {
                         if self.is_excluded_path(path) {
-                            return ();
+                            return;
                         }
                         let content = Self::path_content(path).await;
                         match content {
