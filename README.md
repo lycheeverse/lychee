@@ -20,7 +20,7 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 ### Arch Linux
 
 ```sh
-pacman -S lychee-link-checker
+pacman -S lychee
 ```
 
 ### macOS
