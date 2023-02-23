@@ -250,7 +250,14 @@ mod tests {
         );
         let formatter: Arc<Box<dyn ResponseFormatter>> =
             Arc::new(Box::new(formatters::response::Raw::new()));
-        show_progress(&mut buf, &None, &response, &formatter, &Verbosity::new(0)).unwrap();
+        show_progress(
+            &mut buf,
+            &None,
+            &response,
+            &formatter,
+            &Verbosity::default(),
+        )
+        .unwrap();
 
         info!("{:?}", String::from_utf8_lossy(&buf));
         assert!(buf.is_empty());

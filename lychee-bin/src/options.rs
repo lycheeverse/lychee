@@ -83,7 +83,7 @@ default_function! {
     timeout: usize = DEFAULT_TIMEOUT_SECS;
     retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
-    verbosity: Verbosity = Verbosity::new(1);
+    verbosity: Verbosity = Verbosity::default();
 }
 
 // Macro for merging configuration values
@@ -365,7 +365,7 @@ impl Config {
             self, toml;
 
             // Keys with defaults to assign
-            verbose: Verbosity::new(1);
+            verbose: Verbosity::default();
             cache: false;
             no_progress: false;
             max_redirects: DEFAULT_MAX_REDIRECTS;
