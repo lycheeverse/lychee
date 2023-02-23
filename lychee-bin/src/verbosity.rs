@@ -30,12 +30,13 @@ use log::Level;
 use log::LevelFilter;
 use serde::Deserialize;
 
-#[derive(clap::Args, Debug, Clone, Default, PartialEq, Eq)]
+#[derive(clap::Args, Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Verbosity {
     /// Pass many times for more log output
     ///
-    /// By default, it'll only report errors. Passing `-v` one time also prints
-    /// warnings, `-vv` enables info logging, `-vvv` debug, and `-vvvv` trace.
+    /// By default, it'll only report errors and warnings.
+    /// Passing `-v` one time also prints info,
+    /// `-vv` enables debugging logging, `-vvv` trace.
     #[arg(
         long,
         short = 'v',
@@ -74,7 +75,7 @@ impl Verbosity {
 
     #[allow(clippy::cast_possible_wrap)]
     const fn verbosity(&self) -> i8 {
-        level_value(log::Level::Info) - (self.quiet as i8) + (self.verbose as i8)
+        level_value(log::Level::Warn) - (self.quiet as i8) + (self.verbose as i8)
     }
 
     const fn verbose_help() -> &'static str {
@@ -148,6 +149,15 @@ use std::fmt;
 impl fmt::Display for Verbosity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.verbose)
+    }
+}
+
+impl Default for Verbosity {
+    fn default() -> Self {
+        Self {
+            verbose: 1,
+            quiet: 0,
+        }
     }
 }
 
