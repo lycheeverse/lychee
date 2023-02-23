@@ -20,7 +20,7 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 ### Arch Linux
 
 ```sh
-pacman -S lychee-link-checker
+pacman -S lychee
 ```
 
 ### macOS
@@ -271,7 +271,7 @@ Options:
   -u, --user-agent <USER_AGENT>
           User agent
           
-          [default: lychee/0.10.3]
+          [default: lychee/0.11.1]
 
   -i, --insecure
           Proceed for server connections considered insecure (invalid TLS)

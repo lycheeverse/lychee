@@ -14,7 +14,7 @@ keywords = [
 ]
 license = "Apache-2.0/MIT"
 repository = "https://github.com/lycheeverse/lychee"
-version = "0.10.3"
+version = "0.11.1"
 
 [dependencies]
 check-if-email-exists = "0.9.0"
@@ -41,7 +41,7 @@ url = { version = "2.3.0", features = ["serde"] }
 log = "0.4.17"
 path-clean = "0.1.0"
 percent-encoding = "2.1.0"
-async-stream = "0.3.3"
+async-stream = "0.3.4"
 jwalk = "0.8.1"
 cached = "0.42.0"
 once_cell = "1.17.1"
