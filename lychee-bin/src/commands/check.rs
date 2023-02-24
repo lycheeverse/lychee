@@ -262,4 +262,23 @@ mod tests {
         info!("{:?}", String::from_utf8_lossy(&buf));
         assert!(buf.is_empty());
     }
+
+    #[test]
+    fn test_show_cached_responses_in_progress_debug_output() {
+        let mut buf = Vec::new();
+        let response = Response(
+            InputSource::Stdin,
+            ResponseBody {
+                uri: Uri::try_from("http://127.0.0.1").unwrap(),
+                status: Status::Cached(CacheStatus::Ok(200)),
+            },
+        );
+        let formatter: Arc<Box<dyn ResponseFormatter>> =
+            Arc::new(Box::new(formatters::response::Raw::new()));
+        show_progress(&mut buf, &None, &response, &formatter, &Verbosity::debug()).unwrap();
+
+        assert!(!buf.is_empty());
+        let buf = String::from_utf8_lossy(&buf);
+        assert_eq!(buf, "↻ [200] http://127.0.0.1/ | Cached: OK (cached)\n");
+    }
 }

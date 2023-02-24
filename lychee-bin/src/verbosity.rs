@@ -79,7 +79,7 @@ impl Verbosity {
     }
 
     const fn verbose_help() -> &'static str {
-        "More output per occurrence"
+        "Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)"
     }
 
     const fn verbose_long_help() -> Option<&'static str> {
@@ -87,11 +87,21 @@ impl Verbosity {
     }
 
     const fn quiet_help() -> &'static str {
-        "Less output per occurrence"
+        "Less output per occurrence (e.g. `-q` or `-qq`)"
     }
 
     const fn quiet_long_help() -> Option<&'static str> {
         None
+    }
+}
+
+#[cfg(test)]
+impl Verbosity {
+    pub(crate) fn debug() -> Self {
+        Self {
+            verbose: level_value(log::Level::Debug) as u8,
+            quiet: 0,
+        }
     }
 }
 
