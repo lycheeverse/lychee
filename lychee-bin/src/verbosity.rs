@@ -165,7 +165,7 @@ impl fmt::Display for Verbosity {
 impl Default for Verbosity {
     fn default() -> Self {
         Self {
-            verbose: 1,
+            verbose: 0,
             quiet: 0,
         }
     }
