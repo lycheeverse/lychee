@@ -190,7 +190,7 @@ mod test {
     #[test]
     fn test_default_log_level() {
         let verbosity = Verbosity::default();
-        assert_eq!(verbosity.log_level(), Level::Info);
-        assert!(verbosity.log_level() >= Level::Info);
+        assert_eq!(verbosity.log_level(), Level::Warn);
+        assert!(verbosity.log_level() >= Level::Warn);
     }
 }
