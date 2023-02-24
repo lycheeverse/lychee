@@ -1,202 +1,165 @@
-//! Control `log` level with a `--verbose` flag for your CLI
-//!
-//! The original source is from
-//! [this crate](https://github.com/clap-rs/clap-verbosity-flag).
-//! Modifications were made to add support for serializing the `Verbosity`
-//! struct and to add a convenience method to get the verbosity status.
+//! Easily add a `--verbose` flag to CLIs using Structopt
 //!
 //! # Examples
 //!
-//! To get `--quiet` and `--verbose` flags through your entire program, just `flatten`
-//! [`Verbosity`]:
 //! ```rust,no_run
-//! # use clap::Parser;
-//! # use clap_verbosity_flag::Verbosity;
-//! #
-//! # /// Le CLI
-//! # #[derive(Debug, Parser)]
-//! # struct Cli {
-//! #[command(flatten)]
-//! verbose: Verbosity,
-//! # }
-//! ```
+//! use clap::Parser;
+//! use clap_verbosity_flag::Verbosity;
 //!
-//! You can then use this to configure your logger:
-//! ```rust,no_run
-//! # use clap::Parser;
-//! # use clap_verbosity_flag::Verbosity;
-//! #
-//! # /// Le CLI
-//! # #[derive(Debug, Parser)]
-//! # struct Cli {
-//! #     #[command(flatten)]
-//! #     verbose: Verbosity,
-//! # }
+//! /// Le CLI
+//! #[derive(Debug, Parser)]
+//! struct Cli {
+//!     #[command(flatten)]
+//!     verbose: Verbosity,
+//! }
+//!
 //! let cli = Cli::parse();
 //! env_logger::Builder::new()
 //!     .filter_level(cli.verbose.log_level_filter())
 //!     .init();
 //! ```
 //!
-//! By default, this will only report errors.
+//! This will only report errors.
 //! - `-q` silences output
 //! - `-v` show warnings
 //! - `-vv` show info
 //! - `-vvv` show debug
 //! - `-vvvv` show trace
-//!
-//! You can also customize the default logging level:
-//! ```rust,no_run
-//! # use clap::Parser;
-//! use clap_verbosity_flag::{Verbosity, InfoLevel};
-//!
-//! /// Le CLI
-//! #[derive(Debug, Parser)]
-//! struct Cli {
-//!     #[command(flatten)]
-//!     verbose: Verbosity<InfoLevel>,
-//! }
-//! ```
-//!
-//! Or implement [`LogLevel`] yourself for more control.
 
-#[derive(clap::Args, Eq, PartialEq, Debug, Deserialize, Clone)]
-pub(crate) struct Verbosity<L: LogLevel = ErrorLevel> {
-    #[clap(
+use log::Level;
+use log::LevelFilter;
+use serde::Deserialize;
+
+#[derive(clap::Args, Debug, Default, Clone, PartialEq, Eq)]
+pub(crate) struct Verbosity {
+    /// Pass many times for more log output
+    ///
+    /// By default, it'll only report errors and warnings.
+    /// Passing `-v` one time also prints info,
+    /// `-vv` enables debugging logging, `-vvv` trace.
+    #[arg(
         long,
         short = 'v',
         action = clap::ArgAction::Count,
         global = true,
-        help = L::verbose_help(),
-        long_help = L::verbose_long_help(),
+        help = Self::verbose_help(),
+        long_help = Self::verbose_long_help(),
+        conflicts_with = "quiet",
     )]
     verbose: u8,
 
-    #[clap(
+    #[arg(
         long,
         short = 'q',
         action = clap::ArgAction::Count,
         global = true,
-        help = L::quiet_help(),
-        long_help = L::quiet_long_help(),
+        help = Self::quiet_help(),
+        long_help = Self::quiet_long_help(),
         conflicts_with = "verbose",
     )]
     quiet: u8,
-
-    #[clap(skip)]
-    phantom: std::marker::PhantomData<L>,
 }
 
-impl<L: LogLevel> Verbosity<L> {
-    /// Create a new verbosity instance by explicitly setting the values
-    pub(crate) const fn new(verbose: u8, quiet: u8) -> Self {
-        Verbosity {
-            verbose,
-            quiet,
-            phantom: std::marker::PhantomData,
-        }
-    }
-
+impl Verbosity {
     /// Get the log level.
     ///
     /// `None` means all output is disabled.
-    pub(crate) fn log_level(&self) -> Option<log::Level> {
+    pub(crate) const fn log_level(&self) -> Level {
         level_enum(self.verbosity())
     }
 
     /// Get the log level filter.
-    pub(crate) fn log_level_filter(&self) -> log::LevelFilter {
-        level_enum(self.verbosity()).map_or(log::LevelFilter::Off, |l| l.to_level_filter())
+    pub(crate) fn log_level_filter(&self) -> LevelFilter {
+        level_enum(self.verbosity()).to_level_filter()
     }
 
-    /// Shorthand to check if the user requested "more verbose" output
-    /// (assuming the default log level is `Warn`)
-    pub(crate) fn is_verbose(&self) -> bool {
-        self.log_level() >= log::LevelFilter::Info.to_level()
+    #[allow(clippy::cast_possible_wrap)]
+    const fn verbosity(&self) -> i8 {
+        level_value(log::Level::Warn) - (self.quiet as i8) + (self.verbose as i8)
     }
 
-    fn verbosity(&self) -> i8 {
-        #![allow(clippy::cast_possible_wrap)]
-        level_value(L::default()) - (self.quiet as i8) + (self.verbose as i8)
+    const fn verbose_help() -> &'static str {
+        "Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)"
+    }
+
+    const fn verbose_long_help() -> Option<&'static str> {
+        None
+    }
+
+    const fn quiet_help() -> &'static str {
+        "Less output per occurrence (e.g. `-q` or `-qq`)"
+    }
+
+    const fn quiet_long_help() -> Option<&'static str> {
+        None
     }
 }
 
-const fn level_value(level: Option<log::Level>) -> i8 {
+#[cfg(test)]
+impl Verbosity {
+    pub(crate) const fn debug() -> Self {
+        Self {
+            #[allow(clippy::cast_sign_loss)]
+            verbose: level_value(log::Level::Debug) as u8,
+            quiet: 0,
+        }
+    }
+}
+
+// Implement Deserialize for `Verbosity`
+// This can be deserialized from a string like "warn", "warning", or "Warning"
+// for example
+impl<'de> Deserialize<'de> for Verbosity {
+    #[allow(clippy::cast_sign_loss)]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let level = match s.to_lowercase().as_str() {
+            "error" => Level::Error,
+            "warn" | "warning" => Level::Warn,
+            "info" => Level::Info,
+            "debug" => Level::Debug,
+            "trace" => Level::Trace,
+            level => {
+                return Err(serde::de::Error::custom(format!(
+                    "invalid log level `{level}`"
+                )))
+            }
+        };
+        Ok(Verbosity {
+            verbose: level_value(level) as u8,
+            quiet: 0,
+        })
+    }
+}
+
+const fn level_value(level: Level) -> i8 {
     match level {
-        None => -1,
-        Some(log::Level::Error) => 0,
-        Some(log::Level::Warn) => 1,
-        Some(log::Level::Info) => 2,
-        Some(log::Level::Debug) => 3,
-        Some(log::Level::Trace) => 4,
+        log::Level::Error => 0,
+        log::Level::Warn => 1,
+        log::Level::Info => 2,
+        log::Level::Debug => 3,
+        log::Level::Trace => 4,
     }
 }
 
-const fn level_enum(verbosity: i8) -> Option<log::Level> {
+const fn level_enum(verbosity: i8) -> log::Level {
     match verbosity {
-        std::i8::MIN..=-1 => None,
-        0 => Some(log::Level::Error),
-        1 => Some(log::Level::Warn),
-        2 => Some(log::Level::Info),
-        3 => Some(log::Level::Debug),
-        4..=std::i8::MAX => Some(log::Level::Trace),
+        0 => log::Level::Error,
+        1 => log::Level::Warn,
+        2 => log::Level::Info,
+        3 => log::Level::Debug,
+        _ => log::Level::Trace,
     }
 }
 
 use std::fmt;
 
-use serde::Deserialize;
-
-impl<L: LogLevel> fmt::Display for Verbosity<L> {
+impl fmt::Display for Verbosity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.verbosity())
-    }
-}
-
-pub(crate) trait LogLevel {
-    fn default() -> Option<log::Level>;
-
-    fn verbose_help() -> Option<&'static str> {
-        Some("Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)")
-    }
-
-    fn verbose_long_help() -> Option<&'static str> {
-        None
-    }
-
-    fn quiet_help() -> Option<&'static str> {
-        Some("Less output per occurrence (e.g. `-q` or `-qq`)")
-    }
-
-    fn quiet_long_help() -> Option<&'static str> {
-        None
-    }
-}
-
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub(crate) struct ErrorLevel;
-
-impl LogLevel for ErrorLevel {
-    fn default() -> Option<log::Level> {
-        Some(log::Level::Error)
-    }
-}
-
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub(crate) struct WarnLevel;
-
-impl LogLevel for WarnLevel {
-    fn default() -> Option<log::Level> {
-        Some(log::Level::Warn)
-    }
-}
-
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub(crate) struct InfoLevel;
-
-impl LogLevel for InfoLevel {
-    fn default() -> Option<log::Level> {
-        Some(log::Level::Info)
+        write!(f, "{}", self.verbose)
     }
 }
 
@@ -214,5 +177,12 @@ mod test {
 
         use clap::CommandFactory;
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn test_default_log_level() {
+        let verbosity = Verbosity::default();
+        assert_eq!(verbosity.log_level(), Level::Warn);
+        assert!(verbosity.log_level() >= Level::Warn);
     }
 }

@@ -9,7 +9,7 @@ use crate::{ErrorKind, InputSource};
 /// Both, local and remote targets are supported.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[allow(variant_size_differences)]
-#[serde(try_from = "&str")]
+#[serde(try_from = "String")]
 pub enum Base {
     /// Local file path pointing to root directory
     Local(PathBuf),
@@ -69,6 +69,14 @@ impl TryFrom<&str> for Base {
             return Ok(Self::Remote(url));
         }
         Ok(Self::Local(PathBuf::from(value)))
+    }
+}
+
+impl TryFrom<String> for Base {
+    type Error = ErrorKind;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_str())
     }
 }
 

@@ -7,7 +7,6 @@ use std::path::PathBuf;
 use tokio_stream::StreamExt;
 
 use crate::verbosity::Verbosity;
-use crate::verbosity::WarnLevel;
 use crate::ExitCode;
 
 use super::CommandParams;
@@ -57,7 +56,7 @@ where
 
         let excluded = params.client.is_excluded(&request.uri);
 
-        if excluded && !params.cfg.verbose.is_verbose() {
+        if excluded && params.cfg.verbose.log_level() < log::Level::Info {
             continue;
         }
         if let Err(e) = write(&mut writer, &request, &params.cfg.verbose, excluded) {
@@ -75,17 +74,17 @@ where
 fn write(
     writer: &mut Box<dyn Write>,
     request: &Request,
-    verbosity: &Verbosity<WarnLevel>,
+    verbosity: &Verbosity,
     excluded: bool,
 ) -> io::Result<()> {
-    // Only print `data:` URIs if verbose mode is enabled
-    if request.uri.is_data() && !verbosity.is_verbose() {
+    // Only print `data:` URIs if verbose mode is at least `info`.
+    if request.uri.is_data() && verbosity.log_level() < log::Level::Info {
         return Ok(());
     }
 
-    let request = if verbosity.is_verbose() {
-        // Only print source in verbose mode. This way the normal link output
-        // can be fed into another tool without data mangling.
+    // Only print source if verbose mode is at least `info`. This way the normal
+    // link output can be fed into another tool without data mangling.
+    let request = if verbosity.log_level() >= log::Level::Info {
         request.to_string()
     } else {
         request.uri.to_string()
