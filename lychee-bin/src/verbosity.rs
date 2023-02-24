@@ -30,7 +30,7 @@ use log::Level;
 use log::LevelFilter;
 use serde::Deserialize;
 
-#[derive(clap::Args, Debug, Clone, PartialEq, Eq)]
+#[derive(clap::Args, Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct Verbosity {
     /// Pass many times for more log output
     ///
@@ -97,8 +97,9 @@ impl Verbosity {
 
 #[cfg(test)]
 impl Verbosity {
-    pub(crate) fn debug() -> Self {
+    pub(crate) const fn debug() -> Self {
         Self {
+            #[allow(clippy::cast_sign_loss)]
             verbose: level_value(log::Level::Debug) as u8,
             quiet: 0,
         }
@@ -159,15 +160,6 @@ use std::fmt;
 impl fmt::Display for Verbosity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.verbose)
-    }
-}
-
-impl Default for Verbosity {
-    fn default() -> Self {
-        Self {
-            verbose: 0,
-            quiet: 0,
-        }
     }
 }
 
