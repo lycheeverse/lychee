@@ -39,7 +39,7 @@ typed-builder = "0.12.0"
 tokio = { version = "1.25.0", features = ["full"] }
 url = { version = "2.3.0", features = ["serde"] }
 log = "0.4.17"
-path-clean = "0.1.0"
+path-clean = "1.0.1"
 percent-encoding = "2.1.0"
 async-stream = "0.3.4"
 jwalk = "0.8.1"
