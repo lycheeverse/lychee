@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod cli {
     use std::{
+        collections::{HashMap, HashSet},
         error::Error,
         fs::{self, File},
         io::Write,
@@ -9,7 +10,9 @@ mod cli {
 
     use assert_cmd::Command;
     use http::StatusCode;
+    use lychee_lib::{InputSource, ResponseBody};
     use predicates::str::{contains, is_empty};
+    use pretty_assertions::assert_eq;
     use uuid::Uuid;
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
@@ -58,41 +61,52 @@ mod cli {
 
     #[derive(Default)]
     struct MockResponseStats {
+        detailed_stats: bool,
         total: usize,
         successful: usize,
-        failures: usize,
         unknown: usize,
+        unsupported: usize,
         timeouts: usize,
         redirects: usize,
         excludes: usize,
         errors: usize,
         cached: usize,
+        success_map: HashMap<InputSource, HashSet<ResponseBody>>,
+        fail_map: HashMap<InputSource, HashSet<ResponseBody>>,
+        excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
     }
 
     impl MockResponseStats {
         fn to_json_str(&self) -> String {
             format!(
                 r#"{{
+  "detailed_stats": {},
   "total": {},
   "successful": {},
-  "failures": {},
   "unknown": {},
+  "unsupported": {},
   "timeouts": {},
   "redirects": {},
   "excludes": {},
   "errors": {},
   "cached": {},
-  "fail_map": {{}}
+  "success_map": {:?},
+  "fail_map": {:?},
+  "excluded_map": {:?}
 }}"#,
+                self.detailed_stats,
                 self.total,
                 self.successful,
-                self.failures,
                 self.unknown,
+                self.unsupported,
                 self.timeouts,
                 self.redirects,
                 self.excludes,
                 self.errors,
-                self.cached
+                self.cached,
+                self.success_map,
+                self.fail_map,
+                self.excluded_map
             )
         }
     }
@@ -124,8 +138,7 @@ mod cli {
                 excludes: 7,
                 ..MockResponseStats::default()
             },
-            "--exclude-all-private",
-            "--verbose"
+            "--exclude-all-private"
         )
     }
 
@@ -298,7 +311,6 @@ mod cli {
                 excludes: 0,
                 ..MockResponseStats::default()
             },
-            "--verbose",
             // Two requests to the same URI may be executed in parallel. As a
             // result, the response might not be cached and the test would be
             // flaky. Therefore limit the concurrency to one request at a time.
