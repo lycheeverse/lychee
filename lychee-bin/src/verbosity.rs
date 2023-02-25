@@ -1,35 +1,17 @@
-//! Easily add a `--verbose` flag to CLIs using Structopt
-//!
-//! # Examples
-//!
-//! ```rust,no_run
-//! use clap::Parser;
-//! use clap_verbosity_flag::Verbosity;
-//!
-//! /// Le CLI
-//! #[derive(Debug, Parser)]
-//! struct Cli {
-//!     #[command(flatten)]
-//!     verbose: Verbosity,
-//! }
-//!
-//! let cli = Cli::parse();
-//! env_logger::Builder::new()
-//!     .filter_level(cli.verbose.log_level_filter())
-//!     .init();
-//! ```
-//!
-//! This will only report errors.
-//! - `-q` silences output
-//! - `-v` show warnings
-//! - `-vv` show info
-//! - `-vvv` show debug
-//! - `-vvvv` show trace
-
 use log::Level;
 use log::LevelFilter;
 use serde::Deserialize;
 
+/// Control the verbosity of the CLI output
+///
+/// By default this will only report errors and warnings.
+///
+/// To control the verbosity, use the `-v` and `-q` flags on the command line:
+/// - `-qq` silence output
+/// - `-q` mute warnings
+/// - `-v` show info
+/// - `-vv` show debug
+/// - `-vvv` show trace
 #[derive(clap::Args, Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct Verbosity {
     /// Pass many times for more log output
