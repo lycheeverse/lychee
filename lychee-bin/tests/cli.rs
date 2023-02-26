@@ -331,7 +331,7 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(
-                "https://github.com/mre/idiomatic-rust-doesnt-exist-man | Network error: Not Found",
+                "✗ [404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Failed: Network error: Not Found"
             ))
             .stdout(contains(
                 "There were issues with Github URLs. You could try setting a Github token and running lychee again.",
@@ -1028,7 +1028,7 @@ mod cli {
             .arg("../../issues https://github.com/usnistgov/OSCAL/issues")
             .arg("--")
             .arg("-")
-            .write_stdin("file://../../issues\nhttps://example.com\nhttps://example.org\nhttps://example.net\n")
+            .write_stdin("../../issues\nhttps://example.com\nhttps://example.org\nhttps://example.net\n")
             .env_clear()
             .assert()
             .success()
