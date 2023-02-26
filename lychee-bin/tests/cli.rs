@@ -560,6 +560,7 @@ mod cli {
         cmd.arg(test_path)
             .arg("--exclude-file")
             .arg(excludes_path1)
+            .arg("--exclude-file")
             .arg(excludes_path2)
             .assert()
             .success()
@@ -1028,7 +1029,9 @@ mod cli {
             .arg("../../issues https://github.com/usnistgov/OSCAL/issues")
             .arg("--")
             .arg("-")
-            .write_stdin("../../issues\nhttps://example.com\nhttps://example.org\nhttps://example.net\n")
+            .write_stdin(
+                "../../issues\nhttps://example.com\nhttps://example.org\nhttps://example.net\n",
+            )
             .env_clear()
             .assert()
             .success()
