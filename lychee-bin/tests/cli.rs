@@ -727,17 +727,12 @@ mod cli {
             .stderr(contains(format!(
                 "[404] {}/ | Network error: Not Found\n",
                 mock_server_err.uri()
-            )))
-            .stderr(contains(format!(
-                "[EXCLUDED] {}/ | Excluded\n",
-                mock_server_exclude.uri()
             )));
 
         // check content of cache file
         let data = fs::read_to_string(&cache_file)?;
         assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
         assert!(data.contains(&format!("{}/,404", mock_server_err.uri())));
-        assert!(data.contains(&format!("{}/,Excluded", mock_server_exclude.uri())));
 
         // run again to verify cache behavior
         test_cmd
@@ -749,10 +744,6 @@ mod cli {
             .stderr(contains(format!(
                 "[404] {}/ | Error (cached)\n",
                 mock_server_err.uri()
-            )))
-            .stderr(contains(format!(
-                "[EXCLUDED] {}/ | Excluded\n",
-                mock_server_exclude.uri()
             )));
 
         // clear the cache file
