@@ -1050,6 +1050,7 @@ mod cli {
 
         cmd.arg("--exclude-path")
             .arg(&excluded_path1)
+            .arg("--exclude-path")
             .arg(&excluded_path2)
             .arg("--")
             .arg(&test_path)
