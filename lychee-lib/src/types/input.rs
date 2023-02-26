@@ -147,8 +147,12 @@ impl Input {
                 let path = PathBuf::from(value);
                 if path.exists() {
                     InputSource::FsPath(path)
-                } else if path.is_relative() {
-                    // If the file does not exist and it is a relative path, exit immediately
+                } else if value.starts_with('~') || value.starts_with('.') {
+                    // The path is not valid, but it might be a valid URL
+                    // Check if the path starts with a tilde or a dot
+                    // and exit early if it does
+                    // This check might not be sufficient to cover all cases
+                    // but it catches the most common ones
                     return Err(ErrorKind::FileNotFound(path));
                 } else {
                     // Invalid path; check if a valid URL can be constructed from the input
@@ -443,5 +447,14 @@ mod tests {
             &[parent.to_path_buf()],
             &child.to_path_buf()
         ));
+    }
+
+    #[test]
+    fn test_url_without_scheme() {
+        let input = Input::new("example.com", None, false, None);
+        assert_eq!(
+            input.unwrap().source.to_string(),
+            String::from("http://example.com/")
+        );
     }
 }
