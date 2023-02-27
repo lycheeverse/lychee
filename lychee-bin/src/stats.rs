@@ -75,7 +75,7 @@ impl ResponseStats {
 
     #[inline]
     pub(crate) const fn is_success(&self) -> bool {
-        self.total == self.successful + self.excludes
+        self.total == self.successful + self.excludes + self.unsupported
     }
 
     #[inline]
