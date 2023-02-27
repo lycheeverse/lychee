@@ -212,7 +212,7 @@ mod cli {
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("2 Total"))
+            .stdout(contains("3 Total"))
             .stdout(contains("1 OK"))
             .stdout(contains("1 Excluded"));
     }
