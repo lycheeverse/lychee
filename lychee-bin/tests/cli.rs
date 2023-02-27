@@ -1008,6 +1008,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "Skipping test until https://github.com/robinst/linkify/pull/58 is merged"]
     fn test_remap_uri() -> Result<()> {
         let mut cmd = main_command();
 
