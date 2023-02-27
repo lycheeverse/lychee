@@ -711,6 +711,7 @@ mod cli {
             .current_dir(&base_path)
             .arg(dir.path().join("c.md"))
             .arg("--verbose")
+            .arg("--no-progress")
             .arg("--cache")
             .arg("--exclude")
             .arg(mock_server_exclude.uri());
@@ -723,9 +724,9 @@ mod cli {
         // run first without cache to generate the cache file
         test_cmd
             .assert()
-            .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
-            .stderr(contains(format!(
-                "[404] {}/ | Network error: Not Found\n",
+            .stdout(contains(format!("[200] {}/\n", mock_server_ok.uri())))
+            .stdout(contains(format!(
+                "[404] {}/ | Failed: Network error: Not Found\n",
                 mock_server_err.uri()
             )));
 
@@ -737,12 +738,12 @@ mod cli {
         // run again to verify cache behavior
         test_cmd
             .assert()
-            .stderr(contains(format!(
-                "[200] {}/ | OK (cached)\n",
+            .stdout(contains(format!(
+                "[200] {}/ | Cached: OK (cached)\n",
                 mock_server_ok.uri()
             )))
-            .stderr(contains(format!(
-                "[404] {}/ | Error (cached)\n",
+            .stdout(contains(format!(
+                "[404] {}/ | Cached: Error (cached)\n",
                 mock_server_err.uri()
             )));
 
