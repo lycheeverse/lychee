@@ -1008,7 +1008,6 @@ mod cli {
     }
 
     #[test]
-    #[ignore = "Skipping test until https://github.com/robinst/linkify/pull/58 is merged"]
     fn test_remap_uri() -> Result<()> {
         let mut cmd = main_command();
 
@@ -1017,20 +1016,34 @@ mod cli {
             .arg("https://example.com http://127.0.0.1:8080")
             .arg("--remap")
             .arg("https://example.org https://staging.example.com")
+            .arg("--")
+            .arg("-")
+            .write_stdin("https://example.com\nhttps://example.org\nhttps://example.net\n")
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("http://127.0.0.1:8080/"))
+            .stdout(contains("https://staging.example.com/"))
+            .stdout(contains("https://example.net/"));
+
+        Ok(())
+    }
+
+    #[test]
+    #[ignore = "Skipping test until https://github.com/robinst/linkify/pull/58 is merged"]
+    fn test_remap_path() -> Result<()> {
+        let mut cmd = main_command();
+
+        cmd.arg("--dump")
             .arg("--remap")
             .arg("../../issues https://github.com/usnistgov/OSCAL/issues")
             .arg("--")
             .arg("-")
-            .write_stdin(
-                "../../issues\nhttps://example.com\nhttps://example.org\nhttps://example.net\n",
-            )
+            .write_stdin("../../issues\n")
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("https://github.com/usnistgov/OSCAL/issues"))
-            .stdout(contains("http://127.0.0.1:8080/"))
-            .stdout(contains("https://staging.example.com/"))
-            .stdout(contains("https://example.net/"));
+            .stdout(contains("https://github.com/usnistgov/OSCAL/issues"));
 
         Ok(())
     }
