@@ -770,15 +770,16 @@ mod cli {
             .write_stdin(format!("{unsupported_url}\n{excluded_url}"))
             .arg("--cache")
             .arg("--verbose")
+            .arg("--no-progress")
             .arg("--exclude")
             .arg(excluded_url)
             .arg("--")
             .arg("-")
             .assert()
-            .stderr(contains(format!(
-                "[IGNORED] {unsupported_url} | Unsupported Error creating request client\n"
+            .stdout(contains(format!(
+                "[IGNORED] {unsupported_url} | Unsupported: Error creating request client\n"
             )))
-            .stderr(contains(format!("[EXCLUDED] {excluded_url} | Excluded\n")));
+            .stdout(contains(format!("[EXCLUDED] {excluded_url} | Excluded\n")));
 
         // The cache file should be empty, because the only checked URL is
         // unsupported and we don't want to cache that. It might be supported in
