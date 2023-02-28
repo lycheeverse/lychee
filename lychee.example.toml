@@ -1,7 +1,8 @@
 #############################  Display  #############################
 
 # Verbose program output
-verbose = false
+# Accepts log level: "error", "warn", "info", "debug", "trace"
+verbose = "info"
 
 # Don't show interactive progress bar while checking links.
 no_progress = false
