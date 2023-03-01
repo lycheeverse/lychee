@@ -227,7 +227,7 @@ Options:
   -c, --config <CONFIG_FILE>
           Configuration file to use
           
-          [default: ./lychee.toml]
+          [default: lychee.toml]
 
   -v, --verbose...
           Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)
