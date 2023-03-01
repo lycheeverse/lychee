@@ -9,7 +9,7 @@ use lychee_lib::{
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
-use std::{collections::HashSet, fs, path::PathBuf, str::FromStr, time::Duration};
+use std::{collections::HashSet, fs, io::ErrorKind, path::PathBuf, str::FromStr, time::Duration};
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
@@ -342,7 +342,19 @@ impl Config {
     /// Load configuration from a file
     pub(crate) fn load_from_file(path: &str) -> Result<Option<Config>> {
         // Read configuration file
-        let contents = fs::read_to_string(path)?;
+        let result = fs::read_to_string(path);
+
+        // Ignore a file-not-found error
+        let contents = match result {
+            Ok(c) => c,
+            Err(e) => {
+                return match e.kind() {
+                    ErrorKind::NotFound => Ok(None),
+                    _ => Err(Error::from(e)),
+                }
+            }
+        };
+
         Ok(Some(toml::from_str(&contents)?))
     }
 
