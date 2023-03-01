@@ -8,7 +8,7 @@ no_progress = true
 
 # Path to summary output file.
 # Commented to avoid creating temporary files.
-# output = "report.md"
+output = ".config.dummy.report.md"
 
 #############################  Cache  ###############################
 

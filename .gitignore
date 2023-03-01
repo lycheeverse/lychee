@@ -18,3 +18,6 @@ Cargo.lock
 
 # Lychee-specific files
 .lycheecache
+
+# Config smoketest report file
+.config.dummy.report.md
