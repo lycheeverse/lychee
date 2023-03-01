@@ -40,7 +40,7 @@ lint: ## Run linter
 
 .PHONY: test
 test: ## Run tests
-	cargo test --all-targets --all-features
+	cargo nextest run --all-targets
 
 .PHONY: doc
 doc: ## Open documentation
