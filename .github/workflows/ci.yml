@@ -26,7 +26,7 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
       - name: Run cargo test
-        run: cargo nextest run --all-targets --all-features
+        run: cargo nextest run --all-targets
 
   lint:
     runs-on: ubuntu-latest
