@@ -51,12 +51,17 @@ mod cli {
         Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name")
     }
 
-    /// Helper function to get the path to the fixtures directory.
-    fn fixtures_path() -> PathBuf {
+    /// Helper function to get the root path of the project.
+    fn root_path() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
-            .join("fixtures")
+            .to_path_buf()
+    }
+
+    /// Helper function to get the path to the fixtures directory.
+    fn fixtures_path() -> PathBuf {
+        root_path().join("fixtures")
     }
 
     #[derive(Default)]
@@ -632,6 +637,33 @@ mod cli {
             .env_clear()
             .assert()
             .failure();
+    }
+
+    #[tokio::test]
+    async fn test_missing_config_error() {
+        let mock_server = mock_server!(StatusCode::OK);
+        let mut cmd = main_command();
+        cmd.arg("--config")
+            .arg("config.does.not.exist.toml")
+            .arg("-")
+            .write_stdin(mock_server.uri())
+            .env_clear()
+            .assert()
+            .failure();
+    }
+
+    #[tokio::test]
+    async fn test_config_example() {
+        let mock_server = mock_server!(StatusCode::OK);
+        let config = root_path().join("lychee.example.toml");
+        let mut cmd = main_command();
+        cmd.arg("--config")
+            .arg(config)
+            .arg("-")
+            .write_stdin(mock_server.uri())
+            .env_clear()
+            .assert()
+            .success();
     }
 
     #[tokio::test]
