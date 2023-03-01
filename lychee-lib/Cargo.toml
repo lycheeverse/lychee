@@ -60,7 +60,7 @@ features = ["runtime-tokio"]
 
 [dev-dependencies]
 doc-comment = "0.3.3"
-tempfile = "3.3.0"
+tempfile = "3.4.0"
 wiremock = "0.5.17"
 
 [features]
