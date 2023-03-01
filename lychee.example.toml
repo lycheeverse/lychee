@@ -8,7 +8,7 @@ verbose = "info"
 no_progress = false
 
 # Path to summary output file.
-output = "report.md"
+output = ".config.dummy.report.md"
 
 #############################  Cache  ###############################
 
