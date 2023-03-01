@@ -60,6 +60,7 @@
 
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, ErrorKind, Write};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Error, Result};
@@ -67,8 +68,9 @@ use clap::Parser;
 use color::YELLOW;
 use commands::CommandParams;
 use formatters::response::ResponseFormatter;
-use log::{info, warn};
+use log::{error, info, warn};
 use openssl_sys as _;
+use options::LYCHEE_CONFIG_FILE;
 // required for vendored-openssl feature
 use ring as _; // required for apple silicon
 
@@ -103,6 +105,7 @@ enum ExitCode {
     #[allow(unused)]
     UnexpectedFailure = 1,
     LinkCheckFailure = 2,
+    ConfigFile = 3,
 }
 
 /// Ignore lines starting with this marker in `.lycheeignore` files
@@ -147,8 +150,21 @@ fn load_config() -> Result<LycheeOptions> {
 
     // Load a potentially existing config file and merge it into the config from
     // the CLI
-    if let Some(c) = Config::load_from_file(&opts.config_file)? {
-        opts.config.merge(c);
+    if let Some(config_file) = &opts.config_file {
+        match Config::load_from_file(config_file) {
+            Ok(c) => opts.config.merge(c),
+            Err(e) => {
+                error!("Error while loading config file {:?}: {}", config_file, e);
+                std::process::exit(ExitCode::ConfigFile as i32);
+            }
+        }
+    } else {
+        // If no config file was explicitly provided, we try to load the default
+        // config file from the current directory, but it's not an error if it
+        // doesn't exist.
+        if let Ok(c) = Config::load_from_file(&PathBuf::from(LYCHEE_CONFIG_FILE)) {
+            opts.config.merge(c);
+        }
     }
 
     if let Ok(lycheeignore) = File::open(LYCHEE_IGNORE_FILE) {

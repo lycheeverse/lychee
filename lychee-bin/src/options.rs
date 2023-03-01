@@ -9,10 +9,12 @@ use lychee_lib::{
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
-use std::{collections::HashSet, fs, io::ErrorKind, path::PathBuf, str::FromStr, time::Duration};
+use std::path::Path;
+use std::{collections::HashSet, fs, path::PathBuf, str::FromStr, time::Duration};
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
+pub(crate) const LYCHEE_CONFIG_FILE: &str = "lychee.toml";
 
 const DEFAULT_METHOD: &str = "get";
 const DEFAULT_MAX_CACHE_AGE: &str = "1d";
@@ -28,6 +30,14 @@ const MAX_RETRIES_STR: &str = concatcp!(DEFAULT_MAX_RETRIES);
 const HELP_MSG_CACHE: &str = formatcp!(
     "Use request cache stored on disk at `{}`",
     LYCHEE_CACHE_FILE,
+);
+// We use a custom help message here because we want to show the default
+// value of the config file, but also be able to check if the user has
+// provided a custom value. If they didn't, we won't throw an error if
+// the file doesn't exist.
+const HELP_MSG_CONFIG_FILE: &str = formatcp!(
+    "Configuration file to use\n\n[default: {}]",
+    LYCHEE_CONFIG_FILE,
 );
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
@@ -112,8 +122,9 @@ pub(crate) struct LycheeOptions {
     raw_inputs: Vec<String>,
 
     /// Configuration file to use
-    #[arg(short, long = "config", default_value = "./lychee.toml")]
-    pub(crate) config_file: String,
+    #[arg(short, long = "config")]
+    #[arg(help = HELP_MSG_CONFIG_FILE)]
+    pub(crate) config_file: Option<PathBuf>,
 
     #[clap(flatten)]
     pub(crate) config: Config,
@@ -340,22 +351,10 @@ pub(crate) struct Config {
 
 impl Config {
     /// Load configuration from a file
-    pub(crate) fn load_from_file(path: &str) -> Result<Option<Config>> {
+    pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
         // Read configuration file
-        let result = fs::read_to_string(path);
-
-        // Ignore a file-not-found error
-        let contents = match result {
-            Ok(c) => c,
-            Err(e) => {
-                return match e.kind() {
-                    ErrorKind::NotFound => Ok(None),
-                    _ => Err(Error::from(e)),
-                }
-            }
-        };
-
-        Ok(Some(toml::from_str(&contents)?))
+        let contents = fs::read_to_string(path)?;
+        toml::from_str(&contents).context("Failed to parse configuration file")
     }
 
     /// Merge the configuration from TOML into the CLI configuration
