@@ -26,7 +26,11 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
       - name: Run cargo test
-        run: cargo nextest run --all-targets
+        run: cargo nextest run --all-targets --all-features --filter-expr '!test(test_exclude_example_domains)'
+      - name: Run cargo test (include example domains)
+        run: cargo nextest run --filter-expr 'test(test_exclude_example_domains)'
+      - name: Run doctests
+        run: cargo test --doc
 
   lint:
     runs-on: ubuntu-latest
