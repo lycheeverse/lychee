@@ -239,16 +239,16 @@ mod cli {
     }
 
     #[test]
-    fn test_quirks() -> Result<()> {
-        test_json_output!(
-            "TEST_QUIRKS.txt",
-            MockResponseStats {
-                total: 3,
-                successful: 3,
-                excludes: 0,
-                ..MockResponseStats::default()
-            }
-        )
+    fn test_quirks() {
+        let quirks_file = fixtures_path().join("TEST_QUIRKS.txt");
+        main_command()
+            .arg("--verbose")
+            .arg("--no-progress")
+            .arg(quirks_file)
+            .assert()
+            .success()
+            .stdout(contains("3 Total"))
+            .stdout(contains("3 OK"));
     }
 
     #[tokio::test]
