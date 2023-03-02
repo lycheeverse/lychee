@@ -239,16 +239,49 @@ mod cli {
     }
 
     #[test]
-    fn test_quirks() {
-        let quirks_file = fixtures_path().join("TEST_QUIRKS.txt");
+    fn test_youtube_quirk() {
+        let url = "https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7";
+
         main_command()
+            .write_stdin(url)
             .arg("--verbose")
             .arg("--no-progress")
-            .arg(quirks_file)
+            .arg("-")
             .assert()
             .success()
-            .stdout(contains("3 Total"))
-            .stdout(contains("3 OK"));
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 OK"));
+    }
+
+    #[test]
+    fn test_cratesio_quirk() {
+        let url = "https://crates.io/crates/lychee";
+
+        main_command()
+            .write_stdin(url)
+            .arg("--verbose")
+            .arg("--no-progress")
+            .arg("-")
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 OK"));
+    }
+
+    #[test]
+    #[ignore = "Twitter quirk works locally but is flaky on Github (timeout)"]
+    fn test_twitter_quirk() {
+        let url = "https://twitter.com/zarfeblong/status/1339742840142872577";
+
+        main_command()
+            .write_stdin(url)
+            .arg("--verbose")
+            .arg("--no-progress")
+            .arg("-")
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 OK"));
     }
 
     #[tokio::test]
