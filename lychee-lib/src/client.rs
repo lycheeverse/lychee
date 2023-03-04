@@ -425,10 +425,12 @@ impl Client {
         ErrorKind: From<E>,
     {
         // Convert to our own request type
-        let Request { uri, source, .. } = request.try_into()?;
+        let Request {
+            mut uri, source, ..
+        } = request.try_into()?;
 
         // Apply any optional remaps
-        let uri = self.remap(uri)?;
+        self.remap(&mut uri);
 
         // Immediately return on excluded URIs
         // TODO: Allow filtering based on element and attribute
@@ -439,7 +441,7 @@ impl Client {
         let status = if uri.is_file() {
             self.check_file(&uri)
         } else if uri.is_mail() {
-            self.check_mail(uri).await
+            self.check_mail(&uri).await
         } else {
             // We always want to return a status (even on failure)
             // so we convert the error to a status here
@@ -470,15 +472,11 @@ impl Client {
         }
     }
 
-    /// Remap URI using the client-defined remap patterns
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the remapping value is not a URI
-    pub fn remap(&self, uri: Uri) -> Result<Uri> {
-        match self.remaps {
-            Some(ref remaps) => remaps.remap(uri),
-            None => Ok(uri),
+    /// Remap `uri` using the client-defined remapping rules.
+    pub fn remap(&self, uri: &mut Uri) {
+        // TODO: this should be logged (Lucius, Jan 2023)
+        if let Some(ref remaps) = self.remaps {
+            remaps.remap(&mut uri.url);
         }
     }
 
