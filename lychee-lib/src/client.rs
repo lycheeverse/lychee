@@ -518,7 +518,6 @@ impl Client {
 
         // Pull out the heavy machinery in case of a failed normal request.
         // This could be a GitHub URL and we ran into the rate limiter.
-        // TODO: We should first try to parse the URI as GitHub URI first (Lucius, Jan 2023)
         if let Ok(github_uri) = GithubUri::try_from(uri) {
             let status = self.check_github(github_uri).await?;
             // Only return Github status in case of success
