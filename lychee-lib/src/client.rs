@@ -882,4 +882,19 @@ mod tests {
         let res = client.check("http://\"").await.unwrap();
         assert!(res.status().is_error());
     }
+
+    #[tokio::test]
+    async fn test_unsupported_scheme() {
+        let examples = vec![
+            "ftp://example.com",
+            "gopher://example.com",
+            "slack://example.com",
+        ];
+
+        for example in examples {
+            let client = ClientBuilder::builder().build().client().unwrap();
+            let res = client.check(example).await.unwrap();
+            assert!(res.status().is_unsupported());
+        }
+    }
 }
