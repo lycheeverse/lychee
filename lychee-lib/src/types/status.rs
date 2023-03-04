@@ -234,7 +234,7 @@ impl Status {
 
 impl From<ErrorKind> for Status {
     fn from(e: ErrorKind) -> Self {
-        // If error is a `reqwest::Error`, 
+        // If error is a `reqwest::Error`,
         // convert it to a more specific error variant
         if let Some(reqwest_error) = e.reqwest_error() {
             reqwest_error.into()

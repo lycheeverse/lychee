@@ -14,20 +14,24 @@ use crate::{helpers, Uri};
 #[non_exhaustive]
 pub enum ErrorKind {
     /// Network error while handling request
-    #[error("Network error")]
+    #[error("Network error: {0}")]
     NetworkRequest(#[source] reqwest::Error),
     /// Cannot read the body of the received response
-    #[error("Error reading response body")]
+    #[error("Error reading response body: {0}")]
     ReadResponseBody(#[source] reqwest::Error),
     /// The network client required for making requests cannot be created
-    #[error("Error creating request client")]
+    #[error("Error creating request client: {0}")]
     BuildRequestClient(#[source] reqwest::Error),
     /// The request object cannot be created
-    #[error("Error creating request")]
+    #[error("Error creating request: {0}")]
     BuildRequest(#[source] reqwest::Error),
 
+    /// Network error while using Github API
+    #[error("Network error (GitHub client): {0}")]
+    GithubRequest(#[from] octocrab::Error),
+
     /// Error while executing a future on the Tokio runtime
-    #[error("Task failed to execute to completion")]
+    #[error("Task failed to execute to completion: {0}")]
     RuntimeJoin(#[from] JoinError),
     /// Error while converting a file to an input
     #[error("Cannot read input content from file `{1}`")]
@@ -41,9 +45,6 @@ pub enum ErrorKind {
     /// The Github client required for making requests cannot be created
     #[error("Error creating Github client")]
     BuildGithubClient(#[source] octocrab::Error),
-    /// Network error while using Github API
-    #[error("Network error (GitHub client)")]
-    GithubRequest(#[from] octocrab::Error),
     /// Invalid Github URL
     #[error("Github URL is invalid: {0}")]
     InvalidGithubUrl(String),
@@ -77,7 +78,7 @@ pub enum ErrorKind {
     #[error("Cannot find local file {0}")]
     FileNotFound(PathBuf),
     /// Error while traversing an input directory
-    #[error("Cannot traverse input directory")]
+    #[error("Cannot traverse input directory: {0}")]
     DirTraversal(#[from] jwalk::Error),
     /// The given glob pattern is not valid
     #[error("UNIX glob pattern is invalid")]
@@ -143,6 +144,17 @@ impl ErrorKind {
     pub(crate) fn reqwest_error(&self) -> Option<&reqwest::Error> {
         self.source()
             .and_then(|e| e.downcast_ref::<reqwest::Error>())
+    }
+
+    /// Return the underlying source of the given [`ErrorKind`]
+    /// if it is a `octocrab::Error`.
+    /// This is useful for extracting the status code of a failed request.
+    /// If the error is not a `octocrab::Error`, `None` is returned.
+    #[must_use]
+    #[allow(clippy::redundant_closure_for_method_calls)]
+    pub(crate) fn github_error(&self) -> Option<&octocrab::Error> {
+        self.source()
+            .and_then(|e| e.downcast_ref::<octocrab::Error>())
     }
 }
 
@@ -244,5 +256,21 @@ impl From<Infallible> for ErrorKind {
     fn from(_: Infallible) -> Self {
         // tautological
         unreachable!()
+    }
+}
+
+impl From<reqwest::Error> for ErrorKind {
+    fn from(e: reqwest::Error) -> Self {
+        if e.is_body() {
+            Self::ReadResponseBody(e)
+        } else if e.is_builder() {
+            Self::BuildRequestClient(e)
+        } else if e.is_redirect() {
+            Self::NetworkRequest(e)
+        } else if e.is_request() {
+            Self::BuildRequest(e)
+        } else {
+            Self::NetworkRequest(e)
+        }
     }
 }

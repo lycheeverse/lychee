@@ -202,9 +202,8 @@ mod cli {
         )
     }
 
-    /// Test unsupported URI schemes
     #[test]
-    fn test_unsupported_uri_schemes() {
+    fn test_unsupported_uri_schemes_are_ignored() {
         let mut cmd = main_command();
         let test_schemes_path = fixtures_path().join("TEST_SCHEMES.txt");
 

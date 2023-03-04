@@ -2,6 +2,8 @@ use std::io;
 
 use http::StatusCode;
 
+use crate::ErrorKind;
+
 /// An extension trait to help determine if a given HTTP request
 /// is retryable.
 ///
@@ -63,6 +65,25 @@ impl RetryExt for reqwest::Error {
             // We omit checking if error.is_status() since we check that already.
             // However, if Response::error_for_status is used the status will still
             // remain in the response object.
+            false
+        }
+    }
+}
+
+impl RetryExt for ErrorKind {
+    fn should_retry(&self) -> bool {
+        // If the error is a `reqwest::Error`, delegate to that
+        if let Some(r) = self.reqwest_error() {
+            r.should_retry()
+        // Github errors are sometimes reqwest errors.
+        // In that case, delegate to that.
+        } else if let Some(octocrab::Error::Http {
+            source,
+            backtrace: _,
+        }) = self.github_error()
+        {
+            source.should_retry()
+        } else {
             false
         }
     }

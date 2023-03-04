@@ -20,6 +20,7 @@ use http::{
     header::{HeaderMap, HeaderValue},
     StatusCode,
 };
+use log::{debug, info};
 use octocrab::{models::Repository, Octocrab};
 use regex::RegexSet;
 use reqwest::{header, Url};
@@ -294,8 +295,7 @@ impl ClientBuilder {
         if let Some(prev_user_agent) =
             headers.insert(header::USER_AGENT, HeaderValue::try_from(&user_agent)?)
         {
-            // TODO: make this configurable according to verbosity (Lucius, Jan 2023)
-            println!(
+            debug!(
                 "Found user-agent in headers: {}. Overriding it with {user_agent}.",
                 prev_user_agent.to_str().unwrap_or("�"),
             );
@@ -538,25 +538,30 @@ impl Client {
         let mut wait_time = self.retry_wait_time;
 
         loop {
-            match self.check_default(uri).await {
+            let request = self.build_request(uri)?;
+            let request = self.quirks.apply(request);
+            match self.check_default(request).await {
                 Ok(response) => {
                     let status = Status::new(&response, self.accepted.clone());
+
                     if status.is_success() || !response.should_retry() || retries == 0 {
                         return Ok(status);
                     }
                 }
                 Err(e) => {
+                    // Convert reqwest errors to our own error type
+                    let e = ErrorKind::from(e);
+
                     if retries == 0 {
                         return Err(e);
                     }
-                    println!("Retrying request for {} due to error: {}", uri, e);
+
                     // If the error is a reqwest error, check if it's a
                     // transient error and retry in that case.
-                    if let Some(r) = e.reqwest_error() {
-                        if !r.should_retry() {
-                            return Err(e);
-                        }
+                    if !e.should_retry() {
+                        return Err(e);
                     }
+                    info!("Retrying request for {uri} due to error: {e}");
                 }
             }
             retries -= 1;
@@ -611,14 +616,11 @@ impl Client {
     }
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
-    async fn check_default(&self, uri: &Uri) -> Result<reqwest::Response> {
-        let request = self.build_request(uri)?;
-        let request = self.quirks.apply(request);
-
-        self.reqwest_client
-            .execute(request)
-            .await
-            .map_err(ErrorKind::NetworkRequest)
+    async fn check_default(
+        &self,
+        request: reqwest::Request,
+    ) -> std::result::Result<reqwest::Response, reqwest::Error> {
+        self.reqwest_client.execute(request).await
     }
 
     /// Build a request for a given `uri`.
