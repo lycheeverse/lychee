@@ -306,6 +306,8 @@ impl ClientBuilder {
             HeaderValue::from_static("chunked"),
         );
 
+        println!("Allow insecure: {}", self.allow_insecure);
+
         let builder = reqwest::ClientBuilder::new()
             .gzip(true)
             .default_headers(headers)
@@ -314,12 +316,16 @@ impl ClientBuilder {
             .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
             .redirect(reqwest::redirect::Policy::limited(self.max_redirects));
 
+        println!("Reqwest client builder built: {:?}", builder);
+
         let reqwest_client = (match self.timeout {
             Some(t) => builder.timeout(t),
             None => builder,
         })
         .build()
         .map_err(ErrorKind::NetworkRequest)?;
+
+        println!("Reqwest client built: {:?}", reqwest_client);
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(
@@ -429,24 +435,24 @@ impl Client {
             mut uri, source, ..
         } = request.try_into()?;
 
-        // Apply any optional remaps
-        self.remap(&mut uri);
-
         // Immediately return on excluded URIs
         // TODO: Allow filtering based on element and attribute
         if self.filter.is_excluded(&uri) {
             return Ok(Response::new(uri.clone(), Status::Excluded, source));
         };
 
+        // Apply any optional remaps
+        self.remap(&mut uri);
+
         let status = if uri.is_file() {
             self.check_file(&uri)
         } else if uri.is_mail() {
             self.check_mail(&uri).await
         } else {
-            // We always want to return a status (even on failure)
-            // so we convert the error to a status here
             match self.check_website_https(&uri).await {
                 Ok(status) => status,
+                // We always want to return a status (even on failure)
+                // so we convert the error to a status here
                 Err(error_status) => error_status.into(),
             }
         };
@@ -538,33 +544,39 @@ impl Client {
         let mut wait_time = self.retry_wait_time;
 
         loop {
+            retries -= 1;
+            println!("Checking {uri} (retries left: {retries})");
+
             let request = self.build_request(uri)?;
             let request = self.quirks.apply(request);
+            println!("request: {:?}", request);
+
             match self.check_default(request).await {
                 Ok(response) => {
+                    println!("Success response: {:?}", response);
                     let status = Status::new(&response, self.accepted.clone());
 
-                    if status.is_success() || !response.should_retry() || retries == 0 {
+                    if status.is_success() || retries == 0 || !response.should_retry() {
                         return Ok(status);
                     }
                 }
                 Err(e) => {
-                    // Convert reqwest errors to our own error type
-                    let e = ErrorKind::from(e);
+                    println!("Error response: {:?}", e);
 
-                    if retries == 0 {
-                        return Err(e);
-                    }
+                    // Convert reqwest errors to our own error type
+
+                    let err = ErrorKind::from(e);
+
+                    println!("Errorkind::from: {:?}", err);
 
                     // If the error is a reqwest error, check if it's a
                     // transient error and retry in that case.
-                    if !e.should_retry() {
-                        return Err(e);
+                    if retries == 0 || !err.should_retry() {
+                        return Err(err);
                     }
-                    info!("Retrying request for {uri} due to error: {e}");
+                    info!("Retrying request for {uri} due to error: {err}");
                 }
             }
-            retries -= 1;
 
             tokio::time::sleep(wait_time).await;
             wait_time = wait_time.saturating_mul(2);
@@ -620,6 +632,7 @@ impl Client {
         &self,
         request: reqwest::Request,
     ) -> std::result::Result<reqwest::Response, reqwest::Error> {
+        println!("{:?}", self.reqwest_client);
         self.reqwest_client.execute(request).await
     }
 
@@ -775,7 +788,6 @@ mod tests {
     #[tokio::test]
     async fn test_invalid_ssl() {
         let res = get_mock_client_response("https://expired.badssl.com/").await;
-
         assert!(res.status().is_error());
 
         // Same, but ignore certificate error

@@ -17,6 +17,7 @@ impl RetryExt for reqwest::Response {
     /// Try to map a `reqwest` response into `Retryable`.
     #[allow(clippy::if_same_then_else)]
     fn should_retry(&self) -> bool {
+        println!("Retryable::should_retry for response");
         let status = self.status();
         if status.is_server_error() {
             true
@@ -35,8 +36,11 @@ impl RetryExt for reqwest::Response {
 
 impl RetryExt for reqwest::Error {
     fn should_retry(&self) -> bool {
-        if self.is_timeout() || self.is_connect() {
+        println!("Retryable::should_retry for reqwest::Error");
+        if self.is_timeout() {
             true
+        } else if self.is_connect() {
+            false
         } else if self.is_body() || self.is_decode() || self.is_builder() || self.is_redirect() {
             false
         } else if self.is_request() {
@@ -54,7 +58,7 @@ impl RetryExt for reqwest::Error {
                 // Try and downcast the hyper error to io::Error if that is the
                 // underlying error, and try and classify it.
                 } else if let Some(io_error) = get_source_error_type::<io::Error>(hyper_error) {
-                    classify_io_error(io_error)
+                    should_retry_io(io_error)
                 } else {
                     false
                 }
@@ -72,11 +76,12 @@ impl RetryExt for reqwest::Error {
 
 impl RetryExt for ErrorKind {
     fn should_retry(&self) -> bool {
+        println!("Retryable::should_retry for errorkind");
         // If the error is a `reqwest::Error`, delegate to that
         if let Some(r) = self.reqwest_error() {
             r.should_retry()
-        // Github errors are sometimes reqwest errors.
-        // In that case, delegate to that.
+        // Github errors sometimes wrap `reqwest` errors.
+        // In that case, delegate to the underlying error.
         } else if let Some(octocrab::Error::Http {
             source,
             backtrace: _,
@@ -90,10 +95,10 @@ impl RetryExt for ErrorKind {
 }
 
 /// Classifies an `io::Error` into retryable or not.
-fn classify_io_error(error: &io::Error) -> bool {
+fn should_retry_io(error: &io::Error) -> bool {
     matches!(
         error.kind(),
-        io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted
+        io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted | io::ErrorKind::TimedOut
     )
 }
 

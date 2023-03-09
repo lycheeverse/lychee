@@ -232,17 +232,17 @@ impl Status {
     }
 }
 
-impl From<ErrorKind> for Status {
-    fn from(e: ErrorKind) -> Self {
-        // If error is a `reqwest::Error`,
-        // convert it to a more specific error variant
-        if let Some(reqwest_error) = e.reqwest_error() {
-            reqwest_error.into()
-        } else {
-            Self::Error(e)
-        }
-    }
-}
+// impl From<ErrorKind> for Status {
+//     fn from(e: ErrorKind) -> Self {
+//         // If error is a `reqwest::Error`,
+//         // convert it to a more specific error variant
+//         if let Some(reqwest_error) = e.reqwest_error() {
+//             reqwest_error.into()
+//         } else {
+//             Self::Error(e)
+//         }
+//     }
+// }
 
 impl From<reqwest::Error> for Status {
     fn from(e: reqwest::Error) -> Self {
@@ -258,8 +258,9 @@ impl From<reqwest::Error> for Status {
     }
 }
 
-impl From<&reqwest::Error> for Status {
-    fn from(e: &reqwest::Error) -> Self {
-        e.to_owned().into()
-    }
-}
+// Lol can't do that because it's recursive and overflows the stack
+// impl From<&reqwest::Error> for Status {
+//     fn from(e: &reqwest::Error) -> Self {
+//         e.to_owned().into()
+//     }
+// }
