@@ -55,6 +55,7 @@ mod client;
 pub mod collector;
 mod helpers;
 mod quirks;
+mod retry;
 mod types;
 
 /// Functionality to extract URIs from inputs

@@ -204,7 +204,7 @@ mod cli {
 
     /// Test unsupported URI schemes
     #[test]
-    fn test_unsupported_uri_schemes() {
+    fn test_unsupported_uri_schemes_are_ignored() {
         let mut cmd = main_command();
         let test_schemes_path = fixtures_path().join("TEST_SCHEMES.txt");
 
@@ -900,7 +900,7 @@ mod cli {
             .arg("-")
             .assert()
             .stdout(contains(format!(
-                "[IGNORED] {unsupported_url} | Unsupported: Error creating request client\n"
+                "[IGNORED] {unsupported_url} | Unsupported: Error creating request client"
             )))
             .stdout(contains(format!("[EXCLUDED] {excluded_url} | Excluded\n")));
 
