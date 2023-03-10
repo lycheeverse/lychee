@@ -80,6 +80,15 @@ impl Uri {
         }
     }
 
+    /// Create a new URI with a `https` scheme
+    pub(crate) fn to_https(&self) -> Result<Uri> {
+        let mut https_uri = self.clone();
+        https_uri
+            .set_scheme("https")
+            .map_err(|_| ErrorKind::InvalidURI(self.clone()))?;
+        Ok(https_uri)
+    }
+
     #[inline]
     #[must_use]
     /// Check if the URI is a valid mail address
@@ -342,6 +351,19 @@ mod tests {
         assert_eq!(
             website("http://127.0.0.1").host_ip(),
             Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))
+        );
+    }
+
+    #[test]
+    fn test_convert_to_https() {
+        assert_eq!(
+            website("http://example.com").to_https().unwrap(),
+            website("https://example.com")
+        );
+
+        assert_eq!(
+            website("https://example.com").to_https().unwrap(),
+            website("https://example.com")
         );
     }
 }

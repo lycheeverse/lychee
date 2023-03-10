@@ -20,17 +20,18 @@ use http::{
     header::{HeaderMap, HeaderValue},
     StatusCode,
 };
+use log::debug;
 use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::{header, Url};
 use secrecy::{ExposeSecret, SecretString};
-use tokio::time::sleep;
 use typed_builder::TypedBuilder;
 
 use crate::{
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
     remap::Remaps,
+    retry::RetryExt,
     types::{mail, uri::github::GithubUri},
     ErrorKind, Request, Response, Result, Status, Uri,
 };
@@ -293,8 +294,7 @@ impl ClientBuilder {
         if let Some(prev_user_agent) =
             headers.insert(header::USER_AGENT, HeaderValue::try_from(&user_agent)?)
         {
-            // TODO: make this configurable according to verbosity (Lucius, Jan 2023)
-            println!(
+            debug!(
                 "Found user-agent in headers: {}. Overriding it with {user_agent}.",
                 prev_user_agent.to_str().unwrap_or("�"),
             );
@@ -441,15 +441,8 @@ impl Client {
         } else {
             match self.check_website(uri).await {
                 Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
-                    let mut https_uri = uri.clone();
-                    {
-                        // here `uri` must be valid, otherwise `check_website` won't
-                        // return `Ok`, thus `set_scheme` won't fail
-                        debug_assert!(!https_uri.url.cannot_be_a_base());
-                        https_uri.set_scheme("https").unwrap();
-                    }
-                    if self.check_website(&https_uri).await.is_success() {
-                        Status::Error(ErrorKind::InsecureURL(https_uri))
+                    if self.check_website(&uri.to_https()?).await.is_success() {
+                        Status::Error(ErrorKind::InsecureURL(uri.clone()))
                     } else {
                         Status::Ok(code)
                     }
@@ -478,6 +471,13 @@ impl Client {
     /// Checks the given URI of a website.
     ///
     /// Unsupported schemes will be ignored
+    ///
+    /// # Errors
+    ///
+    /// This returns an `Err` if
+    /// - The URI is invalid.
+    /// - The request failed.
+    /// - The response status code is not accepted.
     pub async fn check_website(&self, uri: &Uri) -> Status {
         // Workaround for upstream reqwest panic
         if validate_url(&uri.url) {
@@ -493,18 +493,9 @@ impl Client {
             return Status::Unsupported(ErrorKind::InvalidURI(uri.clone()));
         }
 
-        let mut retries: u64 = 0;
-        let mut wait_time = self.retry_wait_time;
-
-        let mut status = self.check_default(uri).await;
-        while retries < self.max_retries {
-            if status.is_success() {
-                return status;
-            }
-            sleep(wait_time).await;
-            retries += 1;
-            wait_time = wait_time.saturating_mul(2);
-            status = self.check_default(uri).await;
+        let status = self.retry_request(uri).await;
+        if status.is_success() {
+            return status;
         }
 
         // Pull out the heavy machinery in case of a failed normal request.
@@ -519,6 +510,25 @@ impl Client {
             }
         }
 
+        status
+    }
+
+    /// Retry requests up to `max_retries` times
+    /// with an exponential backoff.
+    async fn retry_request(&self, uri: &Uri) -> Status {
+        let mut retries: u64 = 0;
+        let mut wait_time = self.retry_wait_time;
+
+        let mut status = self.check_default(uri).await;
+        while retries < self.max_retries {
+            if status.is_success() || !status.should_retry() {
+                return status;
+            }
+            retries += 1;
+            tokio::time::sleep(wait_time).await;
+            wait_time = wait_time.saturating_mul(2);
+            status = self.check_default(uri).await;
+        }
         status
     }
 
@@ -612,7 +622,7 @@ fn validate_url(url: &Url) -> bool {
     http::Uri::try_from(url.as_str()).is_err()
 }
 
-/// A convenience function to check a single URI.
+/// A shorthand function to check a single URI.
 ///
 /// This provides the simplest link check utility without having to create a
 /// [`Client`]. For more complex scenarios, see documentation of
@@ -660,21 +670,6 @@ mod tests {
     async fn test_nonexistent_with_path() {
         let res = get_mock_client_response("http://127.0.0.1/invalid").await;
         assert!(res.status().is_failure());
-    }
-
-    #[tokio::test]
-    async fn test_exponential_backoff() {
-        let mock_server = mock_server!(StatusCode::NOT_FOUND);
-
-        let start = Instant::now();
-        let res = get_mock_client_response(mock_server.uri()).await;
-        let end = start.elapsed();
-
-        assert!(res.status().is_failure());
-
-        // on slow connections, this might take a bit longer than nominal
-        // backed-off timeout (7 secs)
-        assert!((7..=8).contains(&end.as_secs()));
     }
 
     #[tokio::test]
@@ -822,6 +817,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_exponential_backoff() {
+        let mock_delay = Duration::from_millis(20);
+        let checker_timeout = Duration::from_millis(10);
+        assert!(mock_delay > checker_timeout);
+
+        let mock_server = mock_server!(StatusCode::OK, set_delay(mock_delay));
+
+        let start = Instant::now();
+        let client = ClientBuilder::builder()
+            .timeout(checker_timeout)
+            .max_retries(3_u64)
+            .retry_wait_time(Duration::from_millis(50))
+            .build()
+            .client()
+            .unwrap();
+
+        // Summary:
+        // 1. First request fails with timeout (after 10ms)
+        // 2. Retry after 50ms (total 60ms)
+        // 3. Second request fails with timeout (after 10ms)
+        // 4. Retry after 100ms (total 160ms)
+        // 5. Third request fails with timeout (after 10ms)
+        // 6. Retry after 200ms (total 360ms)
+        // Total: 360ms
+
+        let res = client.check(mock_server.uri()).await.unwrap();
+        let end = start.elapsed();
+
+        assert!(res.status().is_failure());
+
+        // on slow connections, this might take a bit longer than nominal
+        // backed-off timeout (7 secs)
+        assert!((350..=450).contains(&end.as_millis()));
+    }
+
+    #[tokio::test]
     async fn test_avoid_reqwest_panic() {
         let client = ClientBuilder::builder().build().client().unwrap();
         // This request will fail, but it won't panic
@@ -891,5 +922,20 @@ mod tests {
 
         let res = client.check(mock_server.uri()).await.unwrap();
         assert!(res.status().is_failure());
+    }
+
+    #[tokio::test]
+    async fn test_unsupported_scheme() {
+        let examples = vec![
+            "ftp://example.com",
+            "gopher://example.com",
+            "slack://example.com",
+        ];
+
+        for example in examples {
+            let client = ClientBuilder::builder().build().client().unwrap();
+            let res = client.check(example).await.unwrap();
+            assert!(res.status().is_unsupported());
+        }
     }
 }
