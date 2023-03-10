@@ -42,8 +42,9 @@ const HELP_MSG_CONFIG_FILE: &str = formatcp!(
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub(crate) enum Format {
+    #[default]
     Compact,
     Detailed,
     Json,
@@ -62,12 +63,6 @@ impl FromStr for Format {
             "raw" => Ok(Format::Raw),
             _ => Err(anyhow!("Unknown format {}", format)),
         }
-    }
-}
-
-impl Default for Format {
-    fn default() -> Self {
-        Format::Compact
     }
 }
 
