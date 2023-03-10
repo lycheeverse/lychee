@@ -122,6 +122,8 @@ impl LinkExtractor {
                 // top-level verbatim element. If it is, we need to reset the verbatim block.
                 if Some(&self.current_element_name) == self.current_verbatim_element_name.as_ref() {
                     self.current_verbatim_element_name = None;
+                    self.current_attribute_name.clear();
+                    self.current_attribute_value.clear();
                 }
             }
         } else if !self.include_verbatim
@@ -291,6 +293,7 @@ mod tests {
         Some random text
         https://foo.com and http://bar.com/some/path
         Something else
+        <a href="https://baz.org">example link inside pre</a>
         </pre>
         <p><b>bold</b></p>
     </body>
@@ -331,6 +334,11 @@ mod tests {
                 element: None,
                 attribute: None,
             },
+            RawUri {
+                text: "https://baz.org".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+            },
         ];
 
         let uris = extract_html(HTML_INPUT, true);
@@ -338,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn test_include_verbatim_recursive() {
+    fn test_include_verbatim_nested() {
         const HTML_INPUT: &str = r#"
         <a href="https://example.com/">valid link</a>
         <code>
@@ -356,6 +364,25 @@ mod tests {
 
         let uris = extract_html(HTML_INPUT, false);
         assert_eq!(uris, expected);
+    }
+
+    // TODO: This test is currently failing because we don't handle nested
+    // verbatim elements of the same type correctly. The first closing tag will
+    // lift the verbatim flag. This is a known issue and could be handled by
+    // keeping a stack of verbatim flags.
+    #[test]
+    #[ignore]
+    fn test_include_verbatim_nested_identical() {
+        const HTML_INPUT: &str = r#"
+        <pre>
+            <pre>
+            </pre>
+            <a href="https://example.org">invalid link</a>
+        </pre>
+        "#;
+
+        let uris = extract_html(HTML_INPUT, false);
+        assert!(uris.is_empty());
     }
 
     #[test]
