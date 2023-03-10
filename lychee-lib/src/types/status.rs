@@ -242,6 +242,8 @@ impl From<reqwest::Error> for Status {
     fn from(e: reqwest::Error) -> Self {
         if e.is_timeout() {
             Self::Timeout(e.status())
+        } else if e.is_redirect() {
+            Self::Error(ErrorKind::TooManyRedirects(e))
         } else if e.is_builder() {
             Self::Unsupported(ErrorKind::BuildRequestClient(e))
         } else if e.is_body() || e.is_decode() {

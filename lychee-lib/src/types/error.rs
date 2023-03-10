@@ -99,6 +99,9 @@ pub enum ErrorKind {
     /// Regex error
     #[error("Error when using regex engine: {0}")]
     Regex(#[from] regex::Error),
+    /// Too many redirects (HTTP 3xx) were encountered (configurable)
+    #[error("Too many redirects")]
+    TooManyRedirects(#[source] reqwest::Error),
 }
 
 impl ErrorKind {
@@ -210,6 +213,7 @@ impl Hash for ErrorKind {
                 std::mem::discriminant(self).hash(state);
             }
             Self::Regex(e) => e.to_string().hash(state),
+            Self::TooManyRedirects(e) => e.to_string().hash(state),
         }
     }
 }
