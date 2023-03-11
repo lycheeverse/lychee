@@ -946,6 +946,19 @@ mod cli {
 
         Ok(())
     }
+    #[tokio::test]
+    async fn test_verbatim_skipped_by_default_via_file() -> Result<()> {
+        let file = fixtures_path().join("TEST_VERBATIM.html");
+
+        main_command()
+            .arg("--dump")
+            .arg(file)
+            .assert()
+            .success()
+            .stdout(is_empty());
+
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_verbatim_skipped_by_default_via_remote_url() -> Result<()> {

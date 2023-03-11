@@ -11,7 +11,7 @@ use crate::types::uri::raw::RawUri;
 struct LinkExtractor {
     links: Vec<RawUri>,
     include_verbatim: bool,
-    inside_excluded_element: bool,
+    current_verbatim_element_name: Option<String>,
 }
 
 impl TokenSink for LinkExtractor {
@@ -21,7 +21,7 @@ impl TokenSink for LinkExtractor {
     fn process_token(&mut self, token: Token, _line_number: u64) -> TokenSinkResult<()> {
         match token {
             Token::CharacterTokens(raw) => {
-                if self.inside_excluded_element {
+                if self.current_verbatim_element_name.is_some() {
                     return TokenSinkResult::Continue;
                 }
                 self.links.extend(extract_plaintext(&raw));
@@ -33,9 +33,30 @@ impl TokenSink for LinkExtractor {
                     self_closing: _self_closing,
                     attrs,
                 } = tag;
+                // Check if this is a verbatim element, which we want to skip.
                 if !self.include_verbatim && is_verbatim_elem(&name) {
-                    // Skip content inside excluded elements until we see the end tag.
-                    self.inside_excluded_element = matches!(kind, TagKind::StartTag);
+                    // Check if we're currently inside a verbatim block
+                    if let Some(current_verbatim_element_name) = &self.current_verbatim_element_name
+                    {
+                        // Inside a verbatim block. Check if the verbatim
+                        // element name matches with the current element name.
+                        if current_verbatim_element_name == name.as_ref() {
+                            // If so, we're done with the verbatim block,
+                            // -- but only if this is an end tag.
+                            if matches!(kind, TagKind::EndTag) {
+                                self.current_verbatim_element_name = None;
+                            }
+                        }
+                    } else if matches!(kind, TagKind::StartTag) {
+                        // We're not inside a verbatim block, but we just
+                        // encountered a verbatim element. Remember the name
+                        // of the element.
+                        self.current_verbatim_element_name = Some(name.to_string());
+                    }
+                }
+                if self.current_verbatim_element_name.is_some() {
+                    // We want to skip the content of this element
+                    // as we're inside a verbatim block.
                     return TokenSinkResult::Continue;
                 }
 
@@ -86,7 +107,7 @@ impl LinkExtractor {
         Self {
             links: vec![],
             include_verbatim,
-            inside_excluded_element: false,
+            current_verbatim_element_name: None,
         }
     }
 
@@ -167,6 +188,7 @@ mod tests {
         Some random text
         https://foo.com and http://bar.com/some/path
         Something else
+        <a href="https://baz.org">example link inside pre</a>
         </pre>
         <p><b>bold</b></p>
     </body>
@@ -206,6 +228,11 @@ mod tests {
                 text: "http://bar.com/some/path".to_string(),
                 element: None,
                 attribute: None,
+            },
+            RawUri {
+                text: "https://baz.org".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
             },
         ];
 

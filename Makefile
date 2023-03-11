@@ -40,7 +40,9 @@ lint: ## Run linter
 
 .PHONY: test
 test: ## Run tests
-	cargo nextest run --all-targets
+	cargo nextest run --all-targets --all-features --filter-expr '!test(test_exclude_example_domains)'
+	cargo nextest run --filter-expr 'test(test_exclude_example_domains)'
+	cargo test --doc
 
 .PHONY: doc
 doc: ## Open documentation
