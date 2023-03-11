@@ -367,4 +367,30 @@ mod tests {
 
         assert_eq!(links, expected_links);
     }
+
+    #[tokio::test]
+    async fn test_html_anchors() {
+        let input = Input {
+            source: InputSource::String(
+                r##"
+                    <a href="#anchor">Anchor</a>
+                    <a href="https://example.com/#anchor">Anchor</a>
+                    <a href="https://example.com/#">Anchor</a>
+                    <a href="https://example.com/#anchor?query=param">Anchor</a>
+                    "##
+                .to_string(),
+            ),
+            file_type_hint: Some(FileType::Html),
+            excluded_paths: None,
+        };
+
+        let links = collect(vec![input], None).await;
+        let expected_links = HashSet::from_iter([
+            website("https://example.com/#anchor"),
+            website("https://example.com/#"),
+            website("https://example.com/#anchor?query=param"),
+        ]);
+
+        assert_eq!(links, expected_links);
+    }
 }

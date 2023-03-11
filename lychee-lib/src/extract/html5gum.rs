@@ -8,6 +8,7 @@ use crate::types::uri::raw::RawUri;
 struct LinkExtractor {
     // note: what html5gum calls a tag, lychee calls an element
     links: Vec<RawUri>,
+    ids: Vec<String>,
     current_string: Vec<u8>,
     current_element_name: Vec<u8>,
     current_element_is_closing: bool,
@@ -30,6 +31,7 @@ impl LinkExtractor {
     pub(crate) const fn new(include_verbatim: bool) -> Self {
         LinkExtractor {
             links: Vec::new(),
+            ids: Vec::new(),
             current_string: Vec::new(),
             current_element_name: Vec::new(),
             current_element_is_closing: false,
@@ -43,6 +45,7 @@ impl LinkExtractor {
     }
 
     /// Extract all semantically known links from a given html attribute.
+    /// There can be multiple links, e.g. in a `srcset` attribute.
     #[allow(clippy::unnested_or_patterns)]
     pub(crate) fn extract_urls_from_elem_attr<'a>(
         attr_name: &str,
@@ -152,6 +155,10 @@ impl LinkExtractor {
             let attr = unsafe { from_utf8_unchecked(&self.current_attribute_name) };
             let value = unsafe { from_utf8_unchecked(&self.current_attribute_value) };
 
+            if attr == "id" {
+                self.ids.push(value.to_string());
+            }
+
             // Ignore links with rel=nofollow
             // This may be set on a different iteration on the same element/tag before,
             // so we check the boolean separately right after
@@ -163,26 +170,34 @@ impl LinkExtractor {
                 self.current_attribute_value.clear();
                 return;
             }
-
-            let urls = LinkExtractor::extract_urls_from_elem_attr(attr, name, value);
-
-            let new_urls = match urls {
-                None => extract_plaintext(value),
-                Some(urls) => urls
-                    .into_iter()
-                    .map(|url| RawUri {
-                        text: url.to_string(),
-                        element: Some(name.to_string()),
-                        attribute: Some(attr.to_string()),
-                    })
-                    .collect::<Vec<_>>(),
-            };
-
-            self.links.extend(new_urls);
+            self.links.extend(extract_urls(name, attr, value));
         }
 
         self.current_attribute_name.clear();
         self.current_attribute_value.clear();
+    }
+}
+
+/// Extract links from the given HTML element attribute.
+/// Returns a list of links found in the attribute.
+///
+/// If the `LinkExtractor` cannot extract links from the given attribute,
+/// it will try to extract links from the attribute value as plaintext.
+fn extract_urls(name: &str, attr: &str, value: &str) -> Vec<RawUri> {
+    let urls = LinkExtractor::extract_urls_from_elem_attr(attr, name, value);
+
+    match urls {
+        // No URLs found in the attribute, so we try to extract links from
+        // plaintext.
+        None => extract_plaintext(value),
+        Some(urls) => urls
+            .into_iter()
+            .map(|url| RawUri {
+                text: url.to_string(),
+                element: Some(name.to_string()),
+                attribute: Some(attr.to_string()),
+            })
+            .collect::<Vec<_>>(),
     }
 }
 
@@ -414,6 +429,48 @@ mod tests {
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
         }];
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_extract_anchor() {
+        let uris = extract_urls("a", "href", "#anchor1");
+        let expected = vec![RawUri {
+            text: "#anchor1".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_extract_multiple_anchors() {
+        let input = r##"
+            <a href="#anchor1">Anchor 1</a>
+            <a href="#anchor2">Anchor 2</a>
+            <h2 id="anchor1">Anchor 1</h2>
+            <!-- #anchor2 is deliberately missing -->
+        "##;
+
+        let expected = vec![
+            RawUri {
+                text: "#anchor1".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+            },
+            RawUri {
+                text: "#anchor2".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+            },
+            // RawUri {
+            //     text: "#anchor1".to_string(),
+            //     element: Some("h2".to_string()),
+            //     attribute: Some("id".to_string()),
+            // },
+        ];
+
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
     }
