@@ -179,6 +179,10 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) dump: bool,
 
+    /// Suggest link replacements for broken links, using a web archives
+    #[arg(long)]
+    pub(crate) suggest: bool, // todo: use enum, with WaybackMachine as possible value
+
     /// Maximum number of allowed redirects
     #[arg(short, long, default_value = &MAX_REDIRECTS_STR)]
     #[serde(default = "max_redirects")]

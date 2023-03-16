@@ -5,16 +5,18 @@ use std::time::Duration;
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
-use lychee_lib::Result;
-use lychee_lib::Status;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
+use lychee_lib::Result;
+use lychee_lib::Status;
+use lychee_lib::{Client, Request, Response};
+
 use crate::formatters::response::ResponseFormatter;
+use crate::suggest_alternative::get_wayback_link;
 use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
-use lychee_lib::{Client, Request, Response};
 
 use super::CommandParams;
 
@@ -74,6 +76,23 @@ where
     // must go before printing the stats
     if let Some(pb) = &pb {
         pb.finish_and_clear();
+    }
+
+    if params.cfg.suggest {
+        for (_, set) in stats.fail_map.iter() {
+            for entry in set.iter() {
+                let uri = &entry.uri;
+
+                if !uri.is_data() && !uri.is_mail() && !uri.is_file() {
+                    let url = uri.as_str().try_into().unwrap();
+                    if let Ok(response) = get_wayback_link(url).await {
+                        if let Some(closest_snapshot) = response.archived_snapshots.closest {
+                            println!("Archive recommendation: {}", closest_snapshot.url);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     let code = if stats.is_success() {
@@ -232,6 +251,7 @@ fn show_progress(
 #[cfg(test)]
 mod tests {
     use log::info;
+
     use lychee_lib::{CacheStatus, InputSource, ResponseBody, Uri};
 
     use crate::formatters;

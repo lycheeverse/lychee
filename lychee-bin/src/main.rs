@@ -84,6 +84,7 @@ mod formatters;
 mod options;
 mod parse;
 mod stats;
+mod suggest_alternative;
 mod time;
 mod verbosity;
 
