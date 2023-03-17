@@ -14,7 +14,7 @@ use lychee_lib::Status;
 use lychee_lib::{Client, Request, Response};
 
 use crate::formatters::response::ResponseFormatter;
-use crate::suggest_alternative::get_wayback_link;
+use crate::suggest_alternative::{get_wayback_link, Recommendation};
 use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
 
@@ -70,7 +70,7 @@ where
 
     // Wait until all responses are received
     let result = show_results_task.await?;
-    let (pb, stats) = result?;
+    let (pb, mut stats) = result?;
 
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
@@ -79,7 +79,7 @@ where
     }
 
     if params.cfg.suggest {
-        for (_, set) in stats.fail_map.iter() {
+        for (input, set) in stats.fail_map.iter() {
             for entry in set.iter() {
                 let uri = &entry.uri;
 
@@ -87,7 +87,15 @@ where
                     let url = &uri.as_str().try_into().unwrap();
                     if let Ok(response) = get_wayback_link(url).await {
                         if let Some(closest_snapshot) = response.archived_snapshots.closest {
-                            println!("Archive recommendation: {}", closest_snapshot.url);
+                            let recommendation = closest_snapshot.url;
+                            stats
+                                .recommend_map
+                                .entry(input.clone())
+                                .or_default()
+                                .insert(Recommendation {
+                                    recommendation,
+                                    url: url.clone(),
+                                });
                         }
                     }
                 }

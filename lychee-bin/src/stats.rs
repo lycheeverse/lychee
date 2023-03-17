@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::suggest_alternative::Recommendation;
 use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status};
 use serde::Serialize;
 
@@ -17,6 +18,7 @@ pub(crate) struct ResponseStats {
     pub(crate) cached: usize,
     pub(crate) success_map: HashMap<InputSource, HashSet<ResponseBody>>,
     pub(crate) fail_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    pub(crate) recommend_map: HashMap<InputSource, HashSet<Recommendation>>,
     pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
 }
 

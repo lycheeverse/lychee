@@ -1,6 +1,12 @@
 use http::StatusCode;
 use reqwest::{Error, Url};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
+
+#[derive(Debug, Serialize, Eq, Hash, PartialEq)]
+pub(crate) struct Recommendation {
+    pub(crate) url: Url,
+    pub(crate) recommendation: Url,
+}
 
 pub(crate) async fn get_wayback_link(url: &Url) -> Result<InternetArchiveResponse, Error> {
     let mut archive_url = Url::parse("https://archive.org/wayback/available").unwrap();
