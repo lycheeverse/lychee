@@ -84,7 +84,7 @@ where
                 let uri = &entry.uri;
 
                 if !uri.is_data() && !uri.is_mail() && !uri.is_file() {
-                    let url = uri.as_str().try_into().unwrap();
+                    let url = &uri.as_str().try_into().unwrap();
                     if let Ok(response) = get_wayback_link(url).await {
                         if let Some(closest_snapshot) = response.archived_snapshots.closest {
                             println!("Archive recommendation: {}", closest_snapshot.url);
