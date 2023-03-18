@@ -14,7 +14,7 @@ use lychee_lib::Status;
 use lychee_lib::{Client, Request, Response};
 
 use crate::formatters::response::ResponseFormatter;
-use crate::suggest_alternative::{Archive, Suggestion};
+use crate::archive::{Archive, Suggestion};
 use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
 

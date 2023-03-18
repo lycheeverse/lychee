@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::suggest_alternative::Suggestion;
+use crate::archive::Suggestion;
 use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status};
 use serde::Serialize;
 

@@ -76,6 +76,7 @@ use ring as _; // required for apple silicon
 
 use lychee_lib::Collector;
 
+mod archive;
 mod cache;
 mod client;
 mod color;
@@ -84,7 +85,6 @@ mod formatters;
 mod options;
 mod parse;
 mod stats;
-mod suggest_alternative;
 mod time;
 mod verbosity;
 
