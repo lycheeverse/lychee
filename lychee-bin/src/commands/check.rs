@@ -13,8 +13,8 @@ use lychee_lib::Result;
 use lychee_lib::Status;
 use lychee_lib::{Client, Request, Response};
 
-use crate::formatters::response::ResponseFormatter;
 use crate::archive::{Archive, Suggestion};
+use crate::formatters::response::ResponseFormatter;
 use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
 

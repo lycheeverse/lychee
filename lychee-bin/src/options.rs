@@ -1,5 +1,5 @@
-use crate::parse::{parse_base, parse_statuscodes};
 use crate::archive::Archive;
+use crate::parse::{parse_base, parse_statuscodes};
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
 use clap::{arg, Parser};
