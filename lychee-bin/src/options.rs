@@ -1,4 +1,5 @@
 use crate::parse::{parse_base, parse_statuscodes};
+use crate::suggest_alternative::Archive;
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
 use clap::{arg, Parser};
@@ -180,8 +181,8 @@ pub(crate) struct Config {
     pub(crate) dump: bool,
 
     /// Suggest link replacements for broken links, using a web archives
-    #[arg(long)]
-    pub(crate) suggest: bool, // todo: use enum, with WaybackMachine as possible value
+    #[arg(long, default_value = None)]
+    pub(crate) suggest: Option<Archive>,
 
     /// Maximum number of allowed redirects
     #[arg(short, long, default_value = &MAX_REDIRECTS_STR)]

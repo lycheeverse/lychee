@@ -1,21 +1,55 @@
+use anyhow::anyhow;
+use std::str::FromStr;
+
 use http::StatusCode;
 use reqwest::{Error, Url};
 use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Debug, Serialize, Eq, Hash, PartialEq)]
-pub(crate) struct Recommendation {
+pub(crate) struct Suggestion {
     pub(crate) url: Url,
-    pub(crate) recommendation: Url,
+    pub(crate) suggestion: Url,
 }
 
-pub(crate) async fn get_wayback_link(url: &Url) -> Result<InternetArchiveResponse, Error> {
+#[derive(Debug, Deserialize, Default, Clone)]
+pub(crate) enum Archive {
+    #[default]
+    WaybackMachine,
+}
+
+impl FromStr for Archive {
+    type Err = anyhow::Error;
+    fn from_str(archive: &str) -> Result<Self, Self::Err> {
+        match archive.to_lowercase().as_str() {
+            "wayback" => Ok(Archive::WaybackMachine),
+            _ => Err(anyhow!("Unknown archive {}", archive)),
+        }
+    }
+}
+
+impl Archive {
+    pub(crate) async fn get_link(&self, original: &Url) -> Result<Option<Url>, Error> {
+        let function = match self {
+            Archive::WaybackMachine => get_wayback_link,
+        };
+
+        function(original).await
+    }
+}
+
+async fn get_wayback_link(url: &Url) -> Result<Option<Url>, Error> {
     let mut archive_url = Url::parse("https://archive.org/wayback/available").unwrap();
     archive_url.set_query(Some(&format!("url={}", url)));
 
-    Ok(reqwest::get(archive_url)
+    let response = reqwest::get(archive_url)
         .await?
         .json::<InternetArchiveResponse>()
-        .await?)
+        .await?;
+
+    Ok(response
+        .archived_snapshots
+        .closest
+        .map(|closest| closest.url))
 }
 
 #[derive(Debug, Deserialize, Eq, PartialEq)]
@@ -51,12 +85,9 @@ where
 async fn wayback_suggestion() -> Result<(), Error> {
     let url = &"https://example.com".try_into().unwrap();
     let response = get_wayback_link(url).await?;
-    let closest_snapsnot = response.archived_snapshots.closest.unwrap();
+    let suggestion = response.unwrap();
 
-    assert_eq!(&response.url, url);
-    assert_eq!(closest_snapsnot.available, true);
-    assert_eq!(closest_snapsnot.status, StatusCode::OK);
-    assert!(closest_snapsnot.url.as_str().contains("web.archive.org"));
+    assert!(suggestion.as_str().contains("web.archive.org"));
 
     Ok(())
 }
@@ -66,9 +97,8 @@ async fn wayback_suggestion_unknown_url() -> Result<(), Error> {
     let url = &"https://github.com/mre/idiomatic-rust-doesnt-exist-man"
         .try_into()
         .unwrap();
-    let response = get_wayback_link(url).await?;
 
-    assert_eq!(&response.url, url);
-    assert_eq!(response.archived_snapshots.closest, None);
+    let response = get_wayback_link(url).await?;
+    assert_eq!(response, None);
     Ok(())
 }

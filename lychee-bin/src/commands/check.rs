@@ -14,7 +14,7 @@ use lychee_lib::Status;
 use lychee_lib::{Client, Request, Response};
 
 use crate::formatters::response::ResponseFormatter;
-use crate::suggest_alternative::{get_wayback_link, Recommendation};
+use crate::suggest_alternative::{Archive, Suggestion};
 use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
 
@@ -78,29 +78,9 @@ where
         pb.finish_and_clear();
     }
 
-    if params.cfg.suggest {
-        for (input, set) in stats.fail_map.iter() {
-            for entry in set.iter() {
-                let uri = &entry.uri;
-
-                if !uri.is_data() && !uri.is_mail() && !uri.is_file() {
-                    let url = &uri.as_str().try_into().unwrap();
-                    if let Ok(response) = get_wayback_link(url).await {
-                        if let Some(closest_snapshot) = response.archived_snapshots.closest {
-                            let recommendation = closest_snapshot.url;
-                            stats
-                                .recommend_map
-                                .entry(input.clone())
-                                .or_default()
-                                .insert(Recommendation {
-                                    recommendation,
-                                    url: url.clone(),
-                                });
-                        }
-                    }
-                }
-            }
-        }
+    if let Some(archive) = params.cfg.suggest {
+        get_suggestions(archive, &mut stats).await;
+        // todo: only `get` suggestions, then set the suggestion_map in the second step
     }
 
     let code = if stats.is_success() {
@@ -109,6 +89,30 @@ where
         ExitCode::LinkCheckFailure
     };
     Ok((stats, cache_ref, code))
+}
+
+async fn get_suggestions(archive: Archive, stats: &mut ResponseStats) {
+    for (input, set) in stats.fail_map.iter() {
+        for entry in set.iter() {
+            let uri = &entry.uri;
+
+            if !uri.is_data() && !uri.is_mail() && !uri.is_file() {
+                let url = &uri.as_str().try_into().unwrap();
+                if let Ok(response) = archive.get_link(url).await {
+                    if let Some(suggestion) = response {
+                        stats
+                            .suggestion_map
+                            .entry(input.clone())
+                            .or_default()
+                            .insert(Suggestion {
+                                suggestion,
+                                url: url.clone(),
+                            });
+                    }
+                }
+            }
+        }
+    }
 }
 
 // drops the `send_req` channel on exit
