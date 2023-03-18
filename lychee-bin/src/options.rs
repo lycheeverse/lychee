@@ -180,7 +180,8 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) dump: bool,
 
-    /// Suggest link replacements for broken links, using a web archives
+    /// Suggest link replacements for broken links, using a web archive. Only supports "wayback"
+    /// for the moment
     #[arg(long, default_value = None)]
     pub(crate) suggest: Option<Archive>,
 

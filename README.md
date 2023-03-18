@@ -250,6 +250,9 @@ Options:
       --dump
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
 
+      --suggest <SUGGEST>
+          Suggest link replacements for broken links, using a web archive. Only supports "wayback" for the moment
+
   -m, --max-redirects <MAX_REDIRECTS>
           Maximum number of allowed redirects
           
