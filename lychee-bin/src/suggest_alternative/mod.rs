@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Debug, Serialize, Eq, Hash, PartialEq)]
 pub(crate) struct Suggestion {
-    pub(crate) url: Url,
+    pub(crate) original: Url,
     pub(crate) suggestion: Url,
 }
 
@@ -39,7 +39,7 @@ impl Archive {
 
 async fn get_wayback_link(url: &Url) -> Result<Option<Url>, Error> {
     let mut archive_url = Url::parse("https://archive.org/wayback/available").unwrap();
-    archive_url.set_query(Some(&format!("url={}", url)));
+    archive_url.set_query(Some(&format!("url={url}")));
 
     let response = reqwest::get(archive_url)
         .await?

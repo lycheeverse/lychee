@@ -91,23 +91,21 @@ where
 }
 
 async fn suggest_archived_links(archive: Archive, stats: &mut ResponseStats) {
-    for (input, set) in stats.fail_map.iter() {
+    for (input, set) in &stats.fail_map {
         for entry in set.iter() {
             let uri = &entry.uri;
 
             if !uri.is_data() && !uri.is_mail() && !uri.is_file() {
-                let url = &uri.as_str().try_into().unwrap();
-                if let Ok(response) = archive.get_link(url).await {
-                    if let Some(suggestion) = response {
-                        stats
-                            .suggestion_map
-                            .entry(input.clone())
-                            .or_default()
-                            .insert(Suggestion {
-                                suggestion,
-                                url: url.clone(),
-                            });
-                    }
+                let original = &uri.as_str().try_into().unwrap();
+                if let Ok(Some(suggestion)) = archive.get_link(original).await {
+                    stats
+                        .suggestion_map
+                        .entry(input.clone())
+                        .or_default()
+                        .insert(Suggestion {
+                            suggestion,
+                            original: original.clone(),
+                        });
                 }
             }
         }
