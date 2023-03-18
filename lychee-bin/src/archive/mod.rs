@@ -1,9 +1,8 @@
-use anyhow::anyhow;
-use std::str::FromStr;
+use serde::{Deserialize, Deserializer, Serialize};
+use strum::{Display, EnumIter, EnumString};
 
 use http::StatusCode;
 use reqwest::{Error, Url};
-use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Debug, Serialize, Eq, Hash, PartialEq)]
 pub(crate) struct Suggestion {
@@ -11,20 +10,12 @@ pub(crate) struct Suggestion {
     pub(crate) suggestion: Url,
 }
 
-#[derive(Debug, Deserialize, Default, Clone)]
+#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString)]
 pub(crate) enum Archive {
+    #[serde(rename = "wayback")]
+    #[strum(serialize = "wayback", ascii_case_insensitive)]
     #[default]
     WaybackMachine,
-}
-
-impl FromStr for Archive {
-    type Err = anyhow::Error;
-    fn from_str(archive: &str) -> Result<Self, Self::Err> {
-        match archive.to_lowercase().as_str() {
-            "wayback" => Ok(Archive::WaybackMachine),
-            _ => Err(anyhow!("Unknown archive {}", archive)),
-        }
-    }
 }
 
 impl Archive {
