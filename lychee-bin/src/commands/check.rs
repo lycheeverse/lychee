@@ -79,8 +79,7 @@ where
     }
 
     if let Some(archive) = params.cfg.suggest {
-        get_suggestions(archive, &mut stats).await;
-        // todo: only `get` suggestions, then set the suggestion_map in the second step
+        suggest_archived_links(archive, &mut stats).await;
     }
 
     let code = if stats.is_success() {
@@ -91,7 +90,7 @@ where
     Ok((stats, cache_ref, code))
 }
 
-async fn get_suggestions(archive: Archive, stats: &mut ResponseStats) {
+async fn suggest_archived_links(archive: Archive, stats: &mut ResponseStats) {
     for (input, set) in stats.fail_map.iter() {
         for entry in set.iter() {
             let uri = &entry.uri;
