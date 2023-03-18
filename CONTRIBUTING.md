@@ -34,4 +34,4 @@ ask for some early feedback by creating an issue yourself and asking for feedbac
 
 ## Thanks!
 
-No matter how small, we appreciate very contribution. You're awesome!
+No matter how small, we appreciate every contribution. You're awesome!
