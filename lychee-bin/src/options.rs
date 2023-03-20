@@ -1,5 +1,5 @@
 use crate::archive::Archive;
-use crate::parse::{parse_base, parse_statuscodes};
+use crate::parse::{parse_archive_provider, parse_base, parse_statuscodes};
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
 use clap::{arg, Parser};
@@ -182,7 +182,7 @@ pub(crate) struct Config {
 
     /// Suggest link replacements for broken links, using a web archive. Only supports "wayback"
     /// for the moment
-    #[arg(long, default_value = None)]
+    #[arg(long, value_parser = parse_archive_provider)]
     pub(crate) suggest: Option<Archive>,
 
     /// Maximum number of allowed redirects
