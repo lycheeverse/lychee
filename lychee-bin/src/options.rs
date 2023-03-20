@@ -180,10 +180,15 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) dump: bool,
 
-    /// Suggest link replacements for broken links, using a web archive. Only supports "wayback"
-    /// for the moment
-    #[arg(long, value_parser = parse_archive_provider)]
-    pub(crate) suggest: Option<Archive>,
+    /// Specify the use of a specific web archive.
+    /// Can be used in combination with `--suggest`
+    #[arg(long, value_parser = parse_archive_provider, default_value = "wayback")]
+    pub(crate) archive: Archive,
+
+    /// Suggest link replacements for broken links, using a web archive.
+    /// The web archive can be specified with `--archive`
+    #[arg(long)]
+    pub(crate) suggest: bool,
 
     /// Maximum number of allowed redirects
     #[arg(short, long, default_value = &MAX_REDIRECTS_STR)]

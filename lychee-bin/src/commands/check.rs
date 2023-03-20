@@ -78,8 +78,8 @@ where
         pb.finish_and_clear();
     }
 
-    if let Some(archive) = params.cfg.suggest {
-        suggest_archived_links(archive, &mut stats).await;
+    if params.cfg.suggest {
+        suggest_archived_links(params.cfg.archive, &mut stats).await;
     }
 
     let code = if stats.is_success() {
