@@ -79,7 +79,7 @@ where
     }
 
     if params.cfg.suggest {
-        suggest_archived_links(params.cfg.archive, &mut stats).await;
+        suggest_archived_links(params.cfg.archive.unwrap_or_default(), &mut stats).await;
     }
 
     let code = if stats.is_success() {
