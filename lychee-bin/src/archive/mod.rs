@@ -1,8 +1,11 @@
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Deserializer, Serialize};
 use strum::{Display, EnumIter, EnumString};
 
 use http::StatusCode;
 use reqwest::{Error, Url};
+
+static WAYBACK_URL: Lazy<Url> = Lazy::new(|| Url::parse("https://archive.org/wayback/available").unwrap());
 
 #[derive(Debug, Serialize, Eq, Hash, PartialEq)]
 pub(crate) struct Suggestion {
@@ -10,6 +13,7 @@ pub(crate) struct Suggestion {
     pub(crate) suggestion: Url,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString)]
 pub(crate) enum Archive {
     #[serde(rename = "wayback")]
@@ -29,7 +33,7 @@ impl Archive {
 }
 
 async fn get_wayback_link(url: &Url) -> Result<Option<Url>, Error> {
-    let mut archive_url = Url::parse("https://archive.org/wayback/available").unwrap();
+    let mut archive_url: Url = WAYBACK_URL.clone();
     archive_url.set_query(Some(&format!("url={url}")));
 
     let response = reqwest::get(archive_url)
