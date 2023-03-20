@@ -78,6 +78,7 @@ mod cli {
         cached: usize,
         success_map: HashMap<InputSource, HashSet<ResponseBody>>,
         fail_map: HashMap<InputSource, HashSet<ResponseBody>>,
+        suggestion_map: HashMap<InputSource, HashSet<ResponseBody>>,
         excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
     }
 
@@ -97,6 +98,7 @@ mod cli {
   "cached": {},
   "success_map": {:?},
   "fail_map": {:?},
+  "suggestion_map": {:?},
   "excluded_map": {:?}
 }}"#,
                 self.detailed_stats,
@@ -110,6 +112,7 @@ mod cli {
                 self.errors,
                 self.cached,
                 self.success_map,
+                self.suggestion_map,
                 self.fail_map,
                 self.excluded_map
             )
