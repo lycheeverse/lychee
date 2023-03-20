@@ -50,24 +50,30 @@ where
     Ok(StatusCode::from_u16(result).unwrap())
 }
 
-#[tokio::test]
-async fn wayback_suggestion() -> Result<(), Error> {
-    let url = &"https://example.com".try_into().unwrap();
-    let response = get_wayback_link(url).await?;
-    let suggestion = response.unwrap();
+#[cfg(test)]
+mod tests {
+    use crate::archive::wayback::get_wayback_link;
+    use reqwest::Error;
 
-    assert!(suggestion.as_str().contains("web.archive.org"));
+    #[tokio::test]
+    async fn wayback_suggestion() -> Result<(), Error> {
+        let url = &"https://example.com".try_into().unwrap();
+        let response = get_wayback_link(url).await?;
+        let suggestion = response.unwrap();
 
-    Ok(())
-}
+        assert!(suggestion.as_str().contains("web.archive.org"));
 
-#[tokio::test]
-async fn wayback_suggestion_unknown_url() -> Result<(), Error> {
-    let url = &"https://github.com/mre/idiomatic-rust-doesnt-exist-man"
-        .try_into()
-        .unwrap();
+        Ok(())
+    }
 
-    let response = get_wayback_link(url).await?;
-    assert_eq!(response, None);
-    Ok(())
+    #[tokio::test]
+    async fn wayback_suggestion_unknown_url() -> Result<(), Error> {
+        let url = &"https://github.com/mre/idiomatic-rust-doesnt-exist-man"
+            .try_into()
+            .unwrap();
+
+        let response = get_wayback_link(url).await?;
+        assert_eq!(response, None);
+        Ok(())
+    }
 }
