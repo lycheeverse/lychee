@@ -1,7 +1,6 @@
-use serde::{Deserialize, Serialize};
-use strum::{Display, EnumIter, EnumString};
-
 use reqwest::{Error, Url};
+use serde::{Deserialize, Serialize};
+use strum::{Display, EnumIter, EnumString, EnumVariantNames};
 
 mod wayback;
 
@@ -12,7 +11,7 @@ pub(crate) struct Suggestion {
 }
 
 #[non_exhaustive]
-#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString)]
+#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, EnumVariantNames)]
 pub(crate) enum Archive {
     #[serde(rename = "wayback")]
     #[strum(serialize = "wayback", ascii_case_insensitive)]

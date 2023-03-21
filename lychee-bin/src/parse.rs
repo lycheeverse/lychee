@@ -2,9 +2,6 @@ use anyhow::{anyhow, Context, Result};
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderName};
 use lychee_lib::{remap::Remaps, Base};
 use std::{collections::HashSet, time::Duration};
-use strum::IntoEnumIterator;
-
-use crate::archive::Archive;
 
 /// Split a single HTTP header into a (key, value) tuple
 fn read_header(input: &str) -> Result<(String, String)> {
@@ -53,20 +50,6 @@ pub(crate) fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
 
 pub(crate) fn parse_base(src: &str) -> Result<Base, lychee_lib::ErrorKind> {
     Base::try_from(src)
-}
-
-/// Parse archive provider. If it cannot be parsed, a list of supported
-/// providers is returned.
-pub(crate) fn parse_archive_provider(provider: &str) -> Result<Archive> {
-    Archive::try_from(provider).map_err(|_| {
-        anyhow!(
-            "Supported providers: {}",
-            Archive::iter()
-                .map(|variant| variant.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    })
 }
 
 /// Parse HTTP status codes into a set of `StatusCode`
