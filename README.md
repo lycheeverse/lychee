@@ -253,7 +253,7 @@ Options:
       --archive <ARCHIVE>
           Specify the use of a specific web archive. Can be used in combination with `--suggest`
           
-          [default: wayback]
+          [possible values: wayback]
 
       --suggest
           Suggest link replacements for broken links, using a web archive. The web archive can be specified with `--archive`
