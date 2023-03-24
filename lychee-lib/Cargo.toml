@@ -37,7 +37,7 @@ serde = { version = "1.0.158", features = ["derive"] }
 shellexpand = "3.0.0"
 typed-builder = "0.14.0"
 tokio = { version = "1.26.0", features = ["full"] }
-url = { version = "2.3.0", features = ["serde"] }
+url = { version = "2.3.1", features = ["serde"] }
 log = "0.4.17"
 path-clean = "1.0.1"
 percent-encoding = "2.2.0"
