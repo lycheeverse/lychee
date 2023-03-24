@@ -1,6 +1,9 @@
 use reqwest::{Error, Url};
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 use strum::{Display, EnumIter, EnumString, EnumVariantNames};
+
+use crate::color::{color, GREEN, PINK};
 
 mod wayback;
 
@@ -8,6 +11,15 @@ mod wayback;
 pub(crate) struct Suggestion {
     pub(crate) original: Url,
     pub(crate) suggestion: Url,
+}
+
+impl Display for Suggestion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        color!(f, PINK, "{}", self.original)?;
+        write!(f, " ")?;
+        color!(f, GREEN, "{}", self.suggestion)?;
+        Ok(())
+    }
 }
 
 #[non_exhaustive]
