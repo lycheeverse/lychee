@@ -9,13 +9,20 @@ use crate::ErrorKind;
 
 use super::CacheStatus;
 
-const ICON_OK: &str = "\u{2714}"; // ✔
-const ICON_REDIRECTED: &str = "\u{21c4}"; // ⇄
-const ICON_EXCLUDED: &str = "\u{003f}"; // ?
-const ICON_UNSUPPORTED: &str = "\u{003f}"; // ? (using same icon, but under different name for explicitness)
-const ICON_UNKNOWN: &str = "\u{003f}"; // ?
-const ICON_ERROR: &str = "\u{2717}"; // ✗
-const ICON_TIMEOUT: &str = "\u{29d6}"; // ⧖
+const ICON_OK: &str = "\u{2714}";
+// ✔
+const ICON_REDIRECTED: &str = "\u{21c4}";
+// ⇄
+const ICON_EXCLUDED: &str = "\u{003f}";
+// ?
+const ICON_UNSUPPORTED: &str = "\u{003f}";
+// ? (using same icon, but under different name for explicitness)
+const ICON_UNKNOWN: &str = "\u{003f}";
+// ?
+const ICON_ERROR: &str = "\u{2717}";
+// ✗
+const ICON_TIMEOUT: &str = "\u{29d6}";
+// ⧖
 const ICON_CACHED: &str = "\u{21bb}"; // ↻
 
 /// Response status of the request.
@@ -63,10 +70,14 @@ impl Serialize for Status {
         where
             S: Serializer,
     {
-        let mut s = serializer.serialize_struct("Status", 2)?;
-        s.serialize_field("text", &self.to_string())?;
+        let mut s;
         if let Some(code) = self.code() {
+            s = serializer.serialize_struct("Status", 2)?;
+            s.serialize_field("text", &self.to_string())?;
             s.serialize_field("code", &code.as_u16())?;
+        } else {
+            s = serializer.serialize_struct("Status", 1)?;
+            s.serialize_field("text", &self.to_string())?;
         }
         s.end()
     }
