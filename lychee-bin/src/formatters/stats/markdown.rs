@@ -62,7 +62,7 @@ fn stats_table(stats: &ResponseStats) -> String {
 fn markdown_response(response: &ResponseBody) -> Result<String> {
     let mut formatted = format!(
         "* [{}] [{}]({})",
-        response.status.code(),
+        response.status.code_as_string(),
         response.uri,
         response.uri,
     );

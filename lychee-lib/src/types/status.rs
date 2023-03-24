@@ -3,6 +3,7 @@ use std::{collections::HashSet, fmt::Display};
 use http::StatusCode;
 use reqwest::Response;
 use serde::{Serialize, Serializer};
+use serde::ser::SerializeStruct;
 
 use crate::ErrorKind;
 
@@ -59,10 +60,15 @@ impl Display for Status {
 
 impl Serialize for Status {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+        where
+            S: Serializer,
     {
-        serializer.collect_str(self)
+        let mut s = serializer.serialize_struct("Status", 2)?;
+        s.serialize_field("text", &self.to_string())?;
+        if let Some(code) = self.code() {
+            s.serialize_field("code", &code.as_u16())?;
+        }
+        s.end()
     }
 }
 
@@ -199,7 +205,29 @@ impl Status {
 
     /// Return the HTTP status code (if any)
     #[must_use]
-    pub fn code(&self) -> String {
+    pub fn code(&self) -> Option<StatusCode> {
+        match self {
+            Status::Ok(code) |
+            Status::Redirected(code) |
+            Status::UnknownStatusCode(code) |
+            Status::Timeout(Some(code)) => Some(*code),
+            Status::Cached(cache_status) =>
+                match cache_status {
+                    CacheStatus::Ok(code) |
+                    CacheStatus::Error(Some(code)) =>
+                        match StatusCode::from_u16(*code) {
+                            Ok(code) => Some(code),
+                            Err(_) => None
+                        },
+                    _ => None
+                },
+            _ => None
+        }
+    }
+
+    /// Return the HTTP status code as string (if any)
+    #[must_use]
+    pub fn code_as_string(&self) -> String {
         match self {
             Status::Ok(code) | Status::Redirected(code) | Status::UnknownStatusCode(code) => {
                 code.as_str().to_string()
