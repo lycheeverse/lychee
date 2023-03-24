@@ -511,7 +511,7 @@ mod cli {
             .assert()
             .success();
 
-        let expected = r#"{"detailed_stats":false,"total":11,"successful":11,"unknown":0,"unsupported":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"cached":0,"success_map":{},"fail_map":{},"excluded_map":{}}"#;
+        let expected = r#"{"detailed_stats":false,"total":11,"successful":11,"unknown":0,"unsupported":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"cached":0,"success_map":{},"fail_map":{},"suggestion_map":{},"excluded_map":{}}"#;
         let output = fs::read_to_string(&outfile)?;
         assert_eq!(output.split_whitespace().collect::<String>(), expected);
         fs::remove_file(outfile)?;
