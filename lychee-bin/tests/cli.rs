@@ -78,6 +78,7 @@ mod cli {
         cached: usize,
         success_map: HashMap<InputSource, HashSet<ResponseBody>>,
         fail_map: HashMap<InputSource, HashSet<ResponseBody>>,
+        suggestion_map: HashMap<InputSource, HashSet<ResponseBody>>,
         excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
     }
 
@@ -97,6 +98,7 @@ mod cli {
   "cached": {},
   "success_map": {:?},
   "fail_map": {:?},
+  "suggestion_map": {:?},
   "excluded_map": {:?}
 }}"#,
                 self.detailed_stats,
@@ -110,6 +112,7 @@ mod cli {
                 self.errors,
                 self.cached,
                 self.success_map,
+                self.suggestion_map,
                 self.fail_map,
                 self.excluded_map
             )
@@ -508,7 +511,7 @@ mod cli {
             .assert()
             .success();
 
-        let expected = r#"{"detailed_stats":false,"total":11,"successful":11,"unknown":0,"unsupported":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"cached":0,"success_map":{},"fail_map":{},"excluded_map":{}}"#;
+        let expected = r#"{"detailed_stats":false,"total":11,"successful":11,"unknown":0,"unsupported":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"cached":0,"success_map":{},"fail_map":{},"suggestion_map":{},"excluded_map":{}}"#;
         let output = fs::read_to_string(&outfile)?;
         assert_eq!(output.split_whitespace().collect::<String>(), expected);
         fs::remove_file(outfile)?;

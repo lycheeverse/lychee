@@ -59,6 +59,14 @@ impl Display for CompactResponseStats {
             for response in responses {
                 writeln!(f, "{}", color_response(response))?;
             }
+
+            if let Some(suggestions) = &stats.suggestion_map.get(source) {
+                writeln!(f, "\n\u{2139} Suggestions")?;
+                for suggestion in *suggestions {
+                    writeln!(f, "{suggestion}")?;
+                }
+            }
+
             writeln!(f)?;
         }
 

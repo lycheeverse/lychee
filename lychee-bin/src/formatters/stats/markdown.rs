@@ -1,9 +1,12 @@
-use std::fmt::{self, Display};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::{self, Display},
+};
 
 use super::StatsFormatter;
 use anyhow::Result;
 use http::StatusCode;
-use lychee_lib::{ResponseBody, Status};
+use lychee_lib::{InputSource, ResponseBody, Status};
 use std::fmt::Write;
 use tabled::{object::Segment, Alignment, Modify, Table, Tabled};
 
@@ -94,26 +97,42 @@ impl Display for MarkdownResponseStats {
         writeln!(f)?;
         writeln!(f, "{}", stats_table(&self.0))?;
 
-        if !&stats.fail_map.is_empty() {
-            writeln!(f)?;
-            writeln!(f, "## Errors per input\n")?;
-            for (source, responses) in &stats.fail_map {
-                // Using leading newlines over trailing ones (e.g. `writeln!`)
-                // lets us avoid extra newlines without any additional logic.
-                writeln!(f, "### Errors in {source}\n")?;
-                for response in responses {
-                    writeln!(
-                        f,
-                        "{}",
-                        markdown_response(response).map_err(|_e| fmt::Error)?
-                    )?;
-                }
-                writeln!(f)?;
-            }
-        }
+        write_stats_per_input(f, "Errors", &stats.fail_map, |response| {
+            markdown_response(response).map_err(|_e| fmt::Error)
+        })?;
+
+        write_stats_per_input(f, "Suggestions", &stats.suggestion_map, |suggestion| {
+            Ok(format!(
+                "* {} --> {}",
+                suggestion.original, suggestion.suggestion
+            ))
+        })?;
 
         Ok(())
     }
+}
+
+fn write_stats_per_input<T, F>(
+    f: &mut fmt::Formatter<'_>,
+    name: &'static str,
+    map: &HashMap<InputSource, HashSet<T>>,
+    write_stat: F,
+) -> fmt::Result
+where
+    T: Display,
+    F: Fn(&T) -> Result<String, std::fmt::Error>,
+{
+    if !&map.is_empty() {
+        writeln!(f, "\n## {name} per input")?;
+        for (source, responses) in map {
+            writeln!(f, "\n### {name} in {source}\n")?;
+            for response in responses {
+                writeln!(f, "{}", write_stat(response)?)?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub(crate) struct Markdown;
@@ -136,6 +155,9 @@ mod tests {
 
     use http::StatusCode;
     use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status, Uri};
+    use reqwest::Url;
+
+    use crate::archive::Suggestion;
 
     use super::*;
 
@@ -205,6 +227,14 @@ mod tests {
             },
         );
         stats.add(response);
+        stats
+            .suggestion_map
+            .entry((InputSource::Stdin).clone())
+            .or_default()
+            .insert(Suggestion {
+                suggestion: Url::parse("https://example.com/suggestion").unwrap(),
+                original: Url::parse("https://example.com/original").unwrap(),
+            });
         let summary = MarkdownResponseStats(stats);
         let expected = r#"## Summary
 
@@ -224,6 +254,11 @@ mod tests {
 
 * [404] [http://127.0.0.1/](http://127.0.0.1/) | Cached: Error (cached)
 
+## Suggestions per input
+
+### Suggestions in stdin
+
+* https://example.com/original --> https://example.com/suggestion
 "#;
         assert_eq!(summary.to_string(), expected.to_string());
     }

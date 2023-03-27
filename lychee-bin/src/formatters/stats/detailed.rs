@@ -45,6 +45,13 @@ impl Display for DetailedResponseStats {
             write!(f, "\n\nErrors in {source}")?;
             for response in responses {
                 write!(f, "\n{}", color_response(response))?;
+
+                if let Some(suggestions) = &stats.suggestion_map.get(source) {
+                    writeln!(f, "\nSuggestions in {source}")?;
+                    for suggestion in *suggestions {
+                        writeln!(f, "{suggestion}")?;
+                    }
+                }
             }
         }
 

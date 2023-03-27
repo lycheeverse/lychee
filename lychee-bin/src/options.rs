@@ -1,7 +1,8 @@
+use crate::archive::Archive;
 use crate::parse::{parse_base, parse_statuscodes};
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
-use clap::{arg, Parser};
+use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
     Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
@@ -11,6 +12,7 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::path::Path;
 use std::{collections::HashSet, fs, path::PathBuf, str::FromStr, time::Duration};
+use strum::VariantNames;
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
@@ -178,6 +180,18 @@ pub(crate) struct Config {
     #[arg(long)]
     #[serde(default)]
     pub(crate) dump: bool,
+
+    /// Specify the use of a specific web archive.
+    /// Can be used in combination with `--suggest`
+    #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]
+    #[serde(default)]
+    pub(crate) archive: Option<Archive>,
+
+    /// Suggest link replacements for broken links, using a web archive.
+    /// The web archive can be specified with `--archive`
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) suggest: bool,
 
     /// Maximum number of allowed redirects
     #[arg(short, long, default_value = &MAX_REDIRECTS_STR)]

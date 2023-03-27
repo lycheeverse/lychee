@@ -5,16 +5,19 @@ use std::time::Duration;
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
-use lychee_lib::Result;
-use lychee_lib::Status;
+use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
 
+use lychee_lib::Status;
+use lychee_lib::{Client, Request, Response};
+use lychee_lib::{InputSource, Result};
+
+use crate::archive::{Archive, Suggestion};
 use crate::formatters::response::ResponseFormatter;
 use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
-use lychee_lib::{Client, Request, Response};
 
 use super::CommandParams;
 
@@ -42,7 +45,7 @@ where
     let pb = if params.cfg.no_progress {
         None
     } else {
-        Some(init_progress_bar())
+        Some(init_progress_bar("Extracting links"))
     };
 
     // Start receiving requests
@@ -68,12 +71,21 @@ where
 
     // Wait until all responses are received
     let result = show_results_task.await?;
-    let (pb, stats) = result?;
+    let (pb, mut stats) = result?;
 
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
     if let Some(pb) = &pb {
-        pb.finish_and_clear();
+        pb.finish_with_message("Finished extracting links");
+    }
+
+    if params.cfg.suggest {
+        suggest_archived_links(
+            params.cfg.archive.unwrap_or_default(),
+            &mut stats,
+            !params.cfg.no_progress,
+        )
+        .await;
     }
 
     let code = if stats.is_success() {
@@ -82,6 +94,48 @@ where
         ExitCode::LinkCheckFailure
     };
     Ok((stats, cache_ref, code))
+}
+
+async fn suggest_archived_links(archive: Archive, stats: &mut ResponseStats, show_progress: bool) {
+    let failed_urls = &stats
+        .fail_map
+        .iter()
+        .flat_map(|(source, set)| set.iter().map(|entry| (source, entry)).collect::<Vec<_>>())
+        .filter(|(_, response)| {
+            let uri = &response.uri;
+            !(uri.is_data() || uri.is_mail() || uri.is_file())
+        })
+        .map(|(source, response)| (source, response.uri.as_str().try_into().unwrap()))
+        .collect::<Vec<(&InputSource, Url)>>();
+
+    let bar = if show_progress {
+        let bar = init_progress_bar("Searching for alternatives");
+        bar.set_length(failed_urls.len() as u64);
+        Some(bar)
+    } else {
+        None
+    };
+
+    for (input, url) in failed_urls {
+        if let Ok(Some(suggestion)) = archive.get_link(url).await {
+            stats
+                .suggestion_map
+                .entry((*input).clone())
+                .or_default()
+                .insert(Suggestion {
+                    suggestion,
+                    original: url.clone(),
+                });
+        }
+
+        if let Some(bar) = &bar {
+            bar.inc(1);
+        }
+    }
+
+    if let Some(bar) = &bar {
+        bar.finish_with_message("Finished searching for alternatives");
+    }
 }
 
 // drops the `send_req` channel on exit
@@ -125,7 +179,7 @@ async fn progress_bar_task(
     Ok((pb, stats))
 }
 
-fn init_progress_bar() -> ProgressBar {
+fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
     let bar = ProgressBar::new_spinner().with_style(
         ProgressStyle::with_template(
             "{spinner:.197.bright} {pos}/{len:.dim} ETA {eta} {bar:.dim} {wide_msg}",
@@ -133,7 +187,7 @@ fn init_progress_bar() -> ProgressBar {
         .expect("Valid progress bar"),
     );
     bar.set_length(0);
-    bar.set_message("Extracting links");
+    bar.set_message(initial_message);
     // report status _at least_ every 500ms
     bar.enable_steady_tick(Duration::from_millis(500));
     bar
@@ -232,6 +286,7 @@ fn show_progress(
 #[cfg(test)]
 mod tests {
     use log::info;
+
     use lychee_lib::{CacheStatus, InputSource, ResponseBody, Uri};
 
     use crate::formatters;

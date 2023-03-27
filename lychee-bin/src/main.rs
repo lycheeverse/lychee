@@ -76,6 +76,7 @@ use ring as _; // required for apple silicon
 
 use lychee_lib::Collector;
 
+mod archive;
 mod cache;
 mod client;
 mod color;
@@ -109,7 +110,7 @@ enum ExitCode {
 }
 
 /// Ignore lines starting with this marker in `.lycheeignore` files
-const LYCHEEINGORE_COMMENT_MARKER: &str = "#";
+const LYCHEEIGNORE_COMMENT_MARKER: &str = "#";
 
 fn main() -> Result<()> {
     #[cfg(feature = "tokio-console")]
@@ -128,7 +129,7 @@ fn read_lines(file: &File) -> Result<Vec<String>> {
     Ok(lines
         .into_iter()
         .filter(|line| {
-            !line.is_empty() && !line.trim_start().starts_with(LYCHEEINGORE_COMMENT_MARKER)
+            !line.is_empty() && !line.trim_start().starts_with(LYCHEEIGNORE_COMMENT_MARKER)
         })
         .collect())
 }
