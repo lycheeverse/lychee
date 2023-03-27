@@ -184,11 +184,13 @@ pub(crate) struct Config {
     /// Specify the use of a specific web archive.
     /// Can be used in combination with `--suggest`
     #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]
+    #[serde(default)]
     pub(crate) archive: Option<Archive>,
 
     /// Suggest link replacements for broken links, using a web archive.
     /// The web archive can be specified with `--archive`
     #[arg(long)]
+    #[serde(default)]
     pub(crate) suggest: bool,
 
     /// Maximum number of allowed redirects
