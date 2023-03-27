@@ -61,7 +61,7 @@ impl Display for ResponseBody {
             f,
             "{} [{}] {}",
             self.status.icon(),
-            self.status.code(),
+            self.status.code_as_string(),
             self.uri
         )?;
 

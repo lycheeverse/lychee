@@ -2,6 +2,7 @@ use std::{collections::HashSet, fmt::Display};
 
 use http::StatusCode;
 use reqwest::Response;
+use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 
 use crate::ErrorKind;
@@ -62,7 +63,16 @@ impl Serialize for Status {
     where
         S: Serializer,
     {
-        serializer.collect_str(self)
+        let mut s;
+        if let Some(code) = self.code() {
+            s = serializer.serialize_struct("Status", 2)?;
+            s.serialize_field("text", &self.to_string())?;
+            s.serialize_field("code", &code.as_u16())?;
+        } else {
+            s = serializer.serialize_struct("Status", 1)?;
+            s.serialize_field("text", &self.to_string())?;
+        }
+        s.end()
     }
 }
 
@@ -199,7 +209,35 @@ impl Status {
 
     /// Return the HTTP status code (if any)
     #[must_use]
-    pub fn code(&self) -> String {
+    pub fn code(&self) -> Option<StatusCode> {
+        match self {
+            Status::Ok(code)
+            | Status::Redirected(code)
+            | Status::UnknownStatusCode(code)
+            | Status::Timeout(Some(code)) => Some(*code),
+            Status::Error(kind) | Status::Unsupported(kind) => {
+                if let Some(error) = kind.reqwest_error() {
+                    error.status()
+                } else {
+                    None
+                }
+            }
+            Status::Cached(cache_status) => match cache_status {
+                CacheStatus::Ok(code) | CacheStatus::Error(Some(code)) => {
+                    match StatusCode::from_u16(*code) {
+                        Ok(code) => Some(code),
+                        Err(_) => None,
+                    }
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Return the HTTP status code as string (if any)
+    #[must_use]
+    pub fn code_as_string(&self) -> String {
         match self {
             Status::Ok(code) | Status::Redirected(code) | Status::UnknownStatusCode(code) => {
                 code.as_str().to_string()
@@ -251,5 +289,67 @@ impl From<reqwest::Error> for Status {
         } else {
             Self::Error(ErrorKind::NetworkRequest(e))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{CacheStatus, ErrorKind, Status};
+    use http::StatusCode;
+
+    #[test]
+    fn test_status_serialization() {
+        let status_ok = Status::Ok(StatusCode::from_u16(200).unwrap());
+        let serialized_with_code = serde_json::to_string(&status_ok).unwrap();
+        assert_eq!(
+            "{\"text\":\"OK (200 OK)\",\"code\":200}",
+            serialized_with_code
+        );
+
+        let status_timeout = Status::Timeout(None);
+        let serialized_without_code = serde_json::to_string(&status_timeout).unwrap();
+        assert_eq!("{\"text\":\"Timeout\"}", serialized_without_code);
+    }
+
+    #[test]
+    fn test_get_status_code() {
+        assert_eq!(
+            Status::Ok(StatusCode::from_u16(200).unwrap())
+                .code()
+                .unwrap(),
+            200
+        );
+        assert_eq!(
+            Status::Timeout(Some(StatusCode::from_u16(408).unwrap()))
+                .code()
+                .unwrap(),
+            408
+        );
+        assert_eq!(
+            Status::UnknownStatusCode(StatusCode::from_u16(999).unwrap())
+                .code()
+                .unwrap(),
+            999
+        );
+        assert_eq!(
+            Status::Redirected(StatusCode::from_u16(300).unwrap())
+                .code()
+                .unwrap(),
+            300
+        );
+        assert_eq!(Status::Cached(CacheStatus::Ok(200)).code().unwrap(), 200);
+        assert_eq!(
+            Status::Cached(CacheStatus::Error(Some(404)))
+                .code()
+                .unwrap(),
+            404
+        );
+        assert_eq!(Status::Timeout(None).code(), None);
+        assert_eq!(Status::Cached(CacheStatus::Error(None)).code(), None);
+        assert_eq!(Status::Excluded.code(), None);
+        assert_eq!(
+            Status::Unsupported(ErrorKind::InvalidStatusCode(999)).code(),
+            None
+        );
     }
 }
