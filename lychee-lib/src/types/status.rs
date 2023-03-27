@@ -308,7 +308,7 @@ mod tests {
 
         let status_timeout = Status::Timeout(None);
         let serialized_without_code = serde_json::to_string(&status_timeout).unwrap();
-        assert_eq!("{\"text\":\"Timeout\"}", serialized_without_code)
+        assert_eq!("{\"text\":\"Timeout\"}", serialized_without_code);
     }
 
     #[test]
