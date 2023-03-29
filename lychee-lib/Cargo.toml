@@ -36,7 +36,7 @@ ring = "0.16.20"
 serde = { version = "1.0.159", features = ["derive"] }
 shellexpand = "3.1.0"
 typed-builder = "0.14.0"
-tokio = { version = "1.26.0", features = ["full"] }
+tokio = { version = "1.27.0", features = ["full"] }
 url = { version = "2.3.1", features = ["serde"] }
 log = "0.4.17"
 path-clean = "1.0.1"
