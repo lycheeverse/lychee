@@ -116,22 +116,22 @@ async fn suggest_archived_links(archive: Archive, stats: &mut ResponseStats, sho
         None
     };
 
-    for (input, url) in failed_urls {
-        if let Ok(Some(suggestion)) = archive.get_link(url).await {
-            stats
-                .suggestion_map
-                .entry((*input).clone())
-                .or_default()
-                .insert(Suggestion {
-                    suggestion,
-                    original: url.clone(),
-                });
-        }
+    let futures = futures::stream::iter(
+        failed_urls
+            .iter()
+            .map(|(_, url)| archive.get_link(url))
+            .collect::<Vec<_>>(),
+    );
+
+    let limit = 3; // todo
+    futures::StreamExt::for_each_concurrent(futures, limit, |x| async {
+        let todo = x.await; // todo
 
         if let Some(bar) = &bar {
             bar.inc(1);
         }
-    }
+    })
+    .await;
 
     if let Some(bar) = &bar {
         bar.finish_with_message("Finished searching for alternatives");
