@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::io::{self, Write};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use indicatif::ProgressBar;
@@ -84,6 +84,7 @@ where
             params.cfg.archive.unwrap_or_default(),
             &mut stats,
             !params.cfg.no_progress,
+            max_concurrency,
         )
         .await;
     }
@@ -96,7 +97,12 @@ where
     Ok((stats, cache_ref, code))
 }
 
-async fn suggest_archived_links(archive: Archive, stats: &mut ResponseStats, show_progress: bool) {
+async fn suggest_archived_links(
+    archive: Archive,
+    stats: &mut ResponseStats,
+    show_progress: bool,
+    max_concurrency: usize,
+) {
     let failed_urls = &stats
         .fail_map
         .iter()
@@ -119,18 +125,33 @@ async fn suggest_archived_links(archive: Archive, stats: &mut ResponseStats, sho
     let futures = futures::stream::iter(
         failed_urls
             .iter()
-            .map(|(_, url)| archive.get_link(url))
+            .map(|(input, url)| (input, url, archive.get_link(url)))
             .collect::<Vec<_>>(),
     );
 
-    let limit = 3; // todo
-    futures::StreamExt::for_each_concurrent(futures, limit, |x| async {
-        let todo = x.await; // todo
+    let suggestions = Mutex::new(&mut stats.suggestion_map);
 
-        if let Some(bar) = &bar {
-            bar.inc(1);
-        }
-    })
+    futures::StreamExt::for_each_concurrent(
+        futures,
+        max_concurrency,
+        |(input, url, future)| async {
+            if let Ok(Some(suggestion)) = future.await {
+                suggestions
+                    .lock()
+                    .unwrap()
+                    .entry((*input).clone())
+                    .or_default()
+                    .insert(Suggestion {
+                        suggestion,
+                        original: url.clone(),
+                    });
+            }
+
+            if let Some(bar) = &bar {
+                bar.inc(1);
+            }
+        },
+    )
     .await;
 
     if let Some(bar) = &bar {
