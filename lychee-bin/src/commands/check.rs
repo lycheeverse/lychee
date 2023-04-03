@@ -289,7 +289,7 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
     stats
         .fail_map
         .iter()
-        .flat_map(|(source, set)| set.iter().map(|entry| (source, entry)).collect::<Vec<_>>())
+        .flat_map(|(source, set)| set.iter().map(move |entry| (source, entry)))
         .filter(|(_, response)| {
             let uri = &response.uri;
             !(uri.is_data() || uri.is_mail() || uri.is_file())
