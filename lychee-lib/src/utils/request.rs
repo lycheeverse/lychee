@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    helpers::{path, url},
+    utils::{path, url},
     types::{uri::raw::RawUri, InputContent, InputSource},
     Base, ErrorKind, Request, Result, Uri,
 };

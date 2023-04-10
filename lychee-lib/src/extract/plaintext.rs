@@ -1,4 +1,4 @@
-use crate::{helpers::url, types::uri::raw::RawUri};
+use crate::{utils::url, types::uri::raw::RawUri};
 
 /// Extract unparsed URL strings from plaintext
 pub(crate) fn extract_plaintext(input: &str) -> Vec<RawUri> {

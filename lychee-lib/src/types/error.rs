@@ -6,7 +6,7 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 use super::InputContent;
-use crate::{helpers, Uri};
+use crate::{utils, Uri};
 
 /// Kinds of status errors
 /// Note: The error messages can change over time, so don't match on the output
@@ -148,7 +148,7 @@ impl ErrorKind {
                             .to_string(),
                     )
                 } else {
-                    Some(helpers::reqwest::trim_error_output(e))
+                    Some(utils::reqwest::trim_error_output(e))
                 }
             }
             ErrorKind::GithubRequest(e) => match e {

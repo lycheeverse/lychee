@@ -1,5 +1,5 @@
 use crate::types::FileType;
-use crate::{helpers, ErrorKind, Result};
+use crate::{utils, ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
@@ -366,7 +366,7 @@ impl Input {
 /// This is a standalone function to allow for easier testing
 fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
     for excluded in excluded_paths {
-        if let Ok(true) = helpers::path::contains(excluded, path) {
+        if let Ok(true) = utils::path::contains(excluded, path) {
             return true;
         }
     }

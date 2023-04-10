@@ -53,7 +53,7 @@ doc_comment::doctest!("../../README.md");
 mod client;
 /// A pool of clients, to handle concurrent checks
 pub mod collector;
-mod helpers;
+mod utils;
 mod quirks;
 mod retry;
 mod types;
