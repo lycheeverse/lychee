@@ -30,77 +30,101 @@ pub enum ErrorKind {
     /// Error while executing a future on the Tokio runtime
     #[error("Task failed to execute to completion")]
     RuntimeJoin(#[from] JoinError),
+
     /// Error while converting a file to an input
     #[error("Cannot read input content from file `{1}`")]
     ReadFileInput(#[source] std::io::Error, PathBuf),
+
     /// Error while reading stdin as input
     #[error("Cannot read input content from stdin")]
     ReadStdinInput(#[from] std::io::Error),
+
     /// Errors which can occur when attempting to interpret a sequence of u8 as a string
     #[error("Attempted to interpret an invalid sequence of bytes as a string")]
     Utf8(#[from] std::str::Utf8Error),
+
     /// The Github client required for making requests cannot be created
     #[error("Error creating Github client")]
     BuildGithubClient(#[source] octocrab::Error),
+
     /// Invalid Github URL
     #[error("Github URL is invalid: {0}")]
     InvalidGithubUrl(String),
+
     /// The input is empty and not accepted as a valid URL
     #[error("URL cannot be empty")]
     EmptyUrl,
+
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
     #[error("Cannot parse string `{1}` as website url: {0}")]
     ParseUrl(#[source] url::ParseError, String),
+
     /// The given URI cannot be converted to a file path
     #[error("Cannot find file")]
     InvalidFilePath(Uri),
+
     /// The given path cannot be converted to a URI
     #[error("Invalid path to URL conversion: {0}")]
     InvalidUrlFromPath(PathBuf),
+
     /// The given mail address is unreachable
     #[error("Unreachable mail address: {0}: {1}")]
     UnreachableEmailAddress(Uri, String),
+
     /// The given header could not be parsed.
     /// A possible error when converting a `HeaderValue` from a string or byte
     /// slice.
     #[error("Header could not be parsed.")]
     InvalidHeader(#[from] http::header::InvalidHeaderValue),
+
     /// The given string can not be parsed into a valid base URL or base directory
     #[error("Error with base dir `{0}` : {1}")]
     InvalidBase(String, String),
+
     /// The given input can not be parsed into a valid URI remapping
     #[error("Cannot parse into URI remapping, must be a Regex pattern and a URL separated by whitespaces: `{0}`")]
     InvalidUrlRemap(String),
+
     /// The given path does not resolve to a valid file
     #[error("Cannot find local file {0}")]
     FileNotFound(PathBuf),
+
     /// Error while traversing an input directory
     #[error("Cannot traverse input directory: {0}")]
     DirTraversal(#[from] jwalk::Error),
+
     /// The given glob pattern is not valid
     #[error("UNIX glob pattern is invalid")]
     InvalidGlobPattern(#[from] glob::PatternError),
+
     /// The Github API could not be called because of a missing Github token.
     #[error("GitHub token not specified. To check GitHub links reliably, use `--github-token` flag / `GITHUB_TOKEN` env var.")]
     MissingGitHubToken,
+
     /// Used an insecure URI where a secure variant was reachable
     #[error("This URI is available in HTTPS protocol, but HTTP is provided, use '{0}' instead")]
     InsecureURL(Uri),
+
     /// Error while sending/receiving messages from MPSC channel
     #[error("Cannot send/receive message from channel")]
     Channel(#[from] tokio::sync::mpsc::error::SendError<InputContent>),
+
     /// An URL with an invalid host was found
     #[error("URL is missing a host")]
     InvalidUrlHost,
+
     /// Cannot parse the given URI
     #[error("The given URI is invalid: {0}")]
     InvalidURI(Uri),
+
     /// The given status code is invalid (not in the range 100-1000)
     #[error("Invalid status code: {0}")]
     InvalidStatusCode(u16),
+
     /// Regex error
     #[error("Error when using regex engine: {0}")]
     Regex(#[from] regex::Error),
+
     /// Too many redirects (HTTP 3xx) were encountered (configurable)
     #[error("Too many redirects")]
     TooManyRedirects(#[source] reqwest::Error),
