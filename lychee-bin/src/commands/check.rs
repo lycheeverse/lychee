@@ -105,7 +105,12 @@ async fn suggest_archived_links(archive: Archive, stats: &mut ResponseStats, sho
             let uri = &response.uri;
             !(uri.is_data() || uri.is_mail() || uri.is_file())
         })
-        .map(|(source, response)| (source, response.uri.as_str().try_into().unwrap()))
+        .filter_map(
+            |(source, response)| match response.uri.as_str().try_into() {
+                Ok(url) => Some((source, url)),
+                Err(_) => None,
+            },
+        )
         .collect::<Vec<(&InputSource, Url)>>();
 
     let bar = if show_progress {
