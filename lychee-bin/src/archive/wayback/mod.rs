@@ -1,4 +1,5 @@
 use once_cell::sync::Lazy;
+use serde::de::Error as SerdeError;
 use serde::{Deserialize, Deserializer};
 
 use http::StatusCode;
@@ -46,8 +47,10 @@ where
     D: Deserializer<'d>,
 {
     let value: &str = Deserialize::deserialize(deserializer)?;
-    let result = value.parse::<u16>().unwrap();
-    Ok(StatusCode::from_u16(result).unwrap())
+    let result = value
+        .parse::<u16>()
+        .map_err(|e| D::Error::custom(e.to_string()))?;
+    StatusCode::from_u16(result).map_err(|e| D::Error::custom(e.to_string()))
 }
 
 #[cfg(test)]
