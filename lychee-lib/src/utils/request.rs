@@ -7,8 +7,8 @@ use std::{
 };
 
 use crate::{
-    utils::{path, url},
     types::{uri::raw::RawUri, InputContent, InputSource},
+    utils::{path, url},
     Base, ErrorKind, Request, Result, Uri,
 };
 
