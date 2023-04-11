@@ -775,8 +775,8 @@ mod cli {
         // run first without cache to generate the cache file
         test_cmd
             .assert()
-            .stdout(contains(format!("[200] {}/\n", mock_server_ok.uri())))
-            .stdout(contains(format!(
+            .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
+            .stderr(contains(format!(
                 "[404] {}/ | Failed: Network error: Not Found\n",
                 mock_server_err.uri()
             )));
@@ -789,11 +789,11 @@ mod cli {
         // run again to verify cache behavior
         test_cmd
             .assert()
-            .stdout(contains(format!(
+            .stderr(contains(format!(
                 "[200] {}/ | Cached: OK (cached)\n",
                 mock_server_ok.uri()
             )))
-            .stdout(contains(format!(
+            .stderr(contains(format!(
                 "[404] {}/ | Cached: Error (cached)\n",
                 mock_server_err.uri()
             )));
@@ -842,11 +842,11 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "[418] {}/ | Failed: Network error: I'm a teapot\n",
+                "[418] {}/ | Failed: Network error: I\'m a teapot",
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                "[500] {}/ | Failed: Network error: Internal Server Error\n",
+                "[500] {}/ | Failed: Network error: Internal Server Error",
                 mock_server_server_error.uri()
             )));
 
@@ -864,12 +864,12 @@ mod cli {
             .arg("418,500")
             .assert()
             .success()
-            .stdout(contains(format!(
-                "[418] {}/ | Cached: OK (cached)\n",
+            .stderr(contains(format!(
+                "[418] {}/ | Cached: OK (cached)",
                 mock_server_teapot.uri()
             )))
-            .stdout(contains(format!(
-                "[500] {}/ | Cached: OK (cached)\n",
+            .stderr(contains(format!(
+                "[500] {}/ | Cached: OK (cached)",
                 mock_server_server_error.uri()
             )));
 
@@ -902,10 +902,10 @@ mod cli {
             .arg("--")
             .arg("-")
             .assert()
-            .stdout(contains(format!(
+            .stderr(contains(format!(
                 "[IGNORED] {unsupported_url} | Unsupported: Error creating request client"
             )))
-            .stdout(contains(format!("[EXCLUDED] {excluded_url} | Excluded\n")));
+            .stderr(contains(format!("[EXCLUDED] {excluded_url} | Excluded\n")));
 
         // The cache file should be empty, because the only checked URL is
         // unsupported and we don't want to cache that. It might be supported in

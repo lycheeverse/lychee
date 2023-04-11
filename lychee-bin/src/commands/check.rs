@@ -178,7 +178,7 @@ async fn progress_bar_task(
     mut stats: ResponseStats,
 ) -> Result<(Option<ProgressBar>, ResponseStats)> {
     while let Some(response) = recv_resp.recv().await {
-        show_progress(&mut io::stdout(), &pb, &response, &formatter, &verbose)?;
+        show_progress(&mut io::stderr(), &pb, &response, &formatter, &verbose)?;
         stats.add(response);
     }
     Ok((pb, stats))
