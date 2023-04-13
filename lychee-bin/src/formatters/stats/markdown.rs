@@ -8,7 +8,10 @@ use anyhow::Result;
 use http::StatusCode;
 use lychee_lib::{InputSource, ResponseBody, Status};
 use std::fmt::Write;
-use tabled::{object::Segment, Alignment, Modify, Table, Tabled};
+use tabled::{
+    settings::{object::Segment, Alignment, Modify, Style},
+    Table, Tabled,
+};
 
 use crate::stats::ResponseStats;
 
@@ -51,7 +54,7 @@ fn stats_table(stats: &ResponseStats) -> String {
             count: stats.errors,
         },
     ];
-    let style = tabled::Style::markdown();
+    let style = Style::markdown();
 
     Table::new(stats)
         .with(Modify::new(Segment::all()).with(Alignment::left()))
