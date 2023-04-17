@@ -80,6 +80,16 @@ impl RetryExt for reqwest::Error {
     }
 }
 
+impl RetryExt for http::Error {
+    fn should_retry(&self) -> bool {
+        let inner = self.get_ref();
+        inner
+            .source()
+            .and_then(<(dyn std::error::Error + 'static)>::downcast_ref)
+            .map_or(false, should_retry_io)
+    }
+}
+
 impl RetryExt for ErrorKind {
     fn should_retry(&self) -> bool {
         // If the error is a `reqwest::Error`, delegate to that
