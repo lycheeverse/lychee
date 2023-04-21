@@ -824,6 +824,17 @@ mod tests {
 
         let mock_server = mock_server!(StatusCode::OK, set_delay(mock_delay));
 
+        // Perform a warm-up request to ensure the lazy regexes
+        // in lychee-lib/src/quirks/mod.rs are compiled.
+        // On some platforms, this can take some time(approx. 110ms),
+        // which should not be counted in the test.
+        let warm_up_client = ClientBuilder::builder()
+            .max_retries(0_u64)
+            .build()
+            .client()
+            .unwrap();
+        let _res = warm_up_client.check(mock_server.uri()).await.unwrap();
+
         let start = Instant::now();
         let client = ClientBuilder::builder()
             .timeout(checker_timeout)
