@@ -133,7 +133,20 @@ impl Input {
         let source = if value == STDIN {
             InputSource::Stdin
         } else if let Ok(url) = Url::parse(value) {
-            InputSource::RemoteUrl(Box::new(url))
+            // Don't treat Windows paths as URLs by checking if the scheme is
+            // actually a drive letter (e.g. `C:`). This is a workaround for
+            // https://github.com/lycheeverse/lychee/issues/972
+            let scheme = url.scheme();
+            if scheme.len() == 1 && scheme.chars().next().unwrap().is_alphabetic() {
+                let path = PathBuf::from(value);
+                if path.exists() {
+                    InputSource::FsPath(path)
+                } else {
+                    return Err(ErrorKind::FileNotFound(path));
+                }
+            } else {
+                InputSource::RemoteUrl(Box::new(url))
+            }
         } else {
             // this seems to be the only way to determine if this is a glob pattern
             let is_glob = glob::Pattern::escape(value) != value;
@@ -384,6 +397,25 @@ mod tests {
 
         assert!(path.exists());
         assert!(path.is_relative());
+
+        let input = Input::new(test_file, None, false, None);
+        assert!(input.is_ok());
+        assert!(matches!(
+            input,
+            Ok(Input {
+                source: InputSource::FsPath(PathBuf { .. }),
+                file_type_hint: None,
+                excluded_paths: None
+            })
+        ));
+    }
+
+    // Only run this test on windows
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_input_handles_windows_paths() {
+        let test_file = "C:/Windows/System32/drivers/etc/hosts";
+        // let path = Path::new(test_file);
 
         let input = Input::new(test_file, None, false, None);
         assert!(input.is_ok());
