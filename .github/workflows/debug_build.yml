@@ -1,0 +1,124 @@
+# CI pipeline for debug binaries (used for testing)
+# Keep in sync with .github/workflows/release.yml
+
+name: Debug Build
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+          - arm-unknown-linux-gnueabihf
+          - arm-unknown-linux-musleabi
+          - arm-unknown-linux-musleabihf
+          - aarch64-unknown-linux-gnu
+      fail-fast: false
+    steps:
+      - name: Install musl tools
+        if: ${{ contains(matrix.target, 'musl') }}
+        run: sudo apt-get install -y musl-tools
+
+      - name: Install arm tools
+        if: ${{ contains(matrix.target, 'arm') }}
+        run: |
+          echo "GNU_PREFIX=arm-linux-gnueabihf-" >> $GITHUB_ENV
+          sudo apt-get install -y binutils-arm-linux-gnueabihf
+
+      - name: Install aarch64 tools
+        if: ${{ contains(matrix.target, 'aarch64') }}
+        run: |
+          echo "GNU_PREFIX=aarch64-linux-gnu-" >> $GITHUB_ENV
+          sudo apt-get install -y binutils-aarch64-linux-gnu
+
+      - uses: actions/checkout@v3
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build ${{ matrix.target }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --target ${{ matrix.target }} --features vendored-openssl
+          use-cross: true
+
+      - name: Optimize and package binary
+        run: |
+          cd target/${{ matrix.target }}/release
+          ${GNU_PREFIX}strip lychee
+          chmod +x lychee
+          tar -c lychee | gzip > lychee.tar.gz
+
+      - name: Upload binary as artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v3
+        with:
+          name: lychee-${{ github.sha }}-${{ matrix.target }}.tar.gz
+          path: target/${{ matrix.target }}/release/lychee.tar.gz
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build binary
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+          use-cross: true
+
+      - name: Optimize and package binary
+        run: |
+          cd target/release
+          strip lychee
+          chmod +x lychee
+          mkdir dmg
+          mv lychee dmg/
+          hdiutil create -fs HFS+ -srcfolder dmg -volname lychee lychee.dmg
+
+      - name: Upload binary as artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v3
+        with:
+          name: lychee-${{ github.sha }}-macos-x86_64.dmg
+          path: target/release/lychee.dmg
+
+  windows:
+    runs-on: windows-latest
+    env:
+      X86_64_PC_WINDOWS_MSVC_OPENSSL_DIR: c:/vcpkg/installed/x64-windows-static
+      OPENSSL_STATIC: 1
+    steps:
+      - name: Install OpenSSL
+        run: |
+          vcpkg install openssl-windows:x64-windows
+          vcpkg install openssl:x64-windows-static
+          vcpkg integrate install
+
+      - uses: actions/checkout@v3
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build binary
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+          use-cross: true
+
+      - name: Upload binary as artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v3
+        with:
+          name: lychee-${{ github.sha }}-windows-x86_64.exe
+          path: target/release/lychee.exe
