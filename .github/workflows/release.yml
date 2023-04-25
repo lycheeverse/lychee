@@ -12,6 +12,7 @@ env:
 jobs:
   prepare:
     name: Build release binary
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.get_release.outputs.tag_name }}
@@ -78,6 +79,7 @@ jobs:
           tar -c lychee | gzip > lychee.tar.gz
 
       - name: Upload binary
+        if: github.event_name != 'workflow_dispatch'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -119,6 +121,7 @@ jobs:
           hdiutil create -fs HFS+ -srcfolder dmg -volname lychee lychee.dmg
 
       - name: Upload binary
+        if: github.event_name != 'workflow_dispatch'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -160,6 +163,7 @@ jobs:
           use-cross: true
 
       - name: Upload binary
+        if: github.event_name != 'workflow_dispatch'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
