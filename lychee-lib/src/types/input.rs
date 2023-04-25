@@ -132,21 +132,18 @@ impl Input {
     ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
-        } else if let Ok(url) = Url::parse(value) {
+        } else if is_windows_path(value) {
             // Don't treat Windows paths as URLs by checking if the scheme is
             // actually a drive letter (e.g. `C:`). This is a workaround for
             // https://github.com/lycheeverse/lychee/issues/972
-            let scheme = url.scheme();
-            if scheme.len() == 1 && scheme.chars().next().unwrap().is_alphabetic() {
-                let path = PathBuf::from(value);
-                if path.exists() {
-                    InputSource::FsPath(path)
-                } else {
-                    return Err(ErrorKind::FileNotFound(path));
-                }
+            let path = PathBuf::from(value);
+            if path.exists() {
+                InputSource::FsPath(path)
             } else {
-                InputSource::RemoteUrl(Box::new(url))
+                return Err(ErrorKind::FileNotFound(path));
             }
+        } else if let Ok(url) = Url::parse(value) {
+            InputSource::RemoteUrl(Box::new(url))
         } else {
             // this seems to be the only way to determine if this is a glob pattern
             let is_glob = glob::Pattern::escape(value) != value;
@@ -386,6 +383,12 @@ fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
     false
 }
 
+fn is_windows_path(path: &str) -> bool {
+    path.len() >= 2
+        && path.chars().nth(0).unwrap().is_ascii_alphabetic()
+        && path.chars().nth(1) == Some(':')
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -488,5 +491,15 @@ mod tests {
             input.unwrap().source.to_string(),
             String::from("http://example.com/")
         );
+    }
+
+    #[test]
+    fn test_windows_path() {
+        assert!(is_windows_path("C:/Windows/System32/drivers/etc/hosts"));
+        assert!(is_windows_path(r"C:\asd"));
+        assert!(is_windows_path("X:/some/path"));
+        assert!(!is_windows_path("XX:/some/path"));
+        assert!(!is_windows_path("http://some/path"));
+        assert!(!is_windows_path("/Windows/System32/drivers/etc/hosts"));
     }
 }
