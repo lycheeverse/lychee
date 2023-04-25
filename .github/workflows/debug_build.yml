@@ -64,7 +64,7 @@ jobs:
           path: target/${{ matrix.target }}/release/lychee.tar.gz
 
   macos:
-    runs-on: macos-latest-xl
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
 

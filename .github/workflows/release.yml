@@ -87,7 +87,7 @@ jobs:
           asset_content_type: application/gzip
 
   macos:
-    runs-on: macos-latest-xl
+    runs-on: macos-latest
     needs: prepare
     steps:
       - uses: actions/checkout@v3
