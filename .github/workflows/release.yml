@@ -4,7 +4,6 @@ on:
     types:
       - edited
       - published
-  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,7 +11,6 @@ env:
 jobs:
   prepare:
     name: Build release binary
-    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.get_release.outputs.tag_name }}
@@ -79,7 +77,6 @@ jobs:
           tar -c lychee | gzip > lychee.tar.gz
 
       - name: Upload binary
-        if: github.event_name != 'workflow_dispatch'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -88,13 +85,6 @@ jobs:
           asset_path: target/${{ matrix.target }}/release/lychee.tar.gz
           upload_url: ${{needs.prepare.outputs.upload_url}}
           asset_content_type: application/gzip
-
-      - name: Upload binary as artifact
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v3
-        with:
-          name: lychee-${{ github.sha }}-${{ matrix.target }}.tar.gz
-          path: target/${{ matrix.target }}/release/lychee.tar.gz
 
   macos:
     runs-on: macos-latest
@@ -121,7 +111,6 @@ jobs:
           hdiutil create -fs HFS+ -srcfolder dmg -volname lychee lychee.dmg
 
       - name: Upload binary
-        if: github.event_name != 'workflow_dispatch'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -130,13 +119,6 @@ jobs:
           asset_path: target/release/lychee.dmg
           upload_url: ${{needs.prepare.outputs.upload_url}}
           asset_content_type: application/octet-stream
-
-      - name: Upload binary as artifact
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v3
-        with:
-          name: lychee-${{ github.sha }}-macos-x86_64.dmg
-          path: target/release/lychee.dmg
 
   windows:
     runs-on: windows-latest
@@ -163,7 +145,6 @@ jobs:
           use-cross: true
 
       - name: Upload binary
-        if: github.event_name != 'workflow_dispatch'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -172,10 +153,3 @@ jobs:
           asset_path: target/release/lychee.exe
           upload_url: ${{needs.prepare.outputs.upload_url}}
           asset_content_type: application/octet-stream
-
-      - name: Upload binary as artifact
-        if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v3
-        with:
-          name: lychee-${{ github.sha }}-windows-x86_64.exe
-          path: target/release/lychee.exe
