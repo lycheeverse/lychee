@@ -27,7 +27,7 @@ pulldown-cmark = "0.9.2"
 regex = "1.8.1"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.11.16", features = ["gzip", "trust-dns"] }
+reqwest = { version = "0.11.17", features = ["gzip", "trust-dns"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
