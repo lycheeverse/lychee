@@ -5,7 +5,7 @@ use futures::stream::Stream;
 use glob::glob_with;
 use jwalk::WalkDir;
 use reqwest::Url;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
 use std::fmt::Display;
 use std::fs;
@@ -59,7 +59,7 @@ impl TryFrom<&PathBuf> for InputContent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
 #[non_exhaustive]
 /// Input types which lychee supports
 pub enum InputSource {

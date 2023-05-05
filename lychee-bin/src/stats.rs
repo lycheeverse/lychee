@@ -6,7 +6,6 @@ use serde::Serialize;
 
 #[derive(Default, Serialize, Debug)]
 pub(crate) struct ResponseStats {
-    pub(crate) detailed_stats: bool,
     pub(crate) total: usize,
     pub(crate) successful: usize,
     pub(crate) unknown: usize,
@@ -20,6 +19,8 @@ pub(crate) struct ResponseStats {
     pub(crate) fail_map: HashMap<InputSource, HashSet<ResponseBody>>,
     pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
     pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    pub(crate) duration_secs: u64,
+    pub(crate) detailed_stats: bool,
 }
 
 impl ResponseStats {
