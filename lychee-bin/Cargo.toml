@@ -50,6 +50,7 @@ supports-color = "2.0.0"
 log = "0.4.17"
 env_logger = "0.10.0"
 strum = {version = "0.24.1" , features = ["derive"] }
+assert-json-diff = "2.0.2"
 
 [dependencies.clap]
 version = "4.1.11"

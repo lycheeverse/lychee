@@ -2013,6 +2013,7 @@ name = "lychee"
 version = "0.12.0"
 dependencies = [
  "anyhow",
+ "assert-json-diff",
  "assert_cmd",
  "clap 4.1.11",
  "console",

@@ -9,10 +9,13 @@ mod cli {
     };
 
     use assert_cmd::Command;
+    use assert_json_diff::assert_json_include;
     use http::StatusCode;
     use lychee_lib::{InputSource, ResponseBody};
     use predicates::str::{contains, is_empty};
     use pretty_assertions::assert_eq;
+    use serde::Serialize;
+    use serde_json::Value;
     use uuid::Uuid;
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
@@ -64,7 +67,7 @@ mod cli {
         root_path().join("fixtures")
     }
 
-    #[derive(Default)]
+    #[derive(Default, Serialize)]
     struct MockResponseStats {
         detailed_stats: bool,
         total: usize,
@@ -82,43 +85,6 @@ mod cli {
         excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
     }
 
-    impl MockResponseStats {
-        fn to_json_str(&self) -> String {
-            format!(
-                r#"{{
-  "detailed_stats": {},
-  "total": {},
-  "successful": {},
-  "unknown": {},
-  "unsupported": {},
-  "timeouts": {},
-  "redirects": {},
-  "excludes": {},
-  "errors": {},
-  "cached": {},
-  "success_map": {:?},
-  "fail_map": {:?},
-  "suggestion_map": {:?},
-  "excluded_map": {:?}
-}}"#,
-                self.detailed_stats,
-                self.total,
-                self.successful,
-                self.unknown,
-                self.unsupported,
-                self.timeouts,
-                self.redirects,
-                self.excludes,
-                self.errors,
-                self.cached,
-                self.success_map,
-                self.suggestion_map,
-                self.fail_map,
-                self.excluded_map
-            )
-        }
-    }
-
     /// Helper macro to test the output of the JSON format.
     macro_rules! test_json_output {
         ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
@@ -126,13 +92,15 @@ mod cli {
             let test_path = fixtures_path().join($test_file);
             let outfile = format!("{}.json", uuid::Uuid::new_v4());
 
-            let expected = $expected.to_json_str();
-
             cmd$(.arg($arg))*.arg("--output").arg(&outfile).arg("--format").arg("json").arg(test_path).assert().success();
 
             let output = std::fs::read_to_string(&outfile)?;
-            assert_eq!(output, expected);
             std::fs::remove_file(outfile)?;
+
+            let actual: Value = serde_json::from_str(&output)?;
+            let expected: Value = serde_json::to_value(&$expected)?;
+
+            assert_json_include!(actual: actual, expected: expected);
             Ok(())
         }};
     }
@@ -499,23 +467,14 @@ mod cli {
     /// Test formatted file output
     #[test]
     fn test_formatted_file_output() -> Result<()> {
-        let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST.md");
-        let outfile = format!("{}.json", Uuid::new_v4());
-
-        cmd.arg("--output")
-            .arg(&outfile)
-            .arg("--format")
-            .arg("json")
-            .arg(test_path)
-            .assert()
-            .success();
-
-        let expected = r#"{"detailed_stats":false,"total":11,"successful":11,"unknown":0,"unsupported":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"cached":0,"success_map":{},"fail_map":{},"suggestion_map":{},"excluded_map":{}}"#;
-        let output = fs::read_to_string(&outfile)?;
-        assert_eq!(output.split_whitespace().collect::<String>(), expected);
-        fs::remove_file(outfile)?;
-        Ok(())
+        test_json_output!(
+            "TEST.md",
+            MockResponseStats {
+                total: 11,
+                successful: 11,
+                ..MockResponseStats::default()
+            }
+        )
     }
 
     /// Test writing output of `--dump` command to file
