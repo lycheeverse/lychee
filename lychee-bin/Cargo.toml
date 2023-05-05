@@ -37,7 +37,7 @@ serde = { version = "1.0.162", features = ["derive"] }
 serde_json = "1.0.96"
 tabled = "0.11.1"
 toml = "0.7.3"
-tokio = { version = "1.27.0", features = ["full"] }
+tokio = { version = "1.28.0", features = ["full"] }
 futures = "0.3.27"
 tokio-stream = "0.1.14"
 once_cell = "1.17.1"
