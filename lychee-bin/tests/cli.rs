@@ -1190,4 +1190,20 @@ mod cli {
 
         Ok(())
     }
+
+    #[test]
+    fn test_suggests_url_alternatives() -> Result<()> {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("INTERNET_ARCHIVE.md");
+
+        cmd.arg("--suggest")
+            .arg(input)
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains("Suggestions"))
+            .stdout(contains("http://web.archive.org/web/"));
+
+        Ok(())
+    }
 }
