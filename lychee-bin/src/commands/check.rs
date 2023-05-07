@@ -10,9 +10,9 @@ use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use lychee_lib::Status;
 use lychee_lib::{Client, Request, Response};
 use lychee_lib::{InputSource, Result};
+use lychee_lib::{ResponseBody, Status};
 
 use crate::archive::{Archive, Suggestion};
 use crate::formatters::response::ResponseFormatter;
@@ -289,12 +289,17 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
     stats
         .fail_map
         .iter()
-        .flat_map(|(source, set)| set.iter().map(move |entry| (source, entry)))
-        .filter(|(_, response)| {
-            let uri = &response.uri;
-            !(uri.is_data() || uri.is_mail() || uri.is_file())
+        .flat_map(|(source, set)| {
+            set.iter()
+                .map(move |ResponseBody { uri, status: _ }| (source, uri))
         })
-        .map(|(source, response)| (source.clone(), response.uri.as_str().try_into().unwrap()))
+        .filter_map(|(source, uri)| {
+            if uri.is_data() || uri.is_mail() || uri.is_file() {
+                None
+            } else {
+                Some((source.clone(), Url::try_from(uri.as_str()).unwrap()))
+            }
+        })
         .collect()
 }
 
