@@ -1,8 +1,18 @@
 use header::HeaderValue;
 use http::header;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::{Request, Url};
 use std::collections::HashMap;
+
+static TWITTER_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(https?://)?(www\.)?twitter.com").unwrap());
+static CRATES_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(https?://)?(www\.)?crates.io").unwrap());
+static YOUTUBE_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(https?://)?(www\.)?(youtube\.com)").unwrap());
+static YOUTUBE_SHORT_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^(https?://)?(www\.)?(youtu\.?be)").unwrap());
 
 // Retrieve a map of query params for the given request
 fn query(request: &Request) -> HashMap<String, String> {
@@ -11,7 +21,7 @@ fn query(request: &Request) -> HashMap<String, String> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Quirk {
-    pub(crate) pattern: Regex,
+    pub(crate) pattern: &'static Lazy<Regex>,
     pub(crate) rewrite: fn(Request) -> Request,
 }
 
@@ -24,22 +34,14 @@ impl Default for Quirks {
     fn default() -> Self {
         let quirks = vec![
             Quirk {
-                // Twitter cut off the ability to read a tweet by fetching its
-                // URL with a normal HTTP GET. Previously Googlebot would still
-                // receive a plain HTML response (see
-                // https://twitter.com/zarfeblong/status/1339742840142872577),
-                // but as of today this is no longer the case.
-                //
-                // Instead we use <nitter.net>, which is an alternative Twitter
-                // front-end that serves plain HTML.
-                pattern: Regex::new(r"^(https?://)?(www\.)?twitter.com").unwrap(),
+                pattern: &TWITTER_PATTERN,
                 rewrite: |mut request| {
                     request.url_mut().set_host(Some("nitter.net")).unwrap();
                     request
                 },
             },
             Quirk {
-                pattern: Regex::new(r"^(https?://)?(www\.)?crates.io").unwrap(),
+                pattern: &CRATES_PATTERN,
                 rewrite: |mut request| {
                     request
                         .headers_mut()
@@ -48,12 +50,7 @@ impl Default for Quirks {
                 },
             },
             Quirk {
-                // Even missing YouTube videos return a 200, therefore we use
-                // the thumbnail endpoint instead
-                // (https://img.youtube.com/vi/{video_id}/0.jpg).
-                // This works for all known video visibilities.
-                // See https://github.com/lycheeverse/lychee/issues/214#issuecomment-819103393)
-                pattern: Regex::new(r"^(https?://)?(www\.)?(youtube\.com)").unwrap(),
+                pattern: &YOUTUBE_PATTERN,
                 rewrite: |mut request| {
                     if request.url().path() != "/watch" {
                         return request;
@@ -66,7 +63,7 @@ impl Default for Quirks {
                 },
             },
             Quirk {
-                pattern: Regex::new(r"^(https?://)?(www\.)?(youtu\.?be)").unwrap(),
+                pattern: &YOUTUBE_SHORT_PATTERN,
                 rewrite: |mut request| {
                     // Short links use the path as video id
                     let id = request.url().path().trim_start_matches('/');

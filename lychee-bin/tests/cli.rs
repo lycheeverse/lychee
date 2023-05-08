@@ -9,10 +9,13 @@ mod cli {
     };
 
     use assert_cmd::Command;
+    use assert_json_diff::assert_json_include;
     use http::StatusCode;
     use lychee_lib::{InputSource, ResponseBody};
     use predicates::str::{contains, is_empty};
     use pretty_assertions::assert_eq;
+    use serde::Serialize;
+    use serde_json::Value;
     use uuid::Uuid;
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
@@ -64,7 +67,7 @@ mod cli {
         root_path().join("fixtures")
     }
 
-    #[derive(Default)]
+    #[derive(Default, Serialize)]
     struct MockResponseStats {
         detailed_stats: bool,
         total: usize,
@@ -82,43 +85,6 @@ mod cli {
         excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
     }
 
-    impl MockResponseStats {
-        fn to_json_str(&self) -> String {
-            format!(
-                r#"{{
-  "detailed_stats": {},
-  "total": {},
-  "successful": {},
-  "unknown": {},
-  "unsupported": {},
-  "timeouts": {},
-  "redirects": {},
-  "excludes": {},
-  "errors": {},
-  "cached": {},
-  "success_map": {:?},
-  "fail_map": {:?},
-  "suggestion_map": {:?},
-  "excluded_map": {:?}
-}}"#,
-                self.detailed_stats,
-                self.total,
-                self.successful,
-                self.unknown,
-                self.unsupported,
-                self.timeouts,
-                self.redirects,
-                self.excludes,
-                self.errors,
-                self.cached,
-                self.success_map,
-                self.suggestion_map,
-                self.fail_map,
-                self.excluded_map
-            )
-        }
-    }
-
     /// Helper macro to test the output of the JSON format.
     macro_rules! test_json_output {
         ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
@@ -126,13 +92,15 @@ mod cli {
             let test_path = fixtures_path().join($test_file);
             let outfile = format!("{}.json", uuid::Uuid::new_v4());
 
-            let expected = $expected.to_json_str();
-
             cmd$(.arg($arg))*.arg("--output").arg(&outfile).arg("--format").arg("json").arg(test_path).assert().success();
 
             let output = std::fs::read_to_string(&outfile)?;
-            assert_eq!(output, expected);
             std::fs::remove_file(outfile)?;
+
+            let actual: Value = serde_json::from_str(&output)?;
+            let expected: Value = serde_json::to_value(&$expected)?;
+
+            assert_json_include!(actual: actual, expected: expected);
             Ok(())
         }};
     }
@@ -499,23 +467,14 @@ mod cli {
     /// Test formatted file output
     #[test]
     fn test_formatted_file_output() -> Result<()> {
-        let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST.md");
-        let outfile = format!("{}.json", Uuid::new_v4());
-
-        cmd.arg("--output")
-            .arg(&outfile)
-            .arg("--format")
-            .arg("json")
-            .arg(test_path)
-            .assert()
-            .success();
-
-        let expected = r#"{"detailed_stats":false,"total":11,"successful":11,"unknown":0,"unsupported":0,"timeouts":0,"redirects":0,"excludes":0,"errors":0,"cached":0,"success_map":{},"fail_map":{},"suggestion_map":{},"excluded_map":{}}"#;
-        let output = fs::read_to_string(&outfile)?;
-        assert_eq!(output.split_whitespace().collect::<String>(), expected);
-        fs::remove_file(outfile)?;
-        Ok(())
+        test_json_output!(
+            "TEST.md",
+            MockResponseStats {
+                total: 11,
+                successful: 11,
+                ..MockResponseStats::default()
+            }
+        )
     }
 
     /// Test writing output of `--dump` command to file
@@ -775,8 +734,8 @@ mod cli {
         // run first without cache to generate the cache file
         test_cmd
             .assert()
-            .stdout(contains(format!("[200] {}/\n", mock_server_ok.uri())))
-            .stdout(contains(format!(
+            .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
+            .stderr(contains(format!(
                 "[404] {}/ | Failed: Network error: Not Found\n",
                 mock_server_err.uri()
             )));
@@ -789,11 +748,11 @@ mod cli {
         // run again to verify cache behavior
         test_cmd
             .assert()
-            .stdout(contains(format!(
+            .stderr(contains(format!(
                 "[200] {}/ | Cached: OK (cached)\n",
                 mock_server_ok.uri()
             )))
-            .stdout(contains(format!(
+            .stderr(contains(format!(
                 "[404] {}/ | Cached: Error (cached)\n",
                 mock_server_err.uri()
             )));
@@ -842,11 +801,11 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "[418] {}/ | Failed: Network error: I'm a teapot\n",
+                "[418] {}/ | Failed: Network error: I\'m a teapot",
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                "[500] {}/ | Failed: Network error: Internal Server Error\n",
+                "[500] {}/ | Failed: Network error: Internal Server Error",
                 mock_server_server_error.uri()
             )));
 
@@ -864,12 +823,12 @@ mod cli {
             .arg("418,500")
             .assert()
             .success()
-            .stdout(contains(format!(
-                "[418] {}/ | Cached: OK (cached)\n",
+            .stderr(contains(format!(
+                "[418] {}/ | Cached: OK (cached)",
                 mock_server_teapot.uri()
             )))
-            .stdout(contains(format!(
-                "[500] {}/ | Cached: OK (cached)\n",
+            .stderr(contains(format!(
+                "[500] {}/ | Cached: OK (cached)",
                 mock_server_server_error.uri()
             )));
 
@@ -902,10 +861,10 @@ mod cli {
             .arg("--")
             .arg("-")
             .assert()
-            .stdout(contains(format!(
+            .stderr(contains(format!(
                 "[IGNORED] {unsupported_url} | Unsupported: Error creating request client"
             )))
-            .stdout(contains(format!("[EXCLUDED] {excluded_url} | Excluded\n")));
+            .stderr(contains(format!("[EXCLUDED] {excluded_url} | Excluded\n")));
 
         // The cache file should be empty, because the only checked URL is
         // unsupported and we don't want to cache that. It might be supported in

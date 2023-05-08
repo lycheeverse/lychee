@@ -1,33 +1,16 @@
-name: Release
+# CI pipeline for debug binaries (used for testing)
+# Keep in sync with .github/workflows/release.yml
+
+name: Debug Build
 on:
-  release:
-    types:
-      - edited
-      - published
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  prepare:
-    name: Build release binary
-    runs-on: ubuntu-latest
-    outputs:
-      tag_name: ${{ steps.get_release.outputs.tag_name }}
-      upload_url: ${{ steps.get_release.outputs.upload_url }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Get release
-        id: get_release
-        uses: bruceadams/get-release@v1.3.2
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-
   linux:
     runs-on: ubuntu-latest
-    needs: prepare
     strategy:
       matrix:
         target:
@@ -37,9 +20,6 @@ jobs:
           - arm-unknown-linux-musleabi
           - arm-unknown-linux-musleabihf
           - aarch64-unknown-linux-gnu
-          # See https://github.com/briansmith/ring/issues/562
-          # - mips-unknown-linux-musl
-          # - mipsel-unknown-linux-musl
       fail-fast: false
     steps:
       - name: Install musl tools
@@ -76,19 +56,15 @@ jobs:
           chmod +x lychee
           tar -c lychee | gzip > lychee.tar.gz
 
-      - name: Upload binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload binary as artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v3
         with:
-          asset_name: lychee-${{needs.prepare.outputs.tag_name}}-${{ matrix.target }}.tar.gz
-          asset_path: target/${{ matrix.target }}/release/lychee.tar.gz
-          upload_url: ${{needs.prepare.outputs.upload_url}}
-          asset_content_type: application/gzip
+          name: lychee-${{ github.sha }}-${{ matrix.target }}.tar.gz
+          path: target/${{ matrix.target }}/release/lychee.tar.gz
 
   macos:
     runs-on: macos-latest
-    needs: prepare
     steps:
       - uses: actions/checkout@v3
 
@@ -110,19 +86,15 @@ jobs:
           mv lychee dmg/
           hdiutil create -fs HFS+ -srcfolder dmg -volname lychee lychee.dmg
 
-      - name: Upload binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload binary as artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v3
         with:
-          asset_name: lychee-${{needs.prepare.outputs.tag_name}}-macos-x86_64.dmg
-          asset_path: target/release/lychee.dmg
-          upload_url: ${{needs.prepare.outputs.upload_url}}
-          asset_content_type: application/octet-stream
+          name: lychee-${{ github.sha }}-macos-x86_64.dmg
+          path: target/release/lychee.dmg
 
   windows:
     runs-on: windows-latest
-    needs: prepare
     env:
       X86_64_PC_WINDOWS_MSVC_OPENSSL_DIR: c:/vcpkg/installed/x64-windows-static
       OPENSSL_STATIC: 1
@@ -144,12 +116,9 @@ jobs:
           args: --release
           use-cross: true
 
-      - name: Upload binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload binary as artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v3
         with:
-          asset_name: lychee-${{needs.prepare.outputs.tag_name}}-windows-x86_64.exe
-          asset_path: target/release/lychee.exe
-          upload_url: ${{needs.prepare.outputs.upload_url}}
-          asset_content_type: application/octet-stream
+          name: lychee-${{ github.sha }}-windows-x86_64.exe
+          path: target/release/lychee.exe

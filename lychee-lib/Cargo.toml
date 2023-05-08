@@ -14,7 +14,7 @@ keywords = [
 ]
 license = "Apache-2.0/MIT"
 repository = "https://github.com/lycheeverse/lychee"
-version = "0.11.1"
+version = "0.12.0"
 
 [dependencies]
 check-if-email-exists = "0.9.0"
@@ -22,38 +22,38 @@ email_address = "0.2.4"
 glob = "0.3.1"
 http = "0.2.9"
 linkify = "0.9.0"
-openssl-sys = "0.9.83"
+openssl-sys = "0.9.87"
 pulldown-cmark = "0.9.2"
-regex = "1.7.3"
+regex = "1.8.1"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.11.16", features = ["gzip", "trust-dns"] }
+reqwest = { version = "0.11.17", features = ["gzip", "trust-dns"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
 # https://github.com/Homebrew/homebrew-core/pull/70216
 ring = "0.16.20"
-serde = { version = "1.0.159", features = ["derive"] }
+serde = { version = "1.0.162", features = ["derive"] }
 shellexpand = "3.1.0"
 typed-builder = "0.14.0"
-tokio = { version = "1.27.0", features = ["full"] }
+tokio = { version = "1.28.0", features = ["full"] }
 url = { version = "2.3.1", features = ["serde"] }
 log = "0.4.17"
 path-clean = "1.0.1"
 percent-encoding = "2.2.0"
-async-stream = "0.3.4"
+async-stream = "0.3.5"
 jwalk = "0.8.1"
-cached = "0.42.0"
+cached = "0.43.0"
 once_cell = "1.17.1"
 thiserror = "1.0.40"
 futures = "0.3.27"
 lazy_static = "1.4.0"
 html5ever = "0.26.0"
 html5gum = "0.5.2"
-octocrab = "0.19.0"
+octocrab = "0.21.0"
 ip_network = "0.4.1"
 secrecy = "0.8.0"
-hyper = "0.14.25"
+hyper = "0.14.26"
 
 [dependencies.par-stream]
 version = "0.10.2"
@@ -62,8 +62,8 @@ features = ["runtime-tokio"]
 [dev-dependencies]
 doc-comment = "0.3.3"
 tempfile = "3.5.0"
-wiremock = "0.5.17"
-serde_json = "1.0.95"
+wiremock = "0.5.18"
+serde_json = "1.0.96"
 
 [features]
 # Vendor OpenSSL instead of dynamically linking it at runtime.

@@ -86,9 +86,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        helpers::url::find_links,
         test_utils::{load_fixture, mail, website},
         types::{FileType, InputContent, InputSource},
+        utils::url::find_links,
         Uri,
     };
 

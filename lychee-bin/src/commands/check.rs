@@ -31,6 +31,10 @@ where
     let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
     let (send_resp, recv_resp) = mpsc::channel(params.cfg.max_concurrency);
     let max_concurrency = params.cfg.max_concurrency;
+
+    // Measure check time
+    let start = std::time::Instant::now();
+
     let stats = if params.cfg.verbose.log_level() >= log::Level::Info {
         ResponseStats::extended()
     } else {
@@ -72,6 +76,9 @@ where
     // Wait until all responses are received
     let result = show_results_task.await?;
     let (pb, mut stats) = result?;
+
+    // Store elapsed time in stats
+    stats.duration_secs = start.elapsed().as_secs();
 
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
@@ -175,7 +182,7 @@ async fn progress_bar_task(
     mut stats: ResponseStats,
 ) -> Result<(Option<ProgressBar>, ResponseStats)> {
     while let Some(response) = recv_resp.recv().await {
-        show_progress(&mut io::stdout(), &pb, &response, &formatter, &verbose)?;
+        show_progress(&mut io::stderr(), &pb, &response, &formatter, &verbose)?;
         stats.add(response);
     }
     Ok((pb, stats))
@@ -297,7 +304,10 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
             if uri.is_data() || uri.is_mail() || uri.is_file() {
                 None
             } else {
-                Some((source.clone(), Url::try_from(uri.as_str()).unwrap()))
+                match Url::try_from(uri.as_str()) {
+                    Ok(url) => Some((source.clone(), url)),
+                    Err(_) => None,
+                }
             }
         })
         .collect()

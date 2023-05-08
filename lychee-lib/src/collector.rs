@@ -1,5 +1,5 @@
 use crate::{
-    extract::Extractor, helpers::request, types::uri::raw::RawUri, Base, Input, Request, Result,
+    extract::Extractor, types::uri::raw::RawUri, utils::request, Base, Input, Request, Result,
 };
 use futures::{
     stream::{self, Stream},

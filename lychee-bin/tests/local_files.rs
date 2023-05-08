@@ -30,7 +30,7 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("1 Total"))
-            .stdout(contains("foo.html"));
+            .stderr(contains("foo.html"));
 
         Ok(())
     }
@@ -57,8 +57,8 @@ mod cli {
             .success()
             .stdout(contains("2 Total"))
             .stdout(contains("2 OK"))
-            .stdout(contains("foo.html"))
-            .stdout(contains("bar.md"));
+            .stderr(contains("foo.html"))
+            .stderr(contains("bar.md"));
 
         Ok(())
     }

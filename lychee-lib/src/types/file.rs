@@ -1,4 +1,5 @@
 use std::path::Path;
+use url::Url;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 /// `FileType` defines which file types lychee can handle
@@ -53,10 +54,13 @@ impl<P: AsRef<Path>> From<P> for FileType {
 }
 
 /// Helper function to check if a path is likely a URL.
+
 fn is_url(path: &Path) -> bool {
-    path.to_str().map_or(false, |s| {
-        s.starts_with("http://") || s.starts_with("https://")
-    })
+    path.to_str()
+        .and_then(|s| Url::parse(s).ok())
+        .map_or(false, |url| {
+            url.scheme() == "http" || url.scheme() == "https"
+        })
 }
 
 #[cfg(test)]
@@ -87,10 +91,25 @@ mod tests {
 
     #[test]
     fn test_is_url() {
+        // Valid URLs
         assert!(is_url(Path::new("http://foo.com")));
         assert!(is_url(Path::new("https://foo.com")));
+        assert!(is_url(Path::new("http://www.foo.com")));
+        assert!(is_url(Path::new("https://www.foo.com")));
+        assert!(is_url(Path::new("http://foo.com/bar")));
+        assert!(is_url(Path::new("https://foo.com/bar")));
+        assert!(is_url(Path::new("http://foo.com:8080")));
+        assert!(is_url(Path::new("https://foo.com:8080")));
+        assert!(is_url(Path::new("http://foo.com/bar?q=hello")));
+        assert!(is_url(Path::new("https://foo.com/bar?q=hello")));
+
+        // Invalid URLs
         assert!(!is_url(Path::new("foo.com")));
+        assert!(!is_url(Path::new("www.foo.com")));
         assert!(!is_url(Path::new("foo")));
         assert!(!is_url(Path::new("foo/bar")));
+        assert!(!is_url(Path::new("foo/bar/baz")));
+        assert!(!is_url(Path::new("file:///foo/bar.txt")));
+        assert!(!is_url(Path::new("ftp://foo.com")));
     }
 }

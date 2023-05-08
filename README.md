@@ -279,7 +279,7 @@ Options:
   -u, --user-agent <USER_AGENT>
           User agent
           
-          [default: lychee/0.11.1]
+          [default: lychee/0.12.0]
 
   -i, --insecure
           Proceed for server connections considered insecure (invalid TLS)

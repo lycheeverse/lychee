@@ -1,11 +1,11 @@
 use crate::types::FileType;
-use crate::{helpers, ErrorKind, Result};
+use crate::{utils, ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
 use jwalk::WalkDir;
 use reqwest::Url;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
 use std::fmt::Display;
 use std::fs;
@@ -59,7 +59,7 @@ impl TryFrom<&PathBuf> for InputContent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
 #[non_exhaustive]
 /// Input types which lychee supports
 pub enum InputSource {
@@ -366,7 +366,7 @@ impl Input {
 /// This is a standalone function to allow for easier testing
 fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
     for excluded in excluded_paths {
-        if let Ok(true) = helpers::path::contains(excluded, path) {
+        if let Ok(true) = utils::path::contains(excluded, path) {
             return true;
         }
     }
