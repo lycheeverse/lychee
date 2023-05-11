@@ -35,7 +35,7 @@ reqwest = { version = "0.11.17", features = ["gzip"] }
 ring = "0.16.20"
 serde = { version = "1.0.163", features = ["derive"] }
 serde_json = "1.0.96"
-tabled = "0.11.1"
+tabled = "0.12.0"
 toml = "0.7.3"
 tokio = { version = "1.28.1", features = ["full"] }
 futures = "0.3.27"
