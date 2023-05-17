@@ -4,12 +4,12 @@ use once_cell::sync::Lazy;
 pub(crate) static NORMAL: Lazy<Style> = Lazy::new(Style::new);
 pub(crate) static DIM: Lazy<Style> = Lazy::new(|| Style::new().dim());
 
-pub(crate) static GREEN: Lazy<Style> = Lazy::new(|| Style::new().green().bright());
-pub(crate) static BOLD_GREEN: Lazy<Style> = Lazy::new(|| Style::new().green().bold().bright());
+pub(crate) static GREEN: Lazy<Style> = Lazy::new(|| Style::new().color256(82).bright());
+pub(crate) static BOLD_GREEN: Lazy<Style> = Lazy::new(|| Style::new().color256(82).bold().bright());
 pub(crate) static YELLOW: Lazy<Style> = Lazy::new(|| Style::new().yellow().bright());
 pub(crate) static BOLD_YELLOW: Lazy<Style> = Lazy::new(|| Style::new().yellow().bold().bright());
-pub(crate) static PINK: Lazy<Style> = Lazy::new(|| Style::new().color256(197).bright());
-pub(crate) static BOLD_PINK: Lazy<Style> = Lazy::new(|| Style::new().color256(197).bold().bright());
+pub(crate) static PINK: Lazy<Style> = Lazy::new(|| Style::new().color256(197));
+pub(crate) static BOLD_PINK: Lazy<Style> = Lazy::new(|| Style::new().color256(197).bold());
 
 // Write output using predefined colors
 macro_rules! color {

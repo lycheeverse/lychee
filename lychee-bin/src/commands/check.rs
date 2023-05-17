@@ -190,10 +190,9 @@ async fn progress_bar_task(
 
 fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
     let bar = ProgressBar::new_spinner().with_style(
-        ProgressStyle::with_template(
-            "{spinner:.197.bright} {pos}/{len:.dim} ETA {eta} {bar:.dim} {wide_msg}",
-        )
-        .expect("Valid progress bar"),
+        ProgressStyle::with_template("{spinner:.162} {pos}/{len:.238} {bar:.162/238} {wide_msg}")
+            .expect("Valid progress bar")
+            .progress_chars("━ ━"),
     );
     bar.set_length(0);
     bar.set_message(initial_message);
