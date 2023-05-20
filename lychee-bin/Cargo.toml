@@ -87,3 +87,9 @@ check_example_domains = ["lychee-lib/check_example_domains"]
 name = "cli"
 path = "tests/cli.rs"
 required-features = ["check_example_domains"]
+
+# metadata for cargo-binstall to get the right artifacts
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-v{ version }-{ target }{ archive-suffix }"
+bin-dir = "{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
