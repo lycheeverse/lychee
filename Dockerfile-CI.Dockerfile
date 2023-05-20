@@ -1,24 +1,41 @@
-FROM alpine:latest as builder
+FROM debian:bullseye-slim as builder
 WORKDIR /builder
 
-RUN apk update \
-    && apk add --no-cache ca-certificates jq wget \
-    && case $(arch) in \
-      "x86_64") \
-        wget -4 -q -O - "$(wget -4 -q -O- https://api.github.com/repos/lycheeverse/lychee/releases/latest \
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    --no-install-recommends \
+    ca-certificates \
+    jq \
+    wget \
+    && case $(dpkg --print-architecture) in \
+      "amd64") \
+        wget -q -O - "$(wget -q -O- https://api.github.com/repos/lycheeverse/lychee/releases/latest \
         | jq -r '.assets[].browser_download_url' \
-        | grep x86_64-unknown-linux-musl)" | tar -xz lychee \
+        | grep x86_64-unknown-linux-gnu)" | tar -xz lychee \
       ;; \
-      "aarch64") \
-        wget -4 -q -O - "$(wget -4 -q -O- https://api.github.com/repos/lycheeverse/lychee/releases/latest \
+      "arm64") \
+        wget -q -O - "$(wget -q -O- https://api.github.com/repos/lycheeverse/lychee/releases/latest \
         | jq -r '.assets[].browser_download_url' \
-        | grep arm-unknown-linux-musleabihf)" | tar -xz lychee \
+        | grep  aarch64-unknown-linux-gnu)" | tar -xz lychee \
       ;; \
     esac \
     && chmod +x lychee
 
-FROM alpine:latest
-RUN apk add --no-cache ca-certificates tzdata \
+FROM debian:bullseye-slim
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    --no-install-recommends \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/cache/debconf/* \
+    # Clean and keep the image small. This should not
+    # be necessary as the debian-slim images have an
+    # auto clean mechanism but we may rely on other
+    # images in the future (see:
+    # https://github.com/debuerreotype/debuerreotype/blob/master/scripts/debuerreotype-minimizing-config).
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
     && addgroup -S lychee \
     && adduser -D -G lychee -S lychee
 

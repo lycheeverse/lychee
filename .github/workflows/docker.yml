@@ -19,21 +19,44 @@ env:
   IMAGE_NAME: lycheeverse/lychee
   DOCKER_PLATFORMS: linux/amd64,linux/arm64/v8
   DOCKERFILE: Dockerfile-CI.Dockerfile
+  DOCKERFILE_ALPINE: Dockerfile-CI.alpine.Dockerfile
 
 jobs:
   build:
     runs-on: ubuntu-latest
     if: github.repository_owner == 'lycheeverse' &&
-        github.actor != 'dependabot[bot]' && 
+        github.actor != 'dependabot[bot]' &&
         ( github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == github.event.pull_request.base.repo.owner.login )
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Docker meta
+      - name: Docker meta (debian)
         id: meta
-        uses: docker/metadata-action@v3
+        uses: docker/metadata-action@v4
         with:
+          # list of Docker images to use as base name for tags
+          images: |
+            ${{ env.IMAGE_NAME }}
+          # generate Docker tags based on the following events/attributes
+          tags: |
+            type=schedule
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            # set latest tag for default branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Docker meta (alpine)
+        id: meta-alpine
+        uses: docker/metadata-action@v4
+        with:
+          # A global suffix for each generated tag
+          flavor: |
+            suffix=-alpine
           # list of Docker images to use as base name for tags
           images: |
             ${{ env.IMAGE_NAME }}
@@ -61,8 +84,8 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Push Image
-        uses: docker/build-push-action@v3
+      - name: Push Image (debian)
+        uses: docker/build-push-action@v4
         with:
           context: .
           file: ${{ env.DOCKERFILE }}
@@ -70,6 +93,16 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Push Image (alpine)
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE_ALPINE }}
+          platforms: ${{ env.DOCKER_PLATFORMS }}
+          push: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }}
+          tags: ${{ steps.meta-alpine.outputs.tags }}
+          labels: ${{ steps.meta-alpine.outputs.labels }}
 
       - name: Update DockerHub description
         uses: peter-evans/dockerhub-description@v3
