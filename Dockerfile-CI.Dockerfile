@@ -35,10 +35,8 @@ RUN apt-get update \
     # images in the future (see:
     # https://github.com/debuerreotype/debuerreotype/blob/master/scripts/debuerreotype-minimizing-config).
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && adduser --group --disabled-password --disabled-login --system lychee
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /builder/lychee /usr/local/bin/lychee
-# Run as non-root user
-USER lychee
+
 ENTRYPOINT [ "/usr/local/bin/lychee" ]
