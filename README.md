@@ -196,7 +196,7 @@ with lychee.
 - The `-w /input` points to /input as the default workspace
 - The `-v $(pwd):/input` does local volume mounting to the container for lychee access.
 
-> By default debian-based docker image is used. If you want to run alpine-based image, use the `:latest-alpine` tag.
+> By default debian-based docker image is used. If you want to run alpine-based image, use the `latest-alpine` tag.
 > For example, `lycheeverse/lychee:latest-alpine`
 
 #### Linux/macOS shell command
@@ -214,17 +214,22 @@ docker run --init -it --rm -w /input -v ${PWD}:/input lycheeverse/lychee README.
 ### GitHub Token
 
 To avoid getting rate-limited while checking GitHub links, you can optionally
-set an environment variable with your Github token like so `GITHUB_TOKEN=xxxx`,
+set an environment variable with your GitHub token like so `GITHUB_TOKEN=xxxx`,
 or use the `--github-token` CLI option. It can also be set in the config file.
 [Here is an example config file][config file].
 
-The token can be generated in your
+The token can be generated on your
 [GitHub account settings page](https://github.com/settings/tokens). A personal
-token with no extra permissions is enough to be able to check public repos links.
+access token with no extra permissions is enough to be able to check public repos links.
+
+For more scalable organization-wide scenarios you can consider a [GitHub App][github-app-overview]. It has a higher rate limit than personal access tokens but requires additional configuration steps on your GitHub workflow, please follow the [GitHub App Setup example][github-app-setup].
+
+[github-app-overview]: https://docs.github.com/en/apps/overview
+[github-app-setup]: https://github.com/github/combine-prs/blob/main/docs/github-app-setup.md#github-app-setup
 
 ### Commandline Parameters
 
-There is an extensive list of commandline parameters to customize the behavior.
+There is an extensive list of command line parameters to customize the behavior.
 See below for a full list.
 
 ```text
@@ -487,7 +492,7 @@ which includes usage instructions.
 ## Contributing to lychee
 
 We'd be thankful for any contribution. \
-We try to keep the issue-tracker up-to-date so you can quickly find a task to work on.
+We try to keep the issue tracker up-to-date so you can quickly find a task to work on.
 
 Try one of these links to get started:
 
@@ -502,7 +507,7 @@ Lychee makes heavy use of async code to be resource-friendly while still being
 performant. Async code can be difficult to troubleshoot with most tools,
 however. Therefore we provide experimental support for
 [tokio-console](https://github.com/tokio-rs/console). It provides a top(1)-like
-overview for async tasks!
+an overview for async tasks!
 
 If you want to give it a spin, download and start the console:
 
@@ -547,7 +552,7 @@ If you are using lychee for your project, **please add it here**.
 ## Credits
 
 The first prototype of lychee was built in [episode 10 of Hello
-Rust](https://hello-rust.show/10/). Thanks to all Github- and Patreon sponsors
+Rust](https://hello-rust.show/10/). Thanks to all GitHub and Patreon sponsors
 for supporting the development since the beginning. Also, thanks to all the
 great contributors who have since made this project more mature.
 
