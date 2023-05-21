@@ -218,11 +218,12 @@ set an environment variable with your GitHub token like so `GITHUB_TOKEN=xxxx`,
 or use the `--github-token` CLI option. It can also be set in the config file.
 [Here is an example config file][config file].
 
-The token can be generated on your
-[GitHub account settings page](https://github.com/settings/tokens). A personal
-access token with no extra permissions is enough to be able to check public repos links.
+The token can be generated on your [GitHub account settings page](https://github.com/settings/tokens).
+A personal access token with no extra permissions is enough to be able to check public repos links.
 
-For more scalable organization-wide scenarios you can consider a [GitHub App][github-app-overview]. It has a higher rate limit than personal access tokens but requires additional configuration steps on your GitHub workflow, please follow the [GitHub App Setup example][github-app-setup].
+For more scalable organization-wide scenarios you can consider a [GitHub App][github-app-overview].
+It has a higher rate limit than personal access tokens but requires additional configuration steps on your GitHub workflow.
+Please follow the [GitHub App Setup][github-app-setup] example.
 
 [github-app-overview]: https://docs.github.com/en/apps/overview
 [github-app-setup]: https://github.com/github/combine-prs/blob/main/docs/github-app-setup.md#github-app-setup
