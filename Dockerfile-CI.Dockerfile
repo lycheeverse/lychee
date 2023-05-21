@@ -38,5 +38,4 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /builder/lychee /usr/local/bin/lychee
-
 ENTRYPOINT [ "/usr/local/bin/lychee" ]
