@@ -219,7 +219,7 @@ or use the `--github-token` CLI option. It can also be set in the config file.
 [Here is an example config file][config file].
 
 The token can be generated on your [GitHub account settings page](https://github.com/settings/tokens).
-A personal access token with no extra permissions is enough to be able to check public repos links.
+A personal access token with no extra permissions is enough to be able to check public repo links.
 
 For more scalable organization-wide scenarios you can consider a [GitHub App][github-app-overview].
 It has a higher rate limit than personal access tokens but requires additional configuration steps on your GitHub workflow.
