@@ -508,7 +508,7 @@ Lychee makes heavy use of async code to be resource-friendly while still being
 performant. Async code can be difficult to troubleshoot with most tools,
 however. Therefore we provide experimental support for
 [tokio-console](https://github.com/tokio-rs/console). It provides a top(1)-like
-an overview for async tasks!
+overview for async tasks!
 
 If you want to give it a spin, download and start the console:
 
