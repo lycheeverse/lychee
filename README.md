@@ -193,7 +193,7 @@ with lychee.
 - The `--init` parameter is passed so that lychee can be stopped from the terminal.
 - We also pass `-it` to start an interactive terminal, which is required to show the progress bar.
 - The `--rm` removes not used anymore container from the host after the run (self-cleanup).
-- The `-w /input` points to /input as the default workspace
+- The `-w /input` points to `/input` as the default workspace
 - The `-v $(pwd):/input` does local volume mounting to the container for lychee access.
 
 > By default debian-based docker image is used. If you want to run alpine-based image, use the `latest-alpine` tag.
