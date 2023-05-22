@@ -89,7 +89,7 @@ This comparison is made on a best-effort basis. Please create a PR to fix
 outdated information.
 
 |                      | lychee  | [awesome_bot] | [muffet] | [broken-link-checker] | [linkinator] | [linkchecker]        | [markdown-link-check] | [fink] |
-| -------------------- | ------- | ------------- | -------- | --------------------- | ------------ | -------------------- | --------------------- | ------ |
+|----------------------|---------|---------------|----------|-----------------------|--------------|----------------------|-----------------------|--------|
 | Language             | Rust    | Ruby          | Go       | JS                    | TypeScript   | Python               | JS                    | PHP    |
 | Async/Parallel       | ![yes]  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | JSON output          | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![maybe]<sup>1</sup> | ![yes]                | ![yes] |
@@ -188,28 +188,49 @@ but in case you need dedicated support for a new file format, please consider cr
 ### Docker Usage
 
 Here's how to mount a local directory into the container and check some input
-with lychee. The `--init` parameter is passed so that lychee can be stopped
-from the terminal. We also pass `-it` to start an interactive terminal, which
-is required to show the progress bar.
+with lychee.
+
+- The `--init` parameter is passed so that lychee can be stopped from the terminal.
+- We also pass `-it` to start an interactive terminal, which is required to show the progress bar.
+- The `--rm` removes not used anymore container from the host after the run (self-cleanup).
+- The `-w /input` points to `/input` as the default workspace
+- The `-v $(pwd):/input` does local volume mounting to the container for lychee access.
+
+> By default a Debian-based Docker image is used. If you want to run an Alpine-based image, use the `latest-alpine` tag.
+> For example, `lycheeverse/lychee:latest-alpine`
+
+#### Linux/macOS shell command
 
 ```sh
-docker run --init -it -v `pwd`:/input lycheeverse/lychee /input/README.md
+docker run --init -it --rm -w /input -v $(pwd):/input lycheeverse/lychee README.md
+```
+
+#### Windows PowerShell command
+
+```powershell
+docker run --init -it --rm -w /input -v ${PWD}:/input lycheeverse/lychee README.md
 ```
 
 ### GitHub Token
 
 To avoid getting rate-limited while checking GitHub links, you can optionally
-set an environment variable with your Github token like so `GITHUB_TOKEN=xxxx`,
+set an environment variable with your GitHub token like so `GITHUB_TOKEN=xxxx`,
 or use the `--github-token` CLI option. It can also be set in the config file.
 [Here is an example config file][config file].
 
-The token can be generated in your
-[GitHub account settings page](https://github.com/settings/tokens). A personal
-token with no extra permissions is enough to be able to check public repos links.
+The token can be generated on your [GitHub account settings page](https://github.com/settings/tokens).
+A personal access token with no extra permissions is enough to be able to check public repo links.
+
+For more scalable organization-wide scenarios you can consider a [GitHub App][github-app-overview].
+It has a higher rate limit than personal access tokens but requires additional configuration steps on your GitHub workflow.
+Please follow the [GitHub App Setup][github-app-setup] example.
+
+[github-app-overview]: https://docs.github.com/en/apps/overview
+[github-app-setup]: https://github.com/github/combine-prs/blob/main/docs/github-app-setup.md#github-app-setup
 
 ### Commandline Parameters
 
-There is an extensive list of commandline parameters to customize the behavior.
+There is an extensive list of command line parameters to customize the behavior.
 See below for a full list.
 
 ```text
@@ -472,7 +493,7 @@ which includes usage instructions.
 ## Contributing to lychee
 
 We'd be thankful for any contribution. \
-We try to keep the issue-tracker up-to-date so you can quickly find a task to work on.
+We try to keep the issue tracker up-to-date so you can quickly find a task to work on.
 
 Try one of these links to get started:
 
@@ -532,7 +553,7 @@ If you are using lychee for your project, **please add it here**.
 ## Credits
 
 The first prototype of lychee was built in [episode 10 of Hello
-Rust](https://hello-rust.show/10/). Thanks to all Github- and Patreon sponsors
+Rust](https://hello-rust.show/10/). Thanks to all GitHub and Patreon sponsors
 for supporting the development since the beginning. Also, thanks to all the
 great contributors who have since made this project more mature.
 
