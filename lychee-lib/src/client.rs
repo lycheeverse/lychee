@@ -835,7 +835,6 @@ mod tests {
             .unwrap();
         let _res = warm_up_client.check(mock_server.uri()).await.unwrap();
 
-        let start = Instant::now();
         let client = ClientBuilder::builder()
             .timeout(checker_timeout)
             .max_retries(3_u64)
@@ -853,6 +852,7 @@ mod tests {
         // 6. Retry after 200ms (total 360ms)
         // Total: 360ms
 
+        let start = Instant::now();
         let res = client.check(mock_server.uri()).await.unwrap();
         let end = start.elapsed();
 
