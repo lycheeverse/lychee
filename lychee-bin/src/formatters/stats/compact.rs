@@ -1,7 +1,10 @@
-use std::fmt::{self, Display};
+use std::{
+    fmt::{self, Display},
+    time::Duration,
+};
 
 use crate::{
-    color::{color, BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, NORMAL},
+    color::{color, BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, NORMAL},
     formatters::color_response,
     stats::ResponseStats,
 };
@@ -47,6 +50,11 @@ impl Display for CompactResponseStats {
         }
 
         color!(f, NORMAL, "\u{1F50D} {} Total", stats.total)?;
+
+        // show duration (in a human readable format), e.g. 2m 30s
+        let duration = Duration::from_secs(stats.duration_secs);
+        color!(f, DIM, " (in {})", humantime::format_duration(duration))?;
+
         color!(f, BOLD_GREEN, " \u{2705} {} OK", stats.successful)?;
 
         let total_errors = stats.errors;
