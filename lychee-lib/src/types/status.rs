@@ -268,6 +268,16 @@ impl Status {
             },
         }
     }
+
+    /// Returns true if the status code is unknown
+    /// (i.e. not a valid HTTP status code)
+    ///
+    /// For example, `200` is a valid HTTP status code,
+    /// while `999` is not.
+    #[must_use]
+    pub const fn is_unknown(&self) -> bool {
+        matches!(self, Status::UnknownStatusCode(_))
+    }
 }
 
 impl From<ErrorKind> for Status {
@@ -351,5 +361,11 @@ mod tests {
             Status::Unsupported(ErrorKind::InvalidStatusCode(999)).code(),
             None
         );
+    }
+
+    #[test]
+    fn test_status_unknown() {
+        assert!(Status::UnknownStatusCode(StatusCode::from_u16(999).unwrap()).is_unknown());
+        assert!(!Status::Ok(StatusCode::from_u16(200).unwrap()).is_unknown());
     }
 }
