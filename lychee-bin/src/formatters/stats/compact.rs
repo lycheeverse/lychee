@@ -1,10 +1,7 @@
-use std::{
-    collections::HashMap,
-    fmt::{self, Display},
-};
+use std::fmt::{self, Display};
 
 use crate::{
-    color::{color, BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, NORMAL, PINK},
+    color::{color, BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, NORMAL},
     formatters::color_response,
     stats::ResponseStats,
 };
@@ -14,27 +11,6 @@ use super::StatsFormatter;
 use anyhow::Result;
 
 struct CompactResponseStats(ResponseStats);
-
-// Helper function, which prints the detailed list of errors
-pub(crate) fn print_errors(stats: &ResponseStats) -> String {
-    let mut errors = HashMap::new();
-    errors.insert(
-        "HTTP",
-        stats.errors - stats.redirects - stats.timeouts - stats.unknown,
-    );
-    errors.insert("Redirects", stats.redirects);
-    errors.insert("Timeouts", stats.timeouts);
-    errors.insert("Unknown", stats.unknown);
-
-    // Creates an output like `(HTTP:3|Timeouts:1|Unknown:1)`
-    let mut err: Vec<_> = errors
-        .into_iter()
-        .filter(|(_, v)| *v > 0)
-        .map(|(k, v)| format!("{k}:{v}"))
-        .collect();
-    err.sort();
-    err.join("|")
-}
 
 impl Display for CompactResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -77,10 +53,6 @@ impl Display for CompactResponseStats {
 
         let err_str = if total_errors == 1 { "Error" } else { "Errors" };
         color!(f, BOLD_PINK, " \u{1f6ab} {} {}", total_errors, err_str)?;
-        if total_errors > 0 {
-            write!(f, " ")?;
-            color!(f, PINK, "({})", print_errors(stats))?;
-        }
         if stats.excludes > 0 {
             color!(f, BOLD_YELLOW, " \u{1F4A4} {} Excluded", stats.excludes)?;
         }
