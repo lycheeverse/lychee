@@ -263,9 +263,11 @@ async fn handle(
     //   future run.
     // - Skip caching excluded links; they might not be excluded in the next run
     let status = response.status();
-    if !uri.is_file() && !status.is_excluded() && !status.is_unsupported() {
-        cache.insert(uri, status.into());
+    if uri.is_file() || status.is_excluded() || status.is_unsupported() || status.is_unknown() {
+        return response;
     }
+
+    cache.insert(uri, status.into());
     response
 }
 

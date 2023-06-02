@@ -878,6 +878,49 @@ mod cli {
         Ok(())
     }
 
+    /// Unknown status codes should be skipped and not cached by default
+    /// The reason is that we don't know if they are valid or not
+    /// and even if they are invalid, we don't know if they will be valid in the
+    /// future.
+    ///
+    /// Since we cannot test this with our mock server (because hyper panics on invalid status codes)
+    /// we use LinkedIn as a test target.
+    #[tokio::test]
+    async fn test_skip_cache_unknown_status_code() -> Result<()> {
+        let base_path = fixtures_path().join("cache");
+        let cache_file = base_path.join(LYCHEE_CACHE_FILE);
+
+        // Unconditionally remove cache file if it exists
+        let _ = fs::remove_file(&cache_file);
+
+        // https://linkedin.com returns 999 for unknown status codes
+        // use this as a test target
+        let unknown_url = "https://www.linkedin.com/company/corrode";
+
+        // run first without cache to generate the cache file
+        main_command()
+            .current_dir(&base_path)
+            .write_stdin(unknown_url.to_string())
+            .arg("--cache")
+            .arg("--verbose")
+            .arg("--no-progress")
+            .arg("--")
+            .arg("-")
+            .assert()
+            .stderr(contains(format!("[999] {unknown_url} | Unknown status")));
+
+        // The cache file should be empty, because the only checked URL is
+        // unsupported and we don't want to cache that. It might be supported in
+        // future versions.
+        let buf = fs::read(&cache_file).unwrap();
+        assert!(buf.is_empty());
+
+        // clear the cache file
+        fs::remove_file(&cache_file)?;
+
+        Ok(())
+    }
+
     #[test]
     fn test_verbatim_skipped_by_default() -> Result<()> {
         let mut cmd = main_command();
