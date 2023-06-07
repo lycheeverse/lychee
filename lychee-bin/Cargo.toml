@@ -62,7 +62,7 @@ pretty_assertions = "1.3.0"
 predicates = "3.0.3"
 tempfile = "3.5.0"
 uuid = { version = "1.3.3", features = ["v4"] }
-wiremock = "0.5.18"
+wiremock = "0.5.19"
 tracing-subscriber = { version = "0.3.17", default-features = false, features = ["fmt", "registry", "env-filter"] }
 
 # console-subscriber is not yet published to crates.io

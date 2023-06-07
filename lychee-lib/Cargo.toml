@@ -62,7 +62,7 @@ features = ["runtime-tokio"]
 [dev-dependencies]
 doc-comment = "0.3.3"
 tempfile = "3.5.0"
-wiremock = "0.5.18"
+wiremock = "0.5.19"
 serde_json = "1.0.96"
 
 [features]
