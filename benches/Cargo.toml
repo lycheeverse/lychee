@@ -8,11 +8,17 @@ edition = "2021"
 publish = false
 
 [dependencies]
-lychee-lib = { path = "../lychee-lib"}
+lychee-lib = { path = "../lychee-lib", default-features = false }
 # TODO: Move back to crates.io version once
 # https://github.com/bheisler/criterion.rs/pull/602
 # got released
 criterion = { git = "https://github.com/bheisler/criterion.rs"}
+
+[features]
+email-check = ["lychee-lib/email-check"]
+native-tls = ["lychee-lib/native-tls"]
+rustls-tls = ["lychee-lib/rustls-tls"]
+default = ["native-tls", "email-check"]
 
 [[bench]]
 name = "extract"

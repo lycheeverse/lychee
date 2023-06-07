@@ -1,3 +1,5 @@
+#![cfg(all(feature = "email-check", feature = "native-tls"))]
+
 use check_if_email_exists::{CheckEmailOutput, Reachable};
 
 /// A crude way to extract error details from the mail output.

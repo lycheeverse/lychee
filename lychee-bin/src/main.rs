@@ -69,9 +69,11 @@ use color::YELLOW;
 use commands::CommandParams;
 use formatters::response::ResponseFormatter;
 use log::{error, info, warn};
-use openssl_sys as _;
+
+#[cfg(feature = "native-tls")]
+use openssl_sys as _; // required for vendored-openssl feature
+
 use options::LYCHEE_CONFIG_FILE;
-// required for vendored-openssl feature
 use ring as _; // required for apple silicon
 
 use lychee_lib::Collector;

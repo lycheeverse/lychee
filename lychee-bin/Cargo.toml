@@ -24,10 +24,10 @@ const_format = "0.2.31"
 headers = "0.3.8"
 http = "0.2.9"
 indicatif = "0.17.5"
-openssl-sys = "0.9.88"
+openssl-sys = { version = "0.9.88", optional = true }
 pad = "0.1.6"
 regex = "1.8.4"
-reqwest = { version = "0.11.18", features = ["gzip"] }
+reqwest = { version = "0.11.18", default-features = false, features = ["gzip", "json"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
@@ -78,6 +78,10 @@ tracing-subscriber = { version = "0.3.17", default-features = false, features = 
 #tokio-console = ["console-subscriber", "tracing-subscriber/registry"]
 vendored-openssl = ["openssl-sys/vendored"]
 check_example_domains = ["lychee-lib/check_example_domains"]
+email-check = ["lychee-lib/email-check"]
+native-tls = ["lychee-lib/native-tls", "openssl-sys", "reqwest/native-tls"]
+rustls-tls = ["lychee-lib/rustls-tls", "reqwest/rustls-tls"]
+default = ["native-tls", "email-check"]
 
 # Unfortunately, it's not possible to automatically enable features
 # for cargo test. See rust-lang/cargo#2911.

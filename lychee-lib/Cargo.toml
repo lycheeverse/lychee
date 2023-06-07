@@ -17,17 +17,17 @@ repository = "https://github.com/lycheeverse/lychee"
 version = "0.13.0"
 
 [dependencies]
-check-if-email-exists = "0.9.0"
+check-if-email-exists = { version = "0.9.0", optional = true }
 email_address = "0.2.4"
 glob = "0.3.1"
 http = "0.2.9"
 linkify = "0.9.0"
-openssl-sys = "0.9.88"
+openssl-sys = { version = "0.9.88", optional = true }
 pulldown-cmark = "0.9.3"
 regex = "1.8.4"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.11.18", features = ["gzip", "trust-dns"] }
+reqwest = { version = "0.11.18", default-features = false, features = ["gzip", "trust-dns"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
@@ -66,12 +66,15 @@ wiremock = "0.5.18"
 serde_json = "1.0.96"
 
 [features]
+email-check = ["check-if-email-exists"]
+native-tls = ["openssl-sys", "reqwest/native-tls"]
+rustls-tls = ["reqwest/rustls-tls"]
 # Vendor OpenSSL instead of dynamically linking it at runtime.
 vendored-openssl = ["openssl-sys/vendored"]
-# Feature flag to include checking reserved example domains 
+# Feature flag to include checking reserved example domains
 # as per RFC 2606, section 3.
 # This flag is off by default and only exists to allow example domains in
 # integration tests, which don't respect `#[cfg(test)]`.
 # See https://users.rust-lang.org/t/36630
 check_example_domains = []
-default = []
+default = ["native-tls", "email-check"]
