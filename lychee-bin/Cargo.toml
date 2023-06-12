@@ -47,7 +47,7 @@ humantime = "2.1.0"
 humantime-serde = "1.1.1"
 secrecy = { version = "0.8.0", features = ["serde"] }
 supports-color = "2.0.0"
-log = "0.4.18"
+log = "0.4.19"
 env_logger = "0.10.0"
 strum = {version = "0.24.1" , features = ["derive"] }
 assert-json-diff = "2.0.2"
