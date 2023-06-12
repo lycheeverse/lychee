@@ -38,7 +38,7 @@ shellexpand = "3.1.0"
 typed-builder = "0.14.0"
 tokio = { version = "1.28.2", features = ["full"] }
 url = { version = "2.3.1", features = ["serde"] }
-log = "0.4.18"
+log = "0.4.19"
 path-clean = "1.0.1"
 percent-encoding = "2.2.0"
 async-stream = "0.3.5"
