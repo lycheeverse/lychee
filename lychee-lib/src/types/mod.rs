@@ -1,6 +1,7 @@
 #![allow(unreachable_pub)]
 
 mod base;
+mod basic_auth;
 mod cache;
 mod error;
 mod file;
@@ -12,6 +13,7 @@ mod status;
 pub(crate) mod uri;
 
 pub use base::Base;
+pub use basic_auth::{BasicAuthCredentials, BasicAuthSelector, RawBasicAuthSelector};
 pub use cache::CacheStatus;
 pub use error::ErrorKind;
 pub use file::FileType;

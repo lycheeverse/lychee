@@ -5,8 +5,8 @@ use anyhow::{anyhow, Context, Error, Result};
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
-    DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+    Base, Input, RawBasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -317,10 +317,10 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) base: Option<Base>,
 
-    /// Basic authentication support. E.g. `username:password`
+    /// Basic authentication support. E.g. `http://example.com username:password`
     #[arg(long)]
     #[serde(default)]
-    pub(crate) basic_auth: Option<String>,
+    pub(crate) basic_auth: Option<Vec<RawBasicAuthSelector>>,
 
     /// GitHub API token to use when checking github.com links, to avoid rate limiting
     #[arg(long, env = "GITHUB_TOKEN", hide_env_values = true)]

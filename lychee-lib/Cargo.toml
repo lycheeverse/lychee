@@ -20,6 +20,7 @@ version = "0.13.0"
 check-if-email-exists = "0.9.0"
 email_address = "0.2.4"
 glob = "0.3.1"
+headers = "0.3.8"
 http = "0.2.9"
 linkify = "0.9.0"
 openssl-sys = "0.9.88"
@@ -34,6 +35,7 @@ reqwest = { version = "0.11.18", features = ["gzip", "trust-dns"] }
 # https://github.com/Homebrew/homebrew-core/pull/70216
 ring = "0.16.20"
 serde = { version = "1.0.164", features = ["derive"] }
+serde_with = "3.0.0"
 shellexpand = "3.1.0"
 typed-builder = "0.14.0"
 tokio = { version = "1.28.2", features = ["full"] }
