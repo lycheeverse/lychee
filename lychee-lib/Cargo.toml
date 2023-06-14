@@ -68,7 +68,7 @@ serde_json = "1.0.96"
 [features]
 email-check = ["check-if-email-exists"]
 native-tls = ["openssl-sys", "reqwest/native-tls"]
-rustls-tls = ["reqwest/rustls-tls"]
+rustls-tls = ["reqwest/rustls-tls-native-roots"]
 # Vendor OpenSSL instead of dynamically linking it at runtime.
 vendored-openssl = ["openssl-sys/vendored"]
 # Feature flag to include checking reserved example domains
