@@ -66,15 +66,24 @@ wiremock = "0.5.19"
 serde_json = "1.0.96"
 
 [features]
+
+# Enable checking email addresses. Requires the native-tls feature.
 email-check = ["check-if-email-exists"]
+
+# Use platform-native TLS.
 native-tls = ["openssl-sys", "reqwest/native-tls"]
+
+# Use Rustls TLS.
 rustls-tls = ["reqwest/rustls-tls-native-roots"]
-# Vendor OpenSSL instead of dynamically linking it at runtime.
+
+# Compile and statically link a copy of OpenSSL.
 vendored-openssl = ["openssl-sys/vendored"]
+
 # Feature flag to include checking reserved example domains
 # as per RFC 2606, section 3.
 # This flag is off by default and only exists to allow example domains in
 # integration tests, which don't respect `#[cfg(test)]`.
 # See https://users.rust-lang.org/t/36630
 check_example_domains = []
+
 default = ["native-tls", "email-check"]

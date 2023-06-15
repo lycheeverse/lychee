@@ -76,11 +76,22 @@ tracing-subscriber = { version = "0.3.17", default-features = false, features = 
 
 [features]
 #tokio-console = ["console-subscriber", "tracing-subscriber/registry"]
+
+# Compile and statically link a copy of OpenSSL.
 vendored-openssl = ["openssl-sys/vendored"]
+
+# Allow checking example domains such as example.com.
 check_example_domains = ["lychee-lib/check_example_domains"]
+
+# Enable checking email addresses. Requires the native-tls feature.
 email-check = ["lychee-lib/email-check"]
+
+# Use platform-native TLS.
 native-tls = ["lychee-lib/native-tls", "openssl-sys", "reqwest/native-tls"]
+
+# Use Rustls TLS.
 rustls-tls = ["lychee-lib/rustls-tls", "reqwest/rustls-tls-native-roots"]
+
 default = ["native-tls", "email-check"]
 
 # Unfortunately, it's not possible to automatically enable features

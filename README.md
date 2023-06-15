@@ -83,6 +83,18 @@ apt install gcc pkg-config libc6-dev libssl-dev
 cargo install lychee
 ```
 
+#### Feature flags
+
+Lychee supports several feature flags:
+
+- `native-tls` enables the platform-native TLS crate [native-tls](https://crates.io/crates/native-tls).
+- `vendored-openssl` compiles and statically links a copy of OpenSSL. See the corresponding feature of the [openssl](https://crates.io/crates/openssl) crate.
+- `rustls-tls` enables the alternative TLS crate [rustls](https://crates.io/crates/rustls).
+- `email-check` enables checking email addresses using the [check-if-email-exists](https://crates.io/crates/check-if-email-exists) crate. This feature requires the `native-tls` feature.
+- `check_example_domains` allows checking example domains such as `example.com`. This feature is useful for testing.
+
+By default, `native-tls` and `email-check` are enabled.
+
 ## Features
 
 This comparison is made on a best-effort basis. Please create a PR to fix
