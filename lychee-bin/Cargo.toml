@@ -49,7 +49,7 @@ secrecy = { version = "0.8.0", features = ["serde"] }
 supports-color = "2.0.0"
 log = "0.4.19"
 env_logger = "0.10.0"
-strum = {version = "0.24.1" , features = ["derive"] }
+strum = {version = "0.25.0" , features = ["derive"] }
 assert-json-diff = "2.0.2"
 
 [dependencies.clap]
