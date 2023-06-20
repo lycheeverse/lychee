@@ -310,13 +310,24 @@ impl ClientBuilder {
             HeaderValue::from_static("chunked"),
         );
 
-        let builder = reqwest::ClientBuilder::new()
+        // Custom redirect policy to enable logging of redirects.
+        let max_redirects = self.max_redirects;
+        let redirect_policy = redirect::Policy::custom(move |attempt| {
+            if attempt.previous().len() > max_redirects {
+                attempt.error("too many redirects")
+            } else {
+                debug!("Redirecting to {}", attempt.url());
+                attempt.follow()
+            }
+        });
+
+        let mut builder = reqwest::ClientBuilder::new()
             .gzip(true)
             .default_headers(headers)
             .danger_accept_invalid_certs(self.allow_insecure)
             .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
             .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
-            .redirect(reqwest::redirect::Policy::limited(self.max_redirects));
+            .redirect(redirect_policy);
 
         let reqwest_client = (match self.timeout {
             Some(t) => builder.timeout(t),
