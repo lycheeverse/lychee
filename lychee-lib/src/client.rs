@@ -25,7 +25,7 @@ use http::{
 use log::debug;
 use octocrab::Octocrab;
 use regex::RegexSet;
-use reqwest::{header, Url};
+use reqwest::{header, redirect, Url};
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
