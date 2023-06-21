@@ -61,6 +61,7 @@ impl FromStr for BasicAuthCredentials {
 
 impl BasicAuthCredentials {
     /// Returns the credentials as [`Authorization<Basic>`].
+    #[must_use]
     pub fn to_authorization(&self) -> Authorization<Basic> {
         Authorization::basic(&self.username, &self.password)
     }

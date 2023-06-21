@@ -22,7 +22,7 @@ pub struct Collector {
 impl Collector {
     /// Create a new collector with an empty cache
     #[must_use]
-    pub fn new(base: Option<Base>) -> Self {
+    pub const fn new(base: Option<Base>) -> Self {
         Collector {
             basic_auth_selectors: Vec::new(),
             skip_missing_inputs: false,
@@ -57,6 +57,7 @@ impl Collector {
     /// constructs a [`BasicAuthExtractor`] which is capable to match found
     /// URIs to basic auth credentials. These credentials get passed to the
     /// request in question.
+    #[must_use]
     pub fn basic_auth_selectors(mut self, selectors: Option<&Vec<BasicAuthSelector>>) -> Self {
         self.basic_auth_selectors = match selectors {
             Some(selectors) => selectors.clone(),
@@ -73,6 +74,10 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
+    ///
+    /// # Panics
+    ///
+    /// Will panic if the [`BasicAuthExtractor`] cannot be constructed.
     pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
         let contents = stream::iter(inputs)
@@ -81,6 +86,8 @@ impl Collector {
             })
             .flatten();
 
+        // FIXME (Techassi): This error should be returned. But I don't know
+        // how we can return it inside the stream.
         let basic_auth_extractor = BasicAuthExtractor::new(self.basic_auth_selectors).unwrap();
 
         let base = self.base;
