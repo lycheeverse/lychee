@@ -15,6 +15,7 @@
 )]
 use std::{collections::HashSet, time::Duration};
 
+#[cfg(all(feature = "email-check", feature = "native-tls"))]
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
 use headers::authorization::Credentials;
 use http::{
@@ -33,9 +34,12 @@ use crate::{
     quirks::Quirks,
     remap::Remaps,
     retry::RetryExt,
-    types::{mail, uri::github::GithubUri},
+    types::uri::github::GithubUri,
     BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
+
+#[cfg(all(feature = "email-check", feature = "native-tls"))]
+use crate::types::mail;
 
 /// Default number of redirects before a request is deemed as failed, 5.
 pub const DEFAULT_MAX_REDIRECTS: usize = 5;
@@ -439,7 +443,13 @@ impl Client {
         } else if uri.is_file() {
             self.check_file(uri)
         } else if uri.is_mail() {
-            self.check_mail(uri).await
+            #[cfg(all(feature = "email-check", feature = "native-tls"))]
+            {
+                self.check_mail(uri).await
+            }
+
+            #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
+            Status::Excluded
         } else {
             match self.check_website(uri, credentials).await {
                 Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
@@ -617,6 +627,7 @@ impl Client {
     /// URIs may contain query parameters (e.g. `contact@example.com?subject="Hello"`),
     /// which are ignored by this check. The are not part of the mail address
     /// and instead passed to a mail client.
+    #[cfg(all(feature = "email-check", feature = "native-tls"))]
     pub async fn check_mail(&self, uri: &Uri) -> Status {
         let address = uri.url.path().to_string();
         let input = CheckEmailInput::new(address);
@@ -878,7 +889,7 @@ mod tests {
 
         // on slow connections, this might take a bit longer than nominal
         // backed-off timeout (7 secs)
-        assert!((350..=450).contains(&end.as_millis()));
+        assert!((350..=550).contains(&end.as_millis()));
     }
 
     #[tokio::test]

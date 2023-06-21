@@ -75,8 +75,10 @@ pub mod test_utils;
 
 #[cfg(test)]
 use doc_comment as _; // required for doctest
-use openssl_sys as _; // required for vendored-openssl feature
 use ring as _; // required for apple silicon
+
+#[cfg(feature = "native-tls")]
+use openssl_sys as _; // required for vendored-openssl feature
 
 #[doc(inline)]
 pub use crate::{

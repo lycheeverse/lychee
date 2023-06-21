@@ -17,18 +17,18 @@ repository = "https://github.com/lycheeverse/lychee"
 version = "0.13.0"
 
 [dependencies]
-check-if-email-exists = "0.9.0"
+check-if-email-exists = { version = "0.9.0", optional = true }
 email_address = "0.2.4"
 glob = "0.3.1"
 headers = "0.3.8"
 http = "0.2.9"
 linkify = "0.9.0"
-openssl-sys = "0.9.88"
+openssl-sys = { version = "0.9.90", optional = true }
 pulldown-cmark = "0.9.3"
 regex = "1.8.4"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.11.18", features = ["gzip", "trust-dns"] }
+reqwest = { version = "0.11.18", default-features = false, features = ["gzip", "trust-dns"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
@@ -39,7 +39,7 @@ serde_with = "3.0.0"
 shellexpand = "3.1.0"
 typed-builder = "0.14.0"
 tokio = { version = "1.28.2", features = ["full"] }
-url = { version = "2.3.1", features = ["serde"] }
+url = { version = "2.4.0", features = ["serde"] }
 log = "0.4.19"
 path-clean = "1.0.1"
 percent-encoding = "2.3.0"
@@ -65,15 +65,27 @@ features = ["runtime-tokio"]
 doc-comment = "0.3.3"
 tempfile = "3.6.0"
 wiremock = "0.5.19"
-serde_json = "1.0.96"
+serde_json = "1.0.97"
 
 [features]
-# Vendor OpenSSL instead of dynamically linking it at runtime.
+
+# Enable checking email addresses. Requires the native-tls feature.
+email-check = ["check-if-email-exists"]
+
+# Use platform-native TLS.
+native-tls = ["openssl-sys", "reqwest/native-tls"]
+
+# Use Rustls TLS.
+rustls-tls = ["reqwest/rustls-tls-native-roots"]
+
+# Compile and statically link a copy of OpenSSL.
 vendored-openssl = ["openssl-sys/vendored"]
-# Feature flag to include checking reserved example domains 
+
+# Feature flag to include checking reserved example domains
 # as per RFC 2606, section 3.
 # This flag is off by default and only exists to allow example domains in
 # integration tests, which don't respect `#[cfg(test)]`.
 # See https://users.rust-lang.org/t/36630
 check_example_domains = []
-default = []
+
+default = ["native-tls", "email-check"]
