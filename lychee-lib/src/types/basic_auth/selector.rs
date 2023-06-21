@@ -90,7 +90,7 @@ mod test {
         assert_eq!(
             result.unwrap_err(),
             BasicAuthSelectorParseError::InvalidSyntax
-        )
+        );
     }
 
     #[test]
@@ -102,7 +102,7 @@ mod test {
         assert_eq!(
             result.unwrap_err(),
             BasicAuthSelectorParseError::InvalidSyntax
-        )
+        );
     }
 
     #[test]
@@ -117,7 +117,7 @@ mod test {
         let result = BasicAuthSelector::from_str(input);
 
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), BasicAuthSelectorParseError::EmptyInput)
+        assert_eq!(result.unwrap_err(), BasicAuthSelectorParseError::EmptyInput);
     }
 
     #[test]
@@ -132,6 +132,6 @@ mod test {
         let result = BasicAuthSelector::from_str(input);
 
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), BasicAuthSelectorParseError::EmptyInput)
+        assert_eq!(result.unwrap_err(), BasicAuthSelectorParseError::EmptyInput);
     }
 }
