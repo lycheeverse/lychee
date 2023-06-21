@@ -1,5 +1,6 @@
 use crate::{
-    extract::Extractor, types::uri::raw::RawUri, utils::request, Base, Input, Request, Result,
+    basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri, utils::request,
+    Base, BasicAuthSelector, Input, Request, Result,
 };
 use futures::{
     stream::{self, Stream},
@@ -11,21 +12,23 @@ use par_stream::ParStreamExt;
 /// It drives the link extraction from inputs
 #[derive(Debug, Clone)]
 pub struct Collector {
-    base: Option<Base>,
+    basic_auth_selectors: Vec<BasicAuthSelector>,
     skip_missing_inputs: bool,
     include_verbatim: bool,
     use_html5ever: bool,
+    base: Option<Base>,
 }
 
 impl Collector {
     /// Create a new collector with an empty cache
     #[must_use]
-    pub const fn new(base: Option<Base>) -> Self {
+    pub fn new(base: Option<Base>) -> Self {
         Collector {
-            base,
+            basic_auth_selectors: Vec::new(),
             skip_missing_inputs: false,
-            use_html5ever: false,
             include_verbatim: false,
+            use_html5ever: false,
+            base,
         }
     }
 
@@ -50,6 +53,19 @@ impl Collector {
         self
     }
 
+    /// Pass multiple basic auth selectors to the collector. The collector
+    /// constructs a [`BasicAuthExtractor`] which is capable to match found
+    /// URIs to basic auth credentials. These credentials get passed to the
+    /// request in question.
+    pub fn basic_auth_selectors(mut self, selectors: Option<&Vec<BasicAuthSelector>>) -> Self {
+        self.basic_auth_selectors = match selectors {
+            Some(selectors) => selectors.clone(),
+            None => vec![],
+        };
+
+        self
+    }
+
     /// Fetch all unique links from inputs
     /// All relative URLs get prefixed with `base` (if given).
     /// (This can be a directory or a base URL)
@@ -65,16 +81,22 @@ impl Collector {
             })
             .flatten();
 
+        let basic_auth_extractor = BasicAuthExtractor::new(self.basic_auth_selectors).unwrap();
+
         let base = self.base;
         contents
             .par_then_unordered(None, move |content| {
                 // send to parallel worker
+                let basic_auth_extractor = basic_auth_extractor.clone();
                 let base = base.clone();
+
                 async move {
                     let content = content?;
+
                     let extractor = Extractor::new(self.use_html5ever, self.include_verbatim);
                     let uris: Vec<RawUri> = extractor.extract(&content);
-                    let requests = request::create(uris, &content, &base)?;
+
+                    let requests = request::create(uris, &content, &base, &basic_auth_extractor)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
             })

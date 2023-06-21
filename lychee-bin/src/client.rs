@@ -1,5 +1,5 @@
 use crate::options::Config;
-use crate::parse::{parse_basic_auth, parse_duration_secs, parse_headers, parse_remaps};
+use crate::parse::{parse_duration_secs, parse_headers, parse_remaps};
 use anyhow::{Context, Result};
 use http::StatusCode;
 use lychee_lib::{Client, ClientBuilder};
@@ -9,7 +9,6 @@ use std::{collections::HashSet, str::FromStr};
 /// Creates a client according to the command-line config
 pub(crate) fn create(cfg: &Config) -> Result<Client> {
     let headers = parse_headers(&cfg.header)?;
-    let selectors = parse_basic_auth(&cfg.basic_auth)?;
 
     let timeout = parse_duration_secs(cfg.timeout);
     let retry_wait_time = parse_duration_secs(cfg.retry_wait_time);
@@ -57,7 +56,6 @@ pub(crate) fn create(cfg: &Config) -> Result<Client> {
         .schemes(HashSet::from_iter(schemes))
         .accepted(accepted)
         .require_https(cfg.require_https)
-        .basic_auth(selectors)
         .build()
         .client()
         .context("Failed to create request client")

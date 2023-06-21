@@ -13,7 +13,7 @@ mod status;
 pub(crate) mod uri;
 
 pub use base::Base;
-pub use basic_auth::{BasicAuthCredentials, BasicAuthSelector, RawBasicAuthSelector};
+pub use basic_auth::{BasicAuthCredentials, BasicAuthSelector};
 pub use cache::CacheStatus;
 pub use error::ErrorKind;
 pub use file::FileType;

@@ -50,6 +50,7 @@
 #[cfg(doctest)]
 doc_comment::doctest!("../../README.md");
 
+mod basic_auth;
 mod client;
 /// A pool of clients, to handle concurrent checks
 pub mod collector;
@@ -88,7 +89,7 @@ pub use crate::{
     filter::{Excludes, Filter, Includes},
     types::{
         uri::valid::Uri, Base, BasicAuthCredentials, BasicAuthSelector, CacheStatus, ErrorKind,
-        FileType, Input, InputContent, InputSource, RawBasicAuthSelector, Request, Response,
-        ResponseBody, Result, Status,
+        FileType, Input, InputContent, InputSource, Request, Response, ResponseBody, Result,
+        Status,
     },
 };

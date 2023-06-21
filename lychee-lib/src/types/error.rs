@@ -6,7 +6,7 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 use super::InputContent;
-use crate::{utils, Uri};
+use crate::{basic_auth::BasicAuthExtractorError, utils, Uri};
 
 /// Kinds of status errors
 /// Note: The error messages can change over time, so don't match on the output
@@ -128,6 +128,10 @@ pub enum ErrorKind {
     /// Too many redirects (HTTP 3xx) were encountered (configurable)
     #[error("Too many redirects")]
     TooManyRedirects(#[source] reqwest::Error),
+
+    /// Basic auth extractor error
+    #[error("Basic auth extractor error")]
+    BasicAuthExtractorError(#[from] BasicAuthExtractorError),
 }
 
 impl ErrorKind {
@@ -262,6 +266,7 @@ impl Hash for ErrorKind {
             }
             Self::Regex(e) => e.to_string().hash(state),
             Self::TooManyRedirects(e) => e.to_string().hash(state),
+            Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
         }
     }
 }

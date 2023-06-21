@@ -7,6 +7,7 @@ use std::{
 };
 
 use crate::{
+    basic_auth::BasicAuthExtractor,
     types::{uri::raw::RawUri, InputContent, InputSource},
     utils::{path, url},
     Base, ErrorKind, Request, Result, Uri,
@@ -20,6 +21,7 @@ pub(crate) fn create(
     uris: Vec<RawUri>,
     input_content: &InputContent,
     base: &Option<Base>,
+    extractor: &BasicAuthExtractor,
 ) -> Result<HashSet<Request>> {
     let base_url = Base::from_source(&input_content.source);
 
@@ -42,15 +44,41 @@ pub(crate) fn create(
             };
 
             if let Ok(uri) = Uri::try_from(raw_uri) {
-                Ok(Some(Request::new(uri, source, element, attribute)))
+                let credentials = extractor.matches(&uri);
+
+                Ok(Some(Request::new(
+                    uri,
+                    source,
+                    element,
+                    attribute,
+                    credentials,
+                )))
             } else if let Some(url) = base.as_ref().and_then(|u| u.join(&text)) {
-                Ok(Some(Request::new(Uri { url }, source, element, attribute)))
+                let uri = Uri { url };
+                let credentials = extractor.matches(&uri);
+
+                Ok(Some(Request::new(
+                    uri,
+                    source,
+                    element,
+                    attribute,
+                    credentials,
+                )))
             } else if let InputSource::FsPath(root) = &input_content.source {
                 if is_anchor {
                     // Silently ignore anchor links for now
                     Ok(None)
                 } else if let Some(url) = create_uri_from_path(root, &text, base)? {
-                    Ok(Some(Request::new(Uri { url }, source, element, attribute)))
+                    let uri = Uri { url };
+                    let credentials = extractor.matches(&uri);
+
+                    Ok(Some(Request::new(
+                        uri,
+                        source,
+                        element,
+                        attribute,
+                        credentials,
+                    )))
                 } else {
                     // In case we cannot create a URI from a path but we didn't receive an error,
                     // it means that some preconditions were not met, e.g. the `base_url` wasn't set.
@@ -60,11 +88,15 @@ pub(crate) fn create(
                 if base.is_some() {
                     Ok(None)
                 } else {
+                    let uri = Uri { url: url? };
+                    let credentials = extractor.matches(&uri);
+
                     Ok(Some(Request::new(
-                        Uri { url: url? },
+                        uri,
                         source,
                         element,
                         attribute,
+                        credentials,
                     )))
                 }
             } else {

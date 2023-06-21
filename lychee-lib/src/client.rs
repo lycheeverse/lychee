@@ -16,10 +16,7 @@
 use std::{collections::HashSet, time::Duration};
 
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
-use headers::{
-    authorization::{Basic, Credentials},
-    Authorization,
-};
+use headers::authorization::Credentials;
 use http::{
     header::{HeaderMap, HeaderValue, AUTHORIZATION},
     StatusCode,
@@ -37,7 +34,7 @@ use crate::{
     remap::Remaps,
     retry::RetryExt,
     types::{mail, uri::github::GithubUri},
-    BasicAuthSelector, ErrorKind, Request, Response, Result, Status, Uri,
+    BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
 /// Default number of redirects before a request is deemed as failed, 5.
@@ -263,9 +260,6 @@ pub struct ClientBuilder {
     /// It has no effect on non-HTTP schemes or if the URL doesn't support
     /// HTTPS.
     require_https: bool,
-
-    /// Select basic auth username and password based on the matched URL.
-    basic_auth: Vec<BasicAuthSelector>,
 }
 
 impl Default for ClientBuilder {
@@ -295,7 +289,6 @@ impl ClientBuilder {
         let Self {
             user_agent,
             custom_headers: mut headers,
-            basic_auth,
             ..
         } = self;
 
@@ -365,7 +358,6 @@ impl ClientBuilder {
             accepted: self.accepted,
             require_https: self.require_https,
             quirks,
-            basic_auth,
         })
     }
 }
@@ -412,9 +404,6 @@ pub struct Client {
 
     /// Override behaviors for certain known issues with special URIs.
     quirks: Quirks,
-
-    /// Basic auth selectors
-    basic_auth: Vec<BasicAuthSelector>,
 }
 
 impl Client {
@@ -437,6 +426,7 @@ impl Client {
     {
         let Request {
             ref mut uri,
+            ref credentials,
             source,
             ..
         } = request.try_into()?;
@@ -451,12 +441,10 @@ impl Client {
         } else if uri.is_mail() {
             self.check_mail(uri).await
         } else {
-            let basic_auth = self.select_basic_auth_by_uri(uri);
-
-            match self.check_website(uri, basic_auth).await {
+            match self.check_website(uri, credentials).await {
                 Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                     if self
-                        .check_website(&uri.to_https()?, basic_auth)
+                        .check_website(&uri.to_https()?, credentials)
                         .await
                         .is_success()
                     {
@@ -470,21 +458,6 @@ impl Client {
         };
 
         Ok(Response::new(uri.clone(), status, source))
-    }
-
-    /// Returns optional basic auth based on if the URI matches any of the
-    /// selectors.
-    pub fn select_basic_auth_by_uri<'a>(
-        &'a self,
-        uri: &'a Uri,
-    ) -> Option<&'a Authorization<Basic>> {
-        for selector in &self.basic_auth {
-            if selector.url.is_match(uri.as_str()) {
-                return Some(&selector.credentials);
-            }
-        }
-
-        None
     }
 
     /// Remap `uri` using the client-defined remapping rules.
@@ -514,7 +487,7 @@ impl Client {
     pub async fn check_website(
         &self,
         uri: &Uri,
-        basic_auth: Option<&Authorization<Basic>>,
+        credentials: &Option<BasicAuthCredentials>,
     ) -> Status {
         // Workaround for upstream reqwest panic
         if validate_url(&uri.url) {
@@ -530,7 +503,7 @@ impl Client {
             return Status::Unsupported(ErrorKind::InvalidURI(uri.clone()));
         }
 
-        let status = self.retry_request(uri, basic_auth).await;
+        let status = self.retry_request(uri, credentials).await;
         if status.is_success() {
             return status;
         }
@@ -552,11 +525,11 @@ impl Client {
 
     /// Retry requests up to `max_retries` times
     /// with an exponential backoff.
-    async fn retry_request(&self, uri: &Uri, basic_auth: Option<&Authorization<Basic>>) -> Status {
+    async fn retry_request(&self, uri: &Uri, credentials: &Option<BasicAuthCredentials>) -> Status {
         let mut retries: u64 = 0;
         let mut wait_time = self.retry_wait_time;
 
-        let mut status = self.check_default(uri, basic_auth).await;
+        let mut status = self.check_default(uri, credentials).await;
         while retries < self.max_retries {
             if status.is_success() || !status.should_retry() {
                 return status;
@@ -564,7 +537,7 @@ impl Client {
             retries += 1;
             tokio::time::sleep(wait_time).await;
             wait_time = wait_time.saturating_mul(2);
-            status = self.check_default(uri, basic_auth).await;
+            status = self.check_default(uri, credentials).await;
         }
         status
     }
@@ -603,12 +576,12 @@ impl Client {
     }
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
-    async fn check_default(&self, uri: &Uri, basic_auth: Option<&Authorization<Basic>>) -> Status {
-        let request = match basic_auth {
-            Some(basic_auth) => self
+    async fn check_default(&self, uri: &Uri, credentials: &Option<BasicAuthCredentials>) -> Status {
+        let request = match credentials {
+            Some(credentials) => self
                 .reqwest_client
                 .request(self.method.clone(), uri.as_str())
-                .header(AUTHORIZATION, basic_auth.0.encode())
+                .header(AUTHORIZATION, credentials.to_authorization().0.encode())
                 .build(),
             None => self
                 .reqwest_client

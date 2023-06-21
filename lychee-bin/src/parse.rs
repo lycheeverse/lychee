@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use headers::{HeaderMap, HeaderName};
-use lychee_lib::{remap::Remaps, Base, BasicAuthSelector, RawBasicAuthSelector};
+use lychee_lib::{remap::Remaps, Base};
 use std::{collections::HashSet, time::Duration};
 
 /// Split a single HTTP header into a (key, value) tuple
@@ -34,24 +34,6 @@ pub(crate) fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {
 pub(crate) fn parse_remaps(remaps: &[String]) -> Result<Remaps> {
     Remaps::try_from(remaps)
         .context("Remaps must be of the form '<pattern> <uri>' (separated by whitespace)")
-}
-
-/// Parse a HTTP basic auth header into username and password
-pub(crate) fn parse_basic_auth(
-    raw_selectors: &Option<Vec<RawBasicAuthSelector>>,
-) -> Result<Vec<BasicAuthSelector>> {
-    match raw_selectors {
-        Some(raw_selectors) => {
-            let mut selectors = Vec::new();
-
-            for raw_selector in raw_selectors {
-                selectors.push(BasicAuthSelector::try_from(raw_selector)?);
-            }
-
-            Ok(selectors)
-        }
-        None => Ok(vec![]),
-    }
 }
 
 pub(crate) fn parse_base(src: &str) -> Result<Base, lychee_lib::ErrorKind> {
