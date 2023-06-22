@@ -70,10 +70,19 @@ pub(crate) fn create(
                     credentials,
                 )))
             } else if let InputSource::FsPath(root) = &input_content.source {
-                if is_anchor {
-                    // Silently ignore anchor links for now
-                    Ok(None)
-                } else if let Some(url) = create_uri_from_path(root, &text, base)? {
+                let path = if is_anchor {
+                    // If the link is just an anchor,
+                    // prepend the filename of the file from which the link came.
+                    root.file_name()
+                        .expect("File doesn't have a file name.")
+                        .to_str()
+                        .expect("Filename is invalid unicode")
+                        .to_string()
+                        + &text
+                } else {
+                    text
+                };
+                if let Some(url) = create_uri_from_path(root, &path, base)? {
                     let uri = Uri { url };
                     let credentials = credentials(extractor, &uri);
 
@@ -122,7 +131,7 @@ fn construct_url(base: &Option<Url>, text: &str) -> Option<Result<Url>> {
 }
 
 fn create_uri_from_path(src: &Path, dst: &str, base: &Option<Base>) -> Result<Option<Url>> {
-    let dst = url::remove_get_params_and_fragment(dst);
+    let (dst, frag) = url::remove_get_params_and_seperate_fragment(dst);
     // Avoid double-encoding already encoded destination paths by removing any
     // potential encoding (e.g. `web%20site` becomes `web site`).
     // That's because Url::from_file_path will encode the full URL in the end.
@@ -136,6 +145,10 @@ fn create_uri_from_path(src: &Path, dst: &str, base: &Option<Base>) -> Result<Op
     let resolved = path::resolve(src, &PathBuf::from(&*decoded), base)?;
     match resolved {
         Some(path) => Url::from_file_path(&path)
+            .map(|mut url| {
+                url.set_fragment(frag);
+                url
+            })
             .map(Some)
             .map_err(|_e| ErrorKind::InvalidUrlFromPath(path)),
         None => Ok(None),

@@ -222,8 +222,8 @@ mod cli {
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("3 Total"))
-            .stdout(contains("3 OK"));
+            .stdout(contains("4 Total"))
+            .stdout(contains("4 OK"));
     }
 
     #[test]
@@ -489,8 +489,8 @@ mod cli {
         test_json_output!(
             "TEST.md",
             MockResponseStats {
-                total: 11,
-                successful: 9,
+                total: 12,
+                successful: 10,
                 excludes: 2,
                 ..MockResponseStats::default()
             }
@@ -518,7 +518,7 @@ mod cli {
         // Running the command from the command line will print 9 links,
         // because the actual `--dump` command filters out the two
         // http(s)://example.com links
-        assert_eq!(output.lines().count(), 11);
+        assert_eq!(output.lines().count(), 12);
         fs::remove_file(outfile)?;
         Ok(())
     }
@@ -534,7 +534,7 @@ mod cli {
             .arg(".*")
             .assert()
             .success()
-            .stdout(contains("11 Excluded"));
+            .stdout(contains("12 Excluded"));
 
         Ok(())
     }
