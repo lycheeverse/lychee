@@ -25,7 +25,7 @@ use http::{
 use log::debug;
 use octocrab::Octocrab;
 use regex::RegexSet;
-use reqwest::{header, Url};
+use reqwest::{header, redirect, Url};
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
@@ -310,13 +310,24 @@ impl ClientBuilder {
             HeaderValue::from_static("chunked"),
         );
 
+        // Custom redirect policy to enable logging of redirects.
+        let max_redirects = self.max_redirects;
+        let redirect_policy = redirect::Policy::custom(move |attempt| {
+            if attempt.previous().len() > max_redirects {
+                attempt.error("too many redirects")
+            } else {
+                debug!("Redirecting to {}", attempt.url());
+                attempt.follow()
+            }
+        });
+
         let builder = reqwest::ClientBuilder::new()
             .gzip(true)
             .default_headers(headers)
             .danger_accept_invalid_certs(self.allow_insecure)
             .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
             .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
-            .redirect(reqwest::redirect::Policy::limited(self.max_redirects));
+            .redirect(redirect_policy);
 
         let reqwest_client = (match self.timeout {
             Some(t) => builder.timeout(t),
@@ -907,7 +918,7 @@ mod tests {
             .await;
 
         let client = ClientBuilder::builder()
-            .max_redirects(1_usize)
+            .max_redirects(0_usize)
             .build()
             .client()
             .unwrap();
@@ -916,7 +927,7 @@ mod tests {
         assert!(res.status().is_failure());
 
         let client = ClientBuilder::builder()
-            .max_redirects(2_usize)
+            .max_redirects(1_usize)
             .build()
             .client()
             .unwrap();
