@@ -321,7 +321,7 @@ impl ClientBuilder {
             }
         });
 
-        let mut builder = reqwest::ClientBuilder::new()
+        let builder = reqwest::ClientBuilder::new()
             .gzip(true)
             .default_headers(headers)
             .danger_accept_invalid_certs(self.allow_insecure)
@@ -918,7 +918,7 @@ mod tests {
             .await;
 
         let client = ClientBuilder::builder()
-            .max_redirects(1_usize)
+            .max_redirects(0_usize)
             .build()
             .client()
             .unwrap();
@@ -927,7 +927,7 @@ mod tests {
         assert!(res.status().is_failure());
 
         let client = ClientBuilder::builder()
-            .max_redirects(2_usize)
+            .max_redirects(1_usize)
             .build()
             .client()
             .unwrap();
