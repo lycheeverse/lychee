@@ -1,3 +1,7 @@
+//! Extract things from markdown documents
+use std::collections::{HashMap, HashSet};
+
+use convert_case::{Case, Casing};
 use pulldown_cmark::{Event, Parser, Tag};
 
 use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
@@ -77,6 +81,61 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
         .collect()
 }
 
+/// Extract unparsed URL strings from a Markdown string.
+pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
+    let mut in_heading = false;
+    let mut heading = String::new();
+    let mut id_generator = HeadingIdGenerator::default();
+
+    let mut out = HashSet::new();
+
+    for event in Parser::new(input) {
+        match event {
+            Event::Start(Tag::Heading(..)) => {
+                in_heading = true;
+            }
+            Event::End(Tag::Heading(_d, id, ..)) => {
+                if let Some(frag) = id {
+                    out.insert(frag.to_string());
+                }
+
+                let id = id_generator.generate(&mut heading);
+                out.insert(id);
+
+                in_heading = false;
+                heading.clear();
+            }
+            Event::Text(text) => {
+                if in_heading {
+                    heading.push_str(&text);
+                };
+            }
+
+            // Silently skip over other events
+            _ => (),
+        }
+    }
+    out
+}
+
+#[derive(Default)]
+struct HeadingIdGenerator {
+    counter: HashMap<String, usize>,
+}
+
+impl HeadingIdGenerator {
+    fn generate(&mut self, heading: &mut String) -> String {
+        let mut id = heading.to_case(Case::Kebab);
+        let count = self.counter.entry(id.clone()).or_insert(0);
+        if *count != 0 {
+            id = format!("{}-{}", id, *count);
+        }
+        *count += 1;
+
+        id
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,12 +207,12 @@ or inline like `https://bar.org` for instance.
     #[test]
     #[ignore]
     fn test_skip_verbatim_html() {
-        let input = " 
+        let input = "
 <code>
 http://link.com
 </code>
 <pre>
-Some pre-formatted http://pre.com 
+Some pre-formatted http://pre.com
 </pre>";
 
         let expected = vec![];

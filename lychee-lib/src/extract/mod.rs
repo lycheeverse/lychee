@@ -1,7 +1,7 @@
 use crate::types::{uri::raw::RawUri, FileType, InputContent};
 
 mod html;
-mod markdown;
+pub mod markdown;
 mod plaintext;
 
 use markdown::extract_markdown;

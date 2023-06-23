@@ -20,6 +20,7 @@ version = "0.13.0"
 async-stream = "0.3.5"
 cached = "0.44.0"
 check-if-email-exists = { version = "0.9.0", optional = true }
+convert_case = "0.6.0"
 email_address = "0.2.4"
 futures = "0.3.27"
 glob = "0.3.1"

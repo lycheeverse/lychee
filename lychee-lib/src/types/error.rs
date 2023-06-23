@@ -63,6 +63,10 @@ pub enum ErrorKind {
     #[error("Cannot find file")]
     InvalidFilePath(Uri),
 
+    /// The given URI cannot be converted to a file path
+    #[error("Cannot find fragment")]
+    InvalidFragment(Uri),
+
     /// The given path cannot be converted to a URI
     #[error("Invalid path to URL conversion: {0}")]
     InvalidUrlFromPath(PathBuf),
@@ -256,6 +260,7 @@ impl Hash for ErrorKind {
             Self::InvalidUrlFromPath(p) => p.hash(state),
             Self::Utf8(e) => e.to_string().hash(state),
             Self::InvalidFilePath(u) => u.hash(state),
+            Self::InvalidFragment(u) => u.hash(state),
             Self::UnreachableEmailAddress(u, ..) => u.hash(state),
             Self::InsecureURL(u, ..) => u.hash(state),
             Self::InvalidBase(base, e) => (base, e).hash(state),
