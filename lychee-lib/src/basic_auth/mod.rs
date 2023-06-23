@@ -70,3 +70,46 @@ impl BasicAuthExtractor {
         Some(self.credentials[matches[0]].clone())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn test_basic_auth_extractor_new() {
+        let selector_str = "http://example.com foo:bar";
+        let selector = BasicAuthSelector::from_str(selector_str).unwrap();
+        let extractor = BasicAuthExtractor::new(vec![selector]).unwrap();
+
+        assert_eq!(extractor.credentials.len(), 1);
+        assert_eq!(extractor.credentials[0].username, "foo");
+        assert_eq!(extractor.credentials[0].password, "bar");
+    }
+
+    #[test]
+    fn test_basic_auth_extractor_matches() {
+        let selector_str = "http://example.com foo:bar";
+        let selector = BasicAuthSelector::from_str(selector_str).unwrap();
+        let extractor = BasicAuthExtractor::new(vec![selector]).unwrap();
+
+        let uri = Uri::try_from("http://example.com").unwrap();
+        let credentials = extractor.matches(&uri).unwrap();
+
+        assert_eq!(credentials.username, "foo");
+        assert_eq!(credentials.password, "bar");
+    }
+
+    #[test]
+    fn test_basic_auth_extractor_no_match() {
+        let selector_str = "http://example.com foo:bar";
+        let selector = BasicAuthSelector::from_str(selector_str).unwrap();
+        let extractor = BasicAuthExtractor::new(vec![selector]).unwrap();
+
+        let uri = Uri::try_from("http://test.com").unwrap();
+        let credentials = extractor.matches(&uri);
+
+        assert!(credentials.is_none());
+    }
+}
