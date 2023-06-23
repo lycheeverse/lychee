@@ -2,6 +2,7 @@
 
 mod base;
 mod cache;
+mod cookies;
 mod error;
 mod file;
 mod input;
@@ -13,6 +14,7 @@ pub(crate) mod uri;
 
 pub use base::Base;
 pub use cache::CacheStatus;
+pub use cookies::CookieJar;
 pub use error::ErrorKind;
 pub use file::FileType;
 pub use input::{Input, InputContent, InputSource};

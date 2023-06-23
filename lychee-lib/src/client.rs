@@ -13,7 +13,7 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use std::{collections::HashSet, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
 use http::{
@@ -24,6 +24,7 @@ use log::debug;
 use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::{header, Url};
+use reqwest_cookie_store::CookieStoreMutex;
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
@@ -32,7 +33,7 @@ use crate::{
     quirks::Quirks,
     remap::Remaps,
     retry::RetryExt,
-    types::{mail, uri::github::GithubUri},
+    types::{mail, uri::github::GithubUri, CookieJar},
     ErrorKind, Request, Response, Result, Status, Uri,
 };
 
@@ -259,6 +260,11 @@ pub struct ClientBuilder {
     /// It has no effect on non-HTTP schemes or if the URL doesn't support
     /// HTTPS.
     require_https: bool,
+
+    /// Cookie store used for requests.
+    ///
+    /// See https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.cookie_store
+    cookie_jar: Option<CookieJar>,
 }
 
 impl Default for ClientBuilder {
@@ -305,7 +311,7 @@ impl ClientBuilder {
             HeaderValue::from_static("chunked"),
         );
 
-        let builder = reqwest::ClientBuilder::new()
+        let mut builder = reqwest::ClientBuilder::new()
             .gzip(true)
             .default_headers(headers)
             .danger_accept_invalid_certs(self.allow_insecure)
@@ -313,10 +319,14 @@ impl ClientBuilder {
             .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
             .redirect(reqwest::redirect::Policy::limited(self.max_redirects));
 
-        let reqwest_client = (match self.timeout {
+        if let Some(cookie_jar) = self.cookie_jar {
+            builder = builder.cookie_provider(Arc::new(CookieStoreMutex::new(cookie_jar.jar)));
+        }
+
+        let reqwest_client = match self.timeout {
             Some(t) => builder.timeout(t),
             None => builder,
-        })
+        }
         .build()
         .map_err(ErrorKind::NetworkRequest)?;
 

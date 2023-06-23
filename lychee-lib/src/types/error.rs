@@ -128,6 +128,10 @@ pub enum ErrorKind {
     /// Too many redirects (HTTP 3xx) were encountered (configurable)
     #[error("Too many redirects")]
     TooManyRedirects(#[source] reqwest::Error),
+
+    /// Cannot load cookies
+    #[error("Cannot load cookies")]
+    Cookies(String),
 }
 
 impl ErrorKind {
@@ -262,6 +266,7 @@ impl Hash for ErrorKind {
             }
             Self::Regex(e) => e.to_string().hash(state),
             Self::TooManyRedirects(e) => e.to_string().hash(state),
+            Self::Cookies(e) => e.to_string().hash(state),
         }
     }
 }

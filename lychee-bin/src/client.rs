@@ -61,6 +61,7 @@ pub(crate) fn create(cfg: &Config) -> Result<Client> {
         .schemes(HashSet::from_iter(schemes))
         .accepted(accepted)
         .require_https(cfg.require_https)
+        .cookie_jar(cfg.cookie_jar.clone())
         .build()
         .client()
         .context("Failed to create request client")
