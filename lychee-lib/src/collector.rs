@@ -1,6 +1,6 @@
 use crate::{
     basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri, utils::request,
-    Base, BasicAuthSelector, Input, Request, Result,
+    Base, Input, Request, Result,
 };
 use futures::{
     stream::{self, Stream},
@@ -12,7 +12,7 @@ use par_stream::ParStreamExt;
 /// It drives the link extraction from inputs
 #[derive(Debug, Clone)]
 pub struct Collector {
-    basic_auth_selectors: Vec<BasicAuthSelector>,
+    basic_auth_extractor: Option<BasicAuthExtractor>,
     skip_missing_inputs: bool,
     include_verbatim: bool,
     use_html5ever: bool,
@@ -24,7 +24,7 @@ impl Collector {
     #[must_use]
     pub const fn new(base: Option<Base>) -> Self {
         Collector {
-            basic_auth_selectors: Vec::new(),
+            basic_auth_extractor: None,
             skip_missing_inputs: false,
             include_verbatim: false,
             use_html5ever: false,
@@ -53,17 +53,13 @@ impl Collector {
         self
     }
 
-    /// Pass multiple basic auth selectors to the collector. The collector
-    /// constructs a [`BasicAuthExtractor`] which is capable to match found
+    /// Pass a [`BasicAuthExtractor`] which is capable to match found
     /// URIs to basic auth credentials. These credentials get passed to the
     /// request in question.
     #[must_use]
-    pub fn basic_auth_selectors(mut self, selectors: Option<&Vec<BasicAuthSelector>>) -> Self {
-        self.basic_auth_selectors = match selectors {
-            Some(selectors) => selectors.clone(),
-            None => vec![],
-        };
-
+    #[allow(clippy::missing_const_for_fn)]
+    pub fn basic_auth_extractor(mut self, extractor: BasicAuthExtractor) -> Self {
+        self.basic_auth_extractor = Some(extractor);
         self
     }
 
@@ -86,17 +82,12 @@ impl Collector {
             })
             .flatten();
 
-        // FIXME (Techassi): This error should be returned. But I don't know
-        // how we can return it inside the stream.
-        let basic_auth_extractor = BasicAuthExtractor::new(self.basic_auth_selectors).unwrap();
-
         let base = self.base;
         contents
             .par_then_unordered(None, move |content| {
                 // send to parallel worker
-                let basic_auth_extractor = basic_auth_extractor.clone();
                 let base = base.clone();
-
+                let basic_auth_extractor = self.basic_auth_extractor.clone();
                 async move {
                     let content = content?;
 

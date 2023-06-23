@@ -82,6 +82,7 @@ use openssl_sys as _; // required for vendored-openssl feature
 
 #[doc(inline)]
 pub use crate::{
+    basic_auth::BasicAuthExtractor,
     // Constants get exposed so that the CLI can use the same defaults as the library
     client::{
         check, Client, ClientBuilder, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,

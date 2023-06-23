@@ -9,14 +9,37 @@ pub enum BasicAuthExtractorError {
     RegexSetError(#[from] regex::Error),
 }
 
+/// Extracts basic auth credentials from a given URI.
+/// Credentials are extracted if the URI matches one of the provided
+/// [`BasicAuthSelector`] instances.
 #[derive(Debug, Clone)]
-pub(crate) struct BasicAuthExtractor {
+pub struct BasicAuthExtractor {
     credentials: Vec<BasicAuthCredentials>,
     regex_set: RegexSet,
 }
 
 impl BasicAuthExtractor {
-    pub(crate) fn new(selectors: Vec<BasicAuthSelector>) -> Result<Self, BasicAuthExtractorError> {
+    /// Creates a new [`BasicAuthExtractor`] from a list of [`BasicAuthSelector`]
+    /// instances.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the provided [`BasicAuthSelector`] instances contain
+    /// invalid regular expressions.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use lychee_lib::{BasicAuthExtractor, BasicAuthSelector};
+    /// use std::str::FromStr;
+    ///
+    /// let selectors = vec![
+    ///    BasicAuthSelector::from_str("http://example.com foo:bar").unwrap(),
+    /// ];
+    ///
+    /// let extractor = BasicAuthExtractor::new(selectors).unwrap();
+    /// ```
+    pub fn new(selectors: Vec<BasicAuthSelector>) -> Result<Self, BasicAuthExtractorError> {
         let mut raw_uri_regexes = Vec::new();
         let mut credentials = Vec::new();
 

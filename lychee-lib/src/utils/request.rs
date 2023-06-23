@@ -10,10 +10,15 @@ use crate::{
     basic_auth::BasicAuthExtractor,
     types::{uri::raw::RawUri, InputContent, InputSource},
     utils::{path, url},
-    Base, ErrorKind, Request, Result, Uri,
+    Base, BasicAuthCredentials, ErrorKind, Request, Result, Uri,
 };
 
 const MAX_TRUNCATED_STR_LEN: usize = 100;
+
+/// Extract basic auth credentials for a given URL.
+fn credentials(extractor: &Option<BasicAuthExtractor>, uri: &Uri) -> Option<BasicAuthCredentials> {
+    extractor.as_ref().and_then(|ext| ext.matches(uri))
+}
 
 /// Create requests out of the collected URLs.
 /// Only keeps "valid" URLs. This filters out anchors for example.
@@ -21,7 +26,7 @@ pub(crate) fn create(
     uris: Vec<RawUri>,
     input_content: &InputContent,
     base: &Option<Base>,
-    extractor: &BasicAuthExtractor,
+    extractor: &Option<BasicAuthExtractor>,
 ) -> Result<HashSet<Request>> {
     let base_url = Base::from_source(&input_content.source);
 
@@ -44,7 +49,7 @@ pub(crate) fn create(
             };
 
             if let Ok(uri) = Uri::try_from(raw_uri) {
-                let credentials = extractor.matches(&uri);
+                let credentials = credentials(extractor, &uri);
 
                 Ok(Some(Request::new(
                     uri,
@@ -55,7 +60,7 @@ pub(crate) fn create(
                 )))
             } else if let Some(url) = base.as_ref().and_then(|u| u.join(&text)) {
                 let uri = Uri { url };
-                let credentials = extractor.matches(&uri);
+                let credentials = credentials(extractor, &uri);
 
                 Ok(Some(Request::new(
                     uri,
@@ -70,7 +75,7 @@ pub(crate) fn create(
                     Ok(None)
                 } else if let Some(url) = create_uri_from_path(root, &text, base)? {
                     let uri = Uri { url };
-                    let credentials = extractor.matches(&uri);
+                    let credentials = credentials(extractor, &uri);
 
                     Ok(Some(Request::new(
                         uri,
@@ -89,7 +94,7 @@ pub(crate) fn create(
                     Ok(None)
                 } else {
                     let uri = Uri { url: url? };
-                    let credentials = extractor.matches(&uri);
+                    let credentials = credentials(extractor, &uri);
 
                     Ok(Some(Request::new(
                         uri,

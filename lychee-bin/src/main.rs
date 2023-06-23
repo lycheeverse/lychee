@@ -76,7 +76,7 @@ use openssl_sys as _; // required for vendored-openssl feature
 use options::LYCHEE_CONFIG_FILE;
 use ring as _; // required for apple silicon
 
-use lychee_lib::Collector;
+use lychee_lib::{BasicAuthExtractor, Collector};
 
 mod archive;
 mod cache;
@@ -275,14 +275,21 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 /// Run lychee on the given inputs
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
-    let requests = Collector::new(opts.config.base.clone())
+
+    let mut collector = Collector::new(opts.config.base.clone())
         .skip_missing_inputs(opts.config.skip_missing)
         .include_verbatim(opts.config.include_verbatim)
-        .basic_auth_selectors(opts.config.basic_auth.as_ref())
         // File a bug if you rely on this envvar! It's going to go away eventually.
-        .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").map_or(false, |x| x == "1"))
-        .collect_links(inputs)
-        .await;
+        .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").map_or(false, |x| x == "1"));
+
+    collector = if let Some(ref basic_auth) = opts.config.basic_auth {
+        collector.basic_auth_extractor(BasicAuthExtractor::new(basic_auth.clone())?)
+    } else {
+        collector
+    };
+
+    let requests = collector.collect_links(inputs).await;
+
     let client = client::create(&opts.config)?;
     let cache = load_cache(&opts.config).unwrap_or_default();
     let cache = Arc::new(cache);
