@@ -91,8 +91,9 @@ pub use crate::{
     collector::Collector,
     filter::{Excludes, Filter, Includes},
     types::{
-        uri::valid::Uri, Base, BasicAuthCredentials, BasicAuthSelector, CacheStatus, ErrorKind,
-        FileType, Input, InputContent, InputSource, Request, Response, ResponseBody, Result,
-        Status,
+        uri::valid::Uri, uri::valid::Uri, Base, Base, BasicAuthCredentials, BasicAuthSelector,
+        CacheStatus, CacheStatus, CookieJar, ErrorKind, ErrorKind, FileType, FileType, Input,
+        Input, InputContent, InputContent, InputSource, InputSource, Request, Request, Response,
+        Response, ResponseBody, ResponseBody, Result, Result, Status, Status,
     },
 };

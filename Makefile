@@ -18,6 +18,10 @@ docker-run: ## Run Docker image
 docker-push: ## Push image to Docker Hub
 	docker push $(IMAGE_NAME)
 
+.PHONY: clean
+clean: ## Clean up build artifacts
+	cargo clean
+
 .PHONY: build
 build: ## Build Rust code locally
 	cargo build

@@ -17,7 +17,10 @@ mod cli {
     use serde::Serialize;
     use serde_json::Value;
     use uuid::Uuid;
-    use wiremock::{matchers::basic_auth, Mock, ResponseTemplate};
+    use wiremock::{
+        matchers::{basic_auth, header, path},
+        Mock, MockServer, Request, ResponseTemplate,
+    };
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -1304,6 +1307,30 @@ mod cli {
             .success()
             .stdout(contains("2 Total"))
             .stdout(contains("2 OK"));
+    }
+
+    #[tokio::test]
+    async fn test_send_cookies() -> Result<()> {
+        // Start a background HTTP server on a random local port
+        let mock_server = MockServer::start().await;
+
+        // when it receives a GET request on '/' it will respond with a 200
+        // if the request contains a cookie 'foo=bar'
+        Mock::given(path("/"))
+            .and(header("cookie", "foo=bar"))
+            .respond_with(|_req: &Request| {
+                ResponseTemplate::new(200).set_body_string("Cookie sent")
+            })
+            .mount(&mock_server)
+            .await;
+
+        let mut cmd = main_command();
+        cmd.arg("--no-progress")
+            .arg("-")
+            .write_stdin(mock_server.uri())
+            .assert()
+            .success();
+        // .stdout(contains(mock_server.uri()));
 
         Ok(())
     }

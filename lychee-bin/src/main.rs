@@ -73,10 +73,13 @@ use log::{error, info, warn};
 #[cfg(feature = "native-tls")]
 use openssl_sys as _; // required for vendored-openssl feature
 
+use log::{debug, error, info, warn};
+use openssl_sys as _;
 use options::LYCHEE_CONFIG_FILE;
 use ring as _; // required for apple silicon
 
 use lychee_lib::{BasicAuthExtractor, Collector};
+use lychee_lib::{Collector, CookieJar};
 
 mod archive;
 mod cache;
@@ -290,6 +293,8 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
 
     let requests = collector.collect_links(inputs).await;
 
+    let cookie_jar = CookieJar::load(&opts.config.cookie_file)?;
+
     let client = client::create(&opts.config)?;
     let cache = load_cache(&opts.config).unwrap_or_default();
     let cache = Arc::new(cache);
@@ -348,6 +353,12 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         if opts.config.cache {
             cache.store(LYCHEE_CACHE_FILE)?;
         }
+
+        if let Some(ref cookie_jar) = opts.config.cookie_jar {
+            debug!("Saving cookie jar");
+            cookie_jar.save().context("Cannot save cookie jar")?;
+        }
+
         exit_code
     };
 

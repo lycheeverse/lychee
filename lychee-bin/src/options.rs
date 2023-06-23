@@ -1,12 +1,13 @@
 use crate::archive::Archive;
-use crate::parse::{parse_base, parse_statuscodes};
+use crate::parse::{parse_base, parse_cookies, parse_statuscodes};
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, BasicAuthSelector, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
-    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+    Base, Base, BasicAuthSelector, CookieJar, Input, Input, DEFAULT_MAX_REDIRECTS,
+    DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
+    DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -356,6 +357,15 @@ pub(crate) struct Config {
     #[arg(long)]
     #[serde(default)]
     pub(crate) require_https: bool,
+
+    /// Tell lychee a file to read cookies from and start the cookie engine.
+    /// Cookies will be stored in the cookie jar and sent with requests.
+    ///
+    /// New cookies will be stored in the cookie jar and existing cookies will
+    /// be updated.
+    #[arg(long, value_parser = parse_cookies)]
+    #[serde(default)]
+    pub(crate) cookie_jar: Option<CookieJar>,
 }
 
 impl Config {
@@ -406,6 +416,7 @@ impl Config {
             glob_ignore_case: false;
             output: None;
             require_https: false;
+            cookie_jar: None;
         }
 
         if self
