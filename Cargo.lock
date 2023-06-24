@@ -2068,7 +2068,6 @@ dependencies = [
  "hyper",
  "ip_network",
  "jwalk",
- "lazy_static",
  "linkify",
  "log",
  "octocrab",

@@ -1,7 +1,8 @@
 mod excludes;
 mod includes;
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
+use regex::RegexSet;
 use std::collections::HashSet;
 
 pub use excludes::Excludes;
@@ -10,29 +11,29 @@ pub use includes::Includes;
 use crate::Uri;
 
 #[cfg(all(not(test), not(feature = "check_example_domains")))]
-lazy_static! {
-    /// These domains are explicitly defined by RFC 2606, section 3 Reserved Example
-    /// Second Level Domain Names for describing example cases and should not be
-    /// dereferenced as they should not have content.
-    static ref EXAMPLE_DOMAINS: HashSet<&'static str> =
-        HashSet::from_iter(["example.com", "example.org", "example.net", "example.edu"]);
-}
+/// These domains are explicitly defined by RFC 2606, section 3 Reserved Example
+/// Second Level Domain Names for describing example cases and should not be
+/// dereferenced as they should not have content.
+static EXAMPLE_DOMAINS: Lazy<HashSet<&'static str>> =
+    Lazy::new(|| HashSet::from_iter(["example.com", "example.org", "example.net", "example.edu"]));
 
 // Allow usage of example domains in tests
 #[cfg(any(test, feature = "check_example_domains"))]
-lazy_static! {
-    static ref EXAMPLE_DOMAINS: HashSet<&'static str> = HashSet::new();
-}
+static EXAMPLE_DOMAINS: Lazy<HashSet<&'static str>> = Lazy::new(HashSet::new);
 
 /// Pre-defined exclusions for known false-positives
 const FALSE_POSITIVE_PAT: &[&str] = &[
-    r"http://www.w3.org/1999/xhtml",
-    r"http://www.w3.org/1999/xlink",
-    r"http://www.w3.org/2000/svg",
-    r"https://schemas.microsoft.com",
-    r"http://schemas.zune.net",
-    r"http://schemas.openxmlformats.org",
+    r"^https?://schemas.openxmlformats.org",
+    r"^https?://schemas.zune.net",
+    r"^https?://www.w3.org/1999/xhtml",
+    r"^https?://www.w3.org/1999/xlink",
+    r"^https?://www.w3.org/2000/svg",
+    r"^https?://ogp.me/ns#",
+    r"^https?://schemas.microsoft.com",
 ];
+
+static FALSE_POSITIVE_SET: Lazy<RegexSet> =
+    Lazy::new(|| regex::RegexSet::new(FALSE_POSITIVE_PAT).expect("Failed to create RegexSet"));
 
 #[inline]
 #[must_use]
@@ -40,7 +41,7 @@ const FALSE_POSITIVE_PAT: &[&str] = &[
 /// default. This behavior can be explicitly overwritten by defining an
 /// `Include` pattern, which will match on a false positive
 pub fn is_false_positive(input: &str) -> bool {
-    FALSE_POSITIVE_PAT.iter().any(|pat| input.starts_with(pat))
+    FALSE_POSITIVE_SET.is_match(input)
 }
 
 #[inline]
