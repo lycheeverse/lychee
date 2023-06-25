@@ -1,10 +1,11 @@
-use lazy_static::lazy_static;
 use std::collections::HashSet;
+
+use once_cell::sync::Lazy;
 
 use crate::{ErrorKind, Result, Uri};
 
-lazy_static! {
-    static ref GITHUB_API_EXCLUDED_ENDPOINTS: HashSet<&'static str> = HashSet::from_iter([
+static GITHUB_API_EXCLUDED_ENDPOINTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    HashSet::from_iter([
         "about",
         "collections",
         "events",
@@ -19,8 +20,8 @@ lazy_static! {
         "sponsors",
         "topics",
         "watching",
-    ]);
-}
+    ])
+});
 
 /// Uri path segments extracted from a Github URL
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
