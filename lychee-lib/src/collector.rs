@@ -70,10 +70,6 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    ///
-    /// # Panics
-    ///
-    /// Will panic if the [`BasicAuthExtractor`] cannot be constructed.
     pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
         let contents = stream::iter(inputs)
