@@ -17,6 +17,7 @@ mod cli {
     use serde::Serialize;
     use serde_json::Value;
     use uuid::Uuid;
+    use wiremock::{matchers::basic_auth, Mock, ResponseTemplate};
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -1205,6 +1206,68 @@ mod cli {
             .code(2)
             .stdout(contains("Suggestions"))
             .stdout(contains("http://web.archive.org/web/"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_basic_auth() -> Result<()> {
+        let username = "username";
+        let password = "password123";
+
+        let mock_server = wiremock::MockServer::start().await;
+        Mock::given(basic_auth(username, password))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        // Configure the command to use the BasicAuthExtractor
+        main_command()
+            .arg("--verbose")
+            .arg("--basic-auth")
+            .arg(format!("{} {username}:{password}", mock_server.uri()))
+            .arg("-")
+            .write_stdin(mock_server.uri())
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 OK"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_multi_basic_auth() -> Result<()> {
+        let username1 = "username";
+        let password1 = "password123";
+        let mock_server1 = wiremock::MockServer::start().await;
+        Mock::given(basic_auth(username1, password1))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server1)
+            .await;
+
+        let username2 = "admin_user";
+        let password2 = "admin_pw";
+        let mock_server2 = wiremock::MockServer::start().await;
+
+        Mock::given(basic_auth(username2, password2))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server2)
+            .await;
+
+        // Configure the command to use the BasicAuthExtractor
+        main_command()
+            .arg("--verbose")
+            .arg("--basic-auth")
+            .arg(format!("{} {username1}:{password1}", mock_server1.uri()))
+            .arg("--basic-auth")
+            .arg(format!("{} {username2}:{password2}", mock_server2.uri()))
+            .arg("-")
+            .write_stdin(format!("{}\n{}", mock_server1.uri(), mock_server2.uri()))
+            .assert()
+            .success()
+            .stdout(contains("2 Total"))
+            .stdout(contains("2 OK"));
 
         Ok(())
     }
