@@ -379,7 +379,7 @@ Options:
           Base URL or website root directory to check relative URLs e.g. https://example.com or `/path/to/public`
 
       --basic-auth <BASIC_AUTH>
-          Basic authentication support. E.g. `username:password`
+          Basic authentication support. E.g. `http://example.com username:password`
 
       --github-token <GITHUB_TOKEN>
           GitHub API token to use when checking github.com links, to avoid rate limiting

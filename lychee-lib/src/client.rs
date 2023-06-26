@@ -17,9 +17,9 @@ use std::{collections::HashSet, time::Duration};
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
-
+use headers::authorization::Credentials;
 use http::{
-    header::{HeaderMap, HeaderValue},
+    header::{HeaderMap, HeaderValue, AUTHORIZATION},
     StatusCode,
 };
 use log::debug;
@@ -35,7 +35,7 @@ use crate::{
     remap::Remaps,
     retry::RetryExt,
     types::uri::github::GithubUri,
-    ErrorKind, Request, Response, Result, Status, Uri,
+    BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
@@ -441,6 +441,7 @@ impl Client {
     {
         let Request {
             ref mut uri,
+            ref credentials,
             source,
             ..
         } = request.try_into()?;
@@ -461,9 +462,13 @@ impl Client {
             #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
             Status::Excluded
         } else {
-            match self.check_website(uri).await {
+            match self.check_website(uri, credentials).await {
                 Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
-                    if self.check_website(&uri.to_https()?).await.is_success() {
+                    if self
+                        .check_website(&uri.to_https()?, credentials)
+                        .await
+                        .is_success()
+                    {
                         Status::Error(ErrorKind::InsecureURL(uri.clone()))
                     } else {
                         Status::Ok(code)
@@ -500,7 +505,11 @@ impl Client {
     /// - The URI is invalid.
     /// - The request failed.
     /// - The response status code is not accepted.
-    pub async fn check_website(&self, uri: &Uri) -> Status {
+    pub async fn check_website(
+        &self,
+        uri: &Uri,
+        credentials: &Option<BasicAuthCredentials>,
+    ) -> Status {
         // Workaround for upstream reqwest panic
         if validate_url(&uri.url) {
             if matches!(uri.scheme(), "http" | "https") {
@@ -515,7 +524,7 @@ impl Client {
             return Status::Unsupported(ErrorKind::InvalidURI(uri.clone()));
         }
 
-        let status = self.retry_request(uri).await;
+        let status = self.retry_request(uri, credentials).await;
         if status.is_success() {
             return status;
         }
@@ -537,11 +546,11 @@ impl Client {
 
     /// Retry requests up to `max_retries` times
     /// with an exponential backoff.
-    async fn retry_request(&self, uri: &Uri) -> Status {
+    async fn retry_request(&self, uri: &Uri, credentials: &Option<BasicAuthCredentials>) -> Status {
         let mut retries: u64 = 0;
         let mut wait_time = self.retry_wait_time;
 
-        let mut status = self.check_default(uri).await;
+        let mut status = self.check_default(uri, credentials).await;
         while retries < self.max_retries {
             if status.is_success() || !status.should_retry() {
                 return status;
@@ -549,7 +558,7 @@ impl Client {
             retries += 1;
             tokio::time::sleep(wait_time).await;
             wait_time = wait_time.saturating_mul(2);
-            status = self.check_default(uri).await;
+            status = self.check_default(uri, credentials).await;
         }
         status
     }
@@ -588,12 +597,20 @@ impl Client {
     }
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
-    async fn check_default(&self, uri: &Uri) -> Status {
-        let request = match self
-            .reqwest_client
-            .request(self.method.clone(), uri.as_str())
-            .build()
-        {
+    async fn check_default(&self, uri: &Uri, credentials: &Option<BasicAuthCredentials>) -> Status {
+        let request = match credentials {
+            Some(credentials) => self
+                .reqwest_client
+                .request(self.method.clone(), uri.as_str())
+                .header(AUTHORIZATION, credentials.to_authorization().0.encode())
+                .build(),
+            None => self
+                .reqwest_client
+                .request(self.method.clone(), uri.as_str())
+                .build(),
+        };
+
+        let request = match request {
             Ok(r) => r,
             Err(e) => return e.into(),
         };

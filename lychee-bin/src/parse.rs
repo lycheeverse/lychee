@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context, Result};
-use headers::{authorization::Basic, Authorization, HeaderMap, HeaderName};
+use headers::{HeaderMap, HeaderName};
 use lychee_lib::{remap::Remaps, Base};
 use std::{collections::HashSet, time::Duration};
 
@@ -36,18 +36,6 @@ pub(crate) fn parse_remaps(remaps: &[String]) -> Result<Remaps> {
         .context("Remaps must be of the form '<pattern> <uri>' (separated by whitespace)")
 }
 
-/// Parse a HTTP basic auth header into username and password
-pub(crate) fn parse_basic_auth(auth: &str) -> Result<Authorization<Basic>> {
-    let params: Vec<_> = auth.split(':').collect();
-    if params.len() != 2 {
-        return Err(anyhow!(
-            "Basic auth value must be of the form username:password, got {}",
-            auth
-        ));
-    }
-    Ok(Authorization::basic(params[0], params[1]))
-}
-
 pub(crate) fn parse_base(src: &str) -> Result<Base, lychee_lib::ErrorKind> {
     Base::try_from(src)
 }
@@ -71,7 +59,7 @@ pub(crate) fn parse_statuscodes(accept: &str) -> Result<HashSet<u16>> {
 mod tests {
     use std::collections::HashSet;
 
-    use headers::{HeaderMap, HeaderMapExt};
+    use headers::HeaderMap;
     use regex::Regex;
     use reqwest::{header, Url};
 
@@ -89,21 +77,6 @@ mod tests {
         let actual = parse_statuscodes("200,204,301").unwrap();
         let expected = IntoIterator::into_iter([200, 204, 301]).collect::<HashSet<_>>();
         assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_parse_basic_auth() {
-        let mut expected = HeaderMap::new();
-        expected.insert(
-            header::AUTHORIZATION,
-            "Basic YWxhZGluOmFicmV0ZXNlc2Ftbw==".parse().unwrap(),
-        );
-
-        let mut actual = HeaderMap::new();
-        let auth_header = parse_basic_auth("aladin:abretesesamo").unwrap();
-        actual.typed_insert(auth_header);
-
-        assert_eq!(expected, actual);
     }
 
     #[test]

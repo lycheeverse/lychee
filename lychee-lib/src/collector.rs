@@ -1,5 +1,6 @@
 use crate::{
-    extract::Extractor, types::uri::raw::RawUri, utils::request, Base, Input, Request, Result,
+    basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri, utils::request,
+    Base, Input, Request, Result,
 };
 use futures::{
     stream::{self, Stream},
@@ -11,10 +12,11 @@ use par_stream::ParStreamExt;
 /// It drives the link extraction from inputs
 #[derive(Debug, Clone)]
 pub struct Collector {
-    base: Option<Base>,
+    basic_auth_extractor: Option<BasicAuthExtractor>,
     skip_missing_inputs: bool,
     include_verbatim: bool,
     use_html5ever: bool,
+    base: Option<Base>,
 }
 
 impl Collector {
@@ -22,10 +24,11 @@ impl Collector {
     #[must_use]
     pub const fn new(base: Option<Base>) -> Self {
         Collector {
-            base,
+            basic_auth_extractor: None,
             skip_missing_inputs: false,
-            use_html5ever: false,
             include_verbatim: false,
+            use_html5ever: false,
+            base,
         }
     }
 
@@ -50,6 +53,16 @@ impl Collector {
         self
     }
 
+    /// Pass a [`BasicAuthExtractor`] which is capable to match found
+    /// URIs to basic auth credentials. These credentials get passed to the
+    /// request in question.
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn)]
+    pub fn basic_auth_extractor(mut self, extractor: BasicAuthExtractor) -> Self {
+        self.basic_auth_extractor = Some(extractor);
+        self
+    }
+
     /// Fetch all unique links from inputs
     /// All relative URLs get prefixed with `base` (if given).
     /// (This can be a directory or a base URL)
@@ -70,11 +83,14 @@ impl Collector {
             .par_then_unordered(None, move |content| {
                 // send to parallel worker
                 let base = base.clone();
+                let basic_auth_extractor = self.basic_auth_extractor.clone();
                 async move {
                     let content = content?;
+
                     let extractor = Extractor::new(self.use_html5ever, self.include_verbatim);
                     let uris: Vec<RawUri> = extractor.extract(&content);
-                    let requests = request::create(uris, &content, &base)?;
+
+                    let requests = request::create(uris, &content, &base, &basic_auth_extractor)?;
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
             })
