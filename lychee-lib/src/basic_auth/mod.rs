@@ -83,7 +83,7 @@ mod tests {
     fn test_basic_auth_extractor_new() {
         let selector_str = "http://example.com foo:bar";
         let selector = BasicAuthSelector::from_str(selector_str).unwrap();
-        let extractor = BasicAuthExtractor::new(vec![selector]).unwrap();
+        let extractor = BasicAuthExtractor::new([selector]).unwrap();
 
         assert_eq!(extractor.credentials.len(), 1);
         assert_eq!(extractor.credentials[0].username, "foo");
@@ -94,7 +94,7 @@ mod tests {
     fn test_basic_auth_extractor_matches() {
         let selector_str = "http://example.com foo:bar";
         let selector = BasicAuthSelector::from_str(selector_str).unwrap();
-        let extractor = BasicAuthExtractor::new(vec![selector]).unwrap();
+        let extractor = BasicAuthExtractor::new([selector]).unwrap();
 
         let uri = Uri::try_from("http://example.com").unwrap();
         let credentials = extractor.matches(&uri).unwrap();
@@ -104,10 +104,55 @@ mod tests {
     }
 
     #[test]
+    fn test_basic_auth_extractor_matches_multiple() {
+        let example_com = BasicAuthSelector::from_str("http://example.com foo1:bar1").unwrap();
+        let example_org = BasicAuthSelector::from_str("http://example.org foo2:bar2").unwrap();
+        let extractor = BasicAuthExtractor::new([example_com, example_org]).unwrap();
+
+        let uri = Uri::try_from("http://example.org").unwrap();
+        let credentials = extractor.matches(&uri).unwrap();
+
+        assert_eq!(credentials.username, "foo2");
+        assert_eq!(credentials.password, "bar2");
+    }
+
+    #[test]
+    fn test_basic_auth_regex_match() {
+        let selector_str = "https?://example.com/(.*)/bar foo:bar";
+        let selector = BasicAuthSelector::from_str(selector_str).unwrap();
+        let extractor = BasicAuthExtractor::new([selector]).unwrap();
+
+        let uri = Uri::try_from("http://example.com/foo/bar").unwrap();
+        let credentials = extractor.matches(&uri).unwrap();
+
+        assert_eq!(credentials.username, "foo");
+        assert_eq!(credentials.password, "bar");
+
+        let uri = Uri::try_from("https://example.com/baz/bar").unwrap();
+        let credentials = extractor.matches(&uri).unwrap();
+
+        assert_eq!(credentials.username, "foo");
+        assert_eq!(credentials.password, "bar");
+    }
+
+    #[test]
+    fn test_basic_auth_first_match_wins() {
+        let example_com = BasicAuthSelector::from_str("http://example.com foo1:bar1").unwrap();
+        let example_org = BasicAuthSelector::from_str("http://example.com foo2:bar2").unwrap();
+        let extractor = BasicAuthExtractor::new([example_com, example_org]).unwrap();
+
+        let uri = Uri::try_from("http://example.com").unwrap();
+        let credentials = extractor.matches(&uri).unwrap();
+
+        assert_eq!(credentials.username, "foo1");
+        assert_eq!(credentials.password, "bar1");
+    }
+
+    #[test]
     fn test_basic_auth_extractor_no_match() {
         let selector_str = "http://example.com foo:bar";
         let selector = BasicAuthSelector::from_str(selector_str).unwrap();
-        let extractor = BasicAuthExtractor::new(vec![selector]).unwrap();
+        let extractor = BasicAuthExtractor::new([selector]).unwrap();
 
         let uri = Uri::try_from("http://test.com").unwrap();
         let credentials = extractor.matches(&uri);
