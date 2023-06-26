@@ -50,6 +50,7 @@
 #[cfg(doctest)]
 doc_comment::doctest!("../../README.md");
 
+mod basic_auth;
 mod client;
 /// A pool of clients, to handle concurrent checks
 pub mod collector;
@@ -81,6 +82,7 @@ use openssl_sys as _; // required for vendored-openssl feature
 
 #[doc(inline)]
 pub use crate::{
+    basic_auth::BasicAuthExtractor,
     // Constants get exposed so that the CLI can use the same defaults as the library
     client::{
         check, Client, ClientBuilder, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
@@ -89,7 +91,8 @@ pub use crate::{
     collector::Collector,
     filter::{Excludes, Filter, Includes},
     types::{
-        uri::valid::Uri, Base, CacheStatus, ErrorKind, FileType, Input, InputContent, InputSource,
-        Request, Response, ResponseBody, Result, Status,
+        uri::valid::Uri, Base, BasicAuthCredentials, BasicAuthSelector, CacheStatus, ErrorKind,
+        FileType, Input, InputContent, InputSource, Request, Response, ResponseBody, Result,
+        Status,
     },
 };

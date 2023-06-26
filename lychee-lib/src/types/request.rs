@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, fmt::Display};
 
-use crate::{ErrorKind, Uri};
+use crate::{BasicAuthCredentials, ErrorKind, Uri};
 
 use super::InputSource;
 
@@ -10,14 +10,20 @@ pub struct Request {
     /// A valid Uniform Resource Identifier of a given endpoint, which can be
     /// checked with lychee
     pub uri: Uri,
+
     /// The resource which contained the given URI
     pub source: InputSource,
+
     /// Specifies how the URI was rendered inside a document
     /// (for example `img`, `a`, `pre`, or `code`).
     /// In case of plaintext input the field is `None`.
     pub element: Option<String>,
+
     /// Specifies the attribute (e.g. `href`) that contained the URI
     pub attribute: Option<String>,
+
+    /// Basic auth credentials
+    pub credentials: Option<BasicAuthCredentials>,
 }
 
 impl Request {
@@ -29,12 +35,14 @@ impl Request {
         source: InputSource,
         element: Option<String>,
         attribute: Option<String>,
+        credentials: Option<BasicAuthCredentials>,
     ) -> Self {
         Request {
             uri,
             source,
             element,
             attribute,
+            credentials,
         }
     }
 }
@@ -54,6 +62,7 @@ impl TryFrom<Uri> for Request {
             InputSource::RemoteUrl(Box::new(uri.url)),
             None,
             None,
+            None,
         ))
     }
 }
@@ -63,7 +72,7 @@ impl TryFrom<String> for Request {
 
     fn try_from(s: String) -> Result<Self, Self::Error> {
         let uri = Uri::try_from(s.as_str())?;
-        Ok(Request::new(uri, InputSource::String(s), None, None))
+        Ok(Request::new(uri, InputSource::String(s), None, None, None))
     }
 }
 
@@ -75,6 +84,7 @@ impl TryFrom<&str> for Request {
         Ok(Request::new(
             uri,
             InputSource::String(s.to_owned()),
+            None,
             None,
             None,
         ))

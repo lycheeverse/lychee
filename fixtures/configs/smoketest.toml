@@ -73,7 +73,7 @@ base = "https://example.com"
 # HTTP basic auth support. This will be the username and password passed to the
 # authorization HTTP header. See
 # <https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization>
-basic_auth = "user:pwd"
+basic_auth = ["http://example.com user:pwd"]
 
 #############################  Exclusions  ##########################
 
