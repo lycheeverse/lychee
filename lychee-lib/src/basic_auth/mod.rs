@@ -39,13 +39,15 @@ impl BasicAuthExtractor {
     ///
     /// let extractor = BasicAuthExtractor::new(selectors).unwrap();
     /// ```
-    pub fn new(selectors: Vec<BasicAuthSelector>) -> Result<Self, BasicAuthExtractorError> {
+    pub fn new<T: AsRef<[BasicAuthSelector]>>(
+        selectors: T,
+    ) -> Result<Self, BasicAuthExtractorError> {
         let mut raw_uri_regexes = Vec::new();
         let mut credentials = Vec::new();
 
-        for selector in selectors {
-            raw_uri_regexes.push(selector.raw_uri_regex);
-            credentials.push(selector.credentials);
+        for selector in selectors.as_ref() {
+            raw_uri_regexes.push(selector.raw_uri_regex.clone());
+            credentials.push(selector.credentials.clone());
         }
 
         let regex_set = RegexSet::new(raw_uri_regexes)?;

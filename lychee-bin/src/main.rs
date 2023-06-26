@@ -283,7 +283,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").map_or(false, |x| x == "1"));
 
     collector = if let Some(ref basic_auth) = opts.config.basic_auth {
-        collector.basic_auth_extractor(BasicAuthExtractor::new(basic_auth.clone())?)
+        collector.basic_auth_extractor(BasicAuthExtractor::new(basic_auth)?)
     } else {
         collector
     };
