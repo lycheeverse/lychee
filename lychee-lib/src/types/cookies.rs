@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 /// serde
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CookieJar {
-    pub(crate) jar: ReqwestCookieStore,
     pub(crate) path: PathBuf,
+    pub(crate) inner: ReqwestCookieStore,
 }
 
 impl CookieJar {
@@ -23,10 +23,18 @@ impl CookieJar {
     /// - the file cannot be opened or
     /// - if the file is not valid JSON
     pub fn load(path: PathBuf) -> Result<Self> {
-        let file = std::fs::File::open(&path).map(std::io::BufReader::new)?;
-        let jar = ReqwestCookieStore::load_json(file)
-            .map_err(|e| ErrorKind::Cookies(format!("Failed to load cookies: {e}")))?;
-        Ok(Self { jar, path })
+        match std::fs::File::open(&path).map(std::io::BufReader::new) {
+            Ok(reader) => {
+                let inner = ReqwestCookieStore::load_json(reader)
+                    .map_err(|e| ErrorKind::Cookies(format!("Failed to load cookies: {e}")))?;
+                Ok(Self { path, inner })
+            }
+            // Create a new cookie store if the file does not exist
+            Err(_) => Ok(Self {
+                path,
+                inner: ReqwestCookieStore::default(),
+            }),
+        }
     }
 
     /// Save the cookie store to file as JSON
@@ -39,6 +47,7 @@ impl CookieJar {
     /// - if the file cannot be written to or
     /// - if the file cannot be serialized to JSON
     pub fn save(&self) -> Result<()> {
+        println!("{:?}", self.jar);
         let mut file = std::fs::File::create(&self.path)?;
         self.jar
             .save_json(&mut file)

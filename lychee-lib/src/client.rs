@@ -26,7 +26,7 @@ use log::debug;
 use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::{header, redirect, Url};
-use reqwest_cookie_store::CookieStoreMutex;
+use reqwest_cookie_store::CookieStoreRwLock;
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
@@ -35,9 +35,8 @@ use crate::{
     quirks::Quirks,
     remap::Remaps,
     retry::RetryExt,
-    types::{mail, uri::github::GithubUri, CookieJar},
-    BasicAuthCredentials, ErrorKind, ErrorKind, Request, Request, Response, Response, Result,
-    Result, Status, Status, Uri, Uri,
+    types::{uri::github::GithubUri, CookieJar},
+    BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
@@ -270,7 +269,7 @@ pub struct ClientBuilder {
     /// Cookie store used for requests.
     ///
     /// See https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.cookie_store
-    cookie_jar: Option<CookieJar>,
+    cookie_jar: Option<Arc<CookieJar>>,
 }
 
 impl Default for ClientBuilder {
@@ -337,7 +336,9 @@ impl ClientBuilder {
             .redirect(redirect_policy);
 
         if let Some(cookie_jar) = self.cookie_jar {
-            builder = builder.cookie_provider(Arc::new(CookieStoreMutex::new(cookie_jar.jar)));
+            let jar = cookie_jar.clone();
+            let arc = Arc::new(CookieStoreRwLock::new(jar.inner.clone()));
+            builder = builder.cookie_provider(arc);
         }
 
         let reqwest_client = match self.timeout {
