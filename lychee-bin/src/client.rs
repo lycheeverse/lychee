@@ -3,12 +3,13 @@ use crate::parse::{parse_basic_auth, parse_duration_secs, parse_headers, parse_r
 use anyhow::{Context, Result};
 use headers::HeaderMapExt;
 use http::StatusCode;
-use lychee_lib::{Client, ClientBuilder};
+use lychee_lib::{Client, ClientBuilder, CookieJar};
 use regex::RegexSet;
+use std::sync::Arc;
 use std::{collections::HashSet, str::FromStr};
 
 /// Creates a client according to the command-line config
-pub(crate) fn create(cfg: &Config) -> Result<Client> {
+pub(crate) fn create(cfg: &Config, cookie_jar: Option<Arc<CookieJar>>) -> Result<Client> {
     let mut headers = parse_headers(&cfg.header)?;
     if let Some(auth) = &cfg.basic_auth {
         let auth_header = parse_basic_auth(auth)?;
@@ -61,7 +62,7 @@ pub(crate) fn create(cfg: &Config) -> Result<Client> {
         .schemes(HashSet::from_iter(schemes))
         .accepted(accepted)
         .require_https(cfg.require_https)
-        .cookie_jar(cfg.cookie_jar.clone())
+        .cookie_jar(cookie_jar)
         .build()
         .client()
         .context("Failed to create request client")

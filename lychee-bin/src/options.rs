@@ -1,12 +1,12 @@
 use crate::archive::Archive;
-use crate::parse::{parse_base, parse_cookies, parse_statuscodes};
+use crate::parse::{parse_base, parse_statuscodes};
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, CookieJar, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
-    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+    Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
+    DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -362,9 +362,9 @@ pub(crate) struct Config {
     ///
     /// New cookies will be stored in the cookie jar and existing cookies will
     /// be updated.
-    #[arg(long, value_parser = parse_cookies)]
+    #[arg(long)]
     #[serde(default)]
-    pub(crate) cookie_jar: Option<CookieJar>,
+    pub(crate) cookie_jar: Option<PathBuf>,
 }
 
 impl Config {

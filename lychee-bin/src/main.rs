@@ -68,7 +68,7 @@ use clap::Parser;
 use color::YELLOW;
 use commands::CommandParams;
 use formatters::response::ResponseFormatter;
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use openssl_sys as _;
 use options::LYCHEE_CONFIG_FILE;
 // required for vendored-openssl feature
@@ -187,6 +187,17 @@ fn load_config() -> Result<LycheeOptions> {
 }
 
 #[must_use]
+fn load_cookie_jar(cfg: &Config) -> Result<Option<CookieJar>> {
+    if cfg.cookie_jar.is_none() {
+        return Ok(None);
+    }
+    match cfg.cookie_jar {
+        Some(ref path) => Ok(CookieJar::load(path.clone()).map(Some)?),
+        None => Ok(None),
+    }
+}
+
+#[must_use]
 /// Load cache (if exists and is still valid)
 /// This returns an `Option` as starting without a cache is a common scenario
 /// and we silently discard errors on purpose
@@ -281,14 +292,24 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         .collect_links(inputs)
         .await;
 
-    let cookie_jar = CookieJar::load(&opts.config.cookie_file)?;
-
-    let client = client::create(&opts.config)?;
     let cache = load_cache(&opts.config).unwrap_or_default();
     let cache = Arc::new(cache);
 
+    let cookie_jar = load_cookie_jar(&opts.config).with_context(|| {
+        format!(
+            "Cannot load cookie jar from path `{}`",
+            opts.config
+                .cookie_jar
+                .as_ref()
+                .map_or("<none>".to_string(), |p| p.display().to_string())
+        )
+    })?;
+    let cookie_jar = cookie_jar.map(Arc::new);
+
     let response_formatter: Box<dyn ResponseFormatter> =
         formatters::get_formatter(&opts.config.format);
+
+    let client = client::create(&opts.config, cookie_jar.clone())?;
 
     let params = CommandParams {
         client,
@@ -342,8 +363,8 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             cache.store(LYCHEE_CACHE_FILE)?;
         }
 
-        if let Some(ref cookie_jar) = opts.config.cookie_jar {
-            debug!("Saving cookie jar");
+        if let Some(cookie_jar) = cookie_jar.as_ref() {
+            info!("Saving cookie jar");
             cookie_jar.save().context("Cannot save cookie jar")?;
         }
 

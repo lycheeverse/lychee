@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use headers::{authorization::Basic, Authorization, HeaderMap, HeaderName};
-use lychee_lib::{remap::Remaps, Base, CookieJar};
+use lychee_lib::{remap::Remaps, Base};
 use std::{collections::HashSet, time::Duration};
 
 /// Split a single HTTP header into a (key, value) tuple
@@ -67,9 +67,9 @@ pub(crate) fn parse_statuscodes(accept: &str) -> Result<HashSet<u16>> {
     Ok(statuscodes)
 }
 
-pub(crate) fn parse_cookies(file: &str) -> Result<CookieJar> {
-    Ok(CookieJar::load(file)?)
-}
+// pub(crate) fn parse_cookies(file: &str) -> Result<CookieJar> {
+//     Ok(CookieJar::load(file)?)
+// }
 
 #[cfg(test)]
 mod tests {
