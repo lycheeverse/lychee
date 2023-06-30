@@ -82,7 +82,7 @@ pub enum ErrorKind {
     InvalidBase(String, String),
 
     /// The given input can not be parsed into a valid URI remapping
-    #[error("Cannot parse into URI remapping, must be a Regex pattern and a URL separated by whitespaces: `{0}`")]
+    #[error("Error remapping URL: `{0}`")]
     InvalidUrlRemap(String),
 
     /// The given path does not resolve to a valid file
