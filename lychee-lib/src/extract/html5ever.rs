@@ -4,7 +4,7 @@ use html5ever::{
     tokenizer::{Tag, TagKind, Token, TokenSink, TokenSinkResult, Tokenizer, TokenizerOpts},
 };
 
-use super::{is_verbatim_elem, plaintext::extract_plaintext};
+use super::{is_email_link, is_verbatim_elem, plaintext::extract_plaintext};
 use crate::types::uri::raw::RawUri;
 
 #[derive(Clone, Default)]
@@ -80,6 +80,19 @@ impl TokenSink for LinkExtractor {
                         None => extract_plaintext(&attr.value),
                         Some(urls) => urls
                             .into_iter()
+                            .filter(|url| {
+                                // Only accept email addresses, which occur in `href` attributes
+                                // and start with `mailto:`. Technically, email addresses could
+                                // also occur in plain text, but we don't want to extract those
+                                // because of the high false positive rate.
+                                //
+                                // This ignores links like `<img srcset="v2@1.5x.png">`
+                                let is_email = is_email_link(url);
+                                let is_mailto = url.starts_with("mailto:");
+                                let is_href = attr.name.local.as_ref() == "href";
+
+                                !is_email || (is_mailto && is_href)
+                            })
                             .map(|url| RawUri {
                                 text: url.to_string(),
                                 element: Some(name.to_string()),
@@ -290,6 +303,63 @@ mod tests {
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
         }];
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_valid_email() {
+        let input = r#"<!DOCTYPE html>
+        <html lang="en-US">
+          <head>
+            <meta charset="utf-8">
+            <title>Test</title>
+          </head>
+          <body>
+            <a href="mailto:foo@bar.com">
+          </body>
+        </html>"#;
+
+        let expected = vec![RawUri {
+            text: "mailto:foo@bar.com".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
+    }
+    #[test]
+    fn test_exclude_email_without_mailto() {
+        let input = r#"<!DOCTYPE html>
+        <html lang="en-US">
+          <head>
+            <meta charset="utf-8">
+            <title>Test</title>
+          </head>
+          <body>
+            <a href="foo@bar.com">
+          </body>
+        </html>"#;
+
+        let expected = vec![];
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_email_false_postive() {
+        let input = r#"<!DOCTYPE html>
+        <html lang="en-US">
+          <head>
+            <meta charset="utf-8">
+            <title>Test</title>
+          </head>
+          <body>
+            <img srcset="v2@1.5x.png" alt="Wikipedia" width="200" height="183">
+          </body>
+        </html>"#;
+
+        let expected = vec![];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
     }

@@ -5,8 +5,29 @@ mod html5gum;
 mod markdown;
 mod plaintext;
 
+use linkify::{LinkFinder, LinkKind};
 use markdown::extract_markdown;
 use plaintext::extract_plaintext;
+
+/// Check if the given URL is an email link.
+///
+/// This operates on the raw URL strings, not the linkified version because it
+/// gets used in the HTML extractors, which parse the HTML attributes directly
+/// and return the raw strings.
+///
+/// Note that `LinkFinder::links()` is lazy and traverses the input in `O(n)`,
+/// so there should be no big performance penalty for calling this function.
+pub(crate) fn is_email_link(input: &str) -> bool {
+    let mut findings = LinkFinder::new().kinds(&[LinkKind::Email]).links(input);
+    let email = match findings.next() {
+        None => return false,
+        Some(email) => email.as_str(),
+    };
+
+    // Email needs to match the full string.
+    // Strip the "mailto:" prefix if it exists.
+    input.strip_prefix("mailto:").unwrap_or(input) == email
+}
 
 /// Check if the given element is in the list of preformatted ("verbatim") tags.
 ///
@@ -340,5 +361,15 @@ mod tests {
                 .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_is_email_link() {
+        assert!(is_email_link("mailto:steve@apple.com"));
+        assert!(!is_email_link("mailto:steve@apple.com in a sentence"));
+
+        assert!(is_email_link("foo@example.org"));
+        assert!(!is_email_link("foo@example.org in sentence"));
+        assert!(!is_email_link("https://example.org"));
     }
 }
