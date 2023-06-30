@@ -18,7 +18,7 @@ jobs:
           args: --verbose --no-progress --exclude example.com -- README.md
 
       - name: Create Issue From File
-        if: github.repository_owner == 'lycheeverse'
+        if: github.repository_owner == 'lycheeverse' && env.lychee_exit_code != 0
         uses: peter-evans/create-issue-from-file@v4
         with:
           title: Link Checker Report
