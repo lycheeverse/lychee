@@ -51,19 +51,26 @@ impl Remaps {
     }
 
     /// Remap URL against remapping rules.
-    pub fn remap(&self, url: &mut Url) -> Result<()> {
+    ///
+    /// If there is no matching rule, the original URL is returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Err` if the remapping rule produces an invalid URL.
+    #[must_use = "Remapped URLs must be used"]
+    pub fn remap(&self, original: &Url) -> Result<Url> {
         for (pattern, replacement) in self {
-            if pattern.is_match(url.as_str()) {
-                // *url = new_url.clone();
-
-                let after = pattern.replace_all(url.as_str(), replacement.as_str());
-                *url = Url::parse(after.as_ref()).map_err(|_| {
-                    ErrorKind::InvalidUrlRemap(format!("The remapped URL is invalid: {after}"))
+            if pattern.is_match(original.as_str()) {
+                let after = pattern.replace_all(original.as_str(), replacement);
+                let after_url = Url::parse(after.as_ref()).map_err(|_| {
+                    ErrorKind::InvalidUrlRemap(format!(
+                        "The remapping pattern must produce a valid URL, but it is not: {after}"
+                    ))
                 })?;
-                return Ok(());
+                return Ok(after_url);
             }
         }
-        Ok(())
+        Ok(original.clone())
     }
 
     /// Returns `true` if there is no remapping rule defined.
@@ -141,65 +148,121 @@ mod tests {
 
     #[test]
     fn test_remap() {
-        let pattern = Regex::new("https://example.com").unwrap();
-        let replacement = "http://127.0.0.1:8080".to_string();
-        let remaps = Remaps::new(vec![(pattern, replacement.clone())]);
+        let input = "https://example.com";
+        let input_url = Url::try_from(input).unwrap();
+        let input_pattern = Regex::new(input).unwrap();
+        let replacement = "http://127.0.0.1:8080";
+        let remaps = Remaps::new(vec![(input_pattern, replacement.to_string())]);
 
-        let mut input = Url::try_from("https://example.com").unwrap();
-        remaps.remap(&mut input).unwrap();
+        let output = remaps.remap(&input_url).unwrap();
 
-        assert_eq!(input, Url::try_from(replacement.as_str()).unwrap());
+        assert_eq!(output, Url::try_from(replacement).unwrap());
     }
 
     #[test]
     fn test_remap_path() {
-        let pattern = Regex::new("../../issues").unwrap();
-        let new_url = Url::try_from("https://example.com").unwrap();
-        let remaps = Remaps::new(vec![(pattern, new_url.to_string())]);
+        let input = Url::try_from("file://../../issues").unwrap();
+        let input_pattern = Regex::new(".*?../../issues").unwrap();
+        let replacement = Url::try_from("https://example.com").unwrap();
+        let remaps = Remaps::new(vec![(input_pattern, replacement.to_string())]);
 
-        let mut input = Url::try_from("file://../../issues").unwrap();
-        remaps.remap(&mut input).unwrap();
+        let output = remaps.remap(&input).unwrap();
 
-        assert_eq!(input, new_url);
+        assert_eq!(output, replacement);
     }
 
-    // #[test]
-    // fn test_remap_skip() {
-    //     let pattern = Regex::new("https://example.com").unwrap();
-    //     let new_url = Url::try_from("http://127.0.0.1:8080").unwrap();
-    //     let remaps = Remaps::new(vec![(pattern, new_url)]);
+    #[test]
+    fn test_remap_skip() {
+        let input = Url::try_from("https://unrelated.example.com").unwrap();
+        let pattern = Regex::new("https://example.com").unwrap();
+        let replacement = Url::try_from("http://127.0.0.1:8080").unwrap();
+        let remaps = Remaps::new(vec![(pattern, replacement.to_string())]);
 
-    //     let mut input = Url::try_from("https://unrelated.example.com").unwrap();
-    //     remaps.remap(&mut input);
+        let output = remaps.remap(&input).unwrap();
 
-    //     // URL was not modified
-    //     assert_eq!(input, input);
-    // }
+        // URL was not modified
+        assert_eq!(input, output);
+    }
 
-    // fn test_remap_url_to_file() {
-    //     let remap_source = Regex::new("https://docs.lakefs.io").unwrap();
-    //     let remap_target = "file:///Users/rmoff/git/lakeFS/docs/_site";
-    //     let remaps = Remaps::new(vec![(remap_source, remap_target)]);
+    #[test]
+    fn test_remap_url_to_file() {
+        let pattern = Regex::new("https://docs.example.org").unwrap();
+        let replacement = "file:///Users/user/code/repo/docs/_site";
+        let remaps = Remaps::new(vec![(pattern, replacement.to_string())]);
 
-    //     let tests = [
-    //         (
-    //             "https://docs.lakefs.io/integrations/distcp.html",
-    //             "file:///Users/rmoff/git/lakeFS/docs/_site/integrations/distcp.html",
-    //         ),
-    //         (
-    //             "https://docs.lakefs.io/howto/import.html#working-with-imported-data",
-    //             "file:///Users/rmoff/git/lakeFS/docs/_site/howto/import.html#working-with-imported-data",
-    //         ),
-    //         (
-    //             "https://docs.lakefs.io/howto/garbage-collection-committed.html",
-    //             "file:///Users/rmoff/git/lakeFS/docs/_site/howto/garbage-collection-committed.html",
-    //         ),
-    //     ];
+        let tests = [
+            (
+                "https://docs.example.org/integrations/distcp.html",
+                "file:///Users/user/code/repo/docs/_site/integrations/distcp.html",
+            ),
+            (
+                "https://docs.example.org/howto/import.html#working-with-imported-data",
+                "file:///Users/user/code/repo/docs/_site/howto/import.html#working-with-imported-data",
+            ),
+            (
+                "https://docs.example.org/howto/garbage-collection-committed.html",
+                "file:///Users/user/code/repo/docs/_site/howto/garbage-collection-committed.html",
+            ),
+        ];
 
-    //     for (input, expected) in tests.iter() {
-    //         let mut input = Url::parse(*input).unwrap();
-    //         remaps.remap(&mut input);
-    //         assert_eq!(input, Url::parse(*expected).unwrap());
-    //     }
-    // }
+        for (input, expected) in tests {
+            let input = Url::parse(input).unwrap();
+            let output = remaps.remap(&input).unwrap();
+            assert_eq!(output, Url::parse(expected).unwrap());
+        }
+    }
+
+    /// This is a partial remap, i.e. the URL is not fully replaced but only
+    /// part of it. The parts to be replaced are defined by the regex pattern
+    /// using capture groups.
+    #[test]
+    fn test_remap_capture_group() {
+        let input = Url::try_from("https://example.com/1/2/3").unwrap();
+        let input_pattern = Regex::new("https://example.com/.*?/(.*?)/.*").unwrap();
+        let replacement = Url::try_from("https://example.com/foo/$1/bar").unwrap();
+
+        let remaps = Remaps::new(vec![(input_pattern, replacement.to_string())]);
+
+        let output = remaps.remap(&input).unwrap();
+
+        assert_eq!(
+            output,
+            Url::try_from("https://example.com/foo/2/bar").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_remap_named_capture() {
+        let input = Url::try_from("https://example.com/1/2/3").unwrap();
+        let input_pattern = Regex::new("https://example.com/.*?/(?P<foo>.*?)/.*").unwrap();
+        let replacement = Url::try_from("https://example.com/foo/$foo/bar").unwrap();
+
+        let remaps = Remaps::new(vec![(input_pattern, replacement.to_string())]);
+
+        let output = remaps.remap(&input).unwrap();
+
+        assert_eq!(
+            output,
+            Url::try_from("https://example.com/foo/2/bar").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_remap_named_capture_shorthand() {
+        let input = Url::try_from("https://example.com/1/2/3").unwrap();
+        #[allow(clippy::invalid_regex)]
+        // Clippy acts up here, but this syntax is actually valid
+        // See https://docs.rs/regex/latest/regex/index.html#grouping-and-flags
+        let input_pattern = Regex::new(r"https://example.com/.*?/(?<foo>.*?)/.*").unwrap();
+        let replacement = Url::try_from("https://example.com/foo/$foo/bar").unwrap();
+
+        let remaps = Remaps::new(vec![(input_pattern, replacement.to_string())]);
+
+        let output = remaps.remap(&input).unwrap();
+
+        assert_eq!(
+            output,
+            Url::try_from("https://example.com/foo/2/bar").unwrap()
+        );
+    }
 }

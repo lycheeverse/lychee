@@ -61,7 +61,7 @@ mod tests {
 
     use headers::HeaderMap;
     use regex::Regex;
-    use reqwest::{header, Url};
+    use reqwest::header;
 
     use super::*;
 
@@ -89,6 +89,6 @@ mod tests {
             pattern.to_string(),
             Regex::new("https://example.com").unwrap().to_string()
         );
-        assert_eq!(url, Url::try_from("http://127.0.0.1:8080").unwrap());
+        assert_eq!(url, "http://127.0.0.1:8080");
     }
 }

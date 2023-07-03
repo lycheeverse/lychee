@@ -65,7 +65,12 @@ method = "get"
 headers = []
 
 # Remap URI matching pattern to different URI.
-remap = [ "https://example.com http://example.invalid" ]
+# This also supports (named) capturing groups.
+remap = [ 
+    "https://example.com http://example.invalid",
+    "https://example.com/(.*) http://example.org/$1",
+    "https://github.com/(?P<org>.*)/(?P<repo>.*) https://gitlab.com/$org/$repo",
+]
 
 # Base URL or website root directory to check relative URLs.
 base = "https://example.com"

@@ -392,7 +392,7 @@ pub struct Client {
     /// Optional remapping rules for URIs matching pattern.
     remaps: Option<Remaps>,
 
-    /// Rules to decided whether each link would be checked or ignored.
+    /// Rules to decided whether each link should be checked or ignored.
     filter: Filter,
 
     /// Maximum number of retries per request before returning an error.
@@ -446,53 +446,79 @@ impl Client {
             ..
         } = request.try_into()?;
 
-        self.remap(uri);
+        // Allow filtering based on element and attribute
+        // if !self.filter.is_allowed(uri) {
+        //     return Ok(Response::new(
+        //         uri.clone(),
+        //         Status::Excluded,
+        //         source,
+        //     ));
+        // }
 
-        // TODO: Allow filtering based on element and attribute
-        let status = if self.is_excluded(uri) {
-            Status::Excluded
-        } else if uri.is_file() {
-            self.check_file(uri)
-        } else if uri.is_mail() {
-            #[cfg(all(feature = "email-check", feature = "native-tls"))]
-            {
-                self.check_mail(uri).await
-            }
+        self.remap(uri)?;
 
-            #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
-            Status::Excluded
-        } else {
-            match self.check_website(uri, credentials).await {
-                Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
-                    if self
-                        .check_website(&uri.to_https()?, credentials)
-                        .await
-                        .is_success()
-                    {
-                        Status::Error(ErrorKind::InsecureURL(uri.clone()))
-                    } else {
-                        Status::Ok(code)
-                    }
-                }
-                s => s,
-            }
+        if self.is_excluded(uri) {
+            return Ok(Response::new(uri.clone(), Status::Excluded, source));
+        }
+
+        let status = match uri.scheme() {
+            _ if uri.is_file() => self.check_file(uri),
+            _ if uri.is_mail() => self.check_mail(uri).await,
+            _ => self.check_website(uri, credentials).await?,
         };
 
         Ok(Response::new(uri.clone(), status, source))
     }
 
     /// Remap `uri` using the client-defined remapping rules.
-    pub fn remap(&self, uri: &mut Uri) {
-        // TODO: this should be logged (Lucius, Jan 2023)
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Err` if the final, remapped `uri` is not a valid URI.
+    pub fn remap(&self, uri: &mut Uri) -> Result<()> {
         if let Some(ref remaps) = self.remaps {
-            remaps.remap(&mut uri.url);
+            debug!("Remapping URI: {}", uri.url);
+            uri.url = remaps.remap(&uri.url)?;
         }
+        Ok(())
     }
 
     /// Returns whether the given `uri` should be ignored from checking.
     #[must_use]
     pub fn is_excluded(&self, uri: &Uri) -> bool {
         self.filter.is_excluded(uri)
+    }
+
+    /// Checks the given URI of a website.
+    ///
+    /// # Errors
+    ///
+    /// This returns an `Err` if
+    /// - The URI is invalid.
+    /// - The request failed.
+    /// - The response status code is not accepted.
+    /// - The URI cannot be converted to HTTPS.
+    pub async fn check_website(
+        &self,
+        uri: &Uri,
+        credentials: &Option<BasicAuthCredentials>,
+    ) -> Result<Status> {
+        match self.check_website_inner(uri, credentials).await {
+            Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
+                if self
+                    .check_website_inner(&uri.to_https()?, credentials)
+                    .await
+                    .is_success()
+                {
+                    Ok(Status::Error(ErrorKind::InsecureURL(uri.clone())))
+                } else {
+                    // HTTPS is not available for this URI,
+                    // so the original HTTP URL is fine.
+                    Ok(Status::Ok(code))
+                }
+            }
+            s => Ok(s),
+        }
     }
 
     /// Checks the given URI of a website.
@@ -505,7 +531,7 @@ impl Client {
     /// - The URI is invalid.
     /// - The request failed.
     /// - The response status code is not accepted.
-    pub async fn check_website(
+    pub async fn check_website_inner(
         &self,
         uri: &Uri,
         credentials: &Option<BasicAuthCredentials>,
@@ -649,6 +675,11 @@ impl Client {
         } else {
             Status::Ok(StatusCode::OK)
         }
+    }
+
+    #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
+    pub async fn check_mail(&self, uri: &Uri) -> Status {
+        Status::Excluded
     }
 }
 

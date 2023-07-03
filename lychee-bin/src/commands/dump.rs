@@ -47,7 +47,7 @@ where
         let mut request = request?;
 
         // Apply URI remappings (if any)
-        params.client.remap(&mut request.uri);
+        params.client.remap(&mut request.uri)?;
 
         // Avoid panic on broken pipe.
         // See https://github.com/rust-lang/rust/issues/46016

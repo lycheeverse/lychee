@@ -1117,6 +1117,42 @@ mod cli {
     }
 
     #[test]
+    fn test_remap_capture() -> Result<()> {
+        let mut cmd = main_command();
+
+        cmd.arg("--dump")
+            .arg("--remap")
+            .arg("https://example.com/(.*) http://example.org/$1")
+            .arg("--")
+            .arg("-")
+            .write_stdin("https://example.com/foo\n")
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("http://example.org/foo"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_remap_named_capture() -> Result<()> {
+        let mut cmd = main_command();
+
+        cmd.arg("--dump")
+            .arg("--remap")
+            .arg("https://github.com/(?P<org>.*)/(?P<repo>.*) https://gitlab.com/$org/$repo")
+            .arg("--")
+            .arg("-")
+            .write_stdin("https://github.com/lycheeverse/lychee\n")
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("https://gitlab.com/lycheeverse/lychee"));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_excluded_paths() -> Result<()> {
         let test_path = fixtures_path().join("exclude-path");
 
