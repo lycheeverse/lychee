@@ -36,6 +36,7 @@ docs: ## Generate and show documentation
 
 .PHONY: lint
 lint: ## Run linter
+	cargo fmt --all -- --check
 	cargo clippy --all-targets --all-features -- -D warnings
 
 .PHONY: test
