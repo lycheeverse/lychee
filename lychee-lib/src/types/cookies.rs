@@ -1,15 +1,15 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use crate::{ErrorKind, Result};
-use reqwest_cookie_store::CookieStore as ReqwestCookieStore;
-use serde::{Deserialize, Serialize};
+use log::info;
+use reqwest_cookie_store::{CookieStore as ReqwestCookieStore, CookieStoreMutex};
 
 /// Create our own wrapper struct for `CookieStore` which implements `Eq` for
 /// serde
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CookieJar {
     pub(crate) path: PathBuf,
-    pub(crate) inner: ReqwestCookieStore,
+    pub(crate) inner: Arc<CookieStoreMutex>,
 }
 
 impl CookieJar {
@@ -25,14 +25,17 @@ impl CookieJar {
     pub fn load(path: PathBuf) -> Result<Self> {
         match std::fs::File::open(&path).map(std::io::BufReader::new) {
             Ok(reader) => {
-                let inner = ReqwestCookieStore::load_json(reader)
-                    .map_err(|e| ErrorKind::Cookies(format!("Failed to load cookies: {e}")))?;
+                info!("Loading cookies from {}", path.display());
+                let inner = Arc::new(CookieStoreMutex::new(
+                    ReqwestCookieStore::load_json(reader)
+                        .map_err(|e| ErrorKind::Cookies(format!("Failed to load cookies: {e}")))?,
+                ));
                 Ok(Self { path, inner })
             }
             // Create a new cookie store if the file does not exist
             Err(_) => Ok(Self {
                 path,
-                inner: ReqwestCookieStore::default(),
+                inner: Arc::new(CookieStoreMutex::new(ReqwestCookieStore::default())),
             }),
         }
     }
@@ -47,17 +50,24 @@ impl CookieJar {
     /// - if the file cannot be written to or
     /// - if the file cannot be serialized to JSON
     pub fn save(&self) -> Result<()> {
-        println!("{:?}", self.jar);
         let mut file = std::fs::File::create(&self.path)?;
-        self.jar
+        let inner = self.inner.clone();
+        let result = inner
+            .lock()
+            .map_err(|e| ErrorKind::Cookies(format!("Failed to lock cookie store: {e}")))?
             .save_json(&mut file)
-            .map_err(|e| ErrorKind::Cookies(format!("Failed to save cookies: {e}")))
+            .map_err(|e| ErrorKind::Cookies(format!("Failed to save cookies: {e}")));
+        result
     }
 }
 
 impl PartialEq for CookieJar {
     fn eq(&self, other: &Self) -> bool {
-        // Assume that the cookie store is the same if the json is the same
-        serde_json::to_string(&self.jar).unwrap() == serde_json::to_string(&other.jar).unwrap()
+        // Assume that the cookie store is the same if the path is the same
+        self.path == other.path
+
+        // Compare the cookie stores directly is not possible
+        // because the `CookieStore` struct does not implement `Eq`
+        // *self.inner.lock().unwrap(). == *other.inner.lock().unwrap()
     }
 }

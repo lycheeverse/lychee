@@ -336,9 +336,7 @@ impl ClientBuilder {
             .redirect(redirect_policy);
 
         if let Some(cookie_jar) = self.cookie_jar {
-            let jar = cookie_jar.clone();
-            let arc = Arc::new(CookieStoreRwLock::new(jar.inner.clone()));
-            builder = builder.cookie_provider(arc);
+            builder = builder.cookie_provider(cookie_jar.inner.clone());
         }
 
         let reqwest_client = match self.timeout {

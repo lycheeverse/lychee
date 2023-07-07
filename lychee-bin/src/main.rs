@@ -190,7 +190,6 @@ fn load_config() -> Result<LycheeOptions> {
     Ok(opts)
 }
 
-#[must_use]
 fn load_cookie_jar(cfg: &Config) -> Result<Option<CookieJar>> {
     if cfg.cookie_jar.is_none() {
         return Ok(None);
