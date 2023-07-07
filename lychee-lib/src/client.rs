@@ -24,7 +24,6 @@ use log::debug;
 use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::{header, Url};
-use reqwest_cookie_store::CookieStoreRwLock;
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
@@ -320,9 +319,7 @@ impl ClientBuilder {
             .redirect(reqwest::redirect::Policy::limited(self.max_redirects));
 
         if let Some(cookie_jar) = self.cookie_jar {
-            let jar = cookie_jar.clone();
-            let arc = Arc::new(CookieStoreRwLock::new(jar.jar.clone()));
-            builder = builder.cookie_provider(arc);
+            builder = builder.cookie_provider(cookie_jar.inner.clone());
         }
 
         let reqwest_client = match self.timeout {

@@ -55,7 +55,6 @@ ip_network = "0.4.1"
 secrecy = "0.8.0"
 hyper = "0.14.26"
 reqwest_cookie_store = "0.5.0"
-serde_json = "1.0.96"
 
 [dependencies.par-stream]
 version = "0.10.2"
