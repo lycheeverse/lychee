@@ -1,3 +1,4 @@
+<a name="back-to-top"></a>
 ![lychee](assets/logo.svg)
 
 [![Homepage](https://img.shields.io/badge/Homepage-Online-EA3A97)](https://lycheeverse.github.io)
@@ -578,3 +579,7 @@ lychee is licensed under either of
 - MIT license (LICENSE-MIT or https://opensource.org/licenses/MIT)
 
 at your option.
+
+
+<br><hr>
+[🔼 Back to top](#back-to-top)
