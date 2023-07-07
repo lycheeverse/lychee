@@ -51,7 +51,7 @@ secrecy = "0.8.0"
 serde = { version = "1.0.166", features = ["derive"] }
 serde_with = "3.0.0"
 shellexpand = "3.1.0"
-thiserror = "1.0.41"
+thiserror = "1.0.43"
 tokio = { version = "1.29.1", features = ["full"] }
 typed-builder = "0.15.0"
 url = { version = "2.4.0", features = ["serde"] }
