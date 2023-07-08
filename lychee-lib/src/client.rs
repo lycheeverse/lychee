@@ -26,6 +26,7 @@ use log::debug;
 use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::{header, redirect, Url};
+use reqwest_cookie_store::CookieStoreMutex;
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
@@ -34,7 +35,7 @@ use crate::{
     quirks::Quirks,
     remap::Remaps,
     retry::RetryExt,
-    types::{uri::github::GithubUri, CookieJar},
+    types::uri::github::GithubUri,
     BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
@@ -268,7 +269,7 @@ pub struct ClientBuilder {
     /// Cookie store used for requests.
     ///
     /// See https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.cookie_store
-    cookie_jar: Option<Arc<CookieJar>>,
+    cookie_jar: Option<Arc<CookieStoreMutex>>,
 }
 
 impl Default for ClientBuilder {
@@ -335,7 +336,7 @@ impl ClientBuilder {
             .redirect(redirect_policy);
 
         if let Some(cookie_jar) = self.cookie_jar {
-            builder = builder.cookie_provider(cookie_jar.inner.clone());
+            builder = builder.cookie_provider(cookie_jar);
         }
 
         let reqwest_client = match self.timeout {
@@ -486,7 +487,6 @@ impl Client {
     /// Returns an `Err` if the final, remapped `uri` is not a valid URI.
     pub fn remap(&self, uri: &mut Uri) -> Result<()> {
         if let Some(ref remaps) = self.remaps {
-            debug!("Remapping URI: {}", uri.url);
             uri.url = remaps.remap(&uri.url)?;
         }
         Ok(())

@@ -357,11 +357,9 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) require_https: bool,
 
-    /// Tell lychee a file to read cookies from and start the cookie engine.
+    /// Tell lychee to read cookies from the given file.
     /// Cookies will be stored in the cookie jar and sent with requests.
-    ///
-    /// New cookies will be stored in the cookie jar and existing cookies will
-    /// be updated.
+    /// New cookies will be stored in the cookie jar and existing cookies will be updated.
     #[arg(long)]
     #[serde(default)]
     pub(crate) cookie_jar: Option<PathBuf>,

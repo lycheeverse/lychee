@@ -1,3 +1,4 @@
+use std::io::ErrorKind as IoErrorKind;
 use std::{path::PathBuf, sync::Arc};
 
 use crate::{ErrorKind, Result};
@@ -33,10 +34,12 @@ impl CookieJar {
                 Ok(Self { path, inner })
             }
             // Create a new cookie store if the file does not exist
-            Err(_) => Ok(Self {
+            Err(e) if e.kind() == IoErrorKind::NotFound => Ok(Self {
                 path,
                 inner: Arc::new(CookieStoreMutex::new(ReqwestCookieStore::default())),
             }),
+            // Propagate other IO errors (like permission denied) to the caller
+            Err(e) => Err(e.into()),
         }
     }
 
@@ -60,13 +63,20 @@ impl CookieJar {
     }
 }
 
+// Deref to inner cookie store
+impl std::ops::Deref for CookieJar {
+    type Target = Arc<CookieStoreMutex>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
 impl PartialEq for CookieJar {
     fn eq(&self, other: &Self) -> bool {
-        // Assume that the cookie store is the same if the path is the same
+        // Assume that the cookie jar is the same if the path is the same
+        // Comparing the cookie stores directly is not possible because the
+        // `CookieStore` struct does not implement `Eq`
         self.path == other.path
-
-        // Compare the cookie stores directly is not possible
-        // because the `CookieStore` struct does not implement `Eq`
-        // *self.inner.lock().unwrap(). == *other.inner.lock().unwrap()
     }
 }

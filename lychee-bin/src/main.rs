@@ -191,12 +191,11 @@ fn load_config() -> Result<LycheeOptions> {
     Ok(opts)
 }
 
+/// Load cookie jar from path (if exists)
+/// Load cookie jar from path (if exists)
 fn load_cookie_jar(cfg: &Config) -> Result<Option<CookieJar>> {
-    if cfg.cookie_jar.is_none() {
-        return Ok(None);
-    }
-    match cfg.cookie_jar {
-        Some(ref path) => Ok(CookieJar::load(path.clone()).map(Some)?),
+    match &cfg.cookie_jar {
+        Some(path) => Ok(CookieJar::load(path.clone()).map(Some)?),
         None => Ok(None),
     }
 }
@@ -312,15 +311,14 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             opts.config
                 .cookie_jar
                 .as_ref()
-                .map_or("<none>".to_string(), |p| p.display().to_string())
+                .map_or_else(|| "<none>".to_string(), |p| p.display().to_string())
         )
     })?;
-    let cookie_jar = cookie_jar.map(Arc::new);
 
     let response_formatter: Box<dyn ResponseFormatter> =
         formatters::get_formatter(&opts.config.format);
 
-    let client = client::create(&opts.config, cookie_jar.clone())?;
+    let client = client::create(&opts.config, cookie_jar.as_deref())?;
 
     let params = CommandParams {
         client,
