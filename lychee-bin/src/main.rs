@@ -192,7 +192,6 @@ fn load_config() -> Result<LycheeOptions> {
 }
 
 /// Load cookie jar from path (if exists)
-/// Load cookie jar from path (if exists)
 fn load_cookie_jar(cfg: &Config) -> Result<Option<CookieJar>> {
     match &cfg.cookie_jar {
         Some(path) => Ok(CookieJar::load(path.clone()).map(Some)?),

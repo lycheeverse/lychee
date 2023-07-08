@@ -5,8 +5,10 @@ use crate::{ErrorKind, Result};
 use log::info;
 use reqwest_cookie_store::{CookieStore as ReqwestCookieStore, CookieStoreMutex};
 
-/// Create our own wrapper struct for `CookieStore` which implements `Eq` for
-/// serde
+/// A wrapper around `reqwest_cookie_store::CookieStore`
+///
+/// We keep track of the file path of the cookie store and
+/// implement `PartialEq` to compare cookie jars by their path
 #[derive(Debug, Clone)]
 pub struct CookieJar {
     pub(crate) path: PathBuf,
