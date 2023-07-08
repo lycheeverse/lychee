@@ -9,12 +9,7 @@ use std::{collections::HashSet, str::FromStr};
 
 /// Creates a client according to the command-line config
 pub(crate) fn create(cfg: &Config, cookie_jar: Option<Arc<CookieJar>>) -> Result<Client> {
-    let mut headers = parse_headers(&cfg.header)?;
-    if let Some(auth) = &cfg.basic_auth {
-        let auth_header = parse_basic_auth(auth)?;
-        headers.typed_insert(auth_header);
-    }
-
+    let headers = parse_headers(&cfg.header)?;
     let timeout = parse_duration_secs(cfg.timeout);
     let retry_wait_time = parse_duration_secs(cfg.retry_wait_time);
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;

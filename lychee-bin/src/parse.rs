@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
-use headers::{authorization::Basic, Authorization, HeaderMap, HeaderName};
-use lychee_lib::{remap::Remaps, Base, CookieJar};
+use headers::{HeaderMap, HeaderName};
+use lychee_lib::{remap::Remaps, Base};
 use std::{collections::HashSet, time::Duration};
 
 /// Split a single HTTP header into a (key, value) tuple

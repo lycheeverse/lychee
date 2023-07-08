@@ -5,10 +5,8 @@ use anyhow::{anyhow, Context, Error, Result};
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, Base, Base, BasicAuthSelector, CookieJar, Input, Input, Input, DEFAULT_MAX_REDIRECTS,
-    DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRIES,
-    DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_RETRY_WAIT_TIME_SECS,
-    DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+    Base, BasicAuthSelector, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;

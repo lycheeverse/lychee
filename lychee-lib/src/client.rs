@@ -26,7 +26,6 @@ use log::debug;
 use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::{header, redirect, Url};
-use reqwest_cookie_store::CookieStoreRwLock;
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 

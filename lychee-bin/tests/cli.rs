@@ -6,6 +6,7 @@ mod cli {
         fs::{self, File},
         io::Write,
         path::{Path, PathBuf},
+        time::Duration,
     };
 
     use assert_cmd::Command;
@@ -16,11 +17,9 @@ mod cli {
     use pretty_assertions::assert_eq;
     use serde::Serialize;
     use serde_json::Value;
+    use tempfile::NamedTempFile;
     use uuid::Uuid;
-    use wiremock::{
-        matchers::{basic_auth, header, path},
-        Mock, MockServer, Request, ResponseTemplate,
-    };
+    use wiremock::{matchers::basic_auth, Mock, MockServer, Request, ResponseTemplate};
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -1307,30 +1306,40 @@ mod cli {
             .success()
             .stdout(contains("2 Total"))
             .stdout(contains("2 OK"));
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_send_cookies() -> Result<()> {
+    async fn test_cookie_jar() -> Result<()> {
+        // Create a random cookie jar file
+        let cookie_jar = NamedTempFile::new()?;
+        let cookie_jar_path = cookie_jar.path().to_str().unwrap();
+
         // Start a background HTTP server on a random local port
         let mock_server = MockServer::start().await;
 
-        // when it receives a GET request on '/' it will respond with a 200
-        // if the request contains a cookie 'foo=bar'
-        Mock::given(path("/"))
-            .and(header("cookie", "foo=bar"))
+        Mock::given(wiremock::matchers::method("GET"))
             .respond_with(|_req: &Request| {
-                ResponseTemplate::new(200).set_body_string("Cookie sent")
+                ResponseTemplate::new(200)
+                    // Set a cookie in the response
+                    .insert_header("Set-Cookie", "foo=bar; path=/")
             })
             .mount(&mock_server)
             .await;
 
         let mut cmd = main_command();
         cmd.arg("--no-progress")
+            .arg("--cookie-jar")
+            .arg(cookie_jar_path)
             .arg("-")
             .write_stdin(mock_server.uri())
             .assert()
             .success();
-        // .stdout(contains(mock_server.uri()));
+
+        // check that the cookie jar file contains the cookie
+        let cookie_jar_contents = fs::read_to_string(cookie_jar_path)?;
+        assert!(cookie_jar_contents.contains("foo\tbar"));
 
         Ok(())
     }

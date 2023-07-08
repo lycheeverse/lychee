@@ -46,18 +46,17 @@ impl CookieJar {
     /// # Errors
     ///
     /// This function will return an error if
+    /// - the cookie store is locked or
     /// - the file cannot be opened or
     /// - if the file cannot be written to or
     /// - if the file cannot be serialized to JSON
     pub fn save(&self) -> Result<()> {
         let mut file = std::fs::File::create(&self.path)?;
-        let inner = self.inner.clone();
-        let result = inner
+        self.inner
             .lock()
             .map_err(|e| ErrorKind::Cookies(format!("Failed to lock cookie store: {e}")))?
             .save_json(&mut file)
-            .map_err(|e| ErrorKind::Cookies(format!("Failed to save cookies: {e}")));
-        result
+            .map_err(|e| ErrorKind::Cookies(format!("Failed to save cookies: {e}")))
     }
 }
 
