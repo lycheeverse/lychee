@@ -5,8 +5,6 @@ use regex::Regex;
 use reqwest::{Request, Url};
 use std::collections::HashMap;
 
-static TWITTER_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^(https?://)?(www\.)?twitter.com").unwrap());
 static CRATES_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^(https?://)?(www\.)?crates.io").unwrap());
 static YOUTUBE_PATTERN: Lazy<Regex> =
@@ -33,13 +31,6 @@ pub(crate) struct Quirks {
 impl Default for Quirks {
     fn default() -> Self {
         let quirks = vec![
-            Quirk {
-                pattern: &TWITTER_PATTERN,
-                rewrite: |mut request| {
-                    request.url_mut().set_host(Some("nitter.net")).unwrap();
-                    request
-                },
-            },
             Quirk {
                 pattern: &CRATES_PATTERN,
                 rewrite: |mut request| {
@@ -115,34 +106,6 @@ mod tests {
     impl PartialEq for MockRequest {
         fn eq(&self, other: &Self) -> bool {
             self.0.url() == other.0.url() && self.0.method() == other.0.method()
-        }
-    }
-
-    #[test]
-    fn test_twitter_request() {
-        let cases = vec![
-            (
-                "https://twitter.com/search?q=rustlang",
-                "https://nitter.net/search?q=rustlang",
-            ),
-            ("http://twitter.com/jack", "http://nitter.net/jack"),
-            (
-                "https://twitter.com/notifications",
-                "https://nitter.net/notifications",
-            ),
-        ];
-
-        for (input, output) in cases {
-            let url = Url::parse(input).unwrap();
-            let expected = Url::parse(output).unwrap();
-
-            let request = Request::new(Method::GET, url.clone());
-            let modified = Quirks::default().apply(request);
-
-            assert_eq!(
-                MockRequest(modified),
-                MockRequest::new(Method::GET, expected)
-            );
         }
     }
 
