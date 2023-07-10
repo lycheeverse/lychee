@@ -14,10 +14,16 @@ reStructuredText, or any other text file or website!
 
 <br><hr>
 [🔧  Installation](#installation)
+<br>
 [🎯  Features](#features)
-[💻  Commandline usage](#cliusage)
+<br>
+[💻  Usage](#cliusage)
+<br>
 [📚   Library usage](#lib-usage)
+<br>
 [👥   Users](#users)
+<br>
+<br>
 Available as a command-line utility, a library and a [GitHub Action](https://github.com/lycheeverse/lychee-action).
 
 ![Lychee demo](./assets/screencast.svg)
