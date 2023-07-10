@@ -108,9 +108,9 @@ Lychee supports several feature flags:
 
 By default, `native-tls` and `email-check` are enabled.
 
+<a name="features"></a>
 ## Features
 
-<a name="features"></a>
 This comparison is made on a best-effort basis. Please create a PR to fix
 outdated information.
 
@@ -170,9 +170,9 @@ outdated information.
 
 <sup>1</sup> Other machine-readable formats like CSV are supported.
 
+<a name="cliusage"></a>
 ## Commandline usage
 
-<a name="cliusage"></a>
 Recursively check all links in supported files inside the current directory
 
 ```sh
@@ -457,9 +457,9 @@ If the `--cache` flag is set, lychee will cache responses in a file called
 then the cache will be loaded on startup. This can greatly speed up future runs.
 Note that by default lychee will not store any data on disk.
 
+<a name="lib-usage"></a>
 ## Library usage
 
-<a name="lib-usage"></a>
 You can use lychee as a library for your own projects!
 Here is a "hello world" example:
 
@@ -558,8 +558,8 @@ If you find a way to make lychee faster, please do reach out.
 
 We collect a list of common workarounds for various websites in our [troubleshooting guide](./docs/TROUBLESHOOTING.md).
 
-## Users
 <a name="users"></a>
+## Users
 - https://github.com/InnerSourceCommons/InnerSourcePatterns
 - https://github.com/opensearch-project/OpenSearch
 - https://github.com/ramitsurana/awesome-kubernetes
