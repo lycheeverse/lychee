@@ -12,10 +12,16 @@
 Finds broken hyperlinks and mail addresses inside Markdown, HTML,
 reStructuredText, or any other text file or website!
 
+<br><hr>
+[🔧  Installation](#installation)
+[🎯  Features](#features)
+[💻  Commandline usage](#cliusage)
+[📚   Library usage](#lib-usage)
+[👥   Users](#users)
 Available as a command-line utility, a library and a [GitHub Action](https://github.com/lycheeverse/lychee-action).
 
 ![Lychee demo](./assets/screencast.svg)
-
+<a name="installation"></a>
 ## Installation
 
 ### Arch Linux
@@ -98,6 +104,7 @@ By default, `native-tls` and `email-check` are enabled.
 
 ## Features
 
+<a name="features"></a>
 This comparison is made on a best-effort basis. Please create a PR to fix
 outdated information.
 
@@ -159,6 +166,7 @@ outdated information.
 
 ## Commandline usage
 
+<a name="cliusage"></a>
 Recursively check all links in supported files inside the current directory
 
 ```sh
@@ -445,6 +453,7 @@ Note that by default lychee will not store any data on disk.
 
 ## Library usage
 
+<a name="lib-usage"></a>
 You can use lychee as a library for your own projects!
 Here is a "hello world" example:
 
@@ -544,7 +553,7 @@ If you find a way to make lychee faster, please do reach out.
 We collect a list of common workarounds for various websites in our [troubleshooting guide](./docs/TROUBLESHOOTING.md).
 
 ## Users
-
+<a name="users"></a>
 - https://github.com/InnerSourceCommons/InnerSourcePatterns
 - https://github.com/opensearch-project/OpenSearch
 - https://github.com/ramitsurana/awesome-kubernetes
