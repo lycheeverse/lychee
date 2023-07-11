@@ -53,7 +53,7 @@ serde_with = "3.0.0"
 shellexpand = "3.1.0"
 thiserror = "1.0.43"
 tokio = { version = "1.29.1", features = ["full"] }
-typed-builder = "0.15.0"
+typed-builder = "0.15.1"
 url = { version = "2.4.0", features = ["serde"] }
 
 [dependencies.par-stream]
