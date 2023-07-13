@@ -241,8 +241,10 @@ mod cli {
     }
 
     #[test]
-    #[ignore = "Twitter quirk works locally but is flaky on Github (timeout)"]
-    fn test_twitter_quirk() {
+    // Exclude Twitter links because they require login to view tweets.
+    // https://techcrunch.com/2023/06/30/twitter-now-requires-an-account-to-view-tweets/
+    // https://github.com/zedeus/nitter/issues/919
+    fn test_ignored_hosts() {
         let url = "https://twitter.com/zarfeblong/status/1339742840142872577";
 
         main_command()
@@ -253,7 +255,7 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("1 Total"))
-            .stdout(contains("1 OK"));
+            .stdout(contains("1 Excluded"));
     }
 
     #[tokio::test]

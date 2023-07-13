@@ -21,6 +21,14 @@ static EXAMPLE_DOMAINS: Lazy<HashSet<&'static str>> =
 #[cfg(any(test, feature = "check_example_domains"))]
 static EXAMPLE_DOMAINS: Lazy<HashSet<&'static str>> = Lazy::new(HashSet::new);
 
+static UNSUPPORTED_DOMAINS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    HashSet::from_iter([
+        // Twitter requires an account to view tweets
+        // https://news.ycombinator.com/item?id=36540957
+        "twitter.com",
+    ])
+});
+
 /// Pre-defined exclusions for known false-positives
 const FALSE_POSITIVE_PAT: &[&str] = &[
     r"^https?://schemas.openxmlformats.org",
@@ -68,6 +76,20 @@ pub fn is_example_domain(uri: &Uri) -> bool {
         }
     };
     res
+}
+
+#[inline]
+#[must_use]
+/// Check if the host belongs to a known unsupported domain
+pub fn is_unsupported_domain(uri: &Uri) -> bool {
+    if let Some(domain) = uri.domain() {
+        // It is not enough to use `UNSUPPORTED_DOMAINS.contains(domain)` here
+        // as this would not include checks for subdomains, such as
+        // `foo.example.com`
+        UNSUPPORTED_DOMAINS.iter().any(|tld| domain.ends_with(tld))
+    } else {
+        false
+    }
 }
 
 /// A generic URI filter
@@ -179,6 +201,7 @@ impl Filter {
             || self.is_host_excluded(uri)
             || self.is_scheme_excluded(uri)
             || is_example_domain(uri)
+            || is_unsupported_domain(uri)
         {
             return true;
         }
