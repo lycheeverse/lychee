@@ -356,6 +356,13 @@ pub(crate) struct Config {
     #[arg(long)]
     #[serde(default)]
     pub(crate) require_https: bool,
+
+    /// Tell lychee to read cookies from the given file.
+    /// Cookies will be stored in the cookie jar and sent with requests.
+    /// New cookies will be stored in the cookie jar and existing cookies will be updated.
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) cookie_jar: Option<PathBuf>,
 }
 
 impl Config {
@@ -406,6 +413,7 @@ impl Config {
             glob_ignore_case: false;
             output: None;
             require_https: false;
+            cookie_jar: None;
         }
 
         if self

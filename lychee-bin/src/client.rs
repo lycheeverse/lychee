@@ -4,12 +4,13 @@ use anyhow::{Context, Result};
 use http::StatusCode;
 use lychee_lib::{Client, ClientBuilder};
 use regex::RegexSet;
+use reqwest_cookie_store::CookieStoreMutex;
+use std::sync::Arc;
 use std::{collections::HashSet, str::FromStr};
 
 /// Creates a client according to the command-line config
-pub(crate) fn create(cfg: &Config) -> Result<Client> {
+pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -> Result<Client> {
     let headers = parse_headers(&cfg.header)?;
-
     let timeout = parse_duration_secs(cfg.timeout);
     let retry_wait_time = parse_duration_secs(cfg.retry_wait_time);
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
@@ -56,6 +57,7 @@ pub(crate) fn create(cfg: &Config) -> Result<Client> {
         .schemes(HashSet::from_iter(schemes))
         .accepted(accepted)
         .require_https(cfg.require_https)
+        .cookie_jar(cookie_jar.cloned())
         .build()
         .client()
         .context("Failed to create request client")

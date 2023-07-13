@@ -73,10 +73,13 @@ use log::{error, info, warn};
 #[cfg(feature = "native-tls")]
 use openssl_sys as _; // required for vendored-openssl feature
 
+use openssl_sys as _;
 use options::LYCHEE_CONFIG_FILE;
 use ring as _; // required for apple silicon
 
-use lychee_lib::{BasicAuthExtractor, Collector};
+use lychee_lib::BasicAuthExtractor;
+use lychee_lib::Collector;
+use lychee_lib::CookieJar;
 
 mod archive;
 mod cache;
@@ -188,6 +191,14 @@ fn load_config() -> Result<LycheeOptions> {
     Ok(opts)
 }
 
+/// Load cookie jar from path (if exists)
+fn load_cookie_jar(cfg: &Config) -> Result<Option<CookieJar>> {
+    match &cfg.cookie_jar {
+        Some(path) => Ok(CookieJar::load(path.clone()).map(Some)?),
+        None => Ok(None),
+    }
+}
+
 #[must_use]
 /// Load cache (if exists and is still valid)
 /// This returns an `Option` as starting without a cache is a common scenario
@@ -290,12 +301,23 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
 
     let requests = collector.collect_links(inputs).await;
 
-    let client = client::create(&opts.config)?;
     let cache = load_cache(&opts.config).unwrap_or_default();
     let cache = Arc::new(cache);
 
+    let cookie_jar = load_cookie_jar(&opts.config).with_context(|| {
+        format!(
+            "Cannot load cookie jar from path `{}`",
+            opts.config
+                .cookie_jar
+                .as_ref()
+                .map_or_else(|| "<none>".to_string(), |p| p.display().to_string())
+        )
+    })?;
+
     let response_formatter: Box<dyn ResponseFormatter> =
         formatters::get_formatter(&opts.config.format);
+
+    let client = client::create(&opts.config, cookie_jar.as_deref())?;
 
     let params = CommandParams {
         client,
@@ -348,6 +370,12 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         if opts.config.cache {
             cache.store(LYCHEE_CACHE_FILE)?;
         }
+
+        if let Some(cookie_jar) = cookie_jar.as_ref() {
+            info!("Saving cookie jar");
+            cookie_jar.save().context("Cannot save cookie jar")?;
+        }
+
         exit_code
     };
 

@@ -132,6 +132,9 @@ pub enum ErrorKind {
     /// Basic auth extractor error
     #[error("Basic auth extractor error")]
     BasicAuthExtractorError(#[from] BasicAuthExtractorError),
+    /// Cannot load cookies
+    #[error("Cannot load cookies")]
+    Cookies(String),
 }
 
 impl ErrorKind {
@@ -267,6 +270,7 @@ impl Hash for ErrorKind {
             Self::Regex(e) => e.to_string().hash(state),
             Self::TooManyRedirects(e) => e.to_string().hash(state),
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
+            Self::Cookies(e) => e.to_string().hash(state),
         }
     }
 }

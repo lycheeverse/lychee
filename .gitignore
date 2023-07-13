@@ -21,3 +21,6 @@ Cargo.lock
 
 # Config smoketest report file
 .config.dummy.report.md
+
+# Other
+cookies.json

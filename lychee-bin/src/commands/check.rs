@@ -46,7 +46,7 @@ where
     let cache = params.cache;
     let accept = params.cfg.accept;
 
-    let pb = if params.cfg.no_progress {
+    let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {
         None
     } else {
         Some(init_progress_bar("Extracting links"))

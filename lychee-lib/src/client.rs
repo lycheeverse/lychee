@@ -13,7 +13,7 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use std::{collections::HashSet, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
@@ -26,6 +26,7 @@ use log::debug;
 use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::{header, redirect, Url};
+use reqwest_cookie_store::CookieStoreMutex;
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
@@ -264,6 +265,11 @@ pub struct ClientBuilder {
     /// It has no effect on non-HTTP schemes or if the URL doesn't support
     /// HTTPS.
     require_https: bool,
+
+    /// Cookie store used for requests.
+    ///
+    /// See https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.cookie_store
+    cookie_jar: Option<Arc<CookieStoreMutex>>,
 }
 
 impl Default for ClientBuilder {
@@ -321,7 +327,7 @@ impl ClientBuilder {
             }
         });
 
-        let builder = reqwest::ClientBuilder::new()
+        let mut builder = reqwest::ClientBuilder::new()
             .gzip(true)
             .default_headers(headers)
             .danger_accept_invalid_certs(self.allow_insecure)
@@ -329,10 +335,14 @@ impl ClientBuilder {
             .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
             .redirect(redirect_policy);
 
-        let reqwest_client = (match self.timeout {
+        if let Some(cookie_jar) = self.cookie_jar {
+            builder = builder.cookie_provider(cookie_jar);
+        }
+
+        let reqwest_client = match self.timeout {
             Some(t) => builder.timeout(t),
             None => builder,
-        })
+        }
         .build()
         .map_err(ErrorKind::NetworkRequest)?;
 
@@ -477,7 +487,6 @@ impl Client {
     /// Returns an `Err` if the final, remapped `uri` is not a valid URI.
     pub fn remap(&self, uri: &mut Uri) -> Result<()> {
         if let Some(ref remaps) = self.remaps {
-            debug!("Remapping URI: {}", uri.url);
             uri.url = remaps.remap(&uri.url)?;
         }
         Ok(())
