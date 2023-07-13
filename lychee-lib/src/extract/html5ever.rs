@@ -347,7 +347,7 @@ mod tests {
     }
 
     #[test]
-    fn test_email_false_postive() {
+    fn test_email_false_positive() {
         let input = r#"<!DOCTYPE html>
         <html lang="en-US">
           <head>

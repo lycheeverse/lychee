@@ -227,7 +227,7 @@ mod cli {
     }
 
     #[test]
-    fn test_cratesio_quirk() {
+    fn test_crates_io_quirk() {
         let url = "https://crates.io/crates/lychee";
 
         main_command()
