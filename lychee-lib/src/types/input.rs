@@ -279,7 +279,7 @@ impl Input {
                     }
                 },
                 InputSource::FsPath(path) => yield path.to_string_lossy().to_string(),
-                _ => return,
+                _ => (),
             }
         }
     }
