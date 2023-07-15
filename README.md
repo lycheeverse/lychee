@@ -16,6 +16,9 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 
 ![Lychee demo](./assets/screencast.svg)
 
+<!-- START doctoc -->
+<!-- END doctoc -->
+
 ## Installation
 
 ### Arch Linux
@@ -95,7 +98,6 @@ Lychee supports several feature flags:
 - `check_example_domains` allows checking example domains such as `example.com`. This feature is useful for testing.
 
 By default, `native-tls` and `email-check` are enabled.
-
 
 ## Features
 
