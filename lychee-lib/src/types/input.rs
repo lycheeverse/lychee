@@ -289,7 +289,8 @@ impl Input {
                     }
                 },
                 InputSource::FsPath(path) => yield path.to_string_lossy().to_string(),
-                _ => (),
+                InputSource::Stdin => yield "Stdin".into(),
+                InputSource::String(_) => yield "Raw String".into(),
             }
         }
     }
@@ -316,10 +317,10 @@ impl Input {
 
     async fn glob_contents(
         &self,
-        path_glob: &str,
+        pattern: &str,
         ignore_case: bool,
     ) -> impl Stream<Item = Result<InputContent>> + '_ {
-        let glob_expanded = tilde(&path_glob).to_string();
+        let glob_expanded = tilde(&pattern).to_string();
         let mut match_opts = glob::MatchOptions::new();
 
         match_opts.case_sensitive = !ignore_case;
