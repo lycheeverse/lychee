@@ -260,6 +260,30 @@ impl Input {
         }
     }
 
+    /// Retrieve all sources from this input.
+    pub async fn get_sources(self) -> impl Stream<Item = Result<String>> {
+        try_stream! {
+            match self.source {
+                InputSource::RemoteUrl(url) => yield url.to_string(),
+                InputSource::FsGlob { pattern, ignore_case } => {
+                    let glob_expanded = tilde(&pattern).to_string();
+                    let mut match_opts = glob::MatchOptions::new();
+
+                    match_opts.case_sensitive = !ignore_case;
+
+                    for entry in glob_with(&glob_expanded, match_opts)? {
+                        match entry {
+                            Ok(path) => yield path.to_string_lossy().to_string(),
+                            Err(e) => eprintln!("{e:?}")
+                        }
+                    }
+                },
+                InputSource::FsPath(path) => yield path.to_string_lossy().to_string(),
+                _ => return,
+            }
+        }
+    }
+
     async fn url_contents(url: &Url) -> Result<InputContent> {
         // Assume HTML for default paths
         let file_type = if url.path().is_empty() || url.path() == "/" {

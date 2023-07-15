@@ -37,8 +37,8 @@ where
     let requests = params.requests;
     tokio::pin!(requests);
 
-    if let Some(outfile) = &params.cfg.output {
-        fs::File::create(outfile)?;
+    if let Some(out_file) = &params.cfg.output {
+        fs::File::create(out_file)?;
     }
 
     let mut writer = create_writer(params.cfg.output)?;
@@ -65,6 +65,30 @@ where
                 return Ok(ExitCode::UnexpectedFailure);
             }
         }
+    }
+
+    Ok(ExitCode::Success)
+}
+
+/// Dump all input sources to stdout without detecting any links and checking
+/// them.
+pub(crate) async fn dump_inputs<S>(sources: S, output: Option<&PathBuf>) -> Result<ExitCode>
+where
+    S: futures::Stream<Item = Result<String>>,
+{
+    let sources = sources;
+    tokio::pin!(sources);
+
+    if let Some(out_file) = output {
+        fs::File::create(out_file)?;
+    }
+
+    let mut writer = create_writer(output.cloned())?;
+
+    while let Some(source) = sources.next().await {
+        let source = source?;
+
+        writeln!(writer, "{source}")?;
     }
 
     Ok(ExitCode::Success)

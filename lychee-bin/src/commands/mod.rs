@@ -3,6 +3,7 @@ pub(crate) mod dump;
 
 pub(crate) use check::check;
 pub(crate) use dump::dump;
+pub(crate) use dump::dump_inputs;
 
 use std::sync::Arc;
 
