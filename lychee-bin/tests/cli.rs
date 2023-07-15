@@ -1347,4 +1347,67 @@ mod cli {
 
         Ok(())
     }
+
+    #[test]
+    fn test_dump_inputs_glob() -> Result<()> {
+        let pattern = fixtures_path().join("**/*.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg(pattern)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/INTERNET_ARCHIVE.md"))
+            .stdout(contains("fixtures/TEST.md"))
+            .stdout(contains("fixtures/TEST_ALL_PRIVATE.md"))
+            .stdout(contains("fixtures/TEST_CODE_BLOCKS.md"))
+            .stdout(contains("fixtures/TEST_EMAIL.md"))
+            .stdout(contains("fixtures/TEST_EMAIL_QUERY_PARAMS.md"))
+            .stdout(contains("fixtures/TEST_EXAMPLE_DOMAINS.md"))
+            .stdout(contains("fixtures/TEST_GITHUB.md"))
+            .stdout(contains("fixtures/TEST_GITHUB_404.md"))
+            .stdout(contains("fixtures/TEST_SCHEMES.md"))
+            .stdout(contains("fixtures/exclude-path/dir1/TEST.md"))
+            .stdout(contains("fixtures/exclude-path/dir2/TEST.md"))
+            .stdout(contains("fixtures/exclude-path/dir2/subdir/TEST.md"))
+            .stdout(contains("fixtures/ignore/TEST.md"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_url() -> Result<()> {
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg("https://example.com")
+            .assert()
+            .success()
+            .stdout(contains("https://example.com"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_path() -> Result<()> {
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg("fixtures")
+            .assert()
+            .success()
+            .stdout(contains("fixtures"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_stdin() -> Result<()> {
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg("-")
+            .assert()
+            .success()
+            .stdout(contains("Stdin"));
+
+        Ok(())
+    }
 }
