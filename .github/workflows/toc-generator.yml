@@ -1,0 +1,20 @@
+name: Update Table of Contents
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  update-toc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Generate Table of Contents
+        uses: technote-space/toc-generator@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_PATHS: README.md

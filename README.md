@@ -16,6 +16,9 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 
 ![Lychee demo](./assets/screencast.svg)
 
+<!-- START doctoc -->
+<!-- END doctoc -->
+
 ## Installation
 
 ### Arch Linux
@@ -548,7 +551,6 @@ If you find a way to make lychee faster, please do reach out.
 We collect a list of common workarounds for various websites in our [troubleshooting guide](./docs/TROUBLESHOOTING.md).
 
 ## Users
-
 - https://github.com/InnerSourceCommons/InnerSourcePatterns
 - https://github.com/opensearch-project/OpenSearch
 - https://github.com/ramitsurana/awesome-kubernetes
