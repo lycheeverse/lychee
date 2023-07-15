@@ -18,8 +18,19 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+## Table of Contents
 
-
+- [Installation](#installation)
+- [Features](#features)
+- [Commandline usage](#commandline-usage)
+- [Library usage](#library-usage)
+- [GitHub Action Usage](#github-action-usage)
+- [Contributing to lychee](#contributing-to-lychee)
+- [Debugging and improving async code](#debugging-and-improving-async-code)
+- [Troubleshooting and Workarounds](#troubleshooting-and-workarounds)
+- [Users](#users)
+- [Credits](#credits)
+- [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
