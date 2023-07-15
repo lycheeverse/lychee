@@ -3,7 +3,7 @@ name: Update Table of Contents
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   update-toc:
