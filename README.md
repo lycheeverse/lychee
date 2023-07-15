@@ -16,8 +16,43 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 
 ![Lychee demo](./assets/screencast.svg)
 
-<!-- START doctoc -->
-<!-- END doctoc -->
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [Installation](#installation)
+  - [Arch Linux](#arch-linux)
+  - [macOS](#macos)
+  - [Docker](#docker)
+  - [NixOS](#nixos)
+  - [FreeBSD](#freebsd)
+  - [Scoop](#scoop)
+  - [Termux](#termux)
+  - [Pre-built binaries](#pre-built-binaries)
+  - [Cargo](#cargo)
+    - [Build dependencies](#build-dependencies)
+    - [Compile and install lychee](#compile-and-install-lychee)
+    - [Feature flags](#feature-flags)
+- [Features](#features)
+- [Commandline usage](#commandline-usage)
+  - [Docker Usage](#docker-usage)
+    - [Linux/macOS shell command](#linuxmacos-shell-command)
+    - [Windows PowerShell command](#windows-powershell-command)
+  - [GitHub Token](#github-token)
+  - [Commandline Parameters](#commandline-parameters)
+  - [Exit codes](#exit-codes)
+  - [Ignoring links](#ignoring-links)
+  - [Caching](#caching)
+- [Library usage](#library-usage)
+- [GitHub Action Usage](#github-action-usage)
+- [Contributing to lychee](#contributing-to-lychee)
+- [Debugging and improving async code](#debugging-and-improving-async-code)
+- [Troubleshooting and Workarounds](#troubleshooting-and-workarounds)
+- [Users](#users)
+- [Credits](#credits)
+- [License](#license)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## Installation
 
