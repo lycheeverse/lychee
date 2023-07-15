@@ -19,4 +19,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGET_PATHS: README.md
           TOC_TITLE: "## Table of Contents"
-          MAX_HEADER_LEVEL: 1
+          MAX_HEADER_LEVEL: 2
