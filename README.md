@@ -286,7 +286,7 @@ Options:
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
 
       --dump-inputs
-          Don't perform any link collection and checking. Instead, dump all input sources from which links would be extracted
+          Don't perform any link extraction and checking. Instead, dump all input sources from which links would be collected
 
       --archive <ARCHIVE>
           Specify the use of a specific web archive. Can be used in combination with `--suggest`
