@@ -70,7 +70,7 @@ where
     Ok(ExitCode::Success)
 }
 
-/// Dump all input sources to stdout without detecting any links and checking
+/// Dump all input sources to stdout without extracting any links and checking
 /// them.
 pub(crate) async fn dump_inputs<S>(sources: S, output: Option<&PathBuf>) -> Result<ExitCode>
 where

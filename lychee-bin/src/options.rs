@@ -181,7 +181,7 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) dump: bool,
 
-    /// Don't perform any link collection and checking.
+    /// Don't perform any link extraction and checking.
     /// Instead, dump all input sources from which links would be collected
     #[arg(long)]
     #[serde(default)]
