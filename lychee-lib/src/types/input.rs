@@ -260,7 +260,17 @@ impl Input {
         }
     }
 
-    /// Retrieve all sources from this input.
+    /// Retrieve all sources from this input. The output depends on the type of
+    /// input:
+    ///
+    /// - Remote URLs are returned as is, in their full form
+    /// - Filepath Glob Patterns are expanded and each matched entry is returned
+    /// - Absolute or relative filepaths are returned as is
+    /// - All other input types are not returned
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the globbing fails with the expanded pattern.
     pub async fn get_sources(self) -> impl Stream<Item = Result<String>> {
         try_stream! {
             match self.source {

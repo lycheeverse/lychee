@@ -63,7 +63,8 @@ impl Collector {
         self
     }
 
-    /// TODO
+    /// Collect all sources from a list of [`Input`]s. For further details,
+    /// see also [`Input::get_sources`](crate::Input#method.get_sources).
     pub async fn collect_sources(self, inputs: Vec<Input>) -> impl Stream<Item = Result<String>> {
         stream::iter(inputs)
             .par_then_unordered(None, move |input| async move { input.get_sources().await })
