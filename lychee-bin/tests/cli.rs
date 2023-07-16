@@ -1349,7 +1349,7 @@ mod cli {
     }
 
     #[test]
-    fn test_dump_inputs_glob() -> Result<()> {
+    fn test_dump_inputs_glob_md() -> Result<()> {
         let pattern = fixtures_path().join("**/*.md");
 
         let mut cmd = main_command();
@@ -1357,20 +1357,27 @@ mod cli {
             .arg(pattern)
             .assert()
             .success()
-            .stdout(contains("fixtures/INTERNET_ARCHIVE.md"))
-            .stdout(contains("fixtures/TEST.md"))
-            .stdout(contains("fixtures/TEST_ALL_PRIVATE.md"))
-            .stdout(contains("fixtures/TEST_CODE_BLOCKS.md"))
-            .stdout(contains("fixtures/TEST_EMAIL.md"))
-            .stdout(contains("fixtures/TEST_EMAIL_QUERY_PARAMS.md"))
-            .stdout(contains("fixtures/TEST_EXAMPLE_DOMAINS.md"))
-            .stdout(contains("fixtures/TEST_GITHUB.md"))
-            .stdout(contains("fixtures/TEST_GITHUB_404.md"))
-            .stdout(contains("fixtures/TEST_SCHEMES.md"))
-            .stdout(contains("fixtures/exclude-path/dir1/TEST.md"))
-            .stdout(contains("fixtures/exclude-path/dir2/TEST.md"))
-            .stdout(contains("fixtures/exclude-path/dir2/subdir/TEST.md"))
-            .stdout(contains("fixtures/ignore/TEST.md"));
+            .stdout(contains("fixtures/dump_inputs/subfolder/file2.md"))
+            .stdout(contains("fixtures/dump_inputs/markdown.md"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_glob_all() -> Result<()> {
+        let pattern = fixtures_path().join("**/*");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg(pattern)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/dump_inputs/subfolder/test.html"))
+            .stdout(contains("fixtures/dump_inputs/subfolder/file2.md"))
+            .stdout(contains("fixtures/dump_inputs/subfolder"))
+            .stdout(contains("fixtures/dump_inputs/markdown.md"))
+            .stdout(contains("fixtures/dump_inputs/subfolder/example.bin"))
+            .stdout(contains("fixtures/dump_inputs/some_file.txt"));
 
         Ok(())
     }
