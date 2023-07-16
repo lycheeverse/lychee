@@ -181,6 +181,12 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) dump: bool,
 
+    /// Don't perform any link extraction and checking.
+    /// Instead, dump all input sources from which links would be collected
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) dump_inputs: bool,
+
     /// Specify the use of a specific web archive.
     /// Can be used in combination with `--suggest`
     #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]

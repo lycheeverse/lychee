@@ -260,6 +260,41 @@ impl Input {
         }
     }
 
+    /// Retrieve all sources from this input. The output depends on the type of
+    /// input:
+    ///
+    /// - Remote URLs are returned as is, in their full form
+    /// - Filepath Glob Patterns are expanded and each matched entry is returned
+    /// - Absolute or relative filepaths are returned as is
+    /// - All other input types are not returned
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the globbing fails with the expanded pattern.
+    pub async fn get_sources(self) -> impl Stream<Item = Result<String>> {
+        try_stream! {
+            match self.source {
+                InputSource::RemoteUrl(url) => yield url.to_string(),
+                InputSource::FsGlob { pattern, ignore_case } => {
+                    let glob_expanded = tilde(&pattern).to_string();
+                    let mut match_opts = glob::MatchOptions::new();
+
+                    match_opts.case_sensitive = !ignore_case;
+
+                    for entry in glob_with(&glob_expanded, match_opts)? {
+                        match entry {
+                            Ok(path) => yield path.to_string_lossy().to_string(),
+                            Err(e) => eprintln!("{e:?}")
+                        }
+                    }
+                },
+                InputSource::FsPath(path) => yield path.to_string_lossy().to_string(),
+                InputSource::Stdin => yield "Stdin".into(),
+                InputSource::String(_) => yield "Raw String".into(),
+            }
+        }
+    }
+
     async fn url_contents(url: &Url) -> Result<InputContent> {
         // Assume HTML for default paths
         let file_type = if url.path().is_empty() || url.path() == "/" {
@@ -282,10 +317,10 @@ impl Input {
 
     async fn glob_contents(
         &self,
-        path_glob: &str,
+        pattern: &str,
         ignore_case: bool,
     ) -> impl Stream<Item = Result<InputContent>> + '_ {
-        let glob_expanded = tilde(&path_glob).to_string();
+        let glob_expanded = tilde(&pattern).to_string();
         let mut match_opts = glob::MatchOptions::new();
 
         match_opts.case_sensitive = !ignore_case;

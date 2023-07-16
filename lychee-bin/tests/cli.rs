@@ -1347,4 +1347,74 @@ mod cli {
 
         Ok(())
     }
+
+    #[test]
+    fn test_dump_inputs_glob_md() -> Result<()> {
+        let pattern = fixtures_path().join("**/*.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg(pattern)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/dump_inputs/subfolder/file2.md"))
+            .stdout(contains("fixtures/dump_inputs/markdown.md"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_glob_all() -> Result<()> {
+        let pattern = fixtures_path().join("**/*");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg(pattern)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/dump_inputs/subfolder/test.html"))
+            .stdout(contains("fixtures/dump_inputs/subfolder/file2.md"))
+            .stdout(contains("fixtures/dump_inputs/subfolder"))
+            .stdout(contains("fixtures/dump_inputs/markdown.md"))
+            .stdout(contains("fixtures/dump_inputs/subfolder/example.bin"))
+            .stdout(contains("fixtures/dump_inputs/some_file.txt"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_url() -> Result<()> {
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg("https://example.com")
+            .assert()
+            .success()
+            .stdout(contains("https://example.com"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_path() -> Result<()> {
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg("fixtures")
+            .assert()
+            .success()
+            .stdout(contains("fixtures"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_stdin() -> Result<()> {
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg("-")
+            .assert()
+            .success()
+            .stdout(contains("Stdin"));
+
+        Ok(())
+    }
 }
