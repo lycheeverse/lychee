@@ -1,8 +1,7 @@
 use html5gum::{Emitter, Error, State, Tokenizer};
 
-use super::plaintext::extract_plaintext;
-use super::{is_email_link, is_verbatim_elem};
-use crate::types::uri::raw::RawUri;
+use super::{is_email_link, is_verbatim_elem, srcset};
+use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
 
 #[derive(Clone)]
 struct LinkExtractor {
@@ -75,17 +74,7 @@ impl LinkExtractor {
                 Some(vec![attr_value].into_iter())
             }
             (_, "srcset") => {
-                let mut urls = Vec::new();
-                for image_candidate_string in attr_value.trim().split(',') {
-                    for part in image_candidate_string.split_ascii_whitespace() {
-                        if part.is_empty() {
-                            continue;
-                        }
-                        urls.push(part);
-                        break;
-                    }
-                }
-                Some(urls.into_iter())
+                Some(srcset::parse(attr_value).into_iter())
             }
             _ => None,
         }
@@ -457,6 +446,7 @@ mod tests {
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
     }
+
     #[test]
     fn test_exclude_email_without_mailto() {
         let input = r#"<!DOCTYPE html>
@@ -470,13 +460,12 @@ mod tests {
           </body>
         </html>"#;
 
-        let expected = vec![];
         let uris = extract_html(input, false);
-        assert_eq!(uris, expected);
+        assert!(uris.is_empty());
     }
 
     #[test]
-    fn test_email_false_postive() {
+    fn test_email_false_positive() {
         let input = r#"<!DOCTYPE html>
         <html lang="en-US">
           <head>
@@ -488,7 +477,33 @@ mod tests {
           </body>
         </html>"#;
 
-        let expected = vec![];
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_extract_srcset() {
+        let input = r#"
+            <img srcset="/cdn-cgi/image/format=webp,width=640/https://img.youtube.com/vi/hVBl8_pgQf0/maxresdefault.jpg 640w, /cdn-cgi/image/format=webp,width=750/https://img.youtube.com/vi/hVBl8_pgQf0/maxresdefault.jpg 750w" src="/cdn-cgi/image/format=webp,width=3840/https://img.youtube.com/vi/hVBl8_pgQf0/maxresdefault.jpg">
+        "#;
+
+        let expected = vec![RawUri {
+            text: "/cdn-cgi/image/format=webp,width=640/https://img.youtube.com/vi/hVBl8_pgQf0/maxresdefault.jpg".to_string(),
+            element: Some("img".to_string()),
+            attribute: Some("srcset".to_string()),
+        },
+        RawUri {
+            text: "/cdn-cgi/image/format=webp,width=750/https://img.youtube.com/vi/hVBl8_pgQf0/maxresdefault.jpg".to_string(),
+            element: Some("img".to_string()),
+            attribute: Some("srcset".to_string()),
+        },
+        RawUri {
+            text: "/cdn-cgi/image/format=webp,width=3840/https://img.youtube.com/vi/hVBl8_pgQf0/maxresdefault.jpg".to_string(),
+            element: Some("img".to_string()),
+            attribute: Some("src".to_string()),
+        }
+
+        ];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
     }

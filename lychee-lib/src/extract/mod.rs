@@ -1,56 +1,11 @@
 use crate::types::{uri::raw::RawUri, FileType, InputContent};
 
-mod html5ever;
-mod html5gum;
+mod html;
 mod markdown;
 mod plaintext;
 
-use linkify::{LinkFinder, LinkKind};
 use markdown::extract_markdown;
 use plaintext::extract_plaintext;
-
-/// Check if the given URL is an email link.
-///
-/// This operates on the raw URL strings, not the linkified version because it
-/// gets used in the HTML extractors, which parse the HTML attributes directly
-/// and return the raw strings.
-///
-/// Note that `LinkFinder::links()` is lazy and traverses the input in `O(n)`,
-/// so there should be no big performance penalty for calling this function.
-pub(crate) fn is_email_link(input: &str) -> bool {
-    let mut findings = LinkFinder::new().kinds(&[LinkKind::Email]).links(input);
-    let email = match findings.next() {
-        None => return false,
-        Some(email) => email.as_str(),
-    };
-
-    // Email needs to match the full string.
-    // Strip the "mailto:" prefix if it exists.
-    input.strip_prefix("mailto:").unwrap_or(input) == email
-}
-
-/// Check if the given element is in the list of preformatted ("verbatim") tags.
-///
-/// These will be excluded from link checking by default.
-// Including the <script> tag is debatable, but the alternative is to
-// have a separate list of tags which need a separate config setting and that
-// seems worse.
-pub(crate) fn is_verbatim_elem(name: &str) -> bool {
-    matches!(
-        name,
-        "code"
-            | "kbd"
-            | "listing"
-            | "noscript"
-            | "plaintext"
-            | "pre"
-            | "samp"
-            | "script"
-            | "textarea"
-            | "var"
-            | "xmp"
-    )
-}
 
 /// A handler for extracting links from various input formats like Markdown and
 /// HTML. Allocations should be avoided if possible as this is a
@@ -90,9 +45,9 @@ impl Extractor {
             FileType::Markdown => extract_markdown(&input_content.content, self.include_verbatim),
             FileType::Html => {
                 if self.use_html5ever {
-                    html5ever::extract_html(&input_content.content, self.include_verbatim)
+                    html::html5ever::extract_html(&input_content.content, self.include_verbatim)
                 } else {
-                    html5gum::extract_html(&input_content.content, self.include_verbatim)
+                    html::html5gum::extract_html(&input_content.content, self.include_verbatim)
                 }
             }
             FileType::Plaintext => extract_plaintext(&input_content.content),
@@ -132,14 +87,6 @@ mod tests {
 
         assert_eq!(uris_html5gum, uris_html5ever);
         uris_html5gum
-    }
-
-    #[test]
-    fn test_verbatim_matching() {
-        assert!(is_verbatim_elem("pre"));
-        assert!(is_verbatim_elem("code"));
-        assert!(is_verbatim_elem("listing"));
-        assert!(is_verbatim_elem("script"));
     }
 
     #[test]
@@ -361,15 +308,5 @@ mod tests {
                 .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
-    }
-
-    #[test]
-    fn test_is_email_link() {
-        assert!(is_email_link("mailto:steve@apple.com"));
-        assert!(!is_email_link("mailto:steve@apple.com in a sentence"));
-
-        assert!(is_email_link("foo@example.org"));
-        assert!(!is_email_link("foo@example.org in sentence"));
-        assert!(!is_email_link("https://example.org"));
     }
 }
