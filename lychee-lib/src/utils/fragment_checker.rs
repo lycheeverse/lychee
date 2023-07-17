@@ -28,7 +28,7 @@ impl FragmentChecker {
     /// Creates a new `FragmentChecker`.
     pub(crate) fn new() -> Self {
         Self {
-            cache: Default::default(),
+            cache: Arc::default(),
         }
     }
 
