@@ -69,7 +69,7 @@ impl AcceptRange {
         self.0.end()
     }
 
-    /// Returns wether this [`AcceptRange`] contains `value`.
+    /// Returns whether this [`AcceptRange`] contains `value`.
     pub fn contains(&self, value: usize) -> bool {
         self.0.contains(&value)
     }
