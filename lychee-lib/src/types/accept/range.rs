@@ -92,7 +92,7 @@ impl AcceptRange {
 #[cfg(test)]
 mod test {
     use super::*;
-    use rstest::*;
+    use rstest::rstest;
 
     #[rstest]
     #[case("0..=10", vec![0, 1, 4, 5, 10], vec![11, 12])]
