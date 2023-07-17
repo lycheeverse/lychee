@@ -2,15 +2,16 @@ use crate::types::accept::AcceptRange;
 
 /// An [`AcceptSelector`] determines if a returned HTTP status code should be
 /// accepted and thus counted as a valid (not broken) link.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AcceptSelector {
     ranges: Vec<AcceptRange>,
 }
 
 impl AcceptSelector {
     /// Creates a new empty [`AcceptSelector`].
+    #[must_use]
     pub fn new() -> Self {
-        Self { ranges: Vec::new() }
+        Self::default()
     }
 
     /// Adds a range of accepted HTTP status codes to this [`AcceptSelector`].
@@ -41,10 +42,12 @@ impl AcceptSelector {
     }
 
     /// Returns whether this [`AcceptSelector`] contains `value`.
+    #[must_use]
     pub fn contains(&self, value: usize) -> bool {
-self.ranges.iter().any(|range| range.contains(value))
+        self.ranges.iter().any(|range| range.contains(value))
     }
 
+    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.ranges.len()
     }

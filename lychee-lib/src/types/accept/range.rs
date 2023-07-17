@@ -45,9 +45,10 @@ impl FromStr for AcceptRange {
             return Err(AcceptRangeParseError::InvalidRangeIndices);
         }
 
-        match inclusive {
-            true => Ok(Self::new(start, end)),
-            false => Ok(Self::new(start, end - 1)),
+        if inclusive {
+            Ok(Self::new(start, end))
+        } else {
+            Ok(Self::new(start, end - 1))
         }
     }
 }
@@ -55,21 +56,25 @@ impl FromStr for AcceptRange {
 impl AcceptRange {
     /// Creates a new [`AcceptRange`] which matches values between `start` and
     /// `end` (both inclusive).
-    pub fn new(start: usize, end: usize) -> Self {
+    #[must_use]
+    pub const fn new(start: usize, end: usize) -> Self {
         Self(RangeInclusive::new(start, end))
     }
 
     /// Returns the `start` value of this [`AcceptRange`].
-    pub fn start(&self) -> &usize {
+    #[must_use]
+    pub const fn start(&self) -> &usize {
         self.0.start()
     }
 
     /// Returns the `end` value of this [`AcceptRange`].
-    pub fn end(&self) -> &usize {
+    #[must_use]
+    pub const fn end(&self) -> &usize {
         self.0.end()
     }
 
     /// Returns whether this [`AcceptRange`] contains `value`.
+    #[must_use]
     pub fn contains(&self, value: usize) -> bool {
         self.0.contains(&value)
     }
@@ -128,6 +133,6 @@ mod test {
     #[test]
     fn test_from_str_invalid_indices() {
         let range = AcceptRange::from_str("10..=0");
-        assert_eq!(range, Err(AcceptRangeParseError::InvalidRangeIndices))
+        assert_eq!(range, Err(AcceptRangeParseError::InvalidRangeIndices));
     }
 }
