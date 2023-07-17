@@ -388,7 +388,7 @@ impl ClientBuilder {
             require_https: self.require_https,
             quirks,
             include_fragments: self.include_fragments,
-            fragment_checker: Default::default(),
+            fragment_checker: FragmentChecker::new(),
         })
     }
 }
@@ -687,7 +687,7 @@ impl Client {
 
     /// Checks a `file` URI's fragment.
     pub async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
-        match self.fragment_checker.check(path, uri).await {
+        match self.fragment_checker.check(path, &uri.url).await {
             Ok(true) => Status::Ok(StatusCode::OK),
             Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
             Err(err) => {

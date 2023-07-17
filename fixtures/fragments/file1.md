@@ -18,7 +18,7 @@ This is a test file for the fragment loader.
 
 ## Fragment 4
 
-<a name="explicit-fragement"></a>
+<a name="explicit-fragment"></a>
 
 [Link to explicit fragment](#explicit-fragment)
 

@@ -99,11 +99,13 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
                     out.insert(frag.to_string());
                 }
 
-                let id = id_generator.generate(&mut heading);
-                out.insert(id);
+                if !heading.is_empty() {
+                    let id = id_generator.generate(&mut heading);
+                    out.insert(id);
+                    heading.clear();
+                }
 
                 in_heading = false;
-                heading.clear();
             }
             Event::Text(text) => {
                 if in_heading {

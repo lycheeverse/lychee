@@ -4,21 +4,39 @@ use std::{
     sync::Arc,
 };
 
-use crate::{extract::markdown::extract_markdown_fragments, types::FileType, Result, Uri};
+use crate::{extract::markdown::extract_markdown_fragments, types::FileType, Result};
 use tokio::{fs, sync::Mutex};
 use url::Url;
 
+/// Holds a cache of fragments for a given URL.
+///
+/// Fragments, also known as anchors, are used to link to a specific
+/// part of a page. For example, the URL `https://example.com#foo`
+/// will link to the element with the `id` of `foo`.
+///
+/// This cache is used to avoid having to re-parse the same file
+/// multiple times when checking if a given URL contains a fragment.
+///
+/// The cache is stored in a `HashMap` with the URL as the key and
+/// a `HashSet` of fragments as the value.
 #[derive(Default, Clone, Debug)]
 pub(crate) struct FragmentChecker {
     cache: Arc<Mutex<HashMap<String, HashSet<String>>>>,
 }
 
 impl FragmentChecker {
+    /// Creates a new `FragmentChecker`.
+    pub(crate) fn new() -> Self {
+        Self {
+            cache: Default::default(),
+        }
+    }
+
     /// Checks if the given path contains the given fragment.
-    pub(crate) async fn check(&self, path: &Path, uri: &Uri) -> Result<bool> {
-        match (FileType::from(path), uri.url.fragment()) {
+    pub(crate) async fn check(&self, path: &Path, url: &Url) -> Result<bool> {
+        match (FileType::from(path), url.fragment()) {
             (FileType::Markdown, Some(fragment)) => {
-                let url_without_frag = Self::remove_fragment(uri.url.clone());
+                let url_without_frag = Self::remove_fragment(url.clone());
                 self.populate_cache_if_vacant(url_without_frag, path, fragment)
                     .await
             }
@@ -26,8 +44,7 @@ impl FragmentChecker {
         }
     }
 
-    fn remove_fragment(url: Url) -> String {
-        let mut url = url;
+    fn remove_fragment(mut url: Url) -> String {
         url.set_fragment(None);
         url.into()
     }
