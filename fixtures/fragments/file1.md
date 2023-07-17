@@ -16,13 +16,20 @@ This is a test file for the fragment loader.
 
 [Link to missing fragment in file2](file2.md#missing-fragment)
 
-## Fragment 4
+## HTML Fragments
 
+Explicit fragment links are currently not supported.
+Therefore we put the test into a code block for now to prevent false positives.
+
+```
 <a name="explicit-fragment"></a>
 
 [Link to explicit fragment](#explicit-fragment)
+```
 
-[Link to explicit fragment in file2](file2.md#custom-id)
+## Custom Fragments
+
+[Custom fragment id in file2](file2.md#custom-id)
 
 # Kebab Case Fragment
 

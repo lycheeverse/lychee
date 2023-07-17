@@ -94,7 +94,7 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
             Event::Start(Tag::Heading(..)) => {
                 in_heading = true;
             }
-            Event::End(Tag::Heading(_d, id, ..)) => {
+            Event::End(Tag::Heading(_level, id, _classes)) => {
                 if let Some(frag) = id {
                     out.insert(frag.to_string());
                 }

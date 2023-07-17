@@ -1409,18 +1409,19 @@ mod cli {
             .arg("--include-fragments")
             .arg(input)
             .assert()
-            .success()
+            .failure()
             .stderr(contains("fixtures/fragments/file1.md#fragment-2"))
             .stderr(contains("fixtures/fragments/file2.md#custom-id"))
             .stderr(contains("fixtures/fragments/file1.md#missing-fragment"))
-            .stderr(contains("fixtures/fragments/file1.md#explicit-fragment"))
             .stderr(contains("fixtures/fragments/file2.md#fragment-1"))
             .stderr(contains("fixtures/fragments/file1.md#kebab-case-fragment"))
             .stderr(contains("fixtures/fragments/file2.md#missing-fragment"))
             .stderr(contains(
                 "fixtures/fragments/file1.md#kebab-case-fragment-1",
             ))
-            .stdout(contains("8 Total"))
-            .stdout(contains("6 OK"));
+            .stdout(contains("7 Total"))
+            .stdout(contains("5 OK"))
+            // 2 failures because of missing fragments
+            .stdout(contains("2 Errors"));
     }
 }
