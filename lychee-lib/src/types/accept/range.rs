@@ -4,7 +4,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use thiserror::Error;
 
-static RANGE_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r"([0-9]*)?..(=?)([0-9]+)+").unwrap());
+static RANGE_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^([0-9]*)?\.\.(=?)([0-9]+)+$").unwrap());
 
 /// The [`AcceptRangeParseError`] indicates that the parsing process of an
 /// [`AcceptRange`]  from a string failed due to various underlying reasons.
@@ -91,48 +92,41 @@ impl AcceptRange {
 #[cfg(test)]
 mod test {
     use super::*;
+    use rstest::*;
 
-    #[test]
-    fn test_from_str() {
-        let range = AcceptRange::from_str("0..10").unwrap();
+    #[rstest]
+    #[case("0..=10", vec![0, 1, 4, 5, 10], vec![11, 12])]
+    #[case("..=10", vec![0, 1, 4, 9, 10], vec![11, 12])]
+    #[case("0..10", vec![0, 1, 4, 5, 9], vec![10, 11])]
+    #[case("..10", vec![0, 1, 4, 9], vec![10, 11])]
+    fn test_from_str(
+        #[case] input: &str,
+        #[case] valid_values: Vec<usize>,
+        #[case] invalid_values: Vec<usize>,
+    ) {
+        let range = AcceptRange::from_str(input).unwrap();
 
-        assert!(range.contains(0));
-        assert!(range.contains(9));
-        assert!(!range.contains(10));
+        for valid in valid_values {
+            assert!(range.contains(valid));
+        }
+
+        for invalid in invalid_values {
+            assert!(!range.contains(invalid));
+        }
     }
 
-    #[test]
-    fn test_from_str_inclusive() {
-        let range = AcceptRange::from_str("0..=10").unwrap();
-
-        assert!(range.contains(0));
-        assert!(range.contains(9));
-        assert!(range.contains(10));
-        assert!(!range.contains(11));
-    }
-
-    #[test]
-    fn test_from_str_open_start() {
-        let range = AcceptRange::from_str("..10").unwrap();
-
-        assert!(range.contains(0));
-        assert!(range.contains(9));
-        assert!(!range.contains(10));
-    }
-
-    #[test]
-    fn test_from_str_open_start_inclusive() {
-        let range = AcceptRange::from_str("..=10").unwrap();
-
-        assert!(range.contains(0));
-        assert!(range.contains(9));
-        assert!(range.contains(10));
-        assert!(!range.contains(11));
-    }
-
-    #[test]
-    fn test_from_str_invalid_indices() {
-        let range = AcceptRange::from_str("10..=0");
-        assert_eq!(range, Err(AcceptRangeParseError::InvalidRangeIndices));
+    #[rstest]
+    #[case("10..=0", AcceptRangeParseError::InvalidRangeIndices)]
+    #[case("0..0", AcceptRangeParseError::InvalidRangeIndices)]
+    #[case("-1..=10", AcceptRangeParseError::NoRangePattern)]
+    #[case("-1..10", AcceptRangeParseError::NoRangePattern)]
+    #[case("0..=-1", AcceptRangeParseError::NoRangePattern)]
+    #[case("0..-1", AcceptRangeParseError::NoRangePattern)]
+    #[case("abcd", AcceptRangeParseError::NoRangePattern)]
+    #[case("-1", AcceptRangeParseError::NoRangePattern)]
+    #[case("0", AcceptRangeParseError::NoRangePattern)]
+    fn test_from_str_invalid(#[case] input: &str, #[case] error: AcceptRangeParseError) {
+        let range = AcceptRange::from_str(input);
+        assert_eq!(range, Err(error));
     }
 }

@@ -20,8 +20,9 @@ impl AcceptSelector {
         // Merge with previous range if possible
         if let Some(last) = self.ranges.last_mut() {
             // Merge when there is an overlap between the last end value and the
-            // to be inserted new range start value.
-            if last.end() >= range.start() {
+            // to be inserted new range start value. Only do this, of the new
+            // end value is greater than the last end value.
+            if last.end() >= range.start() && range.end() >= last.end() {
                 last.update_end(*range.end());
                 return self;
             }
