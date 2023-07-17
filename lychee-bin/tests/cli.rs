@@ -1399,4 +1399,27 @@ mod cli {
 
         Ok(())
     }
+
+    #[test]
+    fn test_fragments() {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("fragments");
+
+        cmd.arg("--verbose")
+            .arg(input)
+            .assert()
+            .success()
+            .stderr(contains("fixtures/fragments/file1.md#fragment-2"))
+            .stderr(contains("fixtures/fragments/file2.md#custom-id"))
+            .stderr(contains("fixtures/fragments/file1.md#missing-fragment"))
+            .stderr(contains("fixtures/fragments/file1.md#explicit-fragment"))
+            .stderr(contains("fixtures/fragments/file2.md#fragment-1"))
+            .stderr(contains("fixtures/fragments/file1.md#kebab-case-fragment"))
+            .stderr(contains("fixtures/fragments/file2.md#missing-fragment"))
+            .stderr(contains(
+                "fixtures/fragments/file1.md#kebab-case-fragment-1",
+            ))
+            .stdout(contains("8 Total"))
+            .stdout(contains("6 OK"));
+    }
 }
