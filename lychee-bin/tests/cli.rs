@@ -1406,6 +1406,7 @@ mod cli {
         let input = fixtures_path().join("fragments");
 
         cmd.arg("--verbose")
+            .arg("--include-fragments")
             .arg(input)
             .assert()
             .success()
