@@ -372,7 +372,10 @@ Options:
           Exclude loopback IP address range and localhost from checking
 
       --exclude-mail
-          Exclude all mail addresses from checking
+          Exclude all mail addresses from checking (deprecated; excluded by default)
+
+      --include-mail
+          Also check email addresses
 
       --remap <REMAP>
           Remap URI matching pattern to different URI
