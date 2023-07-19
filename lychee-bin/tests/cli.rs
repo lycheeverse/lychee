@@ -121,16 +121,29 @@ mod cli {
     }
 
     #[test]
-    fn test_exclude_email() -> Result<()> {
+    fn test_email() -> Result<()> {
         test_json_output!(
             "TEST_EMAIL.md",
             MockResponseStats {
-                total: 6,
-                excludes: 4,
-                successful: 2,
+                total: 5,
+                excludes: 0,
+                successful: 5,
                 ..MockResponseStats::default()
             },
-            "--exclude-mail"
+            "--include-mail"
+        )
+    }
+
+    #[test]
+    fn test_exclude_email_by_default() -> Result<()> {
+        test_json_output!(
+            "TEST_EMAIL.md",
+            MockResponseStats {
+                total: 5,
+                excludes: 3,
+                successful: 2,
+                ..MockResponseStats::default()
+            }
         )
     }
 
@@ -141,6 +154,7 @@ mod cli {
 
         cmd.arg("--dump")
             .arg(input)
+            .arg("--include-mail")
             .assert()
             .success()
             .stdout(contains("hello@example.org?subject=%5BHello%5D"));
@@ -155,6 +169,7 @@ mod cli {
 
         cmd.arg("--dump")
             .arg(input)
+            .arg("--include-mail")
             .assert()
             .success()
             .stdout(contains("hello@example.org?subject=%5BHello%5D"));
@@ -475,7 +490,8 @@ mod cli {
             "TEST.md",
             MockResponseStats {
                 total: 11,
-                successful: 11,
+                successful: 9,
+                excludes: 2,
                 ..MockResponseStats::default()
             }
         )
@@ -491,6 +507,7 @@ mod cli {
         cmd.arg("--output")
             .arg(&outfile)
             .arg("--dump")
+            .arg("--include-mail")
             .arg(test_path)
             .assert()
             .success();
@@ -533,42 +550,7 @@ mod cli {
             .arg("https://ldra.com/")
             .assert()
             .success()
-            .stdout(contains("2 Excluded"));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_exclude_file() -> Result<()> {
-        let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST.md");
-        let excludes_path = fixtures_path().join("TEST_EXCLUDE_1.txt");
-
-        cmd.arg(test_path)
-            .arg("--exclude-file")
-            .arg(excludes_path)
-            .assert()
-            .success()
-            .stdout(contains("2 Excluded"));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_multiple_exclude_files() -> Result<()> {
-        let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST.md");
-        let excludes_path1 = fixtures_path().join("TEST_EXCLUDE_1.txt");
-        let excludes_path2 = fixtures_path().join("TEST_EXCLUDE_2.txt");
-
-        cmd.arg(test_path)
-            .arg("--exclude-file")
-            .arg(excludes_path1)
-            .arg("--exclude-file")
-            .arg(excludes_path2)
-            .assert()
-            .success()
-            .stdout(contains("3 Excluded"));
+            .stdout(contains("4 Excluded"));
 
         Ok(())
     }

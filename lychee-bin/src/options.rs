@@ -282,9 +282,15 @@ pub(crate) struct Config {
     pub(crate) exclude_loopback: bool,
 
     /// Exclude all mail addresses from checking
+    /// (deprecated; excluded by default)
     #[arg(long)]
     #[serde(default)]
     pub(crate) exclude_mail: bool,
+
+    /// Also check email addresses
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) include_mail: bool,
 
     /// Remap URI matching pattern to different URI
     #[serde(default)]

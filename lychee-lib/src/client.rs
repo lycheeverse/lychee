@@ -179,8 +179,8 @@ pub struct ClientBuilder {
     /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
     exclude_loopback_ips: bool,
 
-    /// When `true`, don't check mail addresses.
-    exclude_mail: bool,
+    /// When `true`, check mail addresses.
+    include_mail: bool,
 
     /// Maximum number of redirects per request before returning an error.
     ///
@@ -367,7 +367,7 @@ impl ClientBuilder {
             exclude_private_ips: self.exclude_all_private || self.exclude_private_ips,
             exclude_link_local_ips: self.exclude_all_private || self.exclude_link_local_ips,
             exclude_loopback_ips: self.exclude_all_private || self.exclude_loopback_ips,
-            exclude_mail: self.exclude_mail,
+            include_mail: self.include_mail,
         };
 
         let quirks = Quirks::default();
@@ -837,24 +837,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_exclude_mail() {
+    async fn test_exclude_mail_by_default() {
         let client = ClientBuilder::builder()
-            .exclude_mail(false)
-            .exclude_all_private(true)
-            .build()
-            .client()
-            .unwrap();
-        assert!(!client.is_excluded(&Uri {
-            url: "mailto://mail@example.com".try_into().unwrap()
-        }));
-
-        let client = ClientBuilder::builder()
-            .exclude_mail(true)
             .exclude_all_private(true)
             .build()
             .client()
             .unwrap();
         assert!(client.is_excluded(&Uri {
+            url: "mailto://mail@example.com".try_into().unwrap()
+        }));
+    }
+
+    #[tokio::test]
+    async fn test_include_mail() {
+        let client = ClientBuilder::builder()
+            .include_mail(false)
+            .exclude_all_private(true)
+            .build()
+            .client()
+            .unwrap();
+        assert!(client.is_excluded(&Uri {
+            url: "mailto://mail@example.com".try_into().unwrap()
+        }));
+
+        let client = ClientBuilder::builder()
+            .include_mail(true)
+            .exclude_all_private(true)
+            .build()
+            .client()
+            .unwrap();
+        assert!(!client.is_excluded(&Uri {
             url: "mailto://mail@example.com".try_into().unwrap()
         }));
     }
