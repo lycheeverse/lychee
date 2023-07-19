@@ -219,10 +219,10 @@ impl Input {
     }
 
     async fn glob_contents(glob: Glob) -> impl Stream<Item = Result<InputContent>> {
-        // let glob_expanded = tilde(&path_glob).to_string();
+        let glob_expanded = tilde(&glob.glob()).to_string();
 
         try_stream! {
-            for entry in glob_with(&glob_expanded, match_opts)? {
+            for entry in glob_with(&glob_expanded)? {
                 match entry {
                     Ok(path) => {
                         // Directories can have a suffix which looks like
