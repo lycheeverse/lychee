@@ -12,11 +12,12 @@ mod cli {
     use assert_json_diff::assert_json_include;
     use http::StatusCode;
     use lychee_lib::{InputSource, ResponseBody};
+    use predicates::prelude::PredicateBooleanExt;
     use predicates::str::{contains, is_empty};
     use pretty_assertions::assert_eq;
     use serde::Serialize;
     use serde_json::Value;
-    use tempfile::NamedTempFile;
+    use tempfile::{NamedTempFile, TempDir};
     use uuid::Uuid;
     use wiremock::{matchers::basic_auth, Mock, ResponseTemplate};
 
@@ -413,25 +414,34 @@ mod cli {
         cmd.arg(&filename).arg("--skip-missing").assert().success();
     }
 
+    // Creates a set of dummy files in a temporary directory
+    // and returns the root path of the directory.
+    fn create_paths(paths: &[&str]) -> TempDir {
+        let dir = tempfile::tempdir().unwrap();
+
+        for path in paths {
+            let path = dir.path().join(path);
+            // Create directories if necessary
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            File::create(path).unwrap();
+        }
+
+        dir
+    }
+
     #[tokio::test]
     async fn test_glob() -> Result<()> {
-        // using Result to be able to use `?`
         let mut cmd = main_command();
+        let dir = create_paths(&["a.md", "b.md"]);
 
-        let dir = tempfile::tempdir()?;
-        let mock_server_a = mock_server!(StatusCode::OK);
-        let mock_server_b = mock_server!(StatusCode::OK);
-        let mut file_a = File::create(dir.path().join("a.md"))?;
-        let mut file_b = File::create(dir.path().join("b.md"))?;
-
-        writeln!(file_a, "{}", mock_server_a.uri().as_str())?;
-        writeln!(file_b, "{}", mock_server_b.uri().as_str())?;
-
-        cmd.arg(dir.path().join("*.md"))
-            .arg("--verbose")
+        cmd.arg("--dump-inputs")
+            .arg(dir.path().join("*.md"))
             .assert()
             .success()
-            .stdout(contains("2 Total"));
+            .stdout(contains("a.md"))
+            .stdout(contains("b.md"));
 
         Ok(())
     }
@@ -440,22 +450,14 @@ mod cli {
     #[tokio::test]
     async fn test_glob_ignore_case() -> Result<()> {
         let mut cmd = main_command();
+        let dir = create_paths(&["README.md"]);
 
-        let dir = tempfile::tempdir()?;
-        let mock_server_a = mock_server!(StatusCode::OK);
-        let mock_server_b = mock_server!(StatusCode::OK);
-        let mut file_a = File::create(dir.path().join("README.md"))?;
-        let mut file_b = File::create(dir.path().join("readme.md"))?;
-
-        writeln!(file_a, "{}", mock_server_a.uri().as_str())?;
-        writeln!(file_b, "{}", mock_server_b.uri().as_str())?;
-
-        cmd.arg(dir.path().join("[r]eadme.md"))
-            .arg("--verbose")
+        cmd.arg(dir.path().join("readme.md"))
+            .arg("--dump-inputs")
             .arg("--glob-ignore-case")
             .assert()
             .success()
-            .stdout(contains("2 Total"));
+            .stdout(contains("README.md"));
 
         Ok(())
     }
@@ -463,22 +465,63 @@ mod cli {
     #[tokio::test]
     async fn test_glob_recursive() -> Result<()> {
         let mut cmd = main_command();
-
-        let dir = tempfile::tempdir()?;
-        let subdir_level_1 = tempfile::tempdir_in(&dir)?;
-        let subdir_level_2 = tempfile::tempdir_in(&subdir_level_1)?;
-
-        let mock_server = mock_server!(StatusCode::OK);
-        let mut file = File::create(subdir_level_2.path().join("test.md"))?;
-
-        writeln!(file, "{}", mock_server.uri().as_str())?;
+        let dir = create_paths(&["subdir/another/a.md"]);
 
         // ** should be a recursive glob
         cmd.arg(dir.path().join("**/*.md"))
-            .arg("--verbose")
+            .arg("--dump-inputs")
             .assert()
             .success()
-            .stdout(contains("1 Total"));
+            .stdout(contains("subdir/another/a.md"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_multiple_globs() -> Result<()> {
+        let mut cmd = main_command();
+        let dir = create_paths(&["html/1.html", "html/2.html", "md/1.md", "md/2.md"]);
+
+        cmd.current_dir(dir.path())
+            .arg("**/*.md")
+            .arg("**/*.html")
+            .arg("--dump-inputs")
+            .assert()
+            .success()
+            .stdout(contains("html/1.html"))
+            .stdout(contains("html/2.html"))
+            .stdout(contains("md/1.md"))
+            .stdout(contains("md/2.md"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_globset_exclude() -> Result<()> {
+        let mut cmd = main_command();
+        let dir = create_paths(&[
+            "foo.html",
+            "foo.md",
+            "lol.md",
+            "md/1.md",
+            "md/2.md",
+            "vendor/foo.md",
+            "vendor/bar.md",
+            "vendor/baz.html",
+        ]);
+
+        cmd.current_dir(dir.path())
+            .arg("**/*.md")
+            .arg("!foo.md")
+            .arg("!./vendor/*")
+            .arg("--dump-inputs")
+            .assert()
+            .success()
+            .stdout(contains("foo.md").not())
+            .stdout(contains("vendor").not())
+            .stdout(contains("lol.md"))
+            .stdout(contains("md/1.md"))
+            .stdout(contains("md/2.md"));
 
         Ok(())
     }
