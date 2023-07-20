@@ -57,7 +57,7 @@ pub(crate) fn parse(input: &str) -> Vec<&str> {
             info!("srcset parse Error");
             return vec![];
         }
-        index += start.char_indices().count();
+        index += start.chars().count();
 
         if remaining.is_empty() {
             return candidates;
