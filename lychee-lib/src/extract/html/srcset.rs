@@ -33,7 +33,7 @@ fn split_at<F>(input: &str, predicate: F) -> (&str, &str)
 where
     F: Fn(&char) -> bool,
 {
-    for (i, ch) in input.chars().enumerate() {
+    for (i, ch) in input.char_indices() {
         if !predicate(&ch) {
             return (&input[0..i], &input[i..]);
         }
