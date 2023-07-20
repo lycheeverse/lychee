@@ -38,3 +38,5 @@ Therefore we put the test into a code block for now to prevent false positives.
 [Link to second kebab-case fragment](#kebab-case-fragment-1)
 
 # Kebab Case Fragment
+
+[Link to another file type](empty_file#fragment)

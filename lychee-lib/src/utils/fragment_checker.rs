@@ -32,7 +32,12 @@ impl FragmentChecker {
         }
     }
 
-    /// Checks if the given path contains the given fragment.
+    /// Checks the given path contains the given fragment.
+    ///
+    /// Returns false, if there is a fragment in the link and the path is to a markdown file which
+    /// doesn't contain the given fragment.
+    ///
+    /// In all other cases, returns true.
     pub(crate) async fn check(&self, path: &Path, url: &Url) -> Result<bool> {
         match (FileType::from(path), url.fragment()) {
             (FileType::Markdown, Some(fragment)) => {
@@ -40,7 +45,7 @@ impl FragmentChecker {
                 self.populate_cache_if_vacant(url_without_frag, path, fragment)
                     .await
             }
-            _ => Ok(false),
+            _ => Ok(true),
         }
     }
 
