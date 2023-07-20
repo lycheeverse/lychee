@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, fs, io::ErrorKind, path::PathBuf, str::FromStr};
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Context, Error, Result};
 use lazy_static::lazy_static;
 use lychee_lib::{
     Base, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT,
@@ -106,15 +106,21 @@ pub(crate) struct LycheeOptions {
 }
 
 impl LycheeOptions {
-    // This depends on config, which is why a method is required (we could
-    // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there,
-    // but we'd get no access to `glob_ignore_case`.
     /// Get parsed inputs from options.
-    pub(crate) fn inputs(&self) -> Vec<Input> {
-        self.raw_inputs
+    // This depends on the config, which is why a method is required.
+    // (We could accept a `Vec<Input>` in `LycheeOptions` and do the conversion
+    // there, but we'd get no access to `glob_ignore_case`.
+    pub(crate) fn inputs(&self) -> Result<Vec<Input>> {
+        let inputs: Result<Vec<Input>> = self
+            .raw_inputs
             .iter()
-            .map(|s| Input::new(s, None, self.config.glob_ignore_case))
-            .collect()
+            .map(|s| {
+                Input::try_new(s, None, self.config.glob_ignore_case)
+                    .context("Could not parse input")
+            })
+            .collect();
+
+        inputs
     }
 }
 

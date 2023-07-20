@@ -2,16 +2,16 @@ use crate::types::FileType;
 use crate::Result;
 use async_stream::try_stream;
 use futures::stream::Stream;
-use globset::{Glob, GlobBuilder};
 use jwalk::WalkDir;
 use reqwest::Url;
 use serde::Serialize;
-use shellexpand::tilde;
+use std::env;
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use tokio::io::{stdin, AsyncReadExt};
 
 const STDIN: &str = "-";
+const GLOB_MAX_OPEN_FILES: usize = 4092;
 
 // Check the extension of the given path against the list of known/accepted
 // file extensions
@@ -51,8 +51,14 @@ pub enum InputSource {
     RemoteUrl(Box<Url>),
     /// Unix shell-style glob pattern.
     FsGlob {
-        /// The glob pattern matching all input files
-        glob: Glob,
+        /// The base directory of the glob pattern
+        base: PathBuf,
+        /// The raw glob patterns matching all input files
+        // Note: we cannot use `GlobWalker` directly because it does not
+        // implement `Debug`
+        patterns: Vec<String>,
+        /// Whether the glob pattern is case-insensitive or not
+        ignore_case: bool,
     },
     /// File path.
     FsPath(PathBuf),
@@ -78,7 +84,14 @@ impl Display for InputSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::RemoteUrl(url) => url.as_str(),
-            Self::FsGlob { glob } => glob.glob(),
+            Self::FsGlob {
+                base: _base,
+                patterns: _patterns,
+                ignore_case: _ignore_case,
+            } => {
+                "glob"
+                // patterns.join(", ").as_str(),
+            }
             Self::FsPath(path) => path.to_str().unwrap_or_default(),
             Self::Stdin => "stdin",
             Self::String(s) => s,
@@ -110,10 +123,18 @@ impl Input {
         } else if let Ok(url) = Url::parse(value) {
             InputSource::RemoteUrl(Box::new(url))
         } else {
-            let glob = GlobBuilder::new(value)
-                .case_insensitive(glob_ignore_case)
-                .build()?;
-            InputSource::FsGlob { glob }
+            let base = env::current_dir()?;
+            let raw_patterns = value
+                .split_whitespace()
+                .clone()
+                .map(|s| s.to_owned())
+                .collect();
+
+            InputSource::FsGlob {
+                base,
+                patterns: raw_patterns,
+                ignore_case: glob_ignore_case,
+            }
         };
         Ok(Self {
             source,
@@ -138,40 +159,44 @@ impl Input {
                 InputSource::RemoteUrl(ref url) => {
                     let contents: InputContent = Self::url_contents(url).await?;
                     yield contents;
-                },
+                }
                 InputSource::FsGlob {
-                    ref glob,
+                    base,
+                    patterns,
+                    ignore_case,
                 } => {
-                    for await content in Self::glob_contents(glob).await {
+                    for await content in Self::glob_contents(base, patterns, ignore_case).await {
                         let content = content?;
                         yield content;
                     }
                 }
                 InputSource::FsPath(ref path) => {
                     if path.is_dir() {
-                        for entry in WalkDir::new(path).skip_hidden(true)
-                        .process_read_dir(|_, _, _, children| {
-                            children.retain(|child| {
-                                let entry = match child.as_ref() {
-                                    Ok(x) => x,
-                                    Err(_) => return true,
-                                };
+                        for entry in WalkDir::new(path)
+                            .skip_hidden(true)
+                            .process_read_dir(|_, _, _, children| {
+                                children.retain(|child| {
+                                    let entry = match child.as_ref() {
+                                        Ok(x) => x,
+                                        Err(_) => return true,
+                                    };
 
-                                let file_type = entry.file_type();
+                                    let file_type = entry.file_type();
 
-                                if file_type.is_dir() {
-                                    // Required for recursion
-                                    return true;
-                                }
-                                if file_type.is_symlink() {
-                                    return false;
-                                }
-                                if !file_type.is_file() {
-                                    return false;
-                                }
-                                return valid_extension(&entry.path());
-                            });
-                        }) {
+                                    if file_type.is_dir() {
+                                        // Required for recursion
+                                        return true;
+                                    }
+                                    if file_type.is_symlink() {
+                                        return false;
+                                    }
+                                    if !file_type.is_file() {
+                                        return false;
+                                    }
+                                    return valid_extension(&entry.path());
+                                });
+                            })
+                        {
                             let entry = entry?;
                             if entry.file_type().is_dir() {
                                 continue;
@@ -187,15 +212,15 @@ impl Input {
                             Ok(content) => yield content,
                         };
                     }
-                },
+                }
                 InputSource::Stdin => {
                     let content = Self::stdin_content(self.file_type_hint).await?;
                     yield content;
-                },
+                }
                 InputSource::String(ref s) => {
                     let content = Self::string_content(s, self.file_type_hint);
                     yield content;
-                },
+                }
             }
         }
     }
@@ -218,22 +243,32 @@ impl Input {
         Ok(input_content)
     }
 
-    async fn glob_contents(glob: Glob) -> impl Stream<Item = Result<InputContent>> {
-        let glob_expanded = tilde(&glob.glob()).to_string();
+    async fn glob_contents(
+        base: PathBuf,
+        patterns: Vec<String>,
+        ignore_case: bool,
+    ) -> impl Stream<Item = Result<InputContent>> {
+        let globs = globwalk::GlobWalkerBuilder::from_patterns(base, &patterns)
+            .case_insensitive(ignore_case)
+            .max_open(GLOB_MAX_OPEN_FILES)
+            .build()
+            .unwrap();
+
+        // let glob_expanded = tilde(&glob.glob()).to_string();
 
         try_stream! {
-            for entry in glob_with(&glob_expanded)? {
+            for entry in globs {
                 match entry {
-                    Ok(path) => {
+                    Ok(entry) => {
                         // Directories can have a suffix which looks like
                         // a file extension (like `foo.html`). This can lead to
                         // unexpected behavior with glob patterns like
                         // `**/*.html`. Therefore filter these out.
                         // See https://github.com/lycheeverse/lychee/pull/262#issuecomment-913226819
-                        if path.is_dir() {
-                            continue;
-                        }
-                        let content: InputContent = Self::path_content(&path).await?;
+                        // if path.is_dir() {
+                        //     continue;
+                        // }
+                        let content: InputContent = Self::path_content(entry.path()).await?;
                         yield content;
                     }
                     Err(e) => println!("{:?}", e),
