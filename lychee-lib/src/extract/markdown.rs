@@ -2,7 +2,7 @@
 use std::collections::{HashMap, HashSet};
 
 use convert_case::{Case, Casing};
-use pulldown_cmark::{Event, Parser, Tag};
+use pulldown_cmark::{Event, Options, Parser, Tag};
 
 use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
 
@@ -89,7 +89,7 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
 
     let mut out = HashSet::new();
 
-    for event in Parser::new(input) {
+    for event in Parser::new_ext(input, Options::ENABLE_HEADING_ATTRIBUTES) {
         match event {
             Event::Start(Tag::Heading(..)) => {
                 in_heading = true;
