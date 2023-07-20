@@ -35,7 +35,7 @@ where
 {
     for (i, ch) in input.char_indices() {
         if !predicate(&ch) {
-            return (&input[0..i], &input[i..]);
+            return input.split_at(i);
         }
     }
     (input, "")
