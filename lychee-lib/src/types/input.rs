@@ -2,7 +2,6 @@ use crate::types::FileType;
 use crate::{utils, ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
-use glob::glob_with;
 use jwalk::WalkDir;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -14,6 +13,7 @@ use std::path::{Path, PathBuf};
 use tokio::io::{stdin, AsyncReadExt};
 
 const STDIN: &str = "-";
+const GLOB_MAX_OPEN_FILES: usize = 4092;
 
 // Check the extension of the given path against the list of known/accepted
 // file extensions
@@ -144,13 +144,11 @@ impl Input {
     ) -> Result<Self> {
         println!("value: {:?}", value);
 
-
         let source = if value == STDIN {
             InputSource::Stdin
         } else if let Ok(url) = Url::parse(value) {
             InputSource::RemoteUrl(Box::new(url))
         } else {
-
             // TODO: how to handle multiple patterns?
             // TODO: how to handle stdin?
 
@@ -167,13 +165,6 @@ impl Input {
                 base,
                 patterns: raw_patterns,
                 ignore_case: glob_ignore_case,
-            }
-
-            if is_glob {
-                InputSource::FsGlob {
-                    pattern: value.to_owned(),
-                    ignore_case: glob_ignore_case,
-                }
             }
         };
         Ok(Self {
@@ -203,12 +194,13 @@ impl Input {
                         Err(e) => Err(e)?,
                         Ok(content) => yield content,
                     }
-                },
+                }
                 InputSource::FsGlob {
-                    ref pattern,
+                    base,
+                    patterns,
                     ignore_case,
                 } => {
-                    for await content in self.glob_contents(pattern, ignore_case).await {
+                    for await content in Self::glob_contents(self.excluded_paths, base, patterns, ignore_case).await {
                         let content = content?;
                         yield content;
                     }
@@ -257,15 +249,15 @@ impl Input {
                             Ok(content) => yield content,
                         };
                     }
-                },
+                }
                 InputSource::Stdin => {
                     let content = Self::stdin_content(self.file_type_hint).await?;
                     yield content;
-                },
+                }
                 InputSource::String(ref s) => {
                     let content = Self::string_content(s, self.file_type_hint);
                     yield content;
-                },
+                }
             }
         }
     }
@@ -285,18 +277,19 @@ impl Input {
         try_stream! {
             match self.source {
                 InputSource::RemoteUrl(url) => yield url.to_string(),
-                InputSource::FsGlob { pattern, ignore_case } => {
-                    let glob_expanded = tilde(&pattern).to_string();
-                    let mut match_opts = glob::MatchOptions::new();
+                InputSource::FsGlob { base, patterns, ignore_case } => {
+                    todo!()
+                    // let glob_expanded = tilde(&pattern).to_string();
+                    // let mut match_opts = glob::MatchOptions::new();
 
-                    match_opts.case_sensitive = !ignore_case;
+                    // match_opts.case_sensitive = !ignore_case;
 
-                    for entry in glob_with(&glob_expanded, match_opts)? {
-                        match entry {
-                            Ok(path) => yield path.to_string_lossy().to_string(),
-                            Err(e) => eprintln!("{e:?}")
-                        }
-                    }
+                    // for entry in glob_with(&glob_expanded, match_opts)? {
+                    //     match entry {
+                    //         Ok(path) => yield path.to_string_lossy().to_string(),
+                    //         Err(e) => eprintln!("{e:?}")
+                    //     }
+                    // }
                 },
                 InputSource::FsPath(path) => yield path.to_string_lossy().to_string(),
                 InputSource::Stdin => yield "Stdin".into(),
@@ -326,19 +319,23 @@ impl Input {
     }
 
     async fn glob_contents(
-        &self,
-        pattern: &str,
+        excluded_paths: Option<Vec<PathBuf>>,
+        base: PathBuf,
+        patterns: Vec<String>,
         ignore_case: bool,
-    ) -> impl Stream<Item = Result<InputContent>> + '_ {
-        let glob_expanded = tilde(&pattern).to_string();
-        let mut match_opts = glob::MatchOptions::new();
-
-        match_opts.case_sensitive = !ignore_case;
+    ) -> impl Stream<Item = Result<InputContent>> {
+        let entries = globwalk::GlobWalkerBuilder::from_patterns(base, &patterns)
+            .case_insensitive(ignore_case)
+            .max_open(GLOB_MAX_OPEN_FILES)
+            .build()
+            .unwrap();
 
         try_stream! {
-            for entry in glob_with(&glob_expanded, match_opts)? {
+            for entry in entries {
                 match entry {
-                    Ok(path) => {
+                    Ok(entry) => {
+                        let path = entry.path();
+
                         // Directories can have a suffix which looks like
                         // a file extension (like `foo.html`). This can lead to
                         // unexpected behavior with glob patterns like
@@ -347,10 +344,12 @@ impl Input {
                         if path.is_dir() {
                             continue;
                         }
-                        if self.is_excluded_path(&path) {
-                            continue;
+                        if let Some(ref excluded_paths) = excluded_paths {
+                            if is_excluded_path(&excluded_paths, &path.to_path_buf()) {
+                                continue;
+                            }
                         }
-                        let content: InputContent = Self::path_content(&path).await?;
+                        let content: InputContent = Self::path_content(entry.path()).await?;
                         yield content;
                     }
                     Err(e) => eprintln!("{e:?}"),
@@ -430,7 +429,7 @@ mod tests {
         assert!(path.exists());
         assert!(path.is_relative());
 
-        let input = Input::new(test_file, None, false, None);
+        let input = Input::try_new(test_file, None, false, None);
         assert!(input.is_ok());
         assert!(matches!(
             input,
@@ -450,7 +449,7 @@ mod tests {
         assert!(!path.exists());
         assert!(path.is_relative());
 
-        let input = Input::new(test_file, None, false, None);
+        let input = Input::try_new(test_file, None, false, None);
         assert!(input.is_err());
         assert!(matches!(
             input,
@@ -496,7 +495,7 @@ mod tests {
 
     #[test]
     fn test_url_without_scheme() {
-        let input = Input::new("example.com", None, false, None);
+        let input = Input::try_new("example.com", None, false, None);
         assert_eq!(
             input.unwrap().source.to_string(),
             String::from("http://example.com/")

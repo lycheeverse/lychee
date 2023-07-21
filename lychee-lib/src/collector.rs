@@ -199,7 +199,7 @@ mod tests {
             Input {
                 source: InputSource::FsGlob {
                     base: temp_dir_path.to_path_buf(),
-                    pattern: temp_dir_path.join("glob*").to_str().unwrap().to_owned(),
+                    patterns: vec![temp_dir_path.join("glob*").to_str().unwrap().to_owned()],
                     ignore_case: true,
                 },
                 file_type_hint: None,
