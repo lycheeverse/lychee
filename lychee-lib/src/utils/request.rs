@@ -71,17 +71,17 @@ pub(crate) fn create(
                 )))
             } else if let InputSource::FsPath(root) = &input_content.source {
                 let path = if is_anchor {
-                    // If the link is just an anchor,
-                    // prepend the filename of the file from which the link came.
-                    root.file_name()
-                        .expect("File doesn't have a file name.")
-                        .to_str()
-                        .expect("Filename is invalid unicode")
-                        .to_string()
-                        + &text
+                    match root.file_name() {
+                        Some(file_name) => match file_name.to_str() {
+                            Some(valid_str) => valid_str.to_string() + &text,
+                            None => return Err(ErrorKind::InvalidFilenameUnicode(root.clone())),
+                        },
+                        None => return Err(ErrorKind::NoFileName(root.clone())),
+                    }
                 } else {
                     text
                 };
+
                 if let Some(url) = create_uri_from_path(root, &path, base)? {
                     let uri = Uri { url };
                     let credentials = credentials(extractor, &uri);

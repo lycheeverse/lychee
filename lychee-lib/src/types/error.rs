@@ -136,9 +136,18 @@ pub enum ErrorKind {
     /// Basic auth extractor error
     #[error("Basic auth extractor error")]
     BasicAuthExtractorError(#[from] BasicAuthExtractorError),
+
     /// Cannot load cookies
     #[error("Cannot load cookies")]
     Cookies(String),
+
+    /// File doesn't have a file name.
+    #[error("File `{0}` doesn't have a file name.")]
+    NoFileName(PathBuf),
+
+    /// Filename is invalid unicode.
+    #[error("Filename of file `{0}` is invalid unicode.")]
+    InvalidFilenameUnicode(PathBuf),
 }
 
 impl ErrorKind {
@@ -229,6 +238,15 @@ impl PartialEq for ErrorKind {
             (Self::Regex(e1), Self::Regex(e2)) => e1.to_string() == e2.to_string(),
             (Self::DirTraversal(e1), Self::DirTraversal(e2)) => e1.to_string() == e2.to_string(),
             (Self::Channel(_), Self::Channel(_)) => true,
+            (Self::TooManyRedirects(e1), Self::TooManyRedirects(e2)) => {
+                e1.to_string() == e2.to_string()
+            }
+            (Self::BasicAuthExtractorError(e1), Self::BasicAuthExtractorError(e2)) => {
+                e1.to_string() == e2.to_string()
+            }
+            (Self::Cookies(e1), Self::Cookies(e2)) => e1 == e2,
+            (Self::NoFileName(p1), Self::NoFileName(p2)) => p1 == p2,
+            (Self::InvalidFilenameUnicode(p1), Self::InvalidFilenameUnicode(p2)) => p1 == p2,
             _ => false,
         }
     }
@@ -276,6 +294,8 @@ impl Hash for ErrorKind {
             Self::TooManyRedirects(e) => e.to_string().hash(state),
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
             Self::Cookies(e) => e.to_string().hash(state),
+            Self::NoFileName(p) => p.hash(state),
+            Self::InvalidFilenameUnicode(p) => p.hash(state),
         }
     }
 }
