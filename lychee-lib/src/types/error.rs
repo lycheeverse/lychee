@@ -95,7 +95,7 @@ pub enum ErrorKind {
 
     /// The given glob pattern is not valid
     #[error("UNIX glob pattern is invalid")]
-    InvalidGlobPattern(#[from] glob::PatternError),
+    Glob(#[from] globwalk::GlobError),
 
     /// The Github API could not be called because of a missing Github token.
     #[error("GitHub token not specified. To check GitHub links reliably, use `--github-token` flag / `GITHUB_TOKEN` env var.")]
@@ -214,9 +214,7 @@ impl PartialEq for ErrorKind {
                 u1 == u2
             }
             (Self::InsecureURL(u1), Self::InsecureURL(u2)) => u1 == u2,
-            (Self::InvalidGlobPattern(e1), Self::InvalidGlobPattern(e2)) => {
-                e1.msg == e2.msg && e1.pos == e2.pos
-            }
+            (Self::Glob(e1), Self::Glob(e2)) => e1.to_string() == e2.to_string(),
             (Self::InvalidHeader(_), Self::InvalidHeader(_))
             | (Self::MissingGitHubToken, Self::MissingGitHubToken) => true,
             (Self::InvalidStatusCode(c1), Self::InvalidStatusCode(c2)) => c1 == c2,
@@ -261,7 +259,7 @@ impl Hash for ErrorKind {
             Self::InvalidBase(base, e) => (base, e).hash(state),
             Self::InvalidUrlRemap(remap) => (remap).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
-            Self::InvalidGlobPattern(e) => e.to_string().hash(state),
+            Self::Glob(e) => e.to_string().hash(state),
             Self::InvalidStatusCode(c) => c.hash(state),
             Self::Channel(e) => e.to_string().hash(state),
             Self::MissingGitHubToken | Self::InvalidUrlHost => {

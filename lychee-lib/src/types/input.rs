@@ -7,6 +7,7 @@ use jwalk::WalkDir;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
+use std::env;
 use std::fmt::Display;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -67,9 +68,13 @@ pub enum InputSource {
     RemoteUrl(Box<Url>),
     /// Unix shell-style glob pattern.
     FsGlob {
-        /// The glob pattern matching all input files
-        pattern: String,
-        /// Don't be case sensitive when matching files against a glob
+        /// The base directory of the glob pattern
+        base: PathBuf,
+        /// The raw glob patterns matching all input files
+        // Note: we cannot use `GlobWalker` directly because it does not
+        // implement `Debug`
+        patterns: Vec<String>,
+        /// Whether the glob pattern is case-insensitive or not
         ignore_case: bool,
     },
     /// File path.
@@ -96,7 +101,14 @@ impl Display for InputSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::RemoteUrl(url) => url.as_str(),
-            Self::FsGlob { pattern, .. } => pattern,
+            Self::FsGlob {
+                base: _base,
+                patterns: _patterns,
+                ignore_case: _ignore_case,
+            } => {
+                "TODO"
+                // patterns.join(", ").as_str(),
+            }
             Self::FsPath(path) => path.to_str().unwrap_or_default(),
             Self::Stdin => "stdin",
             Self::String(s) => s,
@@ -124,45 +136,43 @@ impl Input {
     ///
     /// Returns an error if the input does not exist (i.e. invalid path)
     /// and the input cannot be parsed as a URL.
-    pub fn new(
+    pub fn try_new(
         value: &str,
         file_type_hint: Option<FileType>,
         glob_ignore_case: bool,
         excluded_paths: Option<Vec<PathBuf>>,
     ) -> Result<Self> {
+        println!("value: {:?}", value);
+
+
         let source = if value == STDIN {
             InputSource::Stdin
         } else if let Ok(url) = Url::parse(value) {
             InputSource::RemoteUrl(Box::new(url))
         } else {
-            // this seems to be the only way to determine if this is a glob pattern
-            let is_glob = glob::Pattern::escape(value) != value;
+
+            // TODO: how to handle multiple patterns?
+            // TODO: how to handle stdin?
+
+            let base = env::current_dir()?;
+            println!("base: {:?}", base);
+            println!("value: {:?}", value);
+            let raw_patterns = value
+                .split_whitespace()
+                .clone()
+                .map(|s| s.to_owned())
+                .collect();
+
+            InputSource::FsGlob {
+                base,
+                patterns: raw_patterns,
+                ignore_case: glob_ignore_case,
+            }
 
             if is_glob {
                 InputSource::FsGlob {
                     pattern: value.to_owned(),
                     ignore_case: glob_ignore_case,
-                }
-            } else {
-                let path = PathBuf::from(value);
-                if path.exists() {
-                    InputSource::FsPath(path)
-                } else if value.starts_with('~') || value.starts_with('.') {
-                    // The path is not valid, but it might be a valid URL
-                    // Check if the path starts with a tilde or a dot
-                    // and exit early if it does
-                    // This check might not be sufficient to cover all cases
-                    // but it catches the most common ones
-                    return Err(ErrorKind::FileNotFound(path));
-                } else {
-                    // Invalid path; check if a valid URL can be constructed from the input
-                    // by prefixing it with a `http://` scheme.
-                    // Curl also uses http (i.e. not https), see
-                    // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
-                    let url = Url::parse(&format!("http://{value}")).map_err(|e| {
-                        ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string())
-                    })?;
-                    InputSource::RemoteUrl(Box::new(url))
                 }
             }
         };

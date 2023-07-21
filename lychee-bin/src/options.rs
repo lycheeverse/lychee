@@ -140,7 +140,10 @@ impl LycheeOptions {
         };
         self.raw_inputs
             .iter()
-            .map(|s| Input::new(s, None, self.config.glob_ignore_case, excluded.clone()))
+            .map(|s| {
+                Input::try_new(s, None, self.config.glob_ignore_case, excluded.clone())
+                    .context("Cannot parse input")
+            })
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
