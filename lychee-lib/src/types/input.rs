@@ -149,9 +149,6 @@ impl Input {
         } else if let Ok(url) = Url::parse(value) {
             InputSource::RemoteUrl(Box::new(url))
         } else {
-            // TODO: how to handle multiple patterns?
-            // TODO: how to handle stdin?
-
             let base = env::current_dir()?;
             println!("base: {:?}", base);
             println!("value: {:?}", value);
@@ -167,6 +164,7 @@ impl Input {
                 ignore_case: glob_ignore_case,
             }
         };
+
         Ok(Self {
             source,
             file_type_hint,

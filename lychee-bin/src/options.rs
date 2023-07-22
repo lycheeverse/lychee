@@ -138,14 +138,32 @@ impl LycheeOptions {
         } else {
             Some(self.config.exclude_path.clone())
         };
-        self.raw_inputs
+
+        let (glob_inputs, normal_inputs): (Vec<_>, Vec<_>) = self
+            .raw_inputs
+            .iter()
+            .partition(|value| &glob::Pattern::escape(value) == *value);
+
+        let normal_inputs: Result<Vec<Input>> = normal_inputs
+            .iter()
+            .map(|input| {
+                Input::try_new(input, None, self.config.glob_ignore_case, excluded.clone())
+                    .context("Cannot parse input")
+            })
+            .collect();
+
+        let glob_inputs: Result<Vec<Input>> = glob_inputs
             .iter()
             .map(|s| {
                 Input::try_new(s, None, self.config.glob_ignore_case, excluded.clone())
                     .context("Cannot parse input")
             })
-            .collect::<Result<_, _>>()
-            .context("Cannot parse inputs from arguments")
+            .collect();
+
+        Ok(normal_inputs?
+            .into_iter()
+            .chain(glob_inputs?)
+            .collect::<Vec<_>>())
     }
 }
 
