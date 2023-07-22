@@ -142,34 +142,70 @@ impl Input {
         glob_ignore_case: bool,
         excluded_paths: Option<Vec<PathBuf>>,
     ) -> Result<Self> {
-        println!("value: {:?}", value);
-
-        let source = if value == STDIN {
-            InputSource::Stdin
+        let input = if value == STDIN {
+            Self::from_stdin(file_type_hint, excluded_paths)
         } else if let Ok(url) = Url::parse(value) {
-            InputSource::RemoteUrl(Box::new(url))
+            Self::from_url(url, file_type_hint, excluded_paths)
         } else {
             let base = env::current_dir()?;
-            println!("base: {:?}", base);
-            println!("value: {:?}", value);
-            let raw_patterns = value
-                .split_whitespace()
-                .clone()
-                .map(|s| s.to_owned())
-                .collect();
-
-            InputSource::FsGlob {
+            Self::from_fs_glob(
                 base,
-                patterns: raw_patterns,
-                ignore_case: glob_ignore_case,
-            }
+                value,
+                file_type_hint,
+                glob_ignore_case,
+                excluded_paths,
+            )
         };
+        Ok(input)
+    }
 
-        Ok(Self {
-            source,
+    /// Construct a new `Input` source from STDIN
+    ///
+    /// `InputSource::Stdin` is just a marker for the input source
+    /// if the user passes `-` as input
+    pub fn from_stdin(
+        file_type_hint: Option<FileType>,
+        excluded_paths: Option<Vec<PathBuf>>,
+    ) -> Self {
+        Self {
+            source: InputSource::Stdin,
             file_type_hint,
             excluded_paths,
-        })
+        }
+    }
+
+    /// Construct a new `Input` source from a URL
+    pub fn from_url(
+        url: Url,
+        file_type_hint: Option<FileType>,
+        excluded_paths: Option<Vec<PathBuf>>,
+    ) -> Self {
+        Self {
+            source: InputSource::RemoteUrl(Box::new(url)),
+            file_type_hint,
+            excluded_paths,
+        }
+    }
+
+    /// Construct a new `Input` source from a glob pattern
+    pub fn from_fs_glob(
+        base: PathBuf,
+        value: &str,
+        file_type_hint: Option<FileType>,
+        ignore_case: bool,
+        excluded_paths: Option<Vec<PathBuf>>,
+    ) -> Self {
+        let patterns = value.split_whitespace().map(|s| s.to_owned()).collect();
+
+        Self {
+            source: InputSource::FsGlob {
+                base,
+                patterns,
+                ignore_case,
+            },
+            file_type_hint,
+            excluded_paths,
+        }
     }
 
     /// Retrieve the contents from the input
