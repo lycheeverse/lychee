@@ -1631,9 +1631,9 @@ dependencies = [
 
 [[package]]
 name = "html5gum"
-version = "0.5.5"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a133aac7511abbaa924b45436d4f8684c4e1adbda73b3c5716d9e52bd9f45e45"
+checksum = "4c4e556171a058ba117bbe88b059fb37b6289023e007d2903ea6dca3a3cbff14"
 dependencies = [
  "jetscii",
 ]
