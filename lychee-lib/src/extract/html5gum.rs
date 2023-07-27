@@ -214,7 +214,7 @@ impl Emitter for &mut LinkExtractor {
     fn emit_error(&mut self, _: Error) {}
 
     #[inline]
-    fn should_emit_errors() -> bool {
+    fn should_emit_errors(&mut self) -> bool {
         false
     }
     fn pop_token(&mut self) -> Option<()> {
