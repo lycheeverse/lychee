@@ -1,7 +1,6 @@
 //! Extract things from markdown documents
 use std::collections::{HashMap, HashSet};
 
-use convert_case::{Case, Casing};
 use pulldown_cmark::{Event, Options, Parser, Tag};
 
 use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
@@ -100,7 +99,7 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
                 }
 
                 if !heading.is_empty() {
-                    let id = id_generator.generate(&mut heading);
+                    let id = id_generator.generate(&heading);
                     out.insert(id);
                     heading.clear();
                 }
@@ -126,8 +125,8 @@ struct HeadingIdGenerator {
 }
 
 impl HeadingIdGenerator {
-    fn generate(&mut self, heading: &mut String) -> String {
-        let mut id = heading.to_case(Case::Kebab);
+    fn generate(&mut self, heading: &str) -> String {
+        let mut id = Self::into_kebab_case(heading);
         let count = self.counter.entry(id.clone()).or_insert(0);
         if *count != 0 {
             id = format!("{}-{}", id, *count);
@@ -135,6 +134,22 @@ impl HeadingIdGenerator {
         *count += 1;
 
         id
+    }
+
+    /// Converts text into kebab case
+    #[must_use]
+    fn into_kebab_case(text: &str) -> String {
+        text.chars()
+            .filter_map(|ch| {
+                if ch.is_alphanumeric() || ch == '_' || ch == '-' {
+                    Some(ch.to_ascii_lowercase())
+                } else if ch.is_whitespace() {
+                    Some('-')
+                } else {
+                    None
+                }
+            })
+            .collect::<String>()
     }
 }
 
@@ -221,5 +236,27 @@ Some pre-formatted http://pre.com
 
         let uris = extract_markdown(input, false);
         assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_kebab_case() {
+        let check = |input, expected| {
+            let actual = HeadingIdGenerator::into_kebab_case(input);
+            assert_eq!(actual, expected);
+        };
+        check("A Heading", "a-heading");
+        check(
+            "This header has a :thumbsup: in it",
+            "this-header-has-a-thumbsup-in-it",
+        );
+        check(
+            "Header with 한글 characters (using unicode)",
+            "header-with-한글-characters-using-unicode",
+        );
+        check(
+            "Underscores foo_bar_, dots . and numbers 1.7e-3",
+            "underscores-foo_bar_-dots--and-numbers-17e-3",
+        );
+        check("Many          spaces", "many----------spaces");
     }
 }
