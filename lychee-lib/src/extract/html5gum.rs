@@ -212,6 +212,11 @@ impl Emitter for &mut LinkExtractor {
         self.flush_current_characters();
     }
     fn emit_error(&mut self, _: Error) {}
+
+    #[inline]
+    fn should_emit_errors(&mut self) -> bool {
+        false
+    }
     fn pop_token(&mut self) -> Option<()> {
         None
     }
@@ -401,9 +406,9 @@ mod tests {
     #[test]
     fn test_include_nofollow() {
         let input = r#"
-        <a rel="nofollow" href="https://foo.com">do not follow me</a> 
-        <a rel="canonical,nofollow,dns-prefetch" href="https://example.com">do not follow me</a> 
-        <a href="https://example.org">i'm fine</a> 
+        <a rel="nofollow" href="https://foo.com">do not follow me</a>
+        <a rel="canonical,nofollow,dns-prefetch" href="https://example.com">do not follow me</a>
+        <a href="https://example.org">i'm fine</a>
         "#;
         let expected = vec![RawUri {
             text: "https://example.org".to_string(),
@@ -420,7 +425,7 @@ mod tests {
         <script>
         var foo = "https://example.com";
         </script>
-        <a href="https://example.org">i'm fine</a> 
+        <a href="https://example.org">i'm fine</a>
         "#;
         let expected = vec![RawUri {
             text: "https://example.org".to_string(),
