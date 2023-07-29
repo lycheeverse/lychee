@@ -6,6 +6,7 @@ use super::{is_email_link, is_verbatim_elem, srcset};
 use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
 
 #[derive(Clone)]
+#[allow(clippy::struct_excessive_bools)]
 struct LinkExtractor {
     // note: what html5gum calls a tag, lychee calls an element
     links: Vec<RawUri>,
@@ -14,6 +15,7 @@ struct LinkExtractor {
     current_element_name: Vec<u8>,
     current_element_is_closing: bool,
     current_element_nofollow: bool,
+    current_element_preconnect: bool,
     current_attribute_name: Vec<u8>,
     current_attribute_value: Vec<u8>,
     last_start_element: Vec<u8>,
@@ -37,6 +39,7 @@ impl LinkExtractor {
             current_element_name: Vec::new(),
             current_element_is_closing: false,
             current_element_nofollow: false,
+            current_element_preconnect: false,
             current_attribute_name: Vec::new(),
             current_attribute_value: Vec::new(),
             last_start_element: Vec::new(),
@@ -151,7 +154,15 @@ impl LinkExtractor {
             if attr == "rel" && value.contains("nofollow") {
                 self.current_element_nofollow = true;
             }
-            if self.current_element_nofollow {
+
+            // Ignore links with rel=preconnect
+            // Other than prefetch and preload, preconnect only makes
+            // a DNS lookup, so we don't want to extract those links.
+            if attr == "rel" && value.contains("preconnect") {
+                self.current_element_preconnect = true;
+            }
+
+            if self.current_element_nofollow || self.current_element_preconnect {
                 self.current_attribute_name.clear();
                 self.current_attribute_value.clear();
                 return;
@@ -557,5 +568,15 @@ mod tests {
         ];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_skip_preconnect() {
+        let input = r#"
+            <link rel="preconnect" href="https://example.com">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
     }
 }

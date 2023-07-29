@@ -241,7 +241,8 @@ mod tests {
         let expected_links = IntoIterator::into_iter([
             website("https://example.com/"),
             website("https://example.com/favicon.ico"),
-            website("https://fonts.externalsite.com"),
+            // Note that we exclude `preconnect` links:
+            // website("https://fonts.externalsite.com"),
             website("https://example.com/docs/"),
             website("https://example.com/forum"),
         ])
