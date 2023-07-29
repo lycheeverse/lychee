@@ -4,7 +4,7 @@ use html5ever::{
     tokenizer::{Tag, TagKind, Token, TokenSink, TokenSinkResult, Tokenizer, TokenizerOpts},
 };
 
-use super::{is_email_link, is_verbatim_elem, plaintext::extract_plaintext};
+use super::{super::plaintext::extract_plaintext, is_email_link, is_verbatim_elem, srcset};
 use crate::types::uri::raw::RawUri;
 
 #[derive(Clone, Default)]
@@ -157,17 +157,7 @@ impl LinkExtractor {
                 Some(vec![attr_value].into_iter())
             }
             (_, "srcset") => {
-                let mut urls = Vec::new();
-                for image_candidate_string in attr_value.trim().split(',') {
-                    for part in image_candidate_string.split_ascii_whitespace() {
-                        if part.is_empty() {
-                            continue;
-                        }
-                        urls.push(part);
-                        break;
-                    }
-                }
-                Some(urls.into_iter())
+                Some(srcset::parse(attr_value).into_iter())
             }
             _ => None,
         }
