@@ -307,6 +307,11 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) accept: Option<HashSet<u16>>,
 
+    /// Enable the checking of fragments in links.
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) include_fragments: bool,
+
     /// Website timeout in seconds from connect to response finished
     #[arg(short, long, default_value = &TIMEOUT_STR)]
     #[serde(default = "timeout")]
@@ -426,6 +431,7 @@ impl Config {
             output: None;
             require_https: false;
             cookie_jar: None;
+            include_fragments: false;
         }
 
         if self

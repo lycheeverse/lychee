@@ -77,6 +77,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .accepted(accepted)
         .require_https(cfg.require_https)
         .cookie_jar(cookie_jar.cloned())
+        .include_fragments(cfg.include_fragments)
         .build()
         .client()
         .context("Failed to create request client")

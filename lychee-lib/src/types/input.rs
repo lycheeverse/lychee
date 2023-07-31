@@ -153,7 +153,7 @@ impl Input {
                     // and exit early if it does
                     // This check might not be sufficient to cover all cases
                     // but it catches the most common ones
-                    return Err(ErrorKind::FileNotFound(path));
+                    return Err(ErrorKind::InvalidFile(path));
                 } else {
                     // Invalid path; check if a valid URL can be constructed from the input
                     // by prefixing it with a `http://` scheme.
@@ -442,10 +442,7 @@ mod tests {
 
         let input = Input::new(test_file, None, false, None);
         assert!(input.is_err());
-        assert!(matches!(
-            input,
-            Err(ErrorKind::FileNotFound(PathBuf { .. }))
-        ));
+        assert!(matches!(input, Err(ErrorKind::InvalidFile(PathBuf { .. }))));
     }
 
     #[test]

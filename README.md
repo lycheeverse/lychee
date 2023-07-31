@@ -386,6 +386,9 @@ Options:
   -a, --accept <ACCEPT>
           Comma-separated list of accepted status codes for valid links
 
+      --include-fragments
+          Enable the checking of fragments in links
+
   -t, --timeout <TIMEOUT>
           Website timeout in seconds from connect to response finished
           
