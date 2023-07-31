@@ -91,7 +91,7 @@ pub enum ErrorKind {
 
     /// The given path does not resolve to a valid file
     #[error("Cannot find local file {0}")]
-    FileNotFound(PathBuf),
+    InvalidFile(PathBuf),
 
     /// Error while traversing an input directory
     #[error("Cannot traverse input directory: {0}")]
@@ -140,14 +140,6 @@ pub enum ErrorKind {
     /// Cannot load cookies
     #[error("Cannot load cookies")]
     Cookies(String),
-
-    /// File doesn't have a file name.
-    #[error("File `{0}` doesn't have a file name.")]
-    NoFileName(PathBuf),
-
-    /// Filename is invalid unicode.
-    #[error("Filename of file `{0}` is invalid unicode.")]
-    InvalidFilenameUnicode(PathBuf),
 }
 
 impl ErrorKind {
@@ -245,8 +237,7 @@ impl PartialEq for ErrorKind {
                 e1.to_string() == e2.to_string()
             }
             (Self::Cookies(e1), Self::Cookies(e2)) => e1 == e2,
-            (Self::NoFileName(p1), Self::NoFileName(p2)) => p1 == p2,
-            (Self::InvalidFilenameUnicode(p1), Self::InvalidFilenameUnicode(p2)) => p1 == p2,
+            (Self::InvalidFile(p1), Self::InvalidFile(p2)) => p1 == p2,
             _ => false,
         }
     }
@@ -271,7 +262,7 @@ impl Hash for ErrorKind {
             Self::GithubRequest(e) => e.to_string().hash(state),
             Self::InvalidGithubUrl(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
-            Self::FileNotFound(e) => e.to_string_lossy().hash(state),
+            Self::InvalidFile(e) => e.to_string_lossy().hash(state),
             Self::EmptyUrl => "Empty URL".hash(state),
             Self::ParseUrl(e, s) => (e.to_string(), s).hash(state),
             Self::InvalidURI(u) => u.hash(state),
@@ -294,8 +285,6 @@ impl Hash for ErrorKind {
             Self::TooManyRedirects(e) => e.to_string().hash(state),
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
             Self::Cookies(e) => e.to_string().hash(state),
-            Self::NoFileName(p) => p.hash(state),
-            Self::InvalidFilenameUnicode(p) => p.hash(state),
         }
     }
 }

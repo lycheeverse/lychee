@@ -74,9 +74,9 @@ pub(crate) fn create(
                     match root.file_name() {
                         Some(file_name) => match file_name.to_str() {
                             Some(valid_str) => valid_str.to_string() + &text,
-                            None => return Err(ErrorKind::InvalidFilenameUnicode(root.clone())),
+                            None => return Err(ErrorKind::InvalidFile(root.clone())),
                         },
-                        None => return Err(ErrorKind::NoFileName(root.clone())),
+                        None => return Err(ErrorKind::InvalidFile(root.clone())),
                     }
                 } else {
                     text

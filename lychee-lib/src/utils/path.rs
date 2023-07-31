@@ -45,7 +45,7 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Opt
         relative if dst.is_relative() => {
             // Find `dst` in the parent directory of `src`
             let Some(parent) = src.parent() else {
-                return Err(ErrorKind::FileNotFound(relative.to_path_buf()))
+                return Err(ErrorKind::InvalidFile(relative.to_path_buf()))
             };
             parent.join(relative)
         }
@@ -62,7 +62,7 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Opt
             };
             join(dir.to_path_buf(), absolute)
         }
-        _ => return Err(ErrorKind::FileNotFound(dst.to_path_buf())),
+        _ => return Err(ErrorKind::InvalidFile(dst.to_path_buf())),
     };
     Ok(Some(absolute_path(resolved)))
 }
