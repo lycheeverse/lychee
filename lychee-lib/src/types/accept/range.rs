@@ -58,7 +58,10 @@ impl FromStr for AcceptRange {
 impl AcceptRange {
     /// Creates a new [`AcceptRange`] which matches values between `start` and
     /// `end` (both inclusive). It additionally validates that
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `start` > `end`.
     pub const fn new(start: u16, end: u16) -> Result<Self, AcceptRangeError> {
         if start > end {
             return Err(AcceptRangeError::InvalidRangeIndices);
@@ -87,7 +90,7 @@ impl AcceptRange {
 
     /// Consumes self and returns the inner range.
     #[must_use]
-    pub fn inner(self) -> RangeInclusive<u16> {
+    pub const fn inner(self) -> RangeInclusive<u16> {
         self.0
     }
 

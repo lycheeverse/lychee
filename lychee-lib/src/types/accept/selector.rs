@@ -32,8 +32,7 @@ impl FromStr for AcceptSelector {
         }
 
         let ranges = input
-            .split(",")
-            .into_iter()
+            .split(',')
             .map(|part| AcceptRange::from_str(part.trim()))
             .collect::<Result<Vec<AcceptRange>, AcceptRangeError>>()?;
 
@@ -84,6 +83,7 @@ impl AcceptSelector {
 
     /// Consumes self and creates a [`HashSet`] which contains all
     /// accepted status codes.
+    #[must_use]
     pub fn into_set(self) -> HashSet<u16> {
         let mut set = HashSet::new();
 

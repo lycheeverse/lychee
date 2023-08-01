@@ -10,7 +10,7 @@ use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use lychee_lib::{Client, Request, Response};
+use lychee_lib::{AcceptSelector, Client, Request, Response};
 use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
@@ -44,10 +44,7 @@ where
 
     let client = params.client;
     let cache = params.cache;
-    let accept = match params.cfg.accept {
-        Some(selector) => Some(selector.into_set()),
-        None => None,
-    };
+    let accept = params.cfg.accept.map(AcceptSelector::into_set);
 
     let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {
         None
