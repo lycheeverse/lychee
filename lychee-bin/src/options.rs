@@ -282,9 +282,15 @@ pub(crate) struct Config {
     pub(crate) exclude_loopback: bool,
 
     /// Exclude all mail addresses from checking
+    /// (deprecated; excluded by default)
     #[arg(long)]
     #[serde(default)]
     pub(crate) exclude_mail: bool,
+
+    /// Also check email addresses
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) include_mail: bool,
 
     /// Remap URI matching pattern to different URI
     #[serde(default)]
@@ -300,6 +306,11 @@ pub(crate) struct Config {
     #[arg(short, long)]
     #[serde(default)]
     pub(crate) accept: Option<AcceptSelector>,
+
+    /// Enable the checking of fragments in links.
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) include_fragments: bool,
 
     /// Website timeout in seconds from connect to response finished
     #[arg(short, long, default_value = &TIMEOUT_STR)]
@@ -420,6 +431,7 @@ impl Config {
             output: None;
             require_https: false;
             cookie_jar: None;
+            include_fragments: false;
         }
 
         if self

@@ -1,7 +1,7 @@
 Check file link
 ![Logo](../assets/banner.svg)
 
-![Anchors should be ignored](#awesome)
+![Fragment only link](#awesome)
 
 Normal link, which should work as expected.
 [Wikipedia](https://en.wikipedia.org/wiki/Static_program_analysis)

@@ -32,6 +32,7 @@ mod cli {
 
         let cmd = cmd
             .arg(input)
+            .arg("--include-mail")
             .arg("--dump")
             .assert()
             .success()

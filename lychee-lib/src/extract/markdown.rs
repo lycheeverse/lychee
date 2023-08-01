@@ -1,8 +1,11 @@
-use pulldown_cmark::{Event, Parser, Tag};
+//! Extract things from markdown documents
+use std::collections::{HashMap, HashSet};
+
+use pulldown_cmark::{Event, Options, Parser, Tag};
 
 use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
 
-use super::html5gum::extract_html;
+use super::html::html5gum::extract_html;
 
 /// Extract unparsed URL strings from a Markdown string.
 pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUri> {
@@ -77,6 +80,79 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
         .collect()
 }
 
+/// Extract unparsed URL strings from a Markdown string.
+pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
+    let mut in_heading = false;
+    let mut heading = String::new();
+    let mut id_generator = HeadingIdGenerator::default();
+
+    let mut out = HashSet::new();
+
+    for event in Parser::new_ext(input, Options::ENABLE_HEADING_ATTRIBUTES) {
+        match event {
+            Event::Start(Tag::Heading(..)) => {
+                in_heading = true;
+            }
+            Event::End(Tag::Heading(_level, id, _classes)) => {
+                if let Some(frag) = id {
+                    out.insert(frag.to_string());
+                }
+
+                if !heading.is_empty() {
+                    let id = id_generator.generate(&heading);
+                    out.insert(id);
+                    heading.clear();
+                }
+
+                in_heading = false;
+            }
+            Event::Text(text) => {
+                if in_heading {
+                    heading.push_str(&text);
+                };
+            }
+
+            // Silently skip over other events
+            _ => (),
+        }
+    }
+    out
+}
+
+#[derive(Default)]
+struct HeadingIdGenerator {
+    counter: HashMap<String, usize>,
+}
+
+impl HeadingIdGenerator {
+    fn generate(&mut self, heading: &str) -> String {
+        let mut id = Self::into_kebab_case(heading);
+        let count = self.counter.entry(id.clone()).or_insert(0);
+        if *count != 0 {
+            id = format!("{}-{}", id, *count);
+        }
+        *count += 1;
+
+        id
+    }
+
+    /// Converts text into kebab case
+    #[must_use]
+    fn into_kebab_case(text: &str) -> String {
+        text.chars()
+            .filter_map(|ch| {
+                if ch.is_alphanumeric() || ch == '_' || ch == '-' {
+                    Some(ch.to_ascii_lowercase())
+                } else if ch.is_whitespace() {
+                    Some('-')
+                } else {
+                    None
+                }
+            })
+            .collect::<String>()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,17 +224,39 @@ or inline like `https://bar.org` for instance.
     #[test]
     #[ignore]
     fn test_skip_verbatim_html() {
-        let input = " 
+        let input = "
 <code>
 http://link.com
 </code>
 <pre>
-Some pre-formatted http://pre.com 
+Some pre-formatted http://pre.com
 </pre>";
 
         let expected = vec![];
 
         let uris = extract_markdown(input, false);
         assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_kebab_case() {
+        let check = |input, expected| {
+            let actual = HeadingIdGenerator::into_kebab_case(input);
+            assert_eq!(actual, expected);
+        };
+        check("A Heading", "a-heading");
+        check(
+            "This header has a :thumbsup: in it",
+            "this-header-has-a-thumbsup-in-it",
+        );
+        check(
+            "Header with 한글 characters (using unicode)",
+            "header-with-한글-characters-using-unicode",
+        );
+        check(
+            "Underscores foo_bar_, dots . and numbers 1.7e-3",
+            "underscores-foo_bar_-dots--and-numbers-17e-3",
+        );
+        check("Many          spaces", "many----------spaces");
     }
 }

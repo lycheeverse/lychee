@@ -121,16 +121,29 @@ mod cli {
     }
 
     #[test]
-    fn test_exclude_email() -> Result<()> {
+    fn test_email() -> Result<()> {
         test_json_output!(
             "TEST_EMAIL.md",
             MockResponseStats {
-                total: 6,
-                excludes: 4,
-                successful: 2,
+                total: 5,
+                excludes: 0,
+                successful: 5,
                 ..MockResponseStats::default()
             },
-            "--exclude-mail"
+            "--include-mail"
+        )
+    }
+
+    #[test]
+    fn test_exclude_email_by_default() -> Result<()> {
+        test_json_output!(
+            "TEST_EMAIL.md",
+            MockResponseStats {
+                total: 5,
+                excludes: 3,
+                successful: 2,
+                ..MockResponseStats::default()
+            }
         )
     }
 
@@ -141,6 +154,7 @@ mod cli {
 
         cmd.arg("--dump")
             .arg(input)
+            .arg("--include-mail")
             .assert()
             .success()
             .stdout(contains("hello@example.org?subject=%5BHello%5D"));
@@ -155,6 +169,7 @@ mod cli {
 
         cmd.arg("--dump")
             .arg(input)
+            .arg("--include-mail")
             .assert()
             .success()
             .stdout(contains("hello@example.org?subject=%5BHello%5D"));
@@ -207,8 +222,8 @@ mod cli {
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("3 Total"))
-            .stdout(contains("3 OK"));
+            .stdout(contains("4 Total"))
+            .stdout(contains("4 OK"));
     }
 
     #[test]
@@ -474,8 +489,9 @@ mod cli {
         test_json_output!(
             "TEST.md",
             MockResponseStats {
-                total: 11,
-                successful: 11,
+                total: 12,
+                successful: 10,
+                excludes: 2,
                 ..MockResponseStats::default()
             }
         )
@@ -491,6 +507,7 @@ mod cli {
         cmd.arg("--output")
             .arg(&outfile)
             .arg("--dump")
+            .arg("--include-mail")
             .arg(test_path)
             .assert()
             .success();
@@ -501,7 +518,7 @@ mod cli {
         // Running the command from the command line will print 9 links,
         // because the actual `--dump` command filters out the two
         // http(s)://example.com links
-        assert_eq!(output.lines().count(), 11);
+        assert_eq!(output.lines().count(), 12);
         fs::remove_file(outfile)?;
         Ok(())
     }
@@ -517,7 +534,7 @@ mod cli {
             .arg(".*")
             .assert()
             .success()
-            .stdout(contains("11 Excluded"));
+            .stdout(contains("12 Excluded"));
 
         Ok(())
     }
@@ -533,42 +550,7 @@ mod cli {
             .arg("https://ldra.com/")
             .assert()
             .success()
-            .stdout(contains("2 Excluded"));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_exclude_file() -> Result<()> {
-        let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST.md");
-        let excludes_path = fixtures_path().join("TEST_EXCLUDE_1.txt");
-
-        cmd.arg(test_path)
-            .arg("--exclude-file")
-            .arg(excludes_path)
-            .assert()
-            .success()
-            .stdout(contains("2 Excluded"));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_multiple_exclude_files() -> Result<()> {
-        let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST.md");
-        let excludes_path1 = fixtures_path().join("TEST_EXCLUDE_1.txt");
-        let excludes_path2 = fixtures_path().join("TEST_EXCLUDE_2.txt");
-
-        cmd.arg(test_path)
-            .arg("--exclude-file")
-            .arg(excludes_path1)
-            .arg("--exclude-file")
-            .arg(excludes_path2)
-            .assert()
-            .success()
-            .stdout(contains("3 Excluded"));
+            .stdout(contains("4 Excluded"));
 
         Ok(())
     }
@@ -1416,5 +1398,31 @@ mod cli {
             .stdout(contains("Stdin"));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_fragments() {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("fragments");
+
+        cmd.arg("--verbose")
+            .arg("--include-fragments")
+            .arg(input)
+            .assert()
+            .failure()
+            .stderr(contains("fixtures/fragments/file1.md#fragment-2"))
+            .stderr(contains("fixtures/fragments/file2.md#custom-id"))
+            .stderr(contains("fixtures/fragments/file1.md#missing-fragment"))
+            .stderr(contains("fixtures/fragments/file2.md#fragment-1"))
+            .stderr(contains("fixtures/fragments/file1.md#kebab-case-fragment"))
+            .stderr(contains("fixtures/fragments/file2.md#missing-fragment"))
+            .stderr(contains("fixtures/fragments/empty_file#fragment"))
+            .stderr(contains(
+                "fixtures/fragments/file1.md#kebab-case-fragment-1",
+            ))
+            .stdout(contains("8 Total"))
+            .stdout(contains("6 OK"))
+            // 2 failures because of missing fragments
+            .stdout(contains("2 Errors"));
     }
 }

@@ -113,15 +113,15 @@ pub struct Filter {
     /// For IPv6: ::1/128
     pub exclude_loopback_ips: bool,
     /// Example: octocat@github.com
-    pub exclude_mail: bool,
+    pub include_mail: bool,
 }
 
 impl Filter {
     #[inline]
     #[must_use]
-    /// Whether e-mails aren't checked
+    /// Whether e-mails aren't checked (which is the default)
     pub fn is_mail_excluded(&self, uri: &Uri) -> bool {
-        self.exclude_mail && uri.is_mail()
+        uri.is_mail() && !self.include_mail
     }
 
     #[must_use]
@@ -179,7 +179,7 @@ impl Filter {
     /// # Details
     ///
     /// 1. If any of the following conditions are met, the URI is excluded:
-    ///   - If it's a mail address and it's configured to ignore mail addresses.
+    ///   - If it's a mail address and it's not configured to include mail addresses.
     ///   - If the IP address belongs to a type that is configured to exclude.
     ///   - If the host belongs to a type that is configured to exclude.
     ///   - If the scheme of URI is not the allowed scheme.
@@ -196,10 +196,10 @@ impl Filter {
     #[must_use]
     pub fn is_excluded(&self, uri: &Uri) -> bool {
         // Skip mail address, specific IP, specific host and scheme
-        if self.is_mail_excluded(uri)
-            || self.is_ip_excluded(uri)
+        if self.is_scheme_excluded(uri)
             || self.is_host_excluded(uri)
-            || self.is_scheme_excluded(uri)
+            || self.is_ip_excluded(uri)
+            || self.is_mail_excluded(uri)
             || is_example_domain(uri)
             || is_unsupported_domain(uri)
         {
@@ -211,7 +211,7 @@ impl Filter {
         if self.is_includes_empty() {
             if self.is_excludes_empty() {
                 // Both excludes and includes rules are empty:
-                // *Presumably included* unless it's false positive
+                // *Presumably included* unless it's a false positive
                 return is_false_positive(input);
             }
         } else if self.is_includes_match(input) {
@@ -363,14 +363,25 @@ mod tests {
     }
 
     #[test]
-    fn test_exclude_mail() {
+    fn test_exclude_mail_by_default() {
         let filter = Filter {
-            exclude_mail: true,
             ..Filter::default()
         };
 
         assert!(filter.is_excluded(&mail("mail@example.com")));
         assert!(filter.is_excluded(&mail("foo@bar.dev")));
+        assert!(!filter.is_excluded(&website("http://bar.dev")));
+    }
+
+    #[test]
+    fn test_include_mail() {
+        let filter = Filter {
+            include_mail: true,
+            ..Filter::default()
+        };
+
+        assert!(!filter.is_excluded(&mail("mail@example.com")));
+        assert!(!filter.is_excluded(&mail("foo@bar.dev")));
         assert!(!filter.is_excluded(&website("http://bar.dev")));
     }
 
@@ -389,7 +400,7 @@ mod tests {
         assert!(filter.is_excluded(&mail("mail@example.com")));
 
         assert!(!filter.is_excluded(&website("http://bar.dev")));
-        assert!(!filter.is_excluded(&mail("foo@bar.dev")));
+        assert!(filter.is_excluded(&mail("foo@bar.dev")));
     }
     #[test]
     fn test_exclude_include_regex() {

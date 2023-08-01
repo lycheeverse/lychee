@@ -64,6 +64,10 @@ pub enum ErrorKind {
     #[error("Cannot find file")]
     InvalidFilePath(Uri),
 
+    /// The given URI cannot be converted to a file path
+    #[error("Cannot find fragment")]
+    InvalidFragment(Uri),
+
     /// The given path cannot be converted to a URI
     #[error("Invalid path to URL conversion: {0}")]
     InvalidUrlFromPath(PathBuf),
@@ -88,7 +92,7 @@ pub enum ErrorKind {
 
     /// The given path does not resolve to a valid file
     #[error("Cannot find local file {0}")]
-    FileNotFound(PathBuf),
+    InvalidFile(PathBuf),
 
     /// Error while traversing an input directory
     #[error("Cannot traverse input directory: {0}")]
@@ -231,6 +235,14 @@ impl PartialEq for ErrorKind {
             (Self::Regex(e1), Self::Regex(e2)) => e1.to_string() == e2.to_string(),
             (Self::DirTraversal(e1), Self::DirTraversal(e2)) => e1.to_string() == e2.to_string(),
             (Self::Channel(_), Self::Channel(_)) => true,
+            (Self::TooManyRedirects(e1), Self::TooManyRedirects(e2)) => {
+                e1.to_string() == e2.to_string()
+            }
+            (Self::BasicAuthExtractorError(e1), Self::BasicAuthExtractorError(e2)) => {
+                e1.to_string() == e2.to_string()
+            }
+            (Self::Cookies(e1), Self::Cookies(e2)) => e1 == e2,
+            (Self::InvalidFile(p1), Self::InvalidFile(p2)) => p1 == p2,
             _ => false,
         }
     }
@@ -255,13 +267,14 @@ impl Hash for ErrorKind {
             Self::GithubRequest(e) => e.to_string().hash(state),
             Self::InvalidGithubUrl(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
-            Self::FileNotFound(e) => e.to_string_lossy().hash(state),
+            Self::InvalidFile(e) => e.to_string_lossy().hash(state),
             Self::EmptyUrl => "Empty URL".hash(state),
             Self::ParseUrl(e, s) => (e.to_string(), s).hash(state),
             Self::InvalidURI(u) => u.hash(state),
             Self::InvalidUrlFromPath(p) => p.hash(state),
             Self::Utf8(e) => e.to_string().hash(state),
             Self::InvalidFilePath(u) => u.hash(state),
+            Self::InvalidFragment(u) => u.hash(state),
             Self::UnreachableEmailAddress(u, ..) => u.hash(state),
             Self::InsecureURL(u, ..) => u.hash(state),
             Self::InvalidBase(base, e) => (base, e).hash(state),

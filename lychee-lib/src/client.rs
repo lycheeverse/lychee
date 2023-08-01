@@ -13,7 +13,7 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
@@ -22,7 +22,7 @@ use http::{
     header::{HeaderMap, HeaderValue, AUTHORIZATION},
     StatusCode,
 };
-use log::debug;
+use log::{debug, warn};
 use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::{header, redirect, Url};
@@ -36,6 +36,7 @@ use crate::{
     remap::Remaps,
     retry::RetryExt,
     types::uri::github::GithubUri,
+    utils::fragment_checker::FragmentChecker,
     BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
@@ -179,8 +180,8 @@ pub struct ClientBuilder {
     /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
     exclude_loopback_ips: bool,
 
-    /// When `true`, don't check mail addresses.
-    exclude_mail: bool,
+    /// When `true`, check mail addresses.
+    include_mail: bool,
 
     /// Maximum number of redirects per request before returning an error.
     ///
@@ -270,6 +271,9 @@ pub struct ClientBuilder {
     ///
     /// See https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.cookie_store
     cookie_jar: Option<Arc<CookieStoreMutex>>,
+
+    /// Enable the checking of fragments in links.
+    include_fragments: bool,
 }
 
 impl Default for ClientBuilder {
@@ -367,7 +371,7 @@ impl ClientBuilder {
             exclude_private_ips: self.exclude_all_private || self.exclude_private_ips,
             exclude_link_local_ips: self.exclude_all_private || self.exclude_link_local_ips,
             exclude_loopback_ips: self.exclude_all_private || self.exclude_loopback_ips,
-            exclude_mail: self.exclude_mail,
+            include_mail: self.include_mail,
         };
 
         let quirks = Quirks::default();
@@ -383,6 +387,8 @@ impl ClientBuilder {
             accepted: self.accepted,
             require_https: self.require_https,
             quirks,
+            include_fragments: self.include_fragments,
+            fragment_checker: FragmentChecker::new(),
         })
     }
 }
@@ -429,6 +435,12 @@ pub struct Client {
 
     /// Override behaviors for certain known issues with special URIs.
     quirks: Quirks,
+
+    /// Enable the checking of fragments in links.
+    include_fragments: bool,
+
+    /// Caches Fragments
+    fragment_checker: FragmentChecker,
 }
 
 impl Client {
@@ -472,7 +484,7 @@ impl Client {
         }
 
         let status = match uri.scheme() {
-            _ if uri.is_file() => self.check_file(uri),
+            _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
             _ => self.check_website(uri, credentials).await?,
         };
@@ -659,13 +671,30 @@ impl Client {
     }
 
     /// Check a `file` URI.
-    pub fn check_file(&self, uri: &Uri) -> Status {
-        if let Ok(path) = uri.url.to_file_path() {
-            if path.exists() {
-                return Status::Ok(StatusCode::OK);
+    pub async fn check_file(&self, uri: &Uri) -> Status {
+        let Ok(path) = uri.url.to_file_path() else {
+            return ErrorKind::InvalidFilePath(uri.clone()).into();
+        };
+        if !path.exists() {
+            return ErrorKind::InvalidFilePath(uri.clone()).into();
+        }
+        if self.include_fragments {
+            self.check_fragment(&path, uri).await
+        } else {
+            Status::Ok(StatusCode::OK)
+        }
+    }
+
+    /// Checks a `file` URI's fragment.
+    pub async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
+        match self.fragment_checker.check(path, &uri.url).await {
+            Ok(true) => Status::Ok(StatusCode::OK),
+            Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
+            Err(err) => {
+                warn!("Skipping fragment check due to the following error: {err}");
+                Status::Ok(StatusCode::OK)
             }
         }
-        ErrorKind::InvalidFilePath(uri.clone()).into()
     }
 
     /// Check a mail address, or equivalently a `mailto` URI.
@@ -837,24 +866,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_exclude_mail() {
+    async fn test_exclude_mail_by_default() {
         let client = ClientBuilder::builder()
-            .exclude_mail(false)
-            .exclude_all_private(true)
-            .build()
-            .client()
-            .unwrap();
-        assert!(!client.is_excluded(&Uri {
-            url: "mailto://mail@example.com".try_into().unwrap()
-        }));
-
-        let client = ClientBuilder::builder()
-            .exclude_mail(true)
             .exclude_all_private(true)
             .build()
             .client()
             .unwrap();
         assert!(client.is_excluded(&Uri {
+            url: "mailto://mail@example.com".try_into().unwrap()
+        }));
+    }
+
+    #[tokio::test]
+    async fn test_include_mail() {
+        let client = ClientBuilder::builder()
+            .include_mail(false)
+            .exclude_all_private(true)
+            .build()
+            .client()
+            .unwrap();
+        assert!(client.is_excluded(&Uri {
+            url: "mailto://mail@example.com".try_into().unwrap()
+        }));
+
+        let client = ClientBuilder::builder()
+            .include_mail(true)
+            .exclude_all_private(true)
+            .build()
+            .client()
+            .unwrap();
+        assert!(!client.is_excluded(&Uri {
             url: "mailto://mail@example.com".try_into().unwrap()
         }));
     }

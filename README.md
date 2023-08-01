@@ -372,7 +372,10 @@ Options:
           Exclude loopback IP address range and localhost from checking
 
       --exclude-mail
-          Exclude all mail addresses from checking
+          Exclude all mail addresses from checking (deprecated; excluded by default)
+
+      --include-mail
+          Also check email addresses
 
       --remap <REMAP>
           Remap URI matching pattern to different URI
@@ -382,6 +385,9 @@ Options:
 
   -a, --accept <ACCEPT>
           Comma-separated list of accepted status codes for valid links
+
+      --include-fragments
+          Enable the checking of fragments in links
 
   -t, --timeout <TIMEOUT>
           Website timeout in seconds from connect to response finished
