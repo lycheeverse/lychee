@@ -26,14 +26,15 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         cfg.scheme.clone()
     };
 
-    let accepted = match cfg.accept {
-        Some(ref accepted) => {
-            let accepted: Result<HashSet<_>, _> = accepted
+    let accepted = match &cfg.accept {
+        Some(selector) => Some(
+            selector
+                .clone()
+                .into_set()
                 .iter()
-                .map(|code| StatusCode::from_u16(*code))
-                .collect();
-            Some(accepted?)
-        }
+                .map(|value| StatusCode::from_u16(*value))
+                .collect::<Result<HashSet<_>, _>>()?,
+        ),
         None => None,
     };
 

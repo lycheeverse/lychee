@@ -1,10 +1,44 @@
-use crate::types::accept::AcceptRange;
+use std::{collections::HashSet, str::FromStr};
+
+use serde_with::DeserializeFromStr;
+use thiserror::Error;
+
+use crate::{types::accept::AcceptRange, AcceptRangeError};
+
+#[derive(Debug, Error)]
+pub enum AcceptSelectorError {
+    #[error("Invalid/empty input")]
+    InvalidInput,
+
+    #[error("Failed to parse accept range")]
+    AcceptRangeError(#[from] AcceptRangeError),
+}
 
 /// An [`AcceptSelector`] determines if a returned HTTP status code should be
 /// accepted and thus counted as a valid (not broken) link.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default, DeserializeFromStr, PartialEq)]
 pub struct AcceptSelector {
     ranges: Vec<AcceptRange>,
+}
+
+impl FromStr for AcceptSelector {
+    type Err = AcceptSelectorError;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let input = input.trim();
+
+        if input.is_empty() {
+            return Err(AcceptSelectorError::InvalidInput);
+        }
+
+        let ranges = input
+            .split(",")
+            .into_iter()
+            .map(|part| AcceptRange::from_str(part.trim()))
+            .collect::<Result<Vec<AcceptRange>, AcceptRangeError>>()?;
+
+        Ok(Self::new_from(ranges))
+    }
 }
 
 impl AcceptSelector {
@@ -14,24 +48,24 @@ impl AcceptSelector {
         Self::default()
     }
 
+    /// Creates a new [`AcceptSelector`] prefilled with `ranges`.
+    #[must_use]
+    pub fn new_from(ranges: Vec<AcceptRange>) -> Self {
+        let mut selector = Self::new();
+
+        for range in ranges {
+            selector.add_range(range);
+        }
+
+        selector
+    }
+
     /// Adds a range of accepted HTTP status codes to this [`AcceptSelector`].
     /// This method merges the new and existing ranges if they overlap.
     pub fn add_range(&mut self, range: AcceptRange) -> &mut Self {
         // Merge with previous range if possible
         if let Some(last) = self.ranges.last_mut() {
-            // Merge when there is an overlap between the last end value and the
-            // to be inserted new range start value. Only do this, of the new
-            // end value is greater than the last end value.
-            if last.end() >= range.start() && range.end() >= last.end() {
-                last.update_end(*range.end());
-                return self;
-            }
-
-            // Merge when there is an overlap between the last start value and
-            // the to be inserted new range end value. Only do this, if the new
-            // start value is smaller than the last start value.
-            if last.start() <= range.end() && range.start() <= last.start() {
-                last.update_start(*range.start());
+            if last.merge(&range) {
                 return self;
             }
         }
@@ -44,8 +78,22 @@ impl AcceptSelector {
 
     /// Returns whether this [`AcceptSelector`] contains `value`.
     #[must_use]
-    pub fn contains(&self, value: usize) -> bool {
+    pub fn contains(&self, value: u16) -> bool {
         self.ranges.iter().any(|range| range.contains(value))
+    }
+
+    /// Consumes self and creates a [`HashSet`] which contains all
+    /// accepted status codes.
+    pub fn into_set(self) -> HashSet<u16> {
+        let mut set = HashSet::new();
+
+        for range in self.ranges {
+            for value in range.inner() {
+                set.insert(value);
+            }
+        }
+
+        set
     }
 
     #[cfg(test)]
@@ -57,57 +105,28 @@ impl AcceptSelector {
 #[cfg(test)]
 mod test {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn test_non_overlapping_ranges() {
-        let range1 = AcceptRange::new(0, 10);
-        let range2 = AcceptRange::new(20, 30);
+    #[rstest]
+    #[case("1..=10,20..=30", vec![1, 10, 20, 30], vec![15, 35], 2)]
+    #[case("1..=10,8..=20", vec![1, 15, 20], vec![25, 30], 1)]
+    #[case("8..=20,1..=10", vec![1, 15, 20], vec![25, 30], 1)]
+    #[case("1..=10,20", vec![1, 10, 20], vec![15, 25], 2)]
+    fn test_from_str(
+        #[case] input: &str,
+        #[case] valid_values: Vec<u16>,
+        #[case] invalid_values: Vec<u16>,
+        #[case] length: usize,
+    ) {
+        let selector = AcceptSelector::from_str(input).unwrap();
+        assert_eq!(selector.len(), length);
 
-        let mut selector = AcceptSelector::new();
-        selector.add_range(range1).add_range(range2);
+        for valid in valid_values {
+            assert!(selector.contains(valid));
+        }
 
-        assert!(selector.contains(0));
-        assert!(selector.contains(10));
-        assert!(selector.contains(20));
-        assert!(selector.contains(30));
-
-        assert!(!selector.contains(15));
-        assert!(!selector.contains(35));
-
-        assert_eq!(selector.len(), 2);
-    }
-
-    #[test]
-    fn test_overlapping_start_ranges() {
-        let range1 = AcceptRange::new(8, 20);
-        let range2 = AcceptRange::new(0, 10);
-
-        let mut selector = AcceptSelector::new();
-        selector.add_range(range1).add_range(range2);
-
-        assert!(selector.contains(0));
-        assert!(selector.contains(10));
-        assert!(selector.contains(20));
-
-        assert!(!selector.contains(35));
-
-        assert_eq!(selector.len(), 1);
-    }
-
-    #[test]
-    fn test_overlapping_end_ranges() {
-        let range1 = AcceptRange::new(0, 10);
-        let range2 = AcceptRange::new(8, 20);
-
-        let mut selector = AcceptSelector::new();
-        selector.add_range(range1).add_range(range2);
-
-        assert!(selector.contains(0));
-        assert!(selector.contains(10));
-        assert!(selector.contains(20));
-
-        assert!(!selector.contains(35));
-
-        assert_eq!(selector.len(), 1);
+        for invalid in invalid_values {
+            assert!(!selector.contains(invalid));
+        }
     }
 }

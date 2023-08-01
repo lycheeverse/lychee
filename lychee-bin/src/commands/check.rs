@@ -44,7 +44,10 @@ where
 
     let client = params.client;
     let cache = params.cache;
-    let accept = params.cfg.accept;
+    let accept = match params.cfg.accept {
+        Some(selector) => Some(selector.into_set()),
+        None => None,
+    };
 
     let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {
         None

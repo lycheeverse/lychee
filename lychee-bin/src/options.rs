@@ -1,17 +1,17 @@
 use crate::archive::Archive;
-use crate::parse::{parse_base, parse_statuscodes};
+use crate::parse::parse_base;
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, BasicAuthSelector, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+    AcceptSelector, Base, BasicAuthSelector, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::path::Path;
-use std::{collections::HashSet, fs, path::PathBuf, str::FromStr, time::Duration};
+use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use strum::VariantNames;
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
@@ -297,9 +297,9 @@ pub(crate) struct Config {
     pub(crate) header: Vec<String>,
 
     /// Comma-separated list of accepted status codes for valid links
-    #[arg(short, long, value_parser = parse_statuscodes)]
+    #[arg(short, long)]
     #[serde(default)]
-    pub(crate) accept: Option<HashSet<u16>>,
+    pub(crate) accept: Option<AcceptSelector>,
 
     /// Website timeout in seconds from connect to response finished
     #[arg(short, long, default_value = &TIMEOUT_STR)]
