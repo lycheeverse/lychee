@@ -57,16 +57,29 @@ where
 mod tests {
     use crate::archive::wayback::get_wayback_link;
     use reqwest::Error;
+    use std::{error::Error as StdError, time::Duration};
+    use tokio::time::sleep;
 
     #[tokio::test]
-    async fn wayback_suggestion() -> Result<(), Error> {
-        let url = &"https://example.com".try_into().unwrap();
-        let response = get_wayback_link(url).await?;
-        let suggestion = response.unwrap();
+    async fn wayback_suggestion() -> Result<(), Box<dyn StdError>> {
+        let url = "https://example.com".parse()?;
 
-        assert!(suggestion.as_str().contains("web.archive.org"));
-
-        Ok(())
+        // This test can be flaky, because the wayback machine does not always
+        // return a suggestion. Retry a few times if needed.
+        for _ in 0..3 {
+            if let Some(suggestion) = get_wayback_link(&url).await? {
+                assert_eq!(
+                    suggestion
+                        .host_str()
+                        .expect("Suggestion doesn't have a host"),
+                    "web.archive.org"
+                );
+                assert!(suggestion.path().ends_with(url.as_str()));
+                return Ok(());
+            }
+            sleep(Duration::from_secs(1)).await; // add delay between retries
+        }
+        Err("Did not get a valid Wayback Machine suggestion.".into())
     }
 
     #[tokio::test]
