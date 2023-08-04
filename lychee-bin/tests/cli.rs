@@ -1410,6 +1410,7 @@ mod cli {
             .arg(input)
             .assert()
             .failure()
+            .stderr(contains("fixtures/fragments/file1.md#fragment-1"))
             .stderr(contains("fixtures/fragments/file1.md#fragment-2"))
             .stderr(contains("fixtures/fragments/file2.md#custom-id"))
             .stderr(contains("fixtures/fragments/file1.md#missing-fragment"))
@@ -1417,12 +1418,15 @@ mod cli {
             .stderr(contains("fixtures/fragments/file1.md#kebab-case-fragment"))
             .stderr(contains("fixtures/fragments/file2.md#missing-fragment"))
             .stderr(contains("fixtures/fragments/empty_file#fragment"))
+            .stderr(contains("fixtures/fragments/file.html#a-word"))
+            .stderr(contains("fixtures/fragments/file.html#in-the-beginning"))
+            .stderr(contains("fixtures/fragments/file.html#in-the-end"))
             .stderr(contains(
                 "fixtures/fragments/file1.md#kebab-case-fragment-1",
             ))
-            .stdout(contains("8 Total"))
-            .stdout(contains("6 OK"))
-            // 2 failures because of missing fragments
-            .stdout(contains("2 Errors"));
+            .stdout(contains("13 Total"))
+            .stdout(contains("10 OK"))
+            // 3 failures because of missing fragments
+            .stdout(contains("3 Errors"));
     }
 }

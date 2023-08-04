@@ -21,11 +21,11 @@ This is a test file for the fragment loader.
 Explicit fragment links are currently not supported.
 Therefore we put the test into a code block for now to prevent false positives.
 
-```
-<a name="explicit-fragment"></a>
+<a id="explicit-fragment"></a>
 
 [Link to explicit fragment](#explicit-fragment)
-```
+
+[To the html doc](file.html#a-word)
 
 ## Custom Fragments
 
