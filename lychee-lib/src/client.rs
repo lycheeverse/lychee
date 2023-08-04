@@ -715,8 +715,12 @@ impl Client {
         }
     }
 
+    /// Check a mail address, or equivalently a `mailto` URI.
+    ///
+    /// This implementation simply excludes all email addresses.
     #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
-    pub async fn check_mail(&self, uri: &Uri) -> Status {
+    #[allow(clippy::unused_async)]
+    pub async fn check_mail(&self, _uri: &Uri) -> Status {
         Status::Excluded
     }
 }
