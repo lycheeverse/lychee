@@ -5,7 +5,7 @@ use pulldown_cmark::{Event, Options, Parser, Tag};
 
 use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
 
-use super::html::html5gum::extract_html;
+use super::html::html5gum::{extract_html, extract_html_fragments};
 
 /// Extract unparsed URL strings from a Markdown string.
 pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUri> {
@@ -112,6 +112,11 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
                 };
             }
 
+            // An HTML node
+            Event::Html(html) => {
+                out.extend(extract_html_fragments(&html));
+            }
+
             // Silently skip over other events
             _ => (),
         }
@@ -158,9 +163,11 @@ mod tests {
     use super::*;
 
     const MD_INPUT: &str = r#"
-# Test
+# A Test
 
 Some link in text [here](https://foo.com)
+
+## A test {#well-still-the-same-test}
 
 Code:
 
@@ -171,7 +178,21 @@ https://bar.com/123
 or inline like `https://bar.org` for instance.
 
 [example](http://example.com)
+
+<span id="the-end">The End</span>
         "#;
+
+    #[test]
+    fn test_extract_fragments() {
+        let expected = HashSet::from([
+            "a-test".to_string(),
+            "a-test-1".to_string(),
+            "well-still-the-same-test".to_string(),
+            "the-end".to_string(),
+        ]);
+        let actual = extract_markdown_fragments(MD_INPUT);
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn test_skip_verbatim() {
