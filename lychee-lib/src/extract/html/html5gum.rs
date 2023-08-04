@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use html5gum::{Emitter, Error, State, Tokenizer};
 
 use super::{is_email_link, is_verbatim_elem, srcset};
@@ -7,6 +9,7 @@ use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
 struct LinkExtractor {
     // note: what html5gum calls a tag, lychee calls an element
     links: Vec<RawUri>,
+    fragments: HashSet<String>,
     current_string: Vec<u8>,
     current_element_name: Vec<u8>,
     current_element_is_closing: bool,
@@ -26,9 +29,10 @@ unsafe fn from_utf8_unchecked(s: &[u8]) -> &str {
 }
 
 impl LinkExtractor {
-    pub(crate) const fn new(include_verbatim: bool) -> Self {
+    pub(crate) fn new(include_verbatim: bool) -> Self {
         LinkExtractor {
             links: Vec::new(),
+            fragments: HashSet::new(),
             current_string: Vec::new(),
             current_element_name: Vec::new(),
             current_element_is_closing: false,
@@ -181,6 +185,10 @@ impl LinkExtractor {
             };
 
             self.links.extend(new_urls);
+
+            if attr == "id" {
+                self.fragments.insert(value.to_string());
+            }
         }
 
         self.current_attribute_name.clear();
@@ -288,23 +296,43 @@ pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
     assert!(tokenizer.next().is_none());
     extractor.links
 }
+
+/// Extract fragments from id attributes of within a HTML string.
+pub(crate) fn extract_html_fragments(buf: &str) -> HashSet<String> {
+    let mut extractor = LinkExtractor::new(true);
+    let mut tokenizer = Tokenizer::new_with_emitter(buf, &mut extractor).infallible();
+    assert!(tokenizer.next().is_none());
+    extractor.fragments
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const HTML_INPUT: &str = r#"
 <html>
-    <body>
-        <p>This is a paragraph with some inline <code>https://example.com</code> and a normal <a href="https://example.org">example</a></p>
+    <body id="content">
+        <p>This is a paragraph with some inline <code id="inline-code">https://example.com</code> and a normal <a href="https://example.org">example</a></p>
         <pre>
         Some random text
         https://foo.com and http://bar.com/some/path
         Something else
         <a href="https://baz.org">example link inside pre</a>
         </pre>
-        <p><b>bold</b></p>
+        <p id="emphasis"><b>bold</b></p>
     </body>
 </html>"#;
+
+    #[test]
+    fn test_extract_fragments() {
+        let expected = HashSet::from([
+            "content".to_string(),
+            "inline-code".to_string(),
+            "emphasis".to_string(),
+        ]);
+        let actual = extract_html_fragments(HTML_INPUT);
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn test_skip_verbatim() {
