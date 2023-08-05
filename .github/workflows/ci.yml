@@ -118,9 +118,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Check that rustls-tls feature doesn't depend on OpenSSL
-        shell: bash
-        run: |
-          ! cargo tree --package lychee --no-default-features --features rustls-tls -i openssl-sys
+        run: test -z "$( cargo tree --package lychee --no-default-features --features rustls-tls --prefix none | sed -n '/^openssl-sys /p' )"
       - name: Run cargo check with default features
         uses: actions-rs/cargo@v1
         with:
