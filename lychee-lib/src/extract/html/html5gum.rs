@@ -297,7 +297,7 @@ pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
     extractor.links
 }
 
-/// Extract fragments from id attributes of within a HTML string.
+/// Extract fragments from id attributes within a HTML string.
 pub(crate) fn extract_html_fragments(buf: &str) -> HashSet<String> {
     let mut extractor = LinkExtractor::new(true);
     let mut tokenizer = Tokenizer::new_with_emitter(buf, &mut extractor).infallible();

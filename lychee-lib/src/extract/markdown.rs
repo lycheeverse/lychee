@@ -1,4 +1,4 @@
-//! Extract things from markdown documents
+//! Extract links and fragments from markdown documents
 use std::collections::{HashMap, HashSet};
 
 use pulldown_cmark::{Event, Options, Parser, Tag};
