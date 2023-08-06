@@ -302,8 +302,25 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) header: Vec<String>,
 
-    /// Comma-separated list of accepted status codes for valid links
-    #[arg(short, long)]
+    /// A List of accepted status codes for valid links
+    #[arg(
+        short,
+        long,
+        long_help = "A List of accepted status codes for valid links
+
+The following accept range syntax is supported: [start]..[=]end|code. Some valid
+examples are:
+
+- 200..=204
+- 200..204
+- ..=204
+- ..204
+- 200
+
+Use \"lychee --accept '200..=204, 429, 500' <inputs>...\" to provide a comma-
+separated list of accepted status codes. This example will accept 200, 201,
+202, 203, 204, 429, and 500 as valid status codes."
+    )]
     #[serde(default)]
     pub(crate) accept: Option<AcceptSelector>,
 

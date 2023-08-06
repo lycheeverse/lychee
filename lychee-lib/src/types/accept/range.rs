@@ -12,15 +12,15 @@ static RANGE_PATTERN: Lazy<Regex> =
 #[derive(Debug, Error, PartialEq)]
 pub enum AcceptRangeError {
     /// The string input didn't contain any range pattern.
-    #[error("No range pattern found")]
+    #[error("no range pattern found")]
     NoRangePattern,
 
     /// The start or end index could not be parsed as an integer.
-    #[error("Failed to parse str as integer")]
+    #[error("failed to parse str as integer")]
     ParseIntError(#[from] ParseIntError),
 
     /// The start index is larger than the end index.
-    #[error("Invalid range indices, only start < end supported")]
+    #[error("invalid range indices, only start < end supported")]
     InvalidRangeIndices,
 }
 
@@ -41,9 +41,12 @@ impl FromStr for AcceptRange {
             let value: u16 = value.as_str().parse()?;
             Self::new(value, value)
         } else {
-            let inclusive = !captures[2].is_empty();
+            let start: u16 = match captures.get(1) {
+                Some(start) => start.as_str().parse().unwrap_or_default(),
+                None => 0,
+            };
 
-            let start: u16 = captures[1].parse().unwrap_or_default();
+            let inclusive = !captures[2].is_empty();
             let end: u16 = captures[3].parse()?;
 
             if inclusive {

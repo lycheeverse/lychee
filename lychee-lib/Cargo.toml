@@ -61,6 +61,7 @@ tempfile = "3.6.0"
 wiremock = "0.5.19"
 serde_json = "1.0.104"
 rstest = "0.18.1"
+toml = "0.7.6"
 
 [features]
 

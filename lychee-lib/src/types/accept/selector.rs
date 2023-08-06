@@ -1,22 +1,22 @@
 use std::{collections::HashSet, str::FromStr};
 
-use serde_with::DeserializeFromStr;
+use serde::{de::Visitor, Deserialize};
 use thiserror::Error;
 
 use crate::{types::accept::AcceptRange, AcceptRangeError};
 
 #[derive(Debug, Error)]
 pub enum AcceptSelectorError {
-    #[error("Invalid/empty input")]
+    #[error("invalid/empty input")]
     InvalidInput,
 
-    #[error("Failed to parse accept range")]
+    #[error("failed to parse accept range")]
     AcceptRangeError(#[from] AcceptRangeError),
 }
 
 /// An [`AcceptSelector`] determines if a returned HTTP status code should be
 /// accepted and thus counted as a valid (not broken) link.
-#[derive(Clone, Debug, Default, DeserializeFromStr, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct AcceptSelector {
     ranges: Vec<AcceptRange>,
 }
@@ -102,16 +102,53 @@ impl AcceptSelector {
     }
 }
 
+struct AcceptSelectorVisitor;
+
+impl<'de> Visitor<'de> for AcceptSelectorVisitor {
+    type Value = AcceptSelector;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a string or a sequence of strings")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        AcceptSelector::from_str(v).map_err(serde::de::Error::custom)
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
+        let mut selector = AcceptSelector::new();
+        while let Some(value) = seq.next_element::<String>()? {
+            selector.add_range(AcceptRange::from_str(&value).map_err(serde::de::Error::custom)?);
+        }
+        Ok(selector)
+    }
+}
+
+impl<'de> Deserialize<'de> for AcceptSelector {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_any(AcceptSelectorVisitor)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use rstest::rstest;
 
     #[rstest]
-    #[case("1..=10,20..=30", vec![1, 10, 20, 30], vec![15, 35], 2)]
-    #[case("1..=10,8..=20", vec![1, 15, 20], vec![25, 30], 1)]
-    #[case("8..=20,1..=10", vec![1, 15, 20], vec![25, 30], 1)]
-    #[case("1..=10,20", vec![1, 10, 20], vec![15, 25], 2)]
+    #[case("100..=150,200..=300", vec![100, 110, 150, 200, 300], vec![175, 350], 2)]
+    #[case("200..=300,100..=250", vec![100, 150, 200, 250, 300], vec![350], 1)]
+    #[case("100..=200,150..=200", vec![100, 150, 200], vec![250, 300], 1)]
+    #[case("100..=200,300", vec![100, 110, 200, 300], vec![250, 350], 2)]
     fn test_from_str(
         #[case] input: &str,
         #[case] valid_values: Vec<u16>,
@@ -127,6 +164,34 @@ mod test {
 
         for invalid in invalid_values {
             assert!(!selector.contains(invalid));
+        }
+    }
+
+    #[rstest]
+    #[case(r"accept = ['200..204', '429']", vec![200, 203, 429], vec![204, 404], 2)]
+    #[case(r"accept = '200..204, 429'", vec![200, 203, 429], vec![204, 404], 2)]
+    #[case(r"accept = ['200', '429']", vec![200, 429], vec![404], 2)]
+    #[case(r"accept = '200, 429'", vec![200, 429], vec![404], 2)]
+    fn test_deserialize(
+        #[case] input: &str,
+        #[case] valid_values: Vec<u16>,
+        #[case] invalid_values: Vec<u16>,
+        #[case] length: usize,
+    ) {
+        #[derive(Deserialize)]
+        struct Config {
+            accept: AcceptSelector,
+        }
+
+        let config: Config = toml::from_str(input).unwrap();
+        assert_eq!(config.accept.len(), length);
+
+        for valid in valid_values {
+            assert!(config.accept.contains(valid));
+        }
+
+        for invalid in invalid_values {
+            assert!(!config.accept.contains(invalid));
         }
     }
 }
