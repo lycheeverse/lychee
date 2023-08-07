@@ -38,7 +38,7 @@ openssl-sys = { version = "0.9.90", optional = true }
 path-clean = "1.0.1"
 percent-encoding = "2.3.0"
 pulldown-cmark = "0.9.3"
-regex = "1.9.1"
+regex = "1.9.3"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
 reqwest = { version = "0.11.18", default-features = false, features = ["gzip", "trust-dns", "cookies"] }
