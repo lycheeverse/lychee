@@ -9,7 +9,7 @@ path = "collect_links.rs"
 
 [dependencies]
 lychee-lib = { path = "../../lychee-lib", version = "0.13.0", default-features = false }
-tokio = { version = "1.29.1", features = ["full"] }
+tokio = { version = "1.30.0", features = ["full"] }
 regex = "1.9.3"
 http = "0.2.9"
 tokio-stream = "0.1.14"
