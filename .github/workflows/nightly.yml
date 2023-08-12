@@ -13,7 +13,7 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     env:
-      GITHUB_TOKEN: ${{ secrets.LYCHEE }}
+      GITHUB_TOKEN: ${{ secrets.NIGHTLY_BUILD_TOKEN }}
     permissions:
       contents: write
     steps:
