@@ -51,7 +51,7 @@ serde_json = "1.0.104"
 strum = {version = "0.25.0" , features = ["derive"] }
 supports-color = "2.0.0"
 tabled = "0.14.0"
-tokio = { version = "1.29.1", features = ["full"] }
+tokio = { version = "1.31.0", features = ["full"] }
 tokio-stream = "0.1.14"
 toml = "0.7.6"
 
