@@ -32,7 +32,7 @@ ip_network = "0.4.1"
 jwalk = "0.8.1"
 linkify = "0.10.0"
 log = "0.4.19"
-octocrab = "0.29.1"
+octocrab = "0.29.3"
 once_cell = "1.18.0"
 openssl-sys = { version = "0.9.91", optional = true }
 path-clean = "1.0.1"
