@@ -23,7 +23,7 @@ jobs:
       - if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           gh release delete ${{ github.event.inputs.tag_name }} --yes --cleanup-tag || true
-          git tag -d ${{ github.event.inputs.tag_name }}
+          git tag -d ${{ github.event.inputs.tag_name }} || true
           gh release create ${{ github.event.inputs.tag_name }} --title ${{ github.event.inputs.tag_name }} --generate-notes --prerelease
 
       - if: ${{ github.event_name == 'schedule' }}
@@ -32,6 +32,6 @@ jobs:
             gh release create nightly --title nightly --generate-notes --prerelease
           elif [[ $(git diff nightly --name-only -B -M -C) ]]; then
             gh release delete nightly --yes --cleanup-tag || true
-            git tag -d nightly
+            git tag -d nightly || true
             gh release create nightly --title nightly --generate-notes --prerelease
           fi
