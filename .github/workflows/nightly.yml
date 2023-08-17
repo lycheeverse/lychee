@@ -1,0 +1,37 @@
+name: Nightly
+on:
+  schedule:
+    - cron: '45 8 * * *'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name to trigger the release'
+        required: false
+        default: 'nightly'
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.NIGHTLY_BUILD_TOKEN }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          gh release delete ${{ github.event.inputs.tag_name }} --yes --cleanup-tag || true
+          git tag -d ${{ github.event.inputs.tag_name }} || true
+          gh release create ${{ github.event.inputs.tag_name }} --title ${{ github.event.inputs.tag_name }} --generate-notes --prerelease
+
+      - if: ${{ github.event_name == 'schedule' }}
+        run: |
+          if [[ -z $(git tag -l nightly) ]]; then
+            gh release create nightly --title nightly --generate-notes --prerelease
+          elif [[ $(git diff nightly --name-only -B -M -C) ]]; then
+            gh release delete nightly --yes --cleanup-tag || true
+            git tag -d nightly || true
+            gh release create nightly --title nightly --generate-notes --prerelease
+          fi

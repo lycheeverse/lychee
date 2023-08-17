@@ -547,6 +547,7 @@ mod cli {
         cmd.arg(test_path)
             .arg("--exclude")
             .arg("https://en.wikipedia.org/*")
+            .arg("--exclude")
             .arg("https://ldra.com/")
             .assert()
             .success()

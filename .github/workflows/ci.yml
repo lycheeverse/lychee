@@ -84,6 +84,7 @@ jobs:
     needs:
       - test
       - lint
+      - check-feature-flags
       - publish-check
     runs-on: ubuntu-latest
     steps:
@@ -109,3 +110,27 @@ jobs:
         with:
           command: publish
           args: --manifest-path lychee-bin/Cargo.toml
+
+  check-feature-flags:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check that rustls-tls feature doesn't depend on OpenSSL
+        run: test -z "$( cargo tree --package lychee --no-default-features --features rustls-tls --prefix none | sed -n '/^openssl-sys /p' )"
+      - name: Run cargo check with default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --all-targets
+      - name: Run cargo check with all features
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --all-targets --all-features
+      - name: Run cargo check with rustls-tls feature
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --workspace --all-targets --no-default-features --features rustls-tls
