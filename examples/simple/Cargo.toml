@@ -9,7 +9,7 @@ path = "simple.rs"
 
 [dependencies]
 lychee-lib = { path = "../../lychee-lib", version = "0.13.0", default-features = false }
-tokio = { version = "1.31.0", features = ["full"] }
+tokio = { version = "1.32.0", features = ["full"] }
 
 [features]
 email-check = ["lychee-lib/email-check"]
