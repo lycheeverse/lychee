@@ -88,7 +88,10 @@ include_verbatim = false
 glob_ignore_case = false
 
 # Exclude URLs and mail addresses from checking (supports regex).
-exclude = [ '.*github\.com.*' ]
+exclude = [
+    '^https://www\.linkedin\.com',
+    '^https://web\.archive\.org/web/',
+]
 
 # Exclude these filesystem paths from getting checked.
 exclude_path = ["file/path/to/Ignore", "./other/file/path/to/Ignore"]
