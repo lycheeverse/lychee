@@ -1,11 +1,11 @@
-//! Extract things from markdown documents
+//! Extract links and fragments from markdown documents
 use std::collections::{HashMap, HashSet};
 
 use pulldown_cmark::{Event, Options, Parser, Tag};
 
 use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
 
-use super::html::html5gum::extract_html;
+use super::html::html5gum::{extract_html, extract_html_fragments};
 
 /// Extract unparsed URL strings from a Markdown string.
 pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUri> {
@@ -80,7 +80,13 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
         .collect()
 }
 
-/// Extract unparsed URL strings from a Markdown string.
+/// Extract fragments/anchors/fragments from a Markdown string.
+///
+/// Fragments are generated from headings using the same unique kebab case method as GitHub.
+/// If a [heading attribute](https://github.com/raphlinus/pulldown-cmark/blob/master/specs/heading_attrs.txt)
+/// is present,
+/// this will be added to the fragment set **alongside** the other generated fragment.
+/// It means a single heading such as `## Frag 1 {#frag-2}` would generate two fragments.
 pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     let mut in_heading = false;
     let mut heading = String::new();
@@ -110,6 +116,11 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
                 if in_heading {
                     heading.push_str(&text);
                 };
+            }
+
+            // An HTML node
+            Event::Html(html) => {
+                out.extend(extract_html_fragments(&html));
             }
 
             // Silently skip over other events
@@ -158,9 +169,11 @@ mod tests {
     use super::*;
 
     const MD_INPUT: &str = r#"
-# Test
+# A Test
 
 Some link in text [here](https://foo.com)
+
+## A test {#well-still-the-same-test}
 
 Code:
 
@@ -171,7 +184,21 @@ https://bar.com/123
 or inline like `https://bar.org` for instance.
 
 [example](http://example.com)
+
+<span id="the-end">The End</span>
         "#;
+
+    #[test]
+    fn test_extract_fragments() {
+        let expected = HashSet::from([
+            "a-test".to_string(),
+            "a-test-1".to_string(),
+            "well-still-the-same-test".to_string(),
+            "the-end".to_string(),
+        ]);
+        let actual = extract_markdown_fragments(MD_INPUT);
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn test_skip_verbatim() {

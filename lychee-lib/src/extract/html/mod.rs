@@ -1,3 +1,4 @@
+//! Extract links and fragments from html documents
 pub(crate) mod html5ever;
 pub(crate) mod html5gum;
 mod srcset;
