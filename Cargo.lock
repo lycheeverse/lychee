@@ -825,7 +825,7 @@ dependencies = [
 [[package]]
 name = "criterion"
 version = "0.5.1"
-source = "git+https://github.com/bheisler/criterion.rs#c0461a6a7f42f86e8d6533ab082babe84e5c13b0"
+source = "git+https://github.com/bheisler/criterion.rs#4c19e913b84e6a7e4a8470cb0f766796886ed891"
 dependencies = [
  "anes",
  "cast",
@@ -850,7 +850,7 @@ dependencies = [
 [[package]]
 name = "criterion-plot"
 version = "0.5.0"
-source = "git+https://github.com/bheisler/criterion.rs#c0461a6a7f42f86e8d6533ab082babe84e5c13b0"
+source = "git+https://github.com/bheisler/criterion.rs#4c19e913b84e6a7e4a8470cb0f766796886ed891"
 dependencies = [
  "cast",
  "itertools",
