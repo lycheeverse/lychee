@@ -41,7 +41,7 @@ pulldown-cmark = "0.9.3"
 regex = "1.9.3"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.11.18", default-features = false, features = ["gzip", "trust-dns", "cookies"] }
+reqwest = { version = "0.11.19", default-features = false, features = ["gzip", "trust-dns", "cookies"] }
 reqwest_cookie_store = "0.6.0"
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
