@@ -400,4 +400,14 @@ mod tests {
         let uris = extract_html(input, false);
         assert!(uris.is_empty());
     }
+
+    #[test]
+    fn test_skip_preconnect_reverse_order() {
+        let input = r#"
+            <link href="https://example.com" rel="preconnect">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
+    }
 }

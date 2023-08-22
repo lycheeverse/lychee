@@ -238,6 +238,7 @@ impl Emitter for &mut LinkExtractor {
         self.flush_current_characters();
         self.current_element_name.clear();
         self.current_element_nofollow = false;
+        self.current_element_preconnect = false;
         self.current_element_is_closing = false;
     }
 
@@ -433,7 +434,7 @@ mod tests {
     }
 
     #[test]
-    fn test_include_nofollow() {
+    fn test_exclude_nofollow() {
         let input = r#"
         <a rel="nofollow" href="https://foo.com">do not follow me</a>
         <a rel="canonical,nofollow,dns-prefetch" href="https://example.com">do not follow me</a>
@@ -446,6 +447,15 @@ mod tests {
         }];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_exclude_nofollow_change_order() {
+        let input = r#"
+        <a href="https://foo.com" rel="nofollow">do not follow me</a>
+        "#;
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
     }
 
     #[test]
@@ -574,6 +584,16 @@ mod tests {
     fn test_skip_preconnect() {
         let input = r#"
             <link rel="preconnect" href="https://example.com">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_skip_preconnect_reverse_order() {
+        let input = r#"
+            <link href="https://example.com" rel="preconnect">
         "#;
 
         let uris = extract_html(input, false);
