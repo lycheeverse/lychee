@@ -1,6 +1,6 @@
 use crate::types::{uri::raw::RawUri, FileType, InputContent};
 
-mod html;
+pub mod html;
 pub mod markdown;
 mod plaintext;
 

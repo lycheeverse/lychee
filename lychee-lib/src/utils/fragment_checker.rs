@@ -4,7 +4,11 @@ use std::{
     sync::Arc,
 };
 
-use crate::{extract::markdown::extract_markdown_fragments, types::FileType, Result};
+use crate::{
+    extract::{html::html5gum::extract_html_fragments, markdown::extract_markdown_fragments},
+    types::FileType,
+    Result,
+};
 use tokio::{fs, sync::Mutex};
 use url::Url;
 
@@ -39,37 +43,28 @@ impl FragmentChecker {
     ///
     /// In all other cases, returns true.
     pub(crate) async fn check(&self, path: &Path, url: &Url) -> Result<bool> {
-        match (FileType::from(path), url.fragment()) {
-            (FileType::Markdown, Some(fragment)) => {
-                let url_without_frag = Self::remove_fragment(url.clone());
-                self.populate_cache_if_vacant(url_without_frag, path, fragment)
-                    .await
+        let Some(fragment) = url.fragment() else {
+            return Ok(true)
+        };
+        let url_without_frag = Self::remove_fragment(url.clone());
+
+        let extractor = match FileType::from(path) {
+            FileType::Markdown => extract_markdown_fragments,
+            FileType::Html => extract_html_fragments,
+            FileType::Plaintext => return Ok(true),
+        };
+        match self.cache.lock().await.entry(url_without_frag) {
+            Entry::Vacant(entry) => {
+                let content = fs::read_to_string(path).await?;
+                let file_frags = extractor(&content);
+                Ok(entry.insert(file_frags).contains(fragment))
             }
-            _ => Ok(true),
+            Entry::Occupied(entry) => Ok(entry.get().contains(fragment)),
         }
     }
 
     fn remove_fragment(mut url: Url) -> String {
         url.set_fragment(None);
         url.into()
-    }
-
-    /// Populates the fragment cache with the given URL if it
-    /// is not already in the cache.
-    async fn populate_cache_if_vacant(
-        &self,
-        url_without_frag: String,
-        path: &Path,
-        fragment: &str,
-    ) -> Result<bool> {
-        let mut fragment_cache = self.cache.lock().await;
-        match fragment_cache.entry(url_without_frag.clone()) {
-            Entry::Vacant(entry) => {
-                let content = fs::read_to_string(path).await?;
-                let file_frags = extract_markdown_fragments(&content);
-                Ok(entry.insert(file_frags).contains(fragment))
-            }
-            Entry::Occupied(entry) => Ok(entry.get().contains(fragment)),
-        }
     }
 }

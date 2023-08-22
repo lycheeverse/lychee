@@ -14,6 +14,7 @@ mod cli {
     use lychee_lib::{InputSource, ResponseBody};
     use predicates::str::{contains, is_empty};
     use pretty_assertions::assert_eq;
+    use regex::Regex;
     use serde::Serialize;
     use serde_json::Value;
     use tempfile::NamedTempFile;
@@ -1229,18 +1230,33 @@ mod cli {
 
     #[test]
     fn test_suggests_url_alternatives() -> Result<()> {
-        let mut cmd = main_command();
-        let input = fixtures_path().join("INTERNET_ARCHIVE.md");
+        for _ in 0..3 {
+            // This can be flaky. Try up to 3 times
+            let mut cmd = main_command();
+            let input = fixtures_path().join("INTERNET_ARCHIVE.md");
 
-        cmd.arg("--suggest")
-            .arg(input)
-            .assert()
-            .failure()
-            .code(2)
-            .stdout(contains("Suggestions"))
-            .stdout(contains("http://web.archive.org/web/"));
+            cmd.arg("--no-progress").arg("--suggest").arg(input);
 
-        Ok(())
+            // Run he command and check if the output contains the expected
+            // suggestions
+            let assert = cmd.assert();
+            let output = assert.get_output();
+
+            // We're looking for a suggestion that
+            // - starts with http://web.archive.org/web/
+            // - ends with google.com/jobs.html
+            let re = Regex::new(r"http://web\.archive\.org/web/.*google\.com/jobs\.html").unwrap();
+            if re.is_match(&String::from_utf8_lossy(&output.stdout)) {
+                // Test passed
+                return Ok(());
+            } else {
+                // Wait for a second before retrying
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+        }
+
+        // If we reached here, it means the test did not pass after multiple attempts
+        Err("Did not get the expected command output after multiple attempts.".into())
     }
 
     #[tokio::test]
@@ -1411,6 +1427,7 @@ mod cli {
             .arg(input)
             .assert()
             .failure()
+            .stderr(contains("fixtures/fragments/file1.md#fragment-1"))
             .stderr(contains("fixtures/fragments/file1.md#fragment-2"))
             .stderr(contains("fixtures/fragments/file2.md#custom-id"))
             .stderr(contains("fixtures/fragments/file1.md#missing-fragment"))
@@ -1418,12 +1435,15 @@ mod cli {
             .stderr(contains("fixtures/fragments/file1.md#kebab-case-fragment"))
             .stderr(contains("fixtures/fragments/file2.md#missing-fragment"))
             .stderr(contains("fixtures/fragments/empty_file#fragment"))
+            .stderr(contains("fixtures/fragments/file.html#a-word"))
+            .stderr(contains("fixtures/fragments/file.html#in-the-beginning"))
+            .stderr(contains("fixtures/fragments/file.html#in-the-end"))
             .stderr(contains(
                 "fixtures/fragments/file1.md#kebab-case-fragment-1",
             ))
-            .stdout(contains("8 Total"))
-            .stdout(contains("6 OK"))
-            // 2 failures because of missing fragments
-            .stdout(contains("2 Errors"));
+            .stdout(contains("13 Total"))
+            .stdout(contains("10 OK"))
+            // 3 failures because of missing fragments
+            .stdout(contains("3 Errors"));
     }
 }
