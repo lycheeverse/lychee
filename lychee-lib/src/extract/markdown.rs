@@ -80,7 +80,13 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
         .collect()
 }
 
-/// Extract unparsed URL strings from a Markdown string.
+/// Extract fragments/anchors/fragments from a Markdown string.
+///
+/// Fragments are generated from headings using the same unique kebab case method as GitHub.
+/// If a [heading attribute](https://github.com/raphlinus/pulldown-cmark/blob/master/specs/heading_attrs.txt)
+/// is present,
+/// this will be added to the fragment set **alongside** the other generated fragment.
+/// It means a single heading such as `## Frag 1 {#frag-2}` would generate two fragments.
 pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     let mut in_heading = false;
     let mut heading = String::new();
