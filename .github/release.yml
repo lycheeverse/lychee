@@ -1,0 +1,25 @@
+changelog:
+  exclude:
+    labels:
+      - dependencies
+    authors:
+      - dependabot
+  categories:
+    - title: Changes 🛠
+      labels:
+        - bug_fix
+    - title: Exciting New Features 🎉
+      labels:
+        - enhancement
+    - title: More Documentation 📚
+      labels:
+        - documentation
+    - title: Refactoring 🧬
+      labels:
+        - refactoring
+    - title: Minor changes 🧹
+      labels:
+        - chore
+    - title: Others 🔔
+      labels:
+        - "*"
