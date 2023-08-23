@@ -34,9 +34,9 @@ pub(crate) fn create(
         .into_iter()
         .map(|raw_uri| {
             let is_anchor = raw_uri.is_anchor();
-            let text = raw_uri.text.clone();
-            let element = raw_uri.element.clone();
-            let attribute = raw_uri.attribute.clone();
+            let element = raw_uri.element;
+            let text = raw_uri.text;
+            let attribute = raw_uri.attribute;
 
             // Truncate the source in case it gets too long Ideally we should
             // avoid the initial String allocation for `source` altogether
@@ -48,7 +48,7 @@ pub(crate) fn create(
                 c => c.clone(),
             };
 
-            if let Ok(uri) = Uri::try_from(raw_uri) {
+            if let Ok(uri) = Uri::try_from(text.as_str()) {
                 let credentials = credentials(extractor, &uri);
 
                 Ok(Some(Request::new(

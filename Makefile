@@ -38,6 +38,10 @@ run: ## Run project locally
 docs: ## Generate and show documentation
 	cargo doc --open 
 
+.PHONY: fmt
+fmt: ## Format code
+	cargo fmt --all
+
 .PHONY: lint
 lint: ## Run linter
 	cargo fmt --all -- --check

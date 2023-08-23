@@ -207,7 +207,7 @@ impl TryFrom<String> for Uri {
     type Error = ErrorKind;
 
     fn try_from(s: String) -> Result<Self> {
-        Uri::try_from(s.as_ref())
+        Uri::try_from(s.as_str())
     }
 }
 
@@ -264,8 +264,17 @@ impl TryFrom<RawUri> for Uri {
     type Error = ErrorKind;
 
     fn try_from(raw_uri: RawUri) -> Result<Self> {
-        let s = raw_uri.text;
-        Uri::try_from(s.as_ref())
+        // use impl TryFrom<&RawUri> for Uri
+        Uri::try_from(&raw_uri)
+    }
+}
+
+impl TryFrom<&RawUri> for Uri {
+    type Error = ErrorKind;
+
+    fn try_from(raw_uri: &RawUri) -> Result<Self> {
+        let s: &str = &raw_uri.text;
+        Uri::try_from(s)
     }
 }
 
