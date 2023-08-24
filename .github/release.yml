@@ -5,21 +5,26 @@ changelog:
     authors:
       - dependabot
   categories:
-    - title: Changes 🛠
+    - title: Breaking Changes and Bugs 🚨
       labels:
-        - bug_fix
-    - title: Exciting New Features 🎉
+        - breaking-change
+        - bug
+        - false-positive
+        - deprecation
+        - regression
+    - title: Enhancements and Performance Improvements 🚀
       labels:
         - enhancement
-    - title: More Documentation 📚
+        - performance
+    - title: Collaborative Discussions and Agreements 🤝
       labels:
-        - documentation
-    - title: Refactoring 🧬
+        - waiting-for-feedback
+        - waiting-for-upstream
+        - request-for-comments
+    - title: Documentation and Maintenance 📚🔧
       labels:
-        - refactoring
-    - title: Minor changes 🧹
-      labels:
-        - chore
-    - title: Others 🔔
+        - docs
+        - maintenance
+    - title: Miscellaneous and Others 🔔
       labels:
         - "*"
