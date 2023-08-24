@@ -57,7 +57,7 @@ pub enum ErrorKind {
 
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
     #[error("Cannot parse string `{1}` as website url: {0}")]
-    ParseUrl(#[source] url::ParseError, String),
+    ParseUrl(#[source] ada_url::Error, String),
 
     /// The given URI cannot be converted to a file path
     #[error("Cannot find file")]

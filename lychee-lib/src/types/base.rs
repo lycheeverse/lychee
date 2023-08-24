@@ -1,4 +1,4 @@
-use reqwest::Url;
+use ada_url::Url;
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, path::PathBuf};
 
@@ -36,7 +36,7 @@ impl Base {
         }
     }
 
-    pub(crate) fn from_source(source: &InputSource) -> Option<Url> {
+    pub(crate) fn from_source(source: &InputSource) -> Option<ada_url::Url> {
         match &source {
             InputSource::RemoteUrl(url) => {
                 // TODO: This should be refactored.
@@ -44,9 +44,9 @@ impl Base {
                 // We can probably use the original URL and just replace the
                 // path component in the caller of this function
                 if let Some(port) = url.port() {
-                    Url::parse(&format!("{}://{}:{port}", url.scheme(), url.host_str()?)).ok()
+                    Url::parse(&format!("{}://{}:{port}", url.scheme(), url.host_str()?), None).ok()
                 } else {
-                    Url::parse(&format!("{}://{}", url.scheme(), url.host_str()?)).ok()
+                    Url::parse(&format!("{}://{}", url.scheme(), url.host_str()?), None).ok()
                 }
             }
             // other inputs do not have a URL to extract a base
@@ -59,7 +59,7 @@ impl TryFrom<&str> for Base {
     type Error = ErrorKind;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        if let Ok(url) = Url::parse(value) {
+        if let Ok(url) = Url::parse(value, None) {
             if url.cannot_be_a_base() {
                 return Err(ErrorKind::InvalidBase(
                     value.to_string(),
@@ -91,7 +91,7 @@ mod test_base {
         let base = Base::try_from("https://endler.dev")?;
         assert_eq!(
             base,
-            Base::Remote(Url::parse("https://endler.dev").unwrap())
+            Base::Remote(Url::parse("https://endler.dev", None).unwrap())
         );
         Ok(())
     }
@@ -120,10 +120,10 @@ mod test_base {
                 "https://example.com:1234",
             ),
         ] {
-            let url = Url::parse(url).unwrap();
+            let url = Url::parse(url, None).unwrap();
             let source = InputSource::RemoteUrl(Box::new(url.clone()));
             let base = Base::from_source(&source);
-            let expected = Url::parse(expected).unwrap();
+            let expected = Url::parse(expected, None).unwrap();
             assert_eq!(base, Some(expected));
         }
     }

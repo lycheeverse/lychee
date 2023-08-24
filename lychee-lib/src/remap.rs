@@ -22,7 +22,7 @@
 use std::ops::Index;
 
 use regex::Regex;
-use url::Url;
+use ada_url::Url;
 
 use crate::{ErrorKind, Result};
 
@@ -62,7 +62,7 @@ impl Remaps {
         for (pattern, replacement) in self {
             if pattern.is_match(original.as_str()) {
                 let after = pattern.replace_all(original.as_str(), replacement);
-                let after_url = Url::parse(after.as_ref()).map_err(|_| {
+                let after_url = Url::parse(after.as_ref(), None).map_err(|_| {
                     ErrorKind::InvalidUrlRemap(format!(
                         "The remapping pattern must produce a valid URL, but it is not: {after}"
                     ))
@@ -142,8 +142,6 @@ impl<'a> IntoIterator for &'a Remaps {
 
 #[cfg(test)]
 mod tests {
-    use url::Url;
-
     use super::*;
 
     #[test]
@@ -206,9 +204,9 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let input = Url::parse(input).unwrap();
+            let input = Url::parse(input, None).unwrap();
             let output = remaps.remap(&input).unwrap();
-            assert_eq!(output, Url::parse(expected).unwrap());
+            assert_eq!(output, Url::parse(expected, None).unwrap());
         }
     }
 

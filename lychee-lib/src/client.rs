@@ -704,7 +704,7 @@ impl Client {
     /// and instead passed to a mail client.
     #[cfg(all(feature = "email-check", feature = "native-tls"))]
     pub async fn check_mail(&self, uri: &Uri) -> Status {
-        let address = uri.url.path().to_string();
+        let address = uri.url.pathname().to_string();
         let input = CheckEmailInput::new(address);
         let result = &(check_email(&input).await);
 
@@ -731,7 +731,7 @@ impl Client {
 // got merged.
 // It is exactly the same check that reqwest runs internally, but unfortunately
 // it `unwrap`s (and panics!) instead of returning an error, which we could handle.
-fn validate_url(url: &Url) -> bool {
+fn validate_url(url: &ada_url::Url) -> bool {
     http::Uri::try_from(url.as_str()).is_err()
 }
 

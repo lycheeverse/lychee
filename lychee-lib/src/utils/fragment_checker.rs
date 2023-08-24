@@ -10,7 +10,7 @@ use crate::{
     Result,
 };
 use tokio::{fs, sync::Mutex};
-use url::Url;
+use ada_url::Url;
 
 /// Holds a cache of fragments for a given URL.
 ///
@@ -42,7 +42,7 @@ impl FragmentChecker {
     /// doesn't contain the given fragment.
     ///
     /// In all other cases, returns true.
-    pub(crate) async fn check(&self, path: &Path, url: &Url) -> Result<bool> {
+    pub(crate) async fn check(&self, path: &Path, url: &ada_url::Url) -> Result<bool> {
         let Some(fragment) = url.fragment() else {
             return Ok(true)
         };
@@ -64,7 +64,7 @@ impl FragmentChecker {
     }
 
     fn remove_fragment(mut url: Url) -> String {
-        url.set_fragment(None);
+        url.set_hash("");
         url.into()
     }
 }

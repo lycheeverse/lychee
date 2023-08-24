@@ -3,7 +3,7 @@ use std::{convert::TryFrom, fmt::Display, net::IpAddr};
 use email_address::EmailAddress;
 use ip_network::Ipv6Network;
 use serde::{Deserialize, Serialize};
-use url::Url;
+use ada_url::Url;
 
 use crate::{ErrorKind, Result};
 
@@ -232,7 +232,7 @@ impl TryFrom<&str> for Uri {
             return Err(ErrorKind::EmptyUrl);
         }
 
-        match Url::parse(s) {
+        match Url::parse(s, None) {
             Ok(uri) => Ok(uri.into()),
             Err(err) => {
                 // This could be a relative URL or a mail address or something
@@ -248,7 +248,7 @@ impl TryFrom<&str> for Uri {
                 if EmailAddress::is_valid(s) {
                     // Use the `mailto:` scheme for mail addresses,
                     // which will allow `Url::parse` to parse them.
-                    if let Ok(uri) = Url::parse(&format!("mailto:{s}")) {
+                    if let Ok(uri) = Url::parse(&format!("mailto:{s}"), None) {
                         return Ok(uri.into());
                     };
                 };
