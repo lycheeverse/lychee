@@ -104,21 +104,21 @@ impl Uri {
     #[must_use]
     /// Check if the URI is a valid mail address
     pub fn is_mail(&self) -> bool {
-        self.scheme() == "mailto"
+        self.scheme() == "mailto:"
     }
 
     #[inline]
     #[must_use]
     /// Check if the URI is a file
     pub fn is_file(&self) -> bool {
-        self.scheme() == "file"
+        self.scheme() == "file:"
     }
 
     #[inline]
     #[must_use]
     /// Check if the URI is a `data` URI
     pub fn is_data(&self) -> bool {
-        self.scheme() == "data"
+        self.scheme() == "data:"
     }
 
     #[inline]
