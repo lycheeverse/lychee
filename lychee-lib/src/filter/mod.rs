@@ -237,9 +237,8 @@ impl Filter {
 
 #[cfg(test)]
 mod tests {
+    use ada_url::{HostType, Url};
     use regex::RegexSet;
-    use reqwest::Url;
-    use url::Host;
 
     use super::{Excludes, Filter, Includes};
     use crate::{
@@ -269,16 +268,26 @@ mod tests {
 
     macro_rules! assert_ip_address {
         (v4: $ip:expr, $predicate:tt) => {
-            let res = if let Host::Ipv4(ipv4) = Url::parse($ip).map_err(|_| ())?.host().ok_or(())? {
-                ipv4.$predicate()
+            let res = if let Ok(url) = Url::parse($ip, None).map_err(|_| ()) {
+                if url.host_type() == HostType::IPV4 {
+                    let addr: std::net::Ipv4Addr = url.host().parse().unwrap();
+                    addr.$predicate()
+                } else {
+                    false
+                }
             } else {
                 false
             };
             std::assert!(res);
         };
         (v6: $ip:expr, $predicate:tt) => {
-            let res = if let Host::Ipv6(ipv6) = Url::parse($ip).map_err(|_| ())?.host().ok_or(())? {
-                ipv6.$predicate()
+            let res = if let Ok(url) = Url::parse($ip, None).map_err(|_| ()) {
+                if url.host_type() == HostType::IPV6 {
+                    let addr: std::net::Ipv6Addr = url.host().parse().unwrap();
+                    addr.$predicate()
+                } else {
+                    false
+                }
             } else {
                 false
             };

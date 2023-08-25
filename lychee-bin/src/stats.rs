@@ -92,14 +92,14 @@ mod tests {
     use pretty_assertions::assert_eq;
     use std::collections::{HashMap, HashSet};
 
+    use ada_url::Url;
     use http::StatusCode;
     use lychee_lib::{ErrorKind, InputSource, Response, ResponseBody, Status, Uri};
-    use reqwest::Url;
 
     use super::ResponseStats;
 
     fn website(url: &str) -> Uri {
-        Uri::from(Url::parse(url).expect("Expected valid Website URI"))
+        Uri::from(Url::parse(url, None).expect("Expected valid Website URI"))
     }
 
     // Generate a fake response with a given status code

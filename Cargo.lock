@@ -4,9 +4,9 @@ version = 3
 
 [[package]]
 name = "ada-url"
-version = "1.4.1"
+version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37894552c184311f7ba43ab3bb28cf90bbfc0225d8a922ced487c5c1ab13687a"
+checksum = "c6baf7dc353f018235d48d06c550d1cd0a61809910d0e59e58049c8848a242fa"
 dependencies = [
  "cc",
  "link_args",
@@ -2112,6 +2112,7 @@ dependencies = [
 name = "lychee"
 version = "0.13.0"
 dependencies = [
+ "ada-url",
  "anyhow",
  "assert-json-diff",
  "assert_cmd",

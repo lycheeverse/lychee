@@ -19,6 +19,7 @@ version = "0.13.0"
 [dependencies]
 lychee-lib = { path = "../lychee-lib", version = "0.13.0", default-features = false }
 
+ada-url = { version = "1.4.2" }
 anyhow = "1.0.75"
 assert-json-diff = "2.0.2"
 clap = { version = "4.3.23", features = ["env", "derive"] }

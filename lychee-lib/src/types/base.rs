@@ -127,7 +127,7 @@ mod test_base {
             ),
         ] {
             let url = Url::parse(url, None).unwrap();
-            let source = InputSource::RemoteUrl(Box::new(url.clone()));
+            let source = InputSource::String(url.href().to_string());
             let base = Base::from_source(&source);
             let expected = Url::parse(expected, None).unwrap();
             assert_eq!(base, Some(expected));
