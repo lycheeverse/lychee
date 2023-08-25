@@ -73,10 +73,16 @@ impl Uri {
     /// Returns the IP address (either IPv4 or IPv6) of the URI,
     /// or `None` if it is a domain
     pub fn host_ip(&self) -> Option<IpAddr> {
-        match self.url.host()? {
-            url::Host::Domain(_) => None,
-            url::Host::Ipv4(v4_addr) => Some(v4_addr.into()),
-            url::Host::Ipv6(v6_addr) => Some(v6_addr.into()),
+        match self.url.host_type() {
+            ada_url::HostType::IPV4 => {
+                let addr: std::net::Ipv4Addr = self.url.host().parse().unwrap();
+                Some(addr.into())
+            }
+            ada_url::HostType::IPV6 => {
+                let addr: std::net::Ipv6Addr = self.url.host().parse().unwrap();
+                Some(addr.into())
+            }
+            _ => None,
         }
     }
 
@@ -127,9 +133,15 @@ impl Uri {
     /// [IETF RFC 1122]: https://tools.ietf.org/html/rfc1122
     /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
     pub fn is_loopback(&self) -> bool {
-        match self.url.host() {
-            Some(url::Host::Ipv4(addr)) => addr.is_loopback(),
-            Some(url::Host::Ipv6(addr)) => addr.is_loopback(),
+        match self.url.host_type() {
+            ada_url::HostType::IPV4 => {
+                let addr: std::net::Ipv4Addr = self.url.host().parse().unwrap();
+                addr.is_loopback()
+            }
+            ada_url::HostType::IPV6 => {
+                let addr: std::net::Ipv6Addr = self.url.host().parse().unwrap();
+                addr.is_loopback()
+            }
             _ => false,
         }
     }
@@ -160,9 +172,15 @@ impl Uri {
     /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
     /// [IETF RFC 3879]: https://tools.ietf.org/html/rfc3879
     pub fn is_private(&self) -> bool {
-        match self.url.host() {
-            Some(url::Host::Ipv4(addr)) => addr.is_private(),
-            Some(url::Host::Ipv6(addr)) => Ipv6Network::from(addr).is_unique_local(),
+        match self.url.host_type() {
+            ada_url::HostType::IPV4 => {
+                let addr: std::net::Ipv4Addr = self.url.host().parse().unwrap();
+                addr.is_private()
+            }
+            ada_url::HostType::IPV6 => {
+                let addr: std::net::Ipv6Addr = self.url.host().parse().unwrap();
+                Ipv6Network::from(addr).is_unique_local()
+            }
             _ => false,
         }
     }
@@ -183,9 +201,15 @@ impl Uri {
     /// [IETF RFC 3927]: https://tools.ietf.org/html/rfc3927
     /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
     pub fn is_link_local(&self) -> bool {
-        match self.url.host() {
-            Some(url::Host::Ipv4(addr)) => addr.is_link_local(),
-            Some(url::Host::Ipv6(addr)) => Ipv6Network::from(addr).is_unicast_link_local(),
+        match self.url.host_type() {
+            ada_url::HostType::IPV4 => {
+                let addr: std::net::Ipv4Addr = self.url.host().parse().unwrap();
+                addr.is_link_local()
+            }
+            ada_url::HostType::IPV6 => {
+                let addr: std::net::Ipv6Addr = self.url.host().parse().unwrap();
+                Ipv6Network::from(addr).is_unicast_link_local()
+            }
             _ => false,
         }
     }

@@ -621,7 +621,9 @@ impl Client {
     /// A better approach would be to download the file through the API or
     /// clone the repo, but we chose the pragmatic approach.
     async fn check_github(&self, uri: GithubUri) -> Status {
-        let Some(client) = &self.github_client else { return ErrorKind::MissingGitHubToken.into() };
+        let Some(client) = &self.github_client else {
+            return ErrorKind::MissingGitHubToken.into();
+        };
         let repo = match client.repos(&uri.owner, &uri.repo).get().await {
             Ok(repo) => repo,
             Err(e) => return ErrorKind::GithubRequest(e).into(),

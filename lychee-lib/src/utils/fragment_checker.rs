@@ -44,7 +44,7 @@ impl FragmentChecker {
     /// In all other cases, returns true.
     pub(crate) async fn check(&self, path: &Path, url: &ada_url::Url) -> Result<bool> {
         let Some(fragment) = url.fragment() else {
-            return Ok(true)
+            return Ok(true);
         };
         let url_without_frag = Self::remove_fragment(url.clone());
 
