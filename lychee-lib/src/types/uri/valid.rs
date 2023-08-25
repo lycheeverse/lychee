@@ -79,11 +79,11 @@ impl Uri {
     /// or `None` if it is a domain
     pub fn host_ip(&self) -> Option<IpAddr> {
         match self.url.host_type() {
-            ada_url::HostType::IPV4 => {
+            HostType::IPV4 => {
                 let addr: std::net::Ipv4Addr = self.url.host().parse().unwrap();
                 Some(addr.into())
             }
-            ada_url::HostType::IPV6 => {
+            HostType::IPV6 => {
                 let addr: std::net::Ipv6Addr = self.url.host().parse().unwrap();
                 Some(addr.into())
             }

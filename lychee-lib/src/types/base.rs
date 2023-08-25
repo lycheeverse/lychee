@@ -22,7 +22,7 @@ impl Base {
     #[must_use]
     pub(crate) fn join(&self, link: &str) -> Option<Url> {
         match self {
-            Self::Remote(url) => url.join(link).ok(),
+            Self::Remote(url) => Url::parse(link, Some(url.href())).ok(),
             Self::Local(_) => None,
         }
     }
@@ -64,7 +64,9 @@ impl TryFrom<&str> for Base {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Ok(url) = Url::parse(value, None) {
-            if url.cannot_be_a_base() {
+            // Cannot be a base
+            // Character after scheme should be '/'
+            if url.href().chars().nth(url.protocol().len()) == Some('/') {
                 return Err(ErrorKind::InvalidBase(
                     value.to_string(),
                     "The given URL cannot be a base".to_string(),

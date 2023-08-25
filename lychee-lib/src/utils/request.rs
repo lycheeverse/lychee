@@ -124,14 +124,18 @@ pub(crate) fn create(
 }
 
 fn construct_url(base: &Option<ada_url::Url>, text: &str) -> Option<Result<Url>> {
-    Some(
-        Url::parse(text, base.and_then(|b| Some(b.href())).or_else(|| None)).map_err(|e| {
-            ErrorKind::ParseUrl(
-                e.to_string(),
-                format!("{0}{text}", base.and_then(|b| Some(b.href())).unwrap_or("")),
-            )
-        }),
-    )
+    let mut optional_base: Option<&str> = None;
+
+    if let Some(base) = base {
+        optional_base = Some(base.href());
+    }
+
+    Some(Url::parse(text, optional_base).map_err(|e| {
+        ErrorKind::ParseUrl(
+            e.to_string(),
+            format!("{0}{text}", optional_base.unwrap_or("")),
+        )
+    }))
 }
 
 fn create_uri_from_path(
