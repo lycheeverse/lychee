@@ -160,7 +160,7 @@ impl Input {
                     // Curl also uses http (i.e. not https), see
                     // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
                     let url = Url::parse(&format!("http://{value}")).map_err(|e| {
-                        ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string())
+                        ErrorKind::ParseUrl(e.to_string(), "Input is not a valid URL".to_string())
                     })?;
                     InputSource::RemoteUrl(Box::new(url))
                 }

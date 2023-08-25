@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, fmt::Display, net::IpAddr};
 
-use ada_url::Url;
+use ada_url::{HostType, Url};
 use email_address::EmailAddress;
 use ip_network::Ipv6Network;
 use serde::{Deserialize, Serialize};
@@ -28,34 +28,39 @@ impl Uri {
     #[inline]
     #[must_use]
     pub fn as_str(&self) -> &str {
-        self.url.as_ref().trim_start_matches("mailto:")
+        self.url.href().trim_start_matches("mailto:")
     }
 
     #[inline]
     #[must_use]
     /// Returns the scheme of the URI (e.g. `http` or `mailto`)
     pub fn scheme(&self) -> &str {
-        self.url.scheme()
+        self.url.protocol()
     }
 
     #[inline]
     /// Changes this URL's scheme.
     pub(crate) fn set_scheme(&mut self, scheme: &str) -> std::result::Result<(), ()> {
-        self.url.set_scheme(scheme)
+        self.url.set_protocol(scheme);
+        Ok(())
     }
 
     #[inline]
     #[must_use]
     /// Returns the domain of the URI (e.g. `example.com`)
     pub fn domain(&self) -> Option<&str> {
-        self.url.domain()
+        if self.url.host_type() == HostType::Domain {
+            Some(self.url.hostname())
+        } else {
+            None
+        }
     }
 
     #[inline]
     #[must_use]
     /// Returns the path of the URI (e.g. `/path/to/resource`)
     pub fn path(&self) -> &str {
-        self.url.path()
+        self.url.pathname()
     }
 
     #[inline]
@@ -66,7 +71,7 @@ impl Uri {
     ///
     /// Return `None` for cannot-be-a-base URLs.
     pub fn path_segments(&self) -> Option<std::str::Split<char>> {
-        self.url.path_segments()
+        Some(self.url.pathname().split('/'))
     }
 
     #[must_use]
@@ -278,7 +283,7 @@ impl TryFrom<&str> for Uri {
                 };
 
                 // We do not handle relative URLs here, as we do not know the base URL.
-                Err(ErrorKind::ParseUrl(err, s.to_owned()))
+                Err(ErrorKind::ParseUrl(err.to_string(), s.to_owned()))
             }
         }
     }

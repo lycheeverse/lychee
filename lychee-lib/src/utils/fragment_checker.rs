@@ -43,9 +43,10 @@ impl FragmentChecker {
     ///
     /// In all other cases, returns true.
     pub(crate) async fn check(&self, path: &Path, url: &ada_url::Url) -> Result<bool> {
-        let Some(fragment) = url.fragment() else {
+        if !url.has_hash() {
             return Ok(true);
-        };
+        }
+        let fragment = url.hash();
         let url_without_frag = Self::remove_fragment(url.clone());
 
         let extractor = match FileType::from(path) {

@@ -1,6 +1,6 @@
+use ada_url::Url;
 use log::info;
 use percent_encoding::percent_decode_str;
-use reqwest::Url;
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
@@ -123,11 +123,15 @@ pub(crate) fn create(
     Ok(HashSet::from_iter(requests))
 }
 
-fn construct_url(base: &Option<Url>, text: &str) -> Option<Result<Url>> {
-    base.as_ref().map(|base| {
-        base.join(text)
-            .map_err(|e| ErrorKind::ParseUrl(e, format!("{base}{text}")))
-    })
+fn construct_url(base: &Option<ada_url::Url>, text: &str) -> Option<Result<Url>> {
+    Some(
+        Url::parse(text, base.and_then(|b| Some(b.href())).or_else(|| None)).map_err(|e| {
+            ErrorKind::ParseUrl(
+                e.to_string(),
+                format!("{0}{text}", base.and_then(|b| Some(b.href())).unwrap_or("")),
+            )
+        }),
+    )
 }
 
 fn create_uri_from_path(
@@ -148,9 +152,9 @@ fn create_uri_from_path(
     let decoded = percent_decode_str(dst).decode_utf8()?;
     let resolved = path::resolve(src, &PathBuf::from(&*decoded), base)?;
     match resolved {
-        Some(path) => Url::parse(path.to_str().unwrap(), Some("file://"))
+        Some(path) => ada_url::Url::parse(path.to_str().unwrap(), Some("file://"))
             .map(|mut url| {
-                url.set_fragment(frag);
+                url.set_hash(frag.unwrap_or(""));
                 url
             })
             .map(Some)

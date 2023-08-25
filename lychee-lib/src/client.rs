@@ -674,9 +674,7 @@ impl Client {
 
     /// Check a `file` URI.
     pub async fn check_file(&self, uri: &Uri) -> Status {
-        let Ok(path) = uri.url.to_file_path() else {
-            return ErrorKind::InvalidFilePath(uri.clone()).into();
-        };
+        let path = Path::new(uri.url.href());
         if !path.exists() {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         }

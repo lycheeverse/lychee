@@ -59,7 +59,7 @@ impl TryFrom<Uri> for Request {
     fn try_from(uri: Uri) -> Result<Self, Self::Error> {
         Ok(Request::new(
             uri.clone(),
-            InputSource::RemoteUrl(Box::new(uri.url)),
+            InputSource::String(uri.url.href().to_string()),
             None,
             None,
             None,
