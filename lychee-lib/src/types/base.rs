@@ -44,7 +44,11 @@ impl Base {
                 // We can probably use the original URL and just replace the
                 // path component in the caller of this function
                 if let Some(port) = url.port() {
-                    Url::parse(&format!("{}://{}:{port}", url.scheme(), url.host_str()?), None).ok()
+                    Url::parse(
+                        &format!("{}://{}:{port}", url.scheme(), url.host_str()?),
+                        None,
+                    )
+                    .ok()
                 } else {
                     Url::parse(&format!("{}://{}", url.scheme(), url.host_str()?), None).ok()
                 }

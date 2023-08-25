@@ -21,8 +21,8 @@
 
 use std::ops::Index;
 
-use regex::Regex;
 use ada_url::Url;
+use regex::Regex;
 
 use crate::{ErrorKind, Result};
 

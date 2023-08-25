@@ -9,8 +9,8 @@ use crate::{
     types::FileType,
     Result,
 };
-use tokio::{fs, sync::Mutex};
 use ada_url::Url;
+use tokio::{fs, sync::Mutex};
 
 /// Holds a cache of fragments for a given URL.
 ///

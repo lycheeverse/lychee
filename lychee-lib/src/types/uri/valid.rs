@@ -1,9 +1,9 @@
 use std::{convert::TryFrom, fmt::Display, net::IpAddr};
 
+use ada_url::Url;
 use email_address::EmailAddress;
 use ip_network::Ipv6Network;
 use serde::{Deserialize, Serialize};
-use ada_url::Url;
 
 use crate::{ErrorKind, Result};
 

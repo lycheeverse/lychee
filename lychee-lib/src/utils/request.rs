@@ -130,7 +130,11 @@ fn construct_url(base: &Option<Url>, text: &str) -> Option<Result<Url>> {
     })
 }
 
-fn create_uri_from_path(src: &Path, dst: &str, base: &Option<Base>) -> Result<Option<ada_url::Url>> {
+fn create_uri_from_path(
+    src: &Path,
+    dst: &str,
+    base: &Option<Base>,
+) -> Result<Option<ada_url::Url>> {
     let (dst, frag) = url::remove_get_params_and_separate_fragment(dst);
     // Avoid double-encoding already encoded destination paths by removing any
     // potential encoding (e.g. `web%20site` becomes `web site`).

@@ -1,5 +1,5 @@
-use std::path::Path;
 use ada_url::Url;
+use std::path::Path;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 /// `FileType` defines which file types lychee can handle
