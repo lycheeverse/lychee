@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::{convert::TryFrom, fmt::Display, net::IpAddr};
 
 use ada_url::{HostType, Url};
@@ -40,9 +41,8 @@ impl Uri {
 
     #[inline]
     /// Changes this URL's scheme.
-    pub(crate) fn set_scheme(&mut self, scheme: &str) -> std::result::Result<(), ()> {
+    pub(crate) fn set_scheme(&mut self, scheme: &str) {
         self.url.set_protocol(scheme);
-        Ok(())
     }
 
     #[inline]
@@ -79,25 +79,16 @@ impl Uri {
     /// or `None` if it is a domain
     pub fn host_ip(&self) -> Option<IpAddr> {
         match self.url.host_type() {
-            HostType::IPV4 => {
-                let addr: std::net::Ipv4Addr = self.url.host().parse().unwrap();
-                Some(addr.into())
-            }
-            HostType::IPV6 => {
-                let addr: std::net::Ipv6Addr = self.url.host().parse().unwrap();
-                Some(addr.into())
-            }
-            _ => None,
+            HostType::Domain => None,
+            _ => IpAddr::from_str(self.url.host()).ok(),
         }
     }
 
     /// Create a new URI with a `https` scheme
-    pub(crate) fn to_https(&self) -> Result<Uri> {
+    pub(crate) fn to_https(&self) -> Uri {
         let mut https_uri = self.clone();
+        https_uri.set_scheme("https");
         https_uri
-            .set_scheme("https")
-            .map_err(|_| ErrorKind::InvalidURI(self.clone()))?;
-        Ok(https_uri)
     }
 
     #[inline]
@@ -139,15 +130,10 @@ impl Uri {
     /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
     pub fn is_loopback(&self) -> bool {
         match self.url.host_type() {
-            ada_url::HostType::IPV4 => {
-                let addr: std::net::Ipv4Addr = self.url.host().parse().unwrap();
-                addr.is_loopback()
-            }
-            ada_url::HostType::IPV6 => {
-                let addr: std::net::Ipv6Addr = self.url.host().parse().unwrap();
-                addr.is_loopback()
-            }
-            _ => false,
+            HostType::Domain => false,
+            _ => IpAddr::from_str(self.url.host())
+                .ok()
+                .is_some_and(|a| a.is_loopback()),
         }
     }
 
@@ -178,15 +164,13 @@ impl Uri {
     /// [IETF RFC 3879]: https://tools.ietf.org/html/rfc3879
     pub fn is_private(&self) -> bool {
         match self.url.host_type() {
-            ada_url::HostType::IPV4 => {
-                let addr: std::net::Ipv4Addr = self.url.host().parse().unwrap();
-                addr.is_private()
-            }
-            ada_url::HostType::IPV6 => {
-                let addr: std::net::Ipv6Addr = self.url.host().parse().unwrap();
-                Ipv6Network::from(addr).is_unique_local()
-            }
-            _ => false,
+            HostType::IPV4 => std::net::Ipv4Addr::from_str(self.url.host())
+                .ok()
+                .is_some_and(|a| a.is_private()),
+            HostType::IPV6 => std::net::Ipv6Addr::from_str(self.url.host())
+                .ok()
+                .is_some_and(|a| Ipv6Network::from(a).is_unique_local()),
+            HostType::Domain => false,
         }
     }
 
@@ -207,15 +191,17 @@ impl Uri {
     /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
     pub fn is_link_local(&self) -> bool {
         match self.url.host_type() {
-            ada_url::HostType::IPV4 => {
-                let addr: std::net::Ipv4Addr = self.url.host().parse().unwrap();
-                addr.is_link_local()
+            HostType::IPV4 => std::net::Ipv4Addr::from_str(self.url.host())
+                .ok()
+                .is_some_and(|a| a.is_link_local()),
+            HostType::IPV6 => {
+                if let Ok(addr) = std::net::Ipv6Addr::from_str(self.url.host()) {
+                    Ipv6Network::from(addr).is_unicast_link_local()
+                } else {
+                    false
+                }
             }
-            ada_url::HostType::IPV6 => {
-                let addr: std::net::Ipv6Addr = self.url.host().parse().unwrap();
-                Ipv6Network::from(addr).is_unicast_link_local()
-            }
-            _ => false,
+            HostType::Domain => false,
         }
     }
 }
@@ -386,12 +372,12 @@ mod tests {
     #[test]
     fn test_convert_to_https() {
         assert_eq!(
-            website("http://example.com").to_https().unwrap(),
+            website("http://example.com").to_https(),
             website("https://example.com")
         );
 
         assert_eq!(
-            website("https://example.com").to_https().unwrap(),
+            website("https://example.com").to_https(),
             website("https://example.com")
         );
     }

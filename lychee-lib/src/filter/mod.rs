@@ -297,7 +297,7 @@ mod tests {
 
     #[allow(clippy::shadow_unrelated)]
     #[test]
-    fn test_const_sanity() -> Result<(), ()> {
+    fn test_const_sanity() {
         assert_ip_address!(v4: V4_PRIVATE_CLASS_A, is_private);
         assert_ip_address!(v4: V4_PRIVATE_CLASS_B, is_private);
         assert_ip_address!(v4: V4_PRIVATE_CLASS_C, is_private);
@@ -307,8 +307,6 @@ mod tests {
 
         assert_ip_address!(v4: V4_LINK_LOCAL_1, is_link_local);
         assert_ip_address!(v4: V4_LINK_LOCAL_2, is_link_local);
-
-        Ok(())
     }
 
     #[test]

@@ -78,7 +78,7 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
+    pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
         let contents = stream::iter(inputs)
             .par_then_unordered(None, move |input| async move {
@@ -123,7 +123,7 @@ mod tests {
 
     // Helper function to run the collector on the given inputs
     async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
-        let responses = Collector::new(base).collect_links(inputs).await;
+        let responses = Collector::new(base).collect_links(inputs);
         responses.map(|r| r.unwrap().uri).collect().await
     }
 

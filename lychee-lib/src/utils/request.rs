@@ -98,11 +98,11 @@ pub(crate) fn create(
                     // it means that some preconditions were not met, e.g. the `base_url` wasn't set.
                     Ok(None)
                 }
-            } else if let Some(url) = construct_url(&base_url, &text) {
+            } else if let Ok(url) = construct_url(&base_url, &text) {
                 if base.is_some() {
                     Ok(None)
                 } else {
-                    let uri = Uri { url: url? };
+                    let uri = Uri { url };
                     let credentials = credentials(extractor, &uri);
 
                     Ok(Some(Request::new(
@@ -123,19 +123,19 @@ pub(crate) fn create(
     Ok(HashSet::from_iter(requests))
 }
 
-fn construct_url(base: &Option<ada_url::Url>, text: &str) -> Option<Result<Url>> {
+fn construct_url(base: &Option<Url>, text: &str) -> Result<Url> {
     let mut optional_base: Option<&str> = None;
 
     if let Some(base) = base {
         optional_base = Some(base.href());
     }
 
-    Some(Url::parse(text, optional_base).map_err(|e| {
+    Url::parse(text, optional_base).map_err(|e| {
         ErrorKind::ParseUrl(
             e.to_string(),
             format!("{0}{text}", optional_base.unwrap_or("")),
         )
-    }))
+    })
 }
 
 fn create_uri_from_path(

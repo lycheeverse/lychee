@@ -310,7 +310,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         collector
     };
 
-    let requests = collector.collect_links(inputs).await;
+    let requests = collector.collect_links(inputs);
 
     let cache = load_cache(&opts.config).unwrap_or_default();
     let cache = Arc::new(cache);

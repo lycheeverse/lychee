@@ -527,7 +527,7 @@ impl Client {
         match self.check_website_inner(uri, credentials).await {
             Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                 if self
-                    .check_website_inner(&uri.to_https()?, credentials)
+                    .check_website_inner(&uri.to_https(), credentials)
                     .await
                     .is_success()
                 {
@@ -679,7 +679,7 @@ impl Client {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         }
         if self.include_fragments {
-            self.check_fragment(&path, uri).await
+            self.check_fragment(path, uri).await
         } else {
             Status::Ok(StatusCode::OK)
         }
