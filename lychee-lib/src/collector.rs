@@ -110,8 +110,8 @@ impl Collector {
 mod tests {
     use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
 
+    use ada_url::Url;
     use http::StatusCode;
-    use reqwest::Url;
 
     use super::*;
     use crate::{
@@ -184,7 +184,7 @@ mod tests {
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
-                    Url::parse(&mock_server.uri())
+                    Url::parse(&mock_server.uri(), None)
                         .map_err(|e| (mock_server.uri(), e))
                         .unwrap(),
                 )),
@@ -358,7 +358,7 @@ mod tests {
         </html>"#;
         let mock_server = mock_server!(StatusCode::OK, set_body_string(contents));
 
-        let server_uri = Url::parse(&mock_server.uri()).unwrap();
+        let server_uri = Url::parse(&mock_server.uri(), None).unwrap();
 
         let input = Input {
             source: InputSource::RemoteUrl(Box::new(server_uri.clone())),

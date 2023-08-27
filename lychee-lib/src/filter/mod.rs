@@ -245,6 +245,7 @@ mod tests {
         test_utils::{mail, website},
         Uri,
     };
+    use std::str::FromStr;
 
     // Note: the standard library, as of Rust stable 1.47.0, does not expose
     // "link-local" or "private" IPv6 checks. However, one might argue
@@ -270,8 +271,11 @@ mod tests {
         (v4: $ip:expr, $predicate:tt) => {
             let res = if let Ok(url) = Url::parse($ip, None).map_err(|_| ()) {
                 if url.host_type() == HostType::IPV4 {
-                    let addr: std::net::Ipv4Addr = url.host().parse().unwrap();
-                    addr.$predicate()
+                    if let Ok(addr) = std::net::Ipv4Addr::from_str(url.hostname()) {
+                        addr.$predicate()
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
@@ -283,8 +287,12 @@ mod tests {
         (v6: $ip:expr, $predicate:tt) => {
             let res = if let Ok(url) = Url::parse($ip, None).map_err(|_| ()) {
                 if url.host_type() == HostType::IPV6 {
-                    let addr: std::net::Ipv6Addr = url.host().parse().unwrap();
-                    addr.$predicate()
+                    let host = url.hostname();
+                    if let Ok(addr) = std::net::Ipv6Addr::from_str(&host[1..host.len() - 1]) {
+                        addr.$predicate()
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }

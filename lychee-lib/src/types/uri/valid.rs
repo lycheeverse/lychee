@@ -1,3 +1,4 @@
+use std::net::Ipv6Addr;
 use std::str::FromStr;
 use std::{convert::TryFrom, fmt::Display, net::IpAddr};
 
@@ -50,7 +51,7 @@ impl Uri {
     /// Returns the domain of the URI (e.g. `example.com`)
     pub fn domain(&self) -> Option<&str> {
         if self.url.host_type() == HostType::Domain {
-            Some(self.url.hostname())
+            Some(self.url.host())
         } else {
             None
         }
@@ -70,17 +71,29 @@ impl Uri {
     /// each as a percent-encoded ASCII string.
     ///
     /// Return `None` for cannot-be-a-base URLs.
-    pub fn path_segments(&self) -> Option<std::str::Split<char>> {
-        Some(self.url.pathname().split('/'))
+    pub fn path_segments(&self) -> Vec<&str> {
+        self.url
+            .pathname()
+            .split('/')
+            .filter(|p| !p.is_empty())
+            .collect::<Vec<_>>()
     }
 
     #[must_use]
     /// Returns the IP address (either IPv4 or IPv6) of the URI,
     /// or `None` if it is a domain
     pub fn host_ip(&self) -> Option<IpAddr> {
+        let host = self.url.hostname();
         match self.url.host_type() {
             HostType::Domain => None,
-            _ => IpAddr::from_str(self.url.host()).ok(),
+            HostType::IPV6 => {
+                if let Ok(addr) = Ipv6Addr::from_str(&self.url.hostname()[1..host.len() - 1]) {
+                    Some(addr.into())
+                } else {
+                    None
+                }
+            }
+            HostType::IPV4 => IpAddr::from_str(self.url.hostname()).ok(),
         }
     }
 
@@ -131,9 +144,14 @@ impl Uri {
     pub fn is_loopback(&self) -> bool {
         match self.url.host_type() {
             HostType::Domain => false,
-            _ => IpAddr::from_str(self.url.host())
-                .ok()
-                .is_some_and(|a| a.is_loopback()),
+            HostType::IPV6 => {
+                let host = self.url.host();
+                Ipv6Addr::from_str(&host[1..host.len() - 1])
+                    .map_or(false, |addr| addr.is_loopback())
+            }
+            HostType::IPV4 => {
+                IpAddr::from_str(self.url.host()).map_or(false, |addr| addr.is_loopback())
+            }
         }
     }
 
@@ -163,11 +181,12 @@ impl Uri {
     /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
     /// [IETF RFC 3879]: https://tools.ietf.org/html/rfc3879
     pub fn is_private(&self) -> bool {
+        let host = self.url.host();
         match self.url.host_type() {
-            HostType::IPV4 => std::net::Ipv4Addr::from_str(self.url.host())
+            HostType::IPV4 => std::net::Ipv4Addr::from_str(host)
                 .ok()
                 .is_some_and(|a| a.is_private()),
-            HostType::IPV6 => std::net::Ipv6Addr::from_str(self.url.host())
+            HostType::IPV6 => std::net::Ipv6Addr::from_str(&host[1..host.len() - 1])
                 .ok()
                 .is_some_and(|a| Ipv6Network::from(a).is_unique_local()),
             HostType::Domain => false,
@@ -190,12 +209,13 @@ impl Uri {
     /// [IETF RFC 3927]: https://tools.ietf.org/html/rfc3927
     /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
     pub fn is_link_local(&self) -> bool {
+        let host = self.url.hostname();
         match self.url.host_type() {
-            HostType::IPV4 => std::net::Ipv4Addr::from_str(self.url.host())
+            HostType::IPV4 => std::net::Ipv4Addr::from_str(host)
                 .ok()
                 .is_some_and(|a| a.is_link_local()),
             HostType::IPV6 => {
-                if let Ok(addr) = std::net::Ipv6Addr::from_str(self.url.host()) {
+                if let Ok(addr) = Ipv6Addr::from_str(&host[1..host.len() - 1]) {
                     Ipv6Network::from(addr).is_unicast_link_local()
                 } else {
                     false

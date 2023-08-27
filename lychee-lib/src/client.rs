@@ -525,7 +525,7 @@ impl Client {
         credentials: &Option<BasicAuthCredentials>,
     ) -> Result<Status> {
         match self.check_website_inner(uri, credentials).await {
-            Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
+            Status::Ok(code) if self.require_https && uri.scheme() == "http:" => {
                 if self
                     .check_website_inner(&uri.to_https(), credentials)
                     .await
@@ -559,7 +559,7 @@ impl Client {
     ) -> Status {
         // Workaround for upstream reqwest panic
         if validate_url(&uri.url) {
-            if matches!(uri.scheme(), "http" | "https") {
+            if matches!(uri.scheme(), "http:" | "https:") {
                 // This is a truly invalid URI with a known scheme.
                 // If we pass that to reqwest it would panic.
                 return Status::Error(ErrorKind::InvalidURI(uri.clone()));
@@ -674,10 +674,12 @@ impl Client {
 
     /// Check a `file` URI.
     pub async fn check_file(&self, uri: &Uri) -> Status {
-        let path = Path::new(uri.url.href());
+        let path = Path::new(uri.url.pathname());
+
         if !path.exists() {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         }
+
         if self.include_fragments {
             self.check_fragment(path, uri).await
         } else {

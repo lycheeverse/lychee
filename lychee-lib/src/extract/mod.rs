@@ -57,7 +57,7 @@ impl Extractor {
 
 #[cfg(test)]
 mod tests {
-    use reqwest::Url;
+    use ada_url::Url;
     use std::{collections::HashSet, path::Path};
 
     use super::*;
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn test_extract_relative_url() {
         let source = InputSource::RemoteUrl(Box::new(
-            Url::parse("https://example.com/some-post").unwrap(),
+            Url::parse("https://example.com/some-post", None).unwrap(),
         ));
 
         let contents = r#"<html>

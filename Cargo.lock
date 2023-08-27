@@ -689,6 +689,7 @@ dependencies = [
 name = "collect_links"
 version = "0.1.0"
 dependencies = [
+ "ada-url",
  "http",
  "lychee-lib",
  "regex",

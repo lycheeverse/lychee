@@ -44,7 +44,7 @@ pub(crate) fn mail(address: &str) -> Uri {
     if address.starts_with("mailto:") {
         Url::parse(address, None)
     } else {
-        Url::parse(address, Some("mailto:"))
+        Url::parse(&("mailto:".to_string() + address), None)
     }
     .expect("Expected valid Mail Address")
     .into()

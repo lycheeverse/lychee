@@ -1,5 +1,5 @@
+use ada_url::Url;
 use lychee_lib::{Collector, Input, InputSource, Result};
-use reqwest::Url;
 use std::path::PathBuf;
 use tokio_stream::StreamExt;
 
@@ -10,7 +10,7 @@ async fn main() -> Result<()> {
     let inputs = vec![
         Input {
             source: InputSource::RemoteUrl(Box::new(
-                Url::parse("https://github.com/lycheeverse/lychee").unwrap(),
+                Url::parse("https://github.com/lycheeverse/lychee", None).unwrap(),
             )),
             file_type_hint: None,
             excluded_paths: None,

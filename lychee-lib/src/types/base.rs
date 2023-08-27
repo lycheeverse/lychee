@@ -36,22 +36,14 @@ impl Base {
         }
     }
 
-    pub(crate) fn from_source(source: &InputSource) -> Option<ada_url::Url> {
+    pub(crate) fn from_source(source: &InputSource) -> Option<Url> {
         match &source {
             InputSource::RemoteUrl(url) => {
                 // TODO: This should be refactored.
                 // Cases like https://user:pass@example.com are not handled
                 // We can probably use the original URL and just replace the
                 // path component in the caller of this function
-                if let Some(port) = url.port() {
-                    Url::parse(
-                        &format!("{}://{}:{port}", url.scheme(), url.host_str()?),
-                        None,
-                    )
-                    .ok()
-                } else {
-                    Url::parse(&format!("{}://{}", url.scheme(), url.host_str()?), None).ok()
-                }
+                Url::parse(&format!("{}//{}", url.protocol(), url.host()), None).ok()
             }
             // other inputs do not have a URL to extract a base
             _ => None,
@@ -66,7 +58,7 @@ impl TryFrom<&str> for Base {
         if let Ok(url) = Url::parse(value, None) {
             // Cannot be a base
             // Character after scheme should be '/'
-            if url.href().chars().nth(url.protocol().len()) == Some('/') {
+            if url.href().chars().nth(url.protocol().len()) != Some('/') {
                 return Err(ErrorKind::InvalidBase(
                     value.to_string(),
                     "The given URL cannot be a base".to_string(),
@@ -127,7 +119,7 @@ mod test_base {
             ),
         ] {
             let url = Url::parse(url, None).unwrap();
-            let source = InputSource::String(url.href().to_string());
+            let source = InputSource::RemoteUrl(Box::from(url));
             let base = Base::from_source(&source);
             let expected = Url::parse(expected, None).unwrap();
             assert_eq!(base, Some(expected));

@@ -1,10 +1,10 @@
 use crate::types::FileType;
 use crate::{utils, ErrorKind, Result};
+use ada_url::Url;
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
 use jwalk::WalkDir;
-use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
 use std::fmt::Display;
@@ -132,7 +132,7 @@ impl Input {
     ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
-        } else if let Ok(url) = Url::parse(value) {
+        } else if let Ok(url) = Url::parse(value, None) {
             InputSource::RemoteUrl(Box::new(url))
         } else {
             // this seems to be the only way to determine if this is a glob pattern
@@ -159,7 +159,7 @@ impl Input {
                     // by prefixing it with a `http://` scheme.
                     // Curl also uses http (i.e. not https), see
                     // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
-                    let url = Url::parse(&format!("http://{value}")).map_err(|e| {
+                    let url = Url::parse(&format!("http://{value}"), None).map_err(|e| {
                         ErrorKind::ParseUrl(e.to_string(), "Input is not a valid URL".to_string())
                     })?;
                     InputSource::RemoteUrl(Box::new(url))
@@ -297,13 +297,13 @@ impl Input {
 
     async fn url_contents(url: &Url) -> Result<InputContent> {
         // Assume HTML for default paths
-        let file_type = if url.path().is_empty() || url.path() == "/" {
+        let file_type = if url.pathname().is_empty() || url.pathname() == "/" {
             FileType::Html
         } else {
             FileType::from(url.as_str())
         };
 
-        let res = reqwest::get(url.clone())
+        let res = reqwest::get(url.href())
             .await
             .map_err(ErrorKind::NetworkRequest)?;
         let input_content = InputContent {
