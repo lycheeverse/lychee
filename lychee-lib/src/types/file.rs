@@ -59,7 +59,7 @@ fn is_url(path: &Path) -> bool {
     path.to_str()
         .and_then(|s| Url::parse(s, None).ok())
         .map_or(false, |url| {
-            url.protocol() == "http" || url.protocol() == "https"
+            url.protocol() == "http:" || url.protocol() == "https:"
         })
 }
 
