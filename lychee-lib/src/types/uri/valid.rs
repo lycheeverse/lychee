@@ -43,7 +43,7 @@ impl Uri {
     #[inline]
     /// Changes this URL's scheme.
     pub(crate) fn set_scheme(&mut self, scheme: &str) {
-        self.url.set_protocol(scheme);
+        let _ = self.url.set_protocol(scheme);
     }
 
     #[inline]

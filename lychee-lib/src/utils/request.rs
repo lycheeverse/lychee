@@ -138,11 +138,7 @@ fn construct_url(base: &Option<Url>, text: &str) -> Result<Url> {
     })
 }
 
-fn create_uri_from_path(
-    src: &Path,
-    dst: &str,
-    base: &Option<Base>,
-) -> Result<Option<ada_url::Url>> {
+fn create_uri_from_path(src: &Path, dst: &str, base: &Option<Base>) -> Result<Option<Url>> {
     let (dst, frag) = url::remove_get_params_and_separate_fragment(dst);
     // Avoid double-encoding already encoded destination paths by removing any
     // potential encoding (e.g. `web%20site` becomes `web site`).
@@ -156,13 +152,12 @@ fn create_uri_from_path(
     let decoded = percent_decode_str(dst).decode_utf8()?;
     let resolved = path::resolve(src, &PathBuf::from(&*decoded), base)?;
     match resolved {
-        Some(path) => ada_url::Url::parse(path.to_str().unwrap(), Some("file://"))
+        Some(path) => Url::parse(path.to_str().unwrap(), Some("file://"))
             .map(|mut url| {
-                url.set_hash(frag.unwrap_or(""));
-                url
+                url.set_hash(frag);
+                Some(url)
             })
-            .map(Some)
-            .map_err(|_e| ErrorKind::InvalidUrlFromPath(path)),
+            .map_err(|_e| ErrorKind::InvalidUrlFromPath(path.clone())),
         None => Ok(None),
     }
 }

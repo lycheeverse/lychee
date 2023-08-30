@@ -180,10 +180,7 @@ impl Input {
     /// Returns an error if the contents can not be retrieved
     /// because of an underlying I/O error (e.g. an error while making a
     /// network request or retrieving the contents from the file system)
-    pub async fn get_contents(
-        self,
-        skip_missing: bool,
-    ) -> impl Stream<Item = Result<InputContent>> {
+    pub fn get_contents(self, skip_missing: bool) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             match self.source {
                 InputSource::RemoteUrl(ref url) => {
@@ -198,7 +195,7 @@ impl Input {
                     ref pattern,
                     ignore_case,
                 } => {
-                    for await content in self.glob_contents(pattern, ignore_case).await {
+                    for await content in self.glob_contents(pattern, ignore_case) {
                         let content = content?;
                         yield content;
                     }
@@ -271,7 +268,7 @@ impl Input {
     /// # Errors
     ///
     /// Returns an error if the globbing fails with the expanded pattern.
-    pub async fn get_sources(self) -> impl Stream<Item = Result<String>> {
+    pub fn get_sources(self) -> impl Stream<Item = Result<String>> {
         try_stream! {
             match self.source {
                 InputSource::RemoteUrl(url) => yield url.to_string(),
@@ -315,7 +312,7 @@ impl Input {
         Ok(input_content)
     }
 
-    async fn glob_contents(
+    fn glob_contents(
         &self,
         pattern: &str,
         ignore_case: bool,

@@ -65,7 +65,7 @@ impl FragmentChecker {
     }
 
     fn remove_fragment(mut url: Url) -> String {
-        url.set_hash("");
+        url.set_hash(None);
         url.into()
     }
 }

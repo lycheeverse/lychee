@@ -41,10 +41,11 @@ pub(crate) fn website(url: &str) -> Uri {
 
 /// Creates a mail URI from a string
 pub(crate) fn mail(address: &str) -> Uri {
+    let input = "mailto:".to_string() + address;
     if address.starts_with("mailto:") {
         Url::parse(address, None)
     } else {
-        Url::parse(&("mailto:".to_string() + address), None)
+        Url::parse(input.as_str(), None)
     }
     .expect("Expected valid Mail Address")
     .into()
