@@ -104,19 +104,17 @@ impl Status {
     /// because they are provided by the user and can be invalid according to
     /// the HTTP spec and IANA, but the user might still want to accept them.
     #[must_use]
-    pub fn from_cache_status(s: CacheStatus, accepted: Option<HashSet<u16>>) -> Self {
+    pub fn from_cache_status(s: CacheStatus, accepted: HashSet<u16>) -> Self {
         match s {
             CacheStatus::Ok(code) => {
-                if matches!(s, CacheStatus::Ok(_))
-                    || accepted.map(|a| a.contains(&code)) == Some(true)
-                {
+                if matches!(s, CacheStatus::Ok(_)) || accepted.contains(&code) {
                     return Self::Cached(CacheStatus::Ok(code));
                 };
                 Self::Cached(CacheStatus::Error(Some(code)))
             }
             CacheStatus::Error(code) => {
                 if let Some(code) = code {
-                    if accepted.map(|a| a.contains(&code)) == Some(true) {
+                    if accepted.contains(&code) {
                         return Self::Cached(CacheStatus::Ok(code));
                     };
                 }

@@ -306,6 +306,7 @@ pub(crate) struct Config {
     #[arg(
         short,
         long,
+        default_value_t,
         long_help = "A List of accepted status codes for valid links
 
 The following accept range syntax is supported: [start]..[=]end|code. Some valid
@@ -321,8 +322,7 @@ Use \"lychee --accept '200..=204, 429, 500' <inputs>...\" to provide a comma-
 separated list of accepted status codes. This example will accept 200, 201,
 202, 203, 204, 429, and 500 as valid status codes."
     )]
-    #[serde(default)]
-    pub(crate) accept: Option<AcceptSelector>,
+    pub(crate) accept: AcceptSelector,
 
     /// Enable the checking of fragments in links.
     #[arg(long)]
@@ -436,7 +436,7 @@ impl Config {
             exclude_mail: false;
             remap: Vec::<String>::new();
             header: Vec::<String>::new();
-            accept: None;
+            accept: AcceptSelector::default();
             timeout: DEFAULT_TIMEOUT_SECS;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
             method: DEFAULT_METHOD;

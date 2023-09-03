@@ -1,4 +1,4 @@
-use std::{collections::HashSet, str::FromStr};
+use std::{collections::HashSet, fmt::Display, str::FromStr};
 
 use serde::{de::Visitor, Deserialize};
 use thiserror::Error;
@@ -16,7 +16,7 @@ pub enum AcceptSelectorError {
 
 /// An [`AcceptSelector`] determines if a returned HTTP status code should be
 /// accepted and thus counted as a valid (not broken) link.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AcceptSelector {
     ranges: Vec<AcceptRange>,
 }
@@ -40,11 +40,28 @@ impl FromStr for AcceptSelector {
     }
 }
 
+impl Default for AcceptSelector {
+    fn default() -> Self {
+        Self::new_from(vec![
+            AcceptRange::new(100, 103),
+            AcceptRange::new(200, 299),
+            AcceptRange::new(403, 403),
+        ])
+    }
+}
+
+impl Display for AcceptSelector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ranges: Vec<_> = self.ranges.iter().map(|r| r.to_string()).collect();
+        write!(f, "[{}]", ranges.join(","))
+    }
+}
+
 impl AcceptSelector {
     /// Creates a new empty [`AcceptSelector`].
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self { ranges: Vec::new() }
     }
 
     /// Creates a new [`AcceptSelector`] prefilled with `ranges`.
@@ -193,5 +210,13 @@ mod test {
         for invalid in invalid_values {
             assert!(!config.accept.contains(invalid));
         }
+    }
+
+    #[rstest]
+    #[case("100..=150,200..=300", "[100..=150,200..=300]")]
+    #[case("100..=150,300", "[100..=150,300..=300]")]
+    fn test_display(#[case] input: &str, #[case] display: &str) {
+        let selector = AcceptSelector::from_str(input).unwrap();
+        assert_eq!(selector.to_string(), display)
     }
 }

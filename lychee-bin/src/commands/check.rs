@@ -10,7 +10,7 @@ use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use lychee_lib::{AcceptSelector, Client, Request, Response};
+use lychee_lib::{Client, Request, Response};
 use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
@@ -44,7 +44,7 @@ where
 
     let client = params.client;
     let cache = params.cache;
-    let accept = params.cfg.accept.map(AcceptSelector::into_set);
+    let accept = params.cfg.accept.into_set();
 
     let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {
         None
@@ -207,7 +207,7 @@ async fn request_channel_task(
     max_concurrency: usize,
     client: Client,
     cache: Arc<Cache>,
-    accept: Option<HashSet<u16>>,
+    accept: HashSet<u16>,
 ) {
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
@@ -230,7 +230,7 @@ async fn handle(
     client: &Client,
     cache: Arc<Cache>,
     request: Request,
-    accept: Option<HashSet<u16>>,
+    accept: HashSet<u16>,
 ) -> Response {
     let uri = request.uri.clone();
     if let Some(v) = cache.get(&uri) {

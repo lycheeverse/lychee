@@ -1,4 +1,4 @@
-use std::{num::ParseIntError, ops::RangeInclusive, str::FromStr};
+use std::{fmt::Display, num::ParseIntError, ops::RangeInclusive, str::FromStr};
 
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -39,7 +39,7 @@ impl FromStr for AcceptRange {
 
         if let Some(value) = captures.get(4) {
             let value: u16 = value.as_str().parse()?;
-            Self::new(value, value)
+            Self::new_from(value, value)
         } else {
             let start: u16 = match captures.get(1) {
                 Some(start) => start.as_str().parse().unwrap_or_default(),
@@ -50,27 +50,39 @@ impl FromStr for AcceptRange {
             let end: u16 = captures[3].parse()?;
 
             if inclusive {
-                Self::new(start, end)
+                Self::new_from(start, end)
             } else {
-                Self::new(start, end - 1)
+                Self::new_from(start, end - 1)
             }
         }
     }
 }
 
+impl Display for AcceptRange {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}..={}", self.start(), self.end())
+    }
+}
+
 impl AcceptRange {
     /// Creates a new [`AcceptRange`] which matches values between `start` and
-    /// `end` (both inclusive). It additionally validates that
+    /// `end` (both inclusive).
+    pub const fn new(start: u16, end: u16) -> Self {
+        Self(RangeInclusive::new(start, end))
+    }
+
+    /// Creates a new [`AcceptRange`] which matches values between `start` and
+    /// `end` (both inclusive). It additionally validates that `start` > `end`.
     ///
     /// # Errors
     ///
     /// Returns an error if `start` > `end`.
-    pub const fn new(start: u16, end: u16) -> Result<Self, AcceptRangeError> {
+    pub const fn new_from(start: u16, end: u16) -> Result<Self, AcceptRangeError> {
         if start > end {
             return Err(AcceptRangeError::InvalidRangeIndices);
         }
 
-        Ok(Self(RangeInclusive::new(start, end)))
+        Ok(Self::new(start, end))
     }
 
     /// Returns the `start` value of this [`AcceptRange`].
