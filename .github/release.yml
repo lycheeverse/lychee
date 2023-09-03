@@ -1,0 +1,30 @@
+changelog:
+  exclude:
+    labels:
+      - dependencies
+    authors:
+      - dependabot
+  categories:
+    - title: Breaking Changes and Bugs 🚨
+      labels:
+        - breaking-change
+        - bug
+        - false-positive
+        - deprecation
+        - regression
+    - title: Enhancements and Performance Improvements 🚀
+      labels:
+        - enhancement
+        - performance
+    - title: Collaborative Discussions and Agreements 🤝
+      labels:
+        - waiting-for-feedback
+        - waiting-for-upstream
+        - request-for-comments
+    - title: Documentation and Maintenance 📚🔧
+      labels:
+        - docs
+        - maintenance
+    - title: Miscellaneous and Others 🔔
+      labels:
+        - "*"
