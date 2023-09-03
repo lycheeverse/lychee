@@ -52,7 +52,7 @@ impl Default for AcceptSelector {
 
 impl Display for AcceptSelector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let ranges: Vec<_> = self.ranges.iter().map(|r| r.to_string()).collect();
+        let ranges: Vec<_> = self.ranges.iter().map(ToString::to_string).collect();
         write!(f, "[{}]", ranges.join(","))
     }
 }
@@ -60,7 +60,7 @@ impl Display for AcceptSelector {
 impl AcceptSelector {
     /// Creates a new empty [`AcceptSelector`].
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { ranges: Vec::new() }
     }
 
@@ -217,6 +217,6 @@ mod test {
     #[case("100..=150,300", "[100..=150,300..=300]")]
     fn test_display(#[case] input: &str, #[case] display: &str) {
         let selector = AcceptSelector::from_str(input).unwrap();
-        assert_eq!(selector.to_string(), display)
+        assert_eq!(selector.to_string(), display);
     }
 }

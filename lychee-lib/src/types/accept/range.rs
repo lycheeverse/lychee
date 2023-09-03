@@ -67,6 +67,7 @@ impl Display for AcceptRange {
 impl AcceptRange {
     /// Creates a new [`AcceptRange`] which matches values between `start` and
     /// `end` (both inclusive).
+    #[must_use]
     pub const fn new(start: u16, end: u16) -> Self {
         Self(RangeInclusive::new(start, end))
     }

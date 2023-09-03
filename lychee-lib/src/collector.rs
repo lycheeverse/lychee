@@ -65,9 +65,9 @@ impl Collector {
 
     /// Collect all sources from a list of [`Input`]s. For further details,
     /// see also [`Input::get_sources`](crate::Input#method.get_sources).
-    pub async fn collect_sources(self, inputs: Vec<Input>) -> impl Stream<Item = Result<String>> {
+    pub fn collect_sources(self, inputs: Vec<Input>) -> impl Stream<Item = Result<String>> {
         stream::iter(inputs)
-            .par_then_unordered(None, move |input| async move { input.get_sources().await })
+            .par_then_unordered(None, move |input| async move { input.get_sources() })
             .flatten()
     }
 
@@ -78,11 +78,11 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub async fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
+    pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
         let contents = stream::iter(inputs)
             .par_then_unordered(None, move |input| async move {
-                input.get_contents(skip_missing_inputs).await
+                input.get_contents(skip_missing_inputs)
             })
             .flatten();
 
@@ -123,7 +123,7 @@ mod tests {
 
     // Helper function to run the collector on the given inputs
     async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
-        let responses = Collector::new(base).collect_links(inputs).await;
+        let responses = Collector::new(base).collect_links(inputs);
         responses.map(|r| r.unwrap().uri).collect().await
     }
 
@@ -140,7 +140,7 @@ mod tests {
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path).unwrap();
         let input = Input::new(&file_path.as_path().display().to_string(), None, true, None)?;
-        let contents: Vec<_> = input.get_contents(true).await.collect::<Vec<_>>().await;
+        let contents: Vec<_> = input.get_contents(true).collect::<Vec<_>>().await;
 
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Plaintext);
@@ -150,7 +150,7 @@ mod tests {
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
         let input = Input::new("https://example.com/", None, true, None)?;
-        let contents: Vec<_> = input.get_contents(true).await.collect::<Vec<_>>().await;
+        let contents: Vec<_> = input.get_contents(true).collect::<Vec<_>>().await;
 
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Html);

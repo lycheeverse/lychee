@@ -244,7 +244,7 @@ async fn handle(
             // `accepted` status codes might have changed from the previous run
             // and they may have an impact on the interpretation of the status
             // code.
-            Status::from_cache_status(v.value().status, accept)
+            Status::from_cache_status(v.value().status, &accept)
         };
         return Response::new(uri.clone(), status, request.source);
     }

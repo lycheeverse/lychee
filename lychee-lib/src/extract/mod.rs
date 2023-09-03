@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_md_escape() {
-        let input = r#"http://msdn.microsoft.com/library/ie/ms535874\(v=vs.85\).aspx"#;
+        let input = r"http://msdn.microsoft.com/library/ie/ms535874\(v=vs.85\).aspx";
         let links: Vec<_> = find_links(input).collect();
         let expected = "http://msdn.microsoft.com/library/ie/ms535874(v=vs.85).aspx)";
 

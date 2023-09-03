@@ -104,7 +104,7 @@ impl Status {
     /// because they are provided by the user and can be invalid according to
     /// the HTTP spec and IANA, but the user might still want to accept them.
     #[must_use]
-    pub fn from_cache_status(s: CacheStatus, accepted: HashSet<u16>) -> Self {
+    pub fn from_cache_status(s: CacheStatus, accepted: &HashSet<u16>) -> Self {
         match s {
             CacheStatus::Ok(code) => {
                 if matches!(s, CacheStatus::Ok(_)) || accepted.contains(&code) {
