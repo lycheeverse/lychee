@@ -66,7 +66,7 @@ impl GithubUri {
         debug_assert!(!uri.is_mail(), "Should only be called on a Website type!");
 
         let Some(domain) = uri.domain() else {
-            return Err(ErrorKind::InvalidGithubUrl(uri.to_string()))
+            return Err(ErrorKind::InvalidGithubUrl(uri.to_string()));
         };
 
         if !matches!(

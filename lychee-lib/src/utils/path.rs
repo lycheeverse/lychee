@@ -45,7 +45,7 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Opt
         relative if dst.is_relative() => {
             // Find `dst` in the parent directory of `src`
             let Some(parent) = src.parent() else {
-                return Err(ErrorKind::InvalidFile(relative.to_path_buf()))
+                return Err(ErrorKind::InvalidFile(relative.to_path_buf()));
             };
             parent.join(relative)
         }
@@ -53,12 +53,14 @@ pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Opt
             // Absolute local links (leading slash) require the `base_url` to
             // define the document root. Silently ignore the link in case the
             // `base_url` is not defined.
-            let Some(base) = get_base_dir(base) else { return Ok(None) };
+            let Some(base) = get_base_dir(base) else {
+                return Ok(None);
+            };
             let Some(dir) = dirname(&base) else {
                 return Err(ErrorKind::InvalidBase(
                     base.display().to_string(),
                     "The given directory cannot be a base".to_string(),
-                ))
+                ));
             };
             join(dir.to_path_buf(), absolute)
         }
