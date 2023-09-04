@@ -66,7 +66,7 @@ impl GithubUri {
         debug_assert!(!uri.is_mail(), "Should only be called on a Website type!");
 
         let Some(domain) = uri.domain() else {
-            return Err(ErrorKind::InvalidGithubUrl(uri.to_string()))
+            return Err(ErrorKind::InvalidGithubUrl(uri.to_string()));
         };
 
         if !matches!(
@@ -76,10 +76,11 @@ impl GithubUri {
             return Err(ErrorKind::InvalidGithubUrl(uri.to_string()));
         };
 
-        let parts: Vec<_> = match uri.path_segments() {
-            Some(parts) => parts.collect(),
-            None => return Err(ErrorKind::InvalidGithubUrl(uri.to_string())),
-        };
+        let parts = uri.path_segments();
+
+        if parts.is_empty() {
+            return Err(ErrorKind::InvalidGithubUrl(uri.to_string()));
+        }
 
         if parts.len() < 2 {
             // Not a valid org/repo pair.

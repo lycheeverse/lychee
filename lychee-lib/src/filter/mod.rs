@@ -237,15 +237,15 @@ impl Filter {
 
 #[cfg(test)]
 mod tests {
+    use ada_url::{HostType, Url};
     use regex::RegexSet;
-    use reqwest::Url;
-    use url::Host;
 
     use super::{Excludes, Filter, Includes};
     use crate::{
         test_utils::{mail, website},
         Uri,
     };
+    use std::str::FromStr;
 
     // Note: the standard library, as of Rust stable 1.47.0, does not expose
     // "link-local" or "private" IPv6 checks. However, one might argue
@@ -269,16 +269,33 @@ mod tests {
 
     macro_rules! assert_ip_address {
         (v4: $ip:expr, $predicate:tt) => {
-            let res = if let Host::Ipv4(ipv4) = Url::parse($ip).map_err(|_| ())?.host().ok_or(())? {
-                ipv4.$predicate()
+            let res = if let Ok(url) = Url::parse($ip, None).map_err(|_| ()) {
+                if url.host_type() == HostType::IPV4 {
+                    if let Ok(addr) = std::net::Ipv4Addr::from_str(url.hostname()) {
+                        addr.$predicate()
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
             } else {
                 false
             };
             std::assert!(res);
         };
         (v6: $ip:expr, $predicate:tt) => {
-            let res = if let Host::Ipv6(ipv6) = Url::parse($ip).map_err(|_| ())?.host().ok_or(())? {
-                ipv6.$predicate()
+            let res = if let Ok(url) = Url::parse($ip, None).map_err(|_| ()) {
+                if url.host_type() == HostType::IPV6 {
+                    let host = url.hostname();
+                    if let Ok(addr) = std::net::Ipv6Addr::from_str(&host[1..host.len() - 1]) {
+                        addr.$predicate()
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
             } else {
                 false
             };
@@ -288,7 +305,7 @@ mod tests {
 
     #[allow(clippy::shadow_unrelated)]
     #[test]
-    fn test_const_sanity() -> Result<(), ()> {
+    fn test_const_sanity() {
         assert_ip_address!(v4: V4_PRIVATE_CLASS_A, is_private);
         assert_ip_address!(v4: V4_PRIVATE_CLASS_B, is_private);
         assert_ip_address!(v4: V4_PRIVATE_CLASS_C, is_private);
@@ -298,8 +315,6 @@ mod tests {
 
         assert_ip_address!(v4: V4_LINK_LOCAL_1, is_link_local);
         assert_ip_address!(v4: V4_LINK_LOCAL_2, is_link_local);
-
-        Ok(())
     }
 
     #[test]

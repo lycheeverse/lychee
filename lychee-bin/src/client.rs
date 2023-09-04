@@ -21,7 +21,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
 
     // Offline mode overrides the scheme
     let schemes = if cfg.offline {
-        vec!["file".to_string()]
+        vec!["file:".to_string()]
     } else {
         cfg.scheme.clone()
     };

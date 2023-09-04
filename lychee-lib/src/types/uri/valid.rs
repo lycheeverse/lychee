@@ -1,9 +1,11 @@
+use std::net::Ipv6Addr;
+use std::str::FromStr;
 use std::{convert::TryFrom, fmt::Display, net::IpAddr};
 
+use ada_url::{HostType, Url};
 use email_address::EmailAddress;
 use ip_network::Ipv6Network;
 use serde::{Deserialize, Serialize};
-use url::Url;
 
 use crate::{ErrorKind, Result};
 
@@ -28,34 +30,38 @@ impl Uri {
     #[inline]
     #[must_use]
     pub fn as_str(&self) -> &str {
-        self.url.as_ref().trim_start_matches("mailto:")
+        self.url.href().trim_start_matches("mailto:")
     }
 
     #[inline]
     #[must_use]
     /// Returns the scheme of the URI (e.g. `http` or `mailto`)
     pub fn scheme(&self) -> &str {
-        self.url.scheme()
+        self.url.protocol()
     }
 
     #[inline]
     /// Changes this URL's scheme.
-    pub(crate) fn set_scheme(&mut self, scheme: &str) -> std::result::Result<(), ()> {
-        self.url.set_scheme(scheme)
+    pub(crate) fn set_scheme(&mut self, scheme: &str) {
+        let _ = self.url.set_protocol(scheme);
     }
 
     #[inline]
     #[must_use]
     /// Returns the domain of the URI (e.g. `example.com`)
     pub fn domain(&self) -> Option<&str> {
-        self.url.domain()
+        if self.url.host_type() == HostType::Domain {
+            Some(self.url.host())
+        } else {
+            None
+        }
     }
 
     #[inline]
     #[must_use]
     /// Returns the path of the URI (e.g. `/path/to/resource`)
     pub fn path(&self) -> &str {
-        self.url.path()
+        self.url.pathname()
     }
 
     #[inline]
@@ -65,49 +71,58 @@ impl Uri {
     /// each as a percent-encoded ASCII string.
     ///
     /// Return `None` for cannot-be-a-base URLs.
-    pub fn path_segments(&self) -> Option<std::str::Split<char>> {
-        self.url.path_segments()
+    pub fn path_segments(&self) -> Vec<&str> {
+        self.url
+            .pathname()
+            .split('/')
+            .filter(|p| !p.is_empty())
+            .collect::<Vec<_>>()
     }
 
     #[must_use]
     /// Returns the IP address (either IPv4 or IPv6) of the URI,
     /// or `None` if it is a domain
     pub fn host_ip(&self) -> Option<IpAddr> {
-        match self.url.host()? {
-            url::Host::Domain(_) => None,
-            url::Host::Ipv4(v4_addr) => Some(v4_addr.into()),
-            url::Host::Ipv6(v6_addr) => Some(v6_addr.into()),
+        let host = self.url.hostname();
+        match self.url.host_type() {
+            HostType::Domain => None,
+            HostType::IPV6 => {
+                if let Ok(addr) = Ipv6Addr::from_str(&self.url.hostname()[1..host.len() - 1]) {
+                    Some(addr.into())
+                } else {
+                    None
+                }
+            }
+            HostType::IPV4 => IpAddr::from_str(self.url.hostname()).ok(),
         }
     }
 
     /// Create a new URI with a `https` scheme
-    pub(crate) fn to_https(&self) -> Result<Uri> {
+    pub(crate) fn to_https(&self) -> Uri {
         let mut https_uri = self.clone();
+        https_uri.set_scheme("https");
         https_uri
-            .set_scheme("https")
-            .map_err(|_| ErrorKind::InvalidURI(self.clone()))?;
-        Ok(https_uri)
     }
 
     #[inline]
     #[must_use]
     /// Check if the URI is a valid mail address
     pub fn is_mail(&self) -> bool {
-        self.scheme() == "mailto"
+        self.scheme() == "mailto:"
     }
 
     #[inline]
     #[must_use]
     /// Check if the URI is a file
     pub fn is_file(&self) -> bool {
-        self.scheme() == "file"
+        self.scheme() == "file:"
     }
 
     #[inline]
     #[must_use]
     /// Check if the URI is a `data` URI
     pub fn is_data(&self) -> bool {
-        self.scheme() == "data"
+        self.scheme() == "data:"
     }
 
     #[inline]
@@ -127,10 +142,16 @@ impl Uri {
     /// [IETF RFC 1122]: https://tools.ietf.org/html/rfc1122
     /// [IETF RFC 4291 section 2.5.3]: https://tools.ietf.org/html/rfc4291#section-2.5.3
     pub fn is_loopback(&self) -> bool {
-        match self.url.host() {
-            Some(url::Host::Ipv4(addr)) => addr.is_loopback(),
-            Some(url::Host::Ipv6(addr)) => addr.is_loopback(),
-            _ => false,
+        match self.url.host_type() {
+            HostType::Domain => false,
+            HostType::IPV6 => {
+                let host = self.url.host();
+                Ipv6Addr::from_str(&host[1..host.len() - 1])
+                    .map_or(false, |addr| addr.is_loopback())
+            }
+            HostType::IPV4 => {
+                IpAddr::from_str(self.url.host()).map_or(false, |addr| addr.is_loopback())
+            }
         }
     }
 
@@ -160,10 +181,15 @@ impl Uri {
     /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
     /// [IETF RFC 3879]: https://tools.ietf.org/html/rfc3879
     pub fn is_private(&self) -> bool {
-        match self.url.host() {
-            Some(url::Host::Ipv4(addr)) => addr.is_private(),
-            Some(url::Host::Ipv6(addr)) => Ipv6Network::from(addr).is_unique_local(),
-            _ => false,
+        let host = self.url.host();
+        match self.url.host_type() {
+            HostType::IPV4 => std::net::Ipv4Addr::from_str(host)
+                .ok()
+                .is_some_and(|a| a.is_private()),
+            HostType::IPV6 => std::net::Ipv6Addr::from_str(&host[1..host.len() - 1])
+                .ok()
+                .is_some_and(|a| Ipv6Network::from(a).is_unique_local()),
+            HostType::Domain => false,
         }
     }
 
@@ -183,10 +209,19 @@ impl Uri {
     /// [IETF RFC 3927]: https://tools.ietf.org/html/rfc3927
     /// [IETF RFC 4291]: https://tools.ietf.org/html/rfc4291
     pub fn is_link_local(&self) -> bool {
-        match self.url.host() {
-            Some(url::Host::Ipv4(addr)) => addr.is_link_local(),
-            Some(url::Host::Ipv6(addr)) => Ipv6Network::from(addr).is_unicast_link_local(),
-            _ => false,
+        let host = self.url.hostname();
+        match self.url.host_type() {
+            HostType::IPV4 => std::net::Ipv4Addr::from_str(host)
+                .ok()
+                .is_some_and(|a| a.is_link_local()),
+            HostType::IPV6 => {
+                if let Ok(addr) = Ipv6Addr::from_str(&host[1..host.len() - 1]) {
+                    Ipv6Network::from(addr).is_unicast_link_local()
+                } else {
+                    false
+                }
+            }
+            HostType::Domain => false,
         }
     }
 }
@@ -232,7 +267,7 @@ impl TryFrom<&str> for Uri {
             return Err(ErrorKind::EmptyUrl);
         }
 
-        match Url::parse(s) {
+        match Url::parse(s, None) {
             Ok(uri) => Ok(uri.into()),
             Err(err) => {
                 // This could be a relative URL or a mail address or something
@@ -248,13 +283,13 @@ impl TryFrom<&str> for Uri {
                 if EmailAddress::is_valid(s) {
                     // Use the `mailto:` scheme for mail addresses,
                     // which will allow `Url::parse` to parse them.
-                    if let Ok(uri) = Url::parse(&format!("mailto:{s}")) {
+                    if let Ok(uri) = Url::parse(&format!("mailto:{s}"), None) {
                         return Ok(uri.into());
                     };
                 };
 
                 // We do not handle relative URLs here, as we do not know the base URL.
-                Err(ErrorKind::ParseUrl(err, s.to_owned()))
+                Err(ErrorKind::ParseUrl(err.to_string(), s.to_owned()))
             }
         }
     }
@@ -357,12 +392,12 @@ mod tests {
     #[test]
     fn test_convert_to_https() {
         assert_eq!(
-            website("http://example.com").to_https().unwrap(),
+            website("http://example.com").to_https(),
             website("https://example.com")
         );
 
         assert_eq!(
-            website("https://example.com").to_https().unwrap(),
+            website("https://example.com").to_https(),
             website("https://example.com")
         );
     }

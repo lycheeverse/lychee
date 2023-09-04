@@ -25,7 +25,7 @@ use http::{
 use log::{debug, warn};
 use octocrab::Octocrab;
 use regex::RegexSet;
-use reqwest::{header, redirect, Url};
+use reqwest::{header, redirect};
 use reqwest_cookie_store::CookieStoreMutex;
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
@@ -525,9 +525,9 @@ impl Client {
         credentials: &Option<BasicAuthCredentials>,
     ) -> Result<Status> {
         match self.check_website_inner(uri, credentials).await {
-            Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
+            Status::Ok(code) if self.require_https && uri.scheme() == "http:" => {
                 if self
-                    .check_website_inner(&uri.to_https()?, credentials)
+                    .check_website_inner(&uri.to_https(), credentials)
                     .await
                     .is_success()
                 {
@@ -559,7 +559,7 @@ impl Client {
     ) -> Status {
         // Workaround for upstream reqwest panic
         if validate_url(&uri.url) {
-            if matches!(uri.scheme(), "http" | "https") {
+            if matches!(uri.scheme(), "http:" | "https:") {
                 // This is a truly invalid URI with a known scheme.
                 // If we pass that to reqwest it would panic.
                 return Status::Error(ErrorKind::InvalidURI(uri.clone()));
@@ -621,7 +621,9 @@ impl Client {
     /// A better approach would be to download the file through the API or
     /// clone the repo, but we chose the pragmatic approach.
     async fn check_github(&self, uri: GithubUri) -> Status {
-        let Some(client) = &self.github_client else { return ErrorKind::MissingGitHubToken.into() };
+        let Some(client) = &self.github_client else {
+            return ErrorKind::MissingGitHubToken.into();
+        };
         let repo = match client.repos(&uri.owner, &uri.repo).get().await {
             Ok(repo) => repo,
             Err(e) => return ErrorKind::GithubRequest(e).into(),
@@ -672,14 +674,14 @@ impl Client {
 
     /// Check a `file` URI.
     pub async fn check_file(&self, uri: &Uri) -> Status {
-        let Ok(path) = uri.url.to_file_path() else {
-            return ErrorKind::InvalidFilePath(uri.clone()).into();
-        };
+        let path = Path::new(uri.url.pathname());
+
         if !path.exists() {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         }
+
         if self.include_fragments {
-            self.check_fragment(&path, uri).await
+            self.check_fragment(path, uri).await
         } else {
             Status::Ok(StatusCode::OK)
         }
@@ -704,7 +706,7 @@ impl Client {
     /// and instead passed to a mail client.
     #[cfg(all(feature = "email-check", feature = "native-tls"))]
     pub async fn check_mail(&self, uri: &Uri) -> Status {
-        let address = uri.url.path().to_string();
+        let address = uri.url.pathname().to_string();
         let input = CheckEmailInput::new(address);
         let result = &(check_email(&input).await);
 
@@ -731,7 +733,7 @@ impl Client {
 // got merged.
 // It is exactly the same check that reqwest runs internally, but unfortunately
 // it `unwrap`s (and panics!) instead of returning an error, which we could handle.
-fn validate_url(url: &Url) -> bool {
+fn validate_url(url: &ada_url::Url) -> bool {
     http::Uri::try_from(url.as_str()).is_err()
 }
 

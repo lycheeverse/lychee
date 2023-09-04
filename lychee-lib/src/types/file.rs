@@ -1,5 +1,5 @@
+use ada_url::Url;
 use std::path::Path;
-use url::Url;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 /// `FileType` defines which file types lychee can handle
@@ -54,12 +54,11 @@ impl<P: AsRef<Path>> From<P> for FileType {
 }
 
 /// Helper function to check if a path is likely a URL.
-
 fn is_url(path: &Path) -> bool {
     path.to_str()
-        .and_then(|s| Url::parse(s).ok())
+        .and_then(|s| Url::parse(s, None).ok())
         .map_or(false, |url| {
-            url.scheme() == "http" || url.scheme() == "https"
+            url.protocol() == "http:" || url.protocol() == "https:"
         })
 }
 

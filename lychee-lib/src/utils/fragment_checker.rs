@@ -9,8 +9,8 @@ use crate::{
     types::FileType,
     Result,
 };
+use ada_url::Url;
 use tokio::{fs, sync::Mutex};
-use url::Url;
 
 /// Holds a cache of fragments for a given URL.
 ///
@@ -43,9 +43,11 @@ impl FragmentChecker {
     ///
     /// In all other cases, returns true.
     pub(crate) async fn check(&self, path: &Path, url: &Url) -> Result<bool> {
-        let Some(fragment) = url.fragment() else {
-            return Ok(true)
-        };
+        if !url.has_hash() {
+            return Ok(true);
+        }
+        // URL specification says that the hash should always start with `#`
+        let fragment = url.hash();
         let url_without_frag = Self::remove_fragment(url.clone());
 
         let extractor = match FileType::from(path) {
@@ -57,14 +59,14 @@ impl FragmentChecker {
             Entry::Vacant(entry) => {
                 let content = fs::read_to_string(path).await?;
                 let file_frags = extractor(&content);
-                Ok(entry.insert(file_frags).contains(fragment))
+                Ok(entry.insert(file_frags).contains(&fragment[1..]))
             }
-            Entry::Occupied(entry) => Ok(entry.get().contains(fragment)),
+            Entry::Occupied(entry) => Ok(entry.get().contains(&fragment[1..])),
         }
     }
 
     fn remove_fragment(mut url: Url) -> String {
-        url.set_fragment(None);
+        url.set_hash(None);
         url.into()
     }
 }

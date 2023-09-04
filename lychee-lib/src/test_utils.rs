@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, fs, path::Path};
 
-use reqwest::Url;
+use ada_url::Url;
 
 use crate::{ClientBuilder, ErrorKind, Request, Uri};
 
@@ -36,15 +36,16 @@ where
 ///
 /// This panics on error, so it should only be used for testing
 pub(crate) fn website(url: &str) -> Uri {
-    Uri::from(Url::parse(url).expect("Expected valid Website URI"))
+    Uri::from(Url::parse(url, None).expect("Expected valid Website URI"))
 }
 
 /// Creates a mail URI from a string
 pub(crate) fn mail(address: &str) -> Uri {
+    let input = "mailto:".to_string() + address;
     if address.starts_with("mailto:") {
-        Url::parse(address)
+        Url::parse(address, None)
     } else {
-        Url::parse(&(String::from("mailto:") + address))
+        Url::parse(input.as_str(), None)
     }
     .expect("Expected valid Mail Address")
     .into()

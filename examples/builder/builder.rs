@@ -32,8 +32,8 @@ async fn main() -> Result<()> {
         .method(Method::HEAD)
         .timeout(Duration::from_secs(5))
         .schemes(HashSet::from_iter(vec![
-            "http".to_string(),
-            "https".to_string(),
+            "http:".to_string(),
+            "https:".to_string(),
         ]))
         .accepted(accepted)
         .build()
