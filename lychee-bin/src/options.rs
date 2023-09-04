@@ -10,6 +10,7 @@ use lychee_lib::{
     StatusCodeSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
     DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
+use reqwest::tls;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::path::Path;
@@ -45,6 +46,22 @@ const HELP_MSG_CONFIG_FILE: &str = formatcp!(
 );
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
+
+const TLS_VERSIONS: [&'static str; 4] = [
+    "TLSv1_0",
+    "TLSv1_1",
+    "TLSv1_2",
+    "TLSv1_3",
+];
+fn tls_from_str(ver: impl AsRef<str>) -> Option<tls::Version> {
+    match ver.as_ref() {
+        "TLSv1_0" => Some(tls::Version::TLS_1_0),
+        "TLSv1_1" => Some(tls::Version::TLS_1_1),
+        "TLSv1_2" => Some(tls::Version::TLS_1_2),
+        "TLSv1_3" => Some(tls::Version::TLS_1_3),
+        _ => None,
+    }
+}
 
 /// The format to use for the final status report
 #[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, VariantNames, PartialEq)]
@@ -240,7 +257,7 @@ pub(crate) struct Config {
         long,
         default_value_t = FileExtensions::default(),
         long_help = "Test the specified file extensions for URIs when checking files locally.
-    
+
 Multiple extensions can be separated by commas. Note that if you want to check filetypes,
 which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
 specify both extensions explicitly."
@@ -316,6 +333,17 @@ list of excluded status codes. This example will not cache results with a status
     #[arg(long, default_value = &MAX_RETRIES_STR)]
     #[serde(default = "max_retries")]
     pub(crate) max_retries: u64,
+
+    // Minimum TLS Version
+    #[arg(
+        long,
+        default_value = "TLSv1_0",
+        value_parser=PossibleValuesParser::new(TLS_VERSIONS).map(tls_from_str),
+    )]
+    #[serde(
+        skip,
+    )]
+    pub(crate) min_tls: tls::Version,
 
     /// Maximum number of concurrent network requests
     #[arg(long, default_value = &MAX_CONCURRENCY_STR)]
