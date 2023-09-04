@@ -42,10 +42,11 @@ impl FragmentChecker {
     /// doesn't contain the given fragment.
     ///
     /// In all other cases, returns true.
-    pub(crate) async fn check(&self, path: &Path, url: &ada_url::Url) -> Result<bool> {
+    pub(crate) async fn check(&self, path: &Path, url: &Url) -> Result<bool> {
         if !url.has_hash() {
             return Ok(true);
         }
+        // URL specification says that the hash should always start with `#`
         let fragment = url.hash();
         let url_without_frag = Self::remove_fragment(url.clone());
 
@@ -58,9 +59,9 @@ impl FragmentChecker {
             Entry::Vacant(entry) => {
                 let content = fs::read_to_string(path).await?;
                 let file_frags = extractor(&content);
-                Ok(entry.insert(file_frags).contains(fragment))
+                Ok(entry.insert(file_frags).contains(&fragment[1..]))
             }
-            Entry::Occupied(entry) => Ok(entry.get().contains(fragment)),
+            Entry::Occupied(entry) => Ok(entry.get().contains(&fragment[1..])),
         }
     }
 
