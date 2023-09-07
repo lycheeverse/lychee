@@ -12,7 +12,7 @@ keywords = [
     "link-checker",
     "validator",
 ]
-license = "Apache-2.0/MIT"
+license = "Apache-2.0 OR MIT"
 repository = "https://github.com/lycheeverse/lychee"
 version = "0.13.0"
 
