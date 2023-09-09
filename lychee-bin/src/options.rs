@@ -91,6 +91,7 @@ default_function! {
     retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
     verbosity: Verbosity = Verbosity::default();
+    accept_selector: AcceptSelector = AcceptSelector::default();
 }
 
 // Macro for merging configuration values
@@ -322,6 +323,7 @@ Use \"lychee --accept '200..=204, 429, 500' <inputs>...\" to provide a comma-
 separated list of accepted status codes. This example will accept 200, 201,
 202, 203, 204, 429, and 500 as valid status codes."
     )]
+    #[serde(default = "accept_selector")]
     pub(crate) accept: AcceptSelector,
 
     /// Enable the checking of fragments in links.
@@ -437,7 +439,6 @@ impl Config {
             exclude_mail: false;
             remap: Vec::<String>::new();
             header: Vec::<String>::new();
-            accept: AcceptSelector::default();
             timeout: DEFAULT_TIMEOUT_SECS;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
             method: DEFAULT_METHOD;
