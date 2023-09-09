@@ -10,7 +10,7 @@ pub enum AcceptSelectorError {
     #[error("invalid/empty input")]
     InvalidInput,
 
-    #[error("failed to parse accept range")]
+    #[error("failed to parse accept range: {0}")]
     AcceptRangeError(#[from] AcceptRangeError),
 }
 
@@ -53,7 +53,7 @@ impl Default for AcceptSelector {
 impl Display for AcceptSelector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let ranges: Vec<_> = self.ranges.iter().map(ToString::to_string).collect();
-        write!(f, "[{}]", ranges.join(","))
+        write!(f, "{}", ranges.join(","))
     }
 }
 
