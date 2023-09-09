@@ -5,8 +5,14 @@ description = "A fast, async link checker"
 documentation = "https://docs.rs/lychee_lib"
 edition = "2021"
 homepage = "https://github.com/lycheeverse/lychee"
-keywords = ["link", "checker", "cli", "link-checker", "validator"]
-license = "Apache-2.0/MIT"
+keywords = [
+    "link",
+    "checker",
+    "cli",
+    "link-checker",
+    "validator",
+]
+license = "Apache-2.0 OR MIT"
 repository = "https://github.com/lycheeverse/lychee"
 version = "0.13.0"
 
@@ -26,16 +32,16 @@ ip_network = "0.4.1"
 jwalk = "0.8.1"
 linkify = "0.10.0"
 log = "0.4.20"
-octocrab = "0.29.3"
+octocrab = "0.30.1"
 once_cell = "1.18.0"
-openssl-sys = { version = "0.9.91", optional = true }
+openssl-sys = { version = "0.9.92", optional = true }
 path-clean = "1.0.1"
 percent-encoding = "2.3.0"
 pulldown-cmark = "0.9.3"
-regex = "1.9.3"
+regex = "1.9.5"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.11.19", default-features = false, features = ["gzip", "trust-dns", "cookies"] }
+reqwest = { version = "0.11.20", default-features = false, features = ["gzip", "trust-dns", "cookies"] }
 reqwest_cookie_store = "0.6.0"
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
@@ -46,10 +52,10 @@ secrecy = "0.8.0"
 serde = { version = "1.0.185", features = ["derive"] }
 serde_with = "3.3.0"
 shellexpand = "3.1.0"
-thiserror = "1.0.47"
+thiserror = "1.0.48"
 tokio = { version = "1.32.0", features = ["full"] }
-typed-builder = "0.15.2"
-url = { version = "2.4.0", features = ["serde"] }
+typed-builder = "0.16.0"
+url = { version = "2.4.1", features = ["serde"] }
 
 [dependencies.par-stream]
 version = "0.10.2"

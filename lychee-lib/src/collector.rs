@@ -2,9 +2,10 @@ use crate::{
     basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri, utils::request,
     Base, Input, Request, Result,
 };
+use futures::TryStreamExt;
 use futures::{
     stream::{self, Stream},
-    StreamExt, TryStreamExt,
+    StreamExt,
 };
 use par_stream::ParStreamExt;
 
@@ -80,14 +81,12 @@ impl Collector {
     /// Will return `Err` if links cannot be extracted from an input
     pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
-        let contents = stream::iter(inputs)
+        let base = self.base;
+        stream::iter(inputs)
             .par_then_unordered(None, move |input| async move {
                 input.get_contents(skip_missing_inputs)
             })
-            .flatten();
-
-        let base = self.base;
-        contents
+            .flatten()
             .par_then_unordered(None, move |content| {
                 // send to parallel worker
                 let base = base.clone();
