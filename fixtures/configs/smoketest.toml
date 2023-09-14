@@ -52,8 +52,9 @@ accept = [200, 429]
 insecure = false
 
 # Only test links with the given schemes (e.g. https).
-# Omit to check links with any scheme.
-scheme = [ "https" ]
+# Omit to check links with any other scheme.
+# At the moment, we support http, https, file, and mailto.
+scheme = ["https"]
 
 # When links are available using HTTPS, treat HTTP links as errors.
 require_https = false
@@ -66,7 +67,7 @@ headers = []
 
 # Remap URI matching pattern to different URI.
 # This also supports (named) capturing groups.
-remap = [ 
+remap = [
     "https://example.com http://example.invalid",
     "https://example.com/(.*) http://example.org/$1",
     "https://github.com/(?P<org>.*)/(?P<repo>.*) https://gitlab.com/$org/$repo",
@@ -93,13 +94,13 @@ include_verbatim = false
 glob_ignore_case = false
 
 # Exclude URLs and mail addresses from checking (supports regex).
-exclude = [ '.*\.github.com\.*' ]
+exclude = ['.*\.github.com\.*']
 
 # Exclude these filesystem paths from getting checked.
 exclude_path = ["file/path/to/Ignore", "./other/file/path/to/Ignore"]
 
 # URLs to check (supports regex). Has preference over all excludes.
-include = [ 'gist\.github\.com.*' ]
+include = ['gist\.github\.com.*']
 
 # Exclude all private IPs from checking.
 # Equivalent to setting `exclude_private`, `exclude_link_local`, and
