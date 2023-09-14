@@ -18,6 +18,7 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
 ## Table of Contents
 
 - [Installation](#installation)
@@ -120,7 +121,7 @@ This comparison is made on a best-effort basis. Please create a PR to fix
 outdated information.
 
 |                      | lychee  | [awesome_bot] | [muffet] | [broken-link-checker] | [linkinator] | [linkchecker]        | [markdown-link-check] | [fink] |
-|----------------------|---------|---------------|----------|-----------------------|--------------|----------------------|-----------------------|--------|
+| -------------------- | ------- | ------------- | -------- | --------------------- | ------------ | -------------------- | --------------------- | ------ |
 | Language             | Rust    | Ruby          | Go       | JS                    | TypeScript   | Python               | JS                    | PHP    |
 | Async/Parallel       | ![yes]  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | JSON output          | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![maybe]<sup>1</sup> | ![yes]                | ![yes] |
@@ -341,7 +342,7 @@ Options:
           Proceed for server connections considered insecure (invalid TLS)
 
   -s, --scheme <SCHEME>
-          Only test links with the given schemes (e.g. http and https)
+          Only test links with the given schemes (e.g. https). Omit to check links with any other scheme. At the moment, we support http, https, file, and mailto
 
       --offline
           Only check local files and block network requests
@@ -575,6 +576,7 @@ If you find a way to make lychee faster, please do reach out.
 We collect a list of common workarounds for various websites in our [troubleshooting guide](./docs/TROUBLESHOOTING.md).
 
 ## Users
+
 - https://github.com/InnerSourceCommons/InnerSourcePatterns
 - https://github.com/opensearch-project/OpenSearch
 - https://github.com/ramitsurana/awesome-kubernetes
@@ -609,7 +611,6 @@ lychee is licensed under either of
 - MIT license (LICENSE-MIT or https://opensource.org/licenses/MIT)
 
 at your option.
-
 
 <br><hr>
 [🔼 Back to top](#back-to-top)
