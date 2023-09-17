@@ -213,8 +213,8 @@ mod test {
     }
 
     #[rstest]
-    #[case("100..=150,200..=300", "[100..=150,200..=300]")]
-    #[case("100..=150,300", "[100..=150,300..=300]")]
+    #[case("100..=150,200..=300", "100..=150,200..=300")]
+    #[case("100..=150,300", "100..=150,300..=300")]
     fn test_display(#[case] input: &str, #[case] display: &str) {
         let selector = AcceptSelector::from_str(input).unwrap();
         assert_eq!(selector.to_string(), display);
