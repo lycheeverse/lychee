@@ -1,17 +1,17 @@
 use crate::archive::Archive;
-use crate::parse::{parse_base, parse_statuscodes};
+use crate::parse::parse_base;
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, BasicAuthSelector, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+    AcceptSelector, Base, BasicAuthSelector, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::path::Path;
-use std::{collections::HashSet, fs, path::PathBuf, str::FromStr, time::Duration};
+use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use strum::VariantNames;
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
@@ -91,6 +91,7 @@ default_function! {
     retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
     verbosity: Verbosity = Verbosity::default();
+    accept_selector: AcceptSelector = AcceptSelector::default();
 }
 
 // Macro for merging configuration values
@@ -304,10 +305,28 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) header: Vec<String>,
 
-    /// Comma-separated list of accepted status codes for valid links
-    #[arg(short, long, value_parser = parse_statuscodes)]
-    #[serde(default)]
-    pub(crate) accept: Option<HashSet<u16>>,
+    /// A List of accepted status codes for valid links
+    #[arg(
+        short,
+        long,
+        default_value_t,
+        long_help = "A List of accepted status codes for valid links
+
+The following accept range syntax is supported: [start]..[=]end|code. Some valid
+examples are:
+
+- 200..=204
+- 200..204
+- ..=204
+- ..204
+- 200
+
+Use \"lychee --accept '200..=204, 429, 500' <inputs>...\" to provide a comma-
+separated list of accepted status codes. This example will accept 200, 201,
+202, 203, 204, 429, and 500 as valid status codes."
+    )]
+    #[serde(default = "accept_selector")]
+    pub(crate) accept: AcceptSelector,
 
     /// Enable the checking of fragments in links.
     #[arg(long)]
@@ -389,7 +408,8 @@ impl Config {
     pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
         // Read configuration file
         let contents = fs::read_to_string(path)?;
-        toml::from_str(&contents).context("Failed to parse configuration file")
+        toml::from_str(&contents)
+            .map_err(|err| anyhow::anyhow!("Failed to parse configuration file: {}", err))
     }
 
     /// Merge the configuration from TOML into the CLI configuration
@@ -421,7 +441,6 @@ impl Config {
             exclude_mail: false;
             remap: Vec::<String>::new();
             header: Vec::<String>::new();
-            accept: None;
             timeout: DEFAULT_TIMEOUT_SECS;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
             method: DEFAULT_METHOD;

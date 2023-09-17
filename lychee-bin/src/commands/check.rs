@@ -44,7 +44,7 @@ where
 
     let client = params.client;
     let cache = params.cache;
-    let accept = params.cfg.accept;
+    let accept = params.cfg.accept.into_set();
 
     let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {
         None
@@ -207,7 +207,7 @@ async fn request_channel_task(
     max_concurrency: usize,
     client: Client,
     cache: Arc<Cache>,
-    accept: Option<HashSet<u16>>,
+    accept: HashSet<u16>,
 ) {
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
@@ -230,7 +230,7 @@ async fn handle(
     client: &Client,
     cache: Arc<Cache>,
     request: Request,
-    accept: Option<HashSet<u16>>,
+    accept: HashSet<u16>,
 ) -> Response {
     let uri = request.uri.clone();
     if let Some(v) = cache.get(&uri) {
@@ -244,7 +244,7 @@ async fn handle(
             // `accepted` status codes might have changed from the previous run
             // and they may have an impact on the interpretation of the status
             // code.
-            Status::from_cache_status(v.value().status, accept)
+            Status::from_cache_status(v.value().status, &accept)
         };
         return Response::new(uri.clone(), status, request.source);
     }

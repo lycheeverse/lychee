@@ -26,16 +26,13 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         cfg.scheme.clone()
     };
 
-    let accepted = match cfg.accept {
-        Some(ref accepted) => {
-            let accepted: Result<HashSet<_>, _> = accepted
-                .iter()
-                .map(|code| StatusCode::from_u16(*code))
-                .collect();
-            Some(accepted?)
-        }
-        None => None,
-    };
+    let accepted = cfg
+        .accept
+        .clone()
+        .into_set()
+        .iter()
+        .map(|value| StatusCode::from_u16(*value))
+        .collect::<Result<HashSet<_>, _>>()?;
 
     // `exclude_mail` will be removed in 1.0. Until then, we need to support it.
     // Therefore, we need to check if both `include_mail` and `exclude_mail` are set to `true`

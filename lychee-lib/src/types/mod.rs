@@ -1,5 +1,6 @@
 #![allow(unreachable_pub)]
 
+mod accept;
 mod base;
 mod basic_auth;
 mod cache;
@@ -13,6 +14,7 @@ mod response;
 mod status;
 pub(crate) mod uri;
 
+pub use accept::*;
 pub use base::Base;
 pub use basic_auth::{BasicAuthCredentials, BasicAuthSelector};
 pub use cache::CacheStatus;

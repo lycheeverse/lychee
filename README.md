@@ -20,9 +20,30 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 ## Table of Contents
 
+- [Table of Contents](#table-of-contents)
 - [Installation](#installation)
+  - [Arch Linux](#arch-linux)
+  - [macOS](#macos)
+  - [Docker](#docker)
+  - [NixOS](#nixos)
+  - [FreeBSD](#freebsd)
+  - [Scoop](#scoop)
+  - [Termux](#termux)
+  - [Pre-built binaries](#pre-built-binaries)
+  - [Cargo](#cargo)
+    - [Build dependencies](#build-dependencies)
+    - [Compile and install lychee](#compile-and-install-lychee)
+    - [Feature flags](#feature-flags)
 - [Features](#features)
 - [Commandline usage](#commandline-usage)
+  - [Docker Usage](#docker-usage)
+    - [Linux/macOS shell command](#linuxmacos-shell-command)
+    - [Windows PowerShell command](#windows-powershell-command)
+  - [GitHub Token](#github-token)
+  - [Commandline Parameters](#commandline-parameters)
+  - [Exit codes](#exit-codes)
+  - [Ignoring links](#ignoring-links)
+  - [Caching](#caching)
 - [Library usage](#library-usage)
 - [GitHub Action Usage](#github-action-usage)
 - [Contributing to lychee](#contributing-to-lychee)
@@ -384,7 +405,22 @@ Options:
           Custom request header
 
   -a, --accept <ACCEPT>
-          Comma-separated list of accepted status codes for valid links
+          A List of accepted status codes for valid links
+          
+          The following accept range syntax is supported: [start]..[=]end|code. Some valid
+          examples are:
+          
+          - 200..=204
+          - 200..204
+          - ..=204
+          - ..204
+          - 200
+          
+          Use "lychee --accept '200..=204, 429, 500' <inputs>..." to provide a comma-
+          separated list of accepted status codes. This example will accept 200, 201,
+          202, 203, 204, 429, and 500 as valid status codes.
+          
+          [default: 100..=103,200..=299,403..=403]
 
       --include-fragments
           Enable the checking of fragments in links
