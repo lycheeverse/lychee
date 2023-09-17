@@ -58,7 +58,8 @@ accept = ["200", "429"]
 insecure = false
 
 # Only test links with the given schemes (e.g. https).
-# Omit to check links with any scheme.
+# Omit to check links with any other scheme.
+# At the moment, we support http, https, file, and mailto.
 scheme = ["https"]
 
 # When links are available using HTTPS, treat HTTP links as errors.

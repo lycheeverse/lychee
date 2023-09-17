@@ -231,7 +231,9 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) insecure: bool,
 
-    /// Only test links with the given schemes (e.g. http and https)
+    /// Only test links with the given schemes (e.g. https).
+    /// Omit to check links with any other scheme.
+    /// At the moment, we support http, https, file, and mailto.
     #[arg(short, long)]
     #[serde(default)]
     pub(crate) scheme: Vec<String>,
