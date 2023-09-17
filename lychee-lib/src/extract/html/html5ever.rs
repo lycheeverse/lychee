@@ -148,7 +148,6 @@ impl LinkExtractor {
         // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
 
         match (elem_name, attr_name) {
-            // TODO: Skip <link rel="preconnect">
 
             // Common element/attribute combinations for links
             (_, "href" | "src" | "cite" | "usemap")
