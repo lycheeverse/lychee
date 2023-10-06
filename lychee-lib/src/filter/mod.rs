@@ -38,6 +38,7 @@ const FALSE_POSITIVE_PAT: &[&str] = &[
     r"^https?://www.w3.org/2000/svg",
     r"^https?://ogp.me/ns#",
     r"^https?://schemas.microsoft.com",
+    r"^https?://(.*)/xmlrpc.php$",
 ];
 
 static FALSE_POSITIVE_SET: Lazy<RegexSet> =
