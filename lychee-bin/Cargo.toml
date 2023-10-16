@@ -23,7 +23,7 @@ anyhow = "1.0.75"
 assert-json-diff = "2.0.2"
 clap = { version = "4.4.6", features = ["env", "derive"] }
 console = "0.15.7"
-const_format = "0.2.31"
+const_format = "0.2.32"
 csv = "1.2.2"
 dashmap = { version = "5.5.3", features = ["serde"] }
 env_logger = "0.10.0"
