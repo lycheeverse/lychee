@@ -1440,7 +1440,9 @@ mod cli {
             .stderr(contains("fixtures/fragments/file1.md#missing-fragment"))
             .stderr(contains("fixtures/fragments/file2.md#fragment-1"))
             .stderr(contains("fixtures/fragments/file1.md#kebab-case-fragment"))
-            .stderr(contains("fixtures/fragments/file1.md#lets-wear-a-hat-être"))
+            .stderr(contains(
+                "fixtures/fragments/file1.md#lets-wear-a-hat-%C3%AAtre",
+            ))
             .stderr(contains("fixtures/fragments/file2.md#missing-fragment"))
             .stderr(contains("fixtures/fragments/empty_file#fragment"))
             .stderr(contains("fixtures/fragments/file.html#a-word"))
