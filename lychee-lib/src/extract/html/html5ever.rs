@@ -69,6 +69,14 @@ impl TokenSink for LinkExtractor {
                     }
                 }
 
+                // Check and exclude rel=preconnect. Other than prefetch and preload,
+                // preconnect only does DNS lookups and might not be a link to a resource
+                if let Some(rel) = attrs.iter().find(|attr| &attr.name.local == "rel") {
+                    if rel.value.contains("preconnect") {
+                        return TokenSinkResult::Continue;
+                    }
+                }
+
                 for attr in attrs {
                     let urls = LinkExtractor::extract_urls_from_elem_attr(
                         &attr.name.local,
@@ -136,6 +144,7 @@ impl LinkExtractor {
         // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
 
         match (elem_name, attr_name) {
+
             // Common element/attribute combinations for links
             (_, "href" | "src" | "cite" | "usemap")
             // Less common (but still valid!) combinations
@@ -352,5 +361,25 @@ mod tests {
         let expected = vec![];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_skip_preconnect() {
+        let input = r#"
+            <link rel="preconnect" href="https://example.com">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_skip_preconnect_reverse_order() {
+        let input = r#"
+            <link href="https://example.com" rel="preconnect">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
     }
 }
