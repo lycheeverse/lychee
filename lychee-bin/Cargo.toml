@@ -27,7 +27,7 @@ const_format = "0.2.31"
 csv = "1.2.2"
 dashmap = { version = "5.5.3", features = ["serde"] }
 env_logger = "0.10.0"
-futures = "0.3.28"
+futures = "0.3.29"
 headers = "0.3.8"
 http = "0.2.9"
 humantime = "2.1.0"
