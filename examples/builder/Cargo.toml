@@ -9,10 +9,10 @@ path = "builder.rs"
 
 [dependencies]
 lychee-lib = { path = "../../lychee-lib", version = "0.13.0", default-features = false }
-tokio = { version = "1.32.0", features = ["full"] }
-regex = "1.9.6"
+tokio = { version = "1.33.0", features = ["full"] }
+regex = "1.10.2"
 http = "0.2.9"
-reqwest = { version = "0.11.20", default-features = false, features = ["gzip"] }
+reqwest = { version = "0.11.22", default-features = false, features = ["gzip"] }
 
 [features]
 email-check = ["lychee-lib/email-check"]
