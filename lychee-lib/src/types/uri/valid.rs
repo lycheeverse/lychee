@@ -85,7 +85,7 @@ impl Uri {
         let mut https_uri = self.clone();
         https_uri
             .set_scheme("https")
-            .map_err(|_| ErrorKind::InvalidURI(self.clone()))?;
+            .map_err(|()| ErrorKind::InvalidURI(self.clone()))?;
         Ok(https_uri)
     }
 
