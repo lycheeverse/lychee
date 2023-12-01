@@ -8,10 +8,10 @@ name = "client_pool"
 path = "client_pool.rs"
 
 [dependencies]
-futures = "0.3.28"
+futures = "0.3.29"
 tokio-stream = "0.1.14"
 lychee-lib = { path = "../../lychee-lib", version = "0.13.0", default-features = false }
-tokio = { version = "1.32.0", features = ["full"] }
+tokio = { version = "1.34.0", features = ["full"] }
 
 [features]
 email-check = ["lychee-lib/email-check"]
