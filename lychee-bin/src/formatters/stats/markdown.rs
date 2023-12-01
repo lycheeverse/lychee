@@ -207,7 +207,7 @@ mod tests {
     fn test_render_stats() {
         let stats = ResponseStats::default();
         let table = stats_table(&stats);
-        let expected = r#"| Status        | Count |
+        let expected = "| Status        | Count |
 |---------------|-------|
 | 🔍 Total      | 0     |
 | ✅ Successful | 0     |
@@ -215,7 +215,7 @@ mod tests {
 | 🔀 Redirected | 0     |
 | 👻 Excluded   | 0     |
 | ❓ Unknown    | 0     |
-| 🚫 Errors     | 0     |"#;
+| 🚫 Errors     | 0     |";
         assert_eq!(table, expected.to_string());
     }
 
@@ -239,7 +239,7 @@ mod tests {
                 original: Url::parse("https://example.com/original").unwrap(),
             });
         let summary = MarkdownResponseStats(stats);
-        let expected = r#"## Summary
+        let expected = "## Summary
 
 | Status        | Count |
 |---------------|-------|
@@ -262,7 +262,7 @@ mod tests {
 ### Suggestions in stdin
 
 * https://example.com/original --> https://example.com/suggestion
-"#;
+";
         assert_eq!(summary.to_string(), expected.to_string());
     }
 }

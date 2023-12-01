@@ -91,11 +91,7 @@ mod tests {
 
     #[test]
     fn verbatim_elem() {
-        let input = r#"
-        <pre>
-        https://example.com
-        </pre>
-        "#;
+        let input = "<pre>https://example.com</pre>";
         let uris = extract_uris(input, FileType::Html);
         assert!(uris.is_empty());
     }

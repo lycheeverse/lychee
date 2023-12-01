@@ -300,10 +300,10 @@ mod tests {
 
         let input = Input {
             source: InputSource::String(
-                r#"This is [an internal url](@/internal.md)
+                "This is [an internal url](@/internal.md)
         This is [an internal url](@/internal.markdown)
         This is [an internal url](@/internal.markdown#example)
-        This is [an internal url](@/internal.md#example)"#
+        This is [an internal url](@/internal.md#example)"
                     .to_string(),
             ),
             file_type_hint: Some(FileType::Markdown),
@@ -379,7 +379,7 @@ mod tests {
     async fn test_email_with_query_params() {
         let input = Input {
             source: InputSource::String(
-                r#"This is a mailto:user@example.com?subject=Hello link"#.to_string(),
+                "This is a mailto:user@example.com?subject=Hello link".to_string(),
             ),
             file_type_hint: None,
             excluded_paths: None,
