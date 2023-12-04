@@ -58,12 +58,15 @@ pub fn is_false_positive(input: &str) -> bool {
 /// Check if the host belongs to a known example domain as defined in
 /// [RFC 2606](https://datatracker.ietf.org/doc/html/rfc2606)
 pub fn is_example_domain(uri: &Uri) -> bool {
-    let res = match uri.domain() {
+    match uri.domain() {
         Some(domain) => {
-            // It is not enough to use `EXAMPLE_DOMAINS.contains(domain)` here
-            // as this would not include checks for subdomains, such as
-            // `foo.example.com`
-            EXAMPLE_DOMAINS.iter().any(|tld| domain.ends_with(tld))
+            // Check if the domain is exactly an example domain or a subdomain of it.
+            EXAMPLE_DOMAINS.iter().any(|&example| {
+                domain == example
+                    || domain
+                        .split_once('.')
+                        .map_or(false, |(_subdomain, tld_part)| tld_part == example)
+            })
         }
         None => {
             // Check if the URI is an email address.
@@ -75,8 +78,7 @@ pub fn is_example_domain(uri: &Uri) -> bool {
                 false
             }
         }
-    };
-    res
+    }
 }
 
 #[inline]
