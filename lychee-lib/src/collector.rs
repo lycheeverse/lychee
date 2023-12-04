@@ -109,7 +109,7 @@ impl Collector {
 mod tests {
     use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
 
-    use http::StatusCode;
+    use reqwest::StatusCode;
     use reqwest::Url;
 
     use super::*;

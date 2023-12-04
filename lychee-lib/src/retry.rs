@@ -1,6 +1,6 @@
 use std::io;
 
-use http::StatusCode;
+use reqwest::StatusCode;
 
 use crate::{ErrorKind, Status};
 
@@ -102,7 +102,8 @@ impl RetryExt for ErrorKind {
             backtrace: _,
         }) = self.github_error()
         {
-            source.should_retry()
+            todo!("blocked on https://github.com/XAMPPRocky/octocrab/issues/492");
+            // source.should_retry()
         } else {
             false
         }

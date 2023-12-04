@@ -80,7 +80,7 @@ pub enum ErrorKind {
     /// A possible error when converting a `HeaderValue` from a string or byte
     /// slice.
     #[error("Header could not be parsed.")]
-    InvalidHeader(#[from] http::header::InvalidHeaderValue),
+    InvalidHeader(#[from] reqwest::header::InvalidHeaderValue),
 
     /// The given string can not be parsed into a valid base URL or base directory
     #[error("Error with base dir `{0}` : {1}")]

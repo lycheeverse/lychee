@@ -1,9 +1,9 @@
 use crate::options::Config;
 use crate::parse::{parse_duration_secs, parse_headers, parse_remaps};
 use anyhow::{Context, Result};
-use http::StatusCode;
 use lychee_lib::{Client, ClientBuilder};
 use regex::RegexSet;
+use reqwest::StatusCode;
 use reqwest_cookie_store::CookieStoreMutex;
 use std::sync::Arc;
 use std::{collections::HashSet, str::FromStr};

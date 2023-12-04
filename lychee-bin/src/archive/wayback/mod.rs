@@ -2,7 +2,7 @@ use once_cell::sync::Lazy;
 use serde::de::Error as SerdeError;
 use serde::{Deserialize, Deserializer};
 
-use http::StatusCode;
+use reqwest::StatusCode;
 use reqwest::{Error, Url};
 static WAYBACK_URL: Lazy<Url> =
     Lazy::new(|| Url::parse("https://archive.org/wayback/available").unwrap());

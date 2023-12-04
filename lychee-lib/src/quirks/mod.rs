@@ -1,8 +1,7 @@
 use header::HeaderValue;
-use http::header;
 use once_cell::sync::Lazy;
 use regex::Regex;
-use reqwest::{Request, Url};
+use reqwest::{header, Request, Url};
 use std::collections::HashMap;
 
 static CRATES_PATTERN: Lazy<Regex> =
@@ -88,9 +87,7 @@ impl Quirks {
 
 #[cfg(test)]
 mod tests {
-    use header::HeaderValue;
-    use http::{header, Method};
-    use reqwest::{Request, Url};
+    use reqwest::{Method, Request, Url, header::{self, HeaderValue}};
 
     use super::Quirks;
 

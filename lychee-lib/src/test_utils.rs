@@ -10,7 +10,7 @@ use crate::{ClientBuilder, ErrorKind, Request, Uri};
 macro_rules! mock_server {
     ($status:expr $(, $func:tt ($($arg:expr),*))*) => {{
         let mock_server = wiremock::MockServer::start().await;
-        let response_template = wiremock::ResponseTemplate::new(http::StatusCode::from($status));
+        let response_template = wiremock::ResponseTemplate::new(reqwest::StatusCode::from($status));
         let template = response_template$(.$func($($arg),*))*;
         wiremock::Mock::given(wiremock::matchers::method("GET")).respond_with(template).mount(&mock_server).await;
         mock_server

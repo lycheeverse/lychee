@@ -18,14 +18,13 @@ use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
 use headers::authorization::Credentials;
-use http::{
-    header::{HeaderMap, HeaderValue, AUTHORIZATION},
-    StatusCode,
-};
 use log::{debug, warn};
 use octocrab::Octocrab;
 use regex::RegexSet;
-use reqwest::{header, redirect, Url};
+use reqwest::{
+    header::{HeaderMap, HeaderValue, AUTHORIZATION},
+    redirect, StatusCode, Url,
+};
 use reqwest_cookie_store::CookieStoreMutex;
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
@@ -306,9 +305,10 @@ impl ClientBuilder {
             ..
         } = self;
 
-        if let Some(prev_user_agent) =
-            headers.insert(header::USER_AGENT, HeaderValue::try_from(&user_agent)?)
-        {
+        if let Some(prev_user_agent) = headers.insert(
+            reqwest::header::USER_AGENT,
+            HeaderValue::try_from(&user_agent)?,
+        ) {
             debug!(
                 "Found user-agent in headers: {}. Overriding it with {user_agent}.",
                 prev_user_agent.to_str().unwrap_or("�"),
@@ -316,7 +316,7 @@ impl ClientBuilder {
         };
 
         headers.insert(
-            header::TRANSFER_ENCODING,
+            reqwest::header::TRANSFER_ENCODING,
             HeaderValue::from_static("chunked"),
         );
 
@@ -765,8 +765,10 @@ mod tests {
         time::{Duration, Instant},
     };
 
-    use http::{header::HeaderMap, StatusCode};
-    use reqwest::header;
+    use reqwest::{
+        header::{self, HeaderMap},
+        StatusCode,
+    };
     use tempfile::tempdir;
     use wiremock::matchers::path;
 

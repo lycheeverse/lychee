@@ -5,8 +5,8 @@ use std::{
 
 use super::StatsFormatter;
 use anyhow::Result;
-use http::StatusCode;
 use lychee_lib::{InputSource, ResponseBody, Status};
+use reqwest::StatusCode;
 use std::fmt::Write;
 use tabled::{
     settings::{object::Segment, Alignment, Modify, Style},
@@ -156,8 +156,8 @@ impl StatsFormatter for Markdown {
 #[cfg(test)]
 mod tests {
 
-    use http::StatusCode;
     use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status, Uri};
+    use reqwest::StatusCode;
     use reqwest::Url;
 
     use crate::archive::Suggestion;

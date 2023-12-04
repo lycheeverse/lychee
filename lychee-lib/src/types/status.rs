@@ -1,7 +1,7 @@
 use std::{collections::HashSet, fmt::Display};
 
-use http::StatusCode;
 use reqwest::Response;
+use reqwest::StatusCode;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 
@@ -303,7 +303,7 @@ impl From<reqwest::Error> for Status {
 #[cfg(test)]
 mod tests {
     use crate::{CacheStatus, ErrorKind, Status};
-    use http::StatusCode;
+    use reqwest::StatusCode;
 
     #[test]
     fn test_status_serialization() {

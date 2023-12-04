@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use http::StatusCode;
+use reqwest::StatusCode;
 use serde::Serialize;
 
 use crate::{InputSource, Status, Uri};

@@ -10,11 +10,11 @@ mod cli {
 
     use assert_cmd::Command;
     use assert_json_diff::assert_json_include;
-    use http::StatusCode;
     use lychee_lib::{InputSource, ResponseBody};
     use predicates::str::{contains, is_empty};
     use pretty_assertions::assert_eq;
     use regex::Regex;
+    use reqwest::StatusCode;
     use serde::Serialize;
     use serde_json::Value;
     use tempfile::NamedTempFile;
@@ -32,7 +32,7 @@ mod cli {
     macro_rules! mock_server {
         ($status:expr $(, $func:tt ($($arg:expr),*))*) => {{
             let mock_server = wiremock::MockServer::start().await;
-            let response_template = wiremock::ResponseTemplate::new(http::StatusCode::from($status));
+            let response_template = wiremock::ResponseTemplate::new(reqwest::StatusCode::from($status));
             let template = response_template$(.$func($($arg),*))*;
             wiremock::Mock::given(wiremock::matchers::method("GET")).respond_with(template).mount(&mock_server).await;
             mock_server

@@ -92,8 +92,8 @@ mod tests {
     use pretty_assertions::assert_eq;
     use std::collections::{HashMap, HashSet};
 
-    use http::StatusCode;
     use lychee_lib::{ErrorKind, InputSource, Response, ResponseBody, Status, Uri};
+    use reqwest::StatusCode;
     use reqwest::Url;
 
     use super::ResponseStats;

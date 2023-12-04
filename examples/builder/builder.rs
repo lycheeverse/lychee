@@ -1,8 +1,8 @@
 use http::header::{self, HeaderMap};
-use http::StatusCode;
 use lychee_lib::{ClientBuilder, Result};
 use regex::RegexSet;
 use reqwest::Method;
+use reqwest::StatusCode;
 use std::{collections::HashSet, time::Duration};
 
 #[tokio::main]
