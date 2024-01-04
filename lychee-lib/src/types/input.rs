@@ -180,6 +180,7 @@ impl Input {
     /// Returns an error if the contents can not be retrieved
     /// because of an underlying I/O error (e.g. an error while making a
     /// network request or retrieving the contents from the file system)
+    #[allow(clippy::ignored_unit_patterns)]
     pub fn get_contents(self, skip_missing: bool) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             match self.source {
