@@ -408,8 +408,7 @@ impl Config {
     pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
         // Read configuration file
         let contents = fs::read_to_string(path)?;
-        toml::from_str(&contents)
-            .map_err(|err| anyhow::anyhow!("Failed to parse configuration file: {}", err))
+        toml::from_str(&contents).with_context(|| "Failed to parse configuration file")
     }
 
     /// Merge the configuration from TOML into the CLI configuration

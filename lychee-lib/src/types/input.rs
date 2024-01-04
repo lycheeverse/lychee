@@ -203,7 +203,7 @@ impl Input {
                 InputSource::FsPath(ref path) => {
                     if path.is_dir() {
                         for entry in WalkDir::new(path).skip_hidden(true)
-                        .process_read_dir(move |_, _, _, children| {
+                        .process_read_dir(move |_, _, (), children| {
                             children.retain(|child| {
                                 let Ok(entry) = child.as_ref() else { return true };
 
