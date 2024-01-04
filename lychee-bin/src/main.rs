@@ -63,7 +63,7 @@ use std::io::{self, BufRead, BufReader, ErrorKind, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{Context, Error, Result};
+use anyhow::{bail, Context, Error, Result};
 use clap::Parser;
 use color::YELLOW;
 use commands::CommandParams;
@@ -159,8 +159,10 @@ fn load_config() -> Result<LycheeOptions> {
         match Config::load_from_file(config_file) {
             Ok(c) => opts.config.merge(c),
             Err(e) => {
-                error!("Error while loading config file {:?}: {}", config_file, e);
-                std::process::exit(ExitCode::ConfigFile as i32);
+                bail!(
+                    "Cannot load configuration file `{}`: {e:?}",
+                    config_file.display()
+                );
             }
         }
     } else {
@@ -253,7 +255,13 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
 fn run_main() -> Result<i32> {
     use std::process::exit;
 
-    let opts = load_config()?;
+    let opts = match load_config() {
+        Ok(opts) => opts,
+        Err(e) => {
+            error!("Error while loading config: {e}");
+            exit(ExitCode::ConfigFile as i32);
+        }
+    };
 
     let runtime = match opts.config.threads {
         Some(threads) => {

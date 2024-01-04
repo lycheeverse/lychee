@@ -12,7 +12,10 @@ mod cli {
     use assert_json_diff::assert_json_include;
     use http::StatusCode;
     use lychee_lib::{InputSource, ResponseBody};
-    use predicates::str::{contains, is_empty};
+    use predicates::{
+        prelude::predicate,
+        str::{contains, is_empty},
+    };
     use pretty_assertions::assert_eq;
     use regex::Regex;
     use serde::Serialize;
@@ -602,7 +605,11 @@ mod cli {
             .arg("-")
             .env_clear()
             .assert()
-            .failure();
+            .failure()
+            .stderr(predicate::str::contains("Cannot load configuration file"))
+            .stderr(predicate::str::contains("Failed to parse"))
+            .stderr(predicate::str::contains("TOML parse error"))
+            .stderr(predicate::str::contains("expected newline"));
     }
 
     #[tokio::test]
