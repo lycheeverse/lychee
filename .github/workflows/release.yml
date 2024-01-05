@@ -26,6 +26,8 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
   linux:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     needs: prepare
     strategy:
@@ -87,6 +89,8 @@ jobs:
           asset_content_type: application/gzip
 
   macos:
+    permissions:
+      contents: write
     runs-on: macos-latest
     needs: prepare
     steps:
@@ -121,6 +125,8 @@ jobs:
           asset_content_type: application/octet-stream
 
   windows:
+    permissions:
+      contents: write
     runs-on: windows-latest
     needs: prepare
     env:
