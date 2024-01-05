@@ -9,6 +9,7 @@ use crate::{
     types::FileType,
     Result,
 };
+use percent_encoding::percent_decode_str;
 use tokio::{fs, sync::Mutex};
 use url::Url;
 
@@ -46,6 +47,7 @@ impl FragmentChecker {
         let Some(fragment) = url.fragment() else {
             return Ok(true);
         };
+        let fragment = percent_decode_str(fragment).decode_utf8()?;
         let url_without_frag = Self::remove_fragment(url.clone());
 
         let extractor = match FileType::from(path) {
@@ -57,9 +59,9 @@ impl FragmentChecker {
             Entry::Vacant(entry) => {
                 let content = fs::read_to_string(path).await?;
                 let file_frags = extractor(&content);
-                Ok(entry.insert(file_frags).contains(fragment))
+                Ok(entry.insert(file_frags).contains(&fragment as &str))
             }
-            Entry::Occupied(entry) => Ok(entry.get().contains(fragment)),
+            Entry::Occupied(entry) => Ok(entry.get().contains(&fragment as &str)),
         }
     }
 

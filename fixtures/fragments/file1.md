@@ -40,3 +40,5 @@ Therefore we put the test into a code block for now to prevent false positives.
 # Kebab Case Fragment
 
 [Link to another file type](empty_file#fragment)
+
+##### Lets wear a hat: être
