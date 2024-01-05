@@ -20,9 +20,30 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 ## Table of Contents
 
+- [Table of Contents](#table-of-contents)
 - [Installation](#installation)
+  - [Arch Linux](#arch-linux)
+  - [macOS](#macos)
+  - [Docker](#docker)
+  - [NixOS](#nixos)
+  - [FreeBSD](#freebsd)
+  - [Scoop](#scoop)
+  - [Termux](#termux)
+  - [Pre-built binaries](#pre-built-binaries)
+  - [Cargo](#cargo)
+    - [Build dependencies](#build-dependencies)
+    - [Compile and install lychee](#compile-and-install-lychee)
+    - [Feature flags](#feature-flags)
 - [Features](#features)
 - [Commandline usage](#commandline-usage)
+  - [Docker Usage](#docker-usage)
+    - [Linux/macOS shell command](#linuxmacos-shell-command)
+    - [Windows PowerShell command](#windows-powershell-command)
+  - [GitHub Token](#github-token)
+  - [Commandline Parameters](#commandline-parameters)
+  - [Exit codes](#exit-codes)
+  - [Ignoring links](#ignoring-links)
+  - [Caching](#caching)
 - [Library usage](#library-usage)
 - [GitHub Action Usage](#github-action-usage)
 - [Contributing to lychee](#contributing-to-lychee)
@@ -335,7 +356,7 @@ Options:
   -u, --user-agent <USER_AGENT>
           User agent
           
-          [default: lychee/0.13.0]
+          [default: lychee/0.14.0]
 
   -i, --insecure
           Proceed for server connections considered insecure (invalid TLS)
