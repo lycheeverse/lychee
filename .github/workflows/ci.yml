@@ -101,8 +101,8 @@ jobs:
       - name: Check if lychee-lib is already published
         id: check-release
         run: |
-          VERSION=$(cargo read-manifest --manifest-path lychee-lib/Cargo.toml | jq -r .version)
-          if cargo search lychee-lib --limit 1 | grep -q "lychee-lib = \"$VERSION\""; then
+          VERSION=$(cargo pkgid --manifest-path lychee-lib/Cargo.toml | cut -d "#" -f2)
+          if cargo search lychee-lib | grep -q \"$VERSION\"; then
             echo "Lychee-lib version $VERSION is already published. Skipping."
             echo "::set-output name=published::true"
           else
