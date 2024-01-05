@@ -1,19 +1,17 @@
 name: Docker
 on:
-  repository_dispatch:
   workflow_dispatch:
   workflow_run:
-    workflows: ["release"]
+    workflows: 
+      - release
     types:
       - completed
   push:
     branches:
-      - "master"
-    tags:
-      - "v*.*.*"
+      - master
   pull_request:
     branches:
-      - "master"
+      - master
 
 env:
   IMAGE_NAME: lycheeverse/lychee
