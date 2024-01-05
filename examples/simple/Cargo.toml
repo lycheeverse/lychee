@@ -8,7 +8,7 @@ name = "simple"
 path = "simple.rs"
 
 [dependencies]
-lychee-lib = { path = "../../lychee-lib", version = "0.13.0", default-features = false }
+lychee-lib = { path = "../../lychee-lib", default-features = false }
 tokio = { version = "1.35.1", features = ["full"] }
 
 [features]
