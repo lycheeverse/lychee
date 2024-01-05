@@ -89,20 +89,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: cargo fetch
         uses: actions-rs/cargo@v1
         with:
           command: fetch
+
+      # If there was an issue with the build pipeline, the lib might
+      # already be published but the binary not. In that case, we
+      # want to skip over the lib publishing step.
+      - name: Check if lychee-lib is already published
+        id: check-release
+        run: |
+          VERSION=$(cargo read-manifest --manifest-path lychee-lib/Cargo.toml | jq -r .version)
+          if cargo search lychee-lib --limit 1 | grep -q "lychee-lib = \"$VERSION\""; then
+            echo "Lychee-lib version $VERSION is already published. Skipping."
+            echo "::set-output name=published::true"
+          else
+            echo "::set-output name=published::false"
+          fi
+
       - name: cargo publish lychee-lib
+        if: steps.check-release.outputs.published== 'false'
         uses: actions-rs/cargo@v1
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         with:
           command: publish
           args: --manifest-path lychee-lib/Cargo.toml
+
       - name: Wait for crates.io publication
         run: sleep 60s
         shell: bash
+
       - name: cargo publish lychee
         uses: actions-rs/cargo@v1
         env:
