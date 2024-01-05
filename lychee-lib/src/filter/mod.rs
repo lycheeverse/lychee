@@ -17,9 +17,18 @@ use crate::Uri;
 static EXAMPLE_DOMAINS: Lazy<HashSet<&'static str>> =
     Lazy::new(|| HashSet::from_iter(["example.com", "example.org", "example.net", "example.edu"]));
 
+#[cfg(all(not(test), not(feature = "check_example_domains")))]
+/// We also exclude the example TLDs in section 2 of the same RFC.
+/// This exclusion gets subsumed by the `check_example_domains` feature.
+static EXAMPLE_TLDS: Lazy<HashSet<&'static str>> =
+    Lazy::new(|| HashSet::from_iter([".test", ".example", ".invalid", ".localhost"]));
+
 // Allow usage of example domains in tests
 #[cfg(any(test, feature = "check_example_domains"))]
 static EXAMPLE_DOMAINS: Lazy<HashSet<&'static str>> = Lazy::new(HashSet::new);
+
+#[cfg(any(test, feature = "check_example_domains"))]
+static EXAMPLE_TLDS: Lazy<HashSet<&'static str>> = Lazy::new(HashSet::new);
 
 static UNSUPPORTED_DOMAINS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     HashSet::from_iter([
@@ -66,7 +75,9 @@ pub fn is_example_domain(uri: &Uri) -> bool {
                     || domain
                         .split_once('.')
                         .map_or(false, |(_subdomain, tld_part)| tld_part == example)
-            })
+            }) || EXAMPLE_TLDS
+                .iter()
+                .any(|&example_tld| domain.ends_with(example_tld))
         }
         None => {
             // Check if the URI is an email address.

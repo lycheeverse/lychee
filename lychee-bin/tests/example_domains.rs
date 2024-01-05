@@ -65,7 +65,7 @@ mod cli {
 
         let output = cmd.get_output();
         let output = std::str::from_utf8(&output.stdout).unwrap();
-        assert_eq!(output.lines().count(), 3);
+        assert_eq!(output.lines().count(), 8);
 
         Ok(())
     }
