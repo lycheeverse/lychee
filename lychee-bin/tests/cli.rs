@@ -1339,7 +1339,7 @@ mod cli {
             .arg("-")
             // Using Google as a test target because I couldn't
             // get the mock server to work with the cookie jar
-            .write_stdin("https://google.com")
+            .write_stdin("https://google.com/ncr")
             .assert()
             .success();
 
