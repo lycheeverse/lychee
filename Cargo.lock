@@ -549,7 +549,7 @@ checksum = "40e38929add23cdf8a366df9b0e088953150724bcbe5fc330b0d8eb3b328eec8"
 name = "builder"
 version = "0.1.0"
 dependencies = [
- "http 0.2.11",
+ "http 1.0.0",
  "lychee-lib",
  "regex",
  "reqwest",
@@ -582,9 +582,9 @@ checksum = "a2bd12c1caf447e69cd4528f47f94d203fd2582878ecb9e9465484c4148a8223"
 
 [[package]]
 name = "cached"
-version = "0.46.1"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7c8c50262271cdf5abc979a5f76515c234e764fa025d1ba4862c0f0bcda0e95"
+checksum = "69b0116662497bc24e4b177c90eaf8870e39e2714c3fcfa296327a93f593fc21"
 dependencies = [
  "ahash",
  "cached_proc_macro",
@@ -753,7 +753,7 @@ dependencies = [
 name = "collect_links"
 version = "0.1.0"
 dependencies = [
- "http 0.2.11",
+ "http 1.0.0",
  "lychee-lib",
  "regex",
  "reqwest",
@@ -1752,14 +1752,14 @@ dependencies = [
 
 [[package]]
 name = "headers"
-version = "0.3.9"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06683b93020a07e3dbcf5f8c0f6d40080d725bea7936fc01ad345c01b97dc270"
+checksum = "322106e6bd0cba2d5ead589ddb8150a13d7c4217cf80d7c4f682ca994ccc6aa9"
 dependencies = [
  "base64 0.21.5",
  "bytes",
  "headers-core",
- "http 0.2.11",
+ "http 1.0.0",
  "httpdate",
  "mime",
  "sha1 0.10.6",
@@ -1767,11 +1767,11 @@ dependencies = [
 
 [[package]]
 name = "headers-core"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7f66481bfee273957b1f20485a4ff3362987f85b2c236580d81b4eb7a326429"
+checksum = "54b4a22553d4242c49fddb9ba998a99962b5cc6f22cb5a3482bec22522403ce4"
 dependencies = [
- "http 0.2.11",
+ "http 1.0.0",
 ]
 
 [[package]]
@@ -2356,7 +2356,7 @@ dependencies = [
  "env_logger",
  "futures",
  "headers",
- "http 0.2.11",
+ "http 1.0.0",
  "humantime",
  "humantime-serde",
  "indicatif",
@@ -2400,7 +2400,7 @@ dependencies = [
  "headers",
  "html5ever",
  "html5gum",
- "http 0.2.11",
+ "http 1.0.0",
  "hyper 1.1.0",
  "ip_network",
  "jwalk",
