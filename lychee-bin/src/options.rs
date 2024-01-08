@@ -452,6 +452,7 @@ impl Config {
             require_https: false;
             cookie_jar: None;
             include_fragments: false;
+            accept: AcceptSelector::default();
         }
 
         if self
