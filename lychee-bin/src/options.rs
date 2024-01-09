@@ -148,7 +148,7 @@ impl LycheeOptions {
 }
 
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Parser, Debug, Deserialize, Clone)]
+#[derive(Parser, Debug, Deserialize, Clone, Default)]
 pub(crate) struct Config {
     /// Verbose program output
     #[clap(flatten)]
@@ -452,6 +452,7 @@ impl Config {
             require_https: false;
             cookie_jar: None;
             include_fragments: false;
+            accept: AcceptSelector::default();
         }
 
         if self
@@ -467,5 +468,27 @@ impl Config {
         {
             self.github_token = toml.github_token;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_accept_status_codes() {
+        let toml = Config {
+            accept: AcceptSelector::from_str("200..=204, 429, 500").unwrap(),
+            ..Default::default()
+        };
+
+        let mut cli = Config::default();
+        cli.merge(toml);
+
+        assert!(cli.accept.contains(429));
+        assert!(cli.accept.contains(200));
+        assert!(cli.accept.contains(203));
+        assert!(cli.accept.contains(204));
+        assert!(!cli.accept.contains(205));
     }
 }
