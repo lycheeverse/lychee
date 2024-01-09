@@ -2343,7 +2343,7 @@ dependencies = [
 
 [[package]]
 name = "lychee"
-version = "0.14.0"
+version = "0.14.1"
 dependencies = [
  "anyhow",
  "assert-json-diff",
@@ -2388,7 +2388,7 @@ dependencies = [
 
 [[package]]
 name = "lychee-lib"
-version = "0.14.0"
+version = "0.14.1"
 dependencies = [
  "async-stream",
  "cached",
