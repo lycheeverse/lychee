@@ -135,13 +135,37 @@ impl<'de> Visitor<'de> for AcceptSelectorVisitor {
         AcceptSelector::from_str(v).map_err(serde::de::Error::custom)
     }
 
+    fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        let value = u16::try_from(v).map_err(serde::de::Error::custom)?;
+        Ok(AcceptSelector::new_from(vec![AcceptRange::new(
+            value, value,
+        )]))
+    }
+
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
     where
         A: serde::de::SeqAccess<'de>,
     {
         let mut selector = AcceptSelector::new();
-        while let Some(value) = seq.next_element::<String>()? {
-            selector.add_range(AcceptRange::from_str(&value).map_err(serde::de::Error::custom)?);
+        while let Some(v) = seq.next_element::<toml::Value>()? {
+            if let Some(v) = v.as_integer() {
+                let value = u16::try_from(v).map_err(serde::de::Error::custom)?;
+                selector.add_range(AcceptRange::new(value, value));
+                continue;
+            }
+
+            if let Some(s) = v.as_str() {
+                let range = AcceptRange::from_str(s).map_err(serde::de::Error::custom)?;
+                selector.add_range(range);
+                continue;
+            }
+
+            return Err(serde::de::Error::custom(
+                "failed to parse sequence of accept ranges",
+            ));
         }
         Ok(selector)
     }
@@ -189,6 +213,9 @@ mod test {
     #[case(r"accept = '200..204, 429'", vec![200, 203, 429], vec![204, 404], 2)]
     #[case(r"accept = ['200', '429']", vec![200, 429], vec![404], 2)]
     #[case(r"accept = '200, 429'", vec![200, 429], vec![404], 2)]
+    #[case(r"accept = [200, 429]", vec![200, 429], vec![404], 2)]
+    #[case(r"accept = '200'", vec![200], vec![404], 1)]
+    #[case(r"accept = 200", vec![200], vec![404], 1)]
     fn test_deserialize(
         #[case] input: &str,
         #[case] valid_values: Vec<u16>,
