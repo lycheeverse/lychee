@@ -477,8 +477,10 @@ mod tests {
 
     #[test]
     fn test_accept_status_codes() {
-        let mut toml = Config::default();
-        toml.accept = AcceptSelector::from_str("200..=204, 429, 500").unwrap();
+        let toml = Config {
+            accept: AcceptSelector::from_str("200..=204, 429, 500").unwrap(),
+            ..Default::default()
+        };
 
         let mut cli = Config::default();
         cli.merge(toml);
