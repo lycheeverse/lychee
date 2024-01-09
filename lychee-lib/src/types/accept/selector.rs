@@ -139,7 +139,7 @@ impl<'de> Visitor<'de> for AcceptSelectorVisitor {
     where
         E: serde::de::Error,
     {
-        let value = u16::try_from(v).map_err(|e| serde::de::Error::custom(e))?;
+        let value = u16::try_from(v).map_err(serde::de::Error::custom)?;
         Ok(AcceptSelector::new_from(vec![AcceptRange::new(
             value, value,
         )]))
@@ -152,7 +152,7 @@ impl<'de> Visitor<'de> for AcceptSelectorVisitor {
         let mut selector = AcceptSelector::new();
         while let Some(v) = seq.next_element::<toml::Value>()? {
             if let Some(v) = v.as_integer() {
-                let value = u16::try_from(v).map_err(|e| serde::de::Error::custom(e))?;
+                let value = u16::try_from(v).map_err(serde::de::Error::custom)?;
                 selector.add_range(AcceptRange::new(value, value));
                 continue;
             }
