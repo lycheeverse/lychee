@@ -653,6 +653,20 @@ mod cli {
             .success();
     }
 
+    #[tokio::test]
+    async fn test_config_accept() {
+        let mock_server = mock_server!(StatusCode::OK);
+        let config = fixtures_path().join("configs").join("accept.toml");
+        let mut cmd = main_command();
+        cmd.arg("--config")
+            .arg(config)
+            .arg("-")
+            .write_stdin(mock_server.uri())
+            .env_clear()
+            .assert()
+            .success();
+    }
+
     #[test]
     fn test_lycheeignore_file() -> Result<()> {
         let mut cmd = main_command();
