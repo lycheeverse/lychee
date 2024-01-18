@@ -9,10 +9,7 @@ publish = false
 
 [dependencies]
 lychee-lib = { path = "../lychee-lib", default-features = false }
-# TODO: Move back to crates.io version once
-# https://github.com/bheisler/criterion.rs/pull/602
-# got released
-criterion = { git = "https://github.com/bheisler/criterion.rs"}
+criterion = "0.5.1"
 
 [features]
 email-check = ["lychee-lib/email-check"]
