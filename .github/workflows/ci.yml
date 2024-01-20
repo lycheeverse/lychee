@@ -14,6 +14,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: -D warnings
 
 jobs:
   test:
@@ -23,8 +25,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
-      - name: Run tests
-        run: make test
+      - name: Compile
+        run: cargo test --no-run --locked
+      - name: Test
+        run: cargo test -- --nocapture --quiet
 
   lint:
     runs-on: ubuntu-latest
@@ -43,7 +47,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          # --all-targets makes it lint tests too
           args: --all-targets --all-features -- -D warnings
 
   publish-check:
