@@ -111,6 +111,28 @@ mod cli {
         }};
     }
 
+    /// JSON-formatted output should always be valid JSON.
+    /// Additional hints and error messages should be printed to `stderr`.
+    /// See https://github.com/lycheeverse/lychee/issues/1355
+    #[test]
+    fn test_valid_json_output_to_stdout_on_error() -> Result<()> {
+        let test_path = fixtures_path().join("TEST_GITHUB_404.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--format")
+            .arg("json")
+            .arg(test_path)
+            .assert()
+            .failure()
+            .code(2);
+
+        let output = cmd.output()?;
+
+        // Check that the output is valid JSON
+        assert!(serde_json::from_slice::<Value>(&output.stdout).is_ok());
+        Ok(())
+    }
+
     #[test]
     fn test_exclude_all_private() -> Result<()> {
         test_json_output!(
