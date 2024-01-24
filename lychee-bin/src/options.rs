@@ -447,6 +447,7 @@ impl Config {
             basic_auth: None;
             skip_missing: false;
             include_verbatim: false;
+            include_mail: false;
             glob_ignore_case: false;
             output: None;
             require_https: false;

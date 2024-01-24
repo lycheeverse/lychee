@@ -601,6 +601,41 @@ mod cli {
     }
 
     #[tokio::test]
+    async fn test_include_mail_config() -> Result<()> {
+        let test_mail_address = "mailto:hello-test@testingabc.io";
+
+        let mut config = NamedTempFile::new()?;
+        writeln!(config, "include_mail = false")?;
+
+        let mut cmd = main_command();
+        cmd.arg("--config")
+            .arg(config.path().to_str().unwrap())
+            .arg("-")
+            .write_stdin(test_mail_address)
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 Excluded"));
+
+        let mut config = NamedTempFile::new()?;
+        writeln!(config, "include_mail = true")?;
+
+        let mut cmd = main_command();
+        cmd.arg("--config")
+            .arg(config.path().to_str().unwrap())
+            .arg("-")
+            .write_stdin(test_mail_address)
+            .env_clear()
+            .assert()
+            .failure()
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 Error"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_cache_config() -> Result<()> {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path().join("configs").join("cache.toml");
