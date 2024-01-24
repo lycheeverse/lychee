@@ -382,8 +382,8 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         }
 
         if github_issues && opts.config.github_token.is_none() {
-            let mut f = io::stdout();
-            color!(f, YELLOW, "\u{1f4a1} There were issues with Github URLs. You could try setting a Github token and running lychee again.",)?;
+            let mut handle = io::stderr();
+            color!(handle, YELLOW, "\u{1f4a1} There were issues with Github URLs. You could try setting a Github token and running lychee again.",)?;
         }
 
         if opts.config.cache {
