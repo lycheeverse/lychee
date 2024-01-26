@@ -5,16 +5,10 @@ description = "A fast, async link checker"
 documentation = "https://docs.rs/lychee_lib"
 edition = "2021"
 homepage = "https://github.com/lycheeverse/lychee"
-keywords = [
-    "link",
-    "checker",
-    "cli",
-    "link-checker",
-    "validator",
-]
+keywords = ["link", "checker", "cli", "link-checker", "validator"]
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/lycheeverse/lychee"
-version = "0.14.1"
+version = "0.14.2"
 readme = "../README.md"
 
 [dependencies]
@@ -42,7 +36,11 @@ pulldown-cmark = "0.9.3"
 regex = "1.10.2"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.11.23", default-features = false, features = ["gzip", "trust-dns", "cookies"] }
+reqwest = { version = "0.11.23", default-features = false, features = [
+    "gzip",
+    "trust-dns",
+    "cookies",
+] }
 reqwest_cookie_store = "0.6.0"
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163

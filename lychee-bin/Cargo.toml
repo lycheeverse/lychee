@@ -5,22 +5,16 @@ description = "A fast, async link checker"
 documentation = "https://docs.rs/lychee"
 homepage = "https://github.com/lycheeverse/lychee"
 edition = "2021"
-keywords = [
-    "link",
-    "checker",
-    "cli",
-    "link-checker",
-    "validator",
-]
+keywords = ["link", "checker", "cli", "link-checker", "validator"]
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/lycheeverse/lychee"
-version = "0.14.1"
+version = "0.14.2"
 readme = "../README.md"
 
 [dependencies]
 # NOTE: We need to specify the version of lychee-lib here because crates.io
 # requires all dependencies to have a version number.
-lychee-lib = { path = "../lychee-lib", version = "0.14.1", default-features = false }
+lychee-lib = { path = "../lychee-lib", version = "0.14.2", default-features = false }
 
 anyhow = "1.0.78"
 assert-json-diff = "2.0.2"
@@ -41,7 +35,10 @@ once_cell = "1.19.0"
 openssl-sys = { version = "0.9.98", optional = true }
 pad = "0.1.6"
 regex = "1.10.2"
-reqwest = { version = "0.11.23", default-features = false, features = ["gzip", "json"] }
+reqwest = { version = "0.11.23", default-features = false, features = [
+    "gzip",
+    "json",
+] }
 reqwest_cookie_store = "0.6.0"
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
@@ -63,7 +60,11 @@ assert_cmd = "2.0.12"
 predicates = "3.0.4"
 pretty_assertions = "1.4.0"
 tempfile = "3.9.0"
-tracing-subscriber = { version = "0.3.18", default-features = false, features = ["fmt", "registry", "env-filter"] }
+tracing-subscriber = { version = "0.3.18", default-features = false, features = [
+    "fmt",
+    "registry",
+    "env-filter",
+] }
 uuid = { version = "1.6.1", features = ["v4"] }
 wiremock = "0.5.22"
 

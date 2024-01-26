@@ -336,7 +336,7 @@ Options:
   -u, --user-agent <USER_AGENT>
           User agent
           
-          [default: lychee/0.14.1]
+          [default: lychee/0.14.2]
 
   -i, --insecure
           Proceed for server connections considered insecure (invalid TLS)
