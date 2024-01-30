@@ -134,6 +134,36 @@ mod cli {
     }
 
     #[test]
+    fn test_detailed_json_output_on_error() -> Result<()> {
+        let test_path = fixtures_path().join("TEST_DETAILED_JSON_OUTPUT_ERROR.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--format")
+            .arg("json")
+            .arg(&test_path)
+            .assert()
+            .failure()
+            .code(2);
+
+        let output = cmd.output()?;
+
+        // Check that the output is valid JSON
+        assert!(serde_json::from_slice::<Value>(&output.stdout).is_ok());
+
+        // Parse site error status from the fail_map
+        let output_json = serde_json::from_slice::<Value>(&output.stdout).unwrap();
+        let site_error_status = &output_json["fail_map"][&test_path.to_str().unwrap()][0]["status"];
+
+        assert_eq!(
+            "error:0A000086:SSL routines:tls_post_process_server_certificate:\
+            certificate verify failed:../ssl/statem/statem_clnt.c:1883: \
+            (certificate has expired)",
+            site_error_status["details"]
+        );
+        Ok(())
+    }
+
+    #[test]
     fn test_exclude_all_private() -> Result<()> {
         test_json_output!(
             "TEST_ALL_PRIVATE.md",
