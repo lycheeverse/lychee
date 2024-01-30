@@ -68,6 +68,10 @@ impl Serialize for Status {
             s = serializer.serialize_struct("Status", 2)?;
             s.serialize_field("text", &self.to_string())?;
             s.serialize_field("code", &code.as_u16())?;
+        } else if let Some(details) = self.details() {
+            s = serializer.serialize_struct("Status", 2)?;
+            s.serialize_field("text", &self.to_string())?;
+            s.serialize_field("details", &details.to_string())?;
         } else {
             s = serializer.serialize_struct("Status", 1)?;
             s.serialize_field("text", &self.to_string())?;
