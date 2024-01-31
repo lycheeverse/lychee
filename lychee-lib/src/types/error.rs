@@ -107,7 +107,7 @@ pub enum ErrorKind {
     MissingGitHubToken,
 
     /// Used an insecure URI where a secure variant was reachable
-    #[error("This URI is available in HTTPS protocol, but HTTP is provided, use '{0}' instead")]
+    #[error("This URI is available in HTTPS protocol, but HTTP is provided. Use '{0}' instead")]
     InsecureURL(Uri),
 
     /// Error while sending/receiving messages from MPSC channel
