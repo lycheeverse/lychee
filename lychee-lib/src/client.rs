@@ -531,7 +531,7 @@ impl Client {
                     .await
                     .is_success()
                 {
-                    Ok(Status::Error(ErrorKind::InsecureURL(uri.clone())))
+                    Ok(Status::Error(ErrorKind::InsecureURL(uri.to_https()?)))
                 } else {
                     // HTTPS is not available for this URI,
                     // so the original HTTP URL is fine.
