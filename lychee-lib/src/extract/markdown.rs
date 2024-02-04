@@ -112,7 +112,7 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
 
                 in_heading = false;
             }
-            Event::Text(text) => {
+            Event::Text(text) | Event::Code(text) => {
                 if in_heading {
                     heading.push_str(&text);
                 };
@@ -183,6 +183,8 @@ https://bar.com/123
 
 or inline like `https://bar.org` for instance.
 
+### Some `code` in a heading.
+
 [example](http://example.com)
 
 <span id="the-end">The End</span>
@@ -194,6 +196,7 @@ or inline like `https://bar.org` for instance.
             "a-test".to_string(),
             "a-test-1".to_string(),
             "well-still-the-same-test".to_string(),
+            "some-code-in-a-heading".to_string(),
             "the-end".to_string(),
         ]);
         let actual = extract_markdown_fragments(MD_INPUT);
