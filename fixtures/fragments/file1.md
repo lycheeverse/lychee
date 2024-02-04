@@ -16,6 +16,9 @@ This is a test file for the fragment loader.
 
 [Link to missing fragment in file2](file2.md#missing-fragment)
 
+### `Code` ``Heading
+[Link to code heading](#code-heading)
+
 ## HTML Fragments
 
 Explicit fragment links are currently not supported.
