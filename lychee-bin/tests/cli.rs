@@ -1537,6 +1537,7 @@ mod cli {
             .failure()
             .stderr(contains("fixtures/fragments/file1.md#fragment-1"))
             .stderr(contains("fixtures/fragments/file1.md#fragment-2"))
+            .stderr(contains("fixtures/fragments/file1.md#code-heading"))
             .stderr(contains("fixtures/fragments/file2.md#custom-id"))
             .stderr(contains("fixtures/fragments/file1.md#missing-fragment"))
             .stderr(contains("fixtures/fragments/file2.md#fragment-1"))
@@ -1552,8 +1553,8 @@ mod cli {
             .stderr(contains(
                 "fixtures/fragments/file1.md#kebab-case-fragment-1",
             ))
-            .stdout(contains("14 Total"))
-            .stdout(contains("11 OK"))
+            .stdout(contains("15 Total"))
+            .stdout(contains("12 OK"))
             // 3 failures because of missing fragments
             .stdout(contains("3 Errors"));
     }
