@@ -8,8 +8,8 @@ homepage = "https://github.com/lycheeverse/lychee"
 keywords = ["link", "checker", "cli", "link-checker", "validator"]
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/lycheeverse/lychee"
-version = "0.14.2"
 readme = "../README.md"
+version.workspace = true
 
 [dependencies]
 async-stream = "0.3.5"
