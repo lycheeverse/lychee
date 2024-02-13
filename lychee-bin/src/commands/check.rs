@@ -180,7 +180,7 @@ async fn progress_bar_task(
     mut recv_resp: mpsc::Receiver<Response>,
     verbose: Verbosity,
     pb: Option<ProgressBar>,
-    formatter: Arc<Box<dyn ResponseFormatter>>,
+    formatter: Arc<Box<dyn ResponseBodyFormatter>>,
     mut stats: ResponseStats,
 ) -> Result<(Option<ProgressBar>, ResponseStats)> {
     while let Some(response) = recv_resp.recv().await {
@@ -277,7 +277,7 @@ fn show_progress(
     output: &mut dyn Write,
     progress_bar: &Option<ProgressBar>,
     response: &Response,
-    formatter: &Box<dyn ResponseFormatter>,
+    formatter: &Box<dyn ResponseBodyFormatter>,
     verbose: &Verbosity,
 ) -> Result<()> {
     let out = formatter.format_response(&response.body());
@@ -332,7 +332,7 @@ mod tests {
             Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
         );
-        let formatter: Arc<Box<dyn ResponseFormatter>> =
+        let formatter: Arc<Box<dyn ResponseBodyFormatter>> =
             Arc::new(Box::new(formatters::response::Raw::new()));
         show_progress(
             &mut buf,
@@ -355,7 +355,7 @@ mod tests {
             Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
         );
-        let formatter: Arc<Box<dyn ResponseFormatter>> =
+        let formatter: Arc<Box<dyn ResponseBodyFormatter>> =
             Arc::new(Box::new(formatters::response::Raw::new()));
         show_progress(&mut buf, &None, &response, &formatter, &Verbosity::debug()).unwrap();
 

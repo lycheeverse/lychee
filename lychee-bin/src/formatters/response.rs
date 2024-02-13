@@ -9,37 +9,6 @@ pub(crate) trait ResponseFormatter: Send + Sync {
     fn write_response(&self, response: &Response) -> Result<String>;
 }
 
-/// A formatter which colors the response as long as that is supported by the
-/// environment (and not overwritten with `NO_COLOR=1`)
-pub(crate) struct Color;
-
-impl Color {
-    pub(crate) const fn new() -> Self {
-        Self {}
-    }
-}
-
-impl ResponseFormatter for Color {
-    fn write_response(&self, response: &Response) -> Result<String> {
-        Ok(color_response(&response.1))
-    }
-}
-
-/// Formatter which returns an unmodified response status
-pub(crate) struct Raw;
-
-impl Raw {
-    pub(crate) const fn new() -> Self {
-        Raw {}
-    }
-}
-
-impl ResponseFormatter for Raw {
-    fn write_response(&self, response: &Response) -> Result<String> {
-        Ok(response.body().to_string())
-    }
-}
-
 /// A trait for formatting a response body
 ///
 /// This trait is used to format a response body into a string.

@@ -334,7 +334,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     })?;
 
     let response_formatter: Box<dyn ResponseBodyFormatter> =
-        formatters::get_output_formatter(&opts.config.format);
+        formatters::get_formatter(&opts.config.format);
 
     let client = client::create(&opts.config, cookie_jar.as_deref())?;
 

@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     color::{color, BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, NORMAL},
-    formatters::{get_body_formatter, Format},
+    formatters::{get_formatter, Format},
     stats::ResponseStats,
 };
 
@@ -32,7 +32,7 @@ impl Display for CompactResponseStats {
                 stats.fail_map.len()
             )?;
         }
-        let response_formatter = get_body_formatter(&Format::Color);
+        let response_formatter = get_formatter(&Format::Color);
         for (source, responses) in &stats.fail_map {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             for response in responses {
