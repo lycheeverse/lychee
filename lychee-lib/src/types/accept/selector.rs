@@ -42,10 +42,7 @@ impl FromStr for AcceptSelector {
 
 impl Default for AcceptSelector {
     fn default() -> Self {
-        Self::new_from(vec![
-            AcceptRange::new(100, 103),
-            AcceptRange::new(200, 299),
-        ])
+        Self::new_from(vec![AcceptRange::new(100, 103), AcceptRange::new(200, 299)])
     }
 }
 
