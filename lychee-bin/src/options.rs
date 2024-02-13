@@ -44,6 +44,7 @@ const HELP_MSG_CONFIG_FILE: &str = formatcp!(
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
+/// The format to use for the final status report
 #[derive(Debug, Deserialize, Default, Clone)]
 pub(crate) enum Format {
     #[default]
@@ -56,6 +57,7 @@ pub(crate) enum Format {
 
 impl FromStr for Format {
     type Err = Error;
+
     fn from_str(format: &str) -> Result<Self, Self::Err> {
         match format.to_lowercase().as_str() {
             "compact" | "string" => Ok(Format::Compact),
@@ -105,12 +107,12 @@ macro_rules! fold_in {
     };
 }
 
-#[derive(Parser, Debug)]
-#[command(version, about)]
 /// A fast, async link checker
 ///
 /// Finds broken URLs and mail addresses inside Markdown, HTML,
 /// `reStructuredText`, websites and more!
+#[derive(Parser, Debug)]
+#[command(version, about)]
 pub(crate) struct LycheeOptions {
     /// The inputs (where to get links to check from).
     /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
@@ -147,6 +149,7 @@ impl LycheeOptions {
     }
 }
 
+/// The main configuration for lychee
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Parser, Debug, Deserialize, Clone, Default)]
 pub(crate) struct Config {

@@ -15,7 +15,7 @@ use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
 use crate::archive::{Archive, Suggestion};
-use crate::formatters::response::ResponseFormatter;
+use crate::formatters::response::ResponseBodyFormatter;
 use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
 
@@ -62,11 +62,13 @@ where
         accept,
     ));
 
+    let formatter = Arc::new(Mutex::new(params.formatter));
+
     let show_results_task = tokio::spawn(progress_bar_task(
         recv_resp,
         params.cfg.verbose,
         pb.clone(),
-        Arc::new(params.formatter),
+        formatter.clone(),
         stats,
     ));
 
@@ -275,10 +277,10 @@ fn show_progress(
     output: &mut dyn Write,
     progress_bar: &Option<ProgressBar>,
     response: &Response,
-    formatter: &Arc<Box<dyn ResponseFormatter>>,
+    formatter: &Box<dyn ResponseFormatter>,
     verbose: &Verbosity,
 ) -> Result<()> {
-    let out = formatter.write_response(response)?;
+    let out = formatter.format_response(&response.body());
     if let Some(pb) = progress_bar {
         pb.inc(1);
         pb.set_message(out.clone());
@@ -316,23 +318,19 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
 
 #[cfg(test)]
 mod tests {
+    use crate::formatters::{get_formatter, Format};
     use log::info;
-
-    use lychee_lib::{CacheStatus, InputSource, ResponseBody, Uri};
-
-    use crate::formatters;
+    use lychee_lib::{CacheStatus, InputSource, Uri};
 
     use super::*;
 
     #[test]
     fn test_skip_cached_responses_in_progress_output() {
         let mut buf = Vec::new();
-        let response = Response(
+        let response = Response::new(
+            Uri::try_from("http://127.0.0.1").unwrap(),
+            Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
-            ResponseBody {
-                uri: Uri::try_from("http://127.0.0.1").unwrap(),
-                status: Status::Cached(CacheStatus::Ok(200)),
-            },
         );
         let formatter: Arc<Box<dyn ResponseFormatter>> =
             Arc::new(Box::new(formatters::response::Raw::new()));
@@ -352,12 +350,10 @@ mod tests {
     #[test]
     fn test_show_cached_responses_in_progress_debug_output() {
         let mut buf = Vec::new();
-        let response = Response(
+        let response = Response::new(
+            Uri::try_from("http://127.0.0.1").unwrap(),
+            Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
-            ResponseBody {
-                uri: Uri::try_from("http://127.0.0.1").unwrap(),
-                status: Status::Cached(CacheStatus::Ok(200)),
-            },
         );
         let formatter: Arc<Box<dyn ResponseFormatter>> =
             Arc::new(Box::new(formatters::response::Raw::new()));

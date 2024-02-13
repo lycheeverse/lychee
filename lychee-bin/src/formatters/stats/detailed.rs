@@ -1,5 +1,8 @@
 use super::StatsFormatter;
-use crate::{formatters::color_response, stats::ResponseStats};
+use crate::{
+    formatters::{get_body_formatter, Format},
+    stats::ResponseStats,
+};
 
 use anyhow::Result;
 use pad::{Alignment, PadStr};
@@ -39,12 +42,15 @@ impl Display for DetailedResponseStats {
         write_stat(f, "\u{2753} Unknown", stats.unknown, true)?; //❓
         write_stat(f, "\u{1f6ab} Errors", stats.errors, false)?; // 🚫
 
+        let response_formatter = get_body_formatter(&Format::Color);
+
         for (source, responses) in &stats.fail_map {
             // Using leading newlines over trailing ones (e.g. `writeln!`)
             // lets us avoid extra newlines without any additional logic.
             write!(f, "\n\nErrors in {source}")?;
+
             for response in responses {
-                write!(f, "\n{}", color_response(response))?;
+                write!(f, "\n{}", response_formatter.format_response(response))?;
 
                 if let Some(suggestions) = &stats.suggestion_map.get(source) {
                     writeln!(f, "\nSuggestions in {source}")?;

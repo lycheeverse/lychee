@@ -7,7 +7,7 @@ use crate::{InputSource, Status, Uri};
 
 /// Response type returned by lychee after checking a URI
 #[derive(Debug)]
-pub struct Response(pub InputSource, pub ResponseBody);
+pub struct Response(InputSource, ResponseBody);
 
 impl Response {
     #[inline]
@@ -22,6 +22,21 @@ impl Response {
     /// Retrieve the underlying status of the response
     pub const fn status(&self) -> &Status {
         &self.1.status
+    }
+
+    #[inline]
+    #[must_use]
+    /// Retrieve the underlying source of the response
+    /// (e.g. the input file or the URL)
+    pub const fn source(&self) -> &InputSource {
+        &self.0
+    }
+
+    #[inline]
+    #[must_use]
+    /// Retrieve the underlying body of the response
+    pub const fn body(&self) -> &ResponseBody {
+        &self.1
     }
 }
 

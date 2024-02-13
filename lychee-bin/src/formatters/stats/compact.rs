@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::{
     fmt::{self, Display},
     time::Duration,
@@ -5,13 +6,11 @@ use std::{
 
 use crate::{
     color::{color, BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, NORMAL},
-    formatters::color_response,
+    formatters::{get_body_formatter, Format},
     stats::ResponseStats,
 };
 
 use super::StatsFormatter;
-
-use anyhow::Result;
 
 struct CompactResponseStats(ResponseStats);
 
@@ -33,10 +32,11 @@ impl Display for CompactResponseStats {
                 stats.fail_map.len()
             )?;
         }
+        let response_formatter = get_body_formatter(&Format::Color);
         for (source, responses) in &stats.fail_map {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             for response in responses {
-                writeln!(f, "{}", color_response(response))?;
+                writeln!(f, "{}", response_formatter.format_response(response))?;
             }
 
             if let Some(suggestions) = &stats.suggestion_map.get(source) {
