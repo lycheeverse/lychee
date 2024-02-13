@@ -15,6 +15,7 @@ use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
 use crate::archive::{Archive, Suggestion};
+use crate::formatters::get_formatter;
 use crate::formatters::response::ResponseBodyFormatter;
 use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
@@ -62,7 +63,7 @@ where
         accept,
     ));
 
-    let formatter = Arc::new(Mutex::new(params.formatter));
+    let formatter = Arc::new(get_formatter(&params.cfg.format));
 
     let show_results_task = tokio::spawn(progress_bar_task(
         recv_resp,
@@ -280,7 +281,7 @@ fn show_progress(
     formatter: &Box<dyn ResponseBodyFormatter>,
     verbose: &Verbosity,
 ) -> Result<()> {
-    let out = formatter.format_response(&response.body());
+    let out = formatter.format_response(response.body());
     if let Some(pb) = progress_bar {
         pb.inc(1);
         pb.set_message(out.clone());
@@ -318,9 +319,10 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
 
 #[cfg(test)]
 mod tests {
-    use crate::formatters::{get_formatter, Format};
     use log::info;
     use lychee_lib::{CacheStatus, InputSource, Uri};
+
+    use crate::options;
 
     use super::*;
 
@@ -332,8 +334,7 @@ mod tests {
             Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
         );
-        let formatter: Arc<Box<dyn ResponseBodyFormatter>> =
-            Arc::new(Box::new(formatters::response::Raw::new()));
+        let formatter = Arc::new(get_formatter(&options::Format::Raw));
         show_progress(
             &mut buf,
             &None,
@@ -355,8 +356,7 @@ mod tests {
             Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
         );
-        let formatter: Arc<Box<dyn ResponseBodyFormatter>> =
-            Arc::new(Box::new(formatters::response::Raw::new()));
+        let formatter = Arc::new(get_formatter(&options::Format::Raw));
         show_progress(&mut buf, &None, &response, &formatter, &Verbosity::debug()).unwrap();
 
         assert!(!buf.is_empty());

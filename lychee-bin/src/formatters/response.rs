@@ -14,7 +14,7 @@ pub(crate) trait ResponseFormatter: Send + Sync {
 /// This trait is used to format a response body into a string.
 /// It can be implemented for different formatting styles such as
 /// colorized output or plain text.
-pub trait ResponseBodyFormatter {
+pub(crate) trait ResponseBodyFormatter: Send + Sync {
     fn format_response(&self, body: &ResponseBody) -> String;
 }
 
@@ -23,7 +23,7 @@ pub trait ResponseBodyFormatter {
 ///
 /// This formatter is used when the user has requested raw output
 /// or when the terminal does not support color.
-pub struct BasicFormatter;
+pub(crate) struct BasicFormatter;
 
 impl ResponseBodyFormatter for BasicFormatter {
     fn format_response(&self, body: &ResponseBody) -> String {
@@ -35,7 +35,7 @@ impl ResponseBodyFormatter for BasicFormatter {
 ///
 /// This formatter is used when the terminal supports color and the user
 /// has not explicitly requested raw, uncolored output.
-pub struct ColorFormatter;
+pub(crate) struct ColorFormatter;
 
 impl ResponseBodyFormatter for ColorFormatter {
     fn format_response(&self, body: &ResponseBody) -> String {

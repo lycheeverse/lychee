@@ -67,7 +67,6 @@ use anyhow::{bail, Context, Error, Result};
 use clap::Parser;
 use color::YELLOW;
 use commands::CommandParams;
-use formatters::response::ResponseBodyFormatter;
 use log::{error, info, warn};
 
 #[cfg(feature = "native-tls")]
@@ -333,16 +332,12 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         )
     })?;
 
-    let response_formatter: Box<dyn ResponseBodyFormatter> =
-        formatters::get_formatter(&opts.config.format);
-
     let client = client::create(&opts.config, cookie_jar.as_deref())?;
 
     let params = CommandParams {
         client,
         cache,
         requests,
-        formatter: response_formatter,
         cfg: opts.config.clone(),
     };
 

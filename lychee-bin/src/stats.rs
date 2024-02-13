@@ -57,23 +57,20 @@ impl ResponseStats {
         self.total += 1;
         let status = response.status();
 
-        self.increment_status_counters(&status);
+        self.increment_status_counters(status);
 
-        match status {
-            _ if status.is_failure() => {
-                let fail = self.fail_map.entry(*response.source()).or_default();
-                fail.insert(*response.body());
+        let input_source = {
+            let source: InputSource = response.source().clone();
+            match status {
+                _ if status.is_failure() => self.fail_map.entry(source).or_default(),
+                Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),
+                Status::Excluded if self.detailed_stats => {
+                    self.excluded_map.entry(source).or_default()
+                }
+                _ => return,
             }
-            Status::Ok(_) if self.detailed_stats => {
-                let success = self.success_map.entry(*response.source()).or_default();
-                success.insert(*response.body());
-            }
-            Status::Excluded if self.detailed_stats => {
-                let excluded = self.excluded_map.entry(*response.source()).or_default();
-                excluded.insert(*response.body());
-            }
-            _ => (),
-        }
+        };
+        input_source.insert(response.1);
     }
 
     #[inline]
@@ -143,7 +140,7 @@ mod tests {
 
         let response = dummy_error();
         let expected_fail_map: HashMap<InputSource, HashSet<ResponseBody>> =
-            HashMap::from_iter([(*response.source(), HashSet::from_iter([*response.body()]))]);
+            HashMap::from_iter([(response.source().clone(), HashSet::from_iter([response.1]))]);
         assert_eq!(stats.fail_map, expected_fail_map);
 
         assert!(stats.success_map.is_empty());
@@ -162,20 +159,26 @@ mod tests {
 
         let mut expected_fail_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         let response = dummy_error();
-        let entry = expected_fail_map.entry(*response.source()).or_default();
-        entry.insert(*response.body());
+        let entry = expected_fail_map
+            .entry(response.source().clone())
+            .or_default();
+        entry.insert(response.1);
         assert_eq!(stats.fail_map, expected_fail_map);
 
         let mut expected_success_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         let response = dummy_ok();
-        let entry = expected_success_map.entry(*response.source()).or_default();
-        entry.insert(*response.body());
+        let entry = expected_success_map
+            .entry(response.source().clone())
+            .or_default();
+        entry.insert(response.1);
         assert_eq!(stats.success_map, expected_success_map);
 
         let mut expected_excluded_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         let response = dummy_excluded();
-        let entry = expected_excluded_map.entry(*response.source()).or_default();
-        entry.insert(*response.body());
+        let entry = expected_excluded_map
+            .entry(response.source().clone())
+            .or_default();
+        entry.insert(response.1);
         assert_eq!(stats.excluded_map, expected_excluded_map);
     }
 }

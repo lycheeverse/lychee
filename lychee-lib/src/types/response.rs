@@ -6,8 +6,11 @@ use serde::Serialize;
 use crate::{InputSource, Status, Uri};
 
 /// Response type returned by lychee after checking a URI
+// Body is public to allow inserting into stats maps (fail_map, success_map,
+// etc.) without `Clone`, because the inner `ErrorKind` in `response.status` is
+// not `Clone`. Use `body()` to access the body in the rest of the code.
 #[derive(Debug)]
-pub struct Response(InputSource, ResponseBody);
+pub struct Response(InputSource, pub ResponseBody);
 
 impl Response {
     #[inline]

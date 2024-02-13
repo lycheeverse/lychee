@@ -32,7 +32,7 @@ impl Display for CompactResponseStats {
                 stats.fail_map.len()
             )?;
         }
-        let response_formatter = get_formatter(&Format::Color);
+        let response_formatter = get_formatter(&Format::Compact);
         for (source, responses) in &stats.fail_map {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             for response in responses {
