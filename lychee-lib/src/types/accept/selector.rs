@@ -45,7 +45,6 @@ impl Default for AcceptSelector {
         Self::new_from(vec![
             AcceptRange::new(100, 103),
             AcceptRange::new(200, 299),
-            AcceptRange::new(403, 403),
         ])
     }
 }

@@ -400,7 +400,7 @@ Options:
           separated list of accepted status codes. This example will accept 200, 201,
           202, 203, 204, 429, and 500 as valid status codes.
           
-          [default: 100..=103,200..=299,403..=403]
+          [default: 100..=103,200..=299]
 
       --include-fragments
           Enable the checking of fragments in links
