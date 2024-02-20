@@ -15,5 +15,5 @@ use anyhow::Result;
 
 pub(crate) trait StatsFormatter {
     /// Format the stats of all responses and write them to stdout
-    fn format_stats(&self, stats: ResponseStats) -> Result<Option<String>>;
+    fn format(&self, stats: ResponseStats) -> Result<Option<String>>;
 }

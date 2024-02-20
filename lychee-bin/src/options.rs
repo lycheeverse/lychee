@@ -46,7 +46,7 @@ const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
 /// The format to use for the final status report
 #[derive(Debug, Deserialize, Default, Clone)]
-pub(crate) enum Format {
+pub(crate) enum StatsFormat {
     #[default]
     Compact,
     Detailed,
@@ -55,17 +55,42 @@ pub(crate) enum Format {
     Raw,
 }
 
-impl FromStr for Format {
+impl FromStr for StatsFormat {
     type Err = Error;
 
     fn from_str(format: &str) -> Result<Self, Self::Err> {
         match format.to_lowercase().as_str() {
-            "compact" | "string" => Ok(Format::Compact),
-            "detailed" => Ok(Format::Detailed),
-            "json" => Ok(Format::Json),
-            "markdown" | "md" => Ok(Format::Markdown),
-            "raw" => Ok(Format::Raw),
+            "compact" | "string" => Ok(StatsFormat::Compact),
+            "detailed" => Ok(StatsFormat::Detailed),
+            "json" => Ok(StatsFormat::Json),
+            "markdown" | "md" => Ok(StatsFormat::Markdown),
+            "raw" => Ok(StatsFormat::Raw),
             _ => Err(anyhow!("Unknown format {}", format)),
+        }
+    }
+}
+
+/// The different formatter modes
+///
+/// This decides over whether to use color,
+/// emojis, or plain text for the output.
+#[derive(Debug, Deserialize, Default, Clone)]
+pub(crate) enum ResponseFormat {
+    Plain,
+    #[default]
+    Color,
+    Fancy,
+}
+
+impl FromStr for ResponseFormat {
+    type Err = Error;
+
+    fn from_str(mode: &str) -> Result<Self, Self::Err> {
+        match mode.to_lowercase().as_str() {
+            "plain" | "plaintext" => Ok(ResponseFormat::Plain),
+            "color" => Ok(ResponseFormat::Color),
+            "fancy" => Ok(ResponseFormat::Fancy), // Shows emojis
+            _ => Err(anyhow!("Unknown formatter mode {mode}")),
         }
     }
 }
@@ -388,10 +413,15 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[serde(default)]
     pub(crate) output: Option<PathBuf>,
 
+    /// Set the output display mode. Determines how results are presented in the terminal.
+    #[arg(long, default_value = "color")]
+    #[serde(default)]
+    pub(crate) mode: ResponseFormat,
+
     /// Output format of final status report (compact, detailed, json, markdown)
     #[arg(short, long, default_value = "compact")]
     #[serde(default)]
-    pub(crate) format: Format,
+    pub(crate) format: StatsFormat,
 
     /// When HTTPS is available, treat HTTP links as errors
     #[arg(long)]

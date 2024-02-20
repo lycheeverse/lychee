@@ -1,17 +1,7 @@
-use std::io::Write;
-
-use futures::io::BufWriter;
 use http::StatusCode;
 use lychee_lib::{CacheStatus, ResponseBody, Status};
 
 use crate::color::{DIM, GREEN, NORMAL, PINK, YELLOW};
-
-/// A `ResponseFormatter` knows how to format a response for different output
-/// preferences based on user settings or the environment
-// pub(crate) trait ResponseFormatter: Send + Sync {
-//     /// Format a single link check response and write it to stdout
-//     fn write_response(&self, response: &Response) -> Result<String>;
-// }
 
 /// A trait for formatting a response body
 ///
@@ -25,13 +15,16 @@ pub(crate) trait ResponseBodyFormatter: Send + Sync {
 /// A basic formatter that just returns the response body as a string
 /// without any color codes or other formatting.
 ///
+/// Under the hood, it calls the `Display` implementation of the `ResponseBody`
+/// type.
+///
 /// This formatter is used when the user has requested raw output
 /// or when the terminal does not support color.
-pub(crate) struct BasicFormatter;
+pub(crate) struct PlainFormatter;
 
-impl ResponseBodyFormatter for BasicFormatter {
+impl ResponseBodyFormatter for PlainFormatter {
     fn format_response(&self, body: &ResponseBody) -> String {
-        format!("{}", body)
+        body.to_string()
     }
 }
 
@@ -45,13 +38,7 @@ impl ResponseBodyFormatter for ColorFormatter {
     fn format_response(&self, body: &ResponseBody) -> String {
         match body.status {
             Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => {
-                // GREEN.apply_to(body),
-
-                // Format the status code in green
-                // and the response body in normal text
-                // format!("{}{}", GREEN.apply_to(&body.status), NORMAL.apply_to(body))
-                let status = format!("{} [{}]", body.status.icon(), body.status.code_as_string(),);
-
+                let status = format!("[{}]", body.status.code_as_string());
                 let mut output = format!("{} {}", GREEN.apply_to(status), body.uri);
 
                 if let Status::Ok(StatusCode::OK) = body.status {
@@ -63,7 +50,6 @@ impl ResponseBodyFormatter for ColorFormatter {
                 // Add a separator between the URI and the additional details below.
                 // Note: To make the links clickable in some terminals,
                 // we add a space before the separator.
-                // write!(f, " | {}", self.status)?;
                 output.push_str(&format!(" | {}", body.status));
 
                 if let Some(details) = body.status.details() {
@@ -83,5 +69,26 @@ impl ResponseBodyFormatter for ColorFormatter {
                 PINK.apply_to(body).to_string()
             }
         }
+    }
+}
+
+/// An emoji formatter for the response body
+///
+/// This formatter replaces certain textual elements with emojis for a more
+/// visual output.
+pub(crate) struct FancyFormatter;
+
+impl ResponseBodyFormatter for FancyFormatter {
+    fn format_response(&self, body: &ResponseBody) -> String {
+        let emoji = match body.status {
+            Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => "✅",
+            Status::Excluded
+            | Status::Unsupported(_)
+            | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => "🚫",
+            Status::Redirected(_) => "↪️",
+            Status::UnknownStatusCode(_) | Status::Timeout(_) => "⚠️",
+            Status::Error(_) | Status::Cached(CacheStatus::Error(_)) => "❌",
+        };
+        format!("{} {}", emoji, body.uri)
     }
 }

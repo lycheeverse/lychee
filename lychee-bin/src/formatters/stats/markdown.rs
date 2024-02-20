@@ -147,7 +147,7 @@ impl Markdown {
 }
 
 impl StatsFormatter for Markdown {
-    fn format_stats(&self, stats: ResponseStats) -> Result<Option<String>> {
+    fn format(&self, stats: ResponseStats) -> Result<Option<String>> {
         let markdown = MarkdownResponseStats(stats);
         Ok(Some(markdown.to_string()))
     }
