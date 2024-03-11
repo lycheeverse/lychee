@@ -37,3 +37,24 @@ impl Chainable<Request> for BasicAuth {
         request
     }
 }
+
+mod test {
+    use super::Chainable;
+
+    struct Add(i64);
+
+    struct Request(i64);
+
+    impl Chainable<Request> for Add {
+        fn handle(&mut self, req: Request) -> Request {
+            Request(req.0 + self.0)
+        }
+    }
+
+    #[test]
+    fn example_chain() {
+        let chain: crate::chain::Chain<Request> = vec![Box::new(Add(10)), Box::new(Add(-3))];
+        let result = crate::chain::traverse(chain, Request(0));
+        assert_eq!(result.0, 7);
+    }
+}
