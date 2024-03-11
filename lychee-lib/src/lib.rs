@@ -54,6 +54,7 @@ mod basic_auth;
 mod client;
 /// A pool of clients, to handle concurrent checks
 pub mod collector;
+mod chain;
 mod quirks;
 mod retry;
 mod types;
