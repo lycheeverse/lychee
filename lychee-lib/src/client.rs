@@ -17,9 +17,8 @@ use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
-use headers::authorization::Credentials;
 use http::{
-    header::{HeaderMap, HeaderValue, AUTHORIZATION},
+    header::{HeaderMap, HeaderValue},
     StatusCode,
 };
 use log::{debug, warn};
@@ -31,6 +30,7 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
+    chain::{traverse, BasicAuth, Chain},
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
     remap::Remaps,
@@ -647,23 +647,28 @@ impl Client {
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, uri: &Uri, credentials: &Option<BasicAuthCredentials>) -> Status {
-        let request = match credentials {
-            Some(credentials) => self
-                .reqwest_client
-                .request(self.method.clone(), uri.as_str())
-                .header(AUTHORIZATION, credentials.to_authorization().0.encode())
-                .build(),
-            None => self
-                .reqwest_client
-                .request(self.method.clone(), uri.as_str())
-                .build(),
-        };
+        // todo: middleware
+
+        // todo: create credentials middleware
+        let request = self
+            .reqwest_client
+            .request(self.method.clone(), uri.as_str())
+            .build();
 
         let request = match request {
             Ok(r) => r,
             Err(e) => return e.into(),
         };
 
+        let mut chain: Chain<reqwest::Request> = vec![];
+
+        if let Some(c) = credentials {
+            chain.push(Box::new(BasicAuth::new(c.clone())));
+        }
+
+        let request = traverse(chain, request);
+
+        // todo: quirks middleware
         let request = self.quirks.apply(request);
 
         match self.reqwest_client.execute(request).await {
