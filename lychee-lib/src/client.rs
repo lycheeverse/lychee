@@ -660,16 +660,13 @@ impl Client {
             Err(e) => return e.into(),
         };
 
-        let mut chain: Chain<reqwest::Request> = vec![];
+        let mut chain: Chain<reqwest::Request> = vec![Box::new(self.quirks.clone())];
 
         if let Some(c) = credentials {
             chain.push(Box::new(BasicAuth::new(c.clone())));
         }
 
         let request = traverse(chain, request);
-
-        // todo: quirks middleware
-        let request = self.quirks.apply(request);
 
         match self.reqwest_client.execute(request).await {
             Ok(ref response) => Status::new(response, self.accepted.clone()),
