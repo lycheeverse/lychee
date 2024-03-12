@@ -1,23 +1,38 @@
+use core::fmt::Debug;
 use headers::authorization::Credentials;
 use http::header::AUTHORIZATION;
 use reqwest::Request;
 
 use crate::BasicAuthCredentials;
 
-pub(crate) type Chain<T> = Vec<Box<dyn Chainable<T> + Send>>;
+pub(crate) type RequestChain = Chain<reqwest::Request>;
 
-pub(crate) fn traverse<T>(chain: Chain<T>, mut input: T) -> T {
-    for mut e in chain {
-        input = e.handle(input)
+#[derive(Debug)]
+pub struct Chain<T>(Vec<Box<dyn Chainable<T> + Send>>);
+
+impl<T> Chain<T> {
+    pub(crate) fn new(values: Vec<Box<dyn Chainable<T> + Send>>) -> Self {
+        Self(values)
     }
 
-    input
+    pub(crate) fn traverse(&mut self, mut input: T) -> T {
+        for e in self.0.iter_mut() {
+            input = e.handle(input)
+        }
+
+        input
+    }
+
+    pub(crate) fn push(&mut self, value: Box<dyn Chainable<T> + Send>) {
+        self.0.push(value);
+    }
 }
 
-pub(crate) trait Chainable<T> {
+pub(crate) trait Chainable<T>: Debug {
     fn handle(&mut self, input: T) -> T;
 }
 
+#[derive(Debug)]
 pub(crate) struct BasicAuth {
     credentials: BasicAuthCredentials,
 }
@@ -41,8 +56,10 @@ impl Chainable<Request> for BasicAuth {
 mod test {
     use super::Chainable;
 
+    #[derive(Debug)]
     struct Add(i64);
 
+    #[derive(Debug)]
     struct Request(i64);
 
     impl Chainable<Request> for Add {
@@ -53,8 +70,9 @@ mod test {
 
     #[test]
     fn example_chain() {
-        let chain: crate::chain::Chain<Request> = vec![Box::new(Add(10)), Box::new(Add(-3))];
-        let result = crate::chain::traverse(chain, Request(0));
+        use super::Chain;
+        let mut chain: Chain<Request> = Chain::new(vec![Box::new(Add(10)), Box::new(Add(-3))]);
+        let result = chain.traverse(Request(0));
         assert_eq!(result.0, 7);
     }
 }
