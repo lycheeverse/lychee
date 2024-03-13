@@ -1,7 +1,5 @@
-use crate::{BasicAuthCredentials, Response};
+use crate::Response;
 use core::fmt::Debug;
-use headers::authorization::Credentials;
-use http::header::AUTHORIZATION;
 use reqwest::Request;
 
 #[derive(Debug, PartialEq)]
@@ -41,27 +39,6 @@ impl<T, R> Chain<T, R> {
 
 pub(crate) trait Chainable<T, R>: Debug {
     fn handle(&mut self, input: T) -> ChainResult<T, R>;
-}
-
-#[derive(Debug)]
-pub(crate) struct BasicAuth {
-    credentials: BasicAuthCredentials,
-}
-
-impl BasicAuth {
-    pub(crate) fn new(credentials: BasicAuthCredentials) -> Self {
-        Self { credentials }
-    }
-}
-
-impl Chainable<Request, Response> for BasicAuth {
-    fn handle(&mut self, mut request: Request) -> ChainResult<Request, Response> {
-        request.headers_mut().append(
-            AUTHORIZATION,
-            self.credentials.to_authorization().0.encode(),
-        );
-        ChainResult::Chained(request)
-    }
 }
 
 mod test {
