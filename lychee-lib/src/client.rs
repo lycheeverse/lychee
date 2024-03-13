@@ -31,7 +31,7 @@ use typed_builder::TypedBuilder;
 
 use crate::{
     chain::ChainResult::*,
-    chain::{BasicAuth, Chain, RequestChain},
+    chain::{Chain, RequestChain},
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
     remap::Remaps,
@@ -482,7 +482,7 @@ impl Client {
         let mut request_chain: RequestChain = Chain::new(vec![Box::new(quirks)]);
 
         if let Some(c) = credentials {
-            request_chain.push(Box::new(BasicAuth::new(c.clone())));
+            request_chain.push(Box::new(c.clone()));
         }
 
         let status = match uri.scheme() {
