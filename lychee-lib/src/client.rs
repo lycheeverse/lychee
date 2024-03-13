@@ -30,15 +30,14 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    chain::ChainResult::*,
-    chain::{Chain, RequestChain},
+    chain::{Chain, ChainResult::*, RequestChain},
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
     remap::Remaps,
     retry::RetryExt,
     types::uri::github::GithubUri,
     utils::fragment_checker::FragmentChecker,
-    ErrorKind, Request, Response, Result, Status, Uri,
+    BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
@@ -472,23 +471,16 @@ impl Client {
         //     ));
         // }
 
-        self.remap(uri)?; // todo: possible to do in request chain?
+        self.remap(uri)?;
 
         if self.is_excluded(uri) {
             return Ok(Response::new(uri.clone(), Status::Excluded, source));
         }
 
-        let quirks = Quirks::default();
-        let mut request_chain: RequestChain = Chain::new(vec![Box::new(quirks)]);
-
-        if let Some(c) = credentials {
-            request_chain.push(Box::new(c.clone()));
-        }
-
         let status = match uri.scheme() {
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
-            _ => self.check_website(uri, &mut request_chain).await?,
+            _ => self.check_website(uri, credentials).await?,
         };
 
         Ok(Response::new(uri.clone(), status, source))
@@ -524,12 +516,18 @@ impl Client {
     pub async fn check_website(
         &self,
         uri: &Uri,
-        request_chain: &mut RequestChain,
+        credentials: &Option<BasicAuthCredentials>,
     ) -> Result<Status> {
-        match self.check_website_inner(uri, request_chain).await {
+        let quirks = Quirks::default();
+        let mut request_chain: RequestChain = Chain::new(vec![Box::new(quirks)]);
+        if let Some(c) = credentials {
+            request_chain.push(Box::new(c.clone()));
+        }
+
+        match self.check_website_inner(uri, &mut request_chain).await {
             Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                 if self
-                    .check_website_inner(&uri.to_https()?, request_chain)
+                    .check_website_inner(&uri.to_https()?, &mut request_chain)
                     .await
                     .is_success()
                 {
