@@ -1,6 +1,4 @@
-use crate::Response;
 use core::fmt::Debug;
-use reqwest::Request;
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum ChainResult<T, R> {
@@ -8,7 +6,7 @@ pub(crate) enum ChainResult<T, R> {
     EarlyExit(R),
 }
 
-pub(crate) type RequestChain = Chain<Request, Response>;
+pub(crate) type RequestChain = Chain<reqwest::Request, crate::Response>;
 
 #[derive(Debug)]
 pub struct Chain<T, R>(Vec<Box<dyn Chainable<T, R> + Send>>);
