@@ -1,6 +1,6 @@
 use crate::{
     chain::{ChainResult, Chainable},
-    Response,
+    Status,
 };
 use header::HeaderValue;
 use http::header;
@@ -90,8 +90,8 @@ impl Quirks {
     }
 }
 
-impl Chainable<Request, Response> for Quirks {
-    fn handle(&mut self, input: Request) -> ChainResult<Request, Response> {
+impl Chainable<Request, Status> for Quirks {
+    fn handle(&mut self, input: Request) -> ChainResult<Request, Status> {
         ChainResult::Chained(self.apply(input))
     }
 }

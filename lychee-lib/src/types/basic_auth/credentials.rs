@@ -7,10 +7,8 @@ use reqwest::Request;
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::{
-    chain::{ChainResult, Chainable},
-    Response,
-};
+use crate::chain::{ChainResult, Chainable};
+use crate::Status;
 
 #[derive(Copy, Clone, Debug, Error, PartialEq)]
 pub enum BasicAuthCredentialsParseError {
@@ -75,8 +73,8 @@ impl BasicAuthCredentials {
     }
 }
 
-impl Chainable<Request, Response> for BasicAuthCredentials {
-    fn handle(&mut self, mut request: Request) -> ChainResult<Request, Response> {
+impl Chainable<Request, Status> for BasicAuthCredentials {
+    fn handle(&mut self, mut request: Request) -> ChainResult<Request, Status> {
         request
             .headers_mut()
             .append(AUTHORIZATION, self.to_authorization().0.encode());

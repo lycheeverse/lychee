@@ -1,19 +1,31 @@
 use core::fmt::Debug;
 
+use crate::Status;
+
 #[derive(Debug, PartialEq)]
 pub(crate) enum ChainResult<T, R> {
     Chained(T),
     EarlyExit(R),
 }
 
-pub(crate) type RequestChain = Chain<reqwest::Request, crate::Response>;
+pub(crate) type RequestChain = Chain<reqwest::Request, Status>;
 
 #[derive(Debug)]
 pub struct Chain<T, R>(Vec<Box<dyn Chainable<T, R> + Send>>);
 
+impl<T, R> Default for Chain<T, R> {
+    fn default() -> Self {
+        Self(vec![])
+    }
+}
+
 impl<T, R> Chain<T, R> {
     pub(crate) fn new(values: Vec<Box<dyn Chainable<T, R> + Send>>) -> Self {
         Self(values)
+    }
+
+    pub(crate) fn append(&mut self, other: &mut Chain<T, R>) {
+        self.0.append(&mut other.0);
     }
 
     pub(crate) fn traverse(&mut self, mut input: T) -> ChainResult<T, R> {
