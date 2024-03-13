@@ -1,4 +1,7 @@
-use crate::chain::Chainable;
+use crate::{
+    chain::{ChainResult, Chainable},
+    Response,
+};
 use header::HeaderValue;
 use http::header;
 use once_cell::sync::Lazy;
@@ -72,11 +75,11 @@ impl Default for Quirks {
     }
 }
 
-impl Chainable<Request> for Quirks {
-    /// Handle quirks in a given request. Only the first quirk regex pattern
+impl Quirks {
+    /// Apply quirks to a given request. Only the first quirk regex pattern
     /// matching the URL will be applied. The rest will be discarded for
     /// simplicity reasons. This limitation might be lifted in the future.
-    fn handle(&mut self, request: Request) -> Request {
+    pub(crate) fn apply(&self, request: Request) -> Request {
         for quirk in &self.quirks {
             if quirk.pattern.is_match(request.url().as_str()) {
                 return (quirk.rewrite)(request);
@@ -87,13 +90,17 @@ impl Chainable<Request> for Quirks {
     }
 }
 
+impl Chainable<Request, Response> for Quirks {
+    fn handle(&mut self, input: Request) -> ChainResult<Request, Response> {
+        ChainResult::Chained(self.apply(input))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use header::HeaderValue;
     use http::{header, Method};
     use reqwest::{Request, Url};
-
-    use crate::chain::Chainable;
 
     use super::Quirks;
 
@@ -116,7 +123,7 @@ mod tests {
     fn test_cratesio_request() {
         let url = Url::parse("https://crates.io/crates/lychee").unwrap();
         let request = Request::new(Method::GET, url);
-        let modified = Quirks::default().handle(request);
+        let modified = Quirks::default().apply(request);
 
         assert_eq!(
             modified.headers().get(header::ACCEPT).unwrap(),
@@ -128,7 +135,7 @@ mod tests {
     fn test_youtube_video_request() {
         let url = Url::parse("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").unwrap();
         let request = Request::new(Method::GET, url);
-        let modified = Quirks::default().handle(request);
+        let modified = Quirks::default().apply(request);
         let expected_url = Url::parse("https://img.youtube.com/vi/NlKuICiT470/0.jpg").unwrap();
 
         assert_eq!(
@@ -141,7 +148,7 @@ mod tests {
     fn test_youtube_video_shortlink_request() {
         let url = Url::parse("https://youtu.be/Rvu7N4wyFpk?t=42").unwrap();
         let request = Request::new(Method::GET, url);
-        let modified = Quirks::default().handle(request);
+        let modified = Quirks::default().apply(request);
         let expected_url = Url::parse("https://img.youtube.com/vi/Rvu7N4wyFpk/0.jpg").unwrap();
 
         assert_eq!(
@@ -154,7 +161,7 @@ mod tests {
     fn test_non_video_youtube_url_untouched() {
         let url = Url::parse("https://www.youtube.com/channel/UCaYhcUwRBNscFNUKTjgPFiA").unwrap();
         let request = Request::new(Method::GET, url.clone());
-        let modified = Quirks::default().handle(request);
+        let modified = Quirks::default().apply(request);
 
         assert_eq!(MockRequest(modified), MockRequest::new(Method::GET, url));
     }
@@ -163,7 +170,7 @@ mod tests {
     fn test_no_quirk_applied() {
         let url = Url::parse("https://endler.dev").unwrap();
         let request = Request::new(Method::GET, url.clone());
-        let modified = Quirks::default().handle(request);
+        let modified = Quirks::default().apply(request);
 
         assert_eq!(MockRequest(modified), MockRequest::new(Method::GET, url));
     }

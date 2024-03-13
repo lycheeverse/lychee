@@ -30,6 +30,7 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
+    chain::ChainResult::*,
     chain::{BasicAuth, Chain, RequestChain},
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
@@ -654,11 +655,14 @@ impl Client {
             Err(e) => return e.into(),
         };
 
-        let request = request_chain.traverse(request);
+        let result = request_chain.traverse(request);
 
-        match self.reqwest_client.execute(request).await {
-            Ok(ref response) => Status::new(response, self.accepted.clone()),
-            Err(e) => e.into(),
+        match result {
+            EarlyExit(r) => r.1.status,
+            Chained(r) => match self.reqwest_client.execute(r).await {
+                Ok(ref response) => Status::new(response, self.accepted.clone()),
+                Err(e) => e.into(),
+            },
         }
     }
 
