@@ -35,7 +35,11 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    chain::{Chain, ChainResult::{Chained, EarlyExit}, RequestChain},
+    chain::{
+        Chain,
+        ChainResult::{Chained, EarlyExit},
+        RequestChain,
+    },
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
     remap::Remaps,
@@ -280,6 +284,10 @@ pub struct ClientBuilder {
     /// Enable the checking of fragments in links.
     include_fragments: bool,
 
+    /// Requests run through this chain where each item in the chain
+    /// can modify the request. A chained item can also decide to exit
+    /// early and return a status, so that subsequent chain items are
+    /// skipped and no HTTP request is ever made.
     request_chain: Arc<Mutex<RequestChain>>,
 }
 
@@ -1114,14 +1122,13 @@ mod tests {
     #[tokio::test]
     async fn test_chain() {
         use reqwest::Request;
-        use ChainResult::EarlyExit;
 
         #[derive(Debug)]
         struct ExampleHandler();
 
-        impl Chainable<Request, crate::Status> for ExampleHandler {
-            fn handle(&mut self, _: Request) -> ChainResult<Request, crate::Status> {
-                EarlyExit(Status::Excluded)
+        impl Chainable<Request, Status> for ExampleHandler {
+            fn handle(&mut self, _: Request) -> ChainResult<Request, Status> {
+                ChainResult::EarlyExit(Status::Excluded)
             }
         }
 
