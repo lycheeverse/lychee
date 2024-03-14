@@ -838,15 +838,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_basic_auth() {
-        let mut r = Request::new(
-            "https://authenticationtest.com/HTTPAuth/"
-                .try_into()
-                .unwrap(),
-            crate::InputSource::Stdin,
-            None,
-            None,
-            None,
-        );
+        let mut r: Request = "https://authenticationtest.com/HTTPAuth/"
+            .try_into()
+            .unwrap();
 
         let res = get_mock_client_response(r.clone()).await;
         assert_eq!(res.status().code(), Some(401.try_into().unwrap()));
@@ -856,7 +850,7 @@ mod tests {
             password: "pass".into(),
         });
 
-        let res = get_mock_client_response(r.clone()).await;
+        let res = get_mock_client_response(r).await;
         assert!(res.status().is_success());
     }
 
