@@ -29,8 +29,8 @@ impl<T, R> Chain<T, R> {
     }
 
     pub(crate) fn traverse(&mut self, mut input: T) -> ChainResult<T, R> {
-        use ChainResult::*;
-        for e in self.0.iter_mut() {
+        use ChainResult::{Done, Next};
+        for e in &mut self.0 {
             match e.chain(input) {
                 Next(r) => input = r,
                 Done(r) => {
@@ -52,7 +52,7 @@ pub(crate) trait Chainable<T, R>: Debug {
 }
 
 mod test {
-    use super::{ChainResult, ChainResult::*, Chainable};
+    use super::{ChainResult, ChainResult::{Done, Next}, Chainable};
 
     #[derive(Debug)]
     struct Add(usize);
