@@ -1,6 +1,6 @@
-use core::fmt::Debug;
-
 use crate::Status;
+use core::fmt::Debug;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum ChainResult<T, R> {
@@ -11,26 +11,33 @@ pub(crate) enum ChainResult<T, R> {
 pub(crate) type RequestChain = Chain<reqwest::Request, Status>;
 
 #[derive(Debug)]
-pub struct Chain<T, R>(Vec<Box<dyn Chainable<T, R> + Send>>);
+pub struct Chain<T, R>(Arc<Mutex<Vec<Box<dyn Chainable<T, R> + Send>>>>);
 
 impl<T, R> Default for Chain<T, R> {
     fn default() -> Self {
-        Self(vec![])
+        Self(Arc::new(Mutex::new(vec![])))
     }
 }
 
+impl<T, R> Clone for Chain<T, R> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+
 impl<T, R> Chain<T, R> {
     pub(crate) fn new(values: Vec<Box<dyn Chainable<T, R> + Send>>) -> Self {
-        Self(values)
+        Self(Arc::new(Mutex::new(values)))
     }
 
-    pub(crate) fn append(&mut self, other: &mut Chain<T, R>) {
-        self.0.append(&mut other.0);
+    pub(crate) fn append(&mut self, other: &Chain<T, R>) {
+        self.0.lock().unwrap().append(&mut other.0.lock().unwrap());
     }
 
     pub(crate) fn traverse(&mut self, mut input: T) -> ChainResult<T, R> {
         use ChainResult::{Done, Next};
-        for e in &mut self.0 {
+        for e in self.0.lock().unwrap().iter_mut() {
             match e.chain(input) {
                 Next(r) => input = r,
                 Done(r) => {
@@ -43,7 +50,7 @@ impl<T, R> Chain<T, R> {
     }
 
     pub(crate) fn push(&mut self, value: Box<dyn Chainable<T, R> + Send>) {
-        self.0.push(value);
+        self.0.lock().unwrap().push(value);
     }
 }
 
@@ -52,7 +59,11 @@ pub(crate) trait Chainable<T, R>: Debug {
 }
 
 mod test {
-    use super::{ChainResult, ChainResult::{Done, Next}, Chainable};
+    use super::{
+        ChainResult,
+        ChainResult::{Done, Next},
+        Chainable,
+    };
 
     #[derive(Debug)]
     struct Add(usize);
@@ -74,8 +85,7 @@ mod test {
     #[test]
     fn simple_chain() {
         use super::Chain;
-        let mut chain: Chain<Result, Result> =
-            Chain::new(vec![Box::new(Add(7)), Box::new(Add(3))]);
+        let mut chain: Chain<Result, Result> = Chain::new(vec![Box::new(Add(7)), Box::new(Add(3))]);
         let result = chain.traverse(Result(0));
         assert_eq!(result, Next(Result(10)));
     }
