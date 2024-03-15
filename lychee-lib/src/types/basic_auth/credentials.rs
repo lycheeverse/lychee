@@ -74,10 +74,10 @@ impl BasicAuthCredentials {
 }
 
 impl Chainable<Request, Status> for BasicAuthCredentials {
-    fn handle(&mut self, mut request: Request) -> ChainResult<Request, Status> {
+    fn chain(&mut self, mut request: Request) -> ChainResult<Request, Status> {
         request
             .headers_mut()
             .append(AUTHORIZATION, self.to_authorization().0.encode());
-        ChainResult::Chained(request)
+        ChainResult::Next(request)
     }
 }
