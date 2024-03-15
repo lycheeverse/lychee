@@ -37,7 +37,7 @@ use typed_builder::TypedBuilder;
 use crate::{
     chain::{
         Chain,
-        ChainResult::{Chained, EarlyExit},
+        ChainResult::{Next, Done},
         RequestChain,
     },
     filter::{Excludes, Filter, Includes},
@@ -676,8 +676,8 @@ impl Client {
         let result = request_chain.traverse(request);
 
         match result {
-            EarlyExit(status) => status,
-            Chained(r) => match self.reqwest_client.execute(r).await {
+            Done(status) => status,
+            Next(r) => match self.reqwest_client.execute(r).await {
                 Ok(ref response) => Status::new(response, self.accepted.clone()),
                 Err(e) => e.into(),
             },
@@ -1121,8 +1121,8 @@ mod tests {
         struct ExampleHandler();
 
         impl Chainable<Request, Status> for ExampleHandler {
-            fn handle(&mut self, _: Request) -> ChainResult<Request, Status> {
-                ChainResult::EarlyExit(Status::Excluded)
+            fn chain(&mut self, _: Request) -> ChainResult<Request, Status> {
+                ChainResult::Done(Status::Excluded)
             }
         }
 

@@ -4,8 +4,8 @@ use crate::Status;
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum ChainResult<T, R> {
-    Chained(T),
-    EarlyExit(R),
+    Next(T),
+    Done(R),
 }
 
 pub(crate) type RequestChain = Chain<reqwest::Request, Status>;
@@ -31,15 +31,15 @@ impl<T, R> Chain<T, R> {
     pub(crate) fn traverse(&mut self, mut input: T) -> ChainResult<T, R> {
         use ChainResult::*;
         for e in self.0.iter_mut() {
-            match e.handle(input) {
-                Chained(r) => input = r,
-                EarlyExit(r) => {
-                    return EarlyExit(r);
+            match e.chain(input) {
+                Next(r) => input = r,
+                Done(r) => {
+                    return Done(r);
                 }
             }
         }
 
-        Chained(input)
+        Next(input)
     }
 
     pub(crate) fn push(&mut self, value: Box<dyn Chainable<T, R> + Send>) {
@@ -48,25 +48,25 @@ impl<T, R> Chain<T, R> {
 }
 
 pub(crate) trait Chainable<T, R>: Debug {
-    fn handle(&mut self, input: T) -> ChainResult<T, R>;
+    fn chain(&mut self, input: T) -> ChainResult<T, R>;
 }
 
 mod test {
     use super::{ChainResult, ChainResult::*, Chainable};
 
     #[derive(Debug)]
-    struct Add(i64);
+    struct Add(usize);
 
     #[derive(Debug, PartialEq, Eq)]
-    struct Result(i64);
+    struct Result(usize);
 
     impl Chainable<Result, Result> for Add {
-        fn handle(&mut self, req: Result) -> ChainResult<Result, Result> {
+        fn chain(&mut self, req: Result) -> ChainResult<Result, Result> {
             let added = req.0 + self.0;
             if added > 100 {
-                EarlyExit(Result(req.0))
+                Done(Result(req.0))
             } else {
-                Chained(Result(added))
+                Next(Result(added))
             }
         }
     }
@@ -75,9 +75,9 @@ mod test {
     fn simple_chain() {
         use super::Chain;
         let mut chain: Chain<Result, Result> =
-            Chain::new(vec![Box::new(Add(10)), Box::new(Add(-3))]);
+            Chain::new(vec![Box::new(Add(7)), Box::new(Add(3))]);
         let result = chain.traverse(Result(0));
-        assert_eq!(result, Chained(Result(7)));
+        assert_eq!(result, Next(Result(10)));
     }
 
     #[test]
@@ -86,6 +86,6 @@ mod test {
         let mut chain: Chain<Result, Result> =
             Chain::new(vec![Box::new(Add(80)), Box::new(Add(30)), Box::new(Add(1))]);
         let result = chain.traverse(Result(0));
-        assert_eq!(result, EarlyExit(Result(80)));
+        assert_eq!(result, Done(Result(80)));
     }
 }
