@@ -16,7 +16,7 @@
 use std::{
     collections::HashSet,
     path::Path,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::Duration,
 };
 
@@ -288,7 +288,7 @@ pub struct ClientBuilder {
     /// can modify the request. A chained item can also decide to exit
     /// early and return a status, so that subsequent chain items are
     /// skipped and no HTTP request is ever made.
-    request_chain: Arc<Mutex<RequestChain>>,
+    request_chain: RequestChain,
 }
 
 impl Default for ClientBuilder {
@@ -452,7 +452,7 @@ pub struct Client {
     /// Caches Fragments
     fragment_checker: FragmentChecker,
 
-    request_chain: Arc<Mutex<RequestChain>>,
+    request_chain: RequestChain,
 }
 
 impl Client {
@@ -538,7 +538,7 @@ impl Client {
     ) -> Result<Status> {
         let quirks = Quirks::default();
         let mut request_chain: RequestChain = Chain::new(vec![Box::new(quirks)]);
-        request_chain.append(&mut self.request_chain.lock().unwrap());
+        request_chain.append(&self.request_chain);
 
         if let Some(c) = credentials {
             request_chain.push(Box::new(c.clone()));
@@ -774,7 +774,6 @@ where
 mod tests {
     use std::{
         fs::File,
-        sync::{Arc, Mutex},
         time::{Duration, Instant},
     };
 
@@ -1126,9 +1125,9 @@ mod tests {
             }
         }
 
-        let chain = Arc::new(Mutex::new(RequestChain::new(vec![Box::new(
+        let chain = RequestChain::new(vec![Box::new(
             ExampleHandler {},
-        )])));
+        )]);
 
         let client = ClientBuilder::builder()
             .request_chain(chain)
