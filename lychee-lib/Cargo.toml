@@ -13,6 +13,7 @@ version.workspace = true
 
 [dependencies]
 async-stream = "0.3.5"
+async-trait = "0.1.78"
 cached = "0.46.1"
 check-if-email-exists = { version = "0.9.1", optional = true }
 email_address = "0.2.4"

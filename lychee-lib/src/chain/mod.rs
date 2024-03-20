@@ -1,4 +1,5 @@
 use crate::Status;
+use async_trait::async_trait;
 use core::fmt::Debug;
 use std::sync::{Arc, Mutex};
 
@@ -34,10 +35,10 @@ impl<T, R> Chain<T, R> {
         self.0.lock().unwrap().append(&mut other.0.lock().unwrap());
     }
 
-    pub(crate) fn traverse(&mut self, mut input: T) -> ChainResult<T, R> {
+    pub(crate) async fn traverse(&mut self, mut input: T) -> ChainResult<T, R> {
         use ChainResult::{Done, Next};
         for e in self.0.lock().unwrap().iter_mut() {
-            match e.chain(input) {
+            match e.chain(input).await {
                 Next(r) => input = r,
                 Done(r) => {
                     return Done(r);
@@ -53,6 +54,7 @@ impl<T, R> Chain<T, R> {
     }
 }
 
+#[async_trait]
 pub(crate) trait Chainable<T, R>: Debug {
     async fn chain(&mut self, input: T) -> ChainResult<T, R>;
 }
@@ -63,6 +65,7 @@ mod test {
         ChainResult::{Done, Next},
         Chainable,
     };
+    use async_trait::async_trait;
 
     #[derive(Debug)]
     struct Add(usize);
@@ -70,6 +73,7 @@ mod test {
     #[derive(Debug, PartialEq, Eq)]
     struct Result(usize);
 
+    #[async_trait]
     impl Chainable<Result, Result> for Add {
         async fn chain(&mut self, req: Result) -> ChainResult<Result, Result> {
             let added = req.0 + self.0;
@@ -81,20 +85,20 @@ mod test {
         }
     }
 
-    #[test]
-    fn simple_chain() {
+    #[tokio::test]
+    async fn simple_chain() {
         use super::Chain;
         let mut chain: Chain<Result, Result> = Chain::new(vec![Box::new(Add(7)), Box::new(Add(3))]);
-        let result = chain.traverse(Result(0));
+        let result = chain.traverse(Result(0)).await;
         assert_eq!(result, Next(Result(10)));
     }
 
-    #[test]
-    fn early_exit_chain() {
+    #[tokio::test]
+    async fn early_exit_chain() {
         use super::Chain;
         let mut chain: Chain<Result, Result> =
             Chain::new(vec![Box::new(Add(80)), Box::new(Add(30)), Box::new(Add(1))]);
-        let result = chain.traverse(Result(0));
+        let result = chain.traverse(Result(0)).await;
         assert_eq!(result, Done(Result(80)));
     }
 }

@@ -35,7 +35,6 @@ use crate::{
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
     remap::Remaps,
-    retry::RetryExt,
     types::uri::github::GithubUri,
     utils::fragment_checker::FragmentChecker,
     BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
@@ -743,6 +742,7 @@ mod tests {
         time::{Duration, Instant},
     };
 
+    use async_trait::async_trait;
     use http::{header::HeaderMap, StatusCode};
     use reqwest::header;
     use tempfile::tempdir;
@@ -1085,6 +1085,7 @@ mod tests {
         #[derive(Debug)]
         struct ExampleHandler();
 
+        #[async_trait]
         impl Chainable<Request, Status> for ExampleHandler {
             async fn chain(&mut self, _: Request) -> ChainResult<Request, Status> {
                 ChainResult::Done(Status::Excluded)
