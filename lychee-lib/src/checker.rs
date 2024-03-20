@@ -1,8 +1,9 @@
 use crate::{
-    chain::{Chain, ChainResult, Chainable},
+    chain::{ChainResult, Chainable},
     retry::RetryExt,
     Status,
 };
+use async_trait::async_trait;
 use http::StatusCode;
 use reqwest::Request;
 use std::{collections::HashSet, time::Duration};
@@ -58,6 +59,7 @@ impl Checker {
     }
 }
 
+#[async_trait]
 impl Chainable<Request, Status> for Checker {
     async fn chain(&mut self, input: Request) -> ChainResult<Request, Status> {
         ChainResult::Done(self.retry_request(input).await)

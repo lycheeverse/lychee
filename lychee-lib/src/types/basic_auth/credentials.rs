@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use std::str::FromStr;
 
 use headers::authorization::Credentials;
@@ -73,6 +74,7 @@ impl BasicAuthCredentials {
     }
 }
 
+#[async_trait]
 impl Chainable<Request, Status> for BasicAuthCredentials {
     async fn chain(&mut self, mut request: Request) -> ChainResult<Request, Status> {
         request
