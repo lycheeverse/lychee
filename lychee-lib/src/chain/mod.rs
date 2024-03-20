@@ -25,7 +25,6 @@ impl<T, R> Clone for Chain<T, R> {
     }
 }
 
-
 impl<T, R> Chain<T, R> {
     pub(crate) fn new(values: Vec<Box<dyn Chainable<T, R> + Send>>) -> Self {
         Self(Arc::new(Mutex::new(values)))
@@ -55,7 +54,7 @@ impl<T, R> Chain<T, R> {
 }
 
 pub(crate) trait Chainable<T, R>: Debug {
-    fn chain(&mut self, input: T) -> ChainResult<T, R>;
+    async fn chain(&mut self, input: T) -> ChainResult<T, R>;
 }
 
 mod test {
@@ -72,7 +71,7 @@ mod test {
     struct Result(usize);
 
     impl Chainable<Result, Result> for Add {
-        fn chain(&mut self, req: Result) -> ChainResult<Result, Result> {
+        async fn chain(&mut self, req: Result) -> ChainResult<Result, Result> {
             let added = req.0 + self.0;
             if added > 100 {
                 Done(Result(req.0))

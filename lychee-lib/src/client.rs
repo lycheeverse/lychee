@@ -13,12 +13,7 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use std::{
-    collections::HashSet,
-    path::Path,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
@@ -35,11 +30,8 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    chain::{
-        Chain,
-        ChainResult::{Next, Done},
-        RequestChain,
-    },
+    chain::{Chain, RequestChain},
+    checker::Checker,
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
     remap::Remaps,
@@ -587,7 +579,23 @@ impl Client {
             return Status::Unsupported(ErrorKind::InvalidURI(uri.clone()));
         }
 
-        let status = self.retry_request(uri, request_chain).await;
+        let request = self
+            .reqwest_client
+            .request(self.method.clone(), uri.as_str())
+            .build();
+
+        let request = match request {
+            Ok(r) => r,
+            Err(e) => return e.into(),
+        };
+
+        let checker = Checker::new(
+            self.retry_wait_time,
+            self.max_retries,
+            self.reqwest_client.clone(),
+            self.accepted.clone(),
+        );
+        let status = checker.retry_request(request).await;
         if status.is_success() {
             return status;
         }
@@ -604,25 +612,6 @@ impl Client {
             }
         }
 
-        status
-    }
-
-    /// Retry requests up to `max_retries` times
-    /// with an exponential backoff.
-    async fn retry_request(&self, uri: &Uri, request_chain: &mut RequestChain) -> Status {
-        let mut retries: u64 = 0;
-        let mut wait_time = self.retry_wait_time;
-
-        let mut status = self.check_default(uri, request_chain).await;
-        while retries < self.max_retries {
-            if status.is_success() || !status.should_retry() {
-                return status;
-            }
-            retries += 1;
-            tokio::time::sleep(wait_time).await;
-            wait_time = wait_time.saturating_mul(2);
-            status = self.check_default(uri, request_chain).await;
-        }
         status
     }
 
@@ -659,29 +648,6 @@ impl Client {
         }
         // Found public repo without endpoint
         Status::Ok(StatusCode::OK)
-    }
-
-    /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
-    async fn check_default(&self, uri: &Uri, request_chain: &mut RequestChain) -> Status {
-        let request = self
-            .reqwest_client
-            .request(self.method.clone(), uri.as_str())
-            .build();
-
-        let request = match request {
-            Ok(r) => r,
-            Err(e) => return e.into(),
-        };
-
-        let result = request_chain.traverse(request);
-
-        match result {
-            Done(status) => status,
-            Next(r) => match self.reqwest_client.execute(r).await {
-                Ok(ref response) => Status::new(response, self.accepted.clone()),
-                Err(e) => e.into(),
-            },
-        }
     }
 
     /// Check a `file` URI.
@@ -1120,14 +1086,12 @@ mod tests {
         struct ExampleHandler();
 
         impl Chainable<Request, Status> for ExampleHandler {
-            fn chain(&mut self, _: Request) -> ChainResult<Request, Status> {
+            async fn chain(&mut self, _: Request) -> ChainResult<Request, Status> {
                 ChainResult::Done(Status::Excluded)
             }
         }
 
-        let chain = RequestChain::new(vec![Box::new(
-            ExampleHandler {},
-        )]);
+        let chain = RequestChain::new(vec![Box::new(ExampleHandler {})]);
 
         let client = ClientBuilder::builder()
             .request_chain(chain)

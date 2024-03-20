@@ -91,7 +91,7 @@ impl Quirks {
 }
 
 impl Chainable<Request, Status> for Quirks {
-    fn chain(&mut self, input: Request) -> ChainResult<Request, Status> {
+    async fn chain(&mut self, input: Request) -> ChainResult<Request, Status> {
         ChainResult::Next(self.apply(input))
     }
 }
