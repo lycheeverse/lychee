@@ -74,7 +74,7 @@ impl BasicAuthCredentials {
 }
 
 impl Chainable<Request, Status> for BasicAuthCredentials {
-    fn chain(&mut self, mut request: Request) -> ChainResult<Request, Status> {
+    async fn chain(&mut self, mut request: Request) -> ChainResult<Request, Status> {
         request
             .headers_mut()
             .append(AUTHORIZATION, self.to_authorization().0.encode());
