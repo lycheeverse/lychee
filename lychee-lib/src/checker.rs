@@ -17,7 +17,7 @@ pub(crate) struct Checker {
 }
 
 impl Checker {
-    pub(crate) fn new(
+    pub(crate) const fn new(
         retry_wait_time: Duration,
         max_retries: u64,
         reqwest_client: reqwest::Client,
@@ -33,7 +33,7 @@ impl Checker {
 
     /// Retry requests up to `max_retries` times
     /// with an exponential backoff.
-    pub(crate) async fn retry_request(&self, request: reqwest::Request) -> Status {
+    pub(crate) async fn retry_request(&self, request: Request) -> Status {
         let mut retries: u64 = 0;
         let mut wait_time = self.retry_wait_time;
 
@@ -51,7 +51,7 @@ impl Checker {
     }
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
-    async fn check_default(&self, request: reqwest::Request) -> Status {
+    async fn check_default(&self, request: Request) -> Status {
         match self.reqwest_client.execute(request).await {
             Ok(ref response) => Status::new(response, self.accepted.clone()),
             Err(e) => e.into(),

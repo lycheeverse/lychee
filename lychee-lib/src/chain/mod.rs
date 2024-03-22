@@ -1,7 +1,8 @@
 use crate::Status;
 use async_trait::async_trait;
 use core::fmt::Debug;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum ChainResult<T, R> {
@@ -11,8 +12,10 @@ pub(crate) enum ChainResult<T, R> {
 
 pub(crate) type RequestChain = Chain<reqwest::Request, Status>;
 
+pub(crate) type InnerChain<T, R> = Vec<Box<dyn Chainable<T, R> + Send>>;
+
 #[derive(Debug)]
-pub struct Chain<T, R>(Arc<Mutex<Vec<Box<dyn Chainable<T, R> + Send>>>>);
+pub struct Chain<T, R>(Arc<Mutex<InnerChain<T, R>>>);
 
 impl<T, R> Default for Chain<T, R> {
     fn default() -> Self {
@@ -27,17 +30,13 @@ impl<T, R> Clone for Chain<T, R> {
 }
 
 impl<T, R> Chain<T, R> {
-    pub(crate) fn new(values: Vec<Box<dyn Chainable<T, R> + Send>>) -> Self {
+    pub(crate) fn new(values: InnerChain<T, R>) -> Self {
         Self(Arc::new(Mutex::new(values)))
-    }
-
-    pub(crate) fn append(&mut self, other: &Chain<T, R>) {
-        self.0.lock().unwrap().append(&mut other.0.lock().unwrap());
     }
 
     pub(crate) async fn traverse(&mut self, mut input: T) -> ChainResult<T, R> {
         use ChainResult::{Done, Next};
-        for e in self.0.lock().unwrap().iter_mut() {
+        for e in self.0.lock().await.iter_mut() {
             match e.chain(input).await {
                 Next(r) => input = r,
                 Done(r) => {
@@ -49,8 +48,9 @@ impl<T, R> Chain<T, R> {
         Next(input)
     }
 
-    pub(crate) fn push(&mut self, value: Box<dyn Chainable<T, R> + Send>) {
-        self.0.lock().unwrap().push(value);
+    // TODO: probably remove
+    pub(crate) fn into_inner(self) -> InnerChain<T, R> {
+        Arc::try_unwrap(self.0).expect("Arc still has multiple owners").into_inner()
     }
 }
 

@@ -30,14 +30,13 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    chain::{Chain, RequestChain},
+    chain::{Chain, ChainResult, RequestChain},
     checker::Checker,
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
     remap::Remaps,
     types::uri::github::GithubUri,
-    utils::fragment_checker::FragmentChecker,
-    BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
+    utils::fragment_checker::FragmentChecker, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
@@ -486,10 +485,20 @@ impl Client {
             return Ok(Response::new(uri.clone(), Status::Excluded, source));
         }
 
+        let request_chain: RequestChain = Chain::new(vec![
+            Box::<Quirks>::default(),
+            Box::new(Checker::new(
+                self.retry_wait_time,
+                self.max_retries,
+                self.reqwest_client.clone(),
+                self.accepted.clone(),
+            )),
+        ]);
+
         let status = match uri.scheme() {
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
-            _ => self.check_website(uri, credentials).await?,
+            _ => self.check_website(uri, request_chain).await?,
         };
 
         Ok(Response::new(uri.clone(), status, source))
@@ -525,16 +534,8 @@ impl Client {
     pub async fn check_website(
         &self,
         uri: &Uri,
-        credentials: &Option<BasicAuthCredentials>,
+        mut request_chain: RequestChain,
     ) -> Result<Status> {
-        let quirks = Quirks::default();
-        let mut request_chain: RequestChain = Chain::new(vec![Box::new(quirks)]);
-        request_chain.append(&self.request_chain);
-
-        if let Some(c) = credentials {
-            request_chain.push(Box::new(c.clone()));
-        }
-
         match self.check_website_inner(uri, &mut request_chain).await {
             Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                 if self
@@ -588,13 +589,12 @@ impl Client {
             Err(e) => return e.into(),
         };
 
-        let checker = Checker::new(
-            self.retry_wait_time,
-            self.max_retries,
-            self.reqwest_client.clone(),
-            self.accepted.clone(),
-        );
-        let status = checker.retry_request(request).await;
+        let status = match request_chain.traverse(request).await {
+            // consider as excluded if no chain element has converted it to a done
+            ChainResult::Next(_) => Status::Excluded,
+            ChainResult::Done(status) => status,
+        };
+
         if status.is_success() {
             return status;
         }
