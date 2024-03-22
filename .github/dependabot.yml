@@ -4,9 +4,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    ignore:
-      # TODO: Remove after reqwest is updated
-      - dependency-name: "http"
     # Group dependency updates into a single pull request.
     groups:
       dependencies:
