@@ -1,8 +1,15 @@
+use async_trait::async_trait;
 use std::str::FromStr;
 
+use headers::authorization::Credentials;
 use headers::{authorization::Basic, Authorization};
+use http::header::AUTHORIZATION;
+use reqwest::Request;
 use serde::Deserialize;
 use thiserror::Error;
+
+use crate::chain::{ChainResult, Chainable};
+use crate::Status;
 
 #[derive(Copy, Clone, Debug, Error, PartialEq)]
 pub enum BasicAuthCredentialsParseError {
@@ -64,5 +71,15 @@ impl BasicAuthCredentials {
     #[must_use]
     pub fn to_authorization(&self) -> Authorization<Basic> {
         Authorization::basic(&self.username, &self.password)
+    }
+}
+
+#[async_trait]
+impl Chainable<Request, Status> for BasicAuthCredentials {
+    async fn chain(&mut self, mut request: Request) -> ChainResult<Request, Status> {
+        request
+            .headers_mut()
+            .append(AUTHORIZATION, self.to_authorization().0.encode());
+        ChainResult::Next(request)
     }
 }

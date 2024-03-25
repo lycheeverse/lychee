@@ -1,3 +1,8 @@
+use crate::{
+    chain::{ChainResult, Chainable},
+    Status,
+};
+use async_trait::async_trait;
 use header::HeaderValue;
 use http::header;
 use once_cell::sync::Lazy;
@@ -83,6 +88,13 @@ impl Quirks {
         }
         // Request was not modified
         request
+    }
+}
+
+#[async_trait]
+impl Chainable<Request, Status> for Quirks {
+    async fn chain(&mut self, input: Request) -> ChainResult<Request, Status> {
+        ChainResult::Next(self.apply(input))
     }
 }
 

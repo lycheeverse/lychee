@@ -17,9 +17,8 @@ use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
-use headers::authorization::Credentials;
 use http::{
-    header::{HeaderMap, HeaderValue, AUTHORIZATION},
+    header::{HeaderMap, HeaderValue},
     StatusCode,
 };
 use log::{debug, warn};
@@ -31,13 +30,13 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
+    chain::{Chain, ChainResult, RequestChain},
+    checker::Checker,
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
     remap::Remaps,
-    retry::RetryExt,
     types::uri::github::GithubUri,
-    utils::fragment_checker::FragmentChecker,
-    BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
+    utils::fragment_checker::FragmentChecker, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
@@ -274,6 +273,12 @@ pub struct ClientBuilder {
 
     /// Enable the checking of fragments in links.
     include_fragments: bool,
+
+    /// Requests run through this chain where each item in the chain
+    /// can modify the request. A chained item can also decide to exit
+    /// early and return a status, so that subsequent chain items are
+    /// skipped and no HTTP request is ever made.
+    request_chain: RequestChain,
 }
 
 impl Default for ClientBuilder {
@@ -374,8 +379,6 @@ impl ClientBuilder {
             include_mail: self.include_mail,
         };
 
-        let quirks = Quirks::default();
-
         Ok(Client {
             reqwest_client,
             github_client,
@@ -386,9 +389,9 @@ impl ClientBuilder {
             method: self.method,
             accepted: self.accepted,
             require_https: self.require_https,
-            quirks,
             include_fragments: self.include_fragments,
             fragment_checker: FragmentChecker::new(),
+            request_chain: self.request_chain,
         })
     }
 }
@@ -433,14 +436,13 @@ pub struct Client {
     /// This would treat unencrypted links as errors when HTTPS is available.
     require_https: bool,
 
-    /// Override behaviors for certain known issues with special URIs.
-    quirks: Quirks,
-
     /// Enable the checking of fragments in links.
     include_fragments: bool,
 
     /// Caches Fragments
     fragment_checker: FragmentChecker,
+
+    request_chain: RequestChain,
 }
 
 impl Client {
@@ -483,10 +485,20 @@ impl Client {
             return Ok(Response::new(uri.clone(), Status::Excluded, source));
         }
 
+        let request_chain: RequestChain = Chain::new(vec![
+            Box::<Quirks>::default(),
+            Box::new(Checker::new(
+                self.retry_wait_time,
+                self.max_retries,
+                self.reqwest_client.clone(),
+                self.accepted.clone(),
+            )),
+        ]);
+
         let status = match uri.scheme() {
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
-            _ => self.check_website(uri, credentials).await?,
+            _ => self.check_website(uri, request_chain).await?,
         };
 
         Ok(Response::new(uri.clone(), status, source))
@@ -522,12 +534,12 @@ impl Client {
     pub async fn check_website(
         &self,
         uri: &Uri,
-        credentials: &Option<BasicAuthCredentials>,
+        mut request_chain: RequestChain,
     ) -> Result<Status> {
-        match self.check_website_inner(uri, credentials).await {
+        match self.check_website_inner(uri, &mut request_chain).await {
             Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                 if self
-                    .check_website_inner(&uri.to_https()?, credentials)
+                    .check_website_inner(&uri.to_https()?, &mut request_chain)
                     .await
                     .is_success()
                 {
@@ -552,11 +564,7 @@ impl Client {
     /// - The URI is invalid.
     /// - The request failed.
     /// - The response status code is not accepted.
-    pub async fn check_website_inner(
-        &self,
-        uri: &Uri,
-        credentials: &Option<BasicAuthCredentials>,
-    ) -> Status {
+    pub async fn check_website_inner(&self, uri: &Uri, request_chain: &mut RequestChain) -> Status {
         // Workaround for upstream reqwest panic
         if validate_url(&uri.url) {
             if matches!(uri.scheme(), "http" | "https") {
@@ -571,7 +579,22 @@ impl Client {
             return Status::Unsupported(ErrorKind::InvalidURI(uri.clone()));
         }
 
-        let status = self.retry_request(uri, credentials).await;
+        let request = self
+            .reqwest_client
+            .request(self.method.clone(), uri.as_str())
+            .build();
+
+        let request = match request {
+            Ok(r) => r,
+            Err(e) => return e.into(),
+        };
+
+        let status = match request_chain.traverse(request).await {
+            // consider as excluded if no chain element has converted it to a done
+            ChainResult::Next(_) => Status::Excluded,
+            ChainResult::Done(status) => status,
+        };
+
         if status.is_success() {
             return status;
         }
@@ -588,25 +611,6 @@ impl Client {
             }
         }
 
-        status
-    }
-
-    /// Retry requests up to `max_retries` times
-    /// with an exponential backoff.
-    async fn retry_request(&self, uri: &Uri, credentials: &Option<BasicAuthCredentials>) -> Status {
-        let mut retries: u64 = 0;
-        let mut wait_time = self.retry_wait_time;
-
-        let mut status = self.check_default(uri, credentials).await;
-        while retries < self.max_retries {
-            if status.is_success() || !status.should_retry() {
-                return status;
-            }
-            retries += 1;
-            tokio::time::sleep(wait_time).await;
-            wait_time = wait_time.saturating_mul(2);
-            status = self.check_default(uri, credentials).await;
-        }
         status
     }
 
@@ -643,33 +647,6 @@ impl Client {
         }
         // Found public repo without endpoint
         Status::Ok(StatusCode::OK)
-    }
-
-    /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
-    async fn check_default(&self, uri: &Uri, credentials: &Option<BasicAuthCredentials>) -> Status {
-        let request = match credentials {
-            Some(credentials) => self
-                .reqwest_client
-                .request(self.method.clone(), uri.as_str())
-                .header(AUTHORIZATION, credentials.to_authorization().0.encode())
-                .build(),
-            None => self
-                .reqwest_client
-                .request(self.method.clone(), uri.as_str())
-                .build(),
-        };
-
-        let request = match request {
-            Ok(r) => r,
-            Err(e) => return e.into(),
-        };
-
-        let request = self.quirks.apply(request);
-
-        match self.reqwest_client.execute(request).await {
-            Ok(ref response) => Status::new(response, self.accepted.clone()),
-            Err(e) => e.into(),
-        }
     }
 
     /// Check a `file` URI.
@@ -765,13 +742,19 @@ mod tests {
         time::{Duration, Instant},
     };
 
+    use async_trait::async_trait;
     use http::{header::HeaderMap, StatusCode};
     use reqwest::header;
     use tempfile::tempdir;
     use wiremock::matchers::path;
 
     use super::ClientBuilder;
-    use crate::{mock_server, test_utils::get_mock_client_response, Uri};
+    use crate::{
+        chain::{ChainResult, Chainable, RequestChain},
+        mock_server,
+        test_utils::get_mock_client_response,
+        Request, Status, Uri,
+    };
 
     #[tokio::test]
     async fn test_nonexistent() {
@@ -816,6 +799,24 @@ mod tests {
 
         let res = get_mock_client_response("https://www.youtube.com/watch?v=invalidNlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
         assert!(res.status().is_failure());
+    }
+
+    #[tokio::test]
+    async fn test_basic_auth() {
+        let mut r: Request = "https://authenticationtest.com/HTTPAuth/"
+            .try_into()
+            .unwrap();
+
+        let res = get_mock_client_response(r.clone()).await;
+        assert_eq!(res.status().code(), Some(401.try_into().unwrap()));
+
+        r.credentials = Some(crate::BasicAuthCredentials {
+            username: "user".into(),
+            password: "pass".into(),
+        });
+
+        let res = get_mock_client_response(r).await;
+        assert!(res.status().is_success());
     }
 
     #[tokio::test]
@@ -1075,5 +1076,32 @@ mod tests {
             let res = client.check(example).await.unwrap();
             assert!(res.status().is_unsupported());
         }
+    }
+
+    #[tokio::test]
+    async fn test_chain() {
+        use reqwest::Request;
+
+        #[derive(Debug)]
+        struct ExampleHandler();
+
+        #[async_trait]
+        impl Chainable<Request, Status> for ExampleHandler {
+            async fn chain(&mut self, _: Request) -> ChainResult<Request, Status> {
+                ChainResult::Done(Status::Excluded)
+            }
+        }
+
+        let chain = RequestChain::new(vec![Box::new(ExampleHandler {})]);
+
+        let client = ClientBuilder::builder()
+            .request_chain(chain)
+            .build()
+            .client()
+            .unwrap();
+
+        let result = client.check("http://example.com");
+        let res = result.await.unwrap();
+        assert_eq!(res.status(), &Status::Excluded);
     }
 }
