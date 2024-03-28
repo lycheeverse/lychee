@@ -4,8 +4,6 @@ assets
 fixtures
 .github
 .vscode
-examples
-benches
 docs
 .editorconfig
 lychee.example.toml

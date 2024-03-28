@@ -1,4 +1,4 @@
-FROM rust:latest as builder
+FROM rust:bookworm as builder
 
 RUN USER=root cargo new --bin lychee
 WORKDIR /lychee
@@ -18,11 +18,12 @@ RUN cargo build --release \
 # dependencies were already built above.
 COPY . ./
 RUN rm ./target/release/deps/lychee* \
-    && cargo build --release
+    && cargo build --release \
+    && strip target/release/lychee
 
 # Our production image starts here, which uses
 # the files from the builder image above.
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y \
