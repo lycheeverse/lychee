@@ -25,6 +25,7 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 - [Commandline usage](#commandline-usage)
 - [Library usage](#library-usage)
 - [GitHub Action Usage](#github-action-usage)
+- [Pre-commit Usage](#pre-commit-usage)
 - [Contributing to lychee](#contributing-to-lychee)
 - [Debugging and improving async code](#debugging-and-improving-async-code)
 - [Troubleshooting and Workarounds](#troubleshooting-and-workarounds)
@@ -550,6 +551,27 @@ folder.
 
 A GitHub Action that uses lychee is available as a separate repository: [lycheeverse/lychee-action](https://github.com/lycheeverse/lychee-action)
 which includes usage instructions.
+
+## Pre-commit Usage
+
+Lychee can also be used as a [pre-commit](https://pre-commit.com/) hook.
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/lycheeverse/lychee.git
+    rev: 0.14.3
+    hooks:
+      - id: lychee
+      # Optionally include additional CLI arguments
+      args: ["--exclude", "file://"]
+```
+
+Rather than running on staged-files only, Lychee can be run against an entire repository.
+```yaml
+- id: lychee
+  args: ["."]
+  pass_filenames: false
+```
 
 ## Contributing to lychee
 
