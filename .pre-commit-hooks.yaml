@@ -1,10 +1,16 @@
 - id: lychee
   name: lychee
   description: "Run 'lychee' for fast, async, stream-based link checking"
-  entry: lycheeverse/lychee:0.14
-  language: docker_image
-  args: []
+  entry: lychee
+  language: system
   types: [text]
   pass_filenames: true
   require_serial: true
-  additional_dependencies: []
+- id: lychee-docker
+  name: lychee
+  description: "Run 'lychee' docker image for fast, async, stream-based link checking"
+  entry: lycheeverse/lychee:0.14
+  language: docker_image
+  types: [text]
+  pass_filenames: true
+  require_serial: true
