@@ -36,7 +36,8 @@ use crate::{
     quirks::Quirks,
     remap::Remaps,
     types::uri::github::GithubUri,
-    utils::fragment_checker::FragmentChecker, ErrorKind, Request, Response, Result, Status, Uri,
+    utils::fragment_checker::FragmentChecker,
+    ErrorKind, Request, Response, Result, Status, Uri,
 };
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
@@ -465,7 +466,7 @@ impl Client {
     {
         let Request {
             ref mut uri,
-            ref credentials,
+            credentials,
             source,
             ..
         } = request.try_into()?;
@@ -486,7 +487,9 @@ impl Client {
         }
 
         let request_chain: RequestChain = Chain::new(vec![
+            // TODO: insert self.request_chain
             Box::<Quirks>::default(),
+            Box::new(credentials),
             Box::new(Checker::new(
                 self.retry_wait_time,
                 self.max_retries,

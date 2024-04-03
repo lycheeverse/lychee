@@ -75,11 +75,14 @@ impl BasicAuthCredentials {
 }
 
 #[async_trait]
-impl Chainable<Request, Status> for BasicAuthCredentials {
+impl Chainable<Request, Status> for Option<BasicAuthCredentials> {
     async fn chain(&mut self, mut request: Request) -> ChainResult<Request, Status> {
-        request
-            .headers_mut()
-            .append(AUTHORIZATION, self.to_authorization().0.encode());
+        if let Some(credentials) = self {
+            request
+                .headers_mut()
+                .append(AUTHORIZATION, credentials.to_authorization().0.encode());
+        }
+
         ChainResult::Next(request)
     }
 }

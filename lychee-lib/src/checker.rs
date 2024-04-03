@@ -8,7 +8,7 @@ use http::StatusCode;
 use reqwest::Request;
 use std::{collections::HashSet, time::Duration};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Checker {
     retry_wait_time: Duration,
     max_retries: u64,
