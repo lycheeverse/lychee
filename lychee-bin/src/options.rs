@@ -2,6 +2,7 @@ use crate::archive::Archive;
 use crate::parse::parse_base;
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
+use clap::builder::PossibleValuesParser;
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
@@ -12,7 +13,7 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::path::Path;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
-use strum::VariantNames;
+use strum::{Display, EnumIter, EnumString, EnumVariantNames, VariantNames};
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
@@ -74,25 +75,19 @@ impl FromStr for StatsFormat {
 ///
 /// This decides over whether to use color,
 /// emojis, or plain text for the output.
-#[derive(Debug, Deserialize, Default, Clone)]
+#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, EnumVariantNames)]
+#[non_exhaustive]
 pub(crate) enum ResponseFormat {
+    #[serde(rename = "plain")]
+    #[strum(serialize = "plain", ascii_case_insensitive)]
     Plain,
+    #[serde(rename = "color")]
+    #[strum(serialize = "color", ascii_case_insensitive)]
     #[default]
     Color,
+    #[serde(rename = "emoji")]
+    #[strum(serialize = "emoji", ascii_case_insensitive)]
     Emoji,
-}
-
-impl FromStr for ResponseFormat {
-    type Err = Error;
-
-    fn from_str(mode: &str) -> Result<Self, Self::Err> {
-        match mode.to_lowercase().as_str() {
-            "plain" | "plaintext" | "raw" => Ok(ResponseFormat::Plain),
-            "color" => Ok(ResponseFormat::Color),
-            "emoji" => Ok(ResponseFormat::Emoji),
-            _ => Err(anyhow!("Unknown formatter mode {mode}")),
-        }
-    }
 }
 
 // Macro for generating default functions to be used by serde
@@ -218,7 +213,7 @@ pub(crate) struct Config {
 
     /// Specify the use of a specific web archive.
     /// Can be used in combination with `--suggest`
-    #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]
+    #[arg(long, value_parser = PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]
     #[serde(default)]
     pub(crate) archive: Option<Archive>,
 
@@ -426,8 +421,8 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[serde(default)]
     pub(crate) output: Option<PathBuf>,
 
-    /// Set the output display mode. Determines how results are presented in the terminal (color, plain, emoji).
-    #[arg(long, default_value = "color")]
+    /// Set the output display mode. Determines how results are presented in the terminal
+    #[arg(long, default_value = "color", value_parser = PossibleValuesParser::new(ResponseFormat::VARIANTS).map(|s| s.parse::<ResponseFormat>().unwrap()))]
     #[serde(default)]
     pub(crate) mode: ResponseFormat,
 
