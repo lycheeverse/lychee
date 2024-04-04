@@ -45,8 +45,23 @@ const HELP_MSG_CONFIG_FILE: &str = formatcp!(
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
+// pub(crate) enum ResponseFormat {
+//     #[serde(rename = "plain")]
+//     #[strum(serialize = "plain", ascii_case_insensitive)]
+//     Plain,
+//     #[serde(rename = "color")]
+//     #[strum(serialize = "color", ascii_case_insensitive)]
+//     #[default]
+//     Color,
+//     #[serde(rename = "emoji")]
+//     #[strum(serialize = "emoji", ascii_case_insensitive)]
+//     Emoji,
+// }
+
 /// The format to use for the final status report
-#[derive(Debug, Deserialize, Default, Clone)]
+#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumVariantNames)]
+#[non_exhaustive]
+#[strum(serialize_all = "snake_case")]
 pub(crate) enum StatsFormat {
     #[default]
     Compact,
@@ -426,8 +441,8 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[serde(default)]
     pub(crate) mode: ResponseFormat,
 
-    /// Output format of final status report (compact, detailed, json, markdown)
-    #[arg(short, long, default_value = "compact")]
+    /// Output format of final status report
+    #[arg(short, long, default_value = "compact", value_parser = PossibleValuesParser::new(StatsFormat::VARIANTS).map(|s| s.parse::<StatsFormat>().unwrap()))]
     #[serde(default)]
     pub(crate) format: StatsFormat,
 
