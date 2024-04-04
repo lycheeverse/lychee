@@ -20,9 +20,30 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 ## Table of Contents
 
+- [Table of Contents](#table-of-contents)
 - [Installation](#installation)
+  - [Arch Linux](#arch-linux)
+  - [macOS](#macos)
+  - [Docker](#docker)
+  - [NixOS](#nixos)
+  - [FreeBSD](#freebsd)
+  - [Scoop](#scoop)
+  - [Termux](#termux)
+  - [Pre-built binaries](#pre-built-binaries)
+  - [Cargo](#cargo)
+    - [Build dependencies](#build-dependencies)
+    - [Compile and install lychee](#compile-and-install-lychee)
+    - [Feature flags](#feature-flags)
 - [Features](#features)
 - [Commandline usage](#commandline-usage)
+  - [Docker Usage](#docker-usage)
+    - [Linux/macOS shell command](#linuxmacos-shell-command)
+    - [Windows PowerShell command](#windows-powershell-command)
+  - [GitHub Token](#github-token)
+  - [Commandline Parameters](#commandline-parameters)
+  - [Exit codes](#exit-codes)
+  - [Ignoring links](#ignoring-links)
+  - [Caching](#caching)
 - [Library usage](#library-usage)
 - [GitHub Action Usage](#github-action-usage)
 - [Pre-commit Usage](#pre-commit-usage)
@@ -458,6 +479,11 @@ Options:
   -o, --output <OUTPUT>
           Output file of status report
 
+      --mode <MODE>
+          Set the output display mode. Determines how results are presented in the terminal (color, plain, emoji)
+          
+          [default: color]
+
   -f, --format <FORMAT>
           Output format of final status report (compact, detailed, json, markdown)
           
@@ -473,8 +499,6 @@ Options:
           Print help (see a summary with '-h')
 
   -V, --version
-          Print version
-
 ```
 
 ### Exit codes

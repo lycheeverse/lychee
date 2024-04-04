@@ -12,7 +12,7 @@ impl Raw {
 
 impl StatsFormatter for Raw {
     /// Don't print stats in raw mode
-    fn format_stats(&self, _stats: ResponseStats) -> Result<Option<String>> {
+    fn format(&self, _stats: ResponseStats) -> Result<Option<String>> {
         Ok(None)
     }
 }

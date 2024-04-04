@@ -15,7 +15,8 @@ use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
 use crate::archive::{Archive, Suggestion};
-use crate::formatters::response::ResponseFormatter;
+use crate::formatters::get_response_formatter;
+use crate::formatters::response::ResponseBodyFormatter;
 use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
 
@@ -62,11 +63,13 @@ where
         accept,
     ));
 
+    let formatter = get_response_formatter(&params.cfg.mode);
+
     let show_results_task = tokio::spawn(progress_bar_task(
         recv_resp,
         params.cfg.verbose,
         pb.clone(),
-        Arc::new(params.formatter),
+        formatter,
         stats,
     ));
 
@@ -178,11 +181,17 @@ async fn progress_bar_task(
     mut recv_resp: mpsc::Receiver<Response>,
     verbose: Verbosity,
     pb: Option<ProgressBar>,
-    formatter: Arc<Box<dyn ResponseFormatter>>,
+    formatter: Box<dyn ResponseBodyFormatter>,
     mut stats: ResponseStats,
 ) -> Result<(Option<ProgressBar>, ResponseStats)> {
     while let Some(response) = recv_resp.recv().await {
-        show_progress(&mut io::stderr(), &pb, &response, &formatter, &verbose)?;
+        show_progress(
+            &mut io::stderr(),
+            &pb,
+            &response,
+            formatter.as_ref(),
+            &verbose,
+        )?;
         stats.add(response);
     }
     Ok((pb, stats))
@@ -289,10 +298,11 @@ fn show_progress(
     output: &mut dyn Write,
     progress_bar: &Option<ProgressBar>,
     response: &Response,
-    formatter: &Arc<Box<dyn ResponseFormatter>>,
+    formatter: &dyn ResponseBodyFormatter,
     verbose: &Verbosity,
 ) -> Result<()> {
-    let out = formatter.write_response(response)?;
+    let out = formatter.format_response(response.body());
+
     if let Some(pb) = progress_bar {
         pb.inc(1);
         pb.set_message(out.clone());
@@ -330,31 +340,27 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
 
 #[cfg(test)]
 mod tests {
-    use log::info;
-
-    use lychee_lib::{CacheStatus, ClientBuilder, InputSource, ResponseBody, Uri};
-
     use crate::formatters;
+    use crate::{formatters::get_response_formatter, options};
+    use log::info;
+    use lychee_lib::{CacheStatus, ClientBuilder, InputSource, ResponseBody, Uri};
 
     use super::*;
 
     #[test]
     fn test_skip_cached_responses_in_progress_output() {
         let mut buf = Vec::new();
-        let response = Response(
+        let response = Response::new(
+            Uri::try_from("http://127.0.0.1").unwrap(),
+            Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
-            ResponseBody {
-                uri: Uri::try_from("http://127.0.0.1").unwrap(),
-                status: Status::Cached(CacheStatus::Ok(200)),
-            },
         );
-        let formatter: Arc<Box<dyn ResponseFormatter>> =
-            Arc::new(Box::new(formatters::response::Raw::new()));
+        let formatter = get_response_formatter(&options::ResponseFormat::Plain);
         show_progress(
             &mut buf,
             &None,
             &response,
-            &formatter,
+            formatter.as_ref(),
             &Verbosity::default(),
         )
         .unwrap();
@@ -366,20 +372,24 @@ mod tests {
     #[test]
     fn test_show_cached_responses_in_progress_debug_output() {
         let mut buf = Vec::new();
-        let response = Response(
+        let response = Response::new(
+            Uri::try_from("http://127.0.0.1").unwrap(),
+            Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
-            ResponseBody {
-                uri: Uri::try_from("http://127.0.0.1").unwrap(),
-                status: Status::Cached(CacheStatus::Ok(200)),
-            },
         );
-        let formatter: Arc<Box<dyn ResponseFormatter>> =
-            Arc::new(Box::new(formatters::response::Raw::new()));
-        show_progress(&mut buf, &None, &response, &formatter, &Verbosity::debug()).unwrap();
+        let formatter = get_response_formatter(&options::ResponseFormat::Plain);
+        show_progress(
+            &mut buf,
+            &None,
+            &response,
+            formatter.as_ref(),
+            &Verbosity::debug(),
+        )
+        .unwrap();
 
         assert!(!buf.is_empty());
         let buf = String::from_utf8_lossy(&buf);
-        assert_eq!(buf, "↻ [200] http://127.0.0.1/ | Cached: OK (cached)\n");
+        assert_eq!(buf, "[200] http://127.0.0.1/ | Cached: OK (cached)\n");
     }
 
     #[tokio::test]

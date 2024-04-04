@@ -58,25 +58,22 @@ impl ResponseStats {
 
     pub(crate) fn add(&mut self, response: Response) {
         self.total += 1;
+        let status = response.status();
 
-        let Response(source, ResponseBody { ref status, .. }) = response;
         self.increment_status_counters(status);
 
-        match status {
-            _ if status.is_error() => {
-                let fail = self.fail_map.entry(source).or_default();
-                fail.insert(response.1);
+        let input_source = {
+            let source: InputSource = response.source().clone();
+            match status {
+                _ if status.is_error() => self.fail_map.entry(source).or_default(),
+                Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),
+                Status::Excluded if self.detailed_stats => {
+                    self.excluded_map.entry(source).or_default()
+                }
+                _ => return,
             }
-            Status::Ok(_) if self.detailed_stats => {
-                let success = self.success_map.entry(source).or_default();
-                success.insert(response.1);
-            }
-            Status::Excluded if self.detailed_stats => {
-                let excluded = self.excluded_map.entry(source).or_default();
-                excluded.insert(response.1);
-            }
-            _ => (),
-        }
+        };
+        input_source.insert(response.1);
     }
 
     #[inline]
@@ -110,8 +107,7 @@ mod tests {
     // and it's a lot faster to just generate a fake response
     fn mock_response(status: Status) -> Response {
         let uri = website("https://some-url.com/ok");
-        let response_body = ResponseBody { uri, status };
-        Response(InputSource::Stdin, response_body)
+        Response::new(uri, status, InputSource::Stdin)
     }
 
     fn dummy_ok() -> Response {
@@ -145,9 +141,9 @@ mod tests {
         stats.add(dummy_error());
         stats.add(dummy_ok());
 
-        let Response(source, body) = dummy_error();
+        let response = dummy_error();
         let expected_fail_map: HashMap<InputSource, HashSet<ResponseBody>> =
-            HashMap::from_iter([(source, HashSet::from_iter([body]))]);
+            HashMap::from_iter([(response.source().clone(), HashSet::from_iter([response.1]))]);
         assert_eq!(stats.fail_map, expected_fail_map);
 
         assert!(stats.success_map.is_empty());
@@ -165,21 +161,27 @@ mod tests {
         stats.add(dummy_ok());
 
         let mut expected_fail_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
-        let Response(source, response_body) = dummy_error();
-        let entry = expected_fail_map.entry(source).or_default();
-        entry.insert(response_body);
+        let response = dummy_error();
+        let entry = expected_fail_map
+            .entry(response.source().clone())
+            .or_default();
+        entry.insert(response.1);
         assert_eq!(stats.fail_map, expected_fail_map);
 
         let mut expected_success_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
-        let Response(source, response_body) = dummy_ok();
-        let entry = expected_success_map.entry(source).or_default();
-        entry.insert(response_body);
+        let response = dummy_ok();
+        let entry = expected_success_map
+            .entry(response.source().clone())
+            .or_default();
+        entry.insert(response.1);
         assert_eq!(stats.success_map, expected_success_map);
 
         let mut expected_excluded_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
-        let Response(source, response_body) = dummy_excluded();
-        let entry = expected_excluded_map.entry(source).or_default();
-        entry.insert(response_body);
+        let response = dummy_excluded();
+        let entry = expected_excluded_map
+            .entry(response.source().clone())
+            .or_default();
+        entry.insert(response.1);
         assert_eq!(stats.excluded_map, expected_excluded_map);
     }
 }

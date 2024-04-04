@@ -1,23 +1,22 @@
+use anyhow::Result;
 use std::{
     fmt::{self, Display},
     time::Duration,
 };
 
-use crate::{
-    color::{color, BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, NORMAL},
-    formatters::color_response,
-    stats::ResponseStats,
-};
+use crate::formatters::color::{color, BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, NORMAL};
+use crate::{formatters::get_response_formatter, options, stats::ResponseStats};
 
 use super::StatsFormatter;
 
-use anyhow::Result;
-
-struct CompactResponseStats(ResponseStats);
+struct CompactResponseStats {
+    stats: ResponseStats,
+    mode: options::ResponseFormat,
+}
 
 impl Display for CompactResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let stats = &self.0;
+        let stats = &self.stats;
 
         if !stats.fail_map.is_empty() {
             let input = if stats.fail_map.len() == 1 {
@@ -33,10 +32,13 @@ impl Display for CompactResponseStats {
                 stats.fail_map.len()
             )?;
         }
+
+        let response_formatter = get_response_formatter(&self.mode);
+
         for (source, responses) in &stats.fail_map {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             for response in responses {
-                writeln!(f, "{}", color_response(response))?;
+                writeln!(f, "{}", response_formatter.format_response(response))?;
             }
 
             if let Some(suggestions) = &stats.suggestion_map.get(source) {
@@ -68,17 +70,22 @@ impl Display for CompactResponseStats {
     }
 }
 
-pub(crate) struct Compact;
+pub(crate) struct Compact {
+    mode: options::ResponseFormat,
+}
 
 impl Compact {
-    pub(crate) const fn new() -> Self {
-        Self {}
+    pub(crate) const fn new(mode: options::ResponseFormat) -> Self {
+        Self { mode }
     }
 }
 
 impl StatsFormatter for Compact {
-    fn format_stats(&self, stats: ResponseStats) -> Result<Option<String>> {
-        let compact = CompactResponseStats(stats);
+    fn format(&self, stats: ResponseStats) -> Result<Option<String>> {
+        let compact = CompactResponseStats {
+            stats,
+            mode: self.mode.clone(),
+        };
         Ok(Some(compact.to_string()))
     }
 }

@@ -1,16 +1,12 @@
+pub(crate) mod color;
 pub(crate) mod duration;
+pub(crate) mod log;
 pub(crate) mod response;
 pub(crate) mod stats;
 
-use lychee_lib::{CacheStatus, ResponseBody, Status};
+use self::{response::ResponseBodyFormatter, stats::StatsFormatter};
+use crate::options::{ResponseFormat, StatsFormat};
 use supports_color::Stream;
-
-use crate::{
-    color::{DIM, GREEN, NORMAL, PINK, YELLOW},
-    options::{self, Format},
-};
-
-use self::response::ResponseFormatter;
 
 /// Detects whether a terminal supports color, and gives details about that
 /// support. It takes into account the `NO_COLOR` environment variable.
@@ -18,30 +14,28 @@ fn supports_color() -> bool {
     supports_color::on(Stream::Stdout).is_some()
 }
 
-/// Color the response body for TTYs that support it
-pub(crate) fn color_response(body: &ResponseBody) -> String {
-    if supports_color() {
-        let out = match body.status {
-            Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => GREEN.apply_to(body),
-            Status::Excluded
-            | Status::Unsupported(_)
-            | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => {
-                DIM.apply_to(body)
-            }
-            Status::Redirected(_) => NORMAL.apply_to(body),
-            Status::UnknownStatusCode(_) | Status::Timeout(_) => YELLOW.apply_to(body),
-            Status::Error(_) | Status::Cached(CacheStatus::Error(_)) => PINK.apply_to(body),
-        };
-        out.to_string()
-    } else {
-        body.to_string()
+pub(crate) fn get_stats_formatter(
+    format: &StatsFormat,
+    response_format: &ResponseFormat,
+) -> Box<dyn StatsFormatter> {
+    match format {
+        StatsFormat::Compact => Box::new(stats::Compact::new(response_format.clone())),
+        StatsFormat::Detailed => Box::new(stats::Detailed::new(response_format.clone())),
+        StatsFormat::Json => Box::new(stats::Json::new()),
+        StatsFormat::Markdown => Box::new(stats::Markdown::new()),
+        StatsFormat::Raw => Box::new(stats::Raw::new()),
     }
 }
 
 /// Create a response formatter based on the given format option
-pub(crate) fn get_formatter(format: &options::Format) -> Box<dyn ResponseFormatter> {
-    if matches!(format, Format::Raw) || !supports_color() {
-        return Box::new(response::Raw::new());
+///
+pub(crate) fn get_response_formatter(format: &ResponseFormat) -> Box<dyn ResponseBodyFormatter> {
+    if !supports_color() {
+        return Box::new(response::PlainFormatter);
     }
-    Box::new(response::Color::new())
+    match format {
+        ResponseFormat::Plain => Box::new(response::PlainFormatter),
+        ResponseFormat::Color => Box::new(response::ColorFormatter),
+        ResponseFormat::Emoji => Box::new(response::EmojiFormatter),
+    }
 }
