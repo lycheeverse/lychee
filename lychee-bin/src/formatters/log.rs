@@ -2,13 +2,13 @@ use log::Level;
 use std::io::Write;
 
 use crate::{
-    formatters::{self, response::TOTAL_RESPONSE_OUTPUT_WIDTH},
+    formatters::{self, response::MAX_RESPONSE_OUTPUT_WIDTH},
     options::ResponseFormat,
     verbosity::Verbosity,
 };
 
 /// Initialize the logging system with the given verbosity level
-pub(crate) fn init_logging(verbose: &Verbosity, mode: &ResponseFormat) {
+pub(crate) fn init_logging(verbose: &Verbosity, response_format: &ResponseFormat) {
     let mut builder = env_logger::Builder::new();
 
     builder
@@ -18,8 +18,8 @@ pub(crate) fn init_logging(verbose: &Verbosity, mode: &ResponseFormat) {
         .filter_module("lychee", verbose.log_level_filter()) // Re-add module filtering
         .filter_module("lychee_lib", verbose.log_level_filter()); // Re-add module filtering
 
-    // Format the log messages if the output is not plain
-    if !matches!(mode, ResponseFormat::Plain) {
+    if !response_format.is_plain() {
+        // Format the log messages if the output is not plain
         builder.format(|buf, record| {
             let level = record.level();
 
@@ -33,7 +33,7 @@ pub(crate) fn init_logging(verbose: &Verbosity, mode: &ResponseFormat) {
             };
 
             // Calculate the effective padding. Ensure it's non-negative to avoid panic.
-            let padding = TOTAL_RESPONSE_OUTPUT_WIDTH.saturating_sub(level_text.len() + 2); // +2 for brackets
+            let padding = MAX_RESPONSE_OUTPUT_WIDTH.saturating_sub(level_text.len() + 2); // +2 for brackets
 
             // Construct the log prefix with the log level.
             let level_label = format!("[{level_text}]");

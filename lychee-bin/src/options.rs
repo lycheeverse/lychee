@@ -105,6 +105,13 @@ pub(crate) enum ResponseFormat {
     Emoji,
 }
 
+impl ResponseFormat {
+    /// Returns `true` if the response format is `Plain`
+    pub(crate) const fn is_plain(&self) -> bool {
+        matches!(self, ResponseFormat::Plain)
+    }
+}
+
 // Macro for generating default functions to be used by serde
 macro_rules! default_function {
     ( $( $name:ident : $T:ty = $e:expr; )* ) => {
