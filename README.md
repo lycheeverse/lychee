@@ -562,14 +562,14 @@ repos:
     rev: 0.14.3
     hooks:
       - id: lychee
-      # Optionally include additional CLI arguments
-      args: ["--exclude", "file://"]
+        # Optionally include additional CLI arguments
+        args: ["--no-progress", "--exclude", "file://"]
 ```
 
 Rather than running on staged-files only, Lychee can be run against an entire repository.
 ```yaml
 - id: lychee
-  args: ["."]
+  args: ["--no-progress", "."]
   pass_filenames: false
 ```
 
