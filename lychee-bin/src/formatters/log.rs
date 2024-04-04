@@ -1,4 +1,5 @@
-use log::Level;
+use env_logger::{Builder, Env};
+use log::LevelFilter;
 use std::io::Write;
 
 use crate::{
@@ -7,47 +8,56 @@ use crate::{
     verbosity::Verbosity,
 };
 
-/// Initialize the logging system with the given verbosity level
+/// Initialize the logging system with the given verbosity level.
 pub(crate) fn init_logging(verbose: &Verbosity, response_format: &ResponseFormat) {
-    let mut builder = env_logger::Builder::new();
+    // Set a base level for all modules to `warn`, which is a reasonable default.
+    // It will be overridden by RUST_LOG if it's set.
+    let base_level = "warn";
+    let env = Env::default().filter_or("RUST_LOG", base_level);
+
+    let mut builder = Builder::from_env(env);
 
     builder
-        .format_timestamp(None) // Disable timestamps
-        .format_module_path(false) // Disable module path to reduce clutter
-        .format_target(false) // Disable target
-        .filter_module("lychee", verbose.log_level_filter()) // Re-add module filtering
-        .filter_module("lychee_lib", verbose.log_level_filter()); // Re-add module filtering
+        .format_timestamp(None)
+        .format_module_path(false)
+        .format_target(false);
 
+    if std::env::var("RUST_LOG").is_err() {
+        // Adjust the base log level filter based on the verbosity from CLI.
+        // This applies to all modules not explicitly mentioned in RUST_LOG.
+        let level_filter = verbose.log_level_filter();
+
+        // Apply a global filter. This ensures that, by default, other modules don't log at the debug level.
+        builder.filter_level(LevelFilter::Info); // Set to `Info` or another level as you see fit.
+
+        // Apply more specific filters to your own crates, enabling more verbose logging as per `-vv`.
+        builder
+            .filter_module("lychee", level_filter)
+            .filter_module("lychee_lib", level_filter);
+    }
+
+    // Customize the log message format if not plain.
     if !response_format.is_plain() {
-        // Format the log messages if the output is not plain
-        builder.format(|buf, record| {
+        builder.format(move |buf, record| {
             let level = record.level();
-
-            // Spaces added to align the log levels
-            let level_text = match level {
-                Level::Error => "ERROR",
-                Level::Warn => " WARN",
-                Level::Info => " INFO",
-                Level::Debug => "DEBUG",
-                Level::Trace => "TRACE",
-            };
-
-            // Calculate the effective padding. Ensure it's non-negative to avoid panic.
-            let padding = MAX_RESPONSE_OUTPUT_WIDTH.saturating_sub(level_text.len() + 2); // +2 for brackets
-
-            // Construct the log prefix with the log level.
-            let level_label = format!("[{level_text}]");
-            let color = match level {
-                Level::Error => &formatters::color::BOLD_PINK,
-                Level::Warn => &formatters::color::BOLD_YELLOW,
-                Level::Info | Level::Debug => &formatters::color::BLUE,
-                Level::Trace => &formatters::color::DIM,
-            };
-            let colored_level = color.apply_to(level_label);
-            let prefix = format!("{}{}", " ".repeat(padding), colored_level);
-
-            // Write formatted log message with aligned level and original log message.
-            writeln!(buf, "{} {}", prefix, record.args())
+            let level_text = format!("{level:5}");
+            let max_level_text_width = 7; // Longest log level text, including brackets.
+            let padding = (MAX_RESPONSE_OUTPUT_WIDTH.saturating_sub(max_level_text_width)).max(0);
+            let prefix = format!(
+                "{:<width$}",
+                format!("[{}]", level_text),
+                width = max_level_text_width
+            );
+            let color = formatters::color::color_for_level(level);
+            let colored_level = color.apply_to(&prefix);
+            writeln!(
+                buf,
+                "{:<padding$}{} {}",
+                "",
+                colored_level,
+                record.args(),
+                padding = padding
+            )
         });
     }
 

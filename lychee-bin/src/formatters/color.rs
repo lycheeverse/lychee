@@ -1,6 +1,7 @@
 //! Defines the colors used in the output of the CLI.
 
 use console::Style;
+use log::Level;
 use once_cell::sync::Lazy;
 
 pub(crate) static NORMAL: Lazy<Style> = Lazy::new(Style::new);
@@ -21,6 +22,16 @@ macro_rules! color {
     ($f:ident, $color:ident, $text:tt, $($tts:tt)*) => {
         write!($f, "{}", $color.apply_to(format!($text, $($tts)*)))
     };
+}
+
+/// Returns the appropriate color for a given log level.
+pub(crate) fn color_for_level(level: Level) -> &'static Style {
+    match level {
+        Level::Error => &BOLD_PINK,
+        Level::Warn => &BOLD_YELLOW,
+        Level::Info | Level::Debug => &BLUE,
+        Level::Trace => &DIM,
+    }
 }
 
 pub(crate) use color;
