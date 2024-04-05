@@ -278,7 +278,7 @@ pub struct ClientBuilder {
     /// Requests run through this chain where each item in the chain
     /// can modify the request. A chained item can also decide to exit
     /// early and return a status, so that subsequent chain items are
-    /// skipped and no HTTP request is ever made.
+    /// skipped and the lychee-internal request chain is not activated.
     plugin_request_chain: RequestChain,
 }
 
@@ -486,7 +486,7 @@ impl Client {
             return Ok(Response::new(uri.clone(), Status::Excluded, source));
         }
 
-        let request_chain: RequestChain = Chain::new(vec![
+        let chain: RequestChain = Chain::new(vec![
             Box::<Quirks>::default(),
             Box::new(credentials),
             Box::new(Checker::new(
@@ -500,7 +500,7 @@ impl Client {
         let status = match uri.scheme() {
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
-            _ => self.check_website(uri, request_chain).await?,
+            _ => self.check_website(uri, chain).await?,
         };
 
         Ok(Response::new(uri.clone(), status, source))
@@ -533,11 +533,11 @@ impl Client {
     /// - The request failed.
     /// - The response status code is not accepted.
     /// - The URI cannot be converted to HTTPS.
-    pub async fn check_website(&self, uri: &Uri, request_chain: RequestChain) -> Result<Status> {
-        match self.check_website_inner(uri, &request_chain).await {
+    pub async fn check_website(&self, uri: &Uri, chain: RequestChain) -> Result<Status> {
+        match self.check_website_inner(uri, &chain).await {
             Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                 if self
-                    .check_website_inner(&uri.to_https()?, &request_chain)
+                    .check_website_inner(&uri.to_https()?, &chain)
                     .await
                     .is_success()
                 {
@@ -562,7 +562,7 @@ impl Client {
     /// - The URI is invalid.
     /// - The request failed.
     /// - The response status code is not accepted.
-    pub async fn check_website_inner(&self, uri: &Uri, request_chain: &RequestChain) -> Status {
+    pub async fn check_website_inner(&self, uri: &Uri, chain: &RequestChain) -> Status {
         // Workaround for upstream reqwest panic
         if validate_url(&uri.url) {
             if matches!(uri.scheme(), "http" | "https") {
@@ -587,16 +587,21 @@ impl Client {
             Err(e) => return e.into(),
         };
 
-        let chain = ClientRequestChain::new(vec![&self.plugin_request_chain, request_chain]);
-        let status = chain.traverse(request).await;
+        let status = ClientRequestChain::new(vec![&self.plugin_request_chain, chain])
+            .traverse(request)
+            .await;
 
+        self.handle_github(status, uri).await
+    }
+
+    // Pull out the heavy machinery in case of a failed normal request.
+    // This could be a GitHub URL and we ran into the rate limiter.
+    // TODO: We should first try to parse the URI as GitHub URI first (Lucius, Jan 2023)
+    async fn handle_github(&self, status: Status, uri: &Uri) -> Status {
         if status.is_success() {
             return status;
         }
 
-        // Pull out the heavy machinery in case of a failed normal request.
-        // This could be a GitHub URL and we ran into the rate limiter.
-        // TODO: We should first try to parse the URI as GitHub URI first (Lucius, Jan 2023)
         if let Ok(github_uri) = GithubUri::try_from(uri) {
             let status = self.check_github(github_uri).await;
             // Only return Github status in case of success
