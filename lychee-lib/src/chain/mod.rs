@@ -34,7 +34,7 @@ impl<T, R> Chain<T, R> {
         Self(Arc::new(Mutex::new(values)))
     }
 
-    pub(crate) async fn traverse(&mut self, mut input: T) -> ChainResult<T, R> {
+    pub(crate) async fn traverse(&self, mut input: T) -> ChainResult<T, R> {
         use ChainResult::{Done, Next};
         for e in self.0.lock().await.iter_mut() {
             match e.chain(input).await {
@@ -47,16 +47,37 @@ impl<T, R> Chain<T, R> {
 
         Next(input)
     }
-
-    // TODO: probably remove
-    pub(crate) fn into_inner(self) -> InnerChain<T, R> {
-        Arc::try_unwrap(self.0).expect("Arc still has multiple owners").into_inner()
-    }
 }
 
 #[async_trait]
 pub(crate) trait Chainable<T, R>: Debug {
     async fn chain(&mut self, input: T) -> ChainResult<T, R>;
+}
+
+#[derive(Debug)]
+pub(crate) struct ClientRequestChain<'a> {
+    chains: Vec<&'a RequestChain>,
+}
+
+impl<'a> ClientRequestChain<'a> {
+    pub(crate) fn new(chains: Vec<&'a RequestChain>) -> Self {
+        Self { chains }
+    }
+
+    pub(crate) async fn traverse(&self, mut input: reqwest::Request) -> Status {
+        use ChainResult::{Done, Next};
+        for e in &self.chains {
+            match e.traverse(input).await {
+                Next(r) => input = r,
+                Done(r) => {
+                    return r;
+                }
+            }
+        }
+
+        // consider as excluded if no chain element has converted it to a done
+        Status::Excluded
+    }
 }
 
 mod test {
@@ -88,7 +109,7 @@ mod test {
     #[tokio::test]
     async fn simple_chain() {
         use super::Chain;
-        let mut chain: Chain<Result, Result> = Chain::new(vec![Box::new(Add(7)), Box::new(Add(3))]);
+        let chain: Chain<Result, Result> = Chain::new(vec![Box::new(Add(7)), Box::new(Add(3))]);
         let result = chain.traverse(Result(0)).await;
         assert_eq!(result, Next(Result(10)));
     }
@@ -96,7 +117,7 @@ mod test {
     #[tokio::test]
     async fn early_exit_chain() {
         use super::Chain;
-        let mut chain: Chain<Result, Result> =
+        let chain: Chain<Result, Result> =
             Chain::new(vec![Box::new(Add(80)), Box::new(Add(30)), Box::new(Add(1))]);
         let result = chain.traverse(Result(0)).await;
         assert_eq!(result, Done(Result(80)));
