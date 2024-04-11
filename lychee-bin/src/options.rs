@@ -231,6 +231,26 @@ pub(crate) struct Config {
     #[serde(with = "humantime_serde")]
     pub(crate) max_cache_age: Duration,
 
+    /// A list of status codes that will be excluded from the cache
+    #[arg(
+        long,
+        default_value_t,
+        long_help = "A List status codes that will be ignored from the cache
+
+The following accept range syntax is supported: [start]..[=]end|code. Some valid
+examples are:
+
+- 429
+- 500..=599
+- 500..
+
+Use \"lychee --cache-exclude-status '429, 500..502' <inputs>...\" to provide a comma- separated
+list of excluded status codes. This example will not cache results with a status code of 429, 500,
+501 and 502."
+    )]
+    #[serde(default)]
+    pub(crate) cache_exclude_status: AcceptSelector,
+
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
     #[arg(long)]
@@ -509,6 +529,7 @@ impl Config {
             max_retries: DEFAULT_MAX_RETRIES;
             max_concurrency: DEFAULT_MAX_CONCURRENCY;
             max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
+            cache_exclude_status: AcceptSelector::new();
             threads: None;
             user_agent: DEFAULT_USER_AGENT;
             insecure: false;

@@ -335,6 +335,22 @@ Options:
 
           [default: 1d]
 
+      --cache-exclude-status <CACHE_EXCLUDE_STATUS>
+          A List status codes that will be ignored from the cache
+          
+          The following accept range syntax is supported: [start]..[=]end|code. Some valid
+          examples are:
+          
+          - 429
+          - 500..=599
+          - 500..
+          
+          Use "lychee --cache-exclude-status '429, 500..502' <inputs>..." to provide a comma- separated
+          list of excluded status codes. This example will not cache results with a status code of 429, 500,
+          501 and 502.
+          
+          [default: 100..=103,200..=299]
+
       --dump
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
 
