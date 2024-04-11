@@ -37,7 +37,7 @@ impl Checker {
         let mut retries: u64 = 0;
         let mut wait_time = self.retry_wait_time;
 
-        let mut status = self.check_default(request.try_clone().unwrap()).await; // TODO: try_clone
+        let mut status = self.check_default(clone_unwrap(&request)).await;
         while retries < self.max_retries {
             if status.is_success() || !status.should_retry() {
                 return status;
@@ -45,7 +45,7 @@ impl Checker {
             retries += 1;
             tokio::time::sleep(wait_time).await;
             wait_time = wait_time.saturating_mul(2);
-            status = self.check_default(request.try_clone().unwrap()).await; // TODO: try_clone
+            status = self.check_default(clone_unwrap(&request)).await;
         }
         status
     }
@@ -57,6 +57,12 @@ impl Checker {
             Err(e) => e.into(),
         }
     }
+}
+
+/// SAFETY: unwrapping the `try_clone` of `reqwest::Request` is safe because a request only fails to be cloned when `body` of `Request` is a stream
+/// and `body` cannot be a stream as long as the `stream` feature is disabled.
+fn clone_unwrap(request: &Request) -> Request {
+    request.try_clone().unwrap()
 }
 
 #[async_trait]
