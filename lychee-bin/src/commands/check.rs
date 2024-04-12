@@ -301,7 +301,7 @@ async fn handle(
     // - Skip caching excluded links; they might not be excluded in the next run.
     // - Skip caching links for which the status code has been explicitly excluded from the cache.
     let status = response.status();
-    if ignore_cache(&uri, status, cache_exclude_status) {
+    if ignore_cache(&uri, status, &cache_exclude_status) {
         return response;
     }
 
@@ -309,17 +309,17 @@ async fn handle(
     response
 }
 
-fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: HashSet<u16>) -> bool {
+fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<u16>) -> bool {
     let status_code = match status.code() {
         None => 0,
         Some(code) => code.as_u16(),
     };
 
-    return uri.is_file()
+    uri.is_file()
         || status.is_excluded()
         || status.is_unsupported()
         || status.is_unknown()
-        || cache_exclude_status.contains(&status_code);
+        || cache_exclude_status.contains(&status_code)
 }
 
 fn show_progress(
@@ -438,54 +438,39 @@ mod tests {
         let mut exclude = HashSet::new();
 
         // Cache is not ignored
-        assert_eq!(
-            false,
-            ignore_cache(
-                &Uri::try_from("https://[::1]").unwrap(),
-                &Status::Ok(StatusCode::OK),
-                exclude.clone()
-            )
-        );
+        assert!(!ignore_cache(
+            &Uri::try_from("https://[::1]").unwrap(),
+            &Status::Ok(StatusCode::OK),
+            &exclude
+        ));
 
         // Cache is ignored for file URLs
-        assert_eq!(
-            true,
-            ignore_cache(
-                &Uri::try_from("file:///home").unwrap(),
-                &Status::Ok(StatusCode::OK),
-                exclude.clone()
-            )
-        );
+        assert!(ignore_cache(
+            &Uri::try_from("file:///home").unwrap(),
+            &Status::Ok(StatusCode::OK),
+            &exclude
+        ));
 
         // Cache is ignored for unsupported status
-        assert_eq!(
-            true,
-            ignore_cache(
-                &Uri::try_from("https://[::1]").unwrap(),
-                &Status::Unsupported(ErrorKind::EmptyUrl),
-                exclude.clone()
-            )
-        );
+        assert!(ignore_cache(
+            &Uri::try_from("https://[::1]").unwrap(),
+            &Status::Unsupported(ErrorKind::EmptyUrl),
+            &exclude
+        ));
 
         // Cache is ignored for unknown status
-        assert_eq!(
-            true,
-            ignore_cache(
-                &Uri::try_from("https://[::1]").unwrap(),
-                &Status::UnknownStatusCode(StatusCode::IM_A_TEAPOT),
-                exclude.clone()
-            )
-        );
+        assert!(ignore_cache(
+            &Uri::try_from("https://[::1]").unwrap(),
+            &Status::UnknownStatusCode(StatusCode::IM_A_TEAPOT),
+            &exclude
+        ));
 
         // Cache is ignored for excluded status codes
         exclude.insert(200);
-        assert_eq!(
-            true,
-            ignore_cache(
-                &Uri::try_from("https://[::1]").unwrap(),
-                &Status::Ok(StatusCode::OK),
-                exclude.clone()
-            )
-        );
+        assert!(ignore_cache(
+            &Uri::try_from("https://[::1]").unwrap(),
+            &Status::Ok(StatusCode::OK),
+            &exclude
+        ));
     }
 }
