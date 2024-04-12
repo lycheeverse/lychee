@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::{types::accept::AcceptRange, AcceptRangeError};
 
 #[derive(Debug, Error)]
-pub enum AcceptSelectorError {
+pub enum StatusCodeSelectorError {
     #[error("invalid/empty input")]
     InvalidInput,
 
@@ -14,21 +14,21 @@ pub enum AcceptSelectorError {
     AcceptRangeError(#[from] AcceptRangeError),
 }
 
-/// An [`AcceptSelector`] determines if a returned HTTP status code should be
-/// accepted and thus counted as a valid (not broken) link.
+/// An [`StatusCodeSelector`] holds ranges of HTTP status codes, and determines whether a specific
+/// code is matched, so the link can be counted as valid (not broken) or excluded.
 #[derive(Clone, Debug, PartialEq)]
-pub struct AcceptSelector {
+pub struct StatusCodeSelector {
     ranges: Vec<AcceptRange>,
 }
 
-impl FromStr for AcceptSelector {
-    type Err = AcceptSelectorError;
+impl FromStr for StatusCodeSelector {
+    type Err = StatusCodeSelectorError;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         let input = input.trim();
 
         if input.is_empty() {
-            return Err(AcceptSelectorError::InvalidInput);
+            return Err(StatusCodeSelectorError::InvalidInput);
         }
 
         let ranges = input
@@ -40,27 +40,27 @@ impl FromStr for AcceptSelector {
     }
 }
 
-impl Default for AcceptSelector {
+impl Default for StatusCodeSelector {
     fn default() -> Self {
         Self::new_from(vec![AcceptRange::new(100, 103), AcceptRange::new(200, 299)])
     }
 }
 
-impl Display for AcceptSelector {
+impl Display for StatusCodeSelector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let ranges: Vec<_> = self.ranges.iter().map(ToString::to_string).collect();
         write!(f, "{}", ranges.join(","))
     }
 }
 
-impl AcceptSelector {
-    /// Creates a new empty [`AcceptSelector`].
+impl StatusCodeSelector {
+    /// Creates a new empty [`StatusCodeSelector`].
     #[must_use]
     pub const fn new() -> Self {
         Self { ranges: Vec::new() }
     }
 
-    /// Creates a new [`AcceptSelector`] prefilled with `ranges`.
+    /// Creates a new [`StatusCodeSelector`] prefilled with `ranges`.
     #[must_use]
     pub fn new_from(ranges: Vec<AcceptRange>) -> Self {
         let mut selector = Self::new();
@@ -72,7 +72,7 @@ impl AcceptSelector {
         selector
     }
 
-    /// Adds a range of accepted HTTP status codes to this [`AcceptSelector`].
+    /// Adds a range of HTTP status codes to this [`StatusCodeSelector`].
     /// This method merges the new and existing ranges if they overlap.
     pub fn add_range(&mut self, range: AcceptRange) -> &mut Self {
         // Merge with previous range if possible
@@ -88,7 +88,7 @@ impl AcceptSelector {
         self
     }
 
-    /// Returns whether this [`AcceptSelector`] contains `value`.
+    /// Returns whether this [`StatusCodeSelector`] contains `value`.
     #[must_use]
     pub fn contains(&self, value: u16) -> bool {
         self.ranges.iter().any(|range| range.contains(value))
@@ -115,10 +115,10 @@ impl AcceptSelector {
     }
 }
 
-struct AcceptSelectorVisitor;
+struct StatusCodeSelectorVisitor;
 
-impl<'de> Visitor<'de> for AcceptSelectorVisitor {
-    type Value = AcceptSelector;
+impl<'de> Visitor<'de> for StatusCodeSelectorVisitor {
+    type Value = StatusCodeSelector;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         formatter.write_str("a string or a sequence of strings")
@@ -128,7 +128,7 @@ impl<'de> Visitor<'de> for AcceptSelectorVisitor {
     where
         E: serde::de::Error,
     {
-        AcceptSelector::from_str(v).map_err(serde::de::Error::custom)
+        StatusCodeSelector::from_str(v).map_err(serde::de::Error::custom)
     }
 
     fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
@@ -136,7 +136,7 @@ impl<'de> Visitor<'de> for AcceptSelectorVisitor {
         E: serde::de::Error,
     {
         let value = u16::try_from(v).map_err(serde::de::Error::custom)?;
-        Ok(AcceptSelector::new_from(vec![AcceptRange::new(
+        Ok(StatusCodeSelector::new_from(vec![AcceptRange::new(
             value, value,
         )]))
     }
@@ -145,7 +145,7 @@ impl<'de> Visitor<'de> for AcceptSelectorVisitor {
     where
         A: serde::de::SeqAccess<'de>,
     {
-        let mut selector = AcceptSelector::new();
+        let mut selector = StatusCodeSelector::new();
         while let Some(v) = seq.next_element::<toml::Value>()? {
             if let Some(v) = v.as_integer() {
                 let value = u16::try_from(v).map_err(serde::de::Error::custom)?;
@@ -167,12 +167,12 @@ impl<'de> Visitor<'de> for AcceptSelectorVisitor {
     }
 }
 
-impl<'de> Deserialize<'de> for AcceptSelector {
+impl<'de> Deserialize<'de> for StatusCodeSelector {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        deserializer.deserialize_any(AcceptSelectorVisitor)
+        deserializer.deserialize_any(StatusCodeSelectorVisitor)
     }
 }
 
@@ -192,7 +192,7 @@ mod test {
         #[case] invalid_values: Vec<u16>,
         #[case] length: usize,
     ) {
-        let selector = AcceptSelector::from_str(input).unwrap();
+        let selector = StatusCodeSelector::from_str(input).unwrap();
         assert_eq!(selector.len(), length);
 
         for valid in valid_values {
@@ -220,7 +220,7 @@ mod test {
     ) {
         #[derive(Deserialize)]
         struct Config {
-            accept: AcceptSelector,
+            accept: StatusCodeSelector,
         }
 
         let config: Config = toml::from_str(input).unwrap();
@@ -239,7 +239,7 @@ mod test {
     #[case("100..=150,200..=300", "100..=150,200..=300")]
     #[case("100..=150,300", "100..=150,300..=300")]
     fn test_display(#[case] input: &str, #[case] display: &str) {
-        let selector = AcceptSelector::from_str(input).unwrap();
+        let selector = StatusCodeSelector::from_str(input).unwrap();
         assert_eq!(selector.to_string(), display);
     }
 }

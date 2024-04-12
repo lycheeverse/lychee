@@ -6,7 +6,7 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 use super::InputContent;
-use crate::types::AcceptSelectorError;
+use crate::types::StatusCodeSelectorError;
 use crate::{basic_auth::BasicAuthExtractorError, utils, Uri};
 
 /// Kinds of status errors
@@ -142,9 +142,9 @@ pub enum ErrorKind {
     #[error("Cannot load cookies")]
     Cookies(String),
 
-    /// Accept selector parse error
-    #[error("Accept range error")]
-    AcceptSelectorError(#[from] AcceptSelectorError),
+    /// Status code selector parse error
+    #[error("Status code range error")]
+    StatusCodeSelectorError(#[from] StatusCodeSelectorError),
 }
 
 impl ErrorKind {
@@ -290,7 +290,7 @@ impl Hash for ErrorKind {
             Self::TooManyRedirects(e) => e.to_string().hash(state),
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
             Self::Cookies(e) => e.to_string().hash(state),
-            Self::AcceptSelectorError(e) => e.to_string().hash(state),
+            Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
         }
     }
 }
