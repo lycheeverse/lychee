@@ -1,0 +1,18 @@
+- id: lychee
+  name: lychee
+  description: "Run 'lychee' for fast, async, stream-based link checking"
+  entry: lychee
+  language: system
+  args: ["--no-progress"]
+  types: [text]
+  pass_filenames: true
+  require_serial: true
+- id: lychee-docker
+  name: lychee
+  description: "Run 'lychee' docker image for fast, async, stream-based link checking"
+  entry: lycheeverse/lychee:0.14
+  language: docker_image
+  args: ["--no-progress"]
+  types: [text]
+  pass_filenames: true
+  require_serial: true
