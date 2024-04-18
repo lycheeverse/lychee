@@ -79,6 +79,13 @@ scoop install lychee
 pkg install lychee
 ```
 
+### Alpine Linux
+
+```sh
+ # available for Alpine Edge in testing repositories
+apk add lychee
+```
+
 ### Pre-built binaries
 
 We provide binaries for Linux, macOS, and Windows for every release. \
