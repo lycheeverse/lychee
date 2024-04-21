@@ -30,7 +30,7 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    chain::{Chain, ClientRequestChain, RequestChain},
+    chain::{Chain, ClientRequestChains, RequestChain},
     checker::Checker,
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
@@ -486,7 +486,7 @@ impl Client {
             return Ok(Response::new(uri.clone(), Status::Excluded, source));
         }
 
-        let chain: RequestChain = Chain::new(vec![
+        let default_chain: RequestChain = Chain::new(vec![
             Box::<Quirks>::default(),
             Box::new(credentials),
             Box::new(Checker::new(
@@ -500,7 +500,7 @@ impl Client {
         let status = match uri.scheme() {
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
-            _ => self.check_website(uri, chain).await?,
+            _ => self.check_website(uri, default_chain).await?,
         };
 
         Ok(Response::new(uri.clone(), status, source))
@@ -533,11 +533,11 @@ impl Client {
     /// - The request failed.
     /// - The response status code is not accepted.
     /// - The URI cannot be converted to HTTPS.
-    pub async fn check_website(&self, uri: &Uri, chain: RequestChain) -> Result<Status> {
-        match self.check_website_inner(uri, &chain).await {
+    pub async fn check_website(&self, uri: &Uri, default_chain: RequestChain) -> Result<Status> {
+        match self.check_website_inner(uri, &default_chain).await {
             Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                 if self
-                    .check_website_inner(&uri.to_https()?, &chain)
+                    .check_website_inner(&uri.to_https()?, &default_chain)
                     .await
                     .is_success()
                 {
@@ -562,7 +562,7 @@ impl Client {
     /// - The URI is invalid.
     /// - The request failed.
     /// - The response status code is not accepted.
-    pub async fn check_website_inner(&self, uri: &Uri, chain: &RequestChain) -> Status {
+    pub async fn check_website_inner(&self, uri: &Uri, default_chain: &RequestChain) -> Status {
         // Workaround for upstream reqwest panic
         if validate_url(&uri.url) {
             if matches!(uri.scheme(), "http" | "https") {
@@ -587,7 +587,7 @@ impl Client {
             Err(e) => return e.into(),
         };
 
-        let status = ClientRequestChain::new(vec![&self.plugin_request_chain, chain])
+        let status = ClientRequestChains::new(vec![&self.plugin_request_chain, default_chain])
             .traverse(request)
             .await;
 
