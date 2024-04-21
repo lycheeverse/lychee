@@ -134,7 +134,7 @@ pub trait Chainable<T, R>: Debug {
     ///    async fn chain(&mut self, mut request: Request) -> ChainResult<Request, Status> {
     ///      // You can modify the request however you like here
     ///      request.headers_mut().append("X-Header", "value".parse().unwrap());
-    /// 
+    ///
     ///      // Pass the request to the next handler
     ///      ChainResult::Next(request)
     ///   }

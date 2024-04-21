@@ -59,10 +59,17 @@ impl Checker {
     }
 }
 
-/// SAFETY: unwrapping the `try_clone` of `reqwest::Request` is safe because a request only fails to be cloned when `body` of `Request` is a stream
-/// and `body` cannot be a stream as long as the `stream` feature is disabled.
+/// Clones a `reqwest::Request`.
+///
+/// # Safety
+///
+/// This panics if the request cannot be cloned. This should only happen if the
+/// request body is a `reqwest` stream. We disable the `stream` feature, so the
+/// body should never be a stream.
+///
+/// See <https://github.com/seanmonstar/reqwest/blob/de5dbb1ab849cc301dcefebaeabdf4ce2e0f1e53/src/async_impl/body.rs#L168>
 fn clone_unwrap(request: &Request) -> Request {
-    request.try_clone().unwrap()
+    request.try_clone().expect("Failed to clone request: body was a stream, which should be impossible with `stream` feature disabled")
 }
 
 #[async_trait]
