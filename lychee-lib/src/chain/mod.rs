@@ -5,7 +5,7 @@
 //!
 //! The chain is implemented as a vector of [`Chainable`] handlers. It is
 //! traversed by calling [`Chain::traverse`], which will call
-//! [`Chainable::chain`] on each handler in the chain.
+//! [`Chainable::chain`] on each handler in the chain consecutively.
 //!
 //! To add external handlers, you can implement the [`Chainable`] trait and add
 //! the handler to the chain.
@@ -25,7 +25,7 @@ use tokio::sync::Mutex;
 /// - If the chain should continue, the handler should return
 ///   [`ChainResult::Next`]. This will traverse the next handler in the chain.
 /// - If the chain should stop, the handler should return [`ChainResult::Done`].
-///   This will stop the chain immediately and return the result of the handler.
+///   All subsequent chain elements are skipped and the result is returned.
 #[derive(Debug, PartialEq)]
 pub enum ChainResult<T, R> {
     /// Continue to the next handler in the chain.
