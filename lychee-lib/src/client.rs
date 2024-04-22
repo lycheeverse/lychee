@@ -1087,7 +1087,7 @@ mod tests {
 
         #[async_trait]
         impl Handler<Request, Status> for ExampleHandler {
-            async fn chain(&mut self, _: Request) -> ChainResult<Request, Status> {
+            async fn handle(&mut self, _: Request) -> ChainResult<Request, Status> {
                 ChainResult::Done(Status::Excluded)
             }
         }

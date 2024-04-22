@@ -93,7 +93,7 @@ impl Quirks {
 
 #[async_trait]
 impl Handler<Request, Status> for Quirks {
-    async fn chain(&mut self, input: Request) -> ChainResult<Request, Status> {
+    async fn handle(&mut self, input: Request) -> ChainResult<Request, Status> {
         ChainResult::Next(self.apply(input))
     }
 }

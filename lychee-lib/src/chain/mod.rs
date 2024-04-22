@@ -87,7 +87,7 @@ impl<T, R> Chain<T, R> {
     pub(crate) async fn traverse(&self, mut input: T) -> ChainResult<T, R> {
         use ChainResult::{Done, Next};
         for e in self.0.lock().await.iter_mut() {
-            match e.chain(input).await {
+            match e.handle(input).await {
                 Next(r) => input = r,
                 Done(r) => {
                     return Done(r);
@@ -131,7 +131,7 @@ pub trait Handler<T, R>: Debug {
     ///
     /// #[async_trait]
     /// impl Handler<Request, Status> for AddHeader {
-    ///    async fn chain(&mut self, mut request: Request) -> ChainResult<Request, Status> {
+    ///    async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Status> {
     ///      // You can modify the request however you like here
     ///      request.headers_mut().append("X-Header", "value".parse().unwrap());
     ///
@@ -140,7 +140,7 @@ pub trait Handler<T, R>: Debug {
     ///   }
     /// }
     /// ```
-    async fn chain(&mut self, input: T) -> ChainResult<T, R>;
+    async fn handle(&mut self, input: T) -> ChainResult<T, R>;
 }
 
 /// Client request chains
@@ -195,7 +195,7 @@ mod test {
 
     #[async_trait]
     impl Handler<Result, Result> for Add {
-        async fn chain(&mut self, req: Result) -> ChainResult<Result, Result> {
+        async fn handle(&mut self, req: Result) -> ChainResult<Result, Result> {
             let added = req.0 + self.0;
             if added > 100 {
                 Done(Result(req.0))
