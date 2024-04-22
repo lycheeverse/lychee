@@ -85,8 +85,8 @@ use openssl_sys as _; // required for vendored-openssl feature
 #[doc(inline)]
 pub use crate::{
     basic_auth::BasicAuthExtractor,
-    // Expose the `Chainable` trait to allow defining external handlers (plugins)
-    chain::{ChainResult, Chainable},
+    // Expose the `Handler` trait to allow defining external handlers (plugins)
+    chain::{ChainResult, Handler},
     // Constants get exposed so that the CLI can use the same defaults as the library
     client::{
         check, Client, ClientBuilder, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,

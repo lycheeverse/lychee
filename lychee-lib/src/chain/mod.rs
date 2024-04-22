@@ -3,11 +3,11 @@
 //! lychee is based on a chain of responsibility, where each handler can modify
 //! a request and decide if it should be passed to the next element or not.
 //!
-//! The chain is implemented as a vector of [`Chainable`] handlers. It is
+//! The chain is implemented as a vector of [`Handler`] handlers. It is
 //! traversed by calling [`Chain::traverse`], which will call
-//! [`Chainable::chain`] on each handler in the chain consecutively.
+//! [`Handler::chain`] on each handler in the chain consecutively.
 //!
-//! To add external handlers, you can implement the [`Chainable`] trait and add
+//! To add external handlers, you can implement the [`Handler`] trait and add
 //! the handler to the chain.
 //!
 //! [pattern]: https://github.com/lpxxn/rust-design-pattern/blob/master/behavioral/chain_of_responsibility.rs
@@ -44,10 +44,10 @@ pub(crate) type RequestChain = Chain<reqwest::Request, Status>;
 /// This holds all handlers, which were chained together.
 /// Handlers are traversed in order.
 ///
-/// Each handler needs to implement the `Chainable` trait and be `Send`, because
+/// Each handler needs to implement the `Handler` trait and be `Send`, because
 /// the chain is traversed concurrently and the handlers can be sent between
 /// threads.
-pub(crate) type InnerChain<T, R> = Vec<Box<dyn Chainable<T, R> + Send>>;
+pub(crate) type InnerChain<T, R> = Vec<Box<dyn Handler<T, R> + Send>>;
 
 /// The outer chain type.
 ///
@@ -99,7 +99,7 @@ impl<T, R> Chain<T, R> {
     }
 }
 
-/// Chainable trait for implementing request handlers
+/// Handler trait for implementing request handlers
 ///
 /// This trait needs to be implemented by all chainable handlers.
 /// It is the only requirement to handle requests in lychee.
@@ -112,7 +112,7 @@ impl<T, R> Chain<T, R> {
 /// handler. This allows for modifying the request, such as adding headers or
 /// changing the URL (e.g. for remapping or filtering).
 #[async_trait]
-pub trait Chainable<T, R>: Debug {
+pub trait Handler<T, R>: Debug {
     /// Given an input request, return a [`ChainResult`] to continue or stop the
     /// chain.
     ///
@@ -122,7 +122,7 @@ pub trait Chainable<T, R>: Debug {
     /// # Example
     ///
     /// ```
-    /// use lychee_lib::{Chainable, ChainResult, Status};
+    /// use lychee_lib::{Handler, ChainResult, Status};
     /// use reqwest::Request;
     /// use async_trait::async_trait;
     ///
@@ -130,7 +130,7 @@ pub trait Chainable<T, R>: Debug {
     /// struct AddHeader;
     ///
     /// #[async_trait]
-    /// impl Chainable<Request, Status> for AddHeader {
+    /// impl Handler<Request, Status> for AddHeader {
     ///    async fn chain(&mut self, mut request: Request) -> ChainResult<Request, Status> {
     ///      // You can modify the request however you like here
     ///      request.headers_mut().append("X-Header", "value".parse().unwrap());
@@ -183,7 +183,7 @@ mod test {
     use super::{
         ChainResult,
         ChainResult::{Done, Next},
-        Chainable,
+        Handler,
     };
     use async_trait::async_trait;
 
@@ -194,7 +194,7 @@ mod test {
     struct Result(usize);
 
     #[async_trait]
-    impl Chainable<Result, Result> for Add {
+    impl Handler<Result, Result> for Add {
         async fn chain(&mut self, req: Result) -> ChainResult<Result, Result> {
             let added = req.0 + self.0;
             if added > 100 {

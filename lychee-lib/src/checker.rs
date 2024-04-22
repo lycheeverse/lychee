@@ -1,5 +1,5 @@
 use crate::{
-    chain::{ChainResult, Chainable},
+    chain::{ChainResult, Handler},
     retry::RetryExt,
     Status,
 };
@@ -73,7 +73,7 @@ fn clone_unwrap(request: &Request) -> Request {
 }
 
 #[async_trait]
-impl Chainable<Request, Status> for Checker {
+impl Handler<Request, Status> for Checker {
     async fn chain(&mut self, input: Request) -> ChainResult<Request, Status> {
         ChainResult::Done(self.retry_request(input).await)
     }

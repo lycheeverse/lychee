@@ -1,5 +1,5 @@
 use crate::{
-    chain::{ChainResult, Chainable},
+    chain::{ChainResult, Handler},
     Status,
 };
 use async_trait::async_trait;
@@ -92,7 +92,7 @@ impl Quirks {
 }
 
 #[async_trait]
-impl Chainable<Request, Status> for Quirks {
+impl Handler<Request, Status> for Quirks {
     async fn chain(&mut self, input: Request) -> ChainResult<Request, Status> {
         ChainResult::Next(self.apply(input))
     }
