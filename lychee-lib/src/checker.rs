@@ -74,7 +74,7 @@ fn clone_unwrap(request: &Request) -> Request {
 
 #[async_trait]
 impl Handler<Request, Status> for Checker {
-    async fn chain(&mut self, input: Request) -> ChainResult<Request, Status> {
+    async fn handle(&mut self, input: Request) -> ChainResult<Request, Status> {
         ChainResult::Done(self.retry_request(input).await)
     }
 }

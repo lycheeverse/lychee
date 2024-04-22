@@ -76,7 +76,7 @@ impl BasicAuthCredentials {
 
 #[async_trait]
 impl Handler<Request, Status> for Option<BasicAuthCredentials> {
-    async fn chain(&mut self, mut request: Request) -> ChainResult<Request, Status> {
+    async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Status> {
         if let Some(credentials) = self {
             request
                 .headers_mut()
