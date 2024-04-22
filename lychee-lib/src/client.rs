@@ -750,7 +750,7 @@ mod tests {
 
     use super::ClientBuilder;
     use crate::{
-        chain::{ChainResult, Chainable, RequestChain},
+        chain::{ChainResult, Handler, RequestChain},
         mock_server,
         test_utils::get_mock_client_response,
         Request, Status, Uri,
@@ -1086,7 +1086,7 @@ mod tests {
         struct ExampleHandler();
 
         #[async_trait]
-        impl Chainable<Request, Status> for ExampleHandler {
+        impl Handler<Request, Status> for ExampleHandler {
             async fn chain(&mut self, _: Request) -> ChainResult<Request, Status> {
                 ChainResult::Done(Status::Excluded)
             }
