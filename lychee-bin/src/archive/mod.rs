@@ -1,7 +1,7 @@
 use reqwest::{Error, Url};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use strum::{Display, EnumIter, EnumString, EnumVariantNames};
+use strum::{Display, EnumIter, EnumString, VariantNames};
 
 use crate::color::{color, GREEN, PINK};
 
@@ -23,7 +23,7 @@ impl Display for Suggestion {
 }
 
 #[non_exhaustive]
-#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, EnumVariantNames)]
+#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames)]
 pub(crate) enum Archive {
     #[serde(rename = "wayback")]
     #[strum(serialize = "wayback", ascii_case_insensitive)]

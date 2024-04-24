@@ -166,7 +166,7 @@ impl LinkExtractor {
 
 /// Extract unparsed URL strings from an HTML string.
 pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
-    let mut input = BufferQueue::new();
+    let mut input = BufferQueue::default();
     input.push_back(StrTendril::from(buf));
 
     let mut tokenizer = Tokenizer::new(
@@ -267,9 +267,9 @@ mod tests {
     #[test]
     fn test_include_nofollow() {
         let input = r#"
-        <a rel="nofollow" href="https://foo.com">do not follow me</a> 
-        <a rel="canonical,nofollow,dns-prefetch" href="https://example.com">do not follow me</a> 
-        <a href="https://example.org">do not follow me</a> 
+        <a rel="nofollow" href="https://foo.com">do not follow me</a>
+        <a rel="canonical,nofollow,dns-prefetch" href="https://example.com">do not follow me</a>
+        <a href="https://example.org">do not follow me</a>
         "#;
         let expected = vec![RawUri {
             text: "https://example.org".to_string(),
@@ -286,7 +286,7 @@ mod tests {
         <script>
         var foo = "https://example.com";
         </script>
-        <a href="https://example.org">i'm fine</a> 
+        <a href="https://example.org">i'm fine</a>
         "#;
         let expected = vec![RawUri {
             text: "https://example.org".to_string(),
