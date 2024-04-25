@@ -3,7 +3,7 @@ members = ["lychee-bin", "lychee-lib", "examples/*", "benches"]
 resolver = "2"
 
 [workspace.package]
-version = "0.14.3"
+version = "0.15.0"
 
 [profile.release]
 debug = true
