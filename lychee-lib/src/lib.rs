@@ -51,7 +51,7 @@
 doc_comment::doctest!("../../README.md");
 
 mod basic_auth;
-mod chain;
+pub mod chain;
 mod checker;
 mod client;
 /// A pool of clients, to handle concurrent checks
