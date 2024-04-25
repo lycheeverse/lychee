@@ -37,7 +37,7 @@ pub enum ChainResult<T, R> {
 /// Request chain type
 ///
 /// This takes a request and returns a status.
-pub(crate) type RequestChain = Chain<reqwest::Request, Status>;
+pub type RequestChain = Chain<reqwest::Request, Status>;
 
 /// Inner chain type.
 ///
