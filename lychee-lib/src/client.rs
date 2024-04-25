@@ -761,13 +761,13 @@ mod tests {
         let mock_server = mock_server!(StatusCode::NOT_FOUND);
         let res = get_mock_client_response(mock_server.uri()).await;
 
-        assert!(res.status().is_failure());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]
     async fn test_nonexistent_with_path() {
         let res = get_mock_client_response("http://127.0.0.1/invalid").await;
-        assert!(res.status().is_failure());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]
@@ -779,7 +779,7 @@ mod tests {
     #[tokio::test]
     async fn test_github_nonexistent_repo() {
         let res = get_mock_client_response("https://github.com/lycheeverse/not-lychee").await;
-        assert!(res.status().is_failure());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]
@@ -788,7 +788,7 @@ mod tests {
             "https://github.com/lycheeverse/lychee/blob/master/NON_EXISTENT_FILE.md",
         )
         .await;
-        assert!(res.status().is_failure());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]
@@ -798,7 +798,7 @@ mod tests {
         assert!(res.status().is_success());
 
         let res = get_mock_client_response("https://www.youtube.com/watch?v=invalidNlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
-        assert!(res.status().is_failure());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]
@@ -831,7 +831,7 @@ mod tests {
     async fn test_invalid_ssl() {
         let res = get_mock_client_response("https://expired.badssl.com/").await;
 
-        assert!(res.status().is_failure());
+        assert!(res.status().is_error());
 
         // Same, but ignore certificate error
         let res = ClientBuilder::builder()
@@ -920,7 +920,7 @@ mod tests {
             .client()
             .unwrap();
         let res = client.check("http://example.com").await.unwrap();
-        assert!(res.status().is_failure());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]
@@ -984,7 +984,7 @@ mod tests {
         let res = client.check(mock_server.uri()).await.unwrap();
         let end = start.elapsed();
 
-        assert!(res.status().is_failure());
+        assert!(res.status().is_error());
 
         // on slow connections, this might take a bit longer than nominal
         // backed-off timeout (7 secs)
@@ -996,7 +996,7 @@ mod tests {
         let client = ClientBuilder::builder().build().client().unwrap();
         // This request will fail, but it won't panic
         let res = client.check("http://\"").await.unwrap();
-        assert!(res.status().is_failure());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]
@@ -1029,7 +1029,7 @@ mod tests {
             .unwrap();
 
         let res = client.check(redirect_uri.clone()).await.unwrap();
-        assert!(res.status().is_failure());
+        assert!(res.status().is_error());
 
         let client = ClientBuilder::builder()
             .max_redirects(1_usize)
@@ -1060,7 +1060,7 @@ mod tests {
             .unwrap();
 
         let res = client.check(mock_server.uri()).await.unwrap();
-        assert!(res.status().is_failure());
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]

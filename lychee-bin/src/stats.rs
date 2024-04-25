@@ -63,7 +63,7 @@ impl ResponseStats {
         self.increment_status_counters(status);
 
         match status {
-            _ if status.is_failure() => {
+            _ if status.is_error() => {
                 let fail = self.fail_map.entry(source).or_default();
                 fail.insert(response.1);
             }
