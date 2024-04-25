@@ -1,4 +1,4 @@
-// Disable lint, clippy thinks that InputSource has inner mutability, but this seems like a flase positive
+// Disable lint, clippy thinks that InputSource has inner mutability, but this seems like a false positive
 #![allow(clippy::mutable_key_type)]
 
 use std::collections::{HashMap, HashSet};
