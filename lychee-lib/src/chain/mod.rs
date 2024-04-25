@@ -72,6 +72,7 @@ impl<T, R> Clone for Chain<T, R> {
 
 impl<T, R> Chain<T, R> {
     /// Create a new chain from a vector of chainable handlers
+    #[must_use]
     pub fn new(values: InnerChain<T, R>) -> Self {
         Self(Arc::new(Mutex::new(values)))
     }
