@@ -10,7 +10,7 @@ use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use lychee_lib::{Client, Request, Response};
+use lychee_lib::{Client, ErrorKind, Request, Response};
 use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
@@ -225,6 +225,25 @@ async fn request_channel_task(
     .await;
 }
 
+/// Check a URL and return a response.
+///
+/// # Errors
+///
+/// This can fail when the URL could not be parsed to a URI.
+async fn check_url(client: &Client, request: Request) -> Response {
+    // Request was not cached; run a normal check
+    let uri = request.uri.clone();
+    let source = request.source.clone();
+    client.check(request).await.unwrap_or_else(|e| {
+        log::error!("Error checking URL {}: Cannot parse URL to URI: {}", uri, e);
+        Response::new(
+            uri.clone(),
+            Status::Error(ErrorKind::InvalidURI(uri.clone())),
+            source,
+        )
+    })
+}
+
 /// Handle a single request
 async fn handle(
     client: &Client,
@@ -250,12 +269,7 @@ async fn handle(
     }
 
     // Request was not cached; run a normal check
-    //
-    // This can panic when the Url could not be parsed to a Uri.
-    // See https://github.com/servo/rust-url/issues/554
-    // See https://github.com/seanmonstar/reqwest/issues/668
-    // TODO: Handle error as soon as https://github.com/seanmonstar/reqwest/pull/1399 got merged
-    let response = client.check(request).await.expect("cannot check URI");
+    let response = check_url(client, request).await;
 
     // - Never cache filesystem access as it is fast already so caching has no
     //   benefit.
@@ -318,7 +332,7 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
 mod tests {
     use log::info;
 
-    use lychee_lib::{CacheStatus, InputSource, ResponseBody, Uri};
+    use lychee_lib::{CacheStatus, ClientBuilder, InputSource, ResponseBody, Uri};
 
     use crate::formatters;
 
@@ -366,5 +380,18 @@ mod tests {
         assert!(!buf.is_empty());
         let buf = String::from_utf8_lossy(&buf);
         assert_eq!(buf, "↻ [200] http://127.0.0.1/ | Cached: OK (cached)\n");
+    }
+
+    #[tokio::test]
+    async fn test_invalid_url() {
+        // Run a normal request with an invalid Url
+        let client = ClientBuilder::builder().build().client().unwrap();
+        let request = Request::try_from("http://\"").unwrap();
+        let response = check_url(&client, request).await;
+        assert!(response.status().is_error());
+        assert!(matches!(
+            response.status(),
+            Status::Error(ErrorKind::InvalidURI(_))
+        ));
     }
 }

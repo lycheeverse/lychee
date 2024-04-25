@@ -160,7 +160,7 @@ impl Status {
     #[inline]
     #[must_use]
     /// Returns `true` if the check was not successful
-    pub const fn is_failure(&self) -> bool {
+    pub const fn is_error(&self) -> bool {
         matches!(
             self,
             Status::Error(_) | Status::Cached(CacheStatus::Error(_)) | Status::Timeout(_)
