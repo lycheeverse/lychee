@@ -416,7 +416,7 @@ mod cli {
                 "✗ [404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Failed: Network error: Not Found"
             ))
             .stderr(contains(
-                "There were issues with Github URLs. You could try setting a Github token and running lychee again.",
+                "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
             ));
     }
 

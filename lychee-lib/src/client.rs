@@ -300,7 +300,7 @@ impl ClientBuilder {
     /// - The reqwest client cannot be instantiated. This occurs if a TLS
     ///   backend cannot be initialized or the resolver fails to load the system
     ///   configuration. See [here].
-    /// - The Github client cannot be created. Since the implementation also
+    /// - The GitHub client cannot be created. Since the implementation also
     ///   uses reqwest under the hood, this errors in the same circumstances as
     ///   the last one.
     ///
@@ -604,7 +604,7 @@ impl Client {
 
         if let Ok(github_uri) = GithubUri::try_from(uri) {
             let status = self.check_github(github_uri).await;
-            // Only return Github status in case of success
+            // Only return GitHub status in case of success
             // Otherwise return the original error, which has more information
             if status.is_success() {
                 return status;

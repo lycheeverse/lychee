@@ -351,7 +351,7 @@ mod tests {
     async fn test_relative_url_with_base_extracted_from_input() {
         let contents = r#"<html>
             <div class="row">
-                <a href="https://github.com/lycheeverse/lychee/">Github</a>
+                <a href="https://github.com/lycheeverse/lychee/">GitHub</a>
                 <a href="/about">About</a>
             </div>
         </html>"#;
