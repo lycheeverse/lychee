@@ -24,7 +24,7 @@ pub enum ErrorKind {
     #[error("Error creating request client: {0}")]
     BuildRequestClient(#[source] reqwest::Error),
 
-    /// Network error while using Github API
+    /// Network error while using GitHub API
     #[error("Network error (GitHub client)")]
     GithubRequest(#[from] octocrab::Error),
 
@@ -44,12 +44,12 @@ pub enum ErrorKind {
     #[error("Attempted to interpret an invalid sequence of bytes as a string")]
     Utf8(#[from] std::str::Utf8Error),
 
-    /// The Github client required for making requests cannot be created
-    #[error("Error creating Github client")]
+    /// The GitHub client required for making requests cannot be created
+    #[error("Error creating GitHub client")]
     BuildGithubClient(#[source] octocrab::Error),
 
-    /// Invalid Github URL
-    #[error("Github URL is invalid: {0}")]
+    /// Invalid GitHub URL
+    #[error("GitHub URL is invalid: {0}")]
     InvalidGithubUrl(String),
 
     /// The input is empty and not accepted as a valid URL
@@ -102,7 +102,7 @@ pub enum ErrorKind {
     #[error("UNIX glob pattern is invalid")]
     InvalidGlobPattern(#[from] glob::PatternError),
 
-    /// The Github API could not be called because of a missing Github token.
+    /// The GitHub API could not be called because of a missing GitHub token.
     #[error("GitHub token not specified. To check GitHub links reliably, use `--github-token` flag / `GITHUB_TOKEN` env var.")]
     MissingGitHubToken,
 

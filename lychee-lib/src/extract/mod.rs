@@ -190,7 +190,7 @@ mod tests {
 
         let contents = r#"<html>
             <div class="row">
-                <a href="https://github.com/lycheeverse/lychee/">Github</a>
+                <a href="https://github.com/lycheeverse/lychee/">GitHub</a>
                 <a href="/about">About</a>
             </div>
         </html>"#;
