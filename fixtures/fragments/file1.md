@@ -28,7 +28,7 @@ Therefore we put the test into a code block for now to prevent false positives.
 
 [Link to explicit fragment](#explicit-fragment)
 
-[To the html doc](file.html#a-word)
+[To the HTML doc](file.html#a-word)
 
 ## Custom Fragments
 

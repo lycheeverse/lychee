@@ -124,7 +124,7 @@ impl LinkExtractor {
         }
     }
 
-    /// Extract all semantically known links from a given html attribute.
+    /// Extract all semantically known links from a given HTML attribute.
     #[allow(clippy::unnested_or_patterns)]
     pub(crate) fn extract_urls_from_elem_attr<'a>(
         attr_name: &str,
