@@ -566,7 +566,7 @@ Lychee can also be used as a [pre-commit](https://pre-commit.com/) hook.
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/lycheeverse/lychee.git
-    rev: 0.15.0
+    rev: 0.15.1
     hooks:
       - id: lychee
         # Optionally include additional CLI arguments
