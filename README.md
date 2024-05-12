@@ -429,7 +429,7 @@ Options:
           [default: get]
 
   -b, --base <BASE>
-          Base URL or website root directory to check relative URLs e.g. https://example.com or `/path/to/public`
+          Base URL or website root directory to check relative URLs e.g. <https://example.com> or `/path/to/public`
 
       --basic-auth <BASIC_AUTH>
           Basic authentication support. E.g. `http://example.com username:password`

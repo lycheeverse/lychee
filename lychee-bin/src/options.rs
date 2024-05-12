@@ -350,7 +350,7 @@ separated list of accepted status codes. This example will accept 200, 201,
     pub(crate) method: String,
 
     /// Base URL or website root directory to check relative URLs
-    /// e.g. https://example.com or `/path/to/public`
+    /// e.g. <https://example.com> or `/path/to/public`
     #[arg(short, long, value_parser= parse_base)]
     #[serde(default)]
     pub(crate) base: Option<Base>,

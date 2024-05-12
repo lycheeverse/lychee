@@ -269,7 +269,7 @@ pub struct ClientBuilder {
 
     /// Cookie store used for requests.
     ///
-    /// See https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.cookie_store
+    /// See <https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.cookie_store>
     cookie_jar: Option<Arc<CookieStoreMutex>>,
 
     /// Enable the checking of fragments in links.
