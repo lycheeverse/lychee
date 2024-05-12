@@ -124,7 +124,7 @@ pub struct Filter {
     /// Example: 169.254.0.0
     pub exclude_link_local_ips: bool,
     /// For IPv4: 127.0.0.1/8
-    /// For IPv6: ::1/128
+    /// For IPv6: `::1/128`
     pub exclude_loopback_ips: bool,
     /// Example: octocat@github.com
     pub include_mail: bool,
