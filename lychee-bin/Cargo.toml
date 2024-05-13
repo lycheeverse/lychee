@@ -16,7 +16,7 @@ version.workspace = true
 # requires all dependencies to have a version number.
 lychee-lib = { path = "../lychee-lib", version = "0.15.1", default-features = false }
 
-anyhow = "1.0.82"
+anyhow = "1.0.83"
 assert-json-diff = "2.0.2"
 clap = { version = "4.5.4", features = ["env", "derive"] }
 console = "0.15.8"
@@ -46,8 +46,8 @@ reqwest_cookie_store = "0.7.0"
 # https://github.com/Homebrew/homebrew-core/pull/70216
 ring = "0.17.8"
 secrecy = { version = "0.8.0", features = ["serde"] }
-serde = { version = "1.0.198", features = ["derive"] }
-serde_json = "1.0.116"
+serde = { version = "1.0.201", features = ["derive"] }
+serde_json = "1.0.117"
 strum = { version = "0.26.2", features = ["derive"] }
 supports-color = "3.0.0"
 tabled = "0.15.0"
