@@ -188,6 +188,7 @@ mod test {
     };
     use async_trait::async_trait;
 
+    #[allow(dead_code)] // work-around
     #[derive(Debug)]
     struct Add(usize);
 
