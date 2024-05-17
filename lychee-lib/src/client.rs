@@ -500,6 +500,7 @@ impl Client {
         let status = match uri.scheme() {
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
+            _ if uri.is_tel() => Status::Excluded,
             _ => self.check_website(uri, default_chain).await?,
         };
 

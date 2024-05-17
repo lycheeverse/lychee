@@ -98,6 +98,13 @@ impl Uri {
 
     #[inline]
     #[must_use]
+    /// Check if the URI is a tel
+    pub fn is_tel(&self) -> bool {
+        self.scheme() == "tel"
+    }
+
+    #[inline]
+    #[must_use]
     /// Check if the URI is a file
     pub fn is_file(&self) -> bool {
         self.scheme() == "file"
