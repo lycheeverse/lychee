@@ -707,6 +707,7 @@ impl Client {
     /// Check a tel
     ///
     /// This implementation simply excludes all tel.
+    #[allow(clippy::unused_async)]
     pub async fn check_tel(&self, _uri: &Uri) -> Status {
         Status::Excluded
     }
