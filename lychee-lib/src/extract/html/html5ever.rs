@@ -89,9 +89,10 @@ impl TokenSink for LinkExtractor {
                                 // This ignores links like `<img srcset="v2@1.5x.png">`
                                 let is_email = is_email_link(url);
                                 let is_mailto = url.starts_with("mailto:");
+                                let is_phone = url.starts_with("tel:");
                                 let is_href = attr.name.local.as_ref() == "href";
 
-                                !is_email || (is_mailto && is_href)
+                                !is_email || (is_mailto && is_href) || (is_phone && is_href)
                             })
                             .map(|url| RawUri {
                                 text: url.to_string(),
