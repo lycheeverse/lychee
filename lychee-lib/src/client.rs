@@ -500,7 +500,7 @@ impl Client {
         let status = match uri.scheme() {
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
-            _ if uri.is_tel() => Status::Excluded,
+            _ if uri.is_tel() => self.check_tel(uri).await,
             _ => self.check_website(uri, default_chain).await?,
         };
 
@@ -701,6 +701,13 @@ impl Client {
     #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
     #[allow(clippy::unused_async)]
     pub async fn check_mail(&self, _uri: &Uri) -> Status {
+        Status::Excluded
+    }
+
+    /// Check a tel
+    ///
+    /// This implementation simply excludes all tel.
+    pub async fn check_tel(&self, _uri: &Uri) -> Status {
         Status::Excluded
     }
 }
