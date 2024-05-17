@@ -378,6 +378,7 @@ impl ClientBuilder {
             exclude_link_local_ips: self.exclude_all_private || self.exclude_link_local_ips,
             exclude_loopback_ips: self.exclude_all_private || self.exclude_loopback_ips,
             include_mail: self.include_mail,
+            include_tel: false,
         };
 
         Ok(Client {
@@ -913,6 +914,14 @@ mod tests {
             .unwrap();
         assert!(!client.is_excluded(&Uri {
             url: "mailto://mail@example.com".try_into().unwrap()
+        }));
+    }
+
+    #[tokio::test]
+    async fn test_include_tel() {
+        let client = ClientBuilder::builder().build().client().unwrap();
+        assert!(client.is_excluded(&Uri {
+            url: "tel:1234567890".try_into().unwrap()
         }));
     }
 

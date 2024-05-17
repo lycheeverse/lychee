@@ -128,6 +128,8 @@ pub struct Filter {
     pub exclude_loopback_ips: bool,
     /// Example: octocat@github.com
     pub include_mail: bool,
+    /// Example: 1234567890
+    pub include_tel: bool,
 }
 
 impl Filter {
@@ -136,6 +138,13 @@ impl Filter {
     /// Whether e-mails aren't checked (which is the default)
     pub fn is_mail_excluded(&self, uri: &Uri) -> bool {
         uri.is_mail() && !self.include_mail
+    }
+
+    #[inline]
+    #[must_use]
+    /// Whether tel aren't checked (which is the default)
+    pub fn is_tel_excluded(&self, uri: &Uri) -> bool {
+        uri.is_tel() && !self.include_tel
     }
 
     #[must_use]
@@ -214,6 +223,7 @@ impl Filter {
             || self.is_host_excluded(uri)
             || self.is_ip_excluded(uri)
             || self.is_mail_excluded(uri)
+            || self.is_tel_excluded(uri)
             || is_example_domain(uri)
             || is_unsupported_domain(uri)
         {

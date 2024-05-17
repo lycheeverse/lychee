@@ -333,6 +333,14 @@ mod tests {
     }
 
     #[test]
+    fn test_uri_tel() {
+        assert_eq!(
+            Uri::try_from("tel:1234567890"),
+            Ok(Uri::try_from("tel:1234567890").unwrap())
+        );
+    }
+
+    #[test]
     fn test_uri_host_ip_v4() {
         assert_eq!(
             website("http://127.0.0.1").host_ip(),

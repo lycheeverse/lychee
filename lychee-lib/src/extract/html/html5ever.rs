@@ -319,6 +319,29 @@ mod tests {
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
     }
+
+    #[test]
+    fn test_valid_tel() {
+        let input = r#"<!DOCTYPE html>
+        <html lang="en-US">
+          <head>
+            <meta charset="utf-8">
+            <title>Test</title>
+          </head>
+          <body>
+            <a href="tel:1234567890">
+          </body>
+        </html>"#;
+
+        let expected = vec![RawUri {
+            text: "tel:1234567890".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
+    }
+
     #[test]
     fn test_exclude_email_without_mailto() {
         let input = r#"<!DOCTYPE html>
