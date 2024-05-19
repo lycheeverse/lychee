@@ -89,9 +89,10 @@ impl TokenSink for LinkExtractor {
                                 // This ignores links like `<img srcset="v2@1.5x.png">`
                                 let is_email = is_email_link(url);
                                 let is_mailto = url.starts_with("mailto:");
+                                let is_phone = url.starts_with("tel:");
                                 let is_href = attr.name.local.as_ref() == "href";
 
-                                !is_email || (is_mailto && is_href)
+                                !is_email || (is_mailto && is_href) || (is_phone && is_href)
                             })
                             .map(|url| RawUri {
                                 text: url.to_string(),
@@ -318,6 +319,29 @@ mod tests {
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
     }
+
+    #[test]
+    fn test_valid_tel() {
+        let input = r#"<!DOCTYPE html>
+        <html lang="en-US">
+          <head>
+            <meta charset="utf-8">
+            <title>Test</title>
+          </head>
+          <body>
+            <a href="tel:1234567890">
+          </body>
+        </html>"#;
+
+        let expected = vec![RawUri {
+            text: "tel:1234567890".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
+    }
+
     #[test]
     fn test_exclude_email_without_mailto() {
         let input = r#"<!DOCTYPE html>

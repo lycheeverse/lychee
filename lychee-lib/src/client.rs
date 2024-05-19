@@ -500,6 +500,7 @@ impl Client {
         let status = match uri.scheme() {
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
+            _ if uri.is_tel() => self.check_tel(uri).await,
             _ => self.check_website(uri, default_chain).await?,
         };
 
@@ -700,6 +701,14 @@ impl Client {
     #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
     #[allow(clippy::unused_async)]
     pub async fn check_mail(&self, _uri: &Uri) -> Status {
+        Status::Excluded
+    }
+
+    /// Check a tel
+    ///
+    /// This implementation simply excludes all tel.
+    #[allow(clippy::unused_async)]
+    pub async fn check_tel(&self, _uri: &Uri) -> Status {
         Status::Excluded
     }
 }
@@ -904,6 +913,14 @@ mod tests {
             .unwrap();
         assert!(!client.is_excluded(&Uri {
             url: "mailto://mail@example.com".try_into().unwrap()
+        }));
+    }
+
+    #[tokio::test]
+    async fn test_include_tel() {
+        let client = ClientBuilder::builder().build().client().unwrap();
+        assert!(client.is_excluded(&Uri {
+            url: "tel:1234567890".try_into().unwrap()
         }));
     }
 
