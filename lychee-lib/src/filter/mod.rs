@@ -128,8 +128,6 @@ pub struct Filter {
     pub exclude_loopback_ips: bool,
     /// Example: octocat@github.com
     pub include_mail: bool,
-    /// Example: 1234567890
-    pub include_tel: bool,
 }
 
 impl Filter {
