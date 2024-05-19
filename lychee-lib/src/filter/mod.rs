@@ -216,7 +216,7 @@ impl Filter {
             || self.is_host_excluded(uri)
             || self.is_ip_excluded(uri)
             || self.is_mail_excluded(uri)
-            || self.is_tel_excluded(uri)
+            || uri.is_tel()
             || is_example_domain(uri)
             || is_unsupported_domain(uri)
         {
