@@ -378,7 +378,6 @@ impl ClientBuilder {
             exclude_link_local_ips: self.exclude_all_private || self.exclude_link_local_ips,
             exclude_loopback_ips: self.exclude_all_private || self.exclude_loopback_ips,
             include_mail: self.include_mail,
-            include_tel: false,
         };
 
         Ok(Client {
