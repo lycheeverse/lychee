@@ -140,13 +140,6 @@ impl Filter {
         uri.is_mail() && !self.include_mail
     }
 
-    #[inline]
-    #[must_use]
-    /// Whether tel aren't checked (which is the default)
-    pub fn is_tel_excluded(&self, uri: &Uri) -> bool {
-        uri.is_tel() && !self.include_tel
-    }
-
     #[must_use]
     /// Whether the IP address is excluded from checking
     pub fn is_ip_excluded(&self, uri: &Uri) -> bool {
