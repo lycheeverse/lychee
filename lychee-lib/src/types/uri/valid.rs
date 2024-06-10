@@ -22,13 +22,10 @@ pub struct Uri {
 
 impl Uri {
     /// Returns the string representation of the `Uri`.
-    ///
-    /// If it's an email address, returns the string with scheme stripped.
-    /// Otherwise returns the string as-is.
     #[inline]
     #[must_use]
     pub fn as_str(&self) -> &str {
-        self.url.as_ref().trim_start_matches("mailto:")
+        self.url.as_ref()
     }
 
     #[inline]
