@@ -95,6 +95,9 @@ pub struct ClientBuilder {
     /// make sure rules don't conflict with each other.
     remaps: Option<Remaps>,
 
+    /// Automatically append file extensions to `file://` URIs as needed
+    fallback_extensions: Vec<String>,
+
     /// Links matching this set of regular expressions are **always** checked.
     ///
     /// This has higher precedence over [`ClientBuilder::excludes`], **but**
@@ -384,6 +387,7 @@ impl ClientBuilder {
             reqwest_client,
             github_client,
             remaps: self.remaps,
+            fallback_extensions: self.fallback_extensions,
             filter,
             max_retries: self.max_retries,
             retry_wait_time: self.retry_wait_time,
@@ -411,6 +415,9 @@ pub struct Client {
 
     /// Optional remapping rules for URIs matching pattern.
     remaps: Option<Remaps>,
+
+    /// Automatically append file extensions to `file://` URIs as needed
+    fallback_extensions: Vec<String>,
 
     /// Rules to decided whether each link should be checked or ignored.
     filter: Filter,
@@ -655,14 +662,30 @@ impl Client {
         let Ok(path) = uri.url.to_file_path() else {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         };
-        if !path.exists() {
+
+        if path.exists() {
+            if self.include_fragments {
+                return self.check_fragment(&path, uri).await;
+            }
+            return Status::Ok(StatusCode::OK);
+        }
+
+        if path.extension().is_some() {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         }
-        if self.include_fragments {
-            self.check_fragment(&path, uri).await
-        } else {
-            Status::Ok(StatusCode::OK)
+
+        // if the path has no file extension, try to append some
+        let mut path_buf = path.clone();
+        for ext in &self.fallback_extensions {
+            path_buf.set_extension(ext);
+            if path_buf.exists() {
+                if self.include_fragments {
+                    return self.check_fragment(&path_buf, uri).await;
+                }
+                return Status::Ok(StatusCode::OK);
+            }
         }
+        ErrorKind::InvalidFilePath(uri.clone()).into()
     }
 
     /// Checks a `file` URI's fragment.

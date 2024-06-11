@@ -389,6 +389,13 @@ Options:
       --remap <REMAP>
           Remap URI matching pattern to different URI
 
+      --fallback-extensions <FALLBACK_EXTENSIONS>
+          Test the specified file extensions for URIs when checking files locally.
+          Multiple extensions can be separated by commas. Extensions will be checked in
+          order of appearance.
+          
+          Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
+
       --header <HEADER>
           Custom request header
 

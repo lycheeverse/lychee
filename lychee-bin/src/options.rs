@@ -300,6 +300,19 @@ pub(crate) struct Config {
     #[arg(long)]
     pub(crate) remap: Vec<String>,
 
+    /// Automatically append file extensions to `file://` URIs as needed
+    #[serde(default)]
+    #[arg(
+        long,
+        value_delimiter = ',',
+        long_help = "Test the specified file extensions for URIs when checking files locally.
+Multiple extensions can be separated by commas. Extensions will be checked in
+order of appearance.
+
+Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
+    )]
+    pub(crate) fallback_extensions: Vec<String>,
+
     /// Custom request header
     #[arg(long)]
     #[serde(default)]
@@ -439,6 +452,7 @@ impl Config {
             exclude_loopback: false;
             exclude_mail: false;
             remap: Vec::<String>::new();
+            fallback_extensions: Vec::<String>::new();
             header: Vec::<String>::new();
             timeout: DEFAULT_TIMEOUT_SECS;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;

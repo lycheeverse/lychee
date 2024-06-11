@@ -1556,4 +1556,17 @@ mod cli {
             // 3 failures because of missing fragments
             .stdout(contains("3 Errors"));
     }
+
+    #[test]
+    fn test_fallback_extensions() {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("fallback-extensions");
+
+        cmd.arg("--verbose")
+            .arg("--fallback-extensions=htm,html")
+            .arg(input)
+            .assert()
+            .success()
+            .stdout(contains("0 Errors"));
+    }
 }
