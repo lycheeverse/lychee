@@ -41,7 +41,10 @@ pub(crate) fn init_logging(verbose: &Verbosity, mode: &OutputMode) {
     let max_level_text_width = levels.map(|level| level.as_str().len()).max().unwrap_or(0) + 2;
 
     // Customize the log message format if not plain.
-    if !mode.is_plain() {
+    if mode.is_plain() {
+        // Explicitly disable colors for plain output.
+        builder.format(move |buf, record| writeln!(buf, "[{}] {}", record.level(), record.args()));
+    } else {
         builder.format(move |buf, record| {
             let level = record.level();
             let level_text = format!("{level:5}");
@@ -62,9 +65,6 @@ pub(crate) fn init_logging(verbose: &Verbosity, mode: &OutputMode) {
                 padding = padding
             )
         });
-    } else {
-        // Explicitly disable colors for plain output.
-        builder.format(move |buf, record| writeln!(buf, "[{}] {}", record.level(), record.args()));
     }
 
     builder.init();
