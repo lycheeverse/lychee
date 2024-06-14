@@ -12,11 +12,9 @@ use crate::{
 pub(crate) fn init_logging(verbose: &Verbosity, mode: &OutputMode) {
     // Set a base level for all modules to `warn`, which is a reasonable default.
     // It will be overridden by RUST_LOG if it's set.
-    let base_level = "warn";
-    let env = Env::default().filter_or("RUST_LOG", base_level);
+    let env = Env::default().filter_or("RUST_LOG", "warn");
 
     let mut builder = Builder::from_env(env);
-
     builder
         .format_timestamp(None)
         .format_module_path(false)
@@ -28,7 +26,7 @@ pub(crate) fn init_logging(verbose: &Verbosity, mode: &OutputMode) {
         let level_filter = verbose.log_level_filter();
 
         // Apply a global filter. This ensures that, by default, other modules don't log at the debug level.
-        builder.filter_level(LevelFilter::Info); // Set to `Info` or another level as you see fit.
+        builder.filter_level(LevelFilter::Info);
 
         // Apply more specific filters to your own crates, enabling more verbose logging as per `-vv`.
         builder
@@ -42,9 +40,9 @@ pub(crate) fn init_logging(verbose: &Verbosity, mode: &OutputMode) {
         .max()
         .unwrap_or(0);
 
-    // Customize the log message format if not plain.
+    // Customize the log message format according to the output mode
     if mode.is_plain() {
-        // Explicitly disable colors for plain output.
+        // Explicitly disable colors for plain output
         builder.format(move |buf, record| writeln!(buf, "[{}] {}", record.level(), record.args()));
     } else if mode.is_emoji() {
         // Disable padding, keep colors

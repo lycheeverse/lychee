@@ -6,7 +6,7 @@ use super::{ResponseFormatter, MAX_RESPONSE_OUTPUT_WIDTH};
 
 /// A colorized formatter for the response body
 ///
-/// This formatter is used when the terminal supports color and the user
+/// This formatter is used if the terminal supports color and the user
 /// has not explicitly requested raw, uncolored output.
 pub(crate) struct ColorFormatter;
 

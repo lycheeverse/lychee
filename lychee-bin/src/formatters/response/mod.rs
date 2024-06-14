@@ -23,5 +23,6 @@ pub(crate) const MAX_RESPONSE_OUTPUT_WIDTH: usize = 10;
 /// It can be implemented for different formatting styles such as
 /// colorized output or plaintext.
 pub(crate) trait ResponseFormatter: Send + Sync {
+    /// Format the response body into a human-readable string
     fn format_response(&self, body: &ResponseBody) -> String;
 }
