@@ -4,17 +4,11 @@
 # https://github.com/marionebl/svg-term-cli
 # https://github.com/sharkdp/fd/blob/master/doc/screencast.sh
 #
-# Designed to be executed via svg-term from the lychee root directory:
-# svg-term --command="bash assets/screencast.sh" --out assets/screencast.svg --padding=10
-# Then run this (workaround for https://github.com/sharkdp/fd/issues/1003):
-# sed -i '' 's/<text/<text font-size="1.67"/g' assets/screencast.svg
+# Designed to be executed via termsvg from the lychee root directory
 set -e
 set -u
 
 PROMPT="❯"
-
-# Always use latest version of lychee for screencast
-alias lychee="cargo run --"
 
 enter() {
     INPUT=$1
