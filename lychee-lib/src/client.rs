@@ -702,15 +702,6 @@ impl Client {
 
     /// Check a mail address, or equivalently a `mailto` URI.
     ///
-    /// This implementation simply excludes all email addresses.
-    #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
-    #[allow(clippy::unused_async)]
-    pub async fn check_mail(&self, _uri: &Uri) -> Status {
-        Status::Excluded
-    }
-
-    /// Check a mail address, or equivalently a `mailto` URI.
-    ///
     /// URIs may contain query parameters (e.g. `contact@example.com?subject="Hello"`),
     /// which are ignored by this check. The are not part of the mail address
     /// and instead passed to a mail client.
@@ -725,6 +716,15 @@ impl Client {
         } else {
             Status::Ok(StatusCode::OK)
         }
+    }
+
+    /// Check a mail address, or equivalently a `mailto` URI.
+    ///
+    /// This implementation simply excludes all email addresses.
+    #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
+    #[allow(clippy::unused_async)]
+    pub async fn check_mail(&self, _uri: &Uri) -> Status {
+        Status::Excluded
     }
 }
 

@@ -80,13 +80,31 @@ impl FromStr for StatsFormat {
 #[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames)]
 #[non_exhaustive]
 pub(crate) enum OutputMode {
+    /// Plain text output.
+    ///
+    /// This is the most basic output mode for terminals that do not support
+    /// color or emojis. It can also be helpful for scripting or when you want
+    /// to pipe the output to another program.
     #[serde(rename = "plain")]
     #[strum(serialize = "plain", ascii_case_insensitive)]
     Plain,
+
+    /// Colorful output.
+    ///
+    /// This mode uses colors to highlight the status of the requests.
+    /// It is useful for terminals that support colors and you want to
+    /// provide a more visually appealing output.
+    ///
+    /// This is the default output mode.
     #[serde(rename = "color")]
     #[strum(serialize = "color", ascii_case_insensitive)]
     #[default]
     Color,
+
+    /// Emoji output.
+    ///
+    /// This mode uses emojis to represent the status of the requests.
+    /// Some people may find this mode more intuitive and fun to use.
     #[serde(rename = "emoji")]
     #[strum(serialize = "emoji", ascii_case_insensitive)]
     Emoji,

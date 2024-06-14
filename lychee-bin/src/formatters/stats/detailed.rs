@@ -24,8 +24,9 @@ fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -
     Ok(())
 }
 
-/// Wrap as newtype because multiple `Display` implementations are not allowed
-/// for `ResponseStats`
+/// A wrapper struct that combines `ResponseStats` with an additional `OutputMode`.
+/// Multiple `Display` implementations are not allowed for `ResponseStats`, so this struct is used to
+/// encapsulate additional context.
 struct DetailedResponseStats {
     stats: ResponseStats,
     mode: options::OutputMode,
