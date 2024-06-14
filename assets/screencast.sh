@@ -46,10 +46,10 @@ main() {
 
     enter "lychee --verbose --format=json fixtures/TEST.html"
 
-    enter "lychee --no-progress --format detailed https://example.com"
+    enter "lychee --no-progress --mode emoji --format detailed https://example.com"
 
     enter "lychee --dump --include github -- './**/*.md'"
-
+    
     prompt
 
     sleep 3
