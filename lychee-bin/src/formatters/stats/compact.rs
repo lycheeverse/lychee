@@ -11,7 +11,7 @@ use super::StatsFormatter;
 
 struct CompactResponseStats {
     stats: ResponseStats,
-    mode: options::ResponseFormat,
+    mode: options::OutputMode,
 }
 
 impl Display for CompactResponseStats {
@@ -71,11 +71,11 @@ impl Display for CompactResponseStats {
 }
 
 pub(crate) struct Compact {
-    mode: options::ResponseFormat,
+    mode: options::OutputMode,
 }
 
 impl Compact {
-    pub(crate) const fn new(mode: options::ResponseFormat) -> Self {
+    pub(crate) const fn new(mode: options::OutputMode) -> Self {
         Self { mode }
     }
 }

@@ -45,19 +45,6 @@ const HELP_MSG_CONFIG_FILE: &str = formatcp!(
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
-// pub(crate) enum ResponseFormat {
-//     #[serde(rename = "plain")]
-//     #[strum(serialize = "plain", ascii_case_insensitive)]
-//     Plain,
-//     #[serde(rename = "color")]
-//     #[strum(serialize = "color", ascii_case_insensitive)]
-//     #[default]
-//     Color,
-//     #[serde(rename = "emoji")]
-//     #[strum(serialize = "emoji", ascii_case_insensitive)]
-//     Emoji,
-// }
-
 /// The format to use for the final status report
 #[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumVariantNames)]
 #[non_exhaustive]
@@ -92,7 +79,7 @@ impl FromStr for StatsFormat {
 /// emojis, or plain text for the output.
 #[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, EnumVariantNames)]
 #[non_exhaustive]
-pub(crate) enum ResponseFormat {
+pub(crate) enum OutputMode {
     #[serde(rename = "plain")]
     #[strum(serialize = "plain", ascii_case_insensitive)]
     Plain,
@@ -105,10 +92,10 @@ pub(crate) enum ResponseFormat {
     Emoji,
 }
 
-impl ResponseFormat {
+impl OutputMode {
     /// Returns `true` if the response format is `Plain`
     pub(crate) const fn is_plain(&self) -> bool {
-        matches!(self, ResponseFormat::Plain)
+        matches!(self, OutputMode::Plain)
     }
 }
 
@@ -444,9 +431,9 @@ separated list of accepted status codes. This example will accept 200, 201,
     pub(crate) output: Option<PathBuf>,
 
     /// Set the output display mode. Determines how results are presented in the terminal
-    #[arg(long, default_value = "color", value_parser = PossibleValuesParser::new(ResponseFormat::VARIANTS).map(|s| s.parse::<ResponseFormat>().unwrap()))]
+    #[arg(long, default_value = "color", value_parser = PossibleValuesParser::new(OutputMode::VARIANTS).map(|s| s.parse::<OutputMode>().unwrap()))]
     #[serde(default)]
-    pub(crate) mode: ResponseFormat,
+    pub(crate) mode: OutputMode,
 
     /// Output format of final status report
     #[arg(short, long, default_value = "compact", value_parser = PossibleValuesParser::new(StatsFormat::VARIANTS).map(|s| s.parse::<StatsFormat>().unwrap()))]

@@ -355,7 +355,7 @@ mod tests {
             Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
         );
-        let formatter = get_response_formatter(&options::ResponseFormat::Plain);
+        let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(
             &mut buf,
             &None,
@@ -377,7 +377,7 @@ mod tests {
             Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
         );
-        let formatter = get_response_formatter(&options::ResponseFormat::Plain);
+        let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(
             &mut buf,
             &None,

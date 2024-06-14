@@ -5,7 +5,7 @@ pub(crate) mod response;
 pub(crate) mod stats;
 
 use self::{response::ResponseBodyFormatter, stats::StatsFormatter};
-use crate::options::{ResponseFormat, StatsFormat};
+use crate::options::{OutputMode, StatsFormat};
 use supports_color::Stream;
 
 /// Detects whether a terminal supports color, and gives details about that
@@ -14,13 +14,14 @@ fn supports_color() -> bool {
     supports_color::on(Stream::Stdout).is_some()
 }
 
+/// Create a stats formatter based on the given format option
 pub(crate) fn get_stats_formatter(
     format: &StatsFormat,
-    response_format: &ResponseFormat,
+    mode: &OutputMode,
 ) -> Box<dyn StatsFormatter> {
     match format {
-        StatsFormat::Compact => Box::new(stats::Compact::new(response_format.clone())),
-        StatsFormat::Detailed => Box::new(stats::Detailed::new(response_format.clone())),
+        StatsFormat::Compact => Box::new(stats::Compact::new(mode.clone())),
+        StatsFormat::Detailed => Box::new(stats::Detailed::new(mode.clone())),
         StatsFormat::Json => Box::new(stats::Json::new()),
         StatsFormat::Markdown => Box::new(stats::Markdown::new()),
         StatsFormat::Raw => Box::new(stats::Raw::new()),
@@ -28,14 +29,13 @@ pub(crate) fn get_stats_formatter(
 }
 
 /// Create a response formatter based on the given format option
-///
-pub(crate) fn get_response_formatter(format: &ResponseFormat) -> Box<dyn ResponseBodyFormatter> {
+pub(crate) fn get_response_formatter(mode: &OutputMode) -> Box<dyn ResponseBodyFormatter> {
     if !supports_color() {
         return Box::new(response::PlainFormatter);
     }
-    match format {
-        ResponseFormat::Plain => Box::new(response::PlainFormatter),
-        ResponseFormat::Color => Box::new(response::ColorFormatter),
-        ResponseFormat::Emoji => Box::new(response::EmojiFormatter),
+    match mode {
+        OutputMode::Plain => Box::new(response::PlainFormatter),
+        OutputMode::Color => Box::new(response::ColorFormatter),
+        OutputMode::Emoji => Box::new(response::EmojiFormatter),
     }
 }

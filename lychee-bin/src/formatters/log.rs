@@ -4,12 +4,12 @@ use std::io::Write;
 
 use crate::{
     formatters::{self, response::MAX_RESPONSE_OUTPUT_WIDTH},
-    options::ResponseFormat,
+    options::OutputMode,
     verbosity::Verbosity,
 };
 
 /// Initialize the logging system with the given verbosity level.
-pub(crate) fn init_logging(verbose: &Verbosity, response_format: &ResponseFormat) {
+pub(crate) fn init_logging(verbose: &Verbosity, mode: &OutputMode) {
     // Set a base level for all modules to `warn`, which is a reasonable default.
     // It will be overridden by RUST_LOG if it's set.
     let base_level = "warn";
@@ -36,12 +36,15 @@ pub(crate) fn init_logging(verbose: &Verbosity, response_format: &ResponseFormat
             .filter_module("lychee_lib", level_filter);
     }
 
+    // Calculate the ongest log level text, including brackets.
+    let levels = log::LevelFilter::iter();
+    let max_level_text_width = levels.map(|level| level.as_str().len()).max().unwrap_or(0) + 2;
+
     // Customize the log message format if not plain.
-    if !response_format.is_plain() {
+    if !mode.is_plain() {
         builder.format(move |buf, record| {
             let level = record.level();
             let level_text = format!("{level:5}");
-            let max_level_text_width = 7; // Longest log level text, including brackets.
             let padding = (MAX_RESPONSE_OUTPUT_WIDTH.saturating_sub(max_level_text_width)).max(0);
             let prefix = format!(
                 "{:<width$}",
@@ -59,6 +62,9 @@ pub(crate) fn init_logging(verbose: &Verbosity, response_format: &ResponseFormat
                 padding = padding
             )
         });
+    } else {
+        // Explicitly disable colors for plain output.
+        builder.format(move |buf, record| writeln!(buf, "[{}] {}", record.level(), record.args()));
     }
 
     builder.init();

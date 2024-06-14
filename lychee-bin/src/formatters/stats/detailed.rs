@@ -28,7 +28,7 @@ fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -
 /// for `ResponseStats`
 struct DetailedResponseStats {
     stats: ResponseStats,
-    mode: options::ResponseFormat,
+    mode: options::OutputMode,
 }
 
 impl Display for DetailedResponseStats {
@@ -70,11 +70,11 @@ impl Display for DetailedResponseStats {
 }
 
 pub(crate) struct Detailed {
-    mode: options::ResponseFormat,
+    mode: options::OutputMode,
 }
 
 impl Detailed {
-    pub(crate) const fn new(mode: options::ResponseFormat) -> Self {
+    pub(crate) const fn new(mode: options::OutputMode) -> Self {
         Self { mode }
     }
 }
