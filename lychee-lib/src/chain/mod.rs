@@ -36,7 +36,55 @@ pub enum ChainResult<T, R> {
 
 /// Request chain type
 ///
-/// This takes a request and returns a status.
+/// Lychee uses a chain of responsibility pattern to handle requests.
+/// Each handler in the chain can modify the request and decide if it should be
+/// passed to the next handler or not.
+///
+/// The chain is implemented as a vector of handlers. It is traversed by calling
+/// `traverse` on the [`Chain`], which in turn will call [`Handler::handle`] on
+/// each handler in the chain consecutively.
+///
+/// To add external handlers, you can implement the [`Handler`] trait and add your
+/// handler to the chain.
+///
+/// The entire request chain takes a request as input and returns a status.
+///
+/// # Example
+///
+/// ```rust
+/// use async_trait::async_trait;
+/// use lychee_lib::{chain::RequestChain, ChainResult, ClientBuilder, Handler, Result, Status};
+/// use reqwest::{Method, Request, Url};
+///
+/// // Define your own custom handler
+/// #[derive(Debug)]
+/// struct DummyHandler {}
+///
+/// #[async_trait]
+/// impl Handler<Request, Status> for DummyHandler {
+///     async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Status> {
+///         // Modify the request here
+///         // After that, continue to the next handler
+///         ChainResult::Next(request)
+///     }
+/// }
+///
+/// #[tokio::main]
+/// async fn main() -> Result<()> {
+///     // Build a custom request chain with our dummy handler
+///     let chain = RequestChain::new(vec![Box::new(DummyHandler {})]);
+///
+///     let client = ClientBuilder::builder()
+///         .plugin_request_chain(chain)
+///         .build()
+///         .client()?;
+///
+///     let result = client.check("https://wikipedia.org").await;
+///     println!("{:?}", result);
+///
+///     Ok(())
+/// }
+/// ```
 pub type RequestChain = Chain<reqwest::Request, Status>;
 
 /// Inner chain type.
