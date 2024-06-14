@@ -55,4 +55,6 @@ doc: ## Open documentation
 
 .PHONY: screencast
 screencast: ## Create a screencast for the docs
-	svg-term --command 'assets/screencast.sh' --out 'assets/screencast.svg' --width 100 --padding 10 --window
+	termsvg rec --command=assets/screencast.sh recording.asc 
+	termsvg export --minify recording.asc --output=assets/screencast.svg
+	rm recording.asc
