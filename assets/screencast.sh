@@ -38,7 +38,7 @@ main() {
     
     enter "lychee https://lychee.cli.rs"
 
-    enter "lychee --verbose --format=json fixtures/TEST.html"
+    enter "lychee --verbose --format=json fixtures/TEST.html | jq"
 
     enter "lychee --no-progress --mode emoji --format detailed https://example.com"
 
