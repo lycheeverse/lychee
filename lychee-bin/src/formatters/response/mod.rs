@@ -22,6 +22,6 @@ pub(crate) const MAX_RESPONSE_OUTPUT_WIDTH: usize = 10;
 /// This trait is used to convert response body into a human-readable string.
 /// It can be implemented for different formatting styles such as
 /// colorized output or plaintext.
-pub(crate) trait ResponseBodyFormatter: Send + Sync {
+pub(crate) trait ResponseFormatter: Send + Sync {
     fn format_response(&self, body: &ResponseBody) -> String;
 }

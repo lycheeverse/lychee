@@ -4,7 +4,7 @@ pub(crate) mod log;
 pub(crate) mod response;
 pub(crate) mod stats;
 
-use self::{response::ResponseBodyFormatter, stats::StatsFormatter};
+use self::{response::ResponseFormatter, stats::StatsFormatter};
 use crate::options::{OutputMode, StatsFormat};
 use supports_color::Stream;
 
@@ -29,7 +29,7 @@ pub(crate) fn get_stats_formatter(
 }
 
 /// Create a response formatter based on the given format option
-pub(crate) fn get_response_formatter(mode: &OutputMode) -> Box<dyn ResponseBodyFormatter> {
+pub(crate) fn get_response_formatter(mode: &OutputMode) -> Box<dyn ResponseFormatter> {
     if !supports_color() {
         return Box::new(response::PlainFormatter);
     }

@@ -1,6 +1,6 @@
 use lychee_lib::ResponseBody;
 
-use super::ResponseBodyFormatter;
+use super::ResponseFormatter;
 
 /// A basic formatter that just returns the response body as a string
 /// without any color codes or other formatting.
@@ -12,7 +12,7 @@ use super::ResponseBodyFormatter;
 /// or when the terminal does not support color.
 pub(crate) struct PlainFormatter;
 
-impl ResponseBodyFormatter for PlainFormatter {
+impl ResponseFormatter for PlainFormatter {
     fn format_response(&self, body: &ResponseBody) -> String {
         body.to_string()
     }

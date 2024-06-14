@@ -2,7 +2,7 @@ use lychee_lib::{CacheStatus, ResponseBody, Status};
 
 use crate::formatters::color::{DIM, GREEN, NORMAL, PINK, YELLOW};
 
-use super::{ResponseBodyFormatter, MAX_RESPONSE_OUTPUT_WIDTH};
+use super::{ResponseFormatter, MAX_RESPONSE_OUTPUT_WIDTH};
 
 /// A colorized formatter for the response body
 ///
@@ -10,7 +10,7 @@ use super::{ResponseBodyFormatter, MAX_RESPONSE_OUTPUT_WIDTH};
 /// has not explicitly requested raw, uncolored output.
 pub(crate) struct ColorFormatter;
 
-impl ResponseBodyFormatter for ColorFormatter {
+impl ResponseFormatter for ColorFormatter {
     fn format_response(&self, body: &ResponseBody) -> String {
         // Determine the color based on the status.
         let status_color = match body.status {

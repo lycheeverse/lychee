@@ -16,7 +16,7 @@ use lychee_lib::{ResponseBody, Status};
 
 use crate::archive::{Archive, Suggestion};
 use crate::formatters::get_response_formatter;
-use crate::formatters::response::ResponseBodyFormatter;
+use crate::formatters::response::ResponseFormatter;
 use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
 
@@ -181,7 +181,7 @@ async fn progress_bar_task(
     mut recv_resp: mpsc::Receiver<Response>,
     verbose: Verbosity,
     pb: Option<ProgressBar>,
-    formatter: Box<dyn ResponseBodyFormatter>,
+    formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
 ) -> Result<(Option<ProgressBar>, ResponseStats)> {
     while let Some(response) = recv_resp.recv().await {
@@ -298,7 +298,7 @@ fn show_progress(
     output: &mut dyn Write,
     progress_bar: &Option<ProgressBar>,
     response: &Response,
-    formatter: &dyn ResponseBodyFormatter,
+    formatter: &dyn ResponseFormatter,
     verbose: &Verbosity,
 ) -> Result<()> {
     let out = formatter.format_response(response.body());
