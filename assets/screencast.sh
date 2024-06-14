@@ -40,7 +40,9 @@ type() {
 main() {
     IFS='%'
 
-    enter "lychee README.md"
+    enter "lychee --verbose README.md"
+    
+    enter "lychee https://lychee.cli.rs"
 
     enter "lychee --verbose --format=json fixtures/TEST.html"
 
