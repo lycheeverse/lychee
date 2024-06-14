@@ -507,7 +507,7 @@ impl Client {
         let status = match uri.scheme() {
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
-            _ if uri.is_tel() => self.check_tel(uri).await,
+            _ if uri.is_tel() => Status::Excluded,
             _ => self.check_website(uri, default_chain).await?,
         };
 
@@ -702,6 +702,15 @@ impl Client {
 
     /// Check a mail address, or equivalently a `mailto` URI.
     ///
+    /// This implementation simply excludes all email addresses.
+    #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
+    #[allow(clippy::unused_async)]
+    pub async fn check_mail(&self, _uri: &Uri) -> Status {
+        Status::Excluded
+    }
+
+    /// Check a mail address, or equivalently a `mailto` URI.
+    ///
     /// URIs may contain query parameters (e.g. `contact@example.com?subject="Hello"`),
     /// which are ignored by this check. The are not part of the mail address
     /// and instead passed to a mail client.
@@ -716,23 +725,6 @@ impl Client {
         } else {
             Status::Ok(StatusCode::OK)
         }
-    }
-
-    /// Check a mail address, or equivalently a `mailto` URI.
-    ///
-    /// This implementation simply excludes all email addresses.
-    #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
-    #[allow(clippy::unused_async)]
-    pub async fn check_mail(&self, _uri: &Uri) -> Status {
-        Status::Excluded
-    }
-
-    /// Check a tel
-    ///
-    /// This implementation simply excludes all tel.
-    #[allow(clippy::unused_async)]
-    pub async fn check_tel(&self, _uri: &Uri) -> Status {
-        Status::Excluded
     }
 }
 

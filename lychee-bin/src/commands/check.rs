@@ -340,10 +340,9 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
 
 #[cfg(test)]
 mod tests {
-    use crate::formatters;
     use crate::{formatters::get_response_formatter, options};
     use log::info;
-    use lychee_lib::{CacheStatus, ClientBuilder, InputSource, ResponseBody, Uri};
+    use lychee_lib::{CacheStatus, ClientBuilder, InputSource, Uri};
 
     use super::*;
 

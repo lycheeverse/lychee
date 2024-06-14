@@ -13,7 +13,7 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::path::Path;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
-use strum::{Display, EnumIter, EnumString, EnumVariantNames, VariantNames};
+use strum::{Display, EnumIter, EnumString, VariantNames};
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
@@ -46,7 +46,7 @@ const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
 /// The format to use for the final status report
-#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumVariantNames)]
+#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, VariantNames)]
 #[non_exhaustive]
 #[strum(serialize_all = "snake_case")]
 pub(crate) enum StatsFormat {
@@ -77,7 +77,7 @@ impl FromStr for StatsFormat {
 ///
 /// This decides over whether to use color,
 /// emojis, or plain text for the output.
-#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, EnumVariantNames)]
+#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames)]
 #[non_exhaustive]
 pub(crate) enum OutputMode {
     #[serde(rename = "plain")]
