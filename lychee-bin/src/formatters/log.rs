@@ -36,14 +36,28 @@ pub(crate) fn init_logging(verbose: &Verbosity, mode: &OutputMode) {
             .filter_module("lychee_lib", level_filter);
     }
 
-    // Calculate the ongest log level text, including brackets.
-    let levels = log::LevelFilter::iter();
-    let max_level_text_width = levels.map(|level| level.as_str().len()).max().unwrap_or(0) + 2;
+    // Calculate the longest log level text, including brackets.
+    let max_level_text_width = log::LevelFilter::iter()
+        .map(|level| level.as_str().len() + 2)
+        .max()
+        .unwrap_or(0);
 
     // Customize the log message format if not plain.
     if mode.is_plain() {
         // Explicitly disable colors for plain output.
         builder.format(move |buf, record| writeln!(buf, "[{}] {}", record.level(), record.args()));
+    } else if mode.is_emoji() {
+        // Disable padding, keep colors
+        builder.format(move |buf, record| {
+            let level = record.level();
+            let color = formatters::color::color_for_level(level);
+            writeln!(
+                buf,
+                "{} {}",
+                color.apply_to(format!("[{level}]")),
+                record.args()
+            )
+        });
     } else {
         builder.format(move |buf, record| {
             let level = record.level();

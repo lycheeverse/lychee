@@ -97,6 +97,11 @@ impl OutputMode {
     pub(crate) const fn is_plain(&self) -> bool {
         matches!(self, OutputMode::Plain)
     }
+
+    /// Returns `true` if the response format is `Emoji`
+    pub(crate) const fn is_emoji(&self) -> bool {
+        matches!(self, OutputMode::Emoji)
+    }
 }
 
 // Macro for generating default functions to be used by serde
