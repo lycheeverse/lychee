@@ -1,14 +1,28 @@
-use lychee_lib::{Response, Result};
+use lychee_lib::ResponseBody;
 
-pub(crate) mod color;
-pub(crate) mod raw;
+mod color;
+mod emoji;
+mod plain;
 
-pub(crate) use color::Color;
-pub(crate) use raw::Raw;
+pub(crate) use color::ColorFormatter;
+pub(crate) use emoji::EmojiFormatter;
+pub(crate) use plain::PlainFormatter;
 
-/// A `ResponseFormatter` knows how to format a response for different output
-/// preferences based on user settings or the environment
+/// Desired total width of formatted string for color formatter
+///
+/// The longest string, which needs to be formatted, is currently `[Excluded]`
+/// which is 10 characters long (including brackets).
+///
+/// Keep in sync with `Status::code_as_string`, which converts status codes to
+/// strings.
+pub(crate) const MAX_RESPONSE_OUTPUT_WIDTH: usize = 10;
+
+/// A trait for formatting a response body
+///
+/// This trait is used to convert response body into a human-readable string.
+/// It can be implemented for different formatting styles such as
+/// colorized output or plaintext.
 pub(crate) trait ResponseFormatter: Send + Sync {
-    /// Format a single link check response and write it to stdout
-    fn write_response(&self, response: &Response) -> Result<String>;
+    /// Format the response body into a human-readable string
+    fn format_response(&self, body: &ResponseBody) -> String;
 }

@@ -2,6 +2,7 @@ use crate::archive::Archive;
 use crate::parse::parse_base;
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
+use clap::builder::PossibleValuesParser;
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
@@ -12,7 +13,7 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::path::Path;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
-use strum::VariantNames;
+use strum::{Display, EnumIter, EnumString, VariantNames};
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
@@ -44,8 +45,11 @@ const HELP_MSG_CONFIG_FILE: &str = formatcp!(
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
-#[derive(Debug, Deserialize, Default, Clone)]
-pub(crate) enum Format {
+/// The format to use for the final status report
+#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, VariantNames)]
+#[non_exhaustive]
+#[strum(serialize_all = "snake_case")]
+pub(crate) enum StatsFormat {
     #[default]
     Compact,
     Detailed,
@@ -54,17 +58,67 @@ pub(crate) enum Format {
     Raw,
 }
 
-impl FromStr for Format {
+impl FromStr for StatsFormat {
     type Err = Error;
+
     fn from_str(format: &str) -> Result<Self, Self::Err> {
         match format.to_lowercase().as_str() {
-            "compact" | "string" => Ok(Format::Compact),
-            "detailed" => Ok(Format::Detailed),
-            "json" => Ok(Format::Json),
-            "markdown" | "md" => Ok(Format::Markdown),
-            "raw" => Ok(Format::Raw),
+            "compact" | "string" => Ok(StatsFormat::Compact),
+            "detailed" => Ok(StatsFormat::Detailed),
+            "json" => Ok(StatsFormat::Json),
+            "markdown" | "md" => Ok(StatsFormat::Markdown),
+            "raw" => Ok(StatsFormat::Raw),
             _ => Err(anyhow!("Unknown format {}", format)),
         }
+    }
+}
+
+/// The different formatter modes
+///
+/// This decides over whether to use color,
+/// emojis, or plain text for the output.
+#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames)]
+#[non_exhaustive]
+pub(crate) enum OutputMode {
+    /// Plain text output.
+    ///
+    /// This is the most basic output mode for terminals that do not support
+    /// color or emojis. It can also be helpful for scripting or when you want
+    /// to pipe the output to another program.
+    #[serde(rename = "plain")]
+    #[strum(serialize = "plain", ascii_case_insensitive)]
+    Plain,
+
+    /// Colorful output.
+    ///
+    /// This mode uses colors to highlight the status of the requests.
+    /// It is useful for terminals that support colors and you want to
+    /// provide a more visually appealing output.
+    ///
+    /// This is the default output mode.
+    #[serde(rename = "color")]
+    #[strum(serialize = "color", ascii_case_insensitive)]
+    #[default]
+    Color,
+
+    /// Emoji output.
+    ///
+    /// This mode uses emojis to represent the status of the requests.
+    /// Some people may find this mode more intuitive and fun to use.
+    #[serde(rename = "emoji")]
+    #[strum(serialize = "emoji", ascii_case_insensitive)]
+    Emoji,
+}
+
+impl OutputMode {
+    /// Returns `true` if the response format is `Plain`
+    pub(crate) const fn is_plain(&self) -> bool {
+        matches!(self, OutputMode::Plain)
+    }
+
+    /// Returns `true` if the response format is `Emoji`
+    pub(crate) const fn is_emoji(&self) -> bool {
+        matches!(self, OutputMode::Emoji)
     }
 }
 
@@ -105,12 +159,12 @@ macro_rules! fold_in {
     };
 }
 
-#[derive(Parser, Debug)]
-#[command(version, about)]
 /// A fast, async link checker
 ///
 /// Finds broken URLs and mail addresses inside Markdown, HTML,
 /// `reStructuredText`, websites and more!
+#[derive(Parser, Debug)]
+#[command(version, about)]
 pub(crate) struct LycheeOptions {
     /// The inputs (where to get links to check from).
     /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
@@ -147,6 +201,7 @@ impl LycheeOptions {
     }
 }
 
+/// The main configuration for lychee
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Parser, Debug, Deserialize, Clone, Default)]
 pub(crate) struct Config {
@@ -190,7 +245,7 @@ pub(crate) struct Config {
 
     /// Specify the use of a specific web archive.
     /// Can be used in combination with `--suggest`
-    #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]
+    #[arg(long, value_parser = PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]
     #[serde(default)]
     pub(crate) archive: Option<Archive>,
 
@@ -398,10 +453,15 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[serde(default)]
     pub(crate) output: Option<PathBuf>,
 
-    /// Output format of final status report (compact, detailed, json, markdown)
-    #[arg(short, long, default_value = "compact")]
+    /// Set the output display mode. Determines how results are presented in the terminal
+    #[arg(long, default_value = "color", value_parser = PossibleValuesParser::new(OutputMode::VARIANTS).map(|s| s.parse::<OutputMode>().unwrap()))]
     #[serde(default)]
-    pub(crate) format: Format,
+    pub(crate) mode: OutputMode,
+
+    /// Output format of final status report
+    #[arg(short, long, default_value = "compact", value_parser = PossibleValuesParser::new(StatsFormat::VARIANTS).map(|s| s.parse::<StatsFormat>().unwrap()))]
+    #[serde(default)]
+    pub(crate) format: StatsFormat,
 
     /// When HTTPS is available, treat HTTP links as errors
     #[arg(long)]

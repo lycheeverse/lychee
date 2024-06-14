@@ -147,7 +147,7 @@ impl Markdown {
 }
 
 impl StatsFormatter for Markdown {
-    fn format_stats(&self, stats: ResponseStats) -> Result<Option<String>> {
+    fn format(&self, stats: ResponseStats) -> Result<Option<String>> {
         let markdown = MarkdownResponseStats(stats);
         Ok(Some(markdown.to_string()))
     }
@@ -222,12 +222,10 @@ mod tests {
     #[test]
     fn test_render_summary() {
         let mut stats = ResponseStats::default();
-        let response = Response(
+        let response = Response::new(
+            Uri::try_from("http://127.0.0.1").unwrap(),
+            Status::Cached(CacheStatus::Error(Some(404))),
             InputSource::Stdin,
-            ResponseBody {
-                uri: Uri::try_from("http://127.0.0.1").unwrap(),
-                status: Status::Cached(CacheStatus::Error(Some(404))),
-            },
         );
         stats.add(response);
         stats

@@ -7,27 +7,53 @@ use crate::archive::Suggestion;
 use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status};
 use serde::Serialize;
 
+/// Response statistics
+///
+/// This struct contains various counters for the responses received during a
+/// run. It also contains maps to store the responses for each status (success,
+/// fail, excluded, etc.) and the sources of the responses.
+///
+/// The `detailed_stats` field is used to enable or disable the storage of the
+/// responses in the maps for successful and excluded responses. If it's set to
+/// `false`, the maps will be empty and only the counters will be updated.
 #[derive(Default, Serialize, Debug)]
 pub(crate) struct ResponseStats {
+    /// Total number of responses
     pub(crate) total: usize,
+    /// Number of successful responses
     pub(crate) successful: usize,
+    /// Number of responses with an unknown status code
     pub(crate) unknown: usize,
+    /// Number of responses, which lychee does not support right now
     pub(crate) unsupported: usize,
+    /// Number of timeouts
     pub(crate) timeouts: usize,
+    /// Redirects encountered while checking links
     pub(crate) redirects: usize,
+    /// Number of links excluded from the run (e.g. due to the `--exclude` flag)
     pub(crate) excludes: usize,
+    /// Number of responses with an error status
     pub(crate) errors: usize,
+    /// Number of responses that were cached from a previous run
     pub(crate) cached: usize,
+    /// Map to store successful responses (if `detailed_stats` is enabled)
     pub(crate) success_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// Map to store failed responses (if `detailed_stats` is enabled)
     pub(crate) fail_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// Replacement suggestions for failed responses (if `--suggest` is enabled)
     pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
+    /// Map to store excluded responses (if `detailed_stats` is enabled)
     pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// Used to store the duration of the run in seconds.
     pub(crate) duration_secs: u64,
+    /// Also track successful and excluded responses
     pub(crate) detailed_stats: bool,
 }
 
 impl ResponseStats {
     #[inline]
+    /// Create a new `ResponseStats` instance with extended statistics counters
+    /// enabled
     pub(crate) fn extended() -> Self {
         Self {
             detailed_stats: true,
@@ -35,6 +61,10 @@ impl ResponseStats {
         }
     }
 
+    /// Increment the counters for the given status
+    ///
+    /// This function is used to update the counters (success, error, etc.)
+    /// based on the given response status.
     pub(crate) fn increment_status_counters(&mut self, status: &Status) {
         match status {
             Status::Ok(_) => self.successful += 1,
@@ -56,35 +86,34 @@ impl ResponseStats {
         }
     }
 
+    /// Add a response status to the appropriate map (success, fail, excluded)
+    fn add_response_status(&mut self, response: Response) {
+        let status = response.status();
+        let source = response.source().clone();
+        let status_map_entry = match status {
+            _ if status.is_error() => self.fail_map.entry(source).or_default(),
+            Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),
+            Status::Excluded if self.detailed_stats => self.excluded_map.entry(source).or_default(),
+            _ => return,
+        };
+        status_map_entry.insert(response.1);
+    }
+
+    /// Update the stats with a new response
     pub(crate) fn add(&mut self, response: Response) {
         self.total += 1;
-
-        let Response(source, ResponseBody { ref status, .. }) = response;
-        self.increment_status_counters(status);
-
-        match status {
-            _ if status.is_error() => {
-                let fail = self.fail_map.entry(source).or_default();
-                fail.insert(response.1);
-            }
-            Status::Ok(_) if self.detailed_stats => {
-                let success = self.success_map.entry(source).or_default();
-                success.insert(response.1);
-            }
-            Status::Excluded if self.detailed_stats => {
-                let excluded = self.excluded_map.entry(source).or_default();
-                excluded.insert(response.1);
-            }
-            _ => (),
-        }
+        self.increment_status_counters(response.status());
+        self.add_response_status(response);
     }
 
     #[inline]
+    /// Check if the entire run was successful
     pub(crate) const fn is_success(&self) -> bool {
         self.total == self.successful + self.excludes + self.unsupported
     }
 
     #[inline]
+    /// Check if no responses were received
     pub(crate) const fn is_empty(&self) -> bool {
         self.total == 0
     }
@@ -110,8 +139,7 @@ mod tests {
     // and it's a lot faster to just generate a fake response
     fn mock_response(status: Status) -> Response {
         let uri = website("https://some-url.com/ok");
-        let response_body = ResponseBody { uri, status };
-        Response(InputSource::Stdin, response_body)
+        Response::new(uri, status, InputSource::Stdin)
     }
 
     fn dummy_ok() -> Response {
@@ -145,9 +173,9 @@ mod tests {
         stats.add(dummy_error());
         stats.add(dummy_ok());
 
-        let Response(source, body) = dummy_error();
+        let response = dummy_error();
         let expected_fail_map: HashMap<InputSource, HashSet<ResponseBody>> =
-            HashMap::from_iter([(source, HashSet::from_iter([body]))]);
+            HashMap::from_iter([(response.source().clone(), HashSet::from_iter([response.1]))]);
         assert_eq!(stats.fail_map, expected_fail_map);
 
         assert!(stats.success_map.is_empty());
@@ -165,21 +193,27 @@ mod tests {
         stats.add(dummy_ok());
 
         let mut expected_fail_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
-        let Response(source, response_body) = dummy_error();
-        let entry = expected_fail_map.entry(source).or_default();
-        entry.insert(response_body);
+        let response = dummy_error();
+        let entry = expected_fail_map
+            .entry(response.source().clone())
+            .or_default();
+        entry.insert(response.1);
         assert_eq!(stats.fail_map, expected_fail_map);
 
         let mut expected_success_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
-        let Response(source, response_body) = dummy_ok();
-        let entry = expected_success_map.entry(source).or_default();
-        entry.insert(response_body);
+        let response = dummy_ok();
+        let entry = expected_success_map
+            .entry(response.source().clone())
+            .or_default();
+        entry.insert(response.1);
         assert_eq!(stats.success_map, expected_success_map);
 
         let mut expected_excluded_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
-        let Response(source, response_body) = dummy_excluded();
-        let entry = expected_excluded_map.entry(source).or_default();
-        entry.insert(response_body);
+        let response = dummy_excluded();
+        let entry = expected_excluded_map
+            .entry(response.source().clone())
+            .or_default();
+        entry.insert(response.1);
         assert_eq!(stats.excluded_map, expected_excluded_map);
     }
 }

@@ -153,11 +153,13 @@ mod cli {
         // Parse site error status from the fail_map
         let output_json = serde_json::from_slice::<Value>(&output.stdout).unwrap();
         let site_error_status = &output_json["fail_map"][&test_path.to_str().unwrap()][0]["status"];
-        let error_details = site_error_status["details"].to_string();
 
-        assert!(error_details
-            .contains("error:0A000086:SSL routines:tls_post_process_server_certificate:"));
-        assert!(error_details.contains("(certificate has expired)"));
+        assert_eq!(
+            "error:0A000086:SSL routines:tls_post_process_server_certificate:\
+            certificate verify failed:../ssl/statem/statem_clnt.c:1883: \
+            (certificate has expired)",
+            site_error_status["details"]
+        );
         Ok(())
     }
 

@@ -209,8 +209,8 @@ impl Status {
         }
     }
 
-    /// Return the HTTP status code (if any)
     #[must_use]
+    /// Return the HTTP status code (if any)
     pub fn code(&self) -> Option<StatusCode> {
         match self {
             Status::Ok(code)
@@ -250,9 +250,9 @@ impl Status {
                 | ErrorKind::ReadResponseBody(e)
                 | ErrorKind::BuildRequestClient(e) => match e.status() {
                     Some(code) => code.as_str().to_string(),
-                    None => "ERR".to_string(),
+                    None => "ERROR".to_string(),
                 },
-                _ => "ERR".to_string(),
+                _ => "ERROR".to_string(),
             },
             Status::Timeout(code) => match code {
                 Some(code) => code.as_str().to_string(),
@@ -263,7 +263,7 @@ impl Status {
                 CacheStatus::Ok(code) => code.to_string(),
                 CacheStatus::Error(code) => match code {
                     Some(code) => code.to_string(),
-                    None => "ERR".to_string(),
+                    None => "ERROR".to_string(),
                 },
                 CacheStatus::Excluded => "EXCLUDED".to_string(),
                 CacheStatus::Unsupported => "IGNORED".to_string(),

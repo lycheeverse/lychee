@@ -1,5 +1,5 @@
 use super::StatsFormatter;
-use crate::{formatters::color_response, stats::ResponseStats};
+use crate::{formatters::get_response_formatter, options, stats::ResponseStats};
 
 use anyhow::Result;
 use pad::{Alignment, PadStr};
@@ -24,9 +24,17 @@ fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -
     Ok(())
 }
 
+/// A wrapper struct that combines `ResponseStats` with an additional `OutputMode`.
+/// Multiple `Display` implementations are not allowed for `ResponseStats`, so this struct is used to
+/// encapsulate additional context.
+struct DetailedResponseStats {
+    stats: ResponseStats,
+    mode: options::OutputMode,
+}
+
 impl Display for DetailedResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let stats = &self.0;
+        let stats = &self.stats;
         let separator = "-".repeat(MAX_PADDING + 1);
 
         writeln!(f, "\u{1f4dd} Summary")?; // 📝
@@ -39,12 +47,15 @@ impl Display for DetailedResponseStats {
         write_stat(f, "\u{2753} Unknown", stats.unknown, true)?; //❓
         write_stat(f, "\u{1f6ab} Errors", stats.errors, false)?; // 🚫
 
+        let response_formatter = get_response_formatter(&self.mode);
+
         for (source, responses) in &stats.fail_map {
             // Using leading newlines over trailing ones (e.g. `writeln!`)
             // lets us avoid extra newlines without any additional logic.
             write!(f, "\n\nErrors in {source}")?;
+
             for response in responses {
-                write!(f, "\n{}", color_response(response))?;
+                write!(f, "\n{}", response_formatter.format_response(response))?;
 
                 if let Some(suggestions) = &stats.suggestion_map.get(source) {
                     writeln!(f, "\nSuggestions in {source}")?;
@@ -59,21 +70,22 @@ impl Display for DetailedResponseStats {
     }
 }
 
-/// Wrap as newtype because multiple `Display` implementations are not allowed
-/// for `ResponseStats`
-struct DetailedResponseStats(ResponseStats);
-
-pub(crate) struct Detailed;
+pub(crate) struct Detailed {
+    mode: options::OutputMode,
+}
 
 impl Detailed {
-    pub(crate) const fn new() -> Self {
-        Self
+    pub(crate) const fn new(mode: options::OutputMode) -> Self {
+        Self { mode }
     }
 }
 
 impl StatsFormatter for Detailed {
-    fn format_stats(&self, stats: ResponseStats) -> Result<Option<String>> {
-        let detailed = DetailedResponseStats(stats);
+    fn format(&self, stats: ResponseStats) -> Result<Option<String>> {
+        let detailed = DetailedResponseStats {
+            stats,
+            mode: self.mode.clone(),
+        };
         Ok(Some(detailed.to_string()))
     }
 }
