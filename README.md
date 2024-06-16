@@ -65,7 +65,8 @@ nix-env -iA nixos.lychee
 
 - [`lychee` package](https://search.nixos.org/packages?show=lychee&query=lychee) for configurations, Nix shells, etc.
 
-- Test a packaged site with [`testers.lycheeLinkCheck`](https://nixos.org/manual/nixpkgs/stable/#tester-lycheeLinkCheck) `{ site = …; }`
+- Let Nix check a packaged site with \
+  [`testers.lycheeLinkCheck`](https://nixos.org/manual/nixpkgs/stable/#tester-lycheeLinkCheck) `{ site = …; }`
 
 ### FreeBSD
 
