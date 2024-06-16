@@ -61,6 +61,12 @@ docker pull lycheeverse/lychee
 nix-env -iA nixos.lychee
 ```
 
+### Nixpkgs
+
+- [`lychee` package](https://search.nixos.org/packages?show=lychee&query=lychee) for configurations, Nix shells, etc.
+
+- Test a packaged site with [`testers.lycheeLinkCheck`](https://nixos.org/manual/nixpkgs/stable/#tester-lycheeLinkCheck) `{ site = …; }`
+
 ### FreeBSD
 
 ```sh
