@@ -12,6 +12,7 @@ pub(crate) mod mail;
 mod request;
 mod response;
 mod status;
+mod status_code;
 pub(crate) mod uri;
 
 pub use accept::*;
@@ -25,6 +26,7 @@ pub use input::{Input, InputContent, InputSource};
 pub use request::Request;
 pub use response::{Response, ResponseBody};
 pub use status::Status;
+pub use status_code::*;
 
 /// The lychee `Result` type
 pub type Result<T> = std::result::Result<T, crate::ErrorKind>;
