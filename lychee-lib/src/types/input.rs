@@ -139,11 +139,9 @@ impl Input {
             match Url::parse(value) {
                 // Weed out non-http schemes, including Windows drive specifiers, which will be successfully parsed by the Url crate
                 Ok(url) if url.scheme().starts_with("http") => {
-                    dbg!("got here", &url);
                     InputSource::RemoteUrl(Box::new(url))
                 }
                 _ => {
-                    dbg!(value);
                     // this seems to be the only way to determine if this is a glob pattern
                     let is_glob = glob::Pattern::escape(value) != value;
 
@@ -508,5 +506,37 @@ mod tests {
             input.unwrap().source.to_string(),
             String::from("http://example.com/")
         );
+    }
+
+    // Test proves that a windows filepath is not mistaken for a Url.
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_style_filepath_not_existing() {
+        let input = Input::new("C:\\example\\project\\here", None, false, None);
+        assert!(input.is_err());
+        let input = input.unwrap_err();
+
+        match input {
+            ErrorKind::InvalidFile(_) => (),
+            _ => panic!("Should have received InvalidFile error"),
+        }
+    }
+
+    // Test proves that one windows, a windows style filepath to an existing file is recognized as a filepath
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_style_filepath_existing() {
+        use std::env::temp_dir;
+        use tempfile::NamedTempFile;
+
+        let dir = temp_dir();
+        let file = NamedTempFile::new_in(dir).unwrap();
+        let path = file.path();
+        let input = Input::new(path.to_str().unwrap(), None, false, None).unwrap();
+
+        match input.source {
+            InputSource::FsPath(_) => (),
+            _ => panic!("Input source should be FsPath but was not"),
+        }
     }
 }
