@@ -3,7 +3,6 @@ use crate::{utils, ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
-use http::Request;
 use jwalk::WalkDir;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -133,38 +132,60 @@ impl Input {
     ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
-        } else if let (Ok(_), Ok(url)) = (Request::builder().uri(value).body(()), Url::parse(value))
-        {
-            InputSource::RemoteUrl(Box::new(url))
+        // The extra use of Request::builder is to weed out Windows filepaths with a drive specifier, which Url will erroneously parse successfully
+        // We still use Url::parse because it catches some other edge cases that Request::builder does not
+        // This could be improved with further refinement.
         } else {
-            // this seems to be the only way to determine if this is a glob pattern
-            let is_glob = glob::Pattern::escape(value) != value;
-
-            if is_glob {
-                InputSource::FsGlob {
-                    pattern: value.to_owned(),
-                    ignore_case: glob_ignore_case,
-                }
-            } else {
-                let path = PathBuf::from(value);
-                if path.exists() {
-                    InputSource::FsPath(path)
-                } else if value.starts_with('~') || value.starts_with('.') {
-                    // The path is not valid, but it might be a valid URL
-                    // Check if the path starts with a tilde or a dot
-                    // and exit early if it does
-                    // This check might not be sufficient to cover all cases
-                    // but it catches the most common ones
-                    return Err(ErrorKind::InvalidFile(path));
-                } else {
-                    // Invalid path; check if a valid URL can be constructed from the input
-                    // by prefixing it with a `http://` scheme.
-                    // Curl also uses http (i.e. not https), see
-                    // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
-                    let url = Url::parse(&format!("http://{value}")).map_err(|e| {
-                        ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string())
-                    })?;
+            match Url::parse(value) {
+                // Weed out non-http schemes, including Windows drive specifiers, which will be successfully parsed by the Url crate
+                Ok(url) if url.scheme().starts_with("http") => {
+                    dbg!("got here", &url);
                     InputSource::RemoteUrl(Box::new(url))
+                }
+                _ => {
+                    dbg!(value);
+                    // this seems to be the only way to determine if this is a glob pattern
+                    let is_glob = glob::Pattern::escape(value) != value;
+
+                    if is_glob {
+                        InputSource::FsGlob {
+                            pattern: value.to_owned(),
+                            ignore_case: glob_ignore_case,
+                        }
+                    } else {
+                        let path = PathBuf::from(value);
+
+                        // On Windows, a filepath can never be mistaken for a url because Windows filepaths use \ and urls use /
+                        #[cfg(windows)]
+                        if path.exists() {
+                            // The file exists, so we return the path
+                            InputSource::FsPath(path)
+                        } else {
+                            // We had a valid filepath, but the file didn't exist so we return an error
+                            return Err(ErrorKind::InvalidFile(path));
+                        }
+
+                        #[cfg(unix)]
+                        if path.exists() {
+                            InputSource::FsPath(path)
+                        } else if value.starts_with('~') || value.starts_with('.') {
+                            // The path is not valid, but it might be a valid URL
+                            // Check if the path starts with a tilde or a dot
+                            // and exit early if it does
+                            // This check might not be sufficient to cover all cases
+                            // but it catches the most common ones
+                            return Err(ErrorKind::InvalidFile(path));
+                        } else {
+                            // Invalid path; check if a valid URL can be constructed from the input
+                            // by prefixing it with a `http://` scheme.
+                            // Curl also uses http (i.e. not https), see
+                            // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
+                            let url = Url::parse(&format!("http://{value}")).map_err(|e| {
+                                ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string())
+                            })?;
+                            InputSource::RemoteUrl(Box::new(url))
+                        }
+                    }
                 }
             }
         };
