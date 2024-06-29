@@ -133,9 +133,8 @@ impl Input {
     ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
-        } else if Request::builder().uri(value).body(()).is_ok() {
-            let url = Url::parse(value)
-                .map_err(|err| crate::ErrorKind::ParseUrl(err, value.to_owned()))?;
+        } else if let (Ok(_), Ok(url)) = (Request::builder().uri(value).body(()), Url::parse(value))
+        {
             InputSource::RemoteUrl(Box::new(url))
         } else {
             // this seems to be the only way to determine if this is a glob pattern
