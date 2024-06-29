@@ -522,7 +522,7 @@ mod tests {
         }
     }
 
-    // Test proves that one windows, a windows style filepath to an existing file is recognized as a filepath
+    // Test proves that  one windows, a windows style filepath to an existing file is recognized as a filepath
     #[cfg(windows)]
     #[test]
     fn test_windows_style_filepath_existing() {
