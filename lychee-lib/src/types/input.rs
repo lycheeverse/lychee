@@ -3,6 +3,7 @@ use crate::{utils, ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
+use http::Request;
 use jwalk::WalkDir;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -132,7 +133,9 @@ impl Input {
     ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
-        } else if let Ok(url) = Url::parse(value) {
+        } else if Request::builder().uri(value).body(()).is_ok() {
+            let url = Url::parse(value)
+                .map_err(|err| crate::ErrorKind::ParseUrl(err, value.to_owned()))?;
             InputSource::RemoteUrl(Box::new(url))
         } else {
             // this seems to be the only way to determine if this is a glob pattern
