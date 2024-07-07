@@ -1,3 +1,10 @@
+# CI pipeline for stable binaries
+# Keep in sync with:
+#   - .github/workflows/debug_build.yml
+#   - Dockerfile-CI.Dockerfile
+#   - Dockerfile-CI.alpine.Dockerfile
+#   - https://github.com/lycheeverse/lychee-action/blob/master/action.yml
+
 name: Release
 on:
   release:
