@@ -5,14 +5,10 @@ RUN apk update \
     && apk add --no-cache ca-certificates jq wget \
     && case $(arch) in \
       "x86_64") \
-        wget -4 -q -O - "$(wget -4 -q -O- https://api.github.com/repos/lycheeverse/lychee/releases/latest \
-        | jq -r '.assets[].browser_download_url' \
-        | grep x86_64-unknown-linux-musl)" | tar -xz lychee \
+        wget -4 -q -O - https://github.com/lycheeverse/lychee/releases/latest/download/lychee-x86_64-unknown-linux-musl.tar.gz | tar -xz lychee \
       ;; \
       "aarch64") \
-        wget -4 -q -O - "$(wget -4 -q -O- https://api.github.com/repos/lycheeverse/lychee/releases/latest \
-        | jq -r '.assets[].browser_download_url' \
-        | grep arm-unknown-linux-musleabihf)" | tar -xz lychee \
+        wget -4 -q -O - https://github.com/lycheeverse/lychee/releases/latest/download/lychee-arm-unknown-linux-musleabihf.tar.gz | tar -xz lychee \
       ;; \
     esac \
     && chmod +x lychee
