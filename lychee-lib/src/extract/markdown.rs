@@ -7,13 +7,19 @@ use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
 
 use super::html::html5gum::{extract_html, extract_html_fragments};
 
+/// Returns the default markdown extensions used by lychee.
+/// Sadly `|` is not const for `Options` so we can't use a const global.
+fn md_extensions() -> Options {
+    Options::ENABLE_HEADING_ATTRIBUTES | Options::ENABLE_MATH
+}
+
 /// Extract unparsed URL strings from a Markdown string.
 pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUri> {
     // In some cases it is undesirable to extract links from within code blocks,
     // which is why we keep track of entries and exits while traversing the input.
     let mut inside_code_block = false;
 
-    let parser = Parser::new(input);
+    let parser = Parser::new_ext(input, md_extensions());
     parser
         .filter_map(|event| match event {
             // A link. The first field is the link type, the second the destination URL and the third is a title.
@@ -95,7 +101,7 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
 
     let mut out = HashSet::new();
 
-    for event in Parser::new_ext(input, Options::ENABLE_HEADING_ATTRIBUTES) {
+    for event in Parser::new_ext(input, md_extensions()) {
         match event {
             Event::Start(Tag::Heading { id, .. }) => {
                 heading_id = id;
@@ -290,5 +296,16 @@ Some pre-formatted http://pre.com
             "underscores-foo_bar_-dots--and-numbers-17e-3",
         );
         check("Many          spaces", "many----------spaces");
+    }
+
+    #[test]
+    fn test_mardown_math() {
+        let input = r"
+$$
+[\psi](\mathbf{L})
+$$
+";
+        let uris = extract_markdown(input, true);
+        assert!(uris.is_empty());
     }
 }
