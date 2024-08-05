@@ -13,50 +13,50 @@ version.workspace = true
 
 [dependencies]
 async-stream = "0.3.5"
-async-trait = "0.1.80"
-cached = "0.49.3"
+async-trait = "0.1.81"
+cached = "0.53.1"
 check-if-email-exists = { version = "0.9.1", optional = true }
-email_address = "0.2.4"
+email_address = "0.2.9"
 futures = "0.3.30"
 glob = "0.3.1"
 headers = "0.4.0"
 html5ever = "0.27.0"
 html5gum = "0.5.7"
 http = "1.0.0"
-hyper = "1.3.1"
+hyper = "1.4.1"
 ip_network = "0.4.1"
 jwalk = "0.8.1"
 linkify = "0.10.0"
-log = "0.4.21"
-octocrab = "0.38.0"
+log = "0.4.22"
+octocrab = "0.39.0"
 once_cell = "1.19.0"
-openssl-sys = { version = "0.9.102", optional = true }
+openssl-sys = { version = "0.9.103", optional = true }
 path-clean = "1.0.1"
 percent-encoding = "2.3.1"
-pulldown-cmark = "0.9.6"
-regex = "1.10.4"
+pulldown-cmark = "0.11.0"
+regex = "1.10.6"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.12.4", default-features = false, features = [
+reqwest = { version = "0.12.5", default-features = false, features = [
     "gzip",
     "trust-dns",
     "cookies",
 ] }
-reqwest_cookie_store = "0.7.0"
+reqwest_cookie_store = "0.8.0"
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
 # https://github.com/Homebrew/homebrew-core/pull/70216
 ring = "0.17.8"
 secrecy = "0.8.0"
-serde = { version = "1.0.198", features = ["derive"] }
-serde_with = "3.7.0"
+serde = { version = "1.0.204", features = ["derive"] }
+serde_with = "3.8.1"
 shellexpand = "3.1.0"
-thiserror = "1.0.59"
-tokio = { version = "1.37.0", features = ["full"] }
-toml = "0.8.12"
-typed-builder = "0.18.2"
-url = { version = "2.5.0", features = ["serde"] }
+thiserror = "1.0.63"
+tokio = { version = "1.39.2", features = ["full"] }
+toml = "0.8.19"
+typed-builder = "0.19.1"
+url = { version = "2.5.2", features = ["serde"] }
 
 [dependencies.par-stream]
 version = "0.10.2"
@@ -64,11 +64,11 @@ features = ["runtime-tokio"]
 
 [dev-dependencies]
 doc-comment = "0.3.3"
-tempfile = "3.10.1"
-wiremock = "0.6.0"
-serde_json = "1.0.116"
-rstest = "0.19.0"
-toml = "0.8.12"
+tempfile = "3.11.0"
+wiremock = "0.6.1"
+serde_json = "1.0.122"
+rstest = "0.22.0"
+toml = "0.8.19"
 
 [features]
 
