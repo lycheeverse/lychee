@@ -1,3 +1,10 @@
+# CI pipeline for stable binaries
+# Keep in sync with:
+#   - .github/workflows/debug_build.yml
+#   - Dockerfile-CI.Dockerfile
+#   - Dockerfile-CI.alpine.Dockerfile
+#   - https://github.com/lycheeverse/lychee-action/blob/master/action.yml
+
 name: Release
 on:
   release:
@@ -82,7 +89,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          asset_name: lychee-${{needs.prepare.outputs.tag_name}}-${{ matrix.target }}.tar.gz
+          asset_name: lychee-${{ matrix.target }}.tar.gz
           asset_path: target/${{ matrix.target }}/release/lychee.tar.gz
           upload_url: ${{needs.prepare.outputs.upload_url}}
           asset_content_type: application/gzip
@@ -118,7 +125,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          asset_name: lychee-${{needs.prepare.outputs.tag_name}}-macos-x86_64.dmg
+          asset_name: lychee-x86_64-macos.dmg
           asset_path: target/release/lychee.dmg
           upload_url: ${{needs.prepare.outputs.upload_url}}
           asset_content_type: application/octet-stream
@@ -154,7 +161,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          asset_name: lychee-${{needs.prepare.outputs.tag_name}}-windows-x86_64.exe
+          asset_name: lychee-x86_64-windows.exe
           asset_path: target/release/lychee.exe
           upload_url: ${{needs.prepare.outputs.upload_url}}
           asset_content_type: application/octet-stream
