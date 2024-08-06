@@ -20,6 +20,7 @@ anyhow = "1.0.82"
 assert-json-diff = "2.0.2"
 clap = { version = "4.5.4", features = ["env", "derive"] }
 console = "0.15.8"
+console-subscriber = { version = "0.4.0", optional = true }
 const_format = "0.2.32"
 csv = "1.3.0"
 dashmap = { version = "5.5.3", features = ["serde"] }
@@ -68,17 +69,8 @@ tracing-subscriber = { version = "0.3.18", default-features = false, features = 
 uuid = { version = "1.8.0", features = ["v4"] }
 wiremock = "0.6.0"
 
-# console-subscriber is not yet published to crates.io
-# Users have to uncomment this section and the feature below and build lychee
-# locally
-# TODO: Remove this git revision pin after publication
-#[dependencies.console-subscriber]
-#optional = true
-#git = "https://github.com/tokio-rs/console"
-#rev = "926de99ce4cbfd02c87190f9ec5f1c60b5c305d5"
-
 [features]
-#tokio-console = ["console-subscriber", "tracing-subscriber/registry"]
+tokio-console = ["console-subscriber", "tracing-subscriber/registry"]
 
 # Compile and statically link a copy of OpenSSL.
 vendored-openssl = ["openssl-sys/vendored"]

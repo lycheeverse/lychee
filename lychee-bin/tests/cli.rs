@@ -274,7 +274,7 @@ mod cli {
         cmd.arg("--offline")
             .arg("--base")
             .arg(&offline_dir)
-            .arg(&offline_dir.join("index.html"))
+            .arg(offline_dir.join("index.html"))
             .env_clear()
             .assert()
             .success()
@@ -1130,7 +1130,7 @@ mod cli {
         let offline_dir = fixtures_path().join("offline");
 
         cmd.arg("--offline")
-            .arg(&offline_dir.join("index.html"))
+            .arg(offline_dir.join("index.html"))
             .env_clear()
             .assert()
             .success()
