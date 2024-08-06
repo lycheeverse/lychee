@@ -6,7 +6,7 @@ use clap::builder::PossibleValuesParser;
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    AcceptSelector, Base, BasicAuthSelector, Input, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+    Base, BasicAuthSelector, Input, StatusCodeSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
@@ -145,7 +145,7 @@ default_function! {
     retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
     verbosity: Verbosity = Verbosity::default();
-    accept_selector: AcceptSelector = AcceptSelector::default();
+    accept_selector: StatusCodeSelector = StatusCodeSelector::default();
 }
 
 // Macro for merging configuration values
@@ -230,6 +230,26 @@ pub(crate) struct Config {
     #[serde(default = "max_cache_age")]
     #[serde(with = "humantime_serde")]
     pub(crate) max_cache_age: Duration,
+
+    /// A list of status codes that will be excluded from the cache
+    #[arg(
+        long,
+        default_value_t,
+        long_help = "A List status codes that will be ignored from the cache
+
+The following accept range syntax is supported: [start]..[=]end|code. Some valid
+examples are:
+
+- 429
+- 500..=599
+- 500..
+
+Use \"lychee --cache-exclude-status '429, 500..502' <inputs>...\" to provide a comma- separated
+list of excluded status codes. This example will not cache results with a status code of 429, 500,
+501 and 502."
+    )]
+    #[serde(default)]
+    pub(crate) cache_exclude_status: StatusCodeSelector,
 
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
@@ -394,7 +414,7 @@ separated list of accepted status codes. This example will accept 200, 201,
 202, 203, 204, 429, and 500 as valid status codes."
     )]
     #[serde(default = "accept_selector")]
-    pub(crate) accept: AcceptSelector,
+    pub(crate) accept: StatusCodeSelector,
 
     /// Enable the checking of fragments in links.
     #[arg(long)]
@@ -498,6 +518,7 @@ impl Config {
             max_retries: DEFAULT_MAX_RETRIES;
             max_concurrency: DEFAULT_MAX_CONCURRENCY;
             max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
+            cache_exclude_status: StatusCodeSelector::new();
             threads: None;
             user_agent: DEFAULT_USER_AGENT;
             insecure: false;
@@ -527,7 +548,7 @@ impl Config {
             require_https: false;
             cookie_jar: None;
             include_fragments: false;
-            accept: AcceptSelector::default();
+            accept: StatusCodeSelector::default();
         }
 
         if self
@@ -553,7 +574,7 @@ mod tests {
     #[test]
     fn test_accept_status_codes() {
         let toml = Config {
-            accept: AcceptSelector::from_str("200..=204, 429, 500").unwrap(),
+            accept: StatusCodeSelector::from_str("200..=204, 429, 500").unwrap(),
             ..Default::default()
         };
 
