@@ -224,15 +224,12 @@ impl Status {
                     None
                 }
             }
-            Status::Cached(cache_status) => match cache_status {
-                CacheStatus::Ok(code) | CacheStatus::Error(Some(code)) => {
-                    match StatusCode::from_u16(*code) {
-                        Ok(code) => Some(code),
-                        Err(_) => None,
-                    }
+            Status::Cached(CacheStatus::Ok(code) | CacheStatus::Error(Some(code))) => {
+                match StatusCode::from_u16(*code) {
+                    Ok(code) => Some(code),
+                    Err(_) => None,
                 }
-                _ => None,
-            },
+            }
             _ => None,
         }
     }

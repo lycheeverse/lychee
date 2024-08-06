@@ -301,7 +301,7 @@ Arguments:
 Options:
   -c, --config <CONFIG_FILE>
           Configuration file to use
-
+          
           [default: lychee.toml]
 
   -v, --verbose...
@@ -319,7 +319,7 @@ Options:
 
       --max-cache-age <MAX_CACHE_AGE>
           Discard all cached requests older than this duration
-
+          
           [default: 1d]
 
       --dump
@@ -330,7 +330,7 @@ Options:
 
       --archive <ARCHIVE>
           Specify the use of a specific web archive. Can be used in combination with `--suggest`
-
+          
           [possible values: wayback]
 
       --suggest
@@ -338,17 +338,17 @@ Options:
 
   -m, --max-redirects <MAX_REDIRECTS>
           Maximum number of allowed redirects
-
+          
           [default: 5]
 
       --max-retries <MAX_RETRIES>
           Maximum number of retries per request
-
+          
           [default: 3]
 
       --max-concurrency <MAX_CONCURRENCY>
           Maximum number of concurrent network requests
-
+          
           [default: 128]
 
   -T, --threads <THREADS>
@@ -356,7 +356,7 @@ Options:
 
   -u, --user-agent <USER_AGENT>
           User agent
-
+          
           [default: lychee/x.y.z]
 
   -i, --insecure
@@ -406,7 +406,7 @@ Options:
           Test the specified file extensions for URIs when checking files locally.
           Multiple extensions can be separated by commas. Extensions will be checked in
           order of appearance.
-
+          
           Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
 
       --header <HEADER>
@@ -414,20 +414,20 @@ Options:
 
   -a, --accept <ACCEPT>
           A List of accepted status codes for valid links
-
+          
           The following accept range syntax is supported: [start]..[=]end|code. Some valid
           examples are:
-
+          
           - 200..=204
           - 200..204
           - ..=204
           - ..204
           - 200
-
+          
           Use "lychee --accept '200..=204, 429, 500' <inputs>..." to provide a comma-
           separated list of accepted status codes. This example will accept 200, 201,
           202, 203, 204, 429, and 500 as valid status codes.
-
+          
           [default: 100..=103,200..=299]
 
       --include-fragments
@@ -435,17 +435,17 @@ Options:
 
   -t, --timeout <TIMEOUT>
           Website timeout in seconds from connect to response finished
-
+          
           [default: 20]
 
   -r, --retry-wait-time <RETRY_WAIT_TIME>
           Minimum wait time in seconds between retries of failed requests
-
+          
           [default: 1]
 
   -X, --method <METHOD>
           Request method
-
+          
           [default: get]
 
   -b, --base <BASE>
@@ -456,7 +456,7 @@ Options:
 
       --github-token <GITHUB_TOKEN>
           GitHub API token to use when checking github.com links, to avoid rate limiting
-
+          
           [env: GITHUB_TOKEN]
 
       --skip-missing
@@ -473,13 +473,13 @@ Options:
 
       --mode <MODE>
           Set the output display mode. Determines how results are presented in the terminal
-
+          
           [default: color]
           [possible values: plain, color, emoji]
 
   -f, --format <FORMAT>
           Output format of final status report
-
+          
           [default: compact]
           [possible values: compact, detailed, json, markdown, raw]
 
