@@ -132,37 +132,61 @@ impl Input {
     ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
-        } else if let Ok(url) = Url::parse(value) {
-            InputSource::RemoteUrl(Box::new(url))
         } else {
-            // this seems to be the only way to determine if this is a glob pattern
-            let is_glob = glob::Pattern::escape(value) != value;
-
-            if is_glob {
-                InputSource::FsGlob {
-                    pattern: value.to_owned(),
-                    ignore_case: glob_ignore_case,
-                }
-            } else {
-                let path = PathBuf::from(value);
-                if path.exists() {
-                    InputSource::FsPath(path)
-                } else if value.starts_with('~') || value.starts_with('.') {
-                    // The path is not valid, but it might be a valid URL
-                    // Check if the path starts with a tilde or a dot
-                    // and exit early if it does
-                    // This check might not be sufficient to cover all cases
-                    // but it catches the most common ones
-                    return Err(ErrorKind::InvalidFile(path));
-                } else {
-                    // Invalid path; check if a valid URL can be constructed from the input
-                    // by prefixing it with a `http://` scheme.
-                    // Curl also uses http (i.e. not https), see
-                    // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
-                    let url = Url::parse(&format!("http://{value}")).map_err(|e| {
-                        ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string())
-                    })?;
+            // We use [`reqwest::Url::parse`] because it catches some other edge cases that [`http::Request:builder`] does not
+            // This could be improved with further refinement.
+            match Url::parse(value) {
+                // Weed out non-http schemes, including Windows drive specifiers, which will be successfully parsed by the Url crate
+                Ok(url) if url.scheme() == "http" || url.scheme() == "https" => {
                     InputSource::RemoteUrl(Box::new(url))
+                }
+                Ok(_) => {
+                    // URL parsed successfully, but it's not http or https
+                    return Err(ErrorKind::InvalidFile(PathBuf::from(value)));
+                }
+                _ => {
+                    // this seems to be the only way to determine if this is a glob pattern
+                    let is_glob = glob::Pattern::escape(value) != value;
+
+                    if is_glob {
+                        InputSource::FsGlob {
+                            pattern: value.to_owned(),
+                            ignore_case: glob_ignore_case,
+                        }
+                    } else {
+                        let path = PathBuf::from(value);
+
+                        // On Windows, a filepath can never be mistaken for a url because Windows filepaths use \ and urls use /
+                        #[cfg(windows)]
+                        if path.exists() {
+                            // The file exists, so we return the path
+                            InputSource::FsPath(path)
+                        } else {
+                            // We had a valid filepath, but the file didn't exist so we return an error
+                            return Err(ErrorKind::InvalidFile(path));
+                        }
+
+                        #[cfg(unix)]
+                        if path.exists() {
+                            InputSource::FsPath(path)
+                        } else if value.starts_with('~') || value.starts_with('.') {
+                            // The path is not valid, but it might be a valid URL
+                            // Check if the path starts with a tilde or a dot
+                            // and exit early if it does
+                            // This check might not be sufficient to cover all cases
+                            // but it catches the most common ones
+                            return Err(ErrorKind::InvalidFile(path));
+                        } else {
+                            // Invalid path; check if a valid URL can be constructed from the input
+                            // by prefixing it with a `http://` scheme.
+                            // Curl also uses http (i.e. not https), see
+                            // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
+                            let url = Url::parse(&format!("http://{value}")).map_err(|e| {
+                                ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string())
+                            })?;
+                            InputSource::RemoteUrl(Box::new(url))
+                        }
+                    }
                 }
             }
         };
@@ -485,5 +509,120 @@ mod tests {
             input.unwrap().source.to_string(),
             String::from("http://example.com/")
         );
+    }
+
+    // Ensure that a Windows file path is not mistaken for a URL.
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_style_filepath_not_existing() {
+        let input = Input::new("C:\\example\\project\\here", None, false, None);
+        assert!(input.is_err());
+        let input = input.unwrap_err();
+
+        match input {
+            ErrorKind::InvalidFile(_) => (),
+            _ => panic!("Should have received InvalidFile error"),
+        }
+    }
+
+    // Ensure that a Windows-style file path to an existing file is recognized
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_style_filepath_existing() {
+        use std::env::temp_dir;
+        use tempfile::NamedTempFile;
+
+        let dir = temp_dir();
+        let file = NamedTempFile::new_in(dir).unwrap();
+        let path = file.path();
+        let input = Input::new(path.to_str().unwrap(), None, false, None).unwrap();
+
+        match input.source {
+            InputSource::FsPath(_) => (),
+            _ => panic!("Input source should be FsPath but was not"),
+        }
+    }
+
+    #[test]
+    fn test_url_scheme_check_succeeding() {
+        // Valid http and https URLs
+        assert!(matches!(
+            Input::new("http://example.com", None, false, None),
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
+        ));
+        assert!(matches!(
+            Input::new("https://example.com", None, false, None),
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
+        ));
+        assert!(matches!(
+            Input::new(
+                "http://subdomain.example.com/path?query=value",
+                None,
+                false,
+                None
+            ),
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
+        ));
+        assert!(matches!(
+            Input::new("https://example.com:8080", None, false, None),
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn test_url_scheme_check_failing() {
+        // Invalid schemes
+        assert!(matches!(
+            Input::new("ftp://example.com", None, false, None),
+            Err(ErrorKind::InvalidFile(_))
+        ));
+        assert!(matches!(
+            Input::new("httpx://example.com", None, false, None),
+            Err(ErrorKind::InvalidFile(_))
+        ));
+        assert!(matches!(
+            Input::new("file:///path/to/file", None, false, None),
+            Err(ErrorKind::InvalidFile(_))
+        ));
+        assert!(matches!(
+            Input::new("mailto:user@example.com", None, false, None),
+            Err(ErrorKind::InvalidFile(_))
+        ));
+    }
+
+    #[test]
+    fn test_non_url_inputs() {
+        // Non-URL inputs
+        assert!(matches!(
+            Input::new("./local/path", None, false, None),
+            Err(ErrorKind::InvalidFile(_))
+        ));
+        assert!(matches!(
+            Input::new("*.md", None, false, None),
+            Ok(Input {
+                source: InputSource::FsGlob { .. },
+                ..
+            })
+        ));
+        // Assuming the current directory exists
+        assert!(matches!(
+            Input::new(".", None, false, None),
+            Ok(Input {
+                source: InputSource::FsPath(_),
+                ..
+            })
+        ));
     }
 }
