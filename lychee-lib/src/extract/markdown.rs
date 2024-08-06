@@ -308,4 +308,12 @@ $$
         let uris = extract_markdown(input, true);
         assert!(uris.is_empty());
     }
+
+    #[test]
+    fn test_single_word_footnote_is_not_detected_as_link() {
+        let markdown = "This footnote is[^actually] a link.\n\n[^actually]: not";
+        let expected = vec![];
+        let uris = extract_markdown(markdown, true);
+        assert_eq!(uris, expected);
+    }
 }
