@@ -89,7 +89,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Push Image (debian)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ env.DOCKERFILE }}
@@ -99,7 +99,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Push Image (alpine)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ env.DOCKERFILE_ALPINE }}
