@@ -1569,4 +1569,46 @@ mod cli {
             .success()
             .stdout(contains("0 Errors"));
     }
+
+    /// Test relative paths
+    ///
+    /// Imagine a web server hosting a site with the following structure:
+    /// root
+    /// └── test
+    ///     ├── index.html
+    ///     └── next.html
+    ///
+    /// where `root/test/index.html` contains `<a href="next.html">next</a>`
+    /// When checking the link in `root/test/index.html` we should be able to
+    /// resolve the relative path to `root/test/next.html`
+    ///
+    /// Note that the relative path is not resolved to the root of the server
+    /// but relative to the file that contains the link.
+    #[tokio::test]
+    async fn test_resolve_relative_paths_in_subfolder() -> Result<()> {
+        let mock_server = wiremock::MockServer::start().await;
+
+        let body = r#"<a href="next.html">next</a>"#;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/test/index.html"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(body))
+            .mount(&mock_server)
+            .await;
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/test/next.html"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let mut cmd = main_command();
+        cmd.arg("--verbose")
+            .arg(format!("{}/test/index.html", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains("0 Errors"));
+
+        Ok(())
+    }
 }
