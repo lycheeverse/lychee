@@ -15,7 +15,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
-  RUSTFLAGS: -D warnings
+  # tokio_unstable is needed for tokio-console
+  RUSTFLAGS: -D warnings --cfg tokio_unstable
 
 jobs:
   test:
