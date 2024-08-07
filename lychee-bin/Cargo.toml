@@ -20,7 +20,6 @@ anyhow = "1.0.86"
 assert-json-diff = "2.0.2"
 clap = { version = "4.5.13", features = ["env", "derive"] }
 console = "0.15.8"
-console-subscriber = { version = "0.4.0", optional = true }
 const_format = "0.2.32"
 csv = "1.3.0"
 dashmap = { version = "6.0.1", features = ["serde"] }
@@ -69,8 +68,18 @@ tracing-subscriber = { version = "0.3.18", default-features = false, features = 
 uuid = { version = "1.10.0", features = ["v4"] }
 wiremock = "0.6.1"
 
+[dependencies.console-subscriber]
+version = "0.4.0"
+optional = true
+
+[dependencies.tracing-subscriber]
+version = "0.3.18"
+default-features = false
+features = ["fmt", "env-filter"]
+optional = true
+
 [features]
-tokio-console = ["console-subscriber", "tracing-subscriber/registry"]
+tokio-console = ["dep:console-subscriber", "dep:tracing-subscriber"]
 
 # Compile and statically link a copy of OpenSSL.
 vendored-openssl = ["openssl-sys/vendored"]
@@ -97,7 +106,7 @@ name = "cli"
 path = "tests/cli.rs"
 required-features = ["check_example_domains"]
 
-# metadata for cargo-binstall to get the right artifacts
+# Metadata for cargo-binstall to get the right artifacts
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/v{ version }/{ name }-v{ version }-{ target }{ archive-suffix }"
 bin-dir = "{ bin }{ binary-ext }"

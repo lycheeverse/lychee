@@ -117,8 +117,9 @@ const LYCHEEIGNORE_COMMENT_MARKER: &str = "#";
 fn main() -> Result<()> {
     #[cfg(feature = "tokio-console")]
     console_subscriber::init();
-    // std::process::exit doesn't guarantee that all destructors will be ran,
-    // therefore we wrap "main" code in another function to ensure that.
+
+    // std::process::exit doesn't guarantee that all destructors will be run,
+    // therefore we wrap the main code in another function to ensure that.
     // See: https://doc.rust-lang.org/stable/std/process/fn.exit.html
     // Also see: https://www.youtube.com/watch?v=zQC8T71Y8e4
     let exit_code = run_main()?;
