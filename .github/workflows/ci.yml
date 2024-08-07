@@ -26,9 +26,9 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
       - name: Compile
-        run: cargo test --no-run --locked
+        run: cargo check --locked
       - name: Test
-        run: cargo test -- --nocapture --quiet
+        run: make test
 
   lint:
     runs-on: ubuntu-latest
