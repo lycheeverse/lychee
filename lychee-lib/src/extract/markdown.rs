@@ -1,14 +1,14 @@
 //! Extract links and fragments from markdown documents
 use std::collections::{HashMap, HashSet};
 
-use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
 
 use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
 
 use super::html::html5gum::{extract_html, extract_html_fragments};
 
 /// Returns the default markdown extensions used by lychee.
-/// Sadly `|` is not const for `Options` so we can't use a const global.
+/// Sadly, `|` is not const for `Options` so we can't use a const global.
 fn md_extensions() -> Options {
     Options::ENABLE_HEADING_ATTRIBUTES | Options::ENABLE_MATH
 }
@@ -22,18 +22,49 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
     let parser = Parser::new_ext(input, md_extensions());
     parser
         .filter_map(|event| match event {
-            // A link. The first field is the link type, the second the destination URL and the third is a title.
-            Event::Start(Tag::Link { dest_url, .. }) => {
-                Some(vec![RawUri {
-                    text: dest_url.to_string(),
-                    // Emulate `<a href="...">` tag here to be compatible with
-                    // HTML links. We might consider using the actual Markdown
-                    // `LinkType` for better granularity in the future
-                    element: Some("a".to_string()),
-                    attribute: Some("href".to_string()),
-                }])
+            // A link.
+            Event::Start(Tag::Link {
+                link_type,
+                dest_url,
+                ..
+            }) => {
+                // Note: Explicitly listing all link types below to make it easier to
+                // change the behavior for a specific link type in the future.
+                match link_type {
+                    // Inline link like `[foo](bar)`
+                    // This is the most common link type
+                    LinkType::Inline => {
+                        Some(vec![RawUri {
+                            text: dest_url.to_string(),
+                            // Emulate `<a href="...">` tag here to be compatible with
+                            // HTML links. We might consider using the actual Markdown
+                            // `LinkType` for better granularity in the future
+                            element: Some("a".to_string()),
+                            attribute: Some("href".to_string()),
+                        }])
+                    }
+                    // Reference without destination in the document, but resolved by the `broken_link_callback`
+                    LinkType::Reference |
+                    // Collapsed link like `[foo][]`
+                    LinkType::ReferenceUnknown |
+                    // Collapsed link like `[foo][]`
+                    LinkType::Collapsed|
+                    // Collapsed link without destination in the document, but resolved by the `broken_link_callback`
+                    LinkType::CollapsedUnknown |
+                    // Shortcut link like `[foo]`
+                    LinkType::Shortcut |
+                    // Shortcut without destination in the document, but resolved by the `broken_link_callback`
+                    LinkType::ShortcutUnknown |
+                    // Autolink like `<http://foo.bar/baz>`
+                    LinkType::Autolink |
+                    // Email address in autolink like `<john@example.org>`
+                    LinkType::Email =>
+                     Some(extract_plaintext(&dest_url)),
+                }
             }
-            // An image. The first field is the link type, the second the destination URL and the third is a title.
+
+            // An image.
+            // The first field is the link type, the second the destination URL and the third is a title.
             Event::Start(Tag::Image { dest_url, .. }) => {
                 Some(vec![RawUri {
                     text: dest_url.to_string(),
@@ -44,6 +75,7 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
                     attribute: Some("src".to_string()),
                 }])
             }
+
             // A code block (inline or fenced).
             Event::Start(Tag::CodeBlock(_)) => {
                 inside_code_block = true;
@@ -299,7 +331,7 @@ Some pre-formatted http://pre.com
     }
 
     #[test]
-    fn test_mardown_math() {
+    fn test_markdown_math() {
         let input = r"
 $$
 [\psi](\mathbf{L})
@@ -307,5 +339,13 @@ $$
 ";
         let uris = extract_markdown(input, true);
         assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_single_word_footnote_is_not_detected_as_link() {
+        let markdown = "This footnote is[^actually] a link.\n\n[^actually]: not";
+        let expected = vec![];
+        let uris = extract_markdown(markdown, true);
+        assert_eq!(uris, expected);
     }
 }
