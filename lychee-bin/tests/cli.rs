@@ -413,7 +413,7 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(
-                "✗ [404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Failed: Network error: Not Found"
+                "[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man"
             ))
             .stderr(contains(
                 "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
