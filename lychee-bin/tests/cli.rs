@@ -155,9 +155,7 @@ mod cli {
         let site_error_status = &output_json["fail_map"][&test_path.to_str().unwrap()][0]["status"];
 
         assert_eq!(
-            "error:0A000086:SSL routines:tls_post_process_server_certificate:\
-            certificate verify failed:../ssl/statem/statem_clnt.c:1883: \
-            (certificate has expired)",
+            "error sending request for url (https://expired.badssl.com/)",
             site_error_status["details"]
         );
         Ok(())
