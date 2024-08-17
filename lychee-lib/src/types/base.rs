@@ -36,18 +36,17 @@ impl Base {
         }
     }
 
-    pub(crate) fn from_source(source: &InputSource) -> Option<Url> {
+    pub(crate) fn from_source(source: &InputSource) -> Option<Base> {
         match &source {
             InputSource::RemoteUrl(url) => {
-                // TODO: This should be refactored.
-                // Cases like https://user:pass@example.com are not handled
-                // We can probably use the original URL and just replace the
-                // path component in the caller of this function
-                if let Some(port) = url.port() {
-                    Url::parse(&format!("{}://{}:{port}", url.scheme(), url.host_str()?)).ok()
-                } else {
-                    Url::parse(&format!("{}://{}", url.scheme(), url.host_str()?)).ok()
-                }
+                // Create a new URL with just the scheme, host, and port
+                let mut base_url = url.clone();
+                base_url.set_path("");
+                base_url.set_query(None);
+                base_url.set_fragment(None);
+
+                // We keep the username and password intact
+                Some(Base::Remote(*base_url))
             }
             // other inputs do not have a URL to extract a base
             _ => None,
@@ -123,7 +122,7 @@ mod test_base {
             let url = Url::parse(url).unwrap();
             let source = InputSource::RemoteUrl(Box::new(url.clone()));
             let base = Base::from_source(&source);
-            let expected = Url::parse(expected).unwrap();
+            let expected = Base::Remote(Url::parse(expected).unwrap());
             assert_eq!(base, Some(expected));
         }
     }
