@@ -85,7 +85,11 @@ impl Collector {
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {
                 let base = match input.source {
-                    InputSource::RemoteUrl(ref url) => Base::try_from(url.as_str()).ok(),
+                    InputSource::RemoteUrl(ref url) => {
+                        // If the URL is a cannot-be-a-base URL (i.e. it's a relative URL),
+                        // use `self.base` as the base URL.
+                        Base::try_from(url.as_str()).ok().or(self.base.clone())
+                    }
                     _ => self.base.clone(),
                 };
                 async move {
