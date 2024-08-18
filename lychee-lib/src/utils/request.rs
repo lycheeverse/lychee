@@ -108,13 +108,6 @@ pub(crate) fn create(
     Ok(HashSet::from_iter(requests))
 }
 
-fn construct_url(base: &Option<Url>, text: &str) -> Option<Result<Url>> {
-    base.as_ref().map(|base| {
-        base.join(text)
-            .map_err(|e| ErrorKind::ParseUrl(e, format!("{base}{text}")))
-    })
-}
-
 fn create_uri_from_path(src: &Path, dst: &str, base: &Option<Base>) -> Result<Option<Url>> {
     let (dst, frag) = url::remove_get_params_and_separate_fragment(dst);
     // Avoid double-encoding already encoded destination paths by removing any
