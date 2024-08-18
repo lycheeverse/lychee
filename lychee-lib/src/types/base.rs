@@ -4,6 +4,8 @@ use std::{convert::TryFrom, path::PathBuf};
 
 use crate::{ErrorKind, InputSource};
 
+/// Base URL or path for a document.
+///
 /// When encountering links without a full domain in a document,
 /// the base determines where this resource can be found.
 /// Both, local and remote targets are supported.
@@ -19,6 +21,13 @@ pub enum Base {
 
 impl Base {
     /// Join link with base url
+    ///
+    /// This joins the given link with the base URL.
+    /// The result is a new URL if the base is a remote URL
+    /// where the link is joined with the base URL.
+    ///
+    /// This is only possible if the base is a remote URL.
+    /// If the base is a local path, this will return None.
     #[must_use]
     pub(crate) fn join(&self, link: &str) -> Option<Url> {
         match self {
@@ -57,6 +66,9 @@ impl Base {
 impl TryFrom<&str> for Base {
     type Error = ErrorKind;
 
+    /// Try to parse the given string as a URL or a local path
+    /// to be used as a base.
+    /// If the URL cannot be a base, an error is returned.
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if let Ok(url) = Url::parse(value) {
             if url.cannot_be_a_base() {

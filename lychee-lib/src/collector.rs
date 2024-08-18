@@ -85,7 +85,7 @@ impl Collector {
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {
                 let base = match input.source {
-                    InputSource::RemoteUrl(ref url) => Some(Base::try_from(url.as_str()).unwrap()),
+                    InputSource::RemoteUrl(ref url) => Base::try_from(url.as_str()).ok(),
                     _ => self.base.clone(),
                 };
                 async move {
