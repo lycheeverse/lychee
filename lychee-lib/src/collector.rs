@@ -82,15 +82,12 @@ impl Collector {
     /// Will return `Err` if links cannot be extracted from an input
     pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
-        let global_base = self.base;
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {
-                let global_base = global_base.clone();
-                let input_base = match &input.source {
-                    InputSource::RemoteUrl(url) => Some(Base::try_from(url.as_str()).unwrap()),
-                    _ => None,
+                let base = match input.source {
+                    InputSource::RemoteUrl(ref url) => Some(Base::try_from(url.as_str()).unwrap()),
+                    _ => self.base.clone(),
                 };
-                let base = input_base.or(global_base);
                 async move {
                     input
                         .get_contents(skip_missing_inputs)
