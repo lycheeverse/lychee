@@ -60,10 +60,10 @@ pub(crate) fn create(
             } else if let Some(base) = &base_url {
                 match base.join(&text) {
                     Some(url) => {
-                        let uri = Uri { url };
-                        let credentials = credentials(extractor, &uri);
+                        let request_uri = Uri { url };
+                        let credentials = credentials(extractor, &request_uri);
                         Ok(Some(Request::new(
-                            uri,
+                            request_uri,
                             source,
                             element,
                             attribute,
