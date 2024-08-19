@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use html5ever::{
     buffer_queue::BufferQueue,
     tendril::StrTendril,
@@ -9,22 +11,22 @@ use crate::types::uri::raw::RawUri;
 
 #[derive(Clone, Default)]
 struct LinkExtractor {
-    links: Vec<RawUri>,
+    links: RefCell<Vec<RawUri>>,
     include_verbatim: bool,
-    current_verbatim_element_name: Option<String>,
+    current_verbatim_element_name: RefCell<Option<String>>,
 }
 
 impl TokenSink for LinkExtractor {
     type Handle = ();
 
     #[allow(clippy::match_same_arms)]
-    fn process_token(&mut self, token: Token, _line_number: u64) -> TokenSinkResult<()> {
+    fn process_token(&self, token: Token, _line_number: u64) -> TokenSinkResult<()> {
         match token {
             Token::CharacterTokens(raw) => {
-                if self.current_verbatim_element_name.is_some() {
+                if self.current_verbatim_element_name.borrow().is_some() {
                     return TokenSinkResult::Continue;
                 }
-                self.links.extend(extract_plaintext(&raw));
+                self.links.borrow_mut().extend(extract_plaintext(&raw));
             }
             Token::TagToken(tag) => {
                 let Tag {
@@ -36,25 +38,26 @@ impl TokenSink for LinkExtractor {
                 // Check if this is a verbatim element, which we want to skip.
                 if !self.include_verbatim && is_verbatim_elem(&name) {
                     // Check if we're currently inside a verbatim block
-                    if let Some(current_verbatim_element_name) = &self.current_verbatim_element_name
-                    {
+                    let mut curr_verbatim_elem = self.current_verbatim_element_name.borrow_mut();
+
+                    if curr_verbatim_elem.is_some() {
                         // Inside a verbatim block. Check if the verbatim
                         // element name matches with the current element name.
-                        if current_verbatim_element_name == name.as_ref() {
+                        if curr_verbatim_elem.as_ref() == Some(&name.to_string()) {
                             // If so, we're done with the verbatim block,
                             // -- but only if this is an end tag.
                             if matches!(kind, TagKind::EndTag) {
-                                self.current_verbatim_element_name = None;
+                                *curr_verbatim_elem = None;
                             }
                         }
                     } else if matches!(kind, TagKind::StartTag) {
                         // We're not inside a verbatim block, but we just
                         // encountered a verbatim element. Remember the name
                         // of the element.
-                        self.current_verbatim_element_name = Some(name.to_string());
+                        *curr_verbatim_elem = Some(name.to_string());
                     }
                 }
-                if self.current_verbatim_element_name.is_some() {
+                if self.current_verbatim_element_name.borrow().is_some() {
                     // We want to skip the content of this element
                     // as we're inside a verbatim block.
                     return TokenSinkResult::Continue;
@@ -101,7 +104,7 @@ impl TokenSink for LinkExtractor {
                             })
                             .collect::<Vec<_>>(),
                     };
-                    self.links.extend(new_urls);
+                    self.links.borrow_mut().extend(new_urls);
                 }
             }
             Token::ParseError(_err) => {
@@ -119,9 +122,9 @@ impl TokenSink for LinkExtractor {
 impl LinkExtractor {
     pub(crate) const fn new(include_verbatim: bool) -> Self {
         Self {
-            links: vec![],
+            links: RefCell::new(Vec::new()),
             include_verbatim,
-            current_verbatim_element_name: None,
+            current_verbatim_element_name: RefCell::new(None),
         }
     }
 
@@ -167,17 +170,17 @@ impl LinkExtractor {
 
 /// Extract unparsed URL strings from an HTML string.
 pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
-    let mut input = BufferQueue::default();
+    let input = BufferQueue::default();
     input.push_back(StrTendril::from(buf));
 
-    let mut tokenizer = Tokenizer::new(
+    let tokenizer = Tokenizer::new(
         LinkExtractor::new(include_verbatim),
         TokenizerOpts::default(),
     );
-    let _handle = tokenizer.feed(&mut input);
+    let _handle = tokenizer.feed(&input);
     tokenizer.end();
 
-    tokenizer.sink.links
+    tokenizer.sink.links.into_inner()
 }
 
 #[cfg(test)]
