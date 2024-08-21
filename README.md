@@ -99,6 +99,12 @@ pkg install lychee
 apk add lychee
 ```
 
+### Chocolatey (Windows)
+
+```sh
+choco install lychee
+```
+
 ### Pre-built binaries
 
 We provide binaries for Linux, macOS, and Windows for every release. \
