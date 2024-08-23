@@ -106,13 +106,12 @@ impl Collector {
         let global_base = self.base;
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {
-                let global_base = global_base.clone();
+                let default_base = global_base.clone();
                 async move {
-                    let input_base = match &input.source {
-                        InputSource::RemoteUrl(url) => Some(Base::try_from(url.as_str()).unwrap()),
-                        _ => None,
+                    let base = match &input.source {
+                        InputSource::RemoteUrl(url) => Base::try_from(url.as_str()).ok(),
+                        _ => default_base,
                     };
-                    let base = input_base.or(global_base);
                     input
                         .get_contents(skip_missing_inputs, skip_hidden, skip_ignored)
                         .map(move |content| (content, base.clone()))
