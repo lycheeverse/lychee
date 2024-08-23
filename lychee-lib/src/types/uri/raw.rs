@@ -19,12 +19,6 @@ pub struct RawUri {
     pub attribute: Option<String>,
 }
 
-impl RawUri {
-    // Taken from https://github.com/getzola/zola/blob/master/components/link_checker/src/lib.rs
-    pub(crate) fn is_anchor(&self) -> bool {
-        self.text.starts_with('#')
-    }
-}
 impl Display for RawUri {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} (Attribute: {:?})", self.text, self.attribute)
@@ -38,19 +32,5 @@ impl From<&str> for RawUri {
             element: None,
             attribute: None,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_is_anchor() {
-        let raw_uri = RawUri::from("#anchor");
-        assert!(raw_uri.is_anchor());
-
-        let raw_uri = RawUri::from("notan#anchor");
-        assert!(!raw_uri.is_anchor());
     }
 }

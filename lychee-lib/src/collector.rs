@@ -143,7 +143,7 @@ mod tests {
     use super::*;
     use crate::{
         mock_server,
-        test_utils::{load_fixture, mail, website},
+        test_utils::{load_fixture, mail, path, website},
         types::{FileType, Input, InputSource},
         Result, Uri,
     };
@@ -480,6 +480,35 @@ mod tests {
                 "{}/bar/relative.html",
                 mock_server_2.uri().trim_end_matches('/')
             )),
+        ]);
+
+        assert_eq!(links, expected_links);
+    }
+
+    #[tokio::test]
+    async fn test_file_path_with_base() {
+        let base = Base::try_from("/path/to/root").unwrap();
+        assert_eq!(base, Base::Local("/path/to/root".into()));
+
+        let input = Input {
+            source: InputSource::String(
+                r#"
+                <a href="index.html">Index</a>
+                <a href="about.html">About</a> 
+                <a href="/another.html">Another</a> 
+            "#
+                .into(),
+            ),
+            file_type_hint: Some(FileType::Html),
+            excluded_paths: None,
+        };
+
+        let links = collect(vec![input], Some(base)).await;
+
+        let expected_links = HashSet::from_iter([
+            path("/path/to/root/index.html"),
+            path("/path/to/root/about.html"),
+            path("/another.html"),
         ]);
 
         assert_eq!(links, expected_links);

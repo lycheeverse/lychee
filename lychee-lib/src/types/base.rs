@@ -23,7 +23,10 @@ impl Base {
     pub(crate) fn join(&self, link: &str) -> Option<Url> {
         match self {
             Self::Remote(url) => url.join(link).ok(),
-            Self::Local(_) => None,
+            Self::Local(path) => {
+                let full_path = path.join(link);
+                Url::from_file_path(full_path).ok()
+            }
         }
     }
 
@@ -98,6 +101,16 @@ mod test_base {
     #[test]
     fn test_invalid_url() {
         assert!(Base::try_from("data:text/plain,Hello?World#").is_err());
+    }
+
+    #[test]
+    fn test_valid_local_path_string_as_base() -> Result<()> {
+        let cases = vec!["/tmp/lychee", "/tmp/lychee/", "tmp/lychee/"];
+
+        for case in cases {
+            assert_eq!(Base::try_from(case)?, Base::Local(PathBuf::from(case)));
+        }
+        Ok(())
     }
 
     #[test]
