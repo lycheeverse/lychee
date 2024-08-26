@@ -10,7 +10,7 @@ path = "chain.rs"
 [dependencies]
 async-trait = "0.1.81"
 lychee-lib = { path = "../../lychee-lib", default-features = false }
-reqwest = "0.12.5"
+reqwest = "0.12.7"
 tokio = { version = "1.39.3", features = ["full"] }
 
 [features]
