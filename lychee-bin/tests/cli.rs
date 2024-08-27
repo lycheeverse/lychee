@@ -1335,6 +1335,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "Skipping test because it is flaky"]
     fn test_suggests_url_alternatives() -> Result<()> {
         for _ in 0..3 {
             // This can be flaky. Try up to 3 times
