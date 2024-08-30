@@ -51,8 +51,16 @@ zypper in lychee
 
 ### macOS
 
+Via [Homebrew](https://brew.sh):
+
 ```sh
 brew install lychee
+```
+
+Via [MacPorts](https://www.macports.org):
+
+```sh
+sudo port install lychee
 ```
 
 ### Docker
