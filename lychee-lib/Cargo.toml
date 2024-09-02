@@ -13,7 +13,7 @@ version.workspace = true
 
 [dependencies]
 async-stream = "0.3.5"
-async-trait = "0.1.81"
+async-trait = "0.1.82"
 cached = "0.53.1"
 check-if-email-exists = { version = "0.9.1", optional = true }
 email_address = "0.2.9"
@@ -53,7 +53,7 @@ serde = { version = "1.0.209", features = ["derive"] }
 serde_with = "3.8.1"
 shellexpand = "3.1.0"
 thiserror = "1.0.63"
-tokio = { version = "1.39.3", features = ["full"] }
+tokio = { version = "1.40.0", features = ["full"] }
 toml = "0.8.19"
 typed-builder = "0.20.0"
 url = { version = "2.5.2", features = ["serde"] }

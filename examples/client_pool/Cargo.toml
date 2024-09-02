@@ -11,7 +11,7 @@ path = "client_pool.rs"
 futures = "0.3.30"
 tokio-stream = "0.1.15"
 lychee-lib = { path = "../../lychee-lib", default-features = false }
-tokio = { version = "1.39.3", features = ["full"] }
+tokio = { version = "1.40.0", features = ["full"] }
 
 [features]
 email-check = ["lychee-lib/email-check"]
