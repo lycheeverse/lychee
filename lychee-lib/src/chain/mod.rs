@@ -205,7 +205,7 @@ pub(crate) struct ClientRequestChains<'a> {
 
 impl<'a> ClientRequestChains<'a> {
     /// Create a new chain of request chains.
-    pub(crate) fn new(chains: Vec<&'a RequestChain>) -> Self {
+    pub(crate) const fn new(chains: Vec<&'a RequestChain>) -> Self {
         Self { chains }
     }
 
