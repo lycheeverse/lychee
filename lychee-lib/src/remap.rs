@@ -40,7 +40,7 @@ pub struct Remaps(Vec<(Regex, String)>);
 impl Remaps {
     /// Create a new remapper
     #[must_use]
-    pub fn new(patterns: Vec<(Regex, String)>) -> Self {
+    pub const fn new(patterns: Vec<(Regex, String)>) -> Self {
         Self(patterns)
     }
 
