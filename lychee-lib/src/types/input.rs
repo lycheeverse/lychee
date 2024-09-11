@@ -198,6 +198,26 @@ impl Input {
     }
 
     /// Retrieve the contents from the input
+    /// 
+    /// This will return a stream of `InputContent` instances.
+    ///
+    /// - If the input source is a remote URL, the stream will contain the
+    ///   contents of the URL.
+    /// - If the input source is a glob pattern, the stream will contain the
+    ///   contents of all matched files.
+    /// - If the input source is a directory, the stream will contain the
+    ///   contents of all files in the directory (recursively).
+    ///   This will skip excluded paths.
+    /// - If the input source is a file, the stream will contain the contents of
+    ///   the file.
+    /// - If the input source is stdin, the stream will contain the contents of
+    ///   the stdin.
+    /// - If the input source is a string, the stream will contain the contents
+    ///   of the string.
+    ///
+    /// If `skip_missing` is set to `true`, missing files will be skipped and no
+    /// error will be returned. The file type hint will be used to determine the
+    /// file type of the input if it is not already known. 
     ///
     /// # Errors
     ///
