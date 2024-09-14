@@ -3,7 +3,7 @@ use crate::{utils, ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
-use jwalk::WalkDir;
+use ignore::Walk;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
@@ -226,34 +226,19 @@ impl Input {
                 }
                 InputSource::FsPath(ref path) => {
                     if path.is_dir() {
-                        for entry in WalkDir::new(path).skip_hidden(true)
-                        .process_read_dir(move |_, _, (), children| {
-                            children.retain(|child| {
-                                let Ok(entry) = child.as_ref() else { return true };
-
-                                if self.is_excluded_path(&entry.path()) {
-                                    return false;
-                                }
-
-                                let file_type = entry.file_type();
-
-                                if file_type.is_dir() {
-                                    // Required for recursion
-                                    return true;
-                                }
-                                if file_type.is_symlink() {
-                                    return false;
-                                }
-                                if !file_type.is_file() {
-                                    return false;
-                                }
-                                valid_extension(&entry.path())
-                            });
-                        }) {
+                        for entry in Walk::new(path) {
                             let entry = entry?;
-                            if entry.file_type().is_dir() {
-                                continue;
-                            }
+
+                            match entry.file_type() {
+                                None => continue,
+                                Some(file_type) => {
+                                    if file_type.is_symlink() || !file_type.is_file() || !valid_extension(&entry.path())
+                                    {
+                                        continue;
+                                    }
+                                }
+                            };
+
                             let content = Self::path_content(entry.path()).await?;
                             yield content
                         }
