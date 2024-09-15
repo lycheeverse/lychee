@@ -24,6 +24,7 @@ async fn main() -> Result<()> {
 
     let links = Collector::new(None) // base
         .skip_missing_inputs(false) // don't skip missing inputs? (default=false)
+        .gitignore(true) // skip files that are ignored by git? (default=false)
         .use_html5ever(false) // use html5ever for parsing? (default=false)
         .collect_links(inputs) // base url or directory
         .collect::<Result<Vec<_>>>()

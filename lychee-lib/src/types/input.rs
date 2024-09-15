@@ -3,7 +3,7 @@ use crate::{utils, ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
-use ignore::Walk;
+use ignore::WalkBuilder;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
@@ -204,7 +204,11 @@ impl Input {
     /// Returns an error if the contents can not be retrieved
     /// because of an underlying I/O error (e.g. an error while making a
     /// network request or retrieving the contents from the file system)
-    pub fn get_contents(self, skip_missing: bool) -> impl Stream<Item = Result<InputContent>> {
+    pub fn get_contents(
+        self,
+        skip_missing: bool,
+        gitignore: bool,
+    ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             match self.source {
                 InputSource::RemoteUrl(ref url) => {
@@ -226,14 +230,13 @@ impl Input {
                 }
                 InputSource::FsPath(ref path) => {
                     if path.is_dir() {
-                        for entry in Walk::new(path) {
+                        for entry in WalkBuilder::new(path).standard_filters(gitignore).hidden(true).build() {
                             let entry = entry?;
 
                             match entry.file_type() {
                                 None => continue,
                                 Some(file_type) => {
-                                    if file_type.is_symlink() || !file_type.is_file() || !valid_extension(&entry.path())
-                                    {
+                                    if file_type.is_symlink() || !file_type.is_file() || !valid_extension(&entry.path()) {
                                         continue;
                                     }
                                 }
