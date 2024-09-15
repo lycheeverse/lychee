@@ -233,6 +233,10 @@ impl Input {
                         for entry in WalkBuilder::new(path).standard_filters(gitignore).hidden(true).build() {
                             let entry = entry?;
 
+                            if self.is_excluded_path(&entry.path().to_path_buf()) {
+                                continue;
+                            }
+
                             match entry.file_type() {
                                 None => continue,
                                 Some(file_type) => {
