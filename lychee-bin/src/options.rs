@@ -438,6 +438,11 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[serde(default)]
     pub(crate) skip_missing: bool,
 
+    /// Skip files that are ignored by git (default is to error if they don't exist)
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) gitignore: bool,
+
     /// Find links in verbatim sections like `pre`- and `code` blocks
     #[arg(long)]
     #[serde(default)]

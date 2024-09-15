@@ -15,6 +15,7 @@ use par_stream::ParStreamExt;
 pub struct Collector {
     basic_auth_extractor: Option<BasicAuthExtractor>,
     skip_missing_inputs: bool,
+    gitignore: bool,
     include_verbatim: bool,
     use_html5ever: bool,
     base: Option<Base>,
@@ -29,6 +30,7 @@ impl Collector {
             skip_missing_inputs: false,
             include_verbatim: false,
             use_html5ever: false,
+            gitignore: false,
             base,
         }
     }
@@ -37,6 +39,13 @@ impl Collector {
     #[must_use]
     pub const fn skip_missing_inputs(mut self, yes: bool) -> Self {
         self.skip_missing_inputs = yes;
+        self
+    }
+
+    /// Skip files that are ignored by git
+    #[must_use]
+    pub const fn gitignore(mut self, yes: bool) -> Self {
+        self.gitignore = yes;
         self
     }
 
@@ -80,11 +89,10 @@ impl Collector {
     ///
     /// Will return `Err` if links cannot be extracted from an input
     pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
-        let skip_missing_inputs = self.skip_missing_inputs;
         let base = self.base;
         stream::iter(inputs)
             .par_then_unordered(None, move |input| async move {
-                input.get_contents(skip_missing_inputs)
+                input.get_contents(self.skip_missing_inputs, self.gitignore)
             })
             .flatten()
             .par_then_unordered(None, move |content| {
