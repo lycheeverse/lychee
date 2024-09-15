@@ -147,7 +147,7 @@ mod tests {
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path).unwrap();
         let input = Input::new(&file_path.as_path().display().to_string(), None, true, None)?;
-        let contents: Vec<_> = input.get_contents(true).collect::<Vec<_>>().await;
+        let contents: Vec<_> = input.get_contents(true, false).collect::<Vec<_>>().await;
 
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Plaintext);
@@ -157,7 +157,7 @@ mod tests {
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
         let input = Input::new("https://example.com/", None, true, None)?;
-        let contents: Vec<_> = input.get_contents(true).collect::<Vec<_>>().await;
+        let contents: Vec<_> = input.get_contents(true, false).collect::<Vec<_>>().await;
 
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Html);
