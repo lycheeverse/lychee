@@ -240,7 +240,7 @@ impl Input {
                             match entry.file_type() {
                                 None => continue,
                                 Some(file_type) => {
-                                    if file_type.is_symlink() || !file_type.is_file() || !valid_extension(&entry.path()) {
+                                    if !file_type.is_file() || !valid_extension(entry.path()) {
                                         continue;
                                     }
                                 }
