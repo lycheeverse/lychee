@@ -467,6 +467,25 @@ mod cli {
         cmd.arg(&filename).arg("--skip-missing").assert().success();
     }
 
+    #[test]
+    fn test_skips_hidden_files_by_default() {
+        main_command()
+            .arg(fixtures_path().join("hidden/"))
+            .assert()
+            .success()
+            .stdout(contains("1 OK"));
+    }
+
+    #[test]
+    fn test_include_hidden_file() {
+        main_command()
+            .arg(fixtures_path().join("hidden/"))
+            .arg("--hidden")
+            .assert()
+            .success()
+            .stdout(contains("2 OK"));
+    }
+
     #[tokio::test]
     async fn test_glob() -> Result<()> {
         // using Result to be able to use `?`
