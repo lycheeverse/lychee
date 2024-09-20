@@ -473,7 +473,7 @@ mod cli {
             .arg(fixtures_path().join("hidden/"))
             .assert()
             .success()
-            .stdout(contains("1 OK"));
+            .stdout(contains("0 Total"));
     }
 
     #[test]
@@ -483,7 +483,26 @@ mod cli {
             .arg("--hidden")
             .assert()
             .success()
-            .stdout(contains("2 OK"));
+            .stdout(contains("1 Total"));
+    }
+
+    #[test]
+    fn test_skips_ignored_files_by_default() {
+        main_command()
+            .arg(fixtures_path().join("ignore/"))
+            .assert()
+            .success()
+            .stdout(contains("0 Total"));
+    }
+
+    #[test]
+    fn test_include_ignored_file() {
+        main_command()
+            .arg(fixtures_path().join("ignore/"))
+            .arg("--no-ignore")
+            .assert()
+            .success()
+            .stdout(contains("1 Total"));
     }
 
     #[tokio::test]
@@ -774,7 +793,7 @@ mod cli {
     #[test]
     fn test_lycheeignore_file() -> Result<()> {
         let mut cmd = main_command();
-        let test_path = fixtures_path().join("ignore");
+        let test_path = fixtures_path().join("lycheeignore");
 
         let cmd = cmd
             .current_dir(test_path)
@@ -795,7 +814,7 @@ mod cli {
     #[test]
     fn test_lycheeignore_and_exclude_file() -> Result<()> {
         let mut cmd = main_command();
-        let test_path = fixtures_path().join("ignore");
+        let test_path = fixtures_path().join("lycheeignore");
         let excludes_path = test_path.join("normal-exclude-file");
 
         cmd.current_dir(test_path)
