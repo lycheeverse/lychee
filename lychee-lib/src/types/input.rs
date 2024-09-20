@@ -207,7 +207,8 @@ impl Input {
     pub fn get_contents(
         self,
         skip_missing: bool,
-        gitignore: bool,
+        skip_hidden: bool,
+        skip_gitignored: bool,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             match self.source {
@@ -230,7 +231,7 @@ impl Input {
                 }
                 InputSource::FsPath(ref path) => {
                     if path.is_dir() {
-                        for entry in WalkBuilder::new(path).standard_filters(gitignore).hidden(true).build() {
+                        for entry in WalkBuilder::new(path).standard_filters(skip_gitignored).hidden(skip_hidden).build() {
                             let entry = entry?;
 
                             if self.is_excluded_path(&entry.path().to_path_buf()) {

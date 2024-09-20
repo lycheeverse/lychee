@@ -292,7 +292,8 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
 
     let mut collector = Collector::new(opts.config.base.clone())
         .skip_missing_inputs(opts.config.skip_missing)
-        .gitignore(opts.config.gitignore)
+        .skip_hidden(!opts.config.hidden)
+        .skip_ignored(!opts.config.no_ignore)
         .include_verbatim(opts.config.include_verbatim)
         // File a bug if you rely on this envvar! It's going to go away eventually.
         .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").map_or(false, |x| x == "1"));
