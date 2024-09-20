@@ -11,6 +11,7 @@ use par_stream::ParStreamExt;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
 pub struct Collector {
     basic_auth_extractor: Option<BasicAuthExtractor>,
