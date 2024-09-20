@@ -476,8 +476,11 @@ Options:
       --skip-missing
           Skip missing input files (default is to error if they don't exist)
 
-      --gitignore
-          Skip files that are ignored by git (default is to error if they don't exist)
+      --no-ignore
+          Do not skip files that would otherwise be ignored by '.gitignore', '.ignore', or the global ignore file
+
+      --hidden
+          Do not skip hidden directories and files
 
       --include-verbatim
           Find links in verbatim sections like `pre`- and `code` blocks

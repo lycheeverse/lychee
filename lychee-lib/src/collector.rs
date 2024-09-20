@@ -15,7 +15,8 @@ use par_stream::ParStreamExt;
 pub struct Collector {
     basic_auth_extractor: Option<BasicAuthExtractor>,
     skip_missing_inputs: bool,
-    gitignore: bool,
+    skip_ignored: bool,
+    skip_hidden: bool,
     include_verbatim: bool,
     use_html5ever: bool,
     base: Option<Base>,
@@ -30,7 +31,8 @@ impl Collector {
             skip_missing_inputs: false,
             include_verbatim: false,
             use_html5ever: false,
-            gitignore: false,
+            skip_hidden: true,
+            skip_ignored: true,
             base,
         }
     }
@@ -42,10 +44,17 @@ impl Collector {
         self
     }
 
-    /// Skip files that are ignored by git
+    /// Skip files that are hidden
     #[must_use]
-    pub const fn gitignore(mut self, yes: bool) -> Self {
-        self.gitignore = yes;
+    pub const fn skip_hidden(mut self, yes: bool) -> Self {
+        self.skip_hidden = yes;
+        self
+    }
+
+    /// Skip files that are ignored
+    #[must_use]
+    pub const fn skip_ignored(mut self, yes: bool) -> Self {
+        self.skip_ignored = yes;
         self
     }
 
@@ -92,7 +101,11 @@ impl Collector {
         let base = self.base;
         stream::iter(inputs)
             .par_then_unordered(None, move |input| async move {
-                input.get_contents(self.skip_missing_inputs, self.gitignore)
+                input.get_contents(
+                    self.skip_missing_inputs,
+                    self.skip_hidden,
+                    self.skip_ignored,
+                )
             })
             .flatten()
             .par_then_unordered(None, move |content| {
@@ -147,7 +160,10 @@ mod tests {
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path).unwrap();
         let input = Input::new(&file_path.as_path().display().to_string(), None, true, None)?;
-        let contents: Vec<_> = input.get_contents(true, false).collect::<Vec<_>>().await;
+        let contents: Vec<_> = input
+            .get_contents(true, true, true)
+            .collect::<Vec<_>>()
+            .await;
 
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Plaintext);
@@ -157,7 +173,10 @@ mod tests {
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
         let input = Input::new("https://example.com/", None, true, None)?;
-        let contents: Vec<_> = input.get_contents(true, false).collect::<Vec<_>>().await;
+        let contents: Vec<_> = input
+            .get_contents(true, true, true)
+            .collect::<Vec<_>>()
+            .await;
 
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Html);
