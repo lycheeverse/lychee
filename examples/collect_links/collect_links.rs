@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use tokio_stream::StreamExt;
 
 #[tokio::main]
-#[allow(clippy::trivial_regex)]
 async fn main() -> Result<()> {
     // Collect all links from the following inputs
     let inputs = vec![
