@@ -767,9 +767,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.17"
+version = "4.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e5a21b8495e732f1b3c364c9949b201ca7bae518c502c80256c96ad79eaf6ac"
+checksum = "b0956a43b323ac1afaffc053ed5c4b7c1f1800bacd1683c353aabbb752515dd3"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -777,9 +777,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.17"
+version = "4.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cf2dd12af7a047ad9d6da2b6b249759a22a7abc0f474c1dae1777afa4b21a73"
+checksum = "4d72166dd41634086d5803a47eb71ae740e61d84709c36f3c34110173db3961b"
 dependencies = [
  "anstream",
  "anstyle",
@@ -789,9 +789,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.5.13"
+version = "4.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "501d359d5f3dcaf6ecdeee48833ae73ec6e42723a1e52419c79abf9507eec0a0"
+checksum = "4ac6a0c7b1a9e9a5186361f67dfa1b88213572f427fb9ab038efb2bd8c582dab"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -2522,7 +2522,7 @@ dependencies = [
  "reqwest 0.12.7",
  "reqwest_cookie_store",
  "ring",
- "secrecy",
+ "secrecy 0.10.2",
  "serde",
  "serde_json",
  "strum",
@@ -2570,7 +2570,7 @@ dependencies = [
  "reqwest_cookie_store",
  "ring",
  "rstest",
- "secrecy",
+ "secrecy 0.10.2",
  "serde",
  "serde_json",
  "serde_with",
@@ -2797,9 +2797,9 @@ dependencies = [
 
 [[package]]
 name = "octocrab"
-version = "0.39.0"
+version = "0.40.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9305e4c99543ecd0f42bd659c9e9d6ca7115fe5e37d5c85a7277b1db0d4c4101"
+checksum = "09386c28b984097d7a56ec23907bb76751ae6720ebdc4484fe2a705c95d5b77d"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -2821,7 +2821,7 @@ dependencies = [
  "once_cell",
  "percent-encoding",
  "pin-project",
- "secrecy",
+ "secrecy 0.8.0",
  "serde",
  "serde_json",
  "serde_path_to_error",
@@ -3859,6 +3859,15 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9bd1c54ea06cfd2f6b63219704de0b9b4f72dcc2b8fdef820be6cd799780e91e"
 dependencies = [
+ "zeroize",
+]
+
+[[package]]
+name = "secrecy"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba079fa568d52545cd70b334b2ce6f88f62b8fc2bda9290f48a0578388a49331"
+dependencies = [
  "serde",
  "zeroize",
 ]
@@ -4344,18 +4353,18 @@ checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
 
 [[package]]
 name = "thiserror"
-version = "1.0.63"
+version = "1.0.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0342370b38b6a11b6cc11d6a805569958d54cfa061a29969c3b5ce2ea405724"
+checksum = "d50af8abc119fb8bb6dbabcfa89656f46f84aa0ac7688088608076ad2b459a84"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.63"
+version = "1.0.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4558b58466b9ad7ca0f102865eccc95938dca1a74a856f2b57b6629050da261"
+checksum = "08904e7672f5eb876eaaf87e0ce17857500934f4981c4a0ab2b4aa98baac7fc3"
 dependencies = [
  "proc-macro2",
  "quote",
