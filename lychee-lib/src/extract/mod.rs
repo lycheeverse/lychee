@@ -57,6 +57,7 @@ impl Extractor {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
     use reqwest::Url;
     use std::{collections::HashSet, path::Path};
 
@@ -72,20 +73,33 @@ mod tests {
         let input_content = InputContent::from_string(input, file_type);
 
         let extractor = Extractor::new(false, false);
-        let uris_html5gum = extractor
+        let uris_html5gum: HashSet<Uri> = extractor
             .extract(&input_content)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
+        let uris_html5gum_sorted: Vec<Uri> = {
+            let mut uris = uris_html5gum.clone().into_iter().collect::<Vec<_>>();
+            uris.sort();
+            uris
+        };
 
         let extractor = Extractor::new(true, false);
-        let uris_html5ever = extractor
+        let uris_html5ever: HashSet<Uri> = extractor
             .extract(&input_content)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
+        let uris_html5ever_sorted: Vec<Uri> = {
+            let mut uris = uris_html5ever.into_iter().collect::<Vec<_>>();
+            uris.sort();
+            uris
+        };
 
-        assert_eq!(uris_html5gum, uris_html5ever);
+        assert_eq!(
+            uris_html5gum_sorted, uris_html5ever_sorted,
+            "Mismatch between html5gum and html5ever"
+        );
         uris_html5gum
     }
 

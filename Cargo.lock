@@ -2564,6 +2564,7 @@ dependencies = [
  "par-stream",
  "path-clean",
  "percent-encoding",
+ "pretty_assertions",
  "pulldown-cmark",
  "regex",
  "reqwest 0.12.7",
