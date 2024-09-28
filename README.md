@@ -684,6 +684,7 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 - https://github.com/mre/idiomatic-rust
 - https://github.com/bencherdev/bencher
 - https://github.com/sindresorhus/execa
+- https://github.com/tldr-pages/tldr-maintenance
 - https://github.com/lycheeverse/lychee (yes, the lychee docs are checked with lychee 🤯)
 
 If you are using lychee for your project, **please add it here**.
