@@ -10,7 +10,7 @@ path = "collect_links.rs"
 [dependencies]
 lychee-lib = { path = "../../lychee-lib",  default-features = false }
 tokio = { version = "1.40.0", features = ["full"] }
-regex = "1.10.6"
+regex = "1.11.0"
 http = "1.0.0"
 tokio-stream = "0.1.16"
 reqwest = { version = "0.12.7", default-features = false, features = ["gzip"] }
