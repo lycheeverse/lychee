@@ -5,7 +5,7 @@
 #   - Dockerfile-CI.alpine.Dockerfile
 #   - https://github.com/lycheeverse/lychee-action/blob/master/action.yml
 
-name: Release
+name: Release Binary
 on:
   release:
     types:
@@ -16,7 +16,6 @@ env:
 
 jobs:
   prepare:
-    name: Build release binary
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.get_release.outputs.tag_name }}
