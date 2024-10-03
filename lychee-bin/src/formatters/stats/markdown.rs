@@ -96,7 +96,7 @@ impl Display for MarkdownResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let stats = &self.0;
 
-        writeln!(f, "## Summary")?;
+        writeln!(f, "# Summary")?;
         writeln!(f)?;
         writeln!(f, "{}", stats_table(&self.0))?;
 
@@ -237,7 +237,7 @@ mod tests {
                 original: Url::parse("https://example.com/original").unwrap(),
             });
         let summary = MarkdownResponseStats(stats);
-        let expected = "## Summary
+        let expected = "# Summary
 
 | Status        | Count |
 |---------------|-------|
