@@ -55,7 +55,7 @@
     variant_size_differences,
     clippy::missing_const_for_fn
 )]
-#![deny(anonymous_parameters, macro_use_extern_crate, pointer_structural_match)]
+#![deny(anonymous_parameters, macro_use_extern_crate)]
 #![deny(missing_docs)]
 
 use std::fs::{self, File};
@@ -117,8 +117,9 @@ const LYCHEEIGNORE_COMMENT_MARKER: &str = "#";
 fn main() -> Result<()> {
     #[cfg(feature = "tokio-console")]
     console_subscriber::init();
-    // std::process::exit doesn't guarantee that all destructors will be ran,
-    // therefore we wrap "main" code in another function to ensure that.
+
+    // std::process::exit doesn't guarantee that all destructors will be run,
+    // therefore we wrap the main code in another function to ensure that.
     // See: https://doc.rust-lang.org/stable/std/process/fn.exit.html
     // Also see: https://www.youtube.com/watch?v=zQC8T71Y8e4
     let exit_code = run_main()?;
@@ -291,6 +292,8 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
 
     let mut collector = Collector::new(opts.config.base.clone())
         .skip_missing_inputs(opts.config.skip_missing)
+        .skip_hidden(!opts.config.hidden)
+        .skip_ignored(!opts.config.no_ignore)
         .include_verbatim(opts.config.include_verbatim)
         // File a bug if you rely on this envvar! It's going to go away eventually.
         .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").map_or(false, |x| x == "1"));

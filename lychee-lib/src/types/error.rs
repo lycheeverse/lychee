@@ -96,7 +96,7 @@ pub enum ErrorKind {
 
     /// Error while traversing an input directory
     #[error("Cannot traverse input directory: {0}")]
-    DirTraversal(#[from] jwalk::Error),
+    DirTraversal(#[from] ignore::Error),
 
     /// The given glob pattern is not valid
     #[error("UNIX glob pattern is invalid")]

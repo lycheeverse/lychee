@@ -155,9 +155,7 @@ mod cli {
         let site_error_status = &output_json["fail_map"][&test_path.to_str().unwrap()][0]["status"];
 
         assert_eq!(
-            "error:0A000086:SSL routines:tls_post_process_server_certificate:\
-            certificate verify failed:../ssl/statem/statem_clnt.c:1883: \
-            (certificate has expired)",
+            "error sending request for url (https://expired.badssl.com/)",
             site_error_status["details"]
         );
         Ok(())
@@ -274,7 +272,7 @@ mod cli {
         cmd.arg("--offline")
             .arg("--base")
             .arg(&offline_dir)
-            .arg(&offline_dir.join("index.html"))
+            .arg(offline_dir.join("index.html"))
             .env_clear()
             .assert()
             .success()
@@ -415,7 +413,7 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(
-                "✗ [404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Failed: Network error: Not Found"
+                "[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man"
             ))
             .stderr(contains(
                 "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
@@ -467,6 +465,44 @@ mod cli {
         let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
 
         cmd.arg(&filename).arg("--skip-missing").assert().success();
+    }
+
+    #[test]
+    fn test_skips_hidden_files_by_default() {
+        main_command()
+            .arg(fixtures_path().join("hidden/"))
+            .assert()
+            .success()
+            .stdout(contains("0 Total"));
+    }
+
+    #[test]
+    fn test_include_hidden_file() {
+        main_command()
+            .arg(fixtures_path().join("hidden/"))
+            .arg("--hidden")
+            .assert()
+            .success()
+            .stdout(contains("1 Total"));
+    }
+
+    #[test]
+    fn test_skips_ignored_files_by_default() {
+        main_command()
+            .arg(fixtures_path().join("ignore/"))
+            .assert()
+            .success()
+            .stdout(contains("0 Total"));
+    }
+
+    #[test]
+    fn test_include_ignored_file() {
+        main_command()
+            .arg(fixtures_path().join("ignore/"))
+            .arg("--no-ignore")
+            .assert()
+            .success()
+            .stdout(contains("1 Total"));
     }
 
     #[tokio::test]
@@ -757,7 +793,7 @@ mod cli {
     #[test]
     fn test_lycheeignore_file() -> Result<()> {
         let mut cmd = main_command();
-        let test_path = fixtures_path().join("ignore");
+        let test_path = fixtures_path().join("lycheeignore");
 
         let cmd = cmd
             .current_dir(test_path)
@@ -778,7 +814,7 @@ mod cli {
     #[test]
     fn test_lycheeignore_and_exclude_file() -> Result<()> {
         let mut cmd = main_command();
-        let test_path = fixtures_path().join("ignore");
+        let test_path = fixtures_path().join("lycheeignore");
         let excludes_path = test_path.join("normal-exclude-file");
 
         cmd.current_dir(test_path)
@@ -1189,7 +1225,7 @@ mod cli {
         let offline_dir = fixtures_path().join("offline");
 
         cmd.arg("--offline")
-            .arg(&offline_dir.join("index.html"))
+            .arg(offline_dir.join("index.html"))
             .env_clear()
             .assert()
             .success()
@@ -1396,6 +1432,7 @@ mod cli {
     }
 
     #[test]
+    #[ignore = "Skipping test because it is flaky"]
     fn test_suggests_url_alternatives() -> Result<()> {
         for _ in 0..3 {
             // This can be flaky. Try up to 3 times

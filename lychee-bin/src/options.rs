@@ -458,6 +458,17 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[serde(default)]
     pub(crate) skip_missing: bool,
 
+    /// Do not skip files that would otherwise be ignored by
+    /// '.gitignore', '.ignore', or the global ignore file.
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) no_ignore: bool,
+
+    /// Do not skip hidden directories and files.
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) hidden: bool,
+
     /// Find links in verbatim sections like `pre`- and `code` blocks
     #[arg(long)]
     #[serde(default)]

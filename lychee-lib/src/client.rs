@@ -362,7 +362,7 @@ impl ClientBuilder {
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(
                 Octocrab::builder()
-                    .personal_token(token.clone())
+                    .personal_token(token.to_string())
                     .build()
                     // this is essentially the same reqwest::ClientBuilder::build error
                     // see https://docs.rs/octocrab/0.18.1/src/octocrab/lib.rs.html#360-364

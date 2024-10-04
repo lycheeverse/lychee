@@ -1,4 +1,6 @@
 use anyhow::Result;
+use console::Style;
+use once_cell::sync::Lazy;
 use std::{
     fmt::{self, Display},
     time::Duration,
@@ -51,23 +53,38 @@ impl Display for CompactResponseStats {
             writeln!(f)?;
         }
 
-        color!(f, NORMAL, "\u{1F50D} {} Total", stats.total)?;
+        color!(f, NORMAL, "🔍 {} Total", stats.total)?;
 
         // show duration (in a human readable format), e.g. 2m 30s
         let duration = Duration::from_secs(stats.duration_secs);
         color!(f, DIM, " (in {})", humantime::format_duration(duration))?;
 
-        color!(f, BOLD_GREEN, " \u{2705} {} OK", stats.successful)?;
+        color!(f, BOLD_GREEN, " ✅ {} OK", stats.successful)?;
 
         let total_errors = stats.errors;
 
         let err_str = if total_errors == 1 { "Error" } else { "Errors" };
-        color!(f, BOLD_PINK, " \u{1f6ab} {} {}", total_errors, err_str)?;
-        if stats.excludes > 0 {
-            color!(f, BOLD_YELLOW, " \u{1F4A4} {} Excluded", stats.excludes)?;
-        }
+        color!(f, BOLD_PINK, " 🚫 {} {}", total_errors, err_str)?;
+
+        write_if_any(stats.unknown, "❓", "Unknown", &BOLD_PINK, f)?;
+        write_if_any(stats.excludes, "👻", "Excluded", &BOLD_YELLOW, f)?;
+        write_if_any(stats.timeouts, "⏳", "Timeouts", &BOLD_YELLOW, f)?;
+
         Ok(())
     }
+}
+
+fn write_if_any(
+    value: usize,
+    symbol: &str,
+    text: &str,
+    style: &Lazy<Style>,
+    f: &mut fmt::Formatter<'_>,
+) -> Result<(), fmt::Error> {
+    if value > 0 {
+        color!(f, style, " {} {} {}", symbol, value, text)?;
+    }
+    Ok(())
 }
 
 pub(crate) struct Compact {

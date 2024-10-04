@@ -1,11 +1,17 @@
 //! Extract links and fragments from markdown documents
 use std::collections::{HashMap, HashSet};
 
-use pulldown_cmark::{Event, Options, Parser, Tag};
+use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
 
 use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
 
 use super::html::html5gum::{extract_html, extract_html_fragments};
+
+/// Returns the default markdown extensions used by lychee.
+/// Sadly, `|` is not const for `Options` so we can't use a const global.
+fn md_extensions() -> Options {
+    Options::ENABLE_HEADING_ATTRIBUTES | Options::ENABLE_MATH
+}
 
 /// Extract unparsed URL strings from a Markdown string.
 pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUri> {
@@ -13,24 +19,55 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
     // which is why we keep track of entries and exits while traversing the input.
     let mut inside_code_block = false;
 
-    let parser = Parser::new(input);
+    let parser = Parser::new_ext(input, md_extensions());
     parser
         .filter_map(|event| match event {
-            // A link. The first field is the link type, the second the destination URL and the third is a title.
-            Event::Start(Tag::Link(_, uri, _)) => {
-                Some(vec![RawUri {
-                    text: uri.to_string(),
-                    // Emulate `<a href="...">` tag here to be compatible with
-                    // HTML links. We might consider using the actual Markdown
-                    // `LinkType` for better granularity in the future
-                    element: Some("a".to_string()),
-                    attribute: Some("href".to_string()),
-                }])
+            // A link.
+            Event::Start(Tag::Link {
+                link_type,
+                dest_url,
+                ..
+            }) => {
+                // Note: Explicitly listing all link types below to make it easier to
+                // change the behavior for a specific link type in the future.
+                match link_type {
+                    // Inline link like `[foo](bar)`
+                    // This is the most common link type
+                    LinkType::Inline => {
+                        Some(vec![RawUri {
+                            text: dest_url.to_string(),
+                            // Emulate `<a href="...">` tag here to be compatible with
+                            // HTML links. We might consider using the actual Markdown
+                            // `LinkType` for better granularity in the future
+                            element: Some("a".to_string()),
+                            attribute: Some("href".to_string()),
+                        }])
+                    }
+                    // Reference without destination in the document, but resolved by the `broken_link_callback`
+                    LinkType::Reference |
+                    // Collapsed link like `[foo][]`
+                    LinkType::ReferenceUnknown |
+                    // Collapsed link like `[foo][]`
+                    LinkType::Collapsed|
+                    // Collapsed link without destination in the document, but resolved by the `broken_link_callback`
+                    LinkType::CollapsedUnknown |
+                    // Shortcut link like `[foo]`
+                    LinkType::Shortcut |
+                    // Shortcut without destination in the document, but resolved by the `broken_link_callback`
+                    LinkType::ShortcutUnknown |
+                    // Autolink like `<http://foo.bar/baz>`
+                    LinkType::Autolink |
+                    // Email address in autolink like `<john@example.org>`
+                    LinkType::Email =>
+                     Some(extract_plaintext(&dest_url)),
+                }
             }
-            // An image. The first field is the link type, the second the destination URL and the third is a title.
-            Event::Start(Tag::Image(_, uri, _)) => {
+
+            // An image.
+            // The first field is the link type, the second the destination URL and the third is a title.
+            Event::Start(Tag::Image { dest_url, .. }) => {
                 Some(vec![RawUri {
-                    text: uri.to_string(),
+                    text: dest_url.to_string(),
                     // Emulate `<img src="...">` tag here to be compatible with
                     // HTML links. We might consider using the actual Markdown
                     // `LinkType` for better granularity in the future
@@ -38,12 +75,13 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
                     attribute: Some("src".to_string()),
                 }])
             }
+
             // A code block (inline or fenced).
             Event::Start(Tag::CodeBlock(_)) => {
                 inside_code_block = true;
                 None
             }
-            Event::End(Tag::CodeBlock(_)) => {
+            Event::End(TagEnd::CodeBlock) => {
                 inside_code_block = false;
                 None
             }
@@ -58,7 +96,7 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
             }
 
             // An HTML node
-            Event::Html(html) => {
+            Event::Html(html) | Event::InlineHtml(html) => {
                 // This won't exclude verbatim links right now, because HTML gets passed in chunks
                 // by pulldown_cmark. So excluding `<pre>` and `<code>` is not handled right now.
                 Some(extract_html(&html, include_verbatim))
@@ -89,37 +127,39 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
 /// It means a single heading such as `## Frag 1 {#frag-2}` would generate two fragments.
 pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     let mut in_heading = false;
-    let mut heading = String::new();
+    let mut heading_text = String::new();
+    let mut heading_id: Option<CowStr<'_>> = None;
     let mut id_generator = HeadingIdGenerator::default();
 
     let mut out = HashSet::new();
 
-    for event in Parser::new_ext(input, Options::ENABLE_HEADING_ATTRIBUTES) {
+    for event in Parser::new_ext(input, md_extensions()) {
         match event {
-            Event::Start(Tag::Heading(..)) => {
+            Event::Start(Tag::Heading { id, .. }) => {
+                heading_id = id;
                 in_heading = true;
             }
-            Event::End(Tag::Heading(_level, id, _classes)) => {
-                if let Some(frag) = id {
+            Event::End(TagEnd::Heading(_)) => {
+                if let Some(frag) = heading_id.take() {
                     out.insert(frag.to_string());
                 }
 
-                if !heading.is_empty() {
-                    let id = id_generator.generate(&heading);
+                if !heading_text.is_empty() {
+                    let id = id_generator.generate(&heading_text);
                     out.insert(id);
-                    heading.clear();
+                    heading_text.clear();
                 }
 
                 in_heading = false;
             }
             Event::Text(text) | Event::Code(text) => {
                 if in_heading {
-                    heading.push_str(&text);
+                    heading_text.push_str(&text);
                 };
             }
 
             // An HTML node
-            Event::Html(html) => {
+            Event::Html(html) | Event::InlineHtml(html) => {
                 out.extend(extract_html_fragments(&html));
             }
 
@@ -288,5 +328,24 @@ Some pre-formatted http://pre.com
             "underscores-foo_bar_-dots--and-numbers-17e-3",
         );
         check("Many          spaces", "many----------spaces");
+    }
+
+    #[test]
+    fn test_markdown_math() {
+        let input = r"
+$$
+[\psi](\mathbf{L})
+$$
+";
+        let uris = extract_markdown(input, true);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_single_word_footnote_is_not_detected_as_link() {
+        let markdown = "This footnote is[^actually] a link.\n\n[^actually]: not";
+        let expected = vec![];
+        let uris = extract_markdown(markdown, true);
+        assert_eq!(uris, expected);
     }
 }

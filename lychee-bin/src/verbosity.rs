@@ -13,6 +13,7 @@ use serde::Deserialize;
 /// - `-vv` show debug
 /// - `-vvv` show trace
 #[derive(clap::Args, Debug, Default, Clone, PartialEq, Eq)]
+#[command(arg_required_else_help = true)]
 pub(crate) struct Verbosity {
     /// Pass many times for more log output
     ///

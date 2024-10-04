@@ -20,6 +20,22 @@ mod readme {
         fs::read_to_string(readme_path).unwrap()
     }
 
+    /// Remove line `[default: lychee/x.y.z]` from the string
+    fn remove_lychee_version_line(string: &str) -> String {
+        string
+            .lines()
+            .filter(|line| !line.contains("[default: lychee/"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn trim_empty_lines(str: &str) -> String {
+        str.lines()
+            .map(|line| if line.trim().is_empty() { "" } else { line })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     /// Test that the USAGE section in `README.md` is up to date with
     /// `lychee --help`.
     /// Only unix: might not work with windows CRLF line-endings returned from
@@ -37,13 +53,7 @@ mod readme {
             .ok_or("Usage not found in help")?;
         let usage_in_help = &help_output[usage_in_help_start..];
 
-        // Remove line `[default: lychee/0.1.0]` from the help output
-        let usage_in_help = usage_in_help
-            .lines()
-            .filter(|line| !line.contains("[default: lychee/"))
-            .collect::<Vec<_>>()
-            .join("\n");
-
+        let usage_in_help = trim_empty_lines(&remove_lychee_version_line(usage_in_help));
         let readme = load_readme_text();
         let usage_start = readme
             .find(USAGE_STRING)
@@ -52,13 +62,7 @@ mod readme {
             .find("\n```")
             .ok_or("End of usage not found in README")?;
         let usage_in_readme = &readme[usage_start..usage_start + usage_end];
-
-        // Remove line `[default: lychee/0.1.0]` from the README
-        let usage_in_readme = usage_in_readme
-            .lines()
-            .filter(|line| !line.contains("[default: lychee/"))
-            .collect::<Vec<_>>()
-            .join("\n");
+        let usage_in_readme = remove_lychee_version_line(usage_in_readme);
 
         assert_eq!(usage_in_readme, usage_in_help);
         Ok(())

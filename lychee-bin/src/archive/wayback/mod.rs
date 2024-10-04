@@ -60,7 +60,11 @@ mod tests {
     use std::{error::Error as StdError, time::Duration};
     use tokio::time::sleep;
 
+    // This test is currently ignored because it is flaky.
+    // The Wayback Machine does not always return a suggestion.
+    // We can consider mocking the endpoint in the future.
     #[tokio::test]
+    #[ignore]
     async fn wayback_suggestion() -> Result<(), Box<dyn StdError>> {
         let target_url = "https://example.com".parse::<Url>()?;
 
