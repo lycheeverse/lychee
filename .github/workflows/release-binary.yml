@@ -10,6 +10,8 @@ on:
   release:
     types:
       - published
+      - created
+      - prereleased
 
 env:
   CARGO_TERM_COLOR: always
