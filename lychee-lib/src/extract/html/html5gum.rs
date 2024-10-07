@@ -9,13 +9,13 @@ use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
 #[allow(clippy::struct_excessive_bools)]
 struct LinkExtractor {
     /// Links extracted from the HTML document.
-    // note: what html5gum calls a tag, lychee calls an element
     links: Vec<RawUri>,
     /// Fragments extracted from the HTML document.
     fragments: HashSet<String>,
     /// Current raw string (a bunch of plain characters) being processed.
     current_string: Vec<u8>,
     /// Current element being processed.
+    /// What html5gum calls a tag, lychee calls an element.
     current_element_name: Vec<u8>,
     /// Whether the current element is a closing tag.
     current_element_is_closing: bool,
