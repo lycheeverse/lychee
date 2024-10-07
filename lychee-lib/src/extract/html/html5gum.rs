@@ -51,7 +51,7 @@ struct LinkExtractor {
     current_raw_string: Vec<u8>,
 }
 
-/// this is the same as `std::str::from_utf8_unchecked`, but with extra debug assertions for ease
+/// This is the same as `std::str::from_utf8_unchecked`, but with extra debug assertions for ease
 /// of debugging
 unsafe fn from_utf8_unchecked(s: &[u8]) -> &str {
     debug_assert!(std::str::from_utf8(s).is_ok());
@@ -59,6 +59,10 @@ unsafe fn from_utf8_unchecked(s: &[u8]) -> &str {
 }
 
 impl LinkExtractor {
+    /// Create a new `LinkExtractor`.
+    ///
+    /// Set `include_verbatim` to `true` if you want to include verbatim
+    /// elements in the output.
     pub(crate) fn new(include_verbatim: bool) -> Self {
         LinkExtractor {
             links: Vec::new(),
@@ -108,16 +112,20 @@ impl LinkExtractor {
             | ("video", "poster") => {
                 Some(vec![attr_value].into_iter())
             }
+            // Extract URLs from `srcset` attributes used
+            // in <img> and <source> elements.
             (_, "srcset") => {
                 Some(srcset::parse(attr_value).into_iter())
             }
+            // Otherwise, we don't know how to extract URLs from this
+            // element/attribute combination
             _ => None,
         }
     }
 
     /// Extract links from the current string and add them to the links vector.
     fn flush_current_characters(&mut self) {
-        // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
+        // SAFETY: since we feed html5gum tokenizer with a &str, this must be a &str as well.
         let current_element_name = unsafe { from_utf8_unchecked(&self.current_element_name) };
         if !self.include_verbatim
             && (is_verbatim_elem(current_element_name) || self.inside_verbatim_block())
@@ -148,7 +156,7 @@ impl LinkExtractor {
         if self.current_element_is_closing {
             if self.inside_verbatim_block() {
                 // If we are closing a verbatim element, we need to check if it is the
-                // top-level verbatim element. If it is, we need to reset the verbatim block.
+                // top-level verbatim element. If it is, we reset the verbatim block element name.
                 if Some(&self.current_element_name) == self.current_verbatim_element_name.as_ref() {
                     self.current_verbatim_element_name = None;
                     self.current_attribute_name.clear();
@@ -185,11 +193,11 @@ impl LinkExtractor {
     /// The current attribute name and value are cleared after processing.
     fn flush_links(&mut self) {
         {
-            // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
+            // SAFETY: since we feed html5gum tokenizer with a &str, this must be a &str as well.
             let current_element_name = unsafe { from_utf8_unchecked(&self.current_element_name) };
 
             // Early return if we don't want to extract links from verbatim
-            // blocks (e.g. preformatted text)
+            // blocks (like preformatted text)
             if !self.include_verbatim
                 && (is_verbatim_elem(current_element_name) || self.inside_verbatim_block())
             {
