@@ -13,7 +13,7 @@ struct LinkExtractor {
     links: Vec<RawUri>,
     /// Fragments extracted from the HTML document.
     fragments: HashSet<String>,
-    /// Current string being processed.
+    /// Current raw string (a bunch of plain characters) being processed.
     current_string: Vec<u8>,
     /// Current element being processed.
     current_element_name: Vec<u8>,
