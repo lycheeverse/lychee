@@ -146,7 +146,24 @@ impl LinkExtractor {
         }
     }
 
-    fn flush_old_attribute(&mut self) {
+    /// Flush the current element and attribute values to the links vector.
+    ///
+    /// This function is called whenever a new element is encountered or when the
+    /// current element is closing. It extracts URLs from the current attribute value
+    /// and adds them to the links vector.
+    ///
+    /// Here are the rules for extracting links:
+    /// - If the current element has a `rel=nofollow` attribute, the current attribute
+    ///   value is ignored.
+    /// - If the current element has a `rel=preconnect` attribute, the current attribute
+    ///   value is ignored.
+    /// - If the current attribute value is not a URL, it is treated as plain text and
+    ///   added to the links vector.
+    /// - If the current attribute name is `id`, the current attribute value is added
+    ///   to the fragments set.
+    ///
+    /// The current attribute name and value are cleared after processing.
+    fn flush_links(&mut self) {
         {
             // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
             let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
@@ -171,7 +188,7 @@ impl LinkExtractor {
             }
 
             // Ignore links with rel=preconnect
-            // Other than prefetch and preload, preconnect only makes
+            // Other than prefetch and preload, `preconnect` only makes
             // a DNS lookup, so we don't want to extract those links.
             if current_attribute_name == "rel" && current_attribute_value.contains("preconnect") {
                 self.current_element_preconnect = true;
@@ -282,7 +299,7 @@ impl Emitter for &mut LinkExtractor {
             html5gum::naive_next_state(&self.current_element_name)
         };
 
-        self.flush_old_attribute();
+        self.flush_links();
         next_state
     }
 
@@ -302,7 +319,7 @@ impl Emitter for &mut LinkExtractor {
         self.flush_current_characters();
     }
     fn init_attribute(&mut self) {
-        self.flush_old_attribute();
+        self.flush_links();
     }
     fn push_attribute_name(&mut self, s: &[u8]) {
         self.current_attribute_name.extend(s);
