@@ -8,18 +8,31 @@ use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
 #[derive(Clone)]
 #[allow(clippy::struct_excessive_bools)]
 struct LinkExtractor {
+    /// Links extracted from the HTML document.
     // note: what html5gum calls a tag, lychee calls an element
     links: Vec<RawUri>,
+    /// Fragments extracted from the HTML document.
     fragments: HashSet<String>,
+    /// Current string being processed.
     current_string: Vec<u8>,
+    /// Current element being processed.
     current_element_name: Vec<u8>,
+    /// Whether the current element is a closing tag.
     current_element_is_closing: bool,
+    /// Whether the current element has a `rel=nofollow` attribute.
     current_element_nofollow: bool,
+    /// Whether the current element has a `rel=preconnect` attribute.
     current_element_preconnect: bool,
+    /// Current attribute name being processed.
     current_attribute_name: Vec<u8>,
+    /// Current attribute value being processed.
     current_attribute_value: Vec<u8>,
+    /// Last start element, i.e. the last element (tag) that was opened.
     last_start_element: Vec<u8>,
+    /// Whether to include verbatim elements in the output.
     include_verbatim: bool,
+    /// Element name of the current verbatim block.
+    /// Used to keep track of nested verbatim blocks.
     current_verbatim_element_name: Option<Vec<u8>>,
 }
 
@@ -145,20 +158,22 @@ impl LinkExtractor {
                 return;
             }
 
-            let attr = unsafe { from_utf8_unchecked(&self.current_attribute_name) };
-            let value = unsafe { from_utf8_unchecked(&self.current_attribute_value) };
+            let current_attribute_name =
+                unsafe { from_utf8_unchecked(&self.current_attribute_name) };
+            let current_attribute_value =
+                unsafe { from_utf8_unchecked(&self.current_attribute_value) };
 
             // Ignore links with rel=nofollow
             // This may be set on a different iteration on the same element/tag before,
             // so we check the boolean separately right after
-            if attr == "rel" && value.contains("nofollow") {
+            if current_attribute_name == "rel" && current_attribute_value.contains("nofollow") {
                 self.current_element_nofollow = true;
             }
 
             // Ignore links with rel=preconnect
             // Other than prefetch and preload, preconnect only makes
             // a DNS lookup, so we don't want to extract those links.
-            if attr == "rel" && value.contains("preconnect") {
+            if current_attribute_name == "rel" && current_attribute_value.contains("preconnect") {
                 self.current_element_preconnect = true;
             }
 
@@ -168,10 +183,14 @@ impl LinkExtractor {
                 return;
             }
 
-            let urls = LinkExtractor::extract_urls_from_elem_attr(attr, name, value);
+            let urls = LinkExtractor::extract_urls_from_elem_attr(
+                current_attribute_name,
+                name,
+                current_attribute_value,
+            );
 
             let new_urls = match urls {
-                None => extract_plaintext(value),
+                None => extract_plaintext(current_attribute_value),
                 Some(urls) => urls
                     .into_iter()
                     .filter(|url| {
@@ -184,22 +203,22 @@ impl LinkExtractor {
                         let is_email = is_email_link(url);
                         let is_mailto = url.starts_with("mailto:");
                         let is_phone = url.starts_with("tel:");
-                        let is_href = attr == "href";
+                        let is_href = current_attribute_name == "href";
 
                         !is_email || (is_mailto && is_href) || (is_phone && is_href)
                     })
                     .map(|url| RawUri {
                         text: url.to_string(),
                         element: Some(name.to_string()),
-                        attribute: Some(attr.to_string()),
+                        attribute: Some(current_attribute_name.to_string()),
                     })
                     .collect::<Vec<_>>(),
             };
 
             self.links.extend(new_urls);
 
-            if attr == "id" {
-                self.fragments.insert(value.to_string());
+            if current_attribute_name == "id" {
+                self.fragments.insert(current_attribute_value.to_string());
             }
         }
 
@@ -243,7 +262,10 @@ impl Emitter for &mut LinkExtractor {
     }
 
     fn init_end_tag(&mut self) {
-        self.init_start_tag();
+        self.flush_current_characters();
+        self.current_element_name.clear();
+        self.current_element_nofollow = false;
+        self.current_element_preconnect = false;
         self.current_element_is_closing = true;
     }
 
