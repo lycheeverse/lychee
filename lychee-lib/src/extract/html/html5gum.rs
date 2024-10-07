@@ -64,8 +64,8 @@ impl LinkExtractor {
     /// Extract all semantically known links from a given HTML attribute.
     #[allow(clippy::unnested_or_patterns)]
     pub(crate) fn extract_urls_from_elem_attr<'a>(
-        attr_name: &str,
         elem_name: &str,
+        attr_name: &str,
         attr_value: &'a str,
     ) -> Option<impl Iterator<Item = &'a str>> {
         // For a comprehensive list of elements that might contain URLs/URIs
@@ -166,11 +166,13 @@ impl LinkExtractor {
     fn flush_links(&mut self) {
         {
             // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
-            let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
+            let current_element_name = unsafe { from_utf8_unchecked(&self.current_element_name) };
 
             // Early return if we don't want to extract links from verbatim
             // blocks (e.g. preformatted text)
-            if !self.include_verbatim && (is_verbatim_elem(name) || self.inside_verbatim_block()) {
+            if !self.include_verbatim
+                && (is_verbatim_elem(current_element_name) || self.inside_verbatim_block())
+            {
                 self.update_verbatim_element_name();
                 return;
             }
@@ -201,8 +203,8 @@ impl LinkExtractor {
             }
 
             let urls = LinkExtractor::extract_urls_from_elem_attr(
+                current_element_name,
                 current_attribute_name,
-                name,
                 current_attribute_value,
             );
 
@@ -229,7 +231,7 @@ impl LinkExtractor {
                     })
                     .map(|url| RawUri {
                         text: url.to_string(),
-                        element: Some(name.to_string()),
+                        element: Some(current_element_name.to_string()),
                         attribute: Some(current_attribute_name.to_string()),
                     })
                     .collect::<Vec<_>>(),
@@ -302,6 +304,7 @@ impl Emitter for &mut LinkExtractor {
             html5gum::naive_next_state(&self.current_element_name)
         };
 
+        // We reached the end of the tag, so we can flush the current characters
         self.flush_links();
         next_state
     }
