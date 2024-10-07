@@ -6,7 +6,9 @@ use html5ever::{
     tokenizer::{Tag, TagKind, Token, TokenSink, TokenSinkResult, Tokenizer, TokenizerOpts},
 };
 
-use super::{super::plaintext::extract_plaintext, is_email_link, is_verbatim_elem, srcset};
+use super::{
+    super::plaintext::extract_raw_uri_from_plaintext, is_email_link, is_verbatim_elem, srcset,
+};
 use crate::types::uri::raw::RawUri;
 
 #[derive(Clone, Default)]
@@ -26,7 +28,9 @@ impl TokenSink for LinkExtractor {
                 if self.current_verbatim_element_name.borrow().is_some() {
                     return TokenSinkResult::Continue;
                 }
-                self.links.borrow_mut().extend(extract_plaintext(&raw));
+                self.links
+                    .borrow_mut()
+                    .extend(extract_raw_uri_from_plaintext(&raw));
             }
             Token::TagToken(tag) => {
                 let Tag {
@@ -72,6 +76,14 @@ impl TokenSink for LinkExtractor {
                     }
                 }
 
+                // Check and exclude rel=preconnect. Other than prefetch and preload,
+                // preconnect only does DNS lookups and might not be a link to a resource
+                if let Some(rel) = attrs.iter().find(|attr| &attr.name.local == "rel") {
+                    if rel.value.contains("preconnect") {
+                        return TokenSinkResult::Continue;
+                    }
+                }
+
                 for attr in attrs {
                     let urls = LinkExtractor::extract_urls_from_elem_attr(
                         &attr.name.local,
@@ -80,7 +92,7 @@ impl TokenSink for LinkExtractor {
                     );
 
                     let new_urls = match urls {
-                        None => extract_plaintext(&attr.value),
+                        None => extract_raw_uri_from_plaintext(&attr.value),
                         Some(urls) => urls
                             .into_iter()
                             .filter(|url| {
@@ -140,6 +152,7 @@ impl LinkExtractor {
         // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
 
         match (elem_name, attr_name) {
+
             // Common element/attribute combinations for links
             (_, "href" | "src" | "cite" | "usemap")
             // Less common (but still valid!) combinations
@@ -379,5 +392,25 @@ mod tests {
         let expected = vec![];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_skip_preconnect() {
+        let input = r#"
+            <link rel="preconnect" href="https://example.com">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_skip_preconnect_reverse_order() {
+        let input = r#"
+            <link href="https://example.com" rel="preconnect">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
     }
 }
