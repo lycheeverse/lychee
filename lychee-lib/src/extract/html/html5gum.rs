@@ -102,16 +102,18 @@ impl LinkExtractor {
 
     fn flush_current_characters(&mut self) {
         // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
-        let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
-        if !self.include_verbatim && (is_verbatim_elem(name) || self.inside_verbatim_block()) {
+        let current_element_name = unsafe { from_utf8_unchecked(&self.current_element_name) };
+        if !self.include_verbatim
+            && (is_verbatim_elem(current_element_name) || self.inside_verbatim_block())
+        {
             self.update_verbatim_element_name();
             // Early return if we don't want to extract links from preformatted text
             self.current_string.clear();
             return;
         }
 
-        let raw = unsafe { from_utf8_unchecked(&self.current_string) };
-        self.links.extend(extract_plaintext(raw));
+        let current_string = unsafe { from_utf8_unchecked(&self.current_string) };
+        self.links.extend(extract_plaintext(current_string));
         self.current_string.clear();
     }
 
@@ -261,16 +263,19 @@ impl Emitter for &mut LinkExtractor {
     fn emit_eof(&mut self) {
         self.flush_current_characters();
     }
+
     fn emit_error(&mut self, _: Error) {}
 
     #[inline]
     fn should_emit_errors(&mut self) -> bool {
         false
     }
+
     fn pop_token(&mut self) -> Option<()> {
         None
     }
 
+    /// Emit a bunch of plain characters as character tokens.
     fn emit_string(&mut self, c: &[u8]) {
         self.current_string.extend(c);
     }
@@ -310,9 +315,11 @@ impl Emitter for &mut LinkExtractor {
     }
 
     fn emit_current_doctype(&mut self) {}
+
     fn set_self_closing(&mut self) {
         self.current_element_is_closing = true;
     }
+
     fn set_force_quirks(&mut self) {}
 
     fn push_tag_name(&mut self, s: &[u8]) {
@@ -320,24 +327,33 @@ impl Emitter for &mut LinkExtractor {
     }
 
     fn push_comment(&mut self, _: &[u8]) {}
+
     fn push_doctype_name(&mut self, _: &[u8]) {}
+
     fn init_doctype(&mut self) {
         self.flush_current_characters();
     }
+
     fn init_attribute(&mut self) {
         self.flush_links();
     }
+
     fn push_attribute_name(&mut self, s: &[u8]) {
         self.current_attribute_name.extend(s);
     }
+
     fn push_attribute_value(&mut self, s: &[u8]) {
         self.current_attribute_value.extend(s);
     }
 
     fn set_doctype_public_identifier(&mut self, _: &[u8]) {}
+
     fn set_doctype_system_identifier(&mut self, _: &[u8]) {}
+
     fn push_doctype_public_identifier(&mut self, _: &[u8]) {}
+
     fn push_doctype_system_identifier(&mut self, _: &[u8]) {}
+
     fn current_is_appropriate_end_tag_token(&mut self) -> bool {
         self.current_element_is_closing
             && !self.current_element_name.is_empty()
