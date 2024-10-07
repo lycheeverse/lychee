@@ -18,7 +18,7 @@ struct LinkExtractor {
     /// Current raw string (a bunch of plain characters) being processed.
     current_string: Vec<u8>,
     /// Current element being processed.
-    /// What html5gum calls a tag, lychee calls an element.
+    /// This is called a tag in html5gum.
     current_element_name: Vec<u8>,
     /// Whether the current element is a closing tag.
     current_element_is_closing: bool,
@@ -26,15 +26,15 @@ struct LinkExtractor {
     current_element_nofollow: bool,
     /// Whether the current element has a `rel=preconnect` attribute.
     current_element_preconnect: bool,
+    /// Element name of the current verbatim block.
+    /// Used to keep track of nested verbatim blocks.
+    current_verbatim_element_name: Option<Vec<u8>>,
     /// Current attribute name being processed.
     current_attribute_name: Vec<u8>,
     /// Current attribute value being processed.
     current_attribute_value: Vec<u8>,
     /// Last start element, i.e. the last element (tag) that was opened.
     last_start_element: Vec<u8>,
-    /// Element name of the current verbatim block.
-    /// Used to keep track of nested verbatim blocks.
-    current_verbatim_element_name: Option<Vec<u8>>,
 }
 
 /// this is the same as `std::str::from_utf8_unchecked`, but with extra debug assertions for ease
@@ -49,6 +49,7 @@ impl LinkExtractor {
         LinkExtractor {
             links: Vec::new(),
             fragments: HashSet::new(),
+            include_verbatim,
             current_string: Vec::new(),
             current_element_name: Vec::new(),
             current_element_is_closing: false,
@@ -56,9 +57,8 @@ impl LinkExtractor {
             current_element_preconnect: false,
             current_attribute_name: Vec::new(),
             current_attribute_value: Vec::new(),
-            last_start_element: Vec::new(),
-            include_verbatim,
             current_verbatim_element_name: None,
+            last_start_element: Vec::new(),
         }
     }
 
