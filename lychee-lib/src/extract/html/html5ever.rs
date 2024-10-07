@@ -6,7 +6,9 @@ use html5ever::{
     tokenizer::{Tag, TagKind, Token, TokenSink, TokenSinkResult, Tokenizer, TokenizerOpts},
 };
 
-use super::{super::plaintext::extract_raw_uri_from_plaintext, is_email_link, is_verbatim_elem, srcset};
+use super::{
+    super::plaintext::extract_raw_uri_from_plaintext, is_email_link, is_verbatim_elem, srcset,
+};
 use crate::types::uri::raw::RawUri;
 
 #[derive(Clone, Default)]
@@ -26,7 +28,9 @@ impl TokenSink for LinkExtractor {
                 if self.current_verbatim_element_name.borrow().is_some() {
                     return TokenSinkResult::Continue;
                 }
-                self.links.borrow_mut().extend(extract_raw_uri_from_plaintext(&raw));
+                self.links
+                    .borrow_mut()
+                    .extend(extract_raw_uri_from_plaintext(&raw));
             }
             Token::TagToken(tag) => {
                 let Tag {

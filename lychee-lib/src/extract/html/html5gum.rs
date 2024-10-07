@@ -7,7 +7,7 @@ use crate::{extract::plaintext::extract_raw_uri_from_plaintext, types::uri::raw:
 
 /// Extract links from HTML documents.
 ///
-/// This is the main driver for the HTML5Gum tokenizer.
+/// This is the main driver for the html5gum tokenizer.
 /// It implements the `Emitter` trait, which is used by the tokenizer to
 /// communicate with the caller.
 ///
@@ -84,15 +84,15 @@ impl LinkExtractor {
     // see https://www.w3.org/TR/REC-html40/index/attributes.html
     // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
     #[allow(clippy::unnested_or_patterns)]
-    pub(crate) fn extract_urls_from_elem_attr<'a>(
+    pub(crate) fn extract_urls_from_elem_attr(
         elem_name: &str,
-        attributes: &'a [(Vec<u8>, Vec<u8>)],
+        attributes: &[(Vec<u8>, Vec<u8>)],
     ) -> Option<impl Iterator<Item = RawUri>> {
         let mut urls = Vec::new();
 
         for (attr_name, attr_value) in attributes {
-            let attr_name = unsafe { from_utf8_unchecked(&attr_name) };
-            let attr_value = unsafe { from_utf8_unchecked(&attr_value) };
+            let attr_name = unsafe { from_utf8_unchecked(attr_name) };
+            let attr_value = unsafe { from_utf8_unchecked(attr_value) };
             match (elem_name, attr_name) {
                 // Common element/attribute combinations for links
                 (_, "href" | "src" | "cite" | "usemap")
@@ -644,7 +644,6 @@ mod tests {
     fn test_email_false_positive() {
         let input = r#"<img srcset="v2@1.5x.png" alt="Wikipedia" width="200" height="183">"#;
         let uris = extract_html(input, false);
-        println!("{:?}", uris);
         assert!(uris.is_empty());
     }
 
