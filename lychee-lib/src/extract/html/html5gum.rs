@@ -5,6 +5,18 @@ use html5gum::{Emitter, Error, State, Tokenizer};
 use super::{is_email_link, is_verbatim_elem, srcset};
 use crate::{extract::plaintext::extract_raw_uri_from_plaintext, types::uri::raw::RawUri};
 
+/// Extract links from HTML documents.
+///
+/// This is the main driver for the HTML5Gum tokenizer.
+/// It implements the `Emitter` trait, which is used by the tokenizer to
+/// communicate with the caller.
+///
+/// The `LinkExtractor` keeps track of the current element being processed,
+/// the current attribute being processed, and a bunch of plain characters
+/// currently being processed.
+///
+/// The `links` vector contains all links extracted from the HTML document and
+/// the `fragments` set contains all fragments extracted from the HTML document.
 #[derive(Clone)]
 #[allow(clippy::struct_excessive_bools)]
 struct LinkExtractor {
@@ -15,8 +27,6 @@ struct LinkExtractor {
     /// Whether to include verbatim elements in the output.
     include_verbatim: bool,
 
-    /// Current raw string (a bunch of plain characters) being processed.
-    current_string: Vec<u8>,
     /// Current element being processed.
     /// This is called a tag in html5gum.
     current_element_name: Vec<u8>,
@@ -29,12 +39,16 @@ struct LinkExtractor {
     /// Element name of the current verbatim block.
     /// Used to keep track of nested verbatim blocks.
     current_verbatim_element_name: Option<Vec<u8>>,
+    /// Last start element, i.e. the last element (tag) that was opened.
+    last_start_element: Vec<u8>,
+
     /// Current attribute name being processed.
     current_attribute_name: Vec<u8>,
     /// Current attribute value being processed.
     current_attribute_value: Vec<u8>,
-    /// Last start element, i.e. the last element (tag) that was opened.
-    last_start_element: Vec<u8>,
+
+    /// A bunch of plain characters currently being processed.
+    current_raw_string: Vec<u8>,
 }
 
 /// this is the same as `std::str::from_utf8_unchecked`, but with extra debug assertions for ease
@@ -50,15 +64,15 @@ impl LinkExtractor {
             links: Vec::new(),
             fragments: HashSet::new(),
             include_verbatim,
-            current_string: Vec::new(),
             current_element_name: Vec::new(),
             current_element_is_closing: false,
             current_element_nofollow: false,
             current_element_preconnect: false,
-            current_attribute_name: Vec::new(),
-            current_attribute_value: Vec::new(),
             current_verbatim_element_name: None,
             last_start_element: Vec::new(),
+            current_attribute_name: Vec::new(),
+            current_attribute_value: Vec::new(),
+            current_raw_string: Vec::new(),
         }
     }
 
@@ -111,14 +125,14 @@ impl LinkExtractor {
             self.update_verbatim_element_name();
             // Early return since we don't want to extract links from verbatim
             // blocks according to the configuration.
-            self.current_string.clear();
+            self.current_raw_string.clear();
             return;
         }
 
-        let current_string = unsafe { from_utf8_unchecked(&self.current_string) };
+        let current_string = unsafe { from_utf8_unchecked(&self.current_raw_string) };
         self.links
             .extend(extract_raw_uri_from_plaintext(current_string));
-        self.current_string.clear();
+        self.current_raw_string.clear();
     }
 
     /// Check if we are currently inside a verbatim element.
@@ -281,7 +295,7 @@ impl Emitter for &mut LinkExtractor {
 
     /// Emit a bunch of plain characters as character tokens.
     fn emit_string(&mut self, c: &[u8]) {
-        self.current_string.extend(c);
+        self.current_raw_string.extend(c);
     }
 
     fn init_start_tag(&mut self) {
