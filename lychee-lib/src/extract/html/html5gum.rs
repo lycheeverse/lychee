@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use html5gum::{Emitter, Error, State, Tokenizer};
 
 use super::{is_email_link, is_verbatim_elem, srcset};
-use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
+use crate::{extract::plaintext::extract_raw_uri_from_plaintext, types::uri::raw::RawUri};
 
 #[derive(Clone)]
 #[allow(clippy::struct_excessive_bools)]
@@ -12,6 +12,9 @@ struct LinkExtractor {
     links: Vec<RawUri>,
     /// Fragments extracted from the HTML document.
     fragments: HashSet<String>,
+    /// Whether to include verbatim elements in the output.
+    include_verbatim: bool,
+
     /// Current raw string (a bunch of plain characters) being processed.
     current_string: Vec<u8>,
     /// Current element being processed.
@@ -29,8 +32,6 @@ struct LinkExtractor {
     current_attribute_value: Vec<u8>,
     /// Last start element, i.e. the last element (tag) that was opened.
     last_start_element: Vec<u8>,
-    /// Whether to include verbatim elements in the output.
-    include_verbatim: bool,
     /// Element name of the current verbatim block.
     /// Used to keep track of nested verbatim blocks.
     current_verbatim_element_name: Option<Vec<u8>>,
@@ -100,6 +101,7 @@ impl LinkExtractor {
         }
     }
 
+    /// Extract links from the current string and add them to the links vector.
     fn flush_current_characters(&mut self) {
         // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
         let current_element_name = unsafe { from_utf8_unchecked(&self.current_element_name) };
@@ -107,13 +109,15 @@ impl LinkExtractor {
             && (is_verbatim_elem(current_element_name) || self.inside_verbatim_block())
         {
             self.update_verbatim_element_name();
-            // Early return if we don't want to extract links from preformatted text
+            // Early return since we don't want to extract links from verbatim
+            // blocks according to the configuration.
             self.current_string.clear();
             return;
         }
 
         let current_string = unsafe { from_utf8_unchecked(&self.current_string) };
-        self.links.extend(extract_plaintext(current_string));
+        self.links
+            .extend(extract_raw_uri_from_plaintext(current_string));
         self.current_string.clear();
     }
 
@@ -211,7 +215,7 @@ impl LinkExtractor {
             );
 
             let new_urls = match urls {
-                None => extract_plaintext(current_attribute_value),
+                None => extract_raw_uri_from_plaintext(current_attribute_value),
                 Some(urls) => urls
                     .into_iter()
                     .filter(|url| {

@@ -5,7 +5,7 @@ pub mod markdown;
 mod plaintext;
 
 use markdown::extract_markdown;
-use plaintext::extract_plaintext;
+use plaintext::extract_raw_uri_from_plaintext;
 
 /// A handler for extracting links from various input formats like Markdown and
 /// HTML. Allocations should be avoided if possible as this is a
@@ -50,7 +50,7 @@ impl Extractor {
                     html::html5gum::extract_html(&input_content.content, self.include_verbatim)
                 }
             }
-            FileType::Plaintext => extract_plaintext(&input_content.content),
+            FileType::Plaintext => extract_raw_uri_from_plaintext(&input_content.content),
         }
     }
 }
