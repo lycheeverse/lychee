@@ -211,12 +211,15 @@ impl LinkExtractor {
                 Some(urls) => urls
                     .into_iter()
                     .filter(|url| {
-                        // Only accept email addresses, which occur in `href` attributes
-                        // and start with `mailto:`. Technically, email addresses could
-                        // also occur in plain text, but we don't want to extract those
-                        // because of the high false positive rate.
+                        // Only accept email addresses or phone numbers, which
+                        // occur in `href` attributes and start with `mailto:`
+                        // or `tel:`, respectively
                         //
-                        // This ignores links like `<img srcset="v2@1.5x.png">`
+                        // Technically, email addresses could also occur in
+                        // plain text, but we don't want to extract those
+                        // because of the high false-positive rate.
+                        //
+                        // This skips links like `<img srcset="v2@1.5x.png">`
                         let is_email = is_email_link(url);
                         let is_mailto = url.starts_with("mailto:");
                         let is_phone = url.starts_with("tel:");
