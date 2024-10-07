@@ -32,16 +32,16 @@ struct LinkExtractor {
     current_element_name: Vec<u8>,
     /// Whether the current element is a closing tag.
     current_element_is_closing: bool,
-    /// Whether the current element has a `rel=nofollow` attribute.
-    current_element_nofollow: bool,
-    /// Whether the current element has a `rel=preconnect` attribute.
-    current_element_preconnect: bool,
     /// Element name of the current verbatim block.
     /// Used to keep track of nested verbatim blocks.
     current_verbatim_element_name: Option<Vec<u8>>,
     /// Last start element, i.e. the last element (tag) that was opened.
     last_start_element: Vec<u8>,
 
+    /// Current attributes being processed.
+    // This is a list of key-value pairs (in order of appearance), where the key is the attribute name
+    // and the value is the attribute value.
+    current_attributes: Vec<(Vec<u8>, Vec<u8>)>,
     /// Current attribute name being processed.
     current_attribute_name: Vec<u8>,
     /// Current attribute value being processed.
@@ -70,10 +70,9 @@ impl LinkExtractor {
             include_verbatim,
             current_element_name: Vec::new(),
             current_element_is_closing: false,
-            current_element_nofollow: false,
-            current_element_preconnect: false,
             current_verbatim_element_name: None,
             last_start_element: Vec::new(),
+            current_attributes: Vec::new(),
             current_attribute_name: Vec::new(),
             current_attribute_value: Vec::new(),
             current_raw_string: Vec::new(),
@@ -81,46 +80,60 @@ impl LinkExtractor {
     }
 
     /// Extract all semantically known links from a given HTML attribute.
+    // For a comprehensive list of elements that might contain URLs/URIs
+    // see https://www.w3.org/TR/REC-html40/index/attributes.html
+    // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
     #[allow(clippy::unnested_or_patterns)]
     pub(crate) fn extract_urls_from_elem_attr<'a>(
         elem_name: &str,
-        attr_name: &str,
-        attr_value: &'a str,
-    ) -> Option<impl Iterator<Item = &'a str>> {
-        // For a comprehensive list of elements that might contain URLs/URIs
-        // see https://www.w3.org/TR/REC-html40/index/attributes.html
-        // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
+        attributes: &'a [(Vec<u8>, Vec<u8>)],
+    ) -> Option<impl Iterator<Item = RawUri>> {
+        let mut urls = Vec::new();
 
-        match (elem_name, attr_name) {
-            // Common element/attribute combinations for links
-            (_, "href" | "src" | "cite" | "usemap")
-            // Less common (but still valid!) combinations
-            | ("applet", "codebase")
-            | ("body", "background")
-            | ("button", "formaction")
-            | ("command", "icon")
-            | ("form", "action")
-            | ("frame", "longdesc")
-            | ("head", "profile")
-            | ("html", "manifest")
-            | ("iframe", "longdesc")
-            | ("img", "longdesc")
-            | ("input", "formaction")
-            | ("object", "classid")
-            | ("object", "codebase")
-            | ("object", "data")
-            | ("video", "poster") => {
-                Some(vec![attr_value].into_iter())
-            }
-            // Extract URLs from `srcset` attributes used
-            // in <img> and <source> elements.
-            (_, "srcset") => {
-                Some(srcset::parse(attr_value).into_iter())
-            }
-            // Otherwise, we don't know how to extract URLs from this
-            // element/attribute combination
-            _ => None,
+        for (attr_name, attr_value) in attributes {
+            let attr_name = unsafe { from_utf8_unchecked(&attr_name) };
+            let attr_value = unsafe { from_utf8_unchecked(&attr_value) };
+            match (elem_name, attr_name) {
+                // Common element/attribute combinations for links
+                (_, "href" | "src" | "cite" | "usemap")
+                // Less common (but still valid!) combinations
+                | ("applet", "codebase")
+                | ("body", "background")
+                | ("button", "formaction")
+                | ("command", "icon")
+                | ("form", "action")
+                | ("frame", "longdesc")
+                | ("head", "profile")
+                | ("html", "manifest")
+                | ("iframe", "longdesc")
+                | ("img", "longdesc")
+                | ("input", "formaction")
+                | ("object", "classid")
+                | ("object", "codebase")
+                | ("object", "data")
+                | ("video", "poster") => {
+                    urls.push(RawUri {
+                        text: attr_value.to_string(),
+                        element: Some(elem_name.to_string()),
+                        attribute: Some(attr_name.to_string()),
+                    });
+                }
+                // Extract URLs from `srcset` attributes used
+                // in <img> and <source> elements.
+                ("img" | "source", "srcset") => {
+                    urls.extend(srcset::parse(attr_value).into_iter().map(|url| RawUri {
+                        text: url.to_string(),
+                        element: Some(elem_name.to_string()),
+                        attribute: Some(attr_name.to_string()),
+                    }));
+                }
+                // Otherwise, we don't know how to extract URLs from this
+                // element/attribute combination
+                _ => (),
+            };
         }
+
+        (!urls.is_empty()).then(|| urls.into_iter())
     }
 
     /// Extract links from the current string and add them to the links vector.
@@ -156,9 +169,11 @@ impl LinkExtractor {
         if self.current_element_is_closing {
             if self.inside_verbatim_block() {
                 // If we are closing a verbatim element, we need to check if it is the
-                // top-level verbatim element. If it is, we reset the verbatim block element name.
+                // top-level verbatim element. If it is, we reset the verbatim block element name
+                // and clear the current attribute name and value.
                 if Some(&self.current_element_name) == self.current_verbatim_element_name.as_ref() {
                     self.current_verbatim_element_name = None;
+                    self.current_attributes.clear();
                     self.current_attribute_name.clear();
                     self.current_attribute_value.clear();
                 }
@@ -205,39 +220,36 @@ impl LinkExtractor {
                 return;
             }
 
-            let current_attribute_name =
-                unsafe { from_utf8_unchecked(&self.current_attribute_name) };
-            let current_attribute_value =
-                unsafe { from_utf8_unchecked(&self.current_attribute_value) };
-
-            // Ignore links with rel=nofollow
-            // This may be set on a different iteration on the same element/tag before,
-            // so we check the boolean separately right after
-            if current_attribute_name == "rel" && current_attribute_value.contains("nofollow") {
-                self.current_element_nofollow = true;
-            }
-
-            // Ignore links with rel=preconnect
-            // Other than prefetch and preload, `preconnect` only makes
-            // a DNS lookup, so we don't want to extract those links.
-            if current_attribute_name == "rel" && current_attribute_value.contains("preconnect") {
-                self.current_element_preconnect = true;
-            }
-
-            if self.current_element_nofollow || self.current_element_preconnect {
+            if self
+                .current_attributes
+                .iter()
+                .any(|(attr_name, attr_value)| {
+                    attr_name == b"rel"
+                        && unsafe { from_utf8_unchecked(attr_value) }
+                            .split(',')
+                            .any(|rel| rel.trim() == "nofollow" || rel.trim() == "preconnect")
+                })
+            {
                 self.current_attribute_name.clear();
-                self.current_attribute_value.clear();
+                self.current_attributes.clear();
+                self.current_attributes.clear();
                 return;
             }
 
             let urls = LinkExtractor::extract_urls_from_elem_attr(
                 current_element_name,
-                current_attribute_name,
-                current_attribute_value,
+                &self.current_attributes,
             );
 
             let new_urls = match urls {
-                None => extract_raw_uri_from_plaintext(current_attribute_value),
+                None => {
+                    // TODO: Do we need this match arm?
+                    // Or can we simply ignore plaintext links in attributes?
+                    vec![]
+                    // let current_attribute_value =
+                    //     unsafe { from_utf8_unchecked(&self.current_attribute_value) };
+                    // extract_raw_uri_from_plaintext(current_attribute_value)
+                }
                 Some(urls) => urls
                     .into_iter()
                     .filter(|url| {
@@ -250,30 +262,30 @@ impl LinkExtractor {
                         // because of the high false-positive rate.
                         //
                         // This skips links like `<img srcset="v2@1.5x.png">`
-                        let is_email = is_email_link(url);
-                        let is_mailto = url.starts_with("mailto:");
-                        let is_phone = url.starts_with("tel:");
-                        let is_href = current_attribute_name == "href";
+                        let is_email = is_email_link(&url.text);
+                        let is_mailto = url.text.starts_with("mailto:");
+                        let is_phone = url.text.starts_with("tel:");
+                        let is_href = url.attribute == Some("href".to_string());
 
                         !is_email || (is_mailto && is_href) || (is_phone && is_href)
-                    })
-                    .map(|url| RawUri {
-                        text: url.to_string(),
-                        element: Some(current_element_name.to_string()),
-                        attribute: Some(current_attribute_name.to_string()),
                     })
                     .collect::<Vec<_>>(),
             };
 
             self.links.extend(new_urls);
 
-            if current_attribute_name == "id" {
-                self.fragments.insert(current_attribute_value.to_string());
+            for (attr_name, attr_value) in &self.current_attributes {
+                let attr_name = unsafe { from_utf8_unchecked(attr_name) };
+                let attr_value = unsafe { from_utf8_unchecked(attr_value) };
+                if attr_name == "id" {
+                    self.fragments.insert(attr_value.to_string());
+                }
             }
         }
 
         self.current_attribute_name.clear();
         self.current_attribute_value.clear();
+        self.current_attributes.clear();
     }
 }
 
@@ -309,16 +321,12 @@ impl Emitter for &mut LinkExtractor {
     fn init_start_tag(&mut self) {
         self.flush_current_characters();
         self.current_element_name.clear();
-        self.current_element_nofollow = false;
-        self.current_element_preconnect = false;
         self.current_element_is_closing = false;
     }
 
     fn init_end_tag(&mut self) {
         self.flush_current_characters();
         self.current_element_name.clear();
-        self.current_element_nofollow = false;
-        self.current_element_preconnect = false;
         self.current_element_is_closing = true;
     }
 
@@ -361,7 +369,9 @@ impl Emitter for &mut LinkExtractor {
     }
 
     fn init_attribute(&mut self) {
-        self.flush_links();
+        // self.flush_links();
+        self.current_attribute_name.clear();
+        self.current_attribute_value.clear();
     }
 
     fn push_attribute_name(&mut self, s: &[u8]) {
@@ -370,6 +380,13 @@ impl Emitter for &mut LinkExtractor {
 
     fn push_attribute_value(&mut self, s: &[u8]) {
         self.current_attribute_value.extend(s);
+
+        if !self.current_attribute_name.is_empty() {
+            self.current_attributes.push((
+                self.current_attribute_name.clone(),
+                self.current_attribute_value.clone(),
+            ));
+        }
     }
 
     fn set_doctype_public_identifier(&mut self, _: &[u8]) {}
@@ -625,18 +642,9 @@ mod tests {
 
     #[test]
     fn test_email_false_positive() {
-        let input = r#"<!DOCTYPE html>
-        <html lang="en-US">
-          <head>
-            <meta charset="utf-8">
-            <title>Test</title>
-          </head>
-          <body>
-            <img srcset="v2@1.5x.png" alt="Wikipedia" width="200" height="183">
-          </body>
-        </html>"#;
-
+        let input = r#"<img srcset="v2@1.5x.png" alt="Wikipedia" width="200" height="183">"#;
         let uris = extract_html(input, false);
+        println!("{:?}", uris);
         assert!(uris.is_empty());
     }
 
