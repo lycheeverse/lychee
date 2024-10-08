@@ -599,4 +599,15 @@ mod tests {
         assert!(cli.accept.contains(204));
         assert!(!cli.accept.contains(205));
     }
+
+    #[test]
+    fn test_default() {
+        let cli = Config::default();
+
+        assert_eq!(
+            cli.accept,
+            StatusCodeSelector::from_str("100..=103,200..=299").expect("no error")
+        );
+        assert_eq!(cli.cache_exclude_status, StatusCodeSelector::new());
+    }
 }
