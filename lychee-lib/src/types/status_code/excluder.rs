@@ -22,7 +22,7 @@ impl FromStr for StatusCodeExcluder {
         let input = input.trim();
 
         if input.is_empty() {
-            return Err(StatusCodeSelectorError::InvalidInput);
+            return Ok(Self::new());
         }
 
         let ranges = input
@@ -176,6 +176,7 @@ mod test {
     use rstest::rstest;
 
     #[rstest]
+    #[case("", vec![], vec![100, 110, 150, 200, 300, 175, 350], 0)]
     #[case("100..=150,200..=300", vec![100, 110, 150, 200, 300], vec![175, 350], 2)]
     #[case("200..=300,100..=250", vec![100, 150, 200, 250, 300], vec![350], 1)]
     #[case("100..=200,150..=200", vec![100, 150, 200], vec![250, 300], 1)]
