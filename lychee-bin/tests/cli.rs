@@ -266,13 +266,17 @@ mod cli {
 
     #[test]
     fn test_resolve_paths() {
+        //  TODO:
+        // 1. Check the diff to see if the absolute file rewrite hack can be removed / is still in use
+        // 2. refactor the code to clean up base path handling
+
         let mut cmd = main_command();
-        let offline_dir = fixtures_path().join("offline");
+        let dir = fixtures_path().join("resolve_paths");
 
         cmd.arg("--offline")
             .arg("--base")
-            .arg(&offline_dir)
-            .arg(offline_dir.join("index.html"))
+            .arg(&dir)
+            .arg(dir.join("index.html"))
             .env_clear()
             .assert()
             .success()
@@ -1216,8 +1220,9 @@ mod cli {
         Ok(())
     }
 
-    /// If base-dir is not set, don't throw an error in case we encounter
-    /// an absolute local link within a file (e.g. `/about`).
+    /// If `base-dir` is not set, don't throw an error in case we encounter
+    /// an absolute local link (e.g. `/about`) within a file.
+    /// Instead, simply ignore the link.
     #[test]
     fn test_ignore_absolute_local_links_without_base() -> Result<()> {
         let mut cmd = main_command();
@@ -1409,9 +1414,7 @@ mod cli {
             .arg("./NOT-A-REAL-TEST-FIXTURE.md")
             .assert()
             .failure()
-            .stderr(contains(
-                "Cannot find local file ./NOT-A-REAL-TEST-FIXTURE.md",
-            ));
+            .stderr(contains("Invalid file path: ./NOT-A-REAL-TEST-FIXTURE.md"));
 
         Ok(())
     }

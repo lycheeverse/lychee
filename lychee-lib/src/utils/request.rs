@@ -26,14 +26,22 @@ fn create_request(
     source: &InputSource,
     base: &Option<Base>,
     extractor: &Option<BasicAuthExtractor>,
-) -> Result<Request> {
-    let uri = try_parse_into_uri(&raw_uri, source, base)?;
+) -> Result<Option<Request>> {
+    let Some(uri) = try_parse_into_uri(&raw_uri, source, base)? else {
+        return Ok(None);
+    };
     let source = truncate_source(source);
     let element = raw_uri.element.clone();
     let attribute = raw_uri.attribute.clone();
     let credentials = extract_credentials(extractor, &uri);
 
-    Ok(Request::new(uri, source, element, attribute, credentials))
+    Ok(Some(Request::new(
+        uri,
+        source,
+        element,
+        attribute,
+        credentials,
+    )))
 }
 
 /// Try to parse the raw URI into a `Uri`.
@@ -47,7 +55,11 @@ fn create_request(
 ///   to create a valid URI.
 /// - If a URI cannot be created from the file path.
 /// - If the source is not a file path (i.e. the URI type is not supported).
-fn try_parse_into_uri(raw_uri: &RawUri, source: &InputSource, base: &Option<Base>) -> Result<Uri> {
+fn try_parse_into_uri(
+    raw_uri: &RawUri,
+    source: &InputSource,
+    base: &Option<Base>,
+) -> Result<Option<Uri>> {
     let text = raw_uri.text.clone();
     let uri = match Uri::try_from(raw_uri.clone()) {
         Ok(uri) => uri,
@@ -57,12 +69,20 @@ fn try_parse_into_uri(raw_uri: &RawUri, source: &InputSource, base: &Option<Base
                 None => return Err(ErrorKind::InvalidBaseJoin(text.clone())),
             },
             None => match source {
-                InputSource::FsPath(root) => create_uri_from_file_path(root, &text, base)?,
+                InputSource::FsPath(root) => {
+                    // If absolute link (`/`) and `base` is not set,
+                    // simply ignore the link as it's not resolvable.
+                    if text.starts_with('/') && base.is_none() {
+                        return Ok(None);
+                    }
+
+                    create_uri_from_file_path(root, &text, base)?
+                }
                 _ => return Err(ErrorKind::UnsupportedUriType(text)),
             },
         },
     };
-    Ok(uri)
+    Ok(Some(uri))
 }
 
 // Taken from https://github.com/getzola/zola/blob/master/components/link_checker/src/lib.rs
@@ -115,6 +135,9 @@ fn truncate_source(source: &InputSource) -> InputSource {
 
 /// Create requests out of the collected URLs.
 /// Only keeps "valid" URLs. This filters out anchors for example.
+///
+/// If a URLs is ignored (because of the current settings),
+/// it will not be added to the `HashSet`.
 pub(crate) fn create(
     uris: Vec<RawUri>,
     input_content: &InputContent,
@@ -126,9 +149,15 @@ pub(crate) fn create(
         .or_else(|| Base::from_source(&input_content.source));
     let requests: Result<Vec<Request>> = uris
         .into_iter()
-        .map(|raw_uri| create_request(raw_uri, &input_content.source, &base, extractor))
+        .filter_map(|raw_uri| {
+            match create_request(raw_uri, &input_content.source, &base, extractor) {
+                Ok(Some(request)) => Some(Ok(request)),
+                Ok(None) => None,
+                Err(e) => Some(Err(e)),
+            }
+        })
         .collect();
-    Ok(HashSet::from_iter(requests?))
+    requests.map(HashSet::from_iter)
 }
 
 /// Create a URI from a path
@@ -147,6 +176,7 @@ fn resolve_and_create_url(
     dest_path: &str,
     base_uri: &Option<Base>,
 ) -> Result<Url> {
+    println!("resolve_and_create_url src_path: {:?}", src_path);
     let (dest_path, fragment) = url::remove_get_params_and_separate_fragment(dest_path);
 
     // Decode the destination path to avoid double-encoding
@@ -301,7 +331,7 @@ mod tests {
 
         assert_eq!(
             actual,
-            Request::new(
+            Some(Request::new(
                 Uri {
                     url: Url::from_file_path("/tmp/lychee/file.html").unwrap()
                 },
@@ -309,7 +339,7 @@ mod tests {
                 None,
                 None,
                 None,
-            )
+            ))
         );
     }
 
@@ -329,7 +359,7 @@ mod tests {
 
         assert_eq!(
             actual,
-            Request::new(
+            Some(Request::new(
                 Uri {
                     url: Url::from_file_path("/usr/local/share/doc/example.html").unwrap()
                 },
@@ -337,7 +367,7 @@ mod tests {
                 None,
                 None,
                 None,
-            )
+            ))
         );
     }
 
@@ -352,7 +382,10 @@ mod tests {
         let raw_uri = RawUri::from("relative.html");
         let uri = try_parse_into_uri(&raw_uri, &input.source, &base).unwrap();
 
-        assert_eq!(uri.url.as_str(), "file:///tmp/lychee/relative.html");
+        assert_eq!(
+            uri.unwrap().url.as_str(),
+            "file:///tmp/lychee/relative.html"
+        );
     }
 
     #[test]
@@ -366,6 +399,9 @@ mod tests {
         let raw_uri = RawUri::from("absolute.html");
         let uri = try_parse_into_uri(&raw_uri, &input.source, &base).unwrap();
 
-        assert_eq!(uri.url.as_str(), "file:///tmp/lychee/absolute.html");
+        assert_eq!(
+            uri.unwrap().url.as_str(),
+            "file:///tmp/lychee/absolute.html"
+        );
     }
 }
