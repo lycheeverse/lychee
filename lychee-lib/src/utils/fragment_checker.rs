@@ -37,10 +37,10 @@ impl FragmentChecker {
         }
     }
 
-    /// Checks the given path contains the given fragment.
+    /// Checks if the given path contains the given fragment.
     ///
-    /// Returns false, if there is a fragment in the link and the path is to a markdown file which
-    /// doesn't contain the given fragment.
+    /// Returns false, if there is a fragment in the link and the path is to a
+    /// Markdown file, which doesn't contain the given fragment.
     ///
     /// In all other cases, returns true.
     pub(crate) async fn check(&self, path: &Path, url: &Url) -> Result<bool> {
