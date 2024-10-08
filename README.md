@@ -527,9 +527,28 @@ Options:
 
 You can exclude links from getting checked by specifying regex patterns
 with `--exclude` (e.g. `--exclude example\.(com|org)`).
-If a file named `.lycheeignore` exists in the current working directory, its
-contents are excluded as well. The file allows you to list multiple regular
-expressions for exclusion (one pattern per line).
+
+Here are some examples:
+
+```bash
+# Exclude LinkedIn URLs (note that we match on the full URL, including the schema to avoid false-positives)
+lychee --exclude '^https://www\.linkedin\.com'
+
+# Exclude LinkedIn and Archive.org URLs
+lychee --exclude '^https://www\.linkedin\.com' --exclude '^https://web\.archive\.org/web/'
+
+# Exclude all links to PDF files
+lychee --exclude '\.pdf$' .
+
+# Exclude links to specific domains
+lychee --exclude '(facebook|twitter|linkedin)\.com' .
+
+# Exclude links with certain URL parameters
+lychee --exclude '\?utm_source=' .
+
+# Exclude all mailto links
+lychee --exclude '^mailto:' .
+```
 
 For excluding files/directories from being scanned use `lychee.toml`
 and `exclude_path`.
@@ -537,6 +556,12 @@ and `exclude_path`.
 ```toml
 exclude_path = ["some/path", "*/dev/*"]
 ```
+
+If a file named `.lycheeignore` exists in the current working directory, its
+contents are excluded as well. The file allows you to list multiple regular
+expressions for exclusion (one pattern per line).
+
+For more advanced usage and detailed explanations, check out our comprehensive [guide on excluding links](https://lychee.cli.rs/recipes/excluding-links/).
 
 ### Caching
 
