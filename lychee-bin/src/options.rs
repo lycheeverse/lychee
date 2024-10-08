@@ -145,6 +145,7 @@ default_function! {
     retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
     verbosity: Verbosity = Verbosity::default();
+    cache_exclude_selector: StatusCodeSelector = StatusCodeSelector::new();
     accept_selector: StatusCodeSelector = StatusCodeSelector::default();
 }
 
@@ -248,7 +249,7 @@ Use \"lychee --cache-exclude-status '429, 500..502' <inputs>...\" to provide a c
 list of excluded status codes. This example will not cache results with a status code of 429, 500,
 501 and 502."
     )]
-    #[serde(default)]
+    #[serde(default = "cache_exclude_selector")]
     pub(crate) cache_exclude_status: StatusCodeSelector,
 
     /// Don't perform any link checking.
