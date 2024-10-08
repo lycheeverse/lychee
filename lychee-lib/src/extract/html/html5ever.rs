@@ -76,10 +76,10 @@ impl TokenSink for LinkExtractor {
                     }
                 }
 
-                // Check and exclude rel=preconnect. Other than prefetch and preload,
-                // preconnect only does DNS lookups and might not be a link to a resource
+                // Check and exclude `rel=preconnect` and `rel=dns-prefetch`. Unlike `prefetch` and `preload`,
+                // `preconnect` and `dns-prefetch` only perform DNS lookups and do not necessarily link to a resource
                 if let Some(rel) = attrs.iter().find(|attr| &attr.name.local == "rel") {
-                    if rel.value.contains("preconnect") {
+                    if rel.value.contains("preconnect") || rel.value.contains("dns-prefetch") {
                         return TokenSinkResult::Continue;
                     }
                 }
