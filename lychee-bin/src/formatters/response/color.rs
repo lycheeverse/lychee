@@ -71,7 +71,7 @@ mod tests {
         let body = mock_response_body(Status::Ok(StatusCode::OK), "https://example.com");
         assert_eq!(
             formatter.format_response(&body),
-            "     [200] https://example.com/"
+            "\u{1b}[38;5;2m\u{1b}[1m     [200]\u{1b}[0m https://example.com/"
         );
     }
 
@@ -84,7 +84,7 @@ mod tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "   [ERROR] https://example.com/404"
+            "\u{1b}[38;5;197m   [ERROR]\u{1b}[0m https://example.com/404"
         );
     }
 

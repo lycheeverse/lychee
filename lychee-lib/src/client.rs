@@ -13,7 +13,12 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
@@ -37,7 +42,7 @@ use crate::{
     remap::Remaps,
     types::uri::github::GithubUri,
     utils::fragment_checker::FragmentChecker,
-    ErrorKind, Request, Response, Result, Status, Uri,
+    Base, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
@@ -248,6 +253,12 @@ pub struct ClientBuilder {
     /// Response timeout per request in seconds.
     timeout: Option<Duration>,
 
+    /// Base for resolving paths.
+    ///
+    /// E.g. if the base is `/home/user/` and the path is `file.txt`, the
+    /// resolved path would be `/home/user/file.txt`.
+    base: Option<Base>,
+
     /// Initial time between retries of failed requests.
     ///
     /// Defaults to [`DEFAULT_RETRY_WAIT_TIME_SECS`].
@@ -387,6 +398,7 @@ impl ClientBuilder {
             reqwest_client,
             github_client,
             remaps: self.remaps,
+            base: self.base,
             fallback_extensions: self.fallback_extensions,
             filter,
             max_retries: self.max_retries,
@@ -415,6 +427,9 @@ pub struct Client {
 
     /// Optional remapping rules for URIs matching pattern.
     remaps: Option<Remaps>,
+
+    /// Optional base for resolving paths.
+    base: Option<Base>,
 
     /// Automatically append file extensions to `file://` URIs as needed
     fallback_extensions: Vec<String>,
@@ -463,7 +478,7 @@ impl Client {
     ///
     /// Returns an `Err` if:
     /// - `request` does not represent a valid URI.
-    /// - Encrypted connection for a HTTP URL is available but unused.  (Only
+    /// - Encrypted connection for a HTTP URL is available but unused. (Only
     ///   checked when `Client::require_https` is `true`.)
     #[allow(clippy::missing_panics_doc)]
     pub async fn check<T, E>(&self, request: T) -> Result<Response>
@@ -493,22 +508,72 @@ impl Client {
             return Ok(Response::new(uri.clone(), Status::Excluded, source));
         }
 
-        let default_chain: RequestChain = Chain::new(vec![
-            Box::<Quirks>::default(),
-            Box::new(credentials),
-            Box::new(Checker::new(
-                self.retry_wait_time,
-                self.max_retries,
-                self.reqwest_client.clone(),
-                self.accepted.clone(),
-            )),
-        ]);
-
         let status = match uri.scheme() {
-            _ if uri.is_file() => self.check_file(uri).await,
+            _ if uri.is_file() => {
+                // If base is set and the path is absolute, prepend the base
+                // to the path.
+                if let Some(ref base) = self.base {
+                    let Ok(path) = uri.url.to_file_path() else {
+                        return Err(ErrorKind::InvalidFilePath(uri.clone()).into());
+                    };
+
+                    if path.is_absolute() {
+                        match base {
+                            Base::Local(ref base_path) => {
+                                // Ensure base_path is absolute
+                                let absolute_base_path = if base_path.is_relative() {
+                                    std::env::current_dir()
+                                        .unwrap_or_else(|_| PathBuf::new())
+                                        .join(base_path)
+                                } else {
+                                    base_path.to_path_buf()
+                                };
+
+                                // Optionally strip the leading slash from the path (if it exists)
+                                let stripped = path.strip_prefix("/").unwrap_or(&path);
+                                let resolved = absolute_base_path.join(stripped);
+
+                                // Create a new URI with the resolved path
+                                let mut uri = uri.clone();
+                                uri.url = Url::from_file_path(&resolved).unwrap();
+
+                                if resolved.exists() {
+                                    return Ok(Response::new(
+                                        uri.clone(),
+                                        Status::Ok(StatusCode::OK),
+                                        source,
+                                    ));
+                                }
+
+                                return Ok(Response::new(
+                                    uri.clone(),
+                                    Status::Error(ErrorKind::InvalidFilePath(uri.clone())),
+                                    source,
+                                ));
+                            }
+                            Base::Remote(_) => (),
+                        }
+                    }
+                }
+
+                self.check_file(uri).await
+            }
             _ if uri.is_mail() => self.check_mail(uri).await,
             _ if uri.is_tel() => Status::Excluded,
-            _ => self.check_website(uri, default_chain).await?,
+            _ => {
+                let default_chain: RequestChain = Chain::new(vec![
+                    Box::<Quirks>::default(),
+                    Box::new(credentials),
+                    Box::new(Checker::new(
+                        self.retry_wait_time,
+                        self.max_retries,
+                        self.reqwest_client.clone(),
+                        self.accepted.clone(),
+                    )),
+                ]);
+
+                self.check_website(uri, default_chain).await?
+            }
         };
 
         Ok(Response::new(uri.clone(), status, source))
@@ -690,6 +755,7 @@ impl Client {
 
     /// Checks a `file` URI's fragment.
     pub async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
+        println!("Checking fragment for {:?}", path);
         match self.fragment_checker.check(path, &uri.url).await {
             Ok(true) => Status::Ok(StatusCode::OK),
             Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),

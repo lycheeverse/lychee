@@ -266,13 +266,17 @@ mod cli {
 
     #[test]
     fn test_resolve_paths() {
+        //  TODO:
+        // 1. Check the diff to see if the absolute file rewrite hack can be removed / is still in use
+        // 2. refactor the code to clean up base path handling
+
         let mut cmd = main_command();
-        let offline_dir = fixtures_path().join("offline");
+        let dir = fixtures_path().join("resolve_paths");
 
         cmd.arg("--offline")
             .arg("--base")
-            .arg(&offline_dir)
-            .arg(offline_dir.join("index.html"))
+            .arg(&dir)
+            .arg(dir.join("index.html"))
             .env_clear()
             .assert()
             .success()
@@ -1157,8 +1161,9 @@ mod cli {
         Ok(())
     }
 
-    /// If base-dir is not set, don't throw an error in case we encounter
-    /// an absolute local link within a file (e.g. `/about`).
+    /// If `base-dir` is not set, don't throw an error in case we encounter
+    /// an absolute local link (e.g. `/about`) within a file.
+    /// Instead, simply ignore the link.
     #[test]
     fn test_ignore_absolute_local_links_without_base() -> Result<()> {
         let mut cmd = main_command();
@@ -1350,9 +1355,7 @@ mod cli {
             .arg("./NOT-A-REAL-TEST-FIXTURE.md")
             .assert()
             .failure()
-            .stderr(contains(
-                "Cannot find local file ./NOT-A-REAL-TEST-FIXTURE.md",
-            ));
+            .stderr(contains("Invalid file path: ./NOT-A-REAL-TEST-FIXTURE.md"));
 
         Ok(())
     }
@@ -1607,5 +1610,47 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("0 Errors"));
+    }
+
+    /// Test relative paths
+    ///
+    /// Imagine a web server hosting a site with the following structure:
+    /// root
+    /// └── test
+    ///     ├── index.html
+    ///     └── next.html
+    ///
+    /// where `root/test/index.html` contains `<a href="next.html">next</a>`
+    /// When checking the link in `root/test/index.html` we should be able to
+    /// resolve the relative path to `root/test/next.html`
+    ///
+    /// Note that the relative path is not resolved to the root of the server
+    /// but relative to the file that contains the link.
+    #[tokio::test]
+    async fn test_resolve_relative_paths_in_subfolder() -> Result<()> {
+        let mock_server = wiremock::MockServer::start().await;
+
+        let body = r#"<a href="next.html">next</a>"#;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/test/index.html"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(body))
+            .mount(&mock_server)
+            .await;
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/test/next.html"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let mut cmd = main_command();
+        cmd.arg("--verbose")
+            .arg(format!("{}/test/index.html", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains("0 Errors"));
+
+        Ok(())
     }
 }
