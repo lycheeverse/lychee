@@ -896,6 +896,65 @@ mod cli {
     }
 
     #[tokio::test]
+    async fn test_lycheecache_exclude_custom_status_codes() -> Result<()> {
+        let base_path = fixtures_path().join("cache");
+        let cache_file = base_path.join(LYCHEE_CACHE_FILE);
+
+        // Unconditionally remove cache file if it exists
+        let _ = fs::remove_file(&cache_file);
+
+        let mock_server_ok = mock_server!(StatusCode::OK);
+        let mock_server_no_content = mock_server!(StatusCode::NO_CONTENT);
+        let mock_server_too_many_requests = mock_server!(StatusCode::TOO_MANY_REQUESTS);
+
+        let dir = tempfile::tempdir()?;
+        let mut file = File::create(dir.path().join("c.md"))?;
+
+        writeln!(file, "{}", mock_server_ok.uri().as_str())?;
+        writeln!(file, "{}", mock_server_no_content.uri().as_str())?;
+        writeln!(file, "{}", mock_server_too_many_requests.uri().as_str())?;
+
+        let mut cmd = main_command();
+        let test_cmd = cmd
+            .current_dir(&base_path)
+            .arg(dir.path().join("c.md"))
+            .arg("--verbose")
+            .arg("--no-progress")
+            .arg("--cache")
+            .arg("--cache-exclude-status")
+            .arg("204,429");
+
+        assert!(
+            !cache_file.exists(),
+            "cache file should not exist before this test"
+        );
+
+        // run first without cache to generate the cache file
+        test_cmd
+            .assert()
+            .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
+            .stderr(contains(format!(
+                "[204] {}/ | OK (204 No Content): No Content\n",
+                mock_server_no_content.uri()
+            )))
+            .stderr(contains(format!(
+                "[429] {}/ | Failed: Network error: Too Many Requests\n",
+                mock_server_too_many_requests.uri()
+            )));
+
+        // check content of cache file
+        let data = fs::read_to_string(&cache_file)?;
+        assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
+        assert!(!data.contains(&format!("{}/,204", mock_server_no_content.uri())));
+        assert!(!data.contains(&format!("{}/,429", mock_server_too_many_requests.uri())));
+
+        // clear the cache file
+        fs::remove_file(&cache_file)?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_lycheecache_accept_custom_status_codes() -> Result<()> {
         let base_path = fixtures_path().join("cache_accept_custom_status_codes");
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
