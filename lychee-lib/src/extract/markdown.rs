@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 
 use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
 
-use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
+use crate::{extract::plaintext::extract_raw_uri_from_plaintext, types::uri::raw::RawUri};
 
 use super::html::html5gum::{extract_html, extract_html_fragments};
 
@@ -59,7 +59,7 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
                     LinkType::Autolink |
                     // Email address in autolink like `<john@example.org>`
                     LinkType::Email =>
-                     Some(extract_plaintext(&dest_url)),
+                     Some(extract_raw_uri_from_plaintext(&dest_url)),
                 }
             }
 
@@ -91,7 +91,7 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
                 if inside_code_block && !include_verbatim {
                     None
                 } else {
-                    Some(extract_plaintext(&txt))
+                    Some(extract_raw_uri_from_plaintext(&txt))
                 }
             }
 
@@ -105,7 +105,7 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
             // An inline code node.
             Event::Code(code) => {
                 if include_verbatim {
-                    Some(extract_plaintext(&code))
+                    Some(extract_raw_uri_from_plaintext(&code))
                 } else {
                     None
                 }

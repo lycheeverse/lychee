@@ -1,199 +1,211 @@
-use std::collections::HashSet;
-
 use html5gum::{Emitter, Error, State, Tokenizer};
+use std::collections::{HashMap, HashSet};
 
 use super::{is_email_link, is_verbatim_elem, srcset};
-use crate::{extract::plaintext::extract_plaintext, types::uri::raw::RawUri};
+use crate::{extract::plaintext::extract_raw_uri_from_plaintext, types::uri::raw::RawUri};
 
-#[derive(Clone)]
+/// Extract links from HTML documents.
+///
+/// This is the main driver for the html5gum tokenizer.
+/// It implements the `Emitter` trait, which is used by the tokenizer to
+/// communicate with the caller.
+///
+/// The `LinkExtractor` keeps track of the current element being processed,
+/// the current attribute being processed, and a bunch of plain characters
+/// currently being processed.
+///
+/// The `links` vector contains all links extracted from the HTML document and
+/// the `fragments` set contains all fragments extracted from the HTML document.
+#[derive(Clone, Default)]
 struct LinkExtractor {
-    // note: what html5gum calls a tag, lychee calls an element
+    /// Links extracted from the HTML document.
     links: Vec<RawUri>,
+    /// Fragments extracted from the HTML document.
     fragments: HashSet<String>,
-    current_string: Vec<u8>,
-    current_element_name: Vec<u8>,
-    current_element_is_closing: bool,
-    current_element_nofollow: bool,
-    current_attribute_name: Vec<u8>,
-    current_attribute_value: Vec<u8>,
-    last_start_element: Vec<u8>,
+    /// Whether to include verbatim elements in the output.
     include_verbatim: bool,
-    current_verbatim_element_name: Option<Vec<u8>>,
+    /// Current element being processed.
+    current_element: Element,
+    /// Current attributes being processed.
+    /// This is a list of key-value pairs (in order of appearance), where the key is the attribute name
+    /// and the value is the attribute value.
+    current_attributes: HashMap<String, String>,
+    /// Current attribute name being processed.
+    current_attribute_name: String,
+    /// A bunch of plain characters currently being processed.
+    current_raw_string: String,
+    /// Element name of the current verbatim block.
+    /// Used to keep track of nested verbatim blocks.
+    verbatim_stack: Vec<String>,
 }
 
-/// this is the same as `std::str::from_utf8_unchecked`, but with extra debug assertions for ease
-/// of debugging
-unsafe fn from_utf8_unchecked(s: &[u8]) -> &str {
-    debug_assert!(std::str::from_utf8(s).is_ok());
-    std::str::from_utf8_unchecked(s)
+#[derive(Clone, Default)]
+struct Element {
+    /// Current element name being processed.
+    /// This is called a tag in html5gum.
+    name: String,
+    /// Whether the current element is a closing tag.
+    is_closing: bool,
 }
 
 impl LinkExtractor {
-    pub(crate) fn new(include_verbatim: bool) -> Self {
-        LinkExtractor {
-            links: Vec::new(),
-            fragments: HashSet::new(),
-            current_string: Vec::new(),
-            current_element_name: Vec::new(),
-            current_element_is_closing: false,
-            current_element_nofollow: false,
-            current_attribute_name: Vec::new(),
-            current_attribute_value: Vec::new(),
-            last_start_element: Vec::new(),
+    /// Create a new `LinkExtractor`.
+    ///
+    /// Set `include_verbatim` to `true` if you want to include verbatim
+    /// elements in the output.
+    fn new(include_verbatim: bool) -> Self {
+        Self {
             include_verbatim,
-            current_verbatim_element_name: None,
+            ..Default::default()
         }
     }
 
     /// Extract all semantically known links from a given HTML attribute.
-    #[allow(clippy::unnested_or_patterns)]
-    pub(crate) fn extract_urls_from_elem_attr<'a>(
-        attr_name: &str,
-        elem_name: &str,
-        attr_value: &'a str,
-    ) -> Option<impl Iterator<Item = &'a str>> {
-        // For a comprehensive list of elements that might contain URLs/URIs
-        // see https://www.w3.org/TR/REC-html40/index/attributes.html
-        // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
+    // For a comprehensive list of elements that might contain URLs/URIs
+    // see https://www.w3.org/TR/REC-html40/index/attributes.html
+    // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1
+    fn extract_urls_from_elem_attr(&self) -> Vec<RawUri> {
+        let mut urls = Vec::new();
 
-        match (elem_name, attr_name) {
-            // Common element/attribute combinations for links
-            (_, "href" | "src" | "cite" | "usemap")
-            // Less common (but still valid!) combinations
-            | ("applet", "codebase")
-            | ("body", "background")
-            | ("button", "formaction")
-            | ("command", "icon")
-            | ("form", "action")
-            | ("frame", "longdesc")
-            | ("head", "profile")
-            | ("html", "manifest")
-            | ("iframe", "longdesc")
-            | ("img", "longdesc")
-            | ("input", "formaction")
-            | ("object", "classid")
-            | ("object", "codebase")
-            | ("object", "data")
-            | ("video", "poster") => {
-                Some(vec![attr_value].into_iter())
-            }
-            (_, "srcset") => {
-                Some(srcset::parse(attr_value).into_iter())
-            }
-            _ => None,
+        // Process 'srcset' attribute first
+        if let Some(srcset) = self.current_attributes.get("srcset") {
+            urls.extend(srcset::parse(srcset).into_iter().map(|url| RawUri {
+                text: url.to_string(),
+                element: Some(self.current_element.name.clone()),
+                attribute: Some("srcset".to_string()),
+            }));
         }
+
+        // Process other attributes
+        for (attr_name, attr_value) in &self.current_attributes {
+            #[allow(clippy::unnested_or_patterns)]
+            match (self.current_element.name.as_str(), attr_name.as_str()) {
+                // Common element/attribute combinations for links
+                (_, "href" | "src" | "cite" | "usemap") |
+                // Less common (but still valid!) combinations
+                ("applet", "codebase") |
+                ("body", "background") |
+                ("button", "formaction") |
+                ("command", "icon") |
+                ("form", "action") |
+                ("frame", "longdesc") |
+                ("head", "profile") |
+                ("html", "manifest") |
+                ("iframe", "longdesc") |
+                ("img", "longdesc") |
+                ("input", "formaction") |
+                ("object", "classid" | "codebase" | "data") |
+                ("video", "poster") => {
+                    urls.push(RawUri {
+                        text: attr_value.to_string(),
+                        element: Some(self.current_element.name.clone()),
+                        attribute: Some(attr_name.to_string()),
+                    });
+                }
+                _ => {}
+            }
+        }
+
+        urls
     }
 
+    /// Extract links from the current string and add them to the links vector.
     fn flush_current_characters(&mut self) {
-        // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
-        let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
-        if !self.include_verbatim && (is_verbatim_elem(name) || self.inside_verbatim_block()) {
-            self.update_verbatim_element_name();
-            // Early return if we don't want to extract links from preformatted text
-            self.current_string.clear();
+        if !self.include_verbatim
+            && (is_verbatim_elem(&self.current_element.name) || !self.verbatim_stack.is_empty())
+        {
+            self.update_verbatim_element();
+            // Early return since we don't want to extract links from verbatim
+            // blocks according to the configuration.
+            self.current_raw_string.clear();
             return;
         }
 
-        let raw = unsafe { from_utf8_unchecked(&self.current_string) };
-        self.links.extend(extract_plaintext(raw));
-        self.current_string.clear();
-    }
-
-    /// Check if we are currently inside a verbatim element.
-    const fn inside_verbatim_block(&self) -> bool {
-        self.current_verbatim_element_name.is_some()
+        self.links
+            .extend(extract_raw_uri_from_plaintext(&self.current_raw_string));
+        self.current_raw_string.clear();
     }
 
     /// Update the current verbatim element name.
     ///
     /// Keeps track of the last verbatim element name, so that we can
     /// properly handle nested verbatim blocks.
-    fn update_verbatim_element_name(&mut self) {
-        if self.current_element_is_closing {
-            if self.inside_verbatim_block() {
-                // If we are closing a verbatim element, we need to check if it is the
-                // top-level verbatim element. If it is, we need to reset the verbatim block.
-                if Some(&self.current_element_name) == self.current_verbatim_element_name.as_ref() {
-                    self.current_verbatim_element_name = None;
-                    self.current_attribute_name.clear();
-                    self.current_attribute_value.clear();
+    fn update_verbatim_element(&mut self) {
+        if self.current_element.is_closing {
+            if let Some(last_verbatim) = self.verbatim_stack.last() {
+                if last_verbatim == &self.current_element.name {
+                    self.verbatim_stack.pop();
                 }
             }
-        } else if !self.include_verbatim
-            && is_verbatim_elem(unsafe { from_utf8_unchecked(&self.current_element_name) })
-        {
-            // If we are opening a verbatim element, we need to check if we are already
-            // inside a verbatim element. If so, we need to ignore this element.
-            if !self.inside_verbatim_block() {
-                self.current_verbatim_element_name = Some(self.current_element_name.clone());
-            }
+        } else if !self.include_verbatim && is_verbatim_elem(&self.current_element.name) {
+            self.verbatim_stack.push(self.current_element.name.clone());
         }
     }
 
-    fn flush_old_attribute(&mut self) {
+    /// Flush the current element and attribute values to the links vector.
+    ///
+    /// This function is called whenever a new element is encountered or when the
+    /// current element is closing. It extracts URLs from the current attribute value
+    /// and adds them to the links vector.
+    ///
+    /// Here are the rules for extracting links:
+    /// - If the current element has a `rel=nofollow` attribute, the current attribute
+    ///   value is ignored.
+    /// - If the current element has a `rel=preconnect` attribute, the current attribute
+    ///   value is ignored.
+    /// - If the current attribute value is not a URL, it is treated as plain text and
+    ///   added to the links vector.
+    /// - If the current attribute name is `id`, the current attribute value is added
+    ///   to the fragments set.
+    ///
+    /// The current attribute name and value are cleared after processing.
+    fn flush_links(&mut self) {
+        self.update_verbatim_element();
+
+        if !self.include_verbatim
+            && (!self.verbatim_stack.is_empty() || is_verbatim_elem(&self.current_element.name))
         {
-            // safety: since we feed html5gum tokenizer with a &str, this must be a &str as well.
-            let name = unsafe { from_utf8_unchecked(&self.current_element_name) };
-
-            // Early return if we don't want to extract links from verbatim
-            // blocks (e.g. preformatted text)
-            if !self.include_verbatim && (is_verbatim_elem(name) || self.inside_verbatim_block()) {
-                self.update_verbatim_element_name();
-                return;
-            }
-
-            let attr = unsafe { from_utf8_unchecked(&self.current_attribute_name) };
-            let value = unsafe { from_utf8_unchecked(&self.current_attribute_value) };
-
-            // Ignore links with rel=nofollow
-            // This may be set on a different iteration on the same element/tag before,
-            // so we check the boolean separately right after
-            if attr == "rel" && value.contains("nofollow") {
-                self.current_element_nofollow = true;
-            }
-            if self.current_element_nofollow {
-                self.current_attribute_name.clear();
-                self.current_attribute_value.clear();
-                return;
-            }
-
-            let urls = LinkExtractor::extract_urls_from_elem_attr(attr, name, value);
-
-            let new_urls = match urls {
-                None => extract_plaintext(value),
-                Some(urls) => urls
-                    .into_iter()
-                    .filter(|url| {
-                        // Only accept email addresses, which occur in `href` attributes
-                        // and start with `mailto:`. Technically, email addresses could
-                        // also occur in plain text, but we don't want to extract those
-                        // because of the high false positive rate.
-                        //
-                        // This ignores links like `<img srcset="v2@1.5x.png">`
-                        let is_email = is_email_link(url);
-                        let is_mailto = url.starts_with("mailto:");
-                        let is_phone = url.starts_with("tel:");
-                        let is_href = attr == "href";
-
-                        !is_email || (is_mailto && is_href) || (is_phone && is_href)
-                    })
-                    .map(|url| RawUri {
-                        text: url.to_string(),
-                        element: Some(name.to_string()),
-                        attribute: Some(attr.to_string()),
-                    })
-                    .collect::<Vec<_>>(),
-            };
-
-            self.links.extend(new_urls);
-
-            if attr == "id" {
-                self.fragments.insert(value.to_string());
-            }
+            self.current_attributes.clear();
+            return;
         }
 
-        self.current_attribute_name.clear();
-        self.current_attribute_value.clear();
+        if self.current_attributes.get("rel").map_or(false, |rel| {
+            rel.split(',')
+                .any(|r| r.trim() == "nofollow" || r.trim() == "preconnect")
+        }) {
+            self.current_attributes.clear();
+            return;
+        }
+
+        let new_urls = self
+            .extract_urls_from_elem_attr()
+            .into_iter()
+            .filter(|url| {
+                // Only accept email addresses or phone numbers, which
+                // occur in `href` attributes and start with `mailto:`
+                // or `tel:`, respectively
+                //
+                // Technically, email addresses could also occur in
+                // plain text, but we don't want to extract those
+                // because of the high false-positive rate.
+                //
+                // This skips links like `<img srcset="v2@1.5x.png">`
+                let is_email = is_email_link(&url.text);
+                let is_mailto = url.text.starts_with("mailto:");
+                let is_phone = url.text.starts_with("tel:");
+                let is_href = url.attribute.as_deref() == Some("href");
+
+                !is_email || (is_mailto && is_href) || (is_phone && is_href)
+            })
+            .collect::<Vec<_>>();
+
+        self.links.extend(new_urls);
+
+        if let Some(id) = self.current_attributes.get("id") {
+            self.fragments.insert(id.to_string());
+        }
+
+        self.current_attributes.clear();
     }
 }
 
@@ -201,38 +213,41 @@ impl Emitter for &mut LinkExtractor {
     type Token = ();
 
     fn set_last_start_tag(&mut self, last_start_tag: Option<&[u8]>) {
-        self.last_start_element.clear();
-        self.last_start_element
-            .extend(last_start_tag.unwrap_or_default());
+        self.current_element.name =
+            String::from_utf8_lossy(last_start_tag.unwrap_or_default()).into_owned();
     }
 
     fn emit_eof(&mut self) {
         self.flush_current_characters();
     }
+
     fn emit_error(&mut self, _: Error) {}
 
-    #[inline]
     fn should_emit_errors(&mut self) -> bool {
         false
     }
+
     fn pop_token(&mut self) -> Option<()> {
         None
     }
 
+    /// Emit a bunch of plain characters as character tokens.
     fn emit_string(&mut self, c: &[u8]) {
-        self.current_string.extend(c);
+        self.current_raw_string
+            .push_str(&String::from_utf8_lossy(c));
     }
 
     fn init_start_tag(&mut self) {
         self.flush_current_characters();
-        self.current_element_name.clear();
-        self.current_element_nofollow = false;
-        self.current_element_is_closing = false;
+        self.current_element = Element::default();
     }
 
     fn init_end_tag(&mut self) {
-        self.init_start_tag();
-        self.current_element_is_closing = true;
+        self.flush_current_characters();
+        self.current_element = Element {
+            name: String::new(),
+            is_closing: true,
+        };
     }
 
     fn init_comment(&mut self) {
@@ -240,51 +255,66 @@ impl Emitter for &mut LinkExtractor {
     }
 
     fn emit_current_tag(&mut self) -> Option<State> {
-        let next_state = if self.current_element_is_closing {
+        self.flush_links();
+
+        let next_state = if self.current_element.is_closing {
             None
         } else {
-            self.last_start_element.clear();
-            self.last_start_element.extend(&self.current_element_name);
-            html5gum::naive_next_state(&self.current_element_name)
+            html5gum::naive_next_state(self.current_element.name.as_bytes())
         };
 
-        self.flush_old_attribute();
         next_state
     }
 
     fn emit_current_doctype(&mut self) {}
+
     fn set_self_closing(&mut self) {
-        self.current_element_is_closing = true;
+        self.current_element.is_closing = true;
     }
+
     fn set_force_quirks(&mut self) {}
 
     fn push_tag_name(&mut self, s: &[u8]) {
-        self.current_element_name.extend(s);
+        self.current_element
+            .name
+            .push_str(&String::from_utf8_lossy(s));
     }
 
     fn push_comment(&mut self, _: &[u8]) {}
+
     fn push_doctype_name(&mut self, _: &[u8]) {}
+
     fn init_doctype(&mut self) {
         self.flush_current_characters();
     }
+
     fn init_attribute(&mut self) {
-        self.flush_old_attribute();
+        self.current_attribute_name.clear();
     }
+
     fn push_attribute_name(&mut self, s: &[u8]) {
-        self.current_attribute_name.extend(s);
+        self.current_attribute_name
+            .push_str(&String::from_utf8_lossy(s));
     }
+
     fn push_attribute_value(&mut self, s: &[u8]) {
-        self.current_attribute_value.extend(s);
+        let value = String::from_utf8_lossy(s);
+        self.current_attributes
+            .entry(self.current_attribute_name.clone())
+            .and_modify(|v| v.push_str(&value))
+            .or_insert_with(|| value.into_owned());
     }
 
     fn set_doctype_public_identifier(&mut self, _: &[u8]) {}
+
     fn set_doctype_system_identifier(&mut self, _: &[u8]) {}
+
     fn push_doctype_public_identifier(&mut self, _: &[u8]) {}
+
     fn push_doctype_system_identifier(&mut self, _: &[u8]) {}
+
     fn current_is_appropriate_end_tag_token(&mut self) -> bool {
-        self.current_element_is_closing
-            && !self.current_element_name.is_empty()
-            && self.current_element_name == self.last_start_element
+        self.current_element.is_closing && !self.current_element.name.is_empty()
     }
 
     fn emit_current_comment(&mut self) {}
@@ -422,7 +452,7 @@ mod tests {
     }
 
     #[test]
-    fn test_include_nofollow() {
+    fn test_exclude_nofollow() {
         let input = r#"
         <a rel="nofollow" href="https://foo.com">do not follow me</a>
         <a rel="canonical,nofollow,dns-prefetch" href="https://example.com">do not follow me</a>
@@ -435,6 +465,15 @@ mod tests {
         }];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_exclude_nofollow_change_order() {
+        let input = r#"
+        <a href="https://foo.com" rel="nofollow">do not follow me</a>
+        "#;
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
     }
 
     #[test]
@@ -517,17 +556,7 @@ mod tests {
 
     #[test]
     fn test_email_false_positive() {
-        let input = r#"<!DOCTYPE html>
-        <html lang="en-US">
-          <head>
-            <meta charset="utf-8">
-            <title>Test</title>
-          </head>
-          <body>
-            <img srcset="v2@1.5x.png" alt="Wikipedia" width="200" height="183">
-          </body>
-        </html>"#;
-
+        let input = r#"<img srcset="v2@1.5x.png" alt="Wikipedia" width="200" height="183">"#;
         let uris = extract_html(input, false);
         assert!(uris.is_empty());
     }
@@ -557,5 +586,25 @@ mod tests {
         ];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_skip_preconnect() {
+        let input = r#"
+            <link rel="preconnect" href="https://example.com">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_skip_preconnect_reverse_order() {
+        let input = r#"
+            <link href="https://example.com" rel="preconnect">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
     }
 }

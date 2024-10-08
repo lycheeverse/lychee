@@ -5,18 +5,20 @@
 #   - Dockerfile-CI.alpine.Dockerfile
 #   - https://github.com/lycheeverse/lychee-action/blob/master/action.yml
 
-name: Release
+name: Release Binary
 on:
   release:
     types:
       - published
+      - created
+      - prereleased
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   prepare:
-    name: Build release binary
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.get_release.outputs.tag_name }}

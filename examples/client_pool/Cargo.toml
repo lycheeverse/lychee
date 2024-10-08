@@ -8,7 +8,7 @@ name = "client_pool"
 path = "client_pool.rs"
 
 [dependencies]
-futures = "0.3.30"
+futures = "0.3.31"
 tokio-stream = "0.1.16"
 lychee-lib = { path = "../../lychee-lib", default-features = false }
 tokio = { version = "1.40.0", features = ["full"] }

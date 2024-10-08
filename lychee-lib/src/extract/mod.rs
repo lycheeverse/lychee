@@ -5,7 +5,7 @@ pub mod markdown;
 mod plaintext;
 
 use markdown::extract_markdown;
-use plaintext::extract_plaintext;
+use plaintext::extract_raw_uri_from_plaintext;
 
 /// A handler for extracting links from various input formats like Markdown and
 /// HTML. Allocations should be avoided if possible as this is a
@@ -50,13 +50,14 @@ impl Extractor {
                     html::html5gum::extract_html(&input_content.content, self.include_verbatim)
                 }
             }
-            FileType::Plaintext => extract_plaintext(&input_content.content),
+            FileType::Plaintext => extract_raw_uri_from_plaintext(&input_content.content),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
     use reqwest::Url;
     use std::{collections::HashSet, path::Path};
 
@@ -72,20 +73,33 @@ mod tests {
         let input_content = InputContent::from_string(input, file_type);
 
         let extractor = Extractor::new(false, false);
-        let uris_html5gum = extractor
+        let uris_html5gum: HashSet<Uri> = extractor
             .extract(&input_content)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
+        let uris_html5gum_sorted: Vec<Uri> = {
+            let mut uris = uris_html5gum.clone().into_iter().collect::<Vec<_>>();
+            uris.sort();
+            uris
+        };
 
         let extractor = Extractor::new(true, false);
-        let uris_html5ever = extractor
+        let uris_html5ever: HashSet<Uri> = extractor
             .extract(&input_content)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
             .collect();
+        let uris_html5ever_sorted: Vec<Uri> = {
+            let mut uris = uris_html5ever.into_iter().collect::<Vec<_>>();
+            uris.sort();
+            uris
+        };
 
-        assert_eq!(uris_html5gum, uris_html5ever);
+        assert_eq!(
+            uris_html5gum_sorted, uris_html5ever_sorted,
+            "Mismatch between html5gum and html5ever"
+        );
         uris_html5gum
     }
 
@@ -241,7 +255,8 @@ mod tests {
         let expected_links = IntoIterator::into_iter([
             website("https://example.com/"),
             website("https://example.com/favicon.ico"),
-            website("https://fonts.externalsite.com"),
+            // Note that we exclude `preconnect` links:
+            // website("https://fonts.externalsite.com"),
             website("https://example.com/docs/"),
             website("https://example.com/forum"),
         ])
