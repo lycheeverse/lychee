@@ -97,6 +97,7 @@ pub use crate::{
     types::{
         uri::valid::Uri, AcceptRange, AcceptRangeError, Base, BasicAuthCredentials,
         BasicAuthSelector, CacheStatus, CookieJar, ErrorKind, FileType, Input, InputContent,
-        InputSource, Request, Response, ResponseBody, Result, Status, StatusCodeSelector,
+        InputSource, Request, Response, ResponseBody, Result, Status, StatusCodeExcluder,
+        StatusCodeSelector,
     },
 };

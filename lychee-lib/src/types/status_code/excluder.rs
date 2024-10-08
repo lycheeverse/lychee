@@ -1,29 +1,21 @@
 use std::{collections::HashSet, fmt::Display, str::FromStr};
 
 use serde::{de::Visitor, Deserialize};
-use thiserror::Error;
 
-use crate::{types::accept::AcceptRange, AcceptRangeError};
+use crate::{
+    types::accept::AcceptRange, types::status_code::StatusCodeSelectorError, AcceptRangeError,
+};
 
-#[derive(Debug, Error)]
-pub enum StatusCodeSelectorError {
-    #[error("invalid/empty input")]
-    InvalidInput,
-
-    #[error("failed to parse accept range: {0}")]
-    AcceptRangeError(#[from] AcceptRangeError),
-}
-
-/// An [`StatusCodeSelector`] holds ranges of HTTP status codes, and determines whether a specific
+/// An [`StatusCodeExcluder`] holds ranges of HTTP status codes, and determines whether a specific
 /// code is matched, so the link can be counted as valid (not broken) or excluded.
-/// `StatusCodeSelector` differs from `StatusCodeExcluder` in the defaults it provides. As this is
-/// meant to select valid status codes, the default includes every successful status.
+/// `StatusCodeExcluder` differs from `StatusCodeSelector` in the defaults it provides. As this is
+/// meant to exclude status codes, the default is to keep everything.
 #[derive(Clone, Debug, PartialEq)]
-pub struct StatusCodeSelector {
+pub struct StatusCodeExcluder {
     ranges: Vec<AcceptRange>,
 }
 
-impl FromStr for StatusCodeSelector {
+impl FromStr for StatusCodeExcluder {
     type Err = StatusCodeSelectorError;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
@@ -42,27 +34,27 @@ impl FromStr for StatusCodeSelector {
     }
 }
 
-impl Default for StatusCodeSelector {
+impl Default for StatusCodeExcluder {
     fn default() -> Self {
-        Self::new_from(vec![AcceptRange::new(100, 103), AcceptRange::new(200, 299)])
+        Self::new()
     }
 }
 
-impl Display for StatusCodeSelector {
+impl Display for StatusCodeExcluder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let ranges: Vec<_> = self.ranges.iter().map(ToString::to_string).collect();
         write!(f, "{}", ranges.join(","))
     }
 }
 
-impl StatusCodeSelector {
-    /// Creates a new empty [`StatusCodeSelector`].
+impl StatusCodeExcluder {
+    /// Creates a new empty [`StatusCodeExcluder`].
     #[must_use]
     pub const fn new() -> Self {
         Self { ranges: Vec::new() }
     }
 
-    /// Creates a new [`StatusCodeSelector`] prefilled with `ranges`.
+    /// Creates a new [`StatusCodeExcluder`] prefilled with `ranges`.
     #[must_use]
     pub fn new_from(ranges: Vec<AcceptRange>) -> Self {
         let mut selector = Self::new();
@@ -74,7 +66,7 @@ impl StatusCodeSelector {
         selector
     }
 
-    /// Adds a range of HTTP status codes to this [`StatusCodeSelector`].
+    /// Adds a range of HTTP status codes to this [`StatusCodeExcluder`].
     /// This method merges the new and existing ranges if they overlap.
     pub fn add_range(&mut self, range: AcceptRange) -> &mut Self {
         // Merge with previous range if possible
@@ -90,7 +82,7 @@ impl StatusCodeSelector {
         self
     }
 
-    /// Returns whether this [`StatusCodeSelector`] contains `value`.
+    /// Returns whether this [`StatusCodeExcluder`] contains `value`.
     #[must_use]
     pub fn contains(&self, value: u16) -> bool {
         self.ranges.iter().any(|range| range.contains(value))
@@ -117,10 +109,10 @@ impl StatusCodeSelector {
     }
 }
 
-struct StatusCodeSelectorVisitor;
+struct StatusCodeExcluderVisitor;
 
-impl<'de> Visitor<'de> for StatusCodeSelectorVisitor {
-    type Value = StatusCodeSelector;
+impl<'de> Visitor<'de> for StatusCodeExcluderVisitor {
+    type Value = StatusCodeExcluder;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         formatter.write_str("a string or a sequence of strings")
@@ -130,7 +122,7 @@ impl<'de> Visitor<'de> for StatusCodeSelectorVisitor {
     where
         E: serde::de::Error,
     {
-        StatusCodeSelector::from_str(v).map_err(serde::de::Error::custom)
+        StatusCodeExcluder::from_str(v).map_err(serde::de::Error::custom)
     }
 
     fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
@@ -138,7 +130,7 @@ impl<'de> Visitor<'de> for StatusCodeSelectorVisitor {
         E: serde::de::Error,
     {
         let value = u16::try_from(v).map_err(serde::de::Error::custom)?;
-        Ok(StatusCodeSelector::new_from(vec![AcceptRange::new(
+        Ok(StatusCodeExcluder::new_from(vec![AcceptRange::new(
             value, value,
         )]))
     }
@@ -147,7 +139,7 @@ impl<'de> Visitor<'de> for StatusCodeSelectorVisitor {
     where
         A: serde::de::SeqAccess<'de>,
     {
-        let mut selector = StatusCodeSelector::new();
+        let mut selector = StatusCodeExcluder::new();
         while let Some(v) = seq.next_element::<toml::Value>()? {
             if let Some(v) = v.as_integer() {
                 let value = u16::try_from(v).map_err(serde::de::Error::custom)?;
@@ -169,12 +161,12 @@ impl<'de> Visitor<'de> for StatusCodeSelectorVisitor {
     }
 }
 
-impl<'de> Deserialize<'de> for StatusCodeSelector {
+impl<'de> Deserialize<'de> for StatusCodeExcluder {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        deserializer.deserialize_any(StatusCodeSelectorVisitor)
+        deserializer.deserialize_any(StatusCodeExcluderVisitor)
     }
 }
 
@@ -194,7 +186,7 @@ mod test {
         #[case] invalid_values: Vec<u16>,
         #[case] length: usize,
     ) {
-        let selector = StatusCodeSelector::from_str(input).unwrap();
+        let selector = StatusCodeExcluder::from_str(input).unwrap();
         assert_eq!(selector.len(), length);
 
         for valid in valid_values {
@@ -222,7 +214,7 @@ mod test {
     ) {
         #[derive(Deserialize)]
         struct Config {
-            accept: StatusCodeSelector,
+            accept: StatusCodeExcluder,
         }
 
         let config: Config = toml::from_str(input).unwrap();
@@ -241,7 +233,7 @@ mod test {
     #[case("100..=150,200..=300", "100..=150,200..=300")]
     #[case("100..=150,300", "100..=150,300..=300")]
     fn test_display(#[case] input: &str, #[case] display: &str) {
-        let selector = StatusCodeSelector::from_str(input).unwrap();
+        let selector = StatusCodeExcluder::from_str(input).unwrap();
         assert_eq!(selector.to_string(), display);
     }
 }

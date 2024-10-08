@@ -6,8 +6,8 @@ use clap::builder::PossibleValuesParser;
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, BasicAuthSelector, Input, StatusCodeSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
-    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+    Base, BasicAuthSelector, Input, StatusCodeExcluder, StatusCodeSelector, DEFAULT_MAX_REDIRECTS,
+    DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -145,7 +145,7 @@ default_function! {
     retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
     verbosity: Verbosity = Verbosity::default();
-    cache_exclude_selector: StatusCodeSelector = StatusCodeSelector::new();
+    cache_exclude_selector: StatusCodeExcluder = StatusCodeExcluder::new();
     accept_selector: StatusCodeSelector = StatusCodeSelector::default();
 }
 
@@ -250,7 +250,7 @@ list of excluded status codes. This example will not cache results with a status
 501 and 502."
     )]
     #[serde(default = "cache_exclude_selector")]
-    pub(crate) cache_exclude_status: StatusCodeSelector,
+    pub(crate) cache_exclude_status: StatusCodeExcluder,
 
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
@@ -530,7 +530,7 @@ impl Config {
             max_retries: DEFAULT_MAX_RETRIES;
             max_concurrency: DEFAULT_MAX_CONCURRENCY;
             max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
-            cache_exclude_status: StatusCodeSelector::new();
+            cache_exclude_status: StatusCodeExcluder::default();
             threads: None;
             user_agent: DEFAULT_USER_AGENT;
             insecure: false;
@@ -608,6 +608,6 @@ mod tests {
             cli.accept,
             StatusCodeSelector::from_str("100..=103,200..=299").expect("no error")
         );
-        assert_eq!(cli.cache_exclude_status, StatusCodeSelector::new());
+        assert_eq!(cli.cache_exclude_status, StatusCodeExcluder::new());
     }
 }
