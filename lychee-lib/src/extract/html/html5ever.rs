@@ -413,4 +413,24 @@ mod tests {
         let uris = extract_html(input, false);
         assert!(uris.is_empty());
     }
+
+    #[test]
+    fn test_skip_dns_prefetch() {
+        let input = r#"
+            <link rel="dns-prefetch" href="https://example.com">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_skip_dns_prefetch_reverse_order() {
+        let input = r#"
+            <link href="https://example.com" rel="dns-prefetch">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
+    }
 }
