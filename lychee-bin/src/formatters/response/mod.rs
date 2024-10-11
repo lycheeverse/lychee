@@ -25,4 +25,12 @@ pub(crate) const MAX_RESPONSE_OUTPUT_WIDTH: usize = 10;
 pub(crate) trait ResponseFormatter: Send + Sync {
     /// Format the response body into a human-readable string
     fn format_response(&self, body: &ResponseBody) -> String;
+
+    /// Detailed response formatter (defaults to the normal formatter)
+    ///
+    /// This is used for some output modes to provide more detailed information
+    /// and in verbose mode.
+    fn format_detailed_response(&self, body: &ResponseBody) -> String {
+        self.format_response(body)
+    }
 }

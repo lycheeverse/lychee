@@ -177,7 +177,15 @@ impl ErrorKind {
                             .to_string(),
                     )
                 } else {
-                    Some(utils::reqwest::trim_error_output(e))
+                    // Get the relevant details from the specific reqwest error
+                    let details = utils::reqwest::trim_error_output(e);
+
+                    // Provide support for common error types
+                    if e.is_connect() {
+                        Some(format!("{details} Maybe a certificate error?"))
+                    } else {
+                        Some(details)
+                    }
                 }
             }
             ErrorKind::GithubRequest(e) => {
