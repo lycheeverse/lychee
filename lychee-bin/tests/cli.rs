@@ -156,7 +156,7 @@ mod cli {
         let site_error_status = &output_json["fail_map"][&test_path.to_str().unwrap()][0]["status"];
 
         assert_eq!(
-            "error sending request for url (https://expired.badssl.com/)",
+            "error sending request for url (https://expired.badssl.com/) Maybe a certificate error?",
             site_error_status["details"]
         );
         Ok(())
@@ -425,7 +425,7 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(
-                "[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man"
+                "[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Network error: Not Found"
             ))
             .stderr(contains(
                 "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",

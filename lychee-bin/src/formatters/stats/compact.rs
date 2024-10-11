@@ -40,7 +40,11 @@ impl Display for CompactResponseStats {
         for (source, responses) in &stats.fail_map {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             for response in responses {
-                writeln!(f, "{}", response_formatter.format_response(response))?;
+                writeln!(
+                    f,
+                    "{}",
+                    response_formatter.format_detailed_response(response)
+                )?;
             }
 
             if let Some(suggestions) = &stats.suggestion_map.get(source) {
