@@ -144,7 +144,9 @@ mod tests {
 
     // Helper function to run the collector on the given inputs
     async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
-        let responses = Collector::new(base).collect_links(inputs);
+        let responses = Collector::new(base)
+            .include_verbatim(true)
+            .collect_links(inputs);
         responses.map(|r| r.unwrap().uri).collect().await
     }
 
