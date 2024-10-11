@@ -51,7 +51,7 @@ mod plain_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "[ERROR] https://example.com/404 | Failed: URL is missing a host"
+            "[ERROR] https://example.com/404 | URL is missing a host"
         );
     }
 

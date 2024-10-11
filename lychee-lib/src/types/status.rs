@@ -52,7 +52,7 @@ impl Display for Status {
             Status::Timeout(Some(code)) => write!(f, "Timeout ({code})"),
             Status::Timeout(None) => f.write_str("Timeout"),
             Status::Unsupported(e) => write!(f, "Unsupported: {e}"),
-            Status::Error(e) => write!(f, "Failed: {e}"),
+            Status::Error(e) => write!(f, "{e}"),
             Status::Cached(status) => write!(f, "Cached: {status}"),
         }
     }
