@@ -64,7 +64,7 @@ mod tests {
     // The Wayback Machine does not always return a suggestion.
     // We can consider mocking the endpoint in the future.
     #[tokio::test]
-    #[ignore]
+    #[ignore = "Wayback Machine currently has certificate issues"]
     async fn wayback_suggestion() -> Result<(), Box<dyn StdError>> {
         let target_url = "https://example.com".parse::<Url>()?;
 
@@ -118,6 +118,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Wayback Machine currently has certificate issues"]
     async fn wayback_suggestion_unknown_url() -> Result<(), Error> {
         let url = &"https://github.com/mre/idiomatic-rust-doesnt-exist-man"
             .try_into()
