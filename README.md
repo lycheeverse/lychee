@@ -27,7 +27,6 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 - [GitHub Action Usage](#github-action-usage)
 - [Pre-commit Usage](#pre-commit-usage)
 - [Contributing to lychee](#contributing-to-lychee)
-- [Debugging and improving async code](#debugging-and-improving-async-code)
 - [Troubleshooting and Workarounds](#troubleshooting-and-workarounds)
 - [Users](#users)
 - [Credits](#credits)
