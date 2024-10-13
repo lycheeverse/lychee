@@ -45,7 +45,7 @@ pub enum Status {
 impl Display for Status {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Status::Ok(code) => write!(f, "OK ({code})"),
+            Status::Ok(code) => write!(f, "{code}"),
             Status::Redirected(code) => write!(f, "Redirect ({code})"),
             Status::UnknownStatusCode(code) => write!(f, "Unknown status ({code})"),
             Status::Excluded => f.write_str("Excluded"),
@@ -53,7 +53,7 @@ impl Display for Status {
             Status::Timeout(None) => f.write_str("Timeout"),
             Status::Unsupported(e) => write!(f, "Unsupported: {e}"),
             Status::Error(e) => write!(f, "{e}"),
-            Status::Cached(status) => write!(f, "Cached: {status}"),
+            Status::Cached(status) => write!(f, "{status}"),
         }
     }
 }
@@ -310,10 +310,7 @@ mod tests {
     fn test_status_serialization() {
         let status_ok = Status::Ok(StatusCode::from_u16(200).unwrap());
         let serialized_with_code = serde_json::to_string(&status_ok).unwrap();
-        assert_eq!(
-            "{\"text\":\"OK (200 OK)\",\"code\":200}",
-            serialized_with_code
-        );
+        assert_eq!("{\"text\":\"200 OK\",\"code\":200}", serialized_with_code);
 
         let status_timeout = Status::Timeout(None);
         let serialized_without_code = serde_json::to_string(&status_timeout).unwrap();

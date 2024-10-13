@@ -1017,11 +1017,11 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "[418] {}/ | Failed: Network error: I\'m a teapot",
+                "[418] {}/ | Network error: I\'m a teapot",
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                "[500] {}/ | Failed: Network error: Internal Server Error",
+                "[500] {}/ | Network error: Internal Server Error",
                 mock_server_server_error.uri()
             )));
 
@@ -1040,11 +1040,11 @@ mod cli {
             .assert()
             .success()
             .stderr(contains(format!(
-                "[418] {}/ | Cached: OK (cached)",
+                "[418] {}/ | OK (cached)",
                 mock_server_teapot.uri()
             )))
             .stderr(contains(format!(
-                "[500] {}/ | Cached: OK (cached)",
+                "[500] {}/ | OK (cached)",
                 mock_server_server_error.uri()
             )));
 
