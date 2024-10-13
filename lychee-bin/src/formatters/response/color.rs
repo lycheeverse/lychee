@@ -74,7 +74,6 @@ mod tests {
     use lychee_lib::{ErrorKind, Status, Uri};
     use pretty_assertions::assert_eq;
 
-    #[cfg(test)]
     /// Helper function to strip ANSI color codes for tests
     fn strip_ansi_codes(s: &str) -> String {
         console::strip_ansi_codes(s).to_string()

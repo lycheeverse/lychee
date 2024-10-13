@@ -28,8 +28,9 @@ pub(crate) trait ResponseFormatter: Send + Sync {
 
     /// Detailed response formatter (defaults to the normal formatter)
     ///
-    /// This is used for some output modes to provide more detailed information
-    /// and in verbose mode.
+    /// This can be used for output modes which want to provide more detailed
+    /// information. It is also used if the output is set to verbose mode
+    /// (i.e. `-v`, `-vv` and above).
     fn format_detailed_response(&self, body: &ResponseBody) -> String {
         self.format_response(body)
     }
