@@ -147,6 +147,8 @@ mod tests {
         let responses = Collector::new(base).collect_links(inputs);
         responses.map(|r| r.unwrap().uri).collect().await
     }
+
+    // Helper function for collecting verbatim links
     async fn collect_verbatim(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
         let responses = Collector::new(base)
             .include_verbatim(true)

@@ -627,6 +627,7 @@ mod tests {
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
     }
+
     #[test]
     fn test_skip_dns_prefetch() {
         let input = r#"
