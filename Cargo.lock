@@ -2539,6 +2539,7 @@ dependencies = [
  "tokio-stream",
  "toml",
  "tracing-subscriber",
+ "url",
  "uuid",
  "wiremock",
 ]

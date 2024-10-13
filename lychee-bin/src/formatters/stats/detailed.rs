@@ -55,7 +55,11 @@ impl Display for DetailedResponseStats {
             write!(f, "\n\nErrors in {source}")?;
 
             for response in responses {
-                write!(f, "\n{}", response_formatter.format_response(response))?;
+                write!(
+                    f,
+                    "\n{}",
+                    response_formatter.format_detailed_response(response)
+                )?;
 
                 if let Some(suggestions) = &stats.suggestion_map.get(source) {
                     writeln!(f, "\nSuggestions in {source}")?;
@@ -87,5 +91,67 @@ impl StatsFormatter for Detailed {
             mode: self.mode.clone(),
         };
         Ok(Some(detailed.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::options::OutputMode;
+    use http::StatusCode;
+    use lychee_lib::{InputSource, ResponseBody, Status, Uri};
+    use std::collections::{HashMap, HashSet};
+    use url::Url;
+
+    #[test]
+    fn test_detailed_formatter_github_404() {
+        let err1 = ResponseBody {
+            uri: Uri::try_from("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap(),
+            status: Status::Ok(StatusCode::NOT_FOUND),
+        };
+
+        let err2 = ResponseBody {
+            uri: Uri::try_from("https://github.com/mre/boom").unwrap(),
+            status: Status::Ok(StatusCode::INTERNAL_SERVER_ERROR),
+        };
+
+        let mut fail_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
+        let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
+        fail_map.insert(source, HashSet::from_iter(vec![err1, err2]));
+
+        let stats = ResponseStats {
+            total: 2,
+            successful: 0,
+            errors: 2,
+            unknown: 0,
+            excludes: 0,
+            timeouts: 0,
+            duration_secs: 0,
+            unsupported: 0,
+            redirects: 0,
+            cached: 0,
+            suggestion_map: HashMap::default(),
+            success_map: HashMap::default(),
+            fail_map,
+            excluded_map: HashMap::default(),
+            detailed_stats: true,
+        };
+
+        let formatter = Detailed::new(OutputMode::Plain);
+        let result = formatter.format(stats).unwrap().unwrap();
+
+        // Check for the presence of expected content
+        assert!(result.contains("📝 Summary"));
+        assert!(result.contains("🔍 Total............2"));
+        assert!(result.contains("✅ Successful.......0"));
+        assert!(result.contains("⏳ Timeouts.........0"));
+        assert!(result.contains("🔀 Redirected.......0"));
+        assert!(result.contains("👻 Excluded.........0"));
+        assert!(result.contains("❓ Unknown..........0"));
+        assert!(result.contains("🚫 Errors...........2"));
+        assert!(result.contains("Errors in https://example.com/"));
+        assert!(result
+            .contains("https://github.com/mre/idiomatic-rust-doesnt-exist-man | 404 Not Found"));
+        assert!(result.contains("https://github.com/mre/boom | 500 Internal Server Error"));
     }
 }
