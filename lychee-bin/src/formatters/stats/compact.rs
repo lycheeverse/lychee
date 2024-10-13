@@ -153,7 +153,7 @@ mod tests {
         let stats = ResponseStats {
             total: 1,
             successful: 1,
-            errors: 0,
+            errors: 2,
             unknown: 0,
             excludes: 0,
             timeouts: 0,
@@ -176,7 +176,7 @@ mod tests {
 
         assert!(result.contains("🔍 1 Total"));
         assert!(result.contains("✅ 1 OK"));
-        assert!(result.contains("🚫 0 Errors"));
+        assert!(result.contains("🚫 2 Errors"));
 
         assert!(result.contains("[https://example.com/]:"));
         assert!(result
