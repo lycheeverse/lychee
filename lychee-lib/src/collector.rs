@@ -148,6 +148,14 @@ mod tests {
         responses.map(|r| r.unwrap().uri).collect().await
     }
 
+    // Helper function for collecting verbatim links
+    async fn collect_verbatim(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
+        let responses = Collector::new(base)
+            .include_verbatim(true)
+            .collect_links(inputs);
+        responses.map(|r| r.unwrap().uri).collect().await
+    }
+
     const TEST_STRING: &str = "http://test-string.com";
     const TEST_URL: &str = "https://test-url.org";
     const TEST_FILE: &str = "https://test-file.io";
@@ -233,7 +241,7 @@ mod tests {
             },
         ];
 
-        let links = collect(inputs, None).await;
+        let links = collect_verbatim(inputs, None).await;
 
         let expected_links = HashSet::from_iter([
             website(TEST_STRING),

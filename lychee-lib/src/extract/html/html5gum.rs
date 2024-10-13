@@ -4,6 +4,15 @@ use std::collections::{HashMap, HashSet};
 use super::{is_email_link, is_verbatim_elem, srcset};
 use crate::{extract::plaintext::extract_raw_uri_from_plaintext, types::uri::raw::RawUri};
 
+#[derive(Clone, Default, Debug)]
+struct Element {
+    /// Current element name being processed.
+    /// This is called a tag in html5gum.
+    name: String,
+    /// Whether the current element is a closing tag.
+    is_closing: bool,
+}
+
 /// Extract links from HTML documents.
 ///
 /// This is the main driver for the html5gum tokenizer.
@@ -16,7 +25,7 @@ use crate::{extract::plaintext::extract_raw_uri_from_plaintext, types::uri::raw:
 ///
 /// The `links` vector contains all links extracted from the HTML document and
 /// the `fragments` set contains all fragments extracted from the HTML document.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 struct LinkExtractor {
     /// Links extracted from the HTML document.
     links: Vec<RawUri>,
@@ -37,15 +46,6 @@ struct LinkExtractor {
     /// Element name of the current verbatim block.
     /// Used to keep track of nested verbatim blocks.
     verbatim_stack: Vec<String>,
-}
-
-#[derive(Clone, Default)]
-struct Element {
-    /// Current element name being processed.
-    /// This is called a tag in html5gum.
-    name: String,
-    /// Whether the current element is a closing tag.
-    is_closing: bool,
 }
 
 impl LinkExtractor {
@@ -326,7 +326,11 @@ pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
     let mut extractor = LinkExtractor::new(include_verbatim);
     let mut tokenizer = Tokenizer::new_with_emitter(buf, &mut extractor).infallible();
     assert!(tokenizer.next().is_none());
-    extractor.links
+    extractor
+        .links
+        .into_iter()
+        .filter(|link| link.attribute.is_some() || include_verbatim)
+        .collect()
 }
 
 /// Extract fragments from id attributes within a HTML string.
@@ -607,6 +611,21 @@ mod tests {
 
         let uris = extract_html(input, false);
         assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_ignore_text_content_links() {
+        let input = r#"
+            <a href="https://example.com">https://ignoreme.com</a>
+        "#;
+        let expected = vec![RawUri {
+            text: "https://example.com".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
     }
 
     #[test]

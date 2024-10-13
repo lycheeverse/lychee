@@ -28,9 +28,11 @@ impl TokenSink for LinkExtractor {
                 if self.current_verbatim_element_name.borrow().is_some() {
                     return TokenSinkResult::Continue;
                 }
-                self.links
-                    .borrow_mut()
-                    .extend(extract_raw_uri_from_plaintext(&raw));
+                if self.include_verbatim {
+                    self.links
+                        .borrow_mut()
+                        .extend(extract_raw_uri_from_plaintext(&raw));
+                }
             }
             Token::TagToken(tag) => {
                 let Tag {
@@ -412,6 +414,21 @@ mod tests {
 
         let uris = extract_html(input, false);
         assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_ignore_text_content_links() {
+        let input = r#"
+            <a href="https://example.com">https://ignoreme.com</a>
+        "#;
+        let expected = vec![RawUri {
+            text: "https://example.com".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
     }
 
     #[test]
