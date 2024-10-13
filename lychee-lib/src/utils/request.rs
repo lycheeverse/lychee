@@ -22,12 +22,12 @@ fn extract_credentials(
 
 /// Create a request from a raw URI.
 fn create_request(
-    raw_uri: RawUri,
+    raw_uri: &RawUri,
     source: &InputSource,
     base: &Option<Base>,
     extractor: &Option<BasicAuthExtractor>,
 ) -> Result<Option<Request>> {
-    let Some(uri) = try_parse_into_uri(&raw_uri, source, base)? else {
+    let Some(uri) = try_parse_into_uri(raw_uri, source, base)? else {
         return Ok(None);
     };
     let source = truncate_source(source);
@@ -94,7 +94,7 @@ pub(crate) fn is_anchor(text: &str) -> bool {
 ///
 
 fn create_uri_from_file_path(
-    file_path: &PathBuf,
+    file_path: &Path,
     link_text: &str,
     base: &Option<Base>,
 ) -> Result<Uri> {
@@ -103,7 +103,7 @@ fn create_uri_from_file_path(
         let file_name = file_path
             .file_name()
             .and_then(|name| name.to_str())
-            .ok_or_else(|| ErrorKind::InvalidFile(file_path.clone()))?;
+            .ok_or_else(|| ErrorKind::InvalidFile(file_path.to_path_buf()))?;
 
         format!("{file_name}{link_text}")
     } else {
@@ -150,7 +150,7 @@ pub(crate) fn create(
     let requests: Result<Vec<Request>> = uris
         .into_iter()
         .filter_map(|raw_uri| {
-            match create_request(raw_uri, &input_content.source, &base, extractor) {
+            match create_request(&raw_uri, &input_content.source, &base, extractor) {
                 Ok(Some(request)) => Some(Ok(request)),
                 Ok(None) => None,
                 Err(e) => Some(Err(e)),
@@ -176,7 +176,6 @@ fn resolve_and_create_url(
     dest_path: &str,
     base_uri: &Option<Base>,
 ) -> Result<Url> {
-    println!("resolve_and_create_url src_path: {:?}", src_path);
     let (dest_path, fragment) = url::remove_get_params_and_separate_fragment(dest_path);
 
     // Decode the destination path to avoid double-encoding
@@ -327,7 +326,7 @@ mod tests {
         let input_source = InputSource::FsPath(PathBuf::from("page.html"));
 
         let actual =
-            create_request(RawUri::from("file.html"), &input_source, &base, &None).unwrap();
+            create_request(&RawUri::from("file.html"), &input_source, &base, &None).unwrap();
 
         assert_eq!(
             actual,
@@ -350,7 +349,7 @@ mod tests {
 
         // Use an absolute path that's outside the base directory
         let actual = create_request(
-            RawUri::from("/usr/local/share/doc/example.html"),
+            &RawUri::from("/usr/local/share/doc/example.html"),
             &input_source,
             &base,
             &None,

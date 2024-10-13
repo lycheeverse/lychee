@@ -514,7 +514,7 @@ impl Client {
                 // to the path.
                 if let Some(ref base) = self.base {
                     let Ok(path) = uri.url.to_file_path() else {
-                        return Err(ErrorKind::InvalidFilePath(uri.clone()).into());
+                        return Err(ErrorKind::InvalidFilePath(uri.clone()));
                     };
 
                     if path.is_absolute() {
@@ -526,7 +526,7 @@ impl Client {
                                         .unwrap_or_else(|_| PathBuf::new())
                                         .join(base_path)
                                 } else {
-                                    base_path.to_path_buf()
+                                    base_path.clone()
                                 };
 
                                 // Optionally strip the leading slash from the path (if it exists)
@@ -755,7 +755,6 @@ impl Client {
 
     /// Checks a `file` URI's fragment.
     pub async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
-        println!("Checking fragment for {:?}", path);
         match self.fragment_checker.check(path, &uri.url).await {
             Ok(true) => Status::Ok(StatusCode::OK),
             Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
