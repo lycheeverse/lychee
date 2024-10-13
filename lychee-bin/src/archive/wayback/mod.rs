@@ -1,17 +1,23 @@
+use std::time::Duration;
+
 use once_cell::sync::Lazy;
 use serde::de::Error as SerdeError;
 use serde::{Deserialize, Deserializer};
 
 use http::StatusCode;
-use reqwest::{Error, Url};
+use reqwest::{Client, Error, Url};
 static WAYBACK_URL: Lazy<Url> =
     Lazy::new(|| Url::parse("https://archive.org/wayback/available").unwrap());
 
-pub(crate) async fn get_wayback_link(url: &Url) -> Result<Option<Url>, Error> {
+pub(crate) async fn get_wayback_link(url: &Url, timeout: Duration) -> Result<Option<Url>, Error> {
     let mut archive_url: Url = WAYBACK_URL.clone();
     archive_url.set_query(Some(&format!("url={url}")));
 
-    let response = reqwest::get(archive_url)
+    let response = Client::builder()
+        .timeout(timeout)
+        .build()?
+        .get(archive_url)
+        .send()
         .await?
         .json::<InternetArchiveResponse>()
         .await?;
@@ -64,7 +70,7 @@ mod tests {
     // The Wayback Machine does not always return a suggestion.
     // We can consider mocking the endpoint in the future.
     #[tokio::test]
-    #[ignore]
+    #[ignore = "Wayback Machine currently has certificate issues"]
     async fn wayback_suggestion() -> Result<(), Box<dyn StdError>> {
         let target_url = "https://example.com".parse::<Url>()?;
 
@@ -74,7 +80,7 @@ mod tests {
         // This test can be flaky, because the wayback machine does not always
         // return a suggestion. Retry a few times if needed.
         for _ in 0..3 {
-            match get_wayback_link(&target_url).await {
+            match get_wayback_link(&target_url, Duration::from_secs(20)).await {
                 Ok(Some(suggested_url)) => {
                     // Ensure the host is correct
                     let host = suggested_url
@@ -118,12 +124,13 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Wayback Machine currently has certificate issues"]
     async fn wayback_suggestion_unknown_url() -> Result<(), Error> {
         let url = &"https://github.com/mre/idiomatic-rust-doesnt-exist-man"
             .try_into()
             .unwrap();
 
-        let response = get_wayback_link(url).await?;
+        let response = get_wayback_link(url, Duration::from_secs(20)).await?;
         assert_eq!(response, None);
         Ok(())
     }

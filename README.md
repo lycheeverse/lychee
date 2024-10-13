@@ -27,7 +27,6 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 - [GitHub Action Usage](#github-action-usage)
 - [Pre-commit Usage](#pre-commit-usage)
 - [Contributing to lychee](#contributing-to-lychee)
-- [Debugging and improving async code](#debugging-and-improving-async-code)
 - [Troubleshooting and Workarounds](#troubleshooting-and-workarounds)
 - [Users](#users)
 - [Credits](#credits)
@@ -662,30 +661,6 @@ Try one of these links to get started:
 - [help wanted](https://github.com/lycheeverse/lychee/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 
 For more detailed instructions, head over to [`CONTRIBUTING.md`](/CONTRIBUTING.md).
-
-## Debugging and improving async code
-
-Lychee makes heavy use of async code to be resource-friendly while still being
-performant. Async code can be difficult to troubleshoot with most tools,
-however. Therefore we provide experimental support for
-[tokio-console](https://github.com/tokio-rs/console). It provides a top(1)-like
-overview for async tasks!
-
-If you want to give it a spin, download and start the console:
-
-```sh
-git clone https://github.com/tokio-rs/console
-cd console
-cargo run
-```
-
-Then run lychee with some special flags and features enabled.
-
-```sh
-RUSTFLAGS="--cfg tokio_unstable" cargo run --features tokio-console -- <input1> <input2> ...
-```
-
-If you find a way to make lychee faster, please do reach out.
 
 ## Troubleshooting and Workarounds
 

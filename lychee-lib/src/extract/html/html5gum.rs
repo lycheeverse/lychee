@@ -151,8 +151,8 @@ impl LinkExtractor {
     /// Here are the rules for extracting links:
     /// - If the current element has a `rel=nofollow` attribute, the current attribute
     ///   value is ignored.
-    /// - If the current element has a `rel=preconnect` attribute, the current attribute
-    ///   value is ignored.
+    /// - If the current element has a `rel=preconnect` or `rel=dns-prefetch`
+    ///   attribute, the current attribute value is ignored.
     /// - If the current attribute value is not a URL, it is treated as plain text and
     ///   added to the links vector.
     /// - If the current attribute name is `id`, the current attribute value is added
@@ -170,8 +170,9 @@ impl LinkExtractor {
         }
 
         if self.current_attributes.get("rel").map_or(false, |rel| {
-            rel.split(',')
-                .any(|r| r.trim() == "nofollow" || r.trim() == "preconnect")
+            rel.split(',').any(|r| {
+                r.trim() == "nofollow" || r.trim() == "preconnect" || r.trim() == "dns-prefetch"
+            })
         }) {
             self.current_attributes.clear();
             return;
@@ -625,5 +626,24 @@ mod tests {
 
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
+    }
+    #[test]
+    fn test_skip_dns_prefetch() {
+        let input = r#"
+            <link rel="dns-prefetch" href="https://example.com">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_skip_dns_prefetch_reverse_order() {
+        let input = r#"
+            <link href="https://example.com" rel="dns-prefetch">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
     }
 }
