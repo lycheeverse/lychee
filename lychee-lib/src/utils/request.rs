@@ -1,3 +1,4 @@
+use log::warn;
 use percent_encoding::percent_decode_str;
 use reqwest::Url;
 use std::{
@@ -26,22 +27,14 @@ fn create_request(
     source: &InputSource,
     base: &Option<Base>,
     extractor: &Option<BasicAuthExtractor>,
-) -> Result<Option<Request>> {
-    let Some(uri) = try_parse_into_uri(raw_uri, source, base)? else {
-        return Ok(None);
-    };
+) -> Result<Request> {
+    let uri = try_parse_into_uri(raw_uri, source, base)?;
     let source = truncate_source(source);
     let element = raw_uri.element.clone();
     let attribute = raw_uri.attribute.clone();
     let credentials = extract_credentials(extractor, &uri);
 
-    Ok(Some(Request::new(
-        uri,
-        source,
-        element,
-        attribute,
-        credentials,
-    )))
+    Ok(Request::new(uri, source, element, attribute, credentials))
 }
 
 /// Try to parse the raw URI into a `Uri`.
@@ -55,11 +48,7 @@ fn create_request(
 ///   to create a valid URI.
 /// - If a URI cannot be created from the file path.
 /// - If the source is not a file path (i.e. the URI type is not supported).
-fn try_parse_into_uri(
-    raw_uri: &RawUri,
-    source: &InputSource,
-    base: &Option<Base>,
-) -> Result<Option<Uri>> {
+fn try_parse_into_uri(raw_uri: &RawUri, source: &InputSource, base: &Option<Base>) -> Result<Uri> {
     let text = raw_uri.text.clone();
     let uri = match Uri::try_from(raw_uri.clone()) {
         Ok(uri) => uri,
@@ -69,20 +58,12 @@ fn try_parse_into_uri(
                 None => return Err(ErrorKind::InvalidBaseJoin(text.clone())),
             },
             None => match source {
-                InputSource::FsPath(root) => {
-                    // If absolute link (`/`) and `base` is not set,
-                    // simply ignore the link as it's not resolvable.
-                    if text.starts_with('/') && base.is_none() {
-                        return Ok(None);
-                    }
-
-                    create_uri_from_file_path(root, &text, base)?
-                }
+                InputSource::FsPath(root) => create_uri_from_file_path(root, &text, base)?,
                 _ => return Err(ErrorKind::UnsupportedUriType(text)),
             },
         },
     };
-    Ok(Some(uri))
+    Ok(uri)
 }
 
 // Taken from https://github.com/getzola/zola/blob/master/components/link_checker/src/lib.rs
@@ -92,7 +73,11 @@ pub(crate) fn is_anchor(text: &str) -> bool {
 
 /// Create a URI from a file path
 ///
-
+/// # Errors
+///
+/// - If the link text is an anchor and the file name cannot be extracted from the file path.
+/// - If the path cannot be resolved.
+/// - If the resolved path cannot be converted to a URL.
 fn create_uri_from_file_path(
     file_path: &Path,
     link_text: &str,
@@ -147,17 +132,20 @@ pub(crate) fn create(
     let base = base
         .clone()
         .or_else(|| Base::from_source(&input_content.source));
-    let requests: Result<Vec<Request>> = uris
+
+    let requests: HashSet<Request> = uris
         .into_iter()
         .filter_map(|raw_uri| {
             match create_request(&raw_uri, &input_content.source, &base, extractor) {
-                Ok(Some(request)) => Some(Ok(request)),
-                Ok(None) => None,
-                Err(e) => Some(Err(e)),
+                Ok(request) => Some(request),
+                Err(e) => {
+                    warn!("Error creating request: {:?}", e);
+                    None
+                }
             }
         })
         .collect();
-    requests.map(HashSet::from_iter)
+    Ok(requests)
 }
 
 /// Create a URI from a path
@@ -330,7 +318,7 @@ mod tests {
 
         assert_eq!(
             actual,
-            Some(Request::new(
+            Request::new(
                 Uri {
                     url: Url::from_file_path("/tmp/lychee/file.html").unwrap()
                 },
@@ -338,7 +326,7 @@ mod tests {
                 None,
                 None,
                 None,
-            ))
+            )
         );
     }
 
@@ -358,7 +346,7 @@ mod tests {
 
         assert_eq!(
             actual,
-            Some(Request::new(
+            Request::new(
                 Uri {
                     url: Url::from_file_path("/usr/local/share/doc/example.html").unwrap()
                 },
@@ -366,7 +354,7 @@ mod tests {
                 None,
                 None,
                 None,
-            ))
+            )
         );
     }
 
@@ -381,10 +369,7 @@ mod tests {
         let raw_uri = RawUri::from("relative.html");
         let uri = try_parse_into_uri(&raw_uri, &input.source, &base).unwrap();
 
-        assert_eq!(
-            uri.unwrap().url.as_str(),
-            "file:///tmp/lychee/relative.html"
-        );
+        assert_eq!(uri.url.as_str(), "file:///tmp/lychee/relative.html");
     }
 
     #[test]
@@ -398,9 +383,6 @@ mod tests {
         let raw_uri = RawUri::from("absolute.html");
         let uri = try_parse_into_uri(&raw_uri, &input.source, &base).unwrap();
 
-        assert_eq!(
-            uri.unwrap().url.as_str(),
-            "file:///tmp/lychee/absolute.html"
-        );
+        assert_eq!(uri.url.as_str(), "file:///tmp/lychee/absolute.html");
     }
 }

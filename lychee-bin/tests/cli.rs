@@ -266,9 +266,7 @@ mod cli {
 
     #[test]
     fn test_resolve_paths() {
-        //  TODO:
-        // 1. Check the diff to see if the absolute file rewrite hack can be removed / is still in use
-        // 2. refactor the code to clean up base path handling
+        // TODO: Refactor the code to clean up base path handling
 
         let mut cmd = main_command();
         let dir = fixtures_path().join("resolve_paths");
