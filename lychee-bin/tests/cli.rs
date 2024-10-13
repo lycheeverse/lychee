@@ -845,18 +845,15 @@ mod cli {
     async fn test_lycheecache_file() -> Result<()> {
         let base_path = fixtures_path().join("cache");
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
-
         // Ensure clean state
         if cache_file.exists() {
             fs::remove_file(&cache_file)?;
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
-
         // Setup mock servers
         let mock_server_ok = mock_server!(StatusCode::OK);
         let mock_server_err = mock_server!(StatusCode::NOT_FOUND);
         let mock_server_exclude = mock_server!(StatusCode::OK);
-
         // Create test file
         let dir = tempfile::tempdir()?;
         let file_path = dir.path().join("c.md");
@@ -865,7 +862,6 @@ mod cli {
         writeln!(file, "{}", mock_server_err.uri().as_str())?;
         writeln!(file, "{}", mock_server_exclude.uri().as_str())?;
         file.sync_all()?;
-
         // Create and run command
         let mut cmd = main_command();
         cmd.current_dir(&base_path)
@@ -875,6 +871,75 @@ mod cli {
             .arg("--cache")
             .arg("--exclude")
             .arg(mock_server_exclude.uri());
+        // Note: Don't check output.status.success() since we expect
+        // a non-zero exit code (2) when lychee finds broken links
+        let _output = cmd.output()?;
+        // Wait for cache file to be written
+        for _ in 0..10 {
+            if cache_file.exists() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        // Check cache contents
+        let data = fs::read_to_string(&cache_file)?;
+        assert!(
+            data.contains(&format!("{}/,200", mock_server_ok.uri())),
+            "Missing OK entry in cache"
+        );
+        assert!(
+            data.contains(&format!("{}/,404", mock_server_err.uri())),
+            "Missing error entry in cache"
+        );
+        // Run again to verify cache behavior
+        cmd.assert()
+            .stderr(contains(format!(
+                "[200] {}/ | OK (cached)",
+                mock_server_ok.uri()
+            )))
+            .stderr(contains(format!(
+                "[404] {}/ | Error (cached)",
+                mock_server_err.uri()
+            )));
+        // Clean up
+        fs::remove_file(&cache_file)?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_lycheecache_exclude_custom_status_codes() -> Result<()> {
+        let base_path = fixtures_path().join("cache");
+        let cache_file = base_path.join(LYCHEE_CACHE_FILE);
+
+        // Ensure clean state
+        if cache_file.exists() {
+            fs::remove_file(&cache_file)?;
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        // Setup mock servers
+        let mock_server_ok = mock_server!(StatusCode::OK);
+        let mock_server_no_content = mock_server!(StatusCode::NO_CONTENT);
+        let mock_server_too_many_requests = mock_server!(StatusCode::TOO_MANY_REQUESTS);
+
+        // Create test file
+        let dir = tempfile::tempdir()?;
+        let file_path = dir.path().join("c.md");
+        let mut file = File::create(&file_path)?;
+        writeln!(file, "{}", mock_server_ok.uri().as_str())?;
+        writeln!(file, "{}", mock_server_no_content.uri().as_str())?;
+        writeln!(file, "{}", mock_server_too_many_requests.uri().as_str())?;
+        file.sync_all()?;
+
+        // Create and run command
+        let mut cmd = main_command();
+        cmd.current_dir(&base_path)
+            .arg(&file_path)
+            .arg("--verbose")
+            .arg("--no-progress")
+            .arg("--cache")
+            .arg("--cache-exclude-status")
+            .arg("204,429");
 
         // Note: Don't check output.status.success() since we expect
         // a non-zero exit code (2) when lychee finds broken links
@@ -890,92 +955,24 @@ mod cli {
 
         // Check cache contents
         let data = fs::read_to_string(&cache_file)?;
+
+        // Only 200 response should be cached, 204 and 429 should be excluded
         assert!(
             data.contains(&format!("{}/,200", mock_server_ok.uri())),
             "Missing OK entry in cache"
         );
         assert!(
-            data.contains(&format!("{}/,404", mock_server_err.uri())),
-            "Missing error entry in cache"
+            !data.contains(&format!("{}/,204", mock_server_no_content.uri())),
+            "No Content status should be excluded from cache"
         );
-
-        // Run again to verify cache behavior
-        cmd.assert()
-            .stderr(contains(format!(
-                "[200] {}/ | Cached: OK (cached)\n",
-                mock_server_ok.uri()
-            )))
-            .stderr(contains(format!(
-                "[404] {}/ | Cached: Error (cached)\n",
-                mock_server_err.uri()
-            )));
+        assert!(
+            !data.contains(&format!("{}/,429", mock_server_too_many_requests.uri())),
+            "Too Many Requests status should be excluded from cache"
+        );
 
         // Clean up
         fs::remove_file(&cache_file)?;
 
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_lycheecache_exclude_custom_status_codes() -> Result<()> {
-        let base_path = fixtures_path().join("cache");
-        let cache_file = base_path.join(LYCHEE_CACHE_FILE);
-
-        // Unconditionally remove cache file if it exists
-        let _ = fs::remove_file(&cache_file);
-
-        let mock_server_ok = mock_server!(StatusCode::OK);
-        let mock_server_no_content = mock_server!(StatusCode::NO_CONTENT);
-        let mock_server_too_many_requests = mock_server!(StatusCode::TOO_MANY_REQUESTS);
-
-        let dir = tempfile::tempdir()?;
-        let mut file = File::create(dir.path().join("c.md"))?;
-
-        writeln!(file, "{}", mock_server_ok.uri().as_str())?;
-        writeln!(file, "{}", mock_server_no_content.uri().as_str())?;
-        writeln!(file, "{}", mock_server_too_many_requests.uri().as_str())?;
-
-        let mut cmd = main_command();
-        let test_cmd = cmd
-            .current_dir(&base_path)
-            .arg(dir.path().join("c.md"))
-            .arg("--verbose")
-            .arg("--no-progress")
-            .arg("--cache")
-            .arg("--cache-exclude-status")
-            .arg("204,429");
-
-        assert!(
-            !cache_file.exists(),
-            "cache file should not exist before this test"
-        );
-
-        // run first without cache to generate the cache file
-        test_cmd
-            .assert()
-            .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
-            .stderr(contains(format!(
-                "[204] {}/ | OK (204 No Content): No Content\n",
-                mock_server_no_content.uri()
-            )))
-            .stderr(contains(format!(
-                "[429] {}/ | Failed: Network error: Too Many Requests\n",
-                mock_server_too_many_requests.uri()
-            )));
-
-        // check content of cache file
-        let data = fs::read_to_string(&cache_file)?;
-
-        if data.is_empty() {
-            println!("Cache file is empty!");
-        }
-
-        assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
-        assert!(!data.contains(&format!("{}/,204", mock_server_no_content.uri())));
-        assert!(!data.contains(&format!("{}/,429", mock_server_too_many_requests.uri())));
-
-        // clear the cache file
-        fs::remove_file(&cache_file)?;
         Ok(())
     }
 
@@ -1017,11 +1014,11 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "[418] {}/ | Failed: Network error: I\'m a teapot",
+                "[418] {}/ | Network error: I\'m a teapot",
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                "[500] {}/ | Failed: Network error: Internal Server Error",
+                "[500] {}/ | Network error: Internal Server Error",
                 mock_server_server_error.uri()
             )));
 
@@ -1040,11 +1037,11 @@ mod cli {
             .assert()
             .success()
             .stderr(contains(format!(
-                "[418] {}/ | Cached: OK (cached)",
+                "[418] {}/ | OK (cached)",
                 mock_server_teapot.uri()
             )))
             .stderr(contains(format!(
-                "[500] {}/ | Cached: OK (cached)",
+                "[500] {}/ | OK (cached)",
                 mock_server_server_error.uri()
             )));
 

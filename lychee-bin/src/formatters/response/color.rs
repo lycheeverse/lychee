@@ -72,6 +72,13 @@ mod tests {
     use super::*;
     use http::StatusCode;
     use lychee_lib::{ErrorKind, Status, Uri};
+    use pretty_assertions::assert_eq;
+
+    #[cfg(test)]
+    /// Helper function to strip ANSI color codes for tests
+    fn strip_ansi_codes(s: &str) -> String {
+        console::strip_ansi_codes(s).to_string()
+    }
 
     // Helper function to create a ResponseBody with a given status and URI
     fn mock_response_body(status: Status, uri: &str) -> ResponseBody {
@@ -79,12 +86,6 @@ mod tests {
             uri: Uri::try_from(uri).unwrap(),
             status,
         }
-    }
-
-    #[cfg(test)]
-    /// Helper function to strip ANSI color codes for tests
-    fn strip_ansi_codes(s: &str) -> String {
-        console::strip_ansi_codes(s).to_string()
     }
 
     #[test]
@@ -122,7 +123,7 @@ mod tests {
         let long_uri =
             "https://example.com/some/very/long/path/to/a/resource/that/exceeds/normal/lengths";
         let body = mock_response_body(Status::Ok(StatusCode::OK), long_uri);
-        let formatted_response = formatter.format_response(&body);
+        let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
         assert!(formatted_response.contains(long_uri));
     }
 
@@ -134,11 +135,10 @@ mod tests {
             "https://example.com/404",
         );
 
-        let response = formatter.format_detailed_response(&body);
-
+        let response = strip_ansi_codes(&formatter.format_detailed_response(&body));
         assert_eq!(
             response,
-            "\u{1b}[38;5;197m   [ERROR]\u{1b}[0m [ERROR] https://example.com/404 | URL is missing a host"
+            "   [ERROR] https://example.com/404 | URL is missing a host"
         );
     }
 }

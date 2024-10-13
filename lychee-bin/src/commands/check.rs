@@ -432,7 +432,7 @@ mod tests {
 
         assert!(!buf.is_empty());
         let buf = String::from_utf8_lossy(&buf);
-        assert_eq!(buf, "[200] http://127.0.0.1/ | Cached: OK (cached)\n");
+        assert_eq!(buf, "[200] http://127.0.0.1/ | OK (cached)\n");
     }
 
     #[tokio::test]
