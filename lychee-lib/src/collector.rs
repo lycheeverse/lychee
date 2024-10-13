@@ -124,7 +124,7 @@ impl Collector {
                     let content = content?;
                     let extractor = Extractor::new(self.use_html5ever, self.include_verbatim);
                     let uris: Vec<RawUri> = extractor.extract(&content);
-                    let requests = request::create(uris, &content, &base, &basic_auth_extractor)?;
+                    let requests = request::create(uris, &content, &base, &basic_auth_extractor);
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
             })

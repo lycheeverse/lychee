@@ -128,13 +128,12 @@ pub(crate) fn create(
     input_content: &InputContent,
     base: &Option<Base>,
     extractor: &Option<BasicAuthExtractor>,
-) -> Result<HashSet<Request>> {
+) -> HashSet<Request> {
     let base = base
         .clone()
         .or_else(|| Base::from_source(&input_content.source));
 
-    let requests: HashSet<Request> = uris
-        .into_iter()
+    uris.into_iter()
         .filter_map(|raw_uri| {
             match create_request(&raw_uri, &input_content.source, &base, extractor) {
                 Ok(request) => Some(request),
@@ -144,8 +143,7 @@ pub(crate) fn create(
                 }
             }
         })
-        .collect();
-    Ok(requests)
+        .collect()
 }
 
 /// Create a URI from a path
@@ -218,7 +216,7 @@ mod tests {
         );
 
         let uris = vec![RawUri::from("relative.html")];
-        let requests = create(uris, &input, &base, &None).unwrap();
+        let requests = create(uris, &input, &base, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -235,7 +233,7 @@ mod tests {
         );
 
         let uris = vec![RawUri::from("https://another.com/page")];
-        let requests = create(uris, &input, &base, &None).unwrap();
+        let requests = create(uris, &input, &base, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -252,7 +250,7 @@ mod tests {
         );
 
         let uris = vec![RawUri::from("/root-relative")];
-        let requests = create(uris, &input, &base, &None).unwrap();
+        let requests = create(uris, &input, &base, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -269,7 +267,7 @@ mod tests {
         );
 
         let uris = vec![RawUri::from("../parent")];
-        let requests = create(uris, &input, &base, &None).unwrap();
+        let requests = create(uris, &input, &base, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -283,7 +281,7 @@ mod tests {
         let input = create_input(r##"<a href="#fragment">Fragment Link</a>"##, FileType::Html);
 
         let uris = vec![RawUri::from("#fragment")];
-        let requests = create(uris, &input, &base, &None).unwrap();
+        let requests = create(uris, &input, &base, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -300,7 +298,7 @@ mod tests {
         );
 
         let uris = vec![RawUri::from("https://example.com/page")];
-        let requests = create(uris, &input, &base, &None).unwrap();
+        let requests = create(uris, &input, &base, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
