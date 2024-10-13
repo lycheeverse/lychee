@@ -144,6 +144,10 @@ mod tests {
 
     // Helper function to run the collector on the given inputs
     async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
+        let responses = Collector::new(base).collect_links(inputs);
+        responses.map(|r| r.unwrap().uri).collect().await
+    }
+    async fn collect_verbatim(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
         let responses = Collector::new(base)
             .include_verbatim(true)
             .collect_links(inputs);
@@ -235,7 +239,7 @@ mod tests {
             },
         ];
 
-        let links = collect(inputs, None).await;
+        let links = collect_verbatim(inputs, None).await;
 
         let expected_links = HashSet::from_iter([
             website(TEST_STRING),

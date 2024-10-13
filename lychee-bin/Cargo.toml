@@ -68,18 +68,7 @@ tracing-subscriber = { version = "0.3.18", default-features = false, features = 
 uuid = { version = "1.10.0", features = ["v4"] }
 wiremock = "0.6.2"
 
-[dependencies.console-subscriber]
-version = "0.4.0"
-optional = true
-
-[dependencies.tracing-subscriber]
-version = "0.3.18"
-default-features = false
-features = ["fmt", "env-filter"]
-optional = true
-
 [features]
-tokio-console = ["dep:console-subscriber", "dep:tracing-subscriber"]
 
 # Compile and statically link a copy of OpenSSL.
 vendored-openssl = ["openssl-sys/vendored"]

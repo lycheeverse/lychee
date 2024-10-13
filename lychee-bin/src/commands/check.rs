@@ -17,6 +17,7 @@ use lychee_lib::{ResponseBody, Status};
 use crate::archive::{Archive, Suggestion};
 use crate::formatters::get_response_formatter;
 use crate::formatters::response::ResponseFormatter;
+use crate::parse::parse_duration_secs;
 use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
 
@@ -95,6 +96,7 @@ where
             &mut stats,
             !params.cfg.no_progress,
             max_concurrency,
+            parse_duration_secs(params.cfg.timeout),
         )
         .await;
     }
@@ -112,6 +114,7 @@ async fn suggest_archived_links(
     stats: &mut ResponseStats,
     show_progress: bool,
     max_concurrency: usize,
+    timeout: Duration,
 ) {
     let failed_urls = &get_failed_urls(stats);
     let bar = if show_progress {
@@ -125,7 +128,7 @@ async fn suggest_archived_links(
     let suggestions = Mutex::new(&mut stats.suggestion_map);
 
     futures::stream::iter(failed_urls)
-        .map(|(input, url)| (input, url, archive.get_link(url)))
+        .map(|(input, url)| (input, url, archive.get_link(url, timeout)))
         .for_each_concurrent(max_concurrency, |(input, url, future)| async {
             if let Ok(Some(suggestion)) = future.await {
                 suggestions
