@@ -789,9 +789,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.19"
+version = "4.5.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7be5744db7978a28d9df86a214130d106a89ce49644cbc4e3f0c22c3fba30615"
+checksum = "b97f376d85a664d5837dbae44bf546e6477a679ff6610010f17276f686d867e8"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -799,9 +799,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.19"
+version = "4.5.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5fbc17d3ef8278f55b282b2a2e75ae6f6c7d4bb70ed3d0382375104bfafdb4b"
+checksum = "19bc80abd44e4bed93ca373a0704ccbd1b710dc5749406201bb018272808dc54"
 dependencies = [
  "anstream",
  "anstyle",
@@ -2528,7 +2528,7 @@ dependencies = [
  "reqwest 0.12.8",
  "reqwest_cookie_store",
  "ring",
- "secrecy 0.10.2",
+ "secrecy",
  "serde",
  "serde_json",
  "strum",
@@ -2577,7 +2577,7 @@ dependencies = [
  "reqwest_cookie_store",
  "ring",
  "rstest",
- "secrecy 0.10.2",
+ "secrecy",
  "serde",
  "serde_json",
  "serde_with",
@@ -2804,9 +2804,9 @@ dependencies = [
 
 [[package]]
 name = "octocrab"
-version = "0.41.0"
+version = "0.41.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dada65f156e4100376ceeaeadae1b4d35ab9cdf4236cfc92fde0d06b930c3b7"
+checksum = "9777748e357cbbd3516a8f8b54976938cd35abf37906f7276b0448ca8cbcbb90"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -2828,7 +2828,7 @@ dependencies = [
  "once_cell",
  "percent-encoding",
  "pin-project",
- "secrecy 0.8.0",
+ "secrecy",
  "serde",
  "serde_json",
  "serde_path_to_error",
@@ -3854,18 +3854,9 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "secrecy"
-version = "0.8.0"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9bd1c54ea06cfd2f6b63219704de0b9b4f72dcc2b8fdef820be6cd799780e91e"
-dependencies = [
- "zeroize",
-]
-
-[[package]]
-name = "secrecy"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba079fa568d52545cd70b334b2ce6f88f62b8fc2bda9290f48a0578388a49331"
+checksum = "e891af845473308773346dc847b2c23ee78fe442e0472ac50e22a18a93d3ae5a"
 dependencies = [
  "serde",
  "zeroize",
