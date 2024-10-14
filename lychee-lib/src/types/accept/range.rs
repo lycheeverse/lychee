@@ -7,8 +7,8 @@ use thiserror::Error;
 static RANGE_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^([0-9]{3})?\.\.(=?)([0-9]{3})+$|^([0-9]{3})$").unwrap());
 
-/// The [`AcceptRangeParseError`] indicates that the parsing process of an
-/// [`AcceptRange`]  from a string failed due to various underlying reasons.
+/// Indicates that the parsing process of an [`AcceptRange`]  from a string
+/// failed due to various underlying reasons.
 #[derive(Debug, Error, PartialEq)]
 pub enum AcceptRangeError {
     /// The string input didn't contain any range pattern.
