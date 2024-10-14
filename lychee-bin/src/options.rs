@@ -236,7 +236,7 @@ pub(crate) struct Config {
     #[arg(
         long,
         default_value_t,
-        long_help = "A List status codes that will be ignored from the cache
+        long_help = "A list of status codes that will be ignored from the cache
 
 The following accept range syntax is supported: [start]..[=]end|code. Some valid
 examples are:

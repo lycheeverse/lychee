@@ -309,6 +309,14 @@ async fn handle(
     response
 }
 
+/// Returns `true` if the response should be ignored in the cache.
+///
+/// The response should be ignored if:
+/// - The URI is a file URI.
+/// - The status is excluded.
+/// - The status is unsupported.
+/// - The status is unknown.
+/// - The status code is excluded from the cache.
 fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<u16>) -> bool {
     let status_code_excluded = status
         .code()
@@ -433,39 +441,49 @@ mod tests {
     }
 
     #[test]
-    fn test_ignore_cache() {
-        let mut exclude = HashSet::new();
-
-        // Cache is not ignored
+    fn test_cache_by_default() {
         assert!(!ignore_cache(
             &Uri::try_from("https://[::1]").unwrap(),
             &Status::Ok(StatusCode::OK),
-            &exclude
+            &HashSet::default()
         ));
+    }
 
-        // Cache is ignored for file URLs
+    #[test]
+    // Cache is ignored for file URLs
+    fn test_cache_ignore_file_urls() {
         assert!(ignore_cache(
             &Uri::try_from("file:///home").unwrap(),
             &Status::Ok(StatusCode::OK),
-            &exclude
+            &HashSet::default()
         ));
+    }
 
-        // Cache is ignored for unsupported status
+    #[test]
+    // Cache is ignored for unsupported status
+    fn test_cache_ignore_unsupported_status() {
         assert!(ignore_cache(
             &Uri::try_from("https://[::1]").unwrap(),
             &Status::Unsupported(ErrorKind::EmptyUrl),
-            &exclude
+            &HashSet::default()
         ));
+    }
 
-        // Cache is ignored for unknown status
+    #[test]
+    // Cache is ignored for unknown status
+    fn test_cache_ignore_unknown_status() {
         assert!(ignore_cache(
             &Uri::try_from("https://[::1]").unwrap(),
             &Status::UnknownStatusCode(StatusCode::IM_A_TEAPOT),
-            &exclude
+            &HashSet::default()
         ));
+    }
 
+    #[test]
+    fn test_cache_ignore_excluded_status() {
         // Cache is ignored for excluded status codes
-        exclude.insert(200);
+        let exclude = [StatusCode::OK.as_u16()].iter().copied().collect();
+
         assert!(ignore_cache(
             &Uri::try_from("https://[::1]").unwrap(),
             &Status::Ok(StatusCode::OK),

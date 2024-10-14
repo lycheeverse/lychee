@@ -336,7 +336,7 @@ Options:
           [default: 1d]
 
       --cache-exclude-status <CACHE_EXCLUDE_STATUS>
-          A List status codes that will be ignored from the cache
+          A list of status codes that will be ignored from the cache
 
           The following accept range syntax is supported: [start]..[=]end|code. Some valid
           examples are:

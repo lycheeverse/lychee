@@ -6,10 +6,12 @@ use crate::{
     types::accept::AcceptRange, types::status_code::StatusCodeSelectorError, AcceptRangeError,
 };
 
-/// An [`StatusCodeExcluder`] holds ranges of HTTP status codes, and determines whether a specific
-/// code is matched, so the link can be counted as valid (not broken) or excluded.
-/// `StatusCodeExcluder` differs from `StatusCodeSelector` in the defaults it provides. As this is
-/// meant to exclude status codes, the default is to keep everything.
+/// A [`StatusCodeExcluder`] holds ranges of HTTP status codes, and determines
+/// whether a specific code is matched, so the link can be counted as valid (not
+/// broken) or excluded. `StatusCodeExcluder` differs from
+/// [`StatusCodeSelector`](super::selector::StatusCodeSelector) in the defaults
+/// it provides. As this is meant to exclude status codes, the default is to
+/// keep everything.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StatusCodeExcluder {
     ranges: Vec<AcceptRange>,

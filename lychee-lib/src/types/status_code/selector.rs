@@ -14,10 +14,12 @@ pub enum StatusCodeSelectorError {
     AcceptRangeError(#[from] AcceptRangeError),
 }
 
-/// An [`StatusCodeSelector`] holds ranges of HTTP status codes, and determines whether a specific
-/// code is matched, so the link can be counted as valid (not broken) or excluded.
-/// `StatusCodeSelector` differs from `StatusCodeExcluder` in the defaults it provides. As this is
-/// meant to select valid status codes, the default includes every successful status.
+/// A [`StatusCodeSelector`] holds ranges of HTTP status codes, and determines
+/// whether a specific code is matched, so the link can be counted as valid (not
+/// broken) or excluded. `StatusCodeSelector` differs from
+/// [`StatusCodeExcluder`](super::excluder::StatusCodeExcluder)
+///  in the defaults it provides. As this is meant to
+/// select valid status codes, the default includes every successful status.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StatusCodeSelector {
     ranges: Vec<AcceptRange>,
