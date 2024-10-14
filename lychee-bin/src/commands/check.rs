@@ -10,7 +10,7 @@ use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use lychee_lib::{Client, ErrorKind, Request, Response};
+use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
 use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
@@ -46,6 +46,7 @@ where
 
     let client = params.client;
     let cache = params.cache;
+    let cache_exclude_status = params.cfg.cache_exclude_status.into_set();
     let accept = params.cfg.accept.into_set();
 
     let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {
@@ -61,6 +62,7 @@ where
         max_concurrency,
         client,
         cache,
+        cache_exclude_status,
         accept,
     ));
 
@@ -219,6 +221,7 @@ async fn request_channel_task(
     max_concurrency: usize,
     client: Client,
     cache: Arc<Cache>,
+    cache_exclude_status: HashSet<u16>,
     accept: HashSet<u16>,
 ) {
     StreamExt::for_each_concurrent(
@@ -226,7 +229,14 @@ async fn request_channel_task(
         max_concurrency,
         |request: Result<Request>| async {
             let request = request.expect("cannot read request");
-            let response = handle(&client, cache.clone(), request, accept.clone()).await;
+            let response = handle(
+                &client,
+                cache.clone(),
+                cache_exclude_status.clone(),
+                request,
+                accept.clone(),
+            )
+            .await;
 
             send_resp
                 .send(response)
@@ -260,6 +270,7 @@ async fn check_url(client: &Client, request: Request) -> Response {
 async fn handle(
     client: &Client,
     cache: Arc<Cache>,
+    cache_exclude_status: HashSet<u16>,
     request: Request,
     accept: HashSet<u16>,
 ) -> Response {
@@ -287,14 +298,35 @@ async fn handle(
     //   benefit.
     // - Skip caching unsupported URLs as they might be supported in a
     //   future run.
-    // - Skip caching excluded links; they might not be excluded in the next run
+    // - Skip caching excluded links; they might not be excluded in the next run.
+    // - Skip caching links for which the status code has been explicitly excluded from the cache.
     let status = response.status();
-    if uri.is_file() || status.is_excluded() || status.is_unsupported() || status.is_unknown() {
+    if ignore_cache(&uri, status, &cache_exclude_status) {
         return response;
     }
 
     cache.insert(uri, status.into());
     response
+}
+
+/// Returns `true` if the response should be ignored in the cache.
+///
+/// The response should be ignored if:
+/// - The URI is a file URI.
+/// - The status is excluded.
+/// - The status is unsupported.
+/// - The status is unknown.
+/// - The status code is excluded from the cache.
+fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<u16>) -> bool {
+    let status_code_excluded = status
+        .code()
+        .map_or(false, |code| cache_exclude_status.contains(&code.as_u16()));
+
+    uri.is_file()
+        || status.is_excluded()
+        || status.is_unsupported()
+        || status.is_unknown()
+        || status_code_excluded
 }
 
 fn show_progress(
@@ -344,8 +376,9 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
 #[cfg(test)]
 mod tests {
     use crate::{formatters::get_response_formatter, options};
+    use http::StatusCode;
     use log::info;
-    use lychee_lib::{CacheStatus, ClientBuilder, InputSource, Uri};
+    use lychee_lib::{CacheStatus, ClientBuilder, ErrorKind, InputSource, Uri};
 
     use super::*;
 
@@ -404,6 +437,57 @@ mod tests {
         assert!(matches!(
             response.status(),
             Status::Error(ErrorKind::InvalidURI(_))
+        ));
+    }
+
+    #[test]
+    fn test_cache_by_default() {
+        assert!(!ignore_cache(
+            &Uri::try_from("https://[::1]").unwrap(),
+            &Status::Ok(StatusCode::OK),
+            &HashSet::default()
+        ));
+    }
+
+    #[test]
+    // Cache is ignored for file URLs
+    fn test_cache_ignore_file_urls() {
+        assert!(ignore_cache(
+            &Uri::try_from("file:///home").unwrap(),
+            &Status::Ok(StatusCode::OK),
+            &HashSet::default()
+        ));
+    }
+
+    #[test]
+    // Cache is ignored for unsupported status
+    fn test_cache_ignore_unsupported_status() {
+        assert!(ignore_cache(
+            &Uri::try_from("https://[::1]").unwrap(),
+            &Status::Unsupported(ErrorKind::EmptyUrl),
+            &HashSet::default()
+        ));
+    }
+
+    #[test]
+    // Cache is ignored for unknown status
+    fn test_cache_ignore_unknown_status() {
+        assert!(ignore_cache(
+            &Uri::try_from("https://[::1]").unwrap(),
+            &Status::UnknownStatusCode(StatusCode::IM_A_TEAPOT),
+            &HashSet::default()
+        ));
+    }
+
+    #[test]
+    fn test_cache_ignore_excluded_status() {
+        // Cache is ignored for excluded status codes
+        let exclude = [StatusCode::OK.as_u16()].iter().copied().collect();
+
+        assert!(ignore_cache(
+            &Uri::try_from("https://[::1]").unwrap(),
+            &Status::Ok(StatusCode::OK),
+            &exclude
         ));
     }
 }
