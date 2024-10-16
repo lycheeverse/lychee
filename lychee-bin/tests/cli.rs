@@ -266,8 +266,6 @@ mod cli {
 
     #[test]
     fn test_resolve_paths() {
-        // TODO: Refactor the code to clean up base path handling
-
         let mut cmd = main_command();
         let dir = fixtures_path().join("resolve_paths");
 

@@ -15,8 +15,6 @@
 )]
 use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
-#[cfg(all(feature = "email-check", feature = "native-tls"))]
-use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
 use http::{
     header::{HeaderMap, HeaderValue},
     StatusCode,
@@ -32,17 +30,14 @@ use typed_builder::TypedBuilder;
 use crate::{
     chain::{Chain, ClientRequestChains, RequestChain},
     checker::file::FileChecker,
-    checker::website::Checker,
+    checker::{mail::MailChecker, website::WebsiteChecker},
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
     remap::Remaps,
     types::uri::github::GithubUri,
     utils::fragment_checker::FragmentChecker,
-    Base, ErrorKind, Request, Response, Result, Status, Uri,
+    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
-
-#[cfg(all(feature = "email-check", feature = "native-tls"))]
-use crate::types::mail;
 
 /// Default number of redirects before a request is deemed as failed, 5.
 pub const DEFAULT_MAX_REDIRECTS: usize = 5;
@@ -401,6 +396,7 @@ impl ClientBuilder {
             accepted: self.accepted,
             require_https: self.require_https,
             fragment_checker: FragmentChecker::new(),
+            email_checker: MailChecker::new(),
             file_checker: FileChecker::new(
                 self.base,
                 self.fallback_extensions,
@@ -457,6 +453,8 @@ pub struct Client {
     plugin_request_chain: RequestChain,
 
     file_checker: FileChecker,
+
+    email_checker: MailChecker,
 }
 
 impl Client {
@@ -500,23 +498,11 @@ impl Client {
         }
 
         let status = match uri.scheme() {
+            // We don't check tel: URIs
+            _ if uri.is_tel() => Status::Excluded,
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
-            _ if uri.is_tel() => Status::Excluded,
-            _ => {
-                let default_chain: RequestChain = Chain::new(vec![
-                    Box::<Quirks>::default(),
-                    Box::new(credentials),
-                    Box::new(Checker::new(
-                        self.retry_wait_time,
-                        self.max_retries,
-                        self.reqwest_client.clone(),
-                        self.accepted.clone(),
-                    )),
-                ]);
-
-                self.check_website(uri, default_chain).await?
-            }
+            _ => self.check_website(uri, credentials).await?,
         };
 
         Ok(Response::new(uri.clone(), status, source))
@@ -554,7 +540,22 @@ impl Client {
     /// - The request failed.
     /// - The response status code is not accepted.
     /// - The URI cannot be converted to HTTPS.
-    pub async fn check_website(&self, uri: &Uri, default_chain: RequestChain) -> Result<Status> {
+    pub async fn check_website(
+        &self,
+        uri: &Uri,
+        credentials: Option<BasicAuthCredentials>,
+    ) -> Result<Status> {
+        let default_chain: RequestChain = Chain::new(vec![
+            Box::<Quirks>::default(),
+            Box::new(credentials),
+            Box::new(WebsiteChecker::new(
+                self.retry_wait_time,
+                self.max_retries,
+                self.reqwest_client.clone(),
+                self.accepted.clone(),
+            )),
+        ]);
+
         match self.check_website_inner(uri, &default_chain).await {
             Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                 if self
@@ -576,6 +577,8 @@ impl Client {
     /// Checks the given URI of a website.
     ///
     /// Unsupported schemes will be ignored
+    ///
+    /// Note: we use `inner` to improve compile times by avoiding monomorphization
     ///
     /// # Errors
     ///
@@ -617,7 +620,7 @@ impl Client {
 
     // Pull out the heavy machinery in case of a failed normal request.
     // This could be a GitHub URL and we ran into the rate limiter.
-    // TODO: We should first try to parse the URI as GitHub URI first (Lucius, Jan 2023)
+    // TODO: We should try to parse the URI as GitHub URI first (Lucius, Jan 2023)
     async fn handle_github(&self, status: Status, uri: &Uri) -> Status {
         if status.is_success() {
             return status;
@@ -670,6 +673,11 @@ impl Client {
         Status::Ok(StatusCode::OK)
     }
 
+    /// Checks a `mailto` URI.
+    pub async fn check_mail(&self, uri: &Uri) -> Status {
+        self.email_checker.check_mail(uri).await
+    }
+
     /// Checks a `file` URI's fragment.
     pub async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
         match self.fragment_checker.check(path, &uri.url).await {
@@ -680,33 +688,6 @@ impl Client {
                 Status::Ok(StatusCode::OK)
             }
         }
-    }
-
-    /// Check a mail address, or equivalently a `mailto` URI.
-    ///
-    /// URIs may contain query parameters (e.g. `contact@example.com?subject="Hello"`),
-    /// which are ignored by this check. The are not part of the mail address
-    /// and instead passed to a mail client.
-    #[cfg(all(feature = "email-check", feature = "native-tls"))]
-    pub async fn check_mail(&self, uri: &Uri) -> Status {
-        let address = uri.url.path().to_string();
-        let input = CheckEmailInput::new(address);
-        let result = &(check_email(&input).await);
-
-        if let Reachable::Invalid = result.is_reachable {
-            ErrorKind::UnreachableEmailAddress(uri.clone(), mail::error_from_output(result)).into()
-        } else {
-            Status::Ok(StatusCode::OK)
-        }
-    }
-
-    /// Check a mail address, or equivalently a `mailto` URI.
-    ///
-    /// This implementation simply excludes all email addresses.
-    #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
-    #[allow(clippy::unused_async)]
-    pub async fn check_mail(&self, _uri: &Uri) -> Status {
-        Status::Excluded
     }
 }
 

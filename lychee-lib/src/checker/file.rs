@@ -1,13 +1,26 @@
-use crate::{utils::fragment_checker::FragmentChecker, Base, ErrorKind, Status, Uri};
 use http::StatusCode;
 use log::warn;
 use std::path::{Path, PathBuf};
 
+use crate::{utils::fragment_checker::FragmentChecker, Base, ErrorKind, Status, Uri};
+
+/// A utility for checking the existence and validity of file-based URIs.
+///
+/// `FileChecker` is responsible for resolving and validating file paths,
+/// handling both absolute and relative paths. It supports base path resolution,
+/// fallback extensions for files without extensions, and optional fragment checking.
+///
+/// This creates a `FileChecker` with a base path, fallback extensions for HTML files,
+/// and fragment checking enabled.
 #[derive(Debug, Clone)]
 pub(crate) struct FileChecker {
+    /// An optional base path or URL used for resolving relative paths.
     base: Option<Base>,
+    /// A list of file extensions to try if the original path doesn't exist.
     fallback_extensions: Vec<String>,
+    /// Whether to check for the existence of fragments (e.g., #section-id) in HTML files.
     include_fragments: bool,
+    /// A utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
 }
 
@@ -30,33 +43,34 @@ impl FileChecker {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         };
 
-        if path.is_absolute() {
-            let resolved_path = self.resolve_absolute_path(&path);
-            return self.check_resolved_path(&resolved_path, uri).await;
-        }
-
-        self.check_path(&path, uri).await
+        let resolved_path = self.resolve_path(&path);
+        self.check_path(&resolved_path, uri).await
     }
 
-    async fn check_resolved_path(&self, path: &Path, uri: &Uri) -> Status {
-        if path.exists() {
-            if self.include_fragments {
-                self.check_fragment(path, uri).await
+    fn resolve_path(&self, path: &Path) -> PathBuf {
+        if let Some(Base::Local(base_path)) = &self.base {
+            if path.is_absolute() {
+                let absolute_base_path = if base_path.is_relative() {
+                    std::env::current_dir()
+                        .unwrap_or_else(|_| PathBuf::new())
+                        .join(base_path)
+                } else {
+                    base_path.clone()
+                };
+
+                let stripped = path.strip_prefix("/").unwrap_or(path);
+                absolute_base_path.join(stripped)
             } else {
-                Status::Ok(StatusCode::OK)
+                base_path.join(path)
             }
         } else {
-            ErrorKind::InvalidFilePath(uri.clone()).into()
+            path.to_path_buf()
         }
     }
 
     async fn check_path(&self, path: &Path, uri: &Uri) -> Status {
         if path.exists() {
             return self.check_existing_path(path, uri).await;
-        }
-
-        if path.extension().is_some() {
-            return ErrorKind::InvalidFilePath(uri.clone()).into();
         }
 
         self.check_with_fallback_extensions(path, uri).await
@@ -72,30 +86,21 @@ impl FileChecker {
 
     async fn check_with_fallback_extensions(&self, path: &Path, uri: &Uri) -> Status {
         let mut path_buf = path.to_path_buf();
+
+        // If the path already has an extension, try it first
+        if path_buf.extension().is_some() && path_buf.exists() {
+            return self.check_existing_path(&path_buf, uri).await;
+        }
+
+        // Try fallback extensions
         for ext in &self.fallback_extensions {
             path_buf.set_extension(ext);
             if path_buf.exists() {
                 return self.check_existing_path(&path_buf, uri).await;
             }
         }
+
         ErrorKind::InvalidFilePath(uri.clone()).into()
-    }
-
-    fn resolve_absolute_path(&self, path: &Path) -> PathBuf {
-        if let Some(Base::Local(base_path)) = &self.base {
-            let absolute_base_path = if base_path.is_relative() {
-                std::env::current_dir()
-                    .unwrap_or_else(|_| PathBuf::new())
-                    .join(base_path)
-            } else {
-                base_path.to_path_buf()
-            };
-
-            let stripped = path.strip_prefix("/").unwrap_or(path);
-            absolute_base_path.join(stripped)
-        } else {
-            path.to_path_buf()
-        }
     }
 
     async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {

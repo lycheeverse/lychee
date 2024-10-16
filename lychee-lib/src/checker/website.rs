@@ -9,14 +9,14 @@ use reqwest::Request;
 use std::{collections::HashSet, time::Duration};
 
 #[derive(Debug, Clone)]
-pub(crate) struct Checker {
+pub(crate) struct WebsiteChecker {
     retry_wait_time: Duration,
     max_retries: u64,
     reqwest_client: reqwest::Client,
     accepted: Option<HashSet<StatusCode>>,
 }
 
-impl Checker {
+impl WebsiteChecker {
     pub(crate) const fn new(
         retry_wait_time: Duration,
         max_retries: u64,
@@ -73,7 +73,7 @@ fn clone_unwrap(request: &Request) -> Request {
 }
 
 #[async_trait]
-impl Handler<Request, Status> for Checker {
+impl Handler<Request, Status> for WebsiteChecker {
     async fn handle(&mut self, input: Request) -> ChainResult<Request, Status> {
         ChainResult::Done(self.retry_request(input).await)
     }
