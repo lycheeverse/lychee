@@ -13,12 +13,7 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
@@ -36,7 +31,8 @@ use typed_builder::TypedBuilder;
 
 use crate::{
     chain::{Chain, ClientRequestChains, RequestChain},
-    checker::Checker,
+    checker::file::FileChecker,
+    checker::website::Checker,
     filter::{Excludes, Filter, Includes},
     quirks::Quirks,
     remap::Remaps,
@@ -398,16 +394,18 @@ impl ClientBuilder {
             reqwest_client,
             github_client,
             remaps: self.remaps,
-            base: self.base,
-            fallback_extensions: self.fallback_extensions,
             filter,
             max_retries: self.max_retries,
             retry_wait_time: self.retry_wait_time,
             method: self.method,
             accepted: self.accepted,
             require_https: self.require_https,
-            include_fragments: self.include_fragments,
             fragment_checker: FragmentChecker::new(),
+            file_checker: FileChecker::new(
+                self.base,
+                self.fallback_extensions,
+                self.include_fragments,
+            ),
             plugin_request_chain: self.plugin_request_chain,
         })
     }
@@ -427,12 +425,6 @@ pub struct Client {
 
     /// Optional remapping rules for URIs matching pattern.
     remaps: Option<Remaps>,
-
-    /// Optional base for resolving paths.
-    base: Option<Base>,
-
-    /// Automatically append file extensions to `file://` URIs as needed
-    fallback_extensions: Vec<String>,
 
     /// Rules to decided whether each link should be checked or ignored.
     filter: Filter,
@@ -459,13 +451,12 @@ pub struct Client {
     /// This would treat unencrypted links as errors when HTTPS is available.
     require_https: bool,
 
-    /// Enable the checking of fragments in links.
-    include_fragments: bool,
-
     /// Caches Fragments
     fragment_checker: FragmentChecker,
 
     plugin_request_chain: RequestChain,
+
+    file_checker: FileChecker,
 }
 
 impl Client {
@@ -509,55 +500,7 @@ impl Client {
         }
 
         let status = match uri.scheme() {
-            _ if uri.is_file() => {
-                // If base is set and the path is absolute, prepend the base
-                // to the path.
-                if let Some(ref base) = self.base {
-                    let Ok(path) = uri.url.to_file_path() else {
-                        return Err(ErrorKind::InvalidFilePath(uri.clone()));
-                    };
-
-                    if path.is_absolute() {
-                        match base {
-                            Base::Local(ref base_path) => {
-                                // Ensure base_path is absolute
-                                let absolute_base_path = if base_path.is_relative() {
-                                    std::env::current_dir()
-                                        .unwrap_or_else(|_| PathBuf::new())
-                                        .join(base_path)
-                                } else {
-                                    base_path.clone()
-                                };
-
-                                // Optionally strip the leading slash from the path (if it exists)
-                                let stripped = path.strip_prefix("/").unwrap_or(&path);
-                                let resolved = absolute_base_path.join(stripped);
-
-                                // Create a new URI with the resolved path
-                                let mut uri = uri.clone();
-                                uri.url = Url::from_file_path(&resolved).unwrap();
-
-                                if resolved.exists() {
-                                    return Ok(Response::new(
-                                        uri.clone(),
-                                        Status::Ok(StatusCode::OK),
-                                        source,
-                                    ));
-                                }
-
-                                return Ok(Response::new(
-                                    uri.clone(),
-                                    Status::Error(ErrorKind::InvalidFilePath(uri.clone())),
-                                    source,
-                                ));
-                            }
-                            Base::Remote(_) => (),
-                        }
-                    }
-                }
-
-                self.check_file(uri).await
-            }
+            _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
             _ if uri.is_tel() => Status::Excluded,
             _ => {
@@ -577,6 +520,11 @@ impl Client {
         };
 
         Ok(Response::new(uri.clone(), status, source))
+    }
+
+    /// Check a single file using the file checker.
+    pub async fn check_file(&self, uri: &Uri) -> Status {
+        self.file_checker.check(uri).await
     }
 
     /// Remap `uri` using the client-defined remapping rules.
@@ -720,37 +668,6 @@ impl Client {
         }
         // Found public repo without endpoint
         Status::Ok(StatusCode::OK)
-    }
-
-    /// Check a `file` URI.
-    pub async fn check_file(&self, uri: &Uri) -> Status {
-        let Ok(path) = uri.url.to_file_path() else {
-            return ErrorKind::InvalidFilePath(uri.clone()).into();
-        };
-
-        if path.exists() {
-            if self.include_fragments {
-                return self.check_fragment(&path, uri).await;
-            }
-            return Status::Ok(StatusCode::OK);
-        }
-
-        if path.extension().is_some() {
-            return ErrorKind::InvalidFilePath(uri.clone()).into();
-        }
-
-        // if the path has no file extension, try to append some
-        let mut path_buf = path.clone();
-        for ext in &self.fallback_extensions {
-            path_buf.set_extension(ext);
-            if path_buf.exists() {
-                if self.include_fragments {
-                    return self.check_fragment(&path_buf, uri).await;
-                }
-                return Status::Ok(StatusCode::OK);
-            }
-        }
-        ErrorKind::InvalidFilePath(uri.clone()).into()
     }
 
     /// Checks a `file` URI's fragment.
