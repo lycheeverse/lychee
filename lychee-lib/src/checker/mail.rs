@@ -1,5 +1,10 @@
-use crate::{ErrorKind, Status, Uri};
+#[cfg(all(feature = "email-check", feature = "native-tls"))]
 use http::StatusCode;
+
+#[cfg(all(feature = "email-check", feature = "native-tls"))]
+use crate::ErrorKind;
+
+use crate::{Status, Uri};
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
 use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
@@ -26,16 +31,15 @@ impl MailChecker {
     /// URIs may contain query parameters (e.g. `contact@example.com?subject="Hello"`),
     /// which are ignored by this check. They are not part of the mail address
     /// and instead passed to a mail client.
+    #[cfg(all(feature = "email-check", feature = "native-tls"))]
     pub(crate) async fn check_mail(&self, uri: &Uri) -> Status {
-        #[cfg(all(feature = "email-check", feature = "native-tls"))]
-        {
-            self.perform_email_check(uri).await
-        }
+        self.perform_email_check(uri).await
+    }
 
-        #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
-        {
-            Status::Excluded
-        }
+    /// Ignore the mail check if the `email-check` and `native-tls` features are not enabled.
+    #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
+    pub(crate) async fn check_mail(&self, _uri: &Uri) -> Status {
+        Status::Excluded
     }
 
     #[cfg(all(feature = "email-check", feature = "native-tls"))]

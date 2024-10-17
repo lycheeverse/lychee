@@ -6,25 +6,29 @@ use crate::{utils::fragment_checker::FragmentChecker, Base, ErrorKind, Status, U
 
 /// A utility for checking the existence and validity of file-based URIs.
 ///
-/// `FileChecker` is responsible for resolving and validating file paths,
-/// handling both absolute and relative paths. It supports base path resolution,
-/// fallback extensions for files without extensions, and optional fragment checking.
-///
-/// This creates a `FileChecker` with a base path, fallback extensions for HTML files,
-/// and fragment checking enabled.
+/// `FileChecker` resolves and validates file paths, handling both absolute and relative paths.
+/// It supports base path resolution, fallback extensions for files without extensions,
+/// and optional fragment checking for HTML files.
 #[derive(Debug, Clone)]
 pub(crate) struct FileChecker {
-    /// An optional base path or URL used for resolving relative paths.
+    /// Base path or URL used for resolving relative paths.
     base: Option<Base>,
-    /// A list of file extensions to try if the original path doesn't exist.
+    /// List of file extensions to try if the original path doesn't exist.
     fallback_extensions: Vec<String>,
-    /// Whether to check for the existence of fragments (e.g., #section-id) in HTML files.
+    /// Whether to check for the existence of fragments (e.g., `#section-id`) in HTML files.
     include_fragments: bool,
-    /// A utility for performing fragment checks in HTML files.
+    /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
 }
 
 impl FileChecker {
+    /// Creates a new `FileChecker` with the given configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `base` - Optional base path or URL for resolving relative paths.
+    /// * `fallback_extensions` - List of extensions to try if the original file is not found.
+    /// * `include_fragments` - Whether to check for fragment existence in HTML files.
     pub(crate) fn new(
         base: Option<Base>,
         fallback_extensions: Vec<String>,
@@ -38,6 +42,18 @@ impl FileChecker {
         }
     }
 
+    /// Checks the given file URI for existence and validity.
+    ///
+    /// This method resolves the URI to a file path, checks if the file exists,
+    /// and optionally checks for the existence of fragments in HTML files.
+    ///
+    /// # Arguments
+    ///
+    /// * `uri` - The URI to check.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Status` indicating the result of the check.
     pub(crate) async fn check(&self, uri: &Uri) -> Status {
         let Ok(path) = uri.url.to_file_path() else {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
@@ -47,13 +63,20 @@ impl FileChecker {
         self.check_path(&resolved_path, uri).await
     }
 
+    /// Resolves the given path using the base path, if one is set.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to resolve.
+    ///
+    /// # Returns
+    ///
+    /// Returns the resolved path as a `PathBuf`.
     fn resolve_path(&self, path: &Path) -> PathBuf {
         if let Some(Base::Local(base_path)) = &self.base {
             if path.is_absolute() {
                 let absolute_base_path = if base_path.is_relative() {
-                    std::env::current_dir()
-                        .unwrap_or_else(|_| PathBuf::new())
-                        .join(base_path)
+                    std::env::current_dir().unwrap_or_default().join(base_path)
                 } else {
                     base_path.clone()
                 };
@@ -68,6 +91,16 @@ impl FileChecker {
         }
     }
 
+    /// Checks if the given path exists and performs additional checks if necessary.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to check.
+    /// * `uri` - The original URI, used for error reporting.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Status` indicating the result of the check.
     async fn check_path(&self, path: &Path, uri: &Uri) -> Status {
         if path.exists() {
             return self.check_existing_path(path, uri).await;
@@ -76,6 +109,16 @@ impl FileChecker {
         self.check_with_fallback_extensions(path, uri).await
     }
 
+    /// Checks an existing path, optionally verifying fragments for HTML files.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to check.
+    /// * `uri` - The original URI, used for error reporting.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Status` indicating the result of the check.
     async fn check_existing_path(&self, path: &Path, uri: &Uri) -> Status {
         if self.include_fragments {
             self.check_fragment(path, uri).await
@@ -84,6 +127,16 @@ impl FileChecker {
         }
     }
 
+    /// Attempts to find a file by trying different extensions specified in `fallback_extensions`.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The original path to check.
+    /// * `uri` - The original URI, used for error reporting.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Status` indicating the result of the check.
     async fn check_with_fallback_extensions(&self, path: &Path, uri: &Uri) -> Status {
         let mut path_buf = path.to_path_buf();
 
@@ -103,6 +156,16 @@ impl FileChecker {
         ErrorKind::InvalidFilePath(uri.clone()).into()
     }
 
+    /// Checks for the existence of a fragment in an HTML file.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the HTML file.
+    /// * `uri` - The original URI, containing the fragment to check.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Status` indicating the result of the fragment check.
     async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
         match self.fragment_checker.check(path, &uri.url).await {
             Ok(true) => Status::Ok(StatusCode::OK),
