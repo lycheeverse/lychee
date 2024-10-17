@@ -944,13 +944,17 @@ mod cli {
 
         // check content of cache file
         let data = fs::read_to_string(&cache_file)?;
+
+        if data.is_empty() {
+            println!("Cache file is empty!");
+        }
+
         assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
         assert!(!data.contains(&format!("{}/,204", mock_server_no_content.uri())));
         assert!(!data.contains(&format!("{}/,429", mock_server_too_many_requests.uri())));
 
         // clear the cache file
         fs::remove_file(&cache_file)?;
-
         Ok(())
     }
 
