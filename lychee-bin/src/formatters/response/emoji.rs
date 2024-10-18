@@ -8,9 +8,11 @@ use super::ResponseFormatter;
 /// visual output.
 pub(crate) struct EmojiFormatter;
 
-impl ResponseFormatter for EmojiFormatter {
-    fn format_response(&self, body: &ResponseBody) -> String {
-        let emoji = match body.status {
+impl EmojiFormatter {
+    /// Determine the color for formatted output based on the status of the
+    /// response.
+    const fn emoji_for_status(status: &Status) -> &'static str {
+        match status {
             Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => "✅",
             Status::Excluded
             | Status::Unsupported(_)
@@ -18,8 +20,19 @@ impl ResponseFormatter for EmojiFormatter {
             Status::Redirected(_) => "↪️",
             Status::UnknownStatusCode(_) | Status::Timeout(_) => "⚠️",
             Status::Error(_) | Status::Cached(CacheStatus::Error(_)) => "❌",
-        };
+        }
+    }
+}
+
+impl ResponseFormatter for EmojiFormatter {
+    fn format_response(&self, body: &ResponseBody) -> String {
+        let emoji = EmojiFormatter::emoji_for_status(&body.status);
         format!("{} {}", emoji, body.uri)
+    }
+
+    fn format_detailed_response(&self, body: &ResponseBody) -> String {
+        let emoji = EmojiFormatter::emoji_for_status(&body.status);
+        format!("{emoji} {body}")
     }
 }
 
@@ -91,5 +104,19 @@ mod emoji_tests {
             formatter.format_response(&body),
             "⚠️ https://example.com/unknown"
         );
+    }
+
+    #[test]
+    fn test_detailed_response_output() {
+        let formatter = EmojiFormatter;
+        let body = mock_response_body(
+            Status::Error(ErrorKind::InvalidUrlHost),
+            "https://example.com/404",
+        );
+
+        // Just assert the output contains the string
+        assert!(formatter
+            .format_detailed_response(&body)
+            .ends_with("| URL is missing a host"));
     }
 }

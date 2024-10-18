@@ -79,7 +79,7 @@ pub struct ResponseBody {
 // matching in these cases.
 impl Display for ResponseBody {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}] {}", self.status.code_as_string(), self.uri)?;
+        write!(f, "{}", self.uri)?;
 
         if let Status::Ok(StatusCode::OK) = self.status {
             // Don't print anything else if the status code is 200.
