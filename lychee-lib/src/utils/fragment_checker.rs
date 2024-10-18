@@ -47,7 +47,7 @@ impl FragmentChecker {
         let Some(fragment) = url.fragment() else {
             return Ok(true);
         };
-        let mut fragment = percent_decode_str(fragment).decode_utf8()?;
+        let mut fragment_decoded = percent_decode_str(fragment).decode_utf8()?;
         let url_without_frag = Self::remove_fragment(url.clone());
 
         let file_type = FileType::from(path);
@@ -57,15 +57,19 @@ impl FragmentChecker {
             FileType::Plaintext => return Ok(true),
         };
         if file_type == FileType::Markdown {
-            fragment = fragment.to_lowercase().into();
+            fragment_decoded = fragment_decoded.to_lowercase().into();
         }
         match self.cache.lock().await.entry(url_without_frag) {
             Entry::Vacant(entry) => {
                 let content = fs::read_to_string(path).await?;
                 let file_frags = extractor(&content);
-                Ok(entry.insert(file_frags).contains(&fragment as &str))
+                let contains_fragment =
+                    file_frags.contains(fragment) || file_frags.contains(&fragment_decoded as &str);
+                entry.insert(file_frags);
+                Ok(contains_fragment)
             }
-            Entry::Occupied(entry) => Ok(entry.get().contains(&fragment as &str)),
+            Entry::Occupied(entry) => Ok(entry.get().contains(&fragment as &str)
+                || entry.get().contains(&fragment_decoded as &str)),
         }
     }
 
