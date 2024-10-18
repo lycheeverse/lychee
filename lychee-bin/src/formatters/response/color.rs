@@ -90,7 +90,7 @@ mod tests {
     #[test]
     fn test_format_status() {
         let status = Status::Ok(StatusCode::OK);
-        assert_eq!(ColorFormatter::format_status(&status).trim_start(), "[200]");
+        assert_eq!(ColorFormatter::format_status(&status), "     [200]");
     }
 
     #[test]
