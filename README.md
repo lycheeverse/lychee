@@ -702,6 +702,7 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 - https://github.com/sindresorhus/execa
 - https://github.com/tldr-pages/tldr-maintenance
 - https://github.com/git-ecosystem/git-credential-manager
+- https://github.com/OWASP/threat-dragon
 - https://git-scm.com/
 - https://github.com/lycheeverse/lychee (yes, the lychee docs are checked with lychee 🤯)
 
