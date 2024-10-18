@@ -190,7 +190,8 @@ impl HeadingIdGenerator {
     /// Converts text into kebab case
     #[must_use]
     fn into_kebab_case(text: &str) -> String {
-        text.to_lowercase().chars()
+        text.to_lowercase()
+            .chars()
             .filter_map(|ch| {
                 if ch.is_alphanumeric() || ch == '_' || ch == '-' {
                     Some(ch)
