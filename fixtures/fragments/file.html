@@ -5,8 +5,8 @@
     <title>For Testing Fragments</title>
   </head>
   <body>
-    <section id="in-the-beginning">
-      <p>
+    <section id="in-the-beginning" style="height: 100vh;">
+      <p id="Upper-ÄÖö">
         To start
         <a href="file1.md#fragment-1">
           let's run away.
@@ -15,8 +15,11 @@
     </section>
     <section>
       <p id="a-word">Word</p>
-      <a href="#in-the-beginning">back we go</a>
-      <a href="#in-the-end">doesn't exist</a>
+      <a href="#in-the-beginning">back we go</a><br>
+      <a href="#in-THE-begiNNing">back we go upper does not work</a><br>
+      <a href="#Upper-ÄÖö">back to Upper-ÄÖö</a><br>
+      <a href="#Upper-%C3%84%C3%96%C3%B6">back to öüä encoded</a><br>
+      <a href="#in-the-end">doesn't exist</a><br>
     </section>
   </body>
 </html>

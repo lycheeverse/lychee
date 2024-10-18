@@ -47,14 +47,18 @@ impl FragmentChecker {
         let Some(fragment) = url.fragment() else {
             return Ok(true);
         };
-        let fragment = percent_decode_str(fragment).decode_utf8()?;
+        let mut fragment = percent_decode_str(fragment).decode_utf8()?;
         let url_without_frag = Self::remove_fragment(url.clone());
 
-        let extractor = match FileType::from(path) {
+        let file_type = FileType::from(path);
+        let extractor = match file_type {
             FileType::Markdown => extract_markdown_fragments,
             FileType::Html => extract_html_fragments,
             FileType::Plaintext => return Ok(true),
         };
+        if file_type == FileType::Markdown {
+            fragment = fragment.to_lowercase().into();
+        }
         match self.cache.lock().await.entry(url_without_frag) {
             Entry::Vacant(entry) => {
                 let content = fs::read_to_string(path).await?;
