@@ -86,6 +86,12 @@ impl TokenSink for LinkExtractor {
                     }
                 }
 
+                // Check and exclude `prefix` attribute. This attribute is used to define a prefix
+                // for the current element. It is not used to link to a resource.
+                if let Some(_prefix) = attrs.iter().find(|attr| &attr.name.local == "prefix") {
+                    return TokenSinkResult::Continue;
+                }
+
                 for attr in attrs {
                     let urls = LinkExtractor::extract_urls_from_elem_attr(
                         &attr.name.local,
@@ -410,6 +416,16 @@ mod tests {
     fn test_skip_preconnect_reverse_order() {
         let input = r#"
             <link href="https://example.com" rel="preconnect">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_skip_prefix() {
+        let input = r#"
+            <html lang="en-EN" prefix="og: https://ogp.me/ns#">
         "#;
 
         let uris = extract_html(input, false);
