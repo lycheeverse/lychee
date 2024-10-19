@@ -690,7 +690,6 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 - https://github.com/papers-we-love/papers-we-love
 - https://github.com/pingcap/docs
 - https://github.com/microsoft/WhatTheHack
-- https://github.com/Azure/ResourceModules
 - https://github.com/nix-community/awesome-nix
 - https://github.com/balena-io/docs
 - https://github.com/launchdarkly/LaunchDarkly-Docs
@@ -702,8 +701,25 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 - https://github.com/sindresorhus/execa
 - https://github.com/tldr-pages/tldr-maintenance
 - https://github.com/git-ecosystem/git-credential-manager
+- https://github.com/git/git-scm.com
 - https://github.com/OWASP/threat-dragon
-- https://git-scm.com/
+- https://github.com/oxc-project/oxc
+- https://github.com/hugsy/gef
+- https://github.com/mermaid-js/mermaid
+- https://github.com/hashicorp/consul
+- https://github.com/Unleash/unleash
+- https://github.com/fastify/fastify
+- https://github.com/nuxt/nuxt
+- https://github.com/containerd/containerd
+- https://github.com/rolldown/rolldown
+- https://github.com/rerun-io/rerun
+- https://github.com/0xAX/asm
+- https://github.com/mainmatter/100-exercises-to-learn-rust
+- https://github.com/GoogleCloudPlatform/generative-ai
+- https://github.com/DioxusLabs/dioxus
+- https://github.com/ministryofjustice/modernisation-platform
+- https://github.com/orhun/binsider
+- https://github.com/NVIDIA/aistore
 - https://github.com/lycheeverse/lychee (yes, the lychee docs are checked with lychee 🤯)
 
 If you are using lychee for your project, **please add it here**.
