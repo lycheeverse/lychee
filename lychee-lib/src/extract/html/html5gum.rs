@@ -178,6 +178,11 @@ impl LinkExtractor {
             return;
         }
 
+        if self.current_attributes.contains_key("prefix") {
+            self.current_attributes.clear();
+            return;
+        }
+
         let new_urls = self
             .extract_urls_from_elem_attr()
             .into_iter()
@@ -607,6 +612,16 @@ mod tests {
     fn test_skip_preconnect_reverse_order() {
         let input = r#"
             <link href="https://example.com" rel="preconnect">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_skip_prefix() {
+        let input = r#"
+            <html lang="en-EN" prefix="og: https://ogp.me/ns#">
         "#;
 
         let uris = extract_html(input, false);
