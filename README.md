@@ -720,6 +720,7 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 - https://github.com/ministryofjustice/modernisation-platform
 - https://github.com/orhun/binsider
 - https://github.com/NVIDIA/aistore
+- https://github.com/gradle/gradle
 - https://github.com/lycheeverse/lychee (yes, the lychee docs are checked with lychee 🤯)
 
 If you are using lychee for your project, **please add it here**.
