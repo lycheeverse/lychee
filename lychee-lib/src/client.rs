@@ -364,9 +364,9 @@ impl ClientBuilder {
                 Octocrab::builder()
                     .personal_token(token.to_string())
                     .build()
-                    // this is essentially the same reqwest::ClientBuilder::build error
+                    // this is essentially the same `reqwest::ClientBuilder::build` error
                     // see https://docs.rs/octocrab/0.18.1/src/octocrab/lib.rs.html#360-364
-                    .map_err(ErrorKind::BuildGithubClient)?,
+                    .map_err(|e: octocrab::Error| ErrorKind::BuildGithubClient(Box::new(e)))?,
             ),
             _ => None,
         };
@@ -638,7 +638,7 @@ impl Client {
         };
         let repo = match client.repos(&uri.owner, &uri.repo).get().await {
             Ok(repo) => repo,
-            Err(e) => return ErrorKind::GithubRequest(e).into(),
+            Err(e) => return ErrorKind::GithubRequest(Box::new(e)).into(),
         };
         if let Some(true) = repo.private {
             // The private repo exists. Assume a given endpoint exists as well

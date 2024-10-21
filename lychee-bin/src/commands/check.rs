@@ -336,7 +336,15 @@ fn show_progress(
     formatter: &dyn ResponseFormatter,
     verbose: &Verbosity,
 ) -> Result<()> {
-    let out = formatter.format_response(response.body());
+    // In case the log level is set to info, we want to show the detailed
+    // response output. Otherwise, we only show the essential information
+    // (typically the status code and the URL, but this is dependent on the
+    // formatter).
+    let out = if verbose.log_level() >= log::Level::Info {
+        formatter.format_detailed_response(response.body())
+    } else {
+        formatter.format_response(response.body())
+    };
 
     if let Some(pb) = progress_bar {
         pb.inc(1);
@@ -424,7 +432,7 @@ mod tests {
 
         assert!(!buf.is_empty());
         let buf = String::from_utf8_lossy(&buf);
-        assert_eq!(buf, "[200] http://127.0.0.1/ | Cached: OK (cached)\n");
+        assert_eq!(buf, "[200] http://127.0.0.1/ | OK (cached)\n");
     }
 
     #[tokio::test]
