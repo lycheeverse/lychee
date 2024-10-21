@@ -39,6 +39,16 @@ pub(crate) fn website(url: &str) -> Uri {
     Uri::from(Url::parse(url).expect("Expected valid Website URI"))
 }
 
+/// Helper method to convert a `std::path::Path `into a URI with the `file` scheme
+///
+/// # Panic
+///
+/// This panics if the given path is not absolute, so it should only be used for
+/// testing
+pub(crate) fn path<P: AsRef<Path>>(path: P) -> Uri {
+    Uri::from(Url::from_file_path(path.as_ref()).expect("Expected valid File URI"))
+}
+
 /// Creates a mail URI from a string
 pub(crate) fn mail(address: &str) -> Uri {
     if address.starts_with("mailto:") {
