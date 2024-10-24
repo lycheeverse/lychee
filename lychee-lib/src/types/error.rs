@@ -26,7 +26,7 @@ pub enum ErrorKind {
 
     /// Network error while using GitHub API
     #[error("Network error (GitHub client)")]
-    GithubRequest(#[from] octocrab::Error),
+    GithubRequest(#[from] Box<octocrab::Error>),
 
     /// Error while executing a future on the Tokio runtime
     #[error("Task failed to execute to completion")]
@@ -46,7 +46,7 @@ pub enum ErrorKind {
 
     /// The GitHub client required for making requests cannot be created
     #[error("Error creating GitHub client")]
-    BuildGithubClient(#[source] octocrab::Error),
+    BuildGithubClient(#[source] Box<octocrab::Error>),
 
     /// Invalid GitHub URL
     #[error("GitHub URL is invalid: {0}")]
@@ -165,13 +165,24 @@ impl ErrorKind {
                             .to_string(),
                     )
                 } else {
-                    Some(utils::reqwest::trim_error_output(e))
+                    // Get the relevant details from the specific reqwest error
+                    let details = utils::reqwest::trim_error_output(e);
+
+                    // Provide support for common error types
+                    if e.is_connect() {
+                        Some(format!("{details} Maybe a certificate error?"))
+                    } else {
+                        Some(details)
+                    }
                 }
             }
-            ErrorKind::GithubRequest(e) => match e {
-                octocrab::Error::GitHub { source, .. } => Some(source.message.to_string()),
-                _ => None,
-            },
+            ErrorKind::GithubRequest(e) => {
+                if let octocrab::Error::GitHub { source, .. } = &**e {
+                    Some(source.message.clone())
+                } else {
+                    None
+                }
+            }
             _ => self.source().map(ToString::to_string),
         }
     }

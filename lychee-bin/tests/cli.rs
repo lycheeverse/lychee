@@ -155,7 +155,7 @@ mod cli {
         let site_error_status = &output_json["fail_map"][&test_path.to_str().unwrap()][0]["status"];
 
         assert_eq!(
-            "error sending request for url (https://expired.badssl.com/)",
+            "error sending request for url (https://expired.badssl.com/) Maybe a certificate error?",
             site_error_status["details"]
         );
         Ok(())
@@ -413,7 +413,7 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(
-                "[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man"
+                "[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Network error: Not Found"
             ))
             .stderr(contains(
                 "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
@@ -868,7 +868,7 @@ mod cli {
             .assert()
             .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
             .stderr(contains(format!(
-                "[404] {}/ | Failed: Network error: Not Found\n",
+                "[404] {}/ | Network error: Not Found\n",
                 mock_server_err.uri()
             )));
 
@@ -881,11 +881,11 @@ mod cli {
         test_cmd
             .assert()
             .stderr(contains(format!(
-                "[200] {}/ | Cached: OK (cached)\n",
+                "[200] {}/ | OK (cached)\n",
                 mock_server_ok.uri()
             )))
             .stderr(contains(format!(
-                "[404] {}/ | Cached: Error (cached)\n",
+                "[404] {}/ | Error (cached)\n",
                 mock_server_err.uri()
             )));
 
@@ -992,11 +992,11 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "[418] {}/ | Failed: Network error: I\'m a teapot",
+                "[418] {}/ | Network error: I\'m a teapot",
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                "[500] {}/ | Failed: Network error: Internal Server Error",
+                "[500] {}/ | Network error: Internal Server Error",
                 mock_server_server_error.uri()
             )));
 
@@ -1015,11 +1015,11 @@ mod cli {
             .assert()
             .success()
             .stderr(contains(format!(
-                "[418] {}/ | Cached: OK (cached)",
+                "[418] {}/ | OK (cached)",
                 mock_server_teapot.uri()
             )))
             .stderr(contains(format!(
-                "[500] {}/ | Cached: OK (cached)",
+                "[500] {}/ | OK (cached)",
                 mock_server_server_error.uri()
             )));
 

@@ -186,7 +186,7 @@ mod tests {
         let markdown = markdown_response(&response).unwrap();
         assert_eq!(
             markdown,
-            "* [200] [http://example.com/](http://example.com/) | Cached: OK (cached)"
+            "* [200] [http://example.com/](http://example.com/) | OK (cached)"
         );
     }
 
@@ -199,7 +199,7 @@ mod tests {
         let markdown = markdown_response(&response).unwrap();
         assert_eq!(
             markdown,
-            "* [400] [http://example.com/](http://example.com/) | Cached: Error (cached)"
+            "* [400] [http://example.com/](http://example.com/) | Error (cached)"
         );
     }
 
@@ -253,7 +253,7 @@ mod tests {
 
 ### Errors in stdin
 
-* [404] [http://127.0.0.1/](http://127.0.0.1/) | Cached: Error (cached)
+* [404] [http://127.0.0.1/](http://127.0.0.1/) | Error (cached)
 
 ## Suggestions per input
 
