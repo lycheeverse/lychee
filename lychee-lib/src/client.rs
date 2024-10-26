@@ -15,8 +15,6 @@
 )]
 use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
-#[cfg(all(feature = "email-check", feature = "native-tls"))]
-use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
 use http::{
     header::{HeaderMap, HeaderValue},
     StatusCode,
@@ -24,24 +22,20 @@ use http::{
 use log::{debug, warn};
 use octocrab::Octocrab;
 use regex::RegexSet;
-use reqwest::{header, redirect, Url};
+use reqwest::{header, redirect};
 use reqwest_cookie_store::CookieStoreMutex;
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    chain::{Chain, ClientRequestChains, RequestChain},
-    checker::Checker,
+    chain::RequestChain,
+    checker::file::FileChecker,
+    checker::{mail::MailChecker, website::WebsiteChecker},
     filter::{Excludes, Filter, Includes},
-    quirks::Quirks,
     remap::Remaps,
-    types::uri::github::GithubUri,
     utils::fragment_checker::FragmentChecker,
-    ErrorKind, Request, Response, Result, Status, Uri,
+    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
-
-#[cfg(all(feature = "email-check", feature = "native-tls"))]
-use crate::types::mail;
 
 /// Default number of redirects before a request is deemed as failed, 5.
 pub const DEFAULT_MAX_REDIRECTS: usize = 5;
@@ -248,6 +242,12 @@ pub struct ClientBuilder {
     /// Response timeout per request in seconds.
     timeout: Option<Duration>,
 
+    /// Base for resolving paths.
+    ///
+    /// E.g. if the base is `/home/user/` and the path is `file.txt`, the
+    /// resolved path would be `/home/user/file.txt`.
+    base: Option<Base>,
+
     /// Initial time between retries of failed requests.
     ///
     /// Defaults to [`DEFAULT_RETRY_WAIT_TIME_SECS`].
@@ -383,20 +383,28 @@ impl ClientBuilder {
             include_mail: self.include_mail,
         };
 
-        Ok(Client {
+        let website_checker = WebsiteChecker::new(
+            self.method,
+            self.retry_wait_time,
+            self.max_retries,
             reqwest_client,
+            self.accepted,
             github_client,
+            self.require_https,
+            self.plugin_request_chain,
+        );
+
+        Ok(Client {
             remaps: self.remaps,
-            fallback_extensions: self.fallback_extensions,
             filter,
-            max_retries: self.max_retries,
-            retry_wait_time: self.retry_wait_time,
-            method: self.method,
-            accepted: self.accepted,
-            require_https: self.require_https,
-            include_fragments: self.include_fragments,
+            email_checker: MailChecker::new(),
+            website_checker,
+            file_checker: FileChecker::new(
+                self.base,
+                self.fallback_extensions,
+                self.include_fragments,
+            ),
             fragment_checker: FragmentChecker::new(),
-            plugin_request_chain: self.plugin_request_chain,
         })
     }
 }
@@ -407,50 +415,23 @@ impl ClientBuilder {
 /// options.
 #[derive(Debug, Clone)]
 pub struct Client {
-    /// Underlying `reqwest` client instance that handles the HTTP requests.
-    reqwest_client: reqwest::Client,
-
-    /// Optional GitHub client that handles communications with GitHub.
-    github_client: Option<Octocrab>,
-
     /// Optional remapping rules for URIs matching pattern.
     remaps: Option<Remaps>,
-
-    /// Automatically append file extensions to `file://` URIs as needed
-    fallback_extensions: Vec<String>,
 
     /// Rules to decided whether each link should be checked or ignored.
     filter: Filter,
 
-    /// Maximum number of retries per request before returning an error.
-    max_retries: u64,
+    /// A checker for website URLs.
+    website_checker: WebsiteChecker,
 
-    /// Initial wait time between retries of failed requests. This doubles after
-    /// each failure.
-    retry_wait_time: Duration,
+    /// A checker for file URLs.
+    file_checker: FileChecker,
 
-    /// HTTP method used for requests, e.g. `GET` or `HEAD`.
-    ///
-    /// The same method will be used for all links.
-    method: reqwest::Method,
-
-    /// Set of accepted return codes / status codes.
-    ///
-    /// Unmatched return codes/ status codes are deemed as errors.
-    accepted: Option<HashSet<StatusCode>>,
-
-    /// Requires using HTTPS when it's available.
-    ///
-    /// This would treat unencrypted links as errors when HTTPS is available.
-    require_https: bool,
-
-    /// Enable the checking of fragments in links.
-    include_fragments: bool,
+    /// A checker for email URLs.
+    email_checker: MailChecker,
 
     /// Caches Fragments
     fragment_checker: FragmentChecker,
-
-    plugin_request_chain: RequestChain,
 }
 
 impl Client {
@@ -463,7 +444,7 @@ impl Client {
     ///
     /// Returns an `Err` if:
     /// - `request` does not represent a valid URI.
-    /// - Encrypted connection for a HTTP URL is available but unused.  (Only
+    /// - Encrypted connection for a HTTP URL is available but unused. (Only
     ///   checked when `Client::require_https` is `true`.)
     #[allow(clippy::missing_panics_doc)]
     pub async fn check<T, E>(&self, request: T) -> Result<Response>
@@ -493,25 +474,20 @@ impl Client {
             return Ok(Response::new(uri.clone(), Status::Excluded, source));
         }
 
-        let default_chain: RequestChain = Chain::new(vec![
-            Box::<Quirks>::default(),
-            Box::new(credentials),
-            Box::new(Checker::new(
-                self.retry_wait_time,
-                self.max_retries,
-                self.reqwest_client.clone(),
-                self.accepted.clone(),
-            )),
-        ]);
-
         let status = match uri.scheme() {
+            // We don't check tel: URIs
+            _ if uri.is_tel() => Status::Excluded,
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
-            _ if uri.is_tel() => Status::Excluded,
-            _ => self.check_website(uri, default_chain).await?,
+            _ => self.check_website(uri, credentials).await?,
         };
 
         Ok(Response::new(uri.clone(), status, source))
+    }
+
+    /// Check a single file using the file checker.
+    pub async fn check_file(&self, uri: &Uri) -> Status {
+        self.file_checker.check(uri).await
     }
 
     /// Remap `uri` using the client-defined remapping rules.
@@ -541,151 +517,17 @@ impl Client {
     /// - The request failed.
     /// - The response status code is not accepted.
     /// - The URI cannot be converted to HTTPS.
-    pub async fn check_website(&self, uri: &Uri, default_chain: RequestChain) -> Result<Status> {
-        match self.check_website_inner(uri, &default_chain).await {
-            Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
-                if self
-                    .check_website_inner(&uri.to_https()?, &default_chain)
-                    .await
-                    .is_success()
-                {
-                    Ok(Status::Error(ErrorKind::InsecureURL(uri.to_https()?)))
-                } else {
-                    // HTTPS is not available for this URI,
-                    // so the original HTTP URL is fine.
-                    Ok(Status::Ok(code))
-                }
-            }
-            s => Ok(s),
-        }
+    pub async fn check_website(
+        &self,
+        uri: &Uri,
+        credentials: Option<BasicAuthCredentials>,
+    ) -> Result<Status> {
+        self.website_checker.check_website(uri, credentials).await
     }
 
-    /// Checks the given URI of a website.
-    ///
-    /// Unsupported schemes will be ignored
-    ///
-    /// # Errors
-    ///
-    /// This returns an `Err` if
-    /// - The URI is invalid.
-    /// - The request failed.
-    /// - The response status code is not accepted.
-    pub async fn check_website_inner(&self, uri: &Uri, default_chain: &RequestChain) -> Status {
-        // Workaround for upstream reqwest panic
-        if validate_url(&uri.url) {
-            if matches!(uri.scheme(), "http" | "https") {
-                // This is a truly invalid URI with a known scheme.
-                // If we pass that to reqwest it would panic.
-                return Status::Error(ErrorKind::InvalidURI(uri.clone()));
-            }
-            // This is merely a URI with a scheme that is not supported by
-            // reqwest yet. It would be safe to pass that to reqwest and it
-            // wouldn't panic, but it's also unnecessary, because it would
-            // simply return an error.
-            return Status::Unsupported(ErrorKind::InvalidURI(uri.clone()));
-        }
-
-        let request = self
-            .reqwest_client
-            .request(self.method.clone(), uri.as_str())
-            .build();
-
-        let request = match request {
-            Ok(r) => r,
-            Err(e) => return e.into(),
-        };
-
-        let status = ClientRequestChains::new(vec![&self.plugin_request_chain, default_chain])
-            .traverse(request)
-            .await;
-
-        self.handle_github(status, uri).await
-    }
-
-    // Pull out the heavy machinery in case of a failed normal request.
-    // This could be a GitHub URL and we ran into the rate limiter.
-    // TODO: We should first try to parse the URI as GitHub URI first (Lucius, Jan 2023)
-    async fn handle_github(&self, status: Status, uri: &Uri) -> Status {
-        if status.is_success() {
-            return status;
-        }
-
-        if let Ok(github_uri) = GithubUri::try_from(uri) {
-            let status = self.check_github(github_uri).await;
-            // Only return GitHub status in case of success
-            // Otherwise return the original error, which has more information
-            if status.is_success() {
-                return status;
-            }
-        }
-
-        status
-    }
-
-    /// Check a `uri` hosted on `GitHub` via the GitHub API.
-    ///
-    /// # Caveats
-    ///
-    /// Files inside private repositories won't get checked and instead would
-    /// be reported as valid if the repository itself is reachable through the
-    /// API.
-    ///
-    /// A better approach would be to download the file through the API or
-    /// clone the repo, but we chose the pragmatic approach.
-    async fn check_github(&self, uri: GithubUri) -> Status {
-        let Some(client) = &self.github_client else {
-            return ErrorKind::MissingGitHubToken.into();
-        };
-        let repo = match client.repos(&uri.owner, &uri.repo).get().await {
-            Ok(repo) => repo,
-            Err(e) => return ErrorKind::GithubRequest(Box::new(e)).into(),
-        };
-        if let Some(true) = repo.private {
-            // The private repo exists. Assume a given endpoint exists as well
-            // (e.g. `issues` in `github.com/org/private/issues`). This is not
-            // always the case but simplifies the check.
-            return Status::Ok(StatusCode::OK);
-        } else if let Some(endpoint) = uri.endpoint {
-            // The URI returned a non-200 status code from a normal request and
-            // now we find that this public repo is reachable through the API,
-            // so that must mean the full URI (which includes the additional
-            // endpoint) must be invalid.
-            return ErrorKind::InvalidGithubUrl(format!("{}/{}/{endpoint}", uri.owner, uri.repo))
-                .into();
-        }
-        // Found public repo without endpoint
-        Status::Ok(StatusCode::OK)
-    }
-
-    /// Check a `file` URI.
-    pub async fn check_file(&self, uri: &Uri) -> Status {
-        let Ok(path) = uri.url.to_file_path() else {
-            return ErrorKind::InvalidFilePath(uri.clone()).into();
-        };
-
-        if path.exists() {
-            if self.include_fragments {
-                return self.check_fragment(&path, uri).await;
-            }
-            return Status::Ok(StatusCode::OK);
-        }
-
-        if path.extension().is_some() {
-            return ErrorKind::InvalidFilePath(uri.clone()).into();
-        }
-
-        // if the path has no file extension, try to append some
-        let mut path_buf = path.clone();
-        for ext in &self.fallback_extensions {
-            path_buf.set_extension(ext);
-            if path_buf.exists() {
-                if self.include_fragments {
-                    return self.check_fragment(&path_buf, uri).await;
-                }
-                return Status::Ok(StatusCode::OK);
-            }
-        }
-        ErrorKind::InvalidFilePath(uri.clone()).into()
+    /// Checks a `mailto` URI.
+    pub async fn check_mail(&self, uri: &Uri) -> Status {
+        self.email_checker.check_mail(uri).await
     }
 
     /// Checks a `file` URI's fragment.
@@ -699,43 +541,6 @@ impl Client {
             }
         }
     }
-
-    /// Check a mail address, or equivalently a `mailto` URI.
-    ///
-    /// URIs may contain query parameters (e.g. `contact@example.com?subject="Hello"`),
-    /// which are ignored by this check. The are not part of the mail address
-    /// and instead passed to a mail client.
-    #[cfg(all(feature = "email-check", feature = "native-tls"))]
-    pub async fn check_mail(&self, uri: &Uri) -> Status {
-        let address = uri.url.path().to_string();
-        let input = CheckEmailInput::new(address);
-        let result = &(check_email(&input).await);
-
-        if let Reachable::Invalid = result.is_reachable {
-            ErrorKind::UnreachableEmailAddress(uri.clone(), mail::error_from_output(result)).into()
-        } else {
-            Status::Ok(StatusCode::OK)
-        }
-    }
-
-    /// Check a mail address, or equivalently a `mailto` URI.
-    ///
-    /// This implementation simply excludes all email addresses.
-    #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
-    #[allow(clippy::unused_async)]
-    pub async fn check_mail(&self, _uri: &Uri) -> Status {
-        Status::Excluded
-    }
-}
-
-// Check if the given `Url` would cause `reqwest` to panic.
-// This is a workaround for https://github.com/lycheeverse/lychee/issues/539
-// and can be removed once https://github.com/seanmonstar/reqwest/pull/1399
-// got merged.
-// It is exactly the same check that reqwest runs internally, but unfortunately
-// it `unwrap`s (and panics!) instead of returning an error, which we could handle.
-fn validate_url(url: &Url) -> bool {
-    http::Uri::try_from(url.as_str()).is_err()
 }
 
 /// A shorthand function to check a single URI.
@@ -777,7 +582,7 @@ mod tests {
         chain::{ChainResult, Handler, RequestChain},
         mock_server,
         test_utils::get_mock_client_response,
-        Request, Status, Uri,
+        ErrorKind, Request, Status, Uri,
     };
 
     #[tokio::test]
@@ -1026,9 +831,14 @@ mod tests {
     #[tokio::test]
     async fn test_avoid_reqwest_panic() {
         let client = ClientBuilder::builder().build().client().unwrap();
-        // This request will fail, but it won't panic
+        // This request will result in an Unsupported status, but it won't panic
         let res = client.check("http://\"").await.unwrap();
-        assert!(res.status().is_error());
+
+        assert!(matches!(
+            res.status(),
+            Status::Unsupported(ErrorKind::BuildRequestClient(_))
+        ));
+        assert!(res.status().is_unsupported());
     }
 
     #[tokio::test]
