@@ -92,7 +92,7 @@ impl TokenSink for LinkExtractor {
                     return TokenSinkResult::Continue;
                 }
 
-                for attr in attrs {
+                for attr in &attrs {
                     let urls = LinkExtractor::extract_urls_from_elem_attr(
                         &attr.name.local,
                         &name,
@@ -104,8 +104,11 @@ impl TokenSink for LinkExtractor {
                         Some(urls) => urls
                             .into_iter()
                             .filter(|url| {
-                                // Only accept email addresses, which occur in `href` attributes
-                                // and start with `mailto:`. Technically, email addresses could
+                                // Only accept email addresses which
+                                // - occur in `href` attributes
+                                // - start with `mailto:`
+                                //
+                                // Technically, email addresses could
                                 // also occur in plain text, but we don't want to extract those
                                 // because of the high false positive rate.
                                 //
@@ -114,6 +117,18 @@ impl TokenSink for LinkExtractor {
                                 let is_mailto = url.starts_with("mailto:");
                                 let is_phone = url.starts_with("tel:");
                                 let is_href = attr.name.local.as_ref() == "href";
+
+                                if attrs.iter().any(|attr| {
+                                    &attr.name.local == "rel" && attr.value.contains("stylesheet")
+                                }) {
+                                    // Skip virtual/framework-specific stylesheet paths that start with /@ or @
+                                    // These are typically resolved by dev servers or build tools rather than being real URLs
+                                    // Examples: /@global/style.css, @tailwind/base.css as in
+                                    // `<link href="/@global/style.css" rel="stylesheet">`
+                                    if url.starts_with("/@") || url.starts_with('@') {
+                                        return false;
+                                    }
+                                }
 
                                 !is_email || (is_mailto && is_href) || (is_phone && is_href)
                             })
@@ -461,6 +476,16 @@ mod tests {
     fn test_skip_dns_prefetch_reverse_order() {
         let input = r#"
             <link href="https://example.com" rel="dns-prefetch">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_skip_emails_in_stylesheets() {
+        let input = r#"
+            <link href="/@global/global.css" rel="stylesheet">
         "#;
 
         let uris = extract_html(input, false);
