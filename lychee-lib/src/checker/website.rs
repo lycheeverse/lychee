@@ -193,7 +193,7 @@ impl WebsiteChecker {
         };
         let repo = match client.repos(&uri.owner, &uri.repo).get().await {
             Ok(repo) => repo,
-            Err(e) => return ErrorKind::GithubRequest(e).into(),
+            Err(e) => return ErrorKind::GithubRequest(Box::new(e)).into(),
         };
         if let Some(true) = repo.private {
             return Status::Ok(StatusCode::OK);
