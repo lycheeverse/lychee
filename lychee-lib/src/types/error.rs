@@ -86,12 +86,24 @@ pub enum ErrorKind {
     #[error("Error with base dir `{0}` : {1}")]
     InvalidBase(String, String),
 
+    /// Cannot join the given text with the base URL
+    #[error("Cannot join '{0}' with the base URL")]
+    InvalidBaseJoin(String),
+
+    /// Cannot convert the given path to a URI
+    #[error("Cannot convert path '{0}' to a URI")]
+    InvalidPathToUri(String),
+
+    /// The given URI type is not supported
+    #[error("Unsupported URI type: '{0}'")]
+    UnsupportedUriType(String),
+
     /// The given input can not be parsed into a valid URI remapping
     #[error("Error remapping URL: `{0}`")]
     InvalidUrlRemap(String),
 
     /// The given path does not resolve to a valid file
-    #[error("Cannot find local file {0}")]
+    #[error("Invalid file path: {0}")]
     InvalidFile(PathBuf),
 
     /// Error while traversing an input directory
@@ -254,6 +266,13 @@ impl PartialEq for ErrorKind {
             }
             (Self::Cookies(e1), Self::Cookies(e2)) => e1 == e2,
             (Self::InvalidFile(p1), Self::InvalidFile(p2)) => p1 == p2,
+            (Self::InvalidFilePath(u1), Self::InvalidFilePath(u2)) => u1 == u2,
+            (Self::InvalidFragment(u1), Self::InvalidFragment(u2)) => u1 == u2,
+            (Self::InvalidUrlFromPath(p1), Self::InvalidUrlFromPath(p2)) => p1 == p2,
+            (Self::InvalidBase(b1, e1), Self::InvalidBase(b2, e2)) => b1 == b2 && e1 == e2,
+            (Self::InvalidUrlRemap(r1), Self::InvalidUrlRemap(r2)) => r1 == r2,
+            (Self::EmptyUrl, Self::EmptyUrl) => true,
+
             _ => false,
         }
     }
@@ -289,6 +308,9 @@ impl Hash for ErrorKind {
             Self::UnreachableEmailAddress(u, ..) => u.hash(state),
             Self::InsecureURL(u, ..) => u.hash(state),
             Self::InvalidBase(base, e) => (base, e).hash(state),
+            Self::InvalidBaseJoin(s) => s.hash(state),
+            Self::InvalidPathToUri(s) => s.hash(state),
+            Self::UnsupportedUriType(s) => s.hash(state),
             Self::InvalidUrlRemap(remap) => (remap).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),

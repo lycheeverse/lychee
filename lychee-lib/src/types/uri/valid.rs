@@ -378,4 +378,9 @@ mod tests {
             website("https://example.com")
         );
     }
+
+    #[test]
+    fn test_file_uri() {
+        assert!(Uri::try_from("file:///path/to/file").unwrap().is_file());
+    }
 }

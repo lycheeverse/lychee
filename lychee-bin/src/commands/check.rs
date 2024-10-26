@@ -437,14 +437,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_invalid_url() {
-        // Run a normal request with an invalid Url
         let client = ClientBuilder::builder().build().client().unwrap();
-        let request = Request::try_from("http://\"").unwrap();
-        let response = check_url(&client, request).await;
-        assert!(response.status().is_error());
+        let uri = Uri::try_from("http://\"").unwrap();
+        let response = client.check_website(&uri, None).await.unwrap();
         assert!(matches!(
-            response.status(),
-            Status::Error(ErrorKind::InvalidURI(_))
+            response,
+            Status::Unsupported(ErrorKind::BuildRequestClient(_))
         ));
     }
 

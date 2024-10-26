@@ -87,6 +87,12 @@ mod tests {
         }
     }
 
+    #[cfg(test)]
+    /// Helper function to strip ANSI color codes for tests
+    fn strip_ansi_codes(s: &str) -> String {
+        console::strip_ansi_codes(s).to_string()
+    }
+
     #[test]
     fn test_format_status() {
         let status = Status::Ok(StatusCode::OK);
@@ -97,8 +103,10 @@ mod tests {
     fn test_format_response_with_ok_status() {
         let formatter = ColorFormatter;
         let body = mock_response_body(Status::Ok(StatusCode::OK), "https://example.com");
-        let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
-        assert_eq!(formatted_response, "     [200] https://example.com/");
+        assert_eq!(
+            strip_ansi_codes(&formatter.format_response(&body)),
+            "     [200] https://example.com/"
+        );
     }
 
     #[test]
@@ -108,8 +116,10 @@ mod tests {
             Status::Error(ErrorKind::InvalidUrlHost),
             "https://example.com/404",
         );
-        let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
-        assert_eq!(formatted_response, "   [ERROR] https://example.com/404");
+        assert_eq!(
+            strip_ansi_codes(&formatter.format_response(&body)),
+            "   [ERROR] https://example.com/404"
+        );
     }
 
     #[test]

@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::{types::accept::AcceptRange, AcceptRangeError};
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum StatusCodeSelectorError {
     #[error("invalid/empty input")]
     InvalidInput,
