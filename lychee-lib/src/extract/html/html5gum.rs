@@ -183,6 +183,22 @@ impl LinkExtractor {
             return;
         }
 
+        // Skip virtual/framework-specific stylesheet paths that start with /@ or @
+        // These are typically resolved by dev servers or build tools rather than being real URLs
+        // Examples: /@global/style.css, @tailwind/base.css
+        if self
+            .current_attributes
+            .get("rel")
+            .map_or(false, |rel| rel.contains("stylesheet"))
+        {
+            if let Some(href) = self.current_attributes.get("href") {
+                if href.starts_with("/@") || href.starts_with('@') {
+                    self.current_attributes.clear();
+                    return;
+                }
+            }
+        }
+
         let new_urls = self
             .extract_urls_from_elem_attr()
             .into_iter()
@@ -657,6 +673,16 @@ mod tests {
     fn test_skip_dns_prefetch_reverse_order() {
         let input = r#"
             <link href="https://example.com" rel="dns-prefetch">
+        "#;
+
+        let uris = extract_html(input, false);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_skip_emails_in_stylesheets() {
+        let input = r#"
+            <link href="/@global/global.css" rel="stylesheet">
         "#;
 
         let uris = extract_html(input, false);

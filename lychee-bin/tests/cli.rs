@@ -231,6 +231,17 @@ mod cli {
         Ok(())
     }
 
+    #[test]
+    fn test_stylesheet_misinterpreted_as_email() -> Result<()> {
+        test_json_output!(
+            "TEST_STYLESHEET_LINK.md",
+            MockResponseStats {
+                total: 0,
+                ..MockResponseStats::default()
+            }
+        )
+    }
+
     /// Test that a GitHub link can be checked without specifying the token.
     #[test]
     fn test_check_github_no_token() -> Result<()> {
