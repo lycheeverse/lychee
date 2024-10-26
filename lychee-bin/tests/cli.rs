@@ -972,7 +972,6 @@ mod cli {
 
         // Clean up
         fs::remove_file(&cache_file)?;
-
         Ok(())
     }
 
