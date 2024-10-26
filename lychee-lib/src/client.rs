@@ -364,9 +364,9 @@ impl ClientBuilder {
                 Octocrab::builder()
                     .personal_token(token.to_string())
                     .build()
-                    // this is essentially the same reqwest::ClientBuilder::build error
+                    // this is essentially the same `reqwest::ClientBuilder::build` error
                     // see https://docs.rs/octocrab/0.18.1/src/octocrab/lib.rs.html#360-364
-                    .map_err(ErrorKind::BuildGithubClient)?,
+                    .map_err(|e: octocrab::Error| ErrorKind::BuildGithubClient(Box::new(e)))?,
             ),
             _ => None,
         };
