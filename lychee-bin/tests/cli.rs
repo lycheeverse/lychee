@@ -1652,10 +1652,10 @@ mod cli {
             .stderr(contains(
                 "fixtures/fragments/file1.md#kebab-case-fragment-1",
             ))
-            .stdout(contains("15 Total"))
-            .stdout(contains("12 OK"))
-            // 3 failures because of missing fragments
-            .stdout(contains("3 Errors"));
+            .stdout(contains("21 Total"))
+            .stdout(contains("17 OK"))
+            // 4 failures because of missing fragments
+            .stdout(contains("4 Errors"));
     }
 
     #[test]
