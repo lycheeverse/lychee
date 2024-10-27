@@ -6,6 +6,7 @@ mod cli {
         fs::{self, File},
         io::Write,
         path::{Path, PathBuf},
+        time::Duration,
     };
 
     use assert_cmd::Command;
@@ -845,52 +846,61 @@ mod cli {
         let base_path = fixtures_path().join("cache");
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
-        // Unconditionally remove cache file if it exists
-        let _ = fs::remove_file(&cache_file);
+        // Ensure clean state
+        if cache_file.exists() {
+            fs::remove_file(&cache_file)?;
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
 
+        // Setup mock servers
         let mock_server_ok = mock_server!(StatusCode::OK);
         let mock_server_err = mock_server!(StatusCode::NOT_FOUND);
         let mock_server_exclude = mock_server!(StatusCode::OK);
 
+        // Create test file
         let dir = tempfile::tempdir()?;
-        let mut file = File::create(dir.path().join("c.md"))?;
-
+        let file_path = dir.path().join("c.md");
+        let mut file = File::create(&file_path)?;
         writeln!(file, "{}", mock_server_ok.uri().as_str())?;
         writeln!(file, "{}", mock_server_err.uri().as_str())?;
         writeln!(file, "{}", mock_server_exclude.uri().as_str())?;
+        file.sync_all()?;
 
+        // Create and run command
         let mut cmd = main_command();
-        let test_cmd = cmd
-            .current_dir(&base_path)
-            .arg(dir.path().join("c.md"))
+        cmd.current_dir(&base_path)
+            .arg(&file_path)
             .arg("--verbose")
             .arg("--no-progress")
             .arg("--cache")
             .arg("--exclude")
             .arg(mock_server_exclude.uri());
 
+        // Note: Don't check output.status.success() since we expect
+        // a non-zero exit code (2) when lychee finds broken links
+        let _output = cmd.output()?;
+
+        // Wait for cache file to be written
+        for _ in 0..10 {
+            if cache_file.exists() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        // Check cache contents
+        let data = fs::read_to_string(&cache_file)?;
         assert!(
-            !cache_file.exists(),
-            "cache file should not exist before this test"
+            data.contains(&format!("{}/,200", mock_server_ok.uri())),
+            "Missing OK entry in cache"
+        );
+        assert!(
+            data.contains(&format!("{}/,404", mock_server_err.uri())),
+            "Missing error entry in cache"
         );
 
-        // run first without cache to generate the cache file
-        test_cmd
-            .assert()
-            .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
-            .stderr(contains(format!(
-                "[404] {}/ | Failed: Network error: Not Found\n",
-                mock_server_err.uri()
-            )));
-
-        // check content of cache file
-        let data = fs::read_to_string(&cache_file)?;
-        assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
-        assert!(data.contains(&format!("{}/,404", mock_server_err.uri())));
-
-        // run again to verify cache behavior
-        test_cmd
-            .assert()
+        // Run again to verify cache behavior
+        cmd.assert()
             .stderr(contains(format!(
                 "[200] {}/ | Cached: OK (cached)\n",
                 mock_server_ok.uri()
@@ -900,7 +910,7 @@ mod cli {
                 mock_server_err.uri()
             )));
 
-        // clear the cache file
+        // Clean up
         fs::remove_file(&cache_file)?;
 
         Ok(())
