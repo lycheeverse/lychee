@@ -1723,4 +1723,26 @@ mod cli {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_json_format_in_config() -> Result<()> {
+        let mock_server = mock_server!(StatusCode::OK);
+        let config = fixtures_path().join("configs").join("format.toml");
+        let mut cmd = main_command();
+        cmd.arg("--config")
+            .arg(config)
+            .arg("-")
+            .write_stdin(mock_server.uri())
+            .env_clear()
+            .assert()
+            .success();
+
+        // Check that the output is in JSON format
+        let output = cmd.output().unwrap();
+        let output = std::str::from_utf8(&output.stdout).unwrap();
+        let json: serde_json::Value = serde_json::from_str(output)?;
+        assert_eq!(json["total"], 1);
+
+        Ok(())
+    }
 }

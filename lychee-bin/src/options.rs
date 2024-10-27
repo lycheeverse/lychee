@@ -46,9 +46,10 @@ const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
 /// The format to use for the final status report
-#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, VariantNames)]
+#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, VariantNames, PartialEq)]
 #[non_exhaustive]
 #[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub(crate) enum StatsFormat {
     #[default]
     Compact,
@@ -544,6 +545,7 @@ impl Config {
             exclude_link_local: false;
             exclude_loopback: false;
             exclude_mail: false;
+            format: StatsFormat::default();
             remap: Vec::<String>::new();
             fallback_extensions: Vec::<String>::new();
             header: Vec::<String>::new();
