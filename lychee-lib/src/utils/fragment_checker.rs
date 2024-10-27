@@ -68,8 +68,10 @@ impl FragmentChecker {
                 entry.insert(file_frags);
                 Ok(contains_fragment)
             }
-            Entry::Occupied(entry) => Ok(entry.get().contains(fragment)
-                || entry.get().contains(&fragment_decoded as &str)),
+            Entry::Occupied(entry) => {
+                Ok(entry.get().contains(fragment)
+                    || entry.get().contains(&fragment_decoded as &str))
+            }
         }
     }
 
