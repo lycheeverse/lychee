@@ -44,4 +44,14 @@ Therefore we put the test into a code block for now to prevent false positives.
 
 [Link to another file type](empty_file#fragment)
 
+# Ignore casing
+
+[Link with wrong casing](#IGNORE-CASING)
+
+# Fünf süße Äpfel
+
+[Link to umlauts](#fünf-süße-äpfel)
+[Link to umlauts wrong case](#fünf-sÜße-Äpfel)
+[Link to umlauts with percent encoding](#f%C3%BCnf-s%C3%BC%C3%9Fe-%C3%A4pfel)
+
 ##### Lets wear a hat: être
