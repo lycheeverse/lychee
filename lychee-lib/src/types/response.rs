@@ -94,7 +94,7 @@ impl Display for ResponseBody {
         }
 
         // Write status with separator
-        write!(f, " | {}", status_output)?;
+        write!(f, " | {status_output}")?;
 
         // Add details if available
         if let Some(details) = self.status.details() {
