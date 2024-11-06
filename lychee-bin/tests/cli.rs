@@ -946,11 +946,11 @@ mod cli {
         // Run again to verify cache behavior
         cmd.assert()
             .stderr(contains(format!(
-                "[200] {}/ | Cached: OK (cached)\n",
+                "[200] {}/ | OK (cached)\n",
                 mock_server_ok.uri()
             )))
             .stderr(contains(format!(
-                "[404] {}/ | Cached: Error (cached)\n",
+                "[404] {}/ | Error (cached)\n",
                 mock_server_err.uri()
             )));
 
@@ -999,11 +999,11 @@ mod cli {
             .assert()
             .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
             .stderr(contains(format!(
-                "[204] {}/ | OK (204 No Content): No Content\n",
+                "[204] {}/ | 204 No Content: No Content\n",
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
-                "[429] {}/ | Failed: Network error: Too Many Requests\n",
+                "[429] {}/ | Network error: Too Many Requests\n",
                 mock_server_too_many_requests.uri()
             )));
 
