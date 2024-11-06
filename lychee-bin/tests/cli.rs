@@ -112,6 +112,50 @@ mod cli {
         }};
     }
 
+    /// Test that the default report output format (compact) and mode (color)
+    /// prints the failed URLs as well as their status codes on error. Make
+    /// sure that the status code only occurs once.
+    #[test]
+    fn test_compact_output_format_contains_status() -> Result<()> {
+        let test_path = fixtures_path().join("TEST_INVALID_URLS.html");
+
+        let mut cmd = main_command();
+        cmd.arg("--format")
+            .arg("compact")
+            .arg("--mode")
+            .arg("color")
+            .arg(test_path)
+            .env("FORCE_COLOR", "1")
+            .assert()
+            .failure()
+            .code(2);
+
+        let output = cmd.output()?;
+
+        // Check that the output contains the status code (once) and the URL
+        let output_str = String::from_utf8_lossy(&output.stdout);
+
+        // The expected output is as follows:
+        // "Find details below."
+        // [EMPTY LINE]
+        // [path/to/file]:
+        //      [400] https://httpbin.org/status/404
+        //      [500] https://httpbin.org/status/500
+        //      [502] https://httpbin.org/status/502
+        // (the order of the URLs may vary)
+
+        // Check that the output contains the file path
+        assert!(output_str.contains("TEST_INVALID_URLS.html"));
+
+        let re = Regex::new(r"\s{5}\[\d{3}\] https://httpbin\.org/status/\d{3}").unwrap();
+        let matches: Vec<&str> = re.find_iter(&output_str).map(|m| m.as_str()).collect();
+
+        // Check that the status code occurs only once
+        assert_eq!(matches.len(), 3);
+
+        Ok(())
+    }
+
     /// JSON-formatted output should always be valid JSON.
     /// Additional hints and error messages should be printed to `stderr`.
     /// See https://github.com/lycheeverse/lychee/issues/1355
@@ -1080,7 +1124,7 @@ mod cli {
             .stderr(contains(format!(
                 "[IGNORED] {unsupported_url} | Unsupported: Error creating request client"
             )))
-            .stderr(contains(format!("[EXCLUDED] {excluded_url} | Excluded\n")));
+            .stderr(contains(format!("[EXCLUDED] {excluded_url}\n")));
 
         // The cache file should be empty, because the only checked URL is
         // unsupported and we don't want to cache that. It might be supported in

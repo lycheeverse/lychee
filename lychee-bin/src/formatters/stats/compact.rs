@@ -42,8 +42,7 @@ impl Display for CompactResponseStats {
             for response in responses {
                 writeln!(
                     f,
-                    "[{}] {}",
-                    response.status.code_as_string(),
+                    "{}",
                     response_formatter.format_detailed_response(response)
                 )?;
             }

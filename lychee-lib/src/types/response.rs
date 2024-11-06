@@ -79,19 +79,24 @@ pub struct ResponseBody {
 // matching in these cases.
 impl Display for ResponseBody {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Always write the URI
         write!(f, "{}", self.uri)?;
 
-        if let Status::Ok(StatusCode::OK) = self.status {
-            // Don't print anything else if the status code is 200.
-            // The output gets too verbose then.
+        // Early return for OK status to avoid verbose output
+        if matches!(self.status, Status::Ok(StatusCode::OK)) {
             return Ok(());
         }
 
-        // Add a separator between the URI and the additional details below.
-        // Note: To make the links clickable in some terminals,
-        // we add a space before the separator.
-        write!(f, " | {}", self.status)?;
+        // Format status and return early if empty
+        let status_output = self.status.to_string();
+        if status_output.is_empty() {
+            return Ok(());
+        }
 
+        // Write status with separator
+        write!(f, " | {}", status_output)?;
+
+        // Add details if available
         if let Some(details) = self.status.details() {
             write!(f, ": {details}")
         } else {

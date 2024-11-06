@@ -61,7 +61,7 @@ mod plain_tests {
         let body = mock_response_body(Status::Excluded, "https://example.com/not-checked");
         assert_eq!(
             formatter.format_response(&body),
-            "[EXCLUDED] https://example.com/not-checked | Excluded"
+            "[EXCLUDED] https://example.com/not-checked"
         );
     }
 

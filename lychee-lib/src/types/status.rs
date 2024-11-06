@@ -48,12 +48,12 @@ impl Display for Status {
             Status::Ok(code) => write!(f, "{code}"),
             Status::Redirected(code) => write!(f, "Redirect ({code})"),
             Status::UnknownStatusCode(code) => write!(f, "Unknown status ({code})"),
-            Status::Excluded => f.write_str("Excluded"),
             Status::Timeout(Some(code)) => write!(f, "Timeout ({code})"),
             Status::Timeout(None) => f.write_str("Timeout"),
             Status::Unsupported(e) => write!(f, "Unsupported: {e}"),
             Status::Error(e) => write!(f, "{e}"),
             Status::Cached(status) => write!(f, "{status}"),
+            Status::Excluded => Ok(()),
         }
     }
 }
