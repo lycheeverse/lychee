@@ -14,7 +14,7 @@ pub(crate) struct PlainFormatter;
 
 impl ResponseFormatter for PlainFormatter {
     fn format_response(&self, body: &ResponseBody) -> String {
-        body.to_string()
+        format!("[{}] {}", body.status.code_as_string(), body)
     }
 }
 
@@ -51,7 +51,7 @@ mod plain_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "[ERROR] https://example.com/404 | Failed: URL is missing a host"
+            "[ERROR] https://example.com/404 | URL is missing a host"
         );
     }
 
@@ -59,10 +59,9 @@ mod plain_tests {
     fn test_format_response_with_excluded_status() {
         let formatter = PlainFormatter;
         let body = mock_response_body(Status::Excluded, "https://example.com/not-checked");
-        assert_eq!(formatter.format_response(&body), body.to_string());
         assert_eq!(
             formatter.format_response(&body),
-            "[EXCLUDED] https://example.com/not-checked | Excluded"
+            "[EXCLUDED] https://example.com/not-checked"
         );
     }
 
@@ -73,7 +72,6 @@ mod plain_tests {
             Status::Redirected(StatusCode::MOVED_PERMANENTLY),
             "https://example.com/redirect",
         );
-        assert_eq!(formatter.format_response(&body), body.to_string());
         assert_eq!(
             formatter.format_response(&body),
             "[301] https://example.com/redirect | Redirect (301 Moved Permanently): Moved Permanently"
@@ -87,8 +85,6 @@ mod plain_tests {
             Status::UnknownStatusCode(StatusCode::from_u16(999).unwrap()),
             "https://example.com/unknown",
         );
-        assert_eq!(formatter.format_response(&body), body.to_string());
-        // Check the actual string representation of the status code
         assert_eq!(
             formatter.format_response(&body),
             "[999] https://example.com/unknown | Unknown status (999 <unknown status code>)"

@@ -112,6 +112,50 @@ mod cli {
         }};
     }
 
+    /// Test that the default report output format (compact) and mode (color)
+    /// prints the failed URLs as well as their status codes on error. Make
+    /// sure that the status code only occurs once.
+    #[test]
+    fn test_compact_output_format_contains_status() -> Result<()> {
+        let test_path = fixtures_path().join("TEST_INVALID_URLS.html");
+
+        let mut cmd = main_command();
+        cmd.arg("--format")
+            .arg("compact")
+            .arg("--mode")
+            .arg("color")
+            .arg(test_path)
+            .env("FORCE_COLOR", "1")
+            .assert()
+            .failure()
+            .code(2);
+
+        let output = cmd.output()?;
+
+        // Check that the output contains the status code (once) and the URL
+        let output_str = String::from_utf8_lossy(&output.stdout);
+
+        // The expected output is as follows:
+        // "Find details below."
+        // [EMPTY LINE]
+        // [path/to/file]:
+        //      [400] https://httpbin.org/status/404
+        //      [500] https://httpbin.org/status/500
+        //      [502] https://httpbin.org/status/502
+        // (the order of the URLs may vary)
+
+        // Check that the output contains the file path
+        assert!(output_str.contains("TEST_INVALID_URLS.html"));
+
+        let re = Regex::new(r"\s{5}\[\d{3}\] https://httpbin\.org/status/\d{3}").unwrap();
+        let matches: Vec<&str> = re.find_iter(&output_str).map(|m| m.as_str()).collect();
+
+        // Check that the status code occurs only once
+        assert_eq!(matches.len(), 3);
+
+        Ok(())
+    }
+
     /// JSON-formatted output should always be valid JSON.
     /// Additional hints and error messages should be printed to `stderr`.
     /// See https://github.com/lycheeverse/lychee/issues/1355
@@ -156,7 +200,7 @@ mod cli {
         let site_error_status = &output_json["fail_map"][&test_path.to_str().unwrap()][0]["status"];
 
         assert_eq!(
-            "error sending request for url (https://expired.badssl.com/)",
+            "error sending request for url (https://expired.badssl.com/) Maybe a certificate error?",
             site_error_status["details"]
         );
         Ok(())
@@ -425,7 +469,7 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(
-                "[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man"
+                "[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Network error: Not Found"
             ))
             .stderr(contains(
                 "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
@@ -902,11 +946,11 @@ mod cli {
         // Run again to verify cache behavior
         cmd.assert()
             .stderr(contains(format!(
-                "[200] {}/ | Cached: OK (cached)\n",
+                "[200] {}/ | OK (cached)\n",
                 mock_server_ok.uri()
             )))
             .stderr(contains(format!(
-                "[404] {}/ | Cached: Error (cached)\n",
+                "[404] {}/ | Error (cached)\n",
                 mock_server_err.uri()
             )));
 
@@ -955,11 +999,11 @@ mod cli {
             .assert()
             .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
             .stderr(contains(format!(
-                "[204] {}/ | OK (204 No Content): No Content\n",
+                "[204] {}/ | 204 No Content: No Content\n",
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
-                "[429] {}/ | Failed: Network error: Too Many Requests\n",
+                "[429] {}/ | Network error: Too Many Requests\n",
                 mock_server_too_many_requests.uri()
             )));
 
@@ -1017,11 +1061,11 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "[418] {}/ | Failed: Network error: I\'m a teapot",
+                "[418] {}/ | Network error: I\'m a teapot",
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                "[500] {}/ | Failed: Network error: Internal Server Error",
+                "[500] {}/ | Network error: Internal Server Error",
                 mock_server_server_error.uri()
             )));
 
@@ -1040,11 +1084,11 @@ mod cli {
             .assert()
             .success()
             .stderr(contains(format!(
-                "[418] {}/ | Cached: OK (cached)",
+                "[418] {}/ | OK (cached)",
                 mock_server_teapot.uri()
             )))
             .stderr(contains(format!(
-                "[500] {}/ | Cached: OK (cached)",
+                "[500] {}/ | OK (cached)",
                 mock_server_server_error.uri()
             )));
 
@@ -1080,7 +1124,7 @@ mod cli {
             .stderr(contains(format!(
                 "[IGNORED] {unsupported_url} | Unsupported: Error creating request client"
             )))
-            .stderr(contains(format!("[EXCLUDED] {excluded_url} | Excluded\n")));
+            .stderr(contains(format!("[EXCLUDED] {excluded_url}\n")));
 
         // The cache file should be empty, because the only checked URL is
         // unsupported and we don't want to cache that. It might be supported in

@@ -40,7 +40,11 @@ impl Display for CompactResponseStats {
         for (source, responses) in &stats.fail_map {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             for response in responses {
-                writeln!(f, "{}", response_formatter.format_response(response))?;
+                writeln!(
+                    f,
+                    "{}",
+                    response_formatter.format_detailed_response(response)
+                )?;
             }
 
             if let Some(suggestions) = &stats.suggestion_map.get(source) {
@@ -104,5 +108,78 @@ impl StatsFormatter for Compact {
             mode: self.mode.clone(),
         };
         Ok(Some(compact.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::formatters::stats::StatsFormatter;
+    use crate::{options::OutputMode, stats::ResponseStats};
+    use http::StatusCode;
+    use lychee_lib::{InputSource, ResponseBody, Status, Uri};
+    use std::collections::{HashMap, HashSet};
+    use url::Url;
+
+    use super::*;
+
+    #[test]
+    fn test_formatter() {
+        // A couple of dummy successes
+        let mut success_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
+
+        success_map.insert(
+            InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap())),
+            HashSet::from_iter(vec![ResponseBody {
+                uri: Uri::from(Url::parse("https://example.com").unwrap()),
+                status: Status::Ok(StatusCode::OK),
+            }]),
+        );
+
+        let err1 = ResponseBody {
+            uri: Uri::try_from("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap(),
+            status: Status::Ok(StatusCode::NOT_FOUND),
+        };
+
+        let err2 = ResponseBody {
+            uri: Uri::try_from("https://github.com/mre/boom").unwrap(),
+            status: Status::Ok(StatusCode::INTERNAL_SERVER_ERROR),
+        };
+
+        let mut fail_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
+        let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
+        fail_map.insert(source, HashSet::from_iter(vec![err1, err2]));
+
+        let stats = ResponseStats {
+            total: 1,
+            successful: 1,
+            errors: 2,
+            unknown: 0,
+            excludes: 0,
+            timeouts: 0,
+            duration_secs: 0,
+            fail_map,
+            suggestion_map: HashMap::default(),
+            unsupported: 0,
+            redirects: 0,
+            cached: 0,
+            success_map,
+            excluded_map: HashMap::default(),
+            detailed_stats: false,
+        };
+
+        let formatter = Compact::new(OutputMode::Plain);
+
+        let result = formatter.format(stats).unwrap().unwrap();
+
+        println!("{result}");
+
+        assert!(result.contains("🔍 1 Total"));
+        assert!(result.contains("✅ 1 OK"));
+        assert!(result.contains("🚫 2 Errors"));
+
+        assert!(result.contains("[https://example.com/]:"));
+        assert!(result
+            .contains("https://github.com/mre/idiomatic-rust-doesnt-exist-man | 404 Not Found"));
+        assert!(result.contains("https://github.com/mre/boom | 500 Internal Server Error"));
     }
 }
