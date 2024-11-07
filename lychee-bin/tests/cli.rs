@@ -994,7 +994,7 @@ mod cli {
             "cache file should not exist before this test"
         );
 
-        // run first without cache to generate the cache file
+        // Run first without cache to generate the cache file
         test_cmd
             .assert()
             .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
@@ -1007,7 +1007,7 @@ mod cli {
                 mock_server_too_many_requests.uri()
             )));
 
-        // check content of cache file
+        // Check content of cache file
         let data = fs::read_to_string(&cache_file)?;
 
         if data.is_empty() {
@@ -1018,8 +1018,8 @@ mod cli {
         assert!(!data.contains(&format!("{}/,204", mock_server_no_content.uri())));
         assert!(!data.contains(&format!("{}/,429", mock_server_too_many_requests.uri())));
 
-        // clear the cache file
-        fs::remove_file(&cache_file)?;
+        // Unconditionally remove the cache file
+        let _ = fs::remove_file(&cache_file);
         Ok(())
     }
 
