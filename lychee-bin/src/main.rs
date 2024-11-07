@@ -99,6 +99,7 @@ use crate::{
 };
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ExitCode {
     Success = 0,
     // NOTE: exit code 1 is used for any `Result::Err` bubbled up to `main()`
@@ -297,7 +298,12 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
 
     if opts.config.dump_inputs {
         let sources = collector.collect_sources(inputs);
-        let exit_code = commands::dump_inputs(sources, opts.config.output.as_ref()).await?;
+        let exit_code = commands::dump_inputs(
+            sources,
+            opts.config.output.as_ref(),
+            &opts.config.exclude_path,
+        )
+        .await?;
 
         return Ok(exit_code as i32);
     }
