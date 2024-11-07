@@ -170,7 +170,7 @@ impl Collector {
 mod tests {
     use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
 
-    use http::StatusCode;
+    use http::{HeaderMap, StatusCode};
     use reqwest::Url;
 
     use super::*;
@@ -215,7 +215,13 @@ mod tests {
         // Treat as plaintext file (no extension)
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path).unwrap();
-        let input = Input::new(&file_path.as_path().display().to_string(), None, true, None)?;
+        let input = Input::new(
+            &file_path.as_path().display().to_string(),
+            None,
+            true,
+            None,
+            HeaderMap::new(),
+        )?;
         let contents: Vec<_> = input
             .get_contents(true, true, true)
             .collect::<Vec<_>>()
@@ -228,7 +234,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
-        let input = Input::new("https://example.com/", None, true, None)?;
+        let input = Input::new("https://example.com/", None, true, None, HeaderMap::new())?;
         let contents: Vec<_> = input
             .get_contents(true, true, true)
             .collect::<Vec<_>>()
@@ -263,6 +269,7 @@ mod tests {
                 source: InputSource::String(TEST_STRING.to_owned()),
                 file_type_hint: None,
                 excluded_paths: None,
+                headers: HeaderMap::new(),
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
@@ -272,11 +279,13 @@ mod tests {
                 )),
                 file_type_hint: None,
                 excluded_paths: None,
+                headers: HeaderMap::new(),
             },
             Input {
                 source: InputSource::FsPath(file_path),
                 file_type_hint: None,
                 excluded_paths: None,
+                headers: HeaderMap::new(),
             },
             Input {
                 source: InputSource::FsGlob {
@@ -285,6 +294,7 @@ mod tests {
                 },
                 file_type_hint: None,
                 excluded_paths: None,
+                headers: HeaderMap::new(),
             },
         ];
 
@@ -309,7 +319,8 @@ mod tests {
         let input = Input {
             source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
             file_type_hint: Some(FileType::Markdown),
-                excluded_paths: None,
+            excluded_paths: None,
+            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -336,6 +347,7 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -365,6 +377,7 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -391,6 +404,7 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Markdown),
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
 
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
@@ -414,6 +428,7 @@ mod tests {
             source: InputSource::String(input),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -446,6 +461,7 @@ mod tests {
             source: InputSource::RemoteUrl(Box::new(server_uri.clone())),
             file_type_hint: None,
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
 
         let links = collect(vec![input], None, None).await.ok().unwrap();
@@ -466,6 +482,7 @@ mod tests {
             ),
             file_type_hint: None,
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, None).await.ok().unwrap();
 
@@ -496,6 +513,7 @@ mod tests {
                 )),
                 file_type_hint: Some(FileType::Html),
                 excluded_paths: None,
+                headers: HeaderMap::new(),
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
@@ -507,6 +525,7 @@ mod tests {
                 )),
                 file_type_hint: Some(FileType::Html),
                 excluded_paths: None,
+                headers: HeaderMap::new(),
             },
         ];
 
@@ -542,6 +561,7 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
 
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();

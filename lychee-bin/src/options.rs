@@ -1,5 +1,5 @@
 use crate::archive::Archive;
-use crate::parse::parse_base;
+use crate::parse::{parse_base, parse_headers};
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
 use clap::builder::PossibleValuesParser;
@@ -205,9 +205,18 @@ impl LycheeOptions {
         } else {
             Some(self.config.exclude_path.clone())
         };
+        let headers = parse_headers(&self.config.header)?;
         self.raw_inputs
             .iter()
-            .map(|s| Input::new(s, None, self.config.glob_ignore_case, excluded.clone()))
+            .map(|s| {
+                Input::new(
+                    s,
+                    None,
+                    self.config.glob_ignore_case,
+                    excluded.clone(),
+                    headers.clone(),
+                )
+            })
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
