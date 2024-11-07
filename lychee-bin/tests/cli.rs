@@ -14,7 +14,7 @@ mod cli {
     use http::StatusCode;
     use lychee_lib::{InputSource, ResponseBody};
     use predicates::{
-        prelude::predicate,
+        prelude::{predicate, PredicateBooleanExt},
         str::{contains, is_empty},
     };
     use pretty_assertions::assert_eq;
@@ -1649,6 +1649,24 @@ mod cli {
             .stdout(contains("fixtures/dump_inputs/markdown.md"))
             .stdout(contains("fixtures/dump_inputs/subfolder/example.bin"))
             .stdout(contains("fixtures/dump_inputs/some_file.txt"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_glob_exclude_path() -> Result<()> {
+        let pattern = fixtures_path().join("**/*");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg(pattern)
+            .arg("--exclude-path")
+            .arg(fixtures_path().join("dump_inputs/subfolder"))
+            .assert()
+            .success()
+            .stdout(contains("fixtures/dump_inputs/subfolder/test.html").not())
+            .stdout(contains("fixtures/dump_inputs/subfolder/file2.md").not())
+            .stdout(contains("fixtures/dump_inputs/subfolder").not());
 
         Ok(())
     }

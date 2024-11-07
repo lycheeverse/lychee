@@ -141,15 +141,7 @@ fn write_out(writer: &mut Box<dyn Write>, out_str: &str) -> io::Result<()> {
 mod tests {
     use super::*;
     use futures::stream;
-    use std::io::Read;
     use tempfile::NamedTempFile;
-
-    /// Helper function to read entire contents of a file
-    fn read_file(path: &PathBuf) -> Result<String> {
-        let mut contents = String::new();
-        fs::File::open(path)?.read_to_string(&mut contents)?;
-        Ok(contents)
-    }
 
     #[tokio::test]
     async fn test_dump_inputs_basic() -> Result<()> {
@@ -170,7 +162,7 @@ mod tests {
         assert_eq!(result, ExitCode::Success);
 
         // Verify output
-        let contents = read_file(&output_path)?;
+        let contents = fs::read_to_string(&output_path)?;
         assert_eq!(contents, "test/path1\ntest/path2\ntest/path3\n");
         Ok(())
     }
@@ -191,7 +183,7 @@ mod tests {
         let result = dump_inputs(stream, Some(&output_path), &excluded).await?;
         assert_eq!(result, ExitCode::Success);
 
-        let contents = read_file(&output_path)?;
+        let contents = fs::read_to_string(&output_path)?;
         assert_eq!(contents, "test/path1\ntest/path2\n");
         Ok(())
     }
@@ -205,7 +197,7 @@ mod tests {
         let result = dump_inputs(stream, Some(&output_path), &[]).await?;
         assert_eq!(result, ExitCode::Success);
 
-        let contents = read_file(&output_path)?;
+        let contents = fs::read_to_string(&output_path)?;
         assert_eq!(contents, "");
         Ok(())
     }
