@@ -7,7 +7,7 @@ use crate::{InputSource, Status, Uri};
 
 /// Response type returned by lychee after checking a URI
 //
-// Body is public to allow inserting into stats maps (fail_map, success_map,
+// Body is public to allow inserting into stats maps (error_map, success_map,
 // etc.) without `Clone`, because the inner `ErrorKind` in `response.status` is
 // not `Clone`. Use `body()` to access the body in the rest of the code.
 //

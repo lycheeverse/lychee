@@ -344,7 +344,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         let (stats, cache, exit_code) = commands::check(params).await?;
 
         let github_issues = stats
-            .fail_map
+            .error_map
             .values()
             .flatten()
             .any(|body| body.uri.domain() == Some("github.com"));
