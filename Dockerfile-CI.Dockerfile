@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim AS builder
+FROM debian:bookworm-slim AS builder
 WORKDIR /builder
 
 RUN apt-get update \
@@ -17,7 +17,7 @@ RUN apt-get update \
     esac \
     && chmod +x lychee
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y \
