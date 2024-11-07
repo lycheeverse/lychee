@@ -1,7 +1,7 @@
 //! Extract links and fragments from markdown documents
 use std::collections::{HashMap, HashSet};
 
-use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, TextMergeStream};
 
 use crate::{extract::plaintext::extract_raw_uri_from_plaintext, types::uri::raw::RawUri};
 
@@ -19,7 +19,7 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
     // which is why we keep track of entries and exits while traversing the input.
     let mut inside_code_block = false;
 
-    let parser = Parser::new_ext(input, md_extensions());
+    let parser = TextMergeStream::new(Parser::new_ext(input, md_extensions()));
     parser
         .filter_map(|event| match event {
             // A link.
@@ -346,6 +346,30 @@ $$
     fn test_single_word_footnote_is_not_detected_as_link() {
         let markdown = "This footnote is[^actually] a link.\n\n[^actually]: not";
         let expected = vec![];
+        let uris = extract_markdown(markdown, true);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_underscore_in_urls_middle() {
+        let markdown = r"https://example.com/_/foo";
+        let expected = vec![RawUri {
+            text: "https://example.com/_/foo".to_string(),
+            element: None,
+            attribute: None,
+        }];
+        let uris = extract_markdown(markdown, true);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_underscore_in_urls_end() {
+        let markdown = r"https://example.com/_";
+        let expected = vec![RawUri {
+            text: "https://example.com/_".to_string(),
+            element: None,
+            attribute: None,
+        }];
         let uris = extract_markdown(markdown, true);
         assert_eq!(uris, expected);
     }
