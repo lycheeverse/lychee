@@ -892,8 +892,9 @@ mod cli {
 
         // Ensure clean state
         if cache_file.exists() {
+            println!("Removing cache file before test: {:?}", cache_file);
             fs::remove_file(&cache_file)?;
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(500)).await;
         }
 
         // Setup mock servers
@@ -925,7 +926,7 @@ mod cli {
         let _output = cmd.output()?;
 
         // Wait for cache file to be written
-        for _ in 0..10 {
+        for _ in 0..20 {
             if cache_file.exists() {
                 break;
             }
@@ -934,6 +935,8 @@ mod cli {
 
         // Check cache contents
         let data = fs::read_to_string(&cache_file)?;
+        println!("Cache file contents: {}", data);
+
         assert!(
             data.contains(&format!("{}/,200", mock_server_ok.uri())),
             "Missing OK entry in cache"
@@ -955,7 +958,13 @@ mod cli {
             )));
 
         // Clean up
-        fs::remove_file(&cache_file)?;
+        fs::remove_file(&cache_file).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to remove cache file: {:?}, error: {}",
+                cache_file,
+                e
+            )
+        })?;
 
         Ok(())
     }
