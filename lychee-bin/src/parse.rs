@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use headers::{HeaderMap, HeaderName};
+use http::HeaderValue;
 use lychee_lib::{remap::Remaps, Base};
 use std::time::Duration;
 
@@ -20,14 +21,25 @@ pub(crate) const fn parse_duration_secs(secs: usize) -> Duration {
     Duration::from_secs(secs as u64)
 }
 
-/// Parse HTTP headers into a `HeaderMap`
-pub(crate) fn parse_headers<T: AsRef<str>>(headers: &[T]) -> Result<HeaderMap> {
-    let mut out = HeaderMap::new();
-    for header in headers {
-        let (key, val) = read_header(header.as_ref())?;
-        out.insert(HeaderName::from_bytes(key.as_bytes())?, val.parse()?);
+/// Parse a header given in a string format into a `HeaderMap`
+///
+/// Headers are expected to be in format "key:value".
+fn parse_header(header: &str) -> Result<HeaderMap, String> {
+    let header: Vec<&str> = header.split(':').collect();
+    if header.len() != 2 {
+        return Err("Wrong header format (see --help for format)".to_string());
     }
-    Ok(out)
+
+    let (header_name, header_value) = (header[0], header[1]);
+
+    let hn = HeaderName::from_lowercase(header_name.trim().to_lowercase().as_bytes())
+        .map_err(|e| e.to_string())?;
+
+    let hv = HeaderValue::from_str(header_value.trim()).map_err(|e| e.to_string())?;
+
+    let mut map = HeaderMap::new();
+    map.insert(hn, hv);
+    Ok(map)
 }
 
 /// Parse URI remaps

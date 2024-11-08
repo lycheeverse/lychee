@@ -5,6 +5,7 @@ use anyhow::{anyhow, Context, Error, Result};
 use clap::builder::PossibleValuesParser;
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
+use http::HeaderMap;
 use lychee_lib::{
     Base, BasicAuthSelector, Input, StatusCodeExcluder, StatusCodeSelector, DEFAULT_MAX_REDIRECTS,
     DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
@@ -205,7 +206,6 @@ impl LycheeOptions {
         } else {
             Some(self.config.exclude_path.clone())
         };
-        let headers = parse_headers(&self.config.header)?;
         self.raw_inputs
             .iter()
             .map(|s| {
@@ -214,7 +214,7 @@ impl LycheeOptions {
                     None,
                     self.config.glob_ignore_case,
                     excluded.clone(),
-                    headers.clone(),
+                    self.config.header.clone(),
                 )
             })
             .collect::<Result<_, _>>()
@@ -409,10 +409,13 @@ Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
     )]
     pub(crate) fallback_extensions: Vec<String>,
 
-    /// Custom request header
-    #[arg(long)]
-    #[serde(default)]
-    pub(crate) header: Vec<String>,
+    /// Set custom header for requests
+    #[clap(
+        long = "header",
+        value_parser = parse_header,
+        number_of_values = 1
+    )]
+    pub header: Vec<HeaderMap>,
 
     /// A List of accepted status codes for valid links
     #[arg(
