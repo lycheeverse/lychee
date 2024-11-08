@@ -219,7 +219,7 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) no_progress: bool,
 
-    /// A list of custom extensions for link checking
+    /// A list of file extensions. Files not matching the specified extensions are skipped.
     ///
     /// E.g. a user can specify `--extensions html,htm,php,asp,aspx,jsp,cgi`
     /// to check for links in files with these extensions.
