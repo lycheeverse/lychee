@@ -20,8 +20,8 @@ impl Display for CompactResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let stats = &self.stats;
 
-        if !stats.fail_map.is_empty() {
-            let input = if stats.fail_map.len() == 1 {
+        if !stats.error_map.is_empty() {
+            let input = if stats.error_map.len() == 1 {
                 "input"
             } else {
                 "inputs"
@@ -31,13 +31,13 @@ impl Display for CompactResponseStats {
                 f,
                 BOLD_PINK,
                 "Issues found in {} {input}. Find details below.\n\n",
-                stats.fail_map.len()
+                stats.error_map.len()
             )?;
         }
 
         let response_formatter = get_response_formatter(&self.mode);
 
-        for (source, responses) in &stats.fail_map {
+        for (source, responses) in &stats.error_map {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             for response in responses {
                 writeln!(
@@ -145,9 +145,9 @@ mod tests {
             status: Status::Ok(StatusCode::INTERNAL_SERVER_ERROR),
         };
 
-        let mut fail_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
+        let mut error_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
-        fail_map.insert(source, HashSet::from_iter(vec![err1, err2]));
+        error_map.insert(source, HashSet::from_iter(vec![err1, err2]));
 
         let stats = ResponseStats {
             total: 1,
@@ -157,7 +157,7 @@ mod tests {
             excludes: 0,
             timeouts: 0,
             duration_secs: 0,
-            fail_map,
+            error_map,
             suggestion_map: HashMap::default(),
             unsupported: 0,
             redirects: 0,

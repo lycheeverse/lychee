@@ -87,7 +87,7 @@ mod cli {
         errors: usize,
         cached: usize,
         success_map: HashMap<InputSource, HashSet<ResponseBody>>,
-        fail_map: HashMap<InputSource, HashSet<ResponseBody>>,
+        error_map: HashMap<InputSource, HashSet<ResponseBody>>,
         suggestion_map: HashMap<InputSource, HashSet<ResponseBody>>,
         excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
     }
@@ -156,6 +156,61 @@ mod cli {
         Ok(())
     }
 
+    /// Test JSON output format
+    #[tokio::test]
+    async fn test_json_output() -> Result<()> {
+        // Server that returns a bunch of 200 OK responses
+        let mock_server_ok = mock_server!(StatusCode::OK);
+        let mut cmd = main_command();
+        cmd.arg("--format")
+            .arg("json")
+            .arg("-vv")
+            .arg("--no-progress")
+            .arg("-")
+            .write_stdin(mock_server_ok.uri())
+            .assert()
+            .success();
+        let output = cmd.output().unwrap();
+        let output_json = serde_json::from_slice::<Value>(&output.stdout)?;
+
+        // Check that the output is valid JSON
+        assert!(output_json.is_object());
+        // Check that the output contains the expected keys
+        assert!(output_json.get("detailed_stats").is_some());
+        assert!(output_json.get("success_map").is_some());
+        assert!(output_json.get("error_map").is_some());
+        assert!(output_json.get("excluded_map").is_some());
+
+        // Check the success map
+        let success_map = output_json["success_map"].as_object().unwrap();
+        assert_eq!(success_map.len(), 1);
+
+        // Get the actual URL from the mock server for comparison
+        let mock_url = mock_server_ok.uri();
+
+        // Create the expected success map structure
+        let expected_success_map = serde_json::json!({
+            "stdin": [
+                {
+                    "status": {
+                        "code": 200,
+                        "text": "200 OK"
+                    },
+                    "url": format!("{mock_url}/"),
+                }
+            ]
+        });
+
+        // Compare the actual success map with the expected one
+        assert_eq!(
+            success_map,
+            expected_success_map.as_object().unwrap(),
+            "Success map doesn't match expected structure"
+        );
+
+        Ok(())
+    }
+
     /// JSON-formatted output should always be valid JSON.
     /// Additional hints and error messages should be printed to `stderr`.
     /// See https://github.com/lycheeverse/lychee/issues/1355
@@ -195,9 +250,10 @@ mod cli {
         // Check that the output is valid JSON
         assert!(serde_json::from_slice::<Value>(&output.stdout).is_ok());
 
-        // Parse site error status from the fail_map
+        // Parse site error status from the error_map
         let output_json = serde_json::from_slice::<Value>(&output.stdout).unwrap();
-        let site_error_status = &output_json["fail_map"][&test_path.to_str().unwrap()][0]["status"];
+        let site_error_status =
+            &output_json["error_map"][&test_path.to_str().unwrap()][0]["status"];
 
         assert_eq!(
             "error sending request for url (https://expired.badssl.com/) Maybe a certificate error?",

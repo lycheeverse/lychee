@@ -49,7 +49,7 @@ impl Display for DetailedResponseStats {
 
         let response_formatter = get_response_formatter(&self.mode);
 
-        for (source, responses) in &stats.fail_map {
+        for (source, responses) in &stats.error_map {
             // Using leading newlines over trailing ones (e.g. `writeln!`)
             // lets us avoid extra newlines without any additional logic.
             write!(f, "\n\nErrors in {source}")?;
@@ -115,9 +115,9 @@ mod tests {
             status: Status::Ok(StatusCode::INTERNAL_SERVER_ERROR),
         };
 
-        let mut fail_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
+        let mut error_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
-        fail_map.insert(source, HashSet::from_iter(vec![err1, err2]));
+        error_map.insert(source, HashSet::from_iter(vec![err1, err2]));
 
         let stats = ResponseStats {
             total: 2,
@@ -132,7 +132,7 @@ mod tests {
             cached: 0,
             suggestion_map: HashMap::default(),
             success_map: HashMap::default(),
-            fail_map,
+            error_map,
             excluded_map: HashMap::default(),
             detailed_stats: true,
         };

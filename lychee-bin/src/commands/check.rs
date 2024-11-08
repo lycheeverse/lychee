@@ -362,7 +362,7 @@ fn show_progress(
 
 fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
     stats
-        .fail_map
+        .error_map
         .iter()
         .flat_map(|(source, set)| {
             set.iter()

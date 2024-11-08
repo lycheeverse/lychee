@@ -100,7 +100,7 @@ impl Display for MarkdownResponseStats {
         writeln!(f)?;
         writeln!(f, "{}", stats_table(&self.0))?;
 
-        write_stats_per_input(f, "Errors", &stats.fail_map, |response| {
+        write_stats_per_input(f, "Errors", &stats.error_map, |response| {
             markdown_response(response).map_err(|_e| fmt::Error)
         })?;
 

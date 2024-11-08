@@ -11,7 +11,7 @@ use serde::Serialize;
 ///
 /// This struct contains various counters for the responses received during a
 /// run. It also contains maps to store the responses for each status (success,
-/// fail, excluded, etc.) and the sources of the responses.
+/// error, excluded, etc.) and the sources of the responses.
 ///
 /// The `detailed_stats` field is used to enable or disable the storage of the
 /// responses in the maps for successful and excluded responses. If it's set to
@@ -39,7 +39,7 @@ pub(crate) struct ResponseStats {
     /// Map to store successful responses (if `detailed_stats` is enabled)
     pub(crate) success_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Map to store failed responses (if `detailed_stats` is enabled)
-    pub(crate) fail_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    pub(crate) error_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Replacement suggestions for failed responses (if `--suggest` is enabled)
     pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
     /// Map to store excluded responses (if `detailed_stats` is enabled)
@@ -91,7 +91,7 @@ impl ResponseStats {
         let status = response.status();
         let source = response.source().clone();
         let status_map_entry = match status {
-            _ if status.is_error() => self.fail_map.entry(source).or_default(),
+            _ if status.is_error() => self.error_map.entry(source).or_default(),
             Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),
             Status::Excluded if self.detailed_stats => self.excluded_map.entry(source).or_default(),
             _ => return,
@@ -174,9 +174,9 @@ mod tests {
         stats.add(dummy_ok());
 
         let response = dummy_error();
-        let expected_fail_map: HashMap<InputSource, HashSet<ResponseBody>> =
+        let expected_error_map: HashMap<InputSource, HashSet<ResponseBody>> =
             HashMap::from_iter([(response.source().clone(), HashSet::from_iter([response.1]))]);
-        assert_eq!(stats.fail_map, expected_fail_map);
+        assert_eq!(stats.error_map, expected_error_map);
 
         assert!(stats.success_map.is_empty());
     }
@@ -185,20 +185,20 @@ mod tests {
     async fn test_detailed_stats() {
         let mut stats = ResponseStats::extended();
         assert!(stats.success_map.is_empty());
-        assert!(stats.fail_map.is_empty());
+        assert!(stats.error_map.is_empty());
         assert!(stats.excluded_map.is_empty());
 
         stats.add(dummy_error());
         stats.add(dummy_excluded());
         stats.add(dummy_ok());
 
-        let mut expected_fail_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
+        let mut expected_error_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         let response = dummy_error();
-        let entry = expected_fail_map
+        let entry = expected_error_map
             .entry(response.source().clone())
             .or_default();
         entry.insert(response.1);
-        assert_eq!(stats.fail_map, expected_fail_map);
+        assert_eq!(stats.error_map, expected_error_map);
 
         let mut expected_success_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         let response = dummy_ok();
