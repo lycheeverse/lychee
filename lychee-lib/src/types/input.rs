@@ -3,7 +3,6 @@ use crate::{utils, ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
-use ignore::types::TypesBuilder;
 use ignore::WalkBuilder;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -12,6 +11,8 @@ use std::fmt::Display;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::io::{stdin, AsyncReadExt};
+
+use super::FileExtensions;
 
 const STDIN: &str = "-";
 
@@ -204,7 +205,7 @@ impl Input {
         skip_missing: bool,
         skip_hidden: bool,
         skip_gitignored: bool,
-        extensions: Vec<String>,
+        extensions: FileExtensions,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             match self.source {
@@ -227,15 +228,9 @@ impl Input {
                 }
                 InputSource::FsPath(ref path) => {
                     if path.is_dir() {
-
-                        let mut types_builder = TypesBuilder::new();
-                        for ext in extensions {
-                            types_builder.add(&ext, &format!("*.{ext}"))?;
-                        }
-
                         for entry in WalkBuilder::new(path)
                             .standard_filters(skip_gitignored)
-                            .types(types_builder.select("all").build()?)
+                            .types(extensions.into())
                             .hidden(skip_hidden)
                             .build()
                         {

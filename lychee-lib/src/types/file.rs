@@ -1,5 +1,83 @@
-use std::path::Path;
+use serde::{Deserialize, Serialize};
+use std::{
+    fmt::{self, Display, Formatter},
+    path::Path,
+    str::FromStr,
+};
 use url::Url;
+
+/// File extensions that lychee can handle
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileExtensions(Vec<String>);
+
+impl FileExtensions {
+    /// Create a new set of file extensions
+    #[must_use]
+    pub const fn new(extensions: Vec<String>) -> Self {
+        Self(extensions)
+    }
+
+    /// Check if a file extension is supported
+    #[must_use]
+    pub fn is_supported(&self, extension: &str) -> bool {
+        self.0.contains(&extension.to_string())
+    }
+}
+
+#[cfg(test)]
+impl FileExtensions {
+    /// Get the number of supported file extensions
+    ///
+    /// This is only used in tests to verify that the number of supported
+    /// extensions matches the expected number.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Check if the set of file extensions is empty
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl From<FileExtensions> for ignore::types::Types {
+    fn from(extensions: FileExtensions) -> Self {
+        let mut types_builder = ignore::types::TypesBuilder::new();
+        for ext in extensions.0 {
+            types_builder.add(&ext, &format!("*.{ext}")).unwrap();
+        }
+        types_builder.select("all").build().unwrap()
+    }
+}
+
+impl From<Vec<String>> for FileExtensions {
+    fn from(extensions: Vec<String>) -> Self {
+        Self(extensions)
+    }
+}
+
+impl FromStr for FileExtensions {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.split(',').map(str::to_string).collect()))
+    }
+}
+
+impl Display for FileExtensions {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.0.join(","))
+    }
+}
+
+impl Default for FileExtensions {
+    fn default() -> Self {
+        // Check Markdown and HTML files by default
+        FileType::default_extensions()
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 /// `FileType` defines which file types lychee can handle
@@ -23,11 +101,11 @@ impl FileType {
 
     /// Default extensions which are supported by lychee
     #[must_use]
-    pub fn default_extensions() -> Vec<String> {
+    pub fn default_extensions() -> FileExtensions {
         let mut extensions = Vec::new();
         extensions.extend(Self::MARKDOWN_EXTENSIONS.iter().map(|&s| s.to_string()));
         extensions.extend(Self::HTML_EXTENSIONS.iter().map(|&s| s.to_string()));
-        extensions
+        FileExtensions(extensions)
     }
 
     /// Get the [`FileType`] from an extension string
@@ -107,10 +185,10 @@ mod tests {
     fn test_default_extensions() {
         let extensions = FileType::default_extensions();
         // Test some known extensions
-        assert!(extensions.contains(&"md".to_string()));
-        assert!(extensions.contains(&"html".to_string()));
-        assert!(extensions.contains(&"markdown".to_string()));
-        assert!(extensions.contains(&"htm".to_string()));
+        assert!(extensions.is_supported("md"));
+        assert!(extensions.is_supported("html"));
+        assert!(extensions.is_supported("markdown"));
+        assert!(extensions.is_supported("htm"));
         // Test the count matches our static arrays
         assert_eq!(
             extensions.len(),

@@ -6,9 +6,9 @@ use clap::builder::PossibleValuesParser;
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, BasicAuthSelector, FileType, Input, StatusCodeExcluder, StatusCodeSelector,
-    DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS,
-    DEFAULT_USER_AGENT,
+    Base, BasicAuthSelector, FileExtensions, FileType, Input, StatusCodeExcluder,
+    StatusCodeSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
+    DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -235,8 +235,9 @@ Multiple extensions can be separated by commas. Note that if you want to check f
 which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
 specify both extensions explicitly."
     )]
-    #[serde(default = "FileType::default_extensions")]
-    pub(crate) extensions: Vec<String>,
+    #[arg(default_value_t = FileType::default_extensions())]
+    #[serde(default)]
+    pub(crate) extensions: FileExtensions,
 
     #[arg(help = HELP_MSG_CACHE)]
     #[arg(long)]

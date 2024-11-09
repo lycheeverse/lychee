@@ -1,3 +1,4 @@
+use crate::types::FileExtensions;
 use crate::InputSource;
 use crate::{
     basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri, utils::request,
@@ -105,11 +106,14 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub fn collect_links_with_ext(
+    pub fn collect_links_with_ext<F>(
         self,
         inputs: Vec<Input>,
-        extensions: Vec<String>,
-    ) -> impl Stream<Item = Result<Request>> {
+        file_extensions: F,
+    ) -> impl Stream<Item = Result<Request>>
+    where
+        F: Into<FileExtensions> + Clone + Send + 'static,
+    {
         let skip_missing_inputs = self.skip_missing_inputs;
         let skip_hidden = self.skip_hidden;
         let skip_ignored = self.skip_ignored;
@@ -117,14 +121,19 @@ impl Collector {
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {
                 let default_base = global_base.clone();
-                let extensions = extensions.clone();
+                let extensions = file_extensions.clone();
                 async move {
                     let base = match &input.source {
                         InputSource::RemoteUrl(url) => Base::try_from(url.as_str()).ok(),
                         _ => default_base,
                     };
                     input
-                        .get_contents(skip_missing_inputs, skip_hidden, skip_ignored, extensions)
+                        .get_contents(
+                            skip_missing_inputs,
+                            skip_hidden,
+                            skip_ignored,
+                            extensions.into(),
+                        )
                         .map(move |content| (content, base.clone()))
                 }
             })
@@ -171,7 +180,7 @@ mod tests {
     async fn collect_verbatim(
         inputs: Vec<Input>,
         base: Option<Base>,
-        extensions: Vec<String>,
+        extensions: FileExtensions,
     ) -> HashSet<Uri> {
         let responses = Collector::new(base)
             .include_verbatim(true)
