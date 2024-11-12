@@ -22,7 +22,7 @@ impl CookieJar {
     /// # Errors
     ///
     /// This function will return an error if
-    /// - the file cannot be opened (except for NotFound) or
+    /// - the file cannot be opened (except for `NotFound`) or
     /// - if the file is not valid JSON in either new or legacy format
     pub fn load(path: PathBuf) -> Result<Self> {
         match std::fs::File::open(&path).map(std::io::BufReader::new) {
@@ -30,6 +30,7 @@ impl CookieJar {
                 info!("Loading cookies from {}", path.display());
 
                 // Try loading with new format first, fall back to legacy format
+                #[allow(clippy::single_match_else)]
                 let store = match cookie_store::serde::json::load(&mut reader) {
                     Ok(store) => store,
                     Err(_) => {
