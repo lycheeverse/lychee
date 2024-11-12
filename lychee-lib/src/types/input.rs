@@ -12,8 +12,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::io::{stdin, AsyncReadExt};
 
-use super::FileExtensions;
-
 const STDIN: &str = "-";
 
 #[derive(Debug)]
@@ -205,7 +203,7 @@ impl Input {
         skip_missing: bool,
         skip_hidden: bool,
         skip_gitignored: bool,
-        extensions: FileExtensions,
+        file_type: FileType,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             match self.source {
@@ -230,7 +228,7 @@ impl Input {
                     if path.is_dir() {
                         for entry in WalkBuilder::new(path)
                             .standard_filters(skip_gitignored)
-                            .types(extensions.into())
+                            .types(file_type.to_ignore_types())
                             .hidden(skip_hidden)
                             .build()
                         {

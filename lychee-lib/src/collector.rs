@@ -1,9 +1,8 @@
-use crate::types::FileExtensions;
-use crate::InputSource;
 use crate::{
     basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri, utils::request,
     Base, Input, Request, Result,
 };
+use crate::{FileType, InputSource};
 use futures::TryStreamExt;
 use futures::{
     stream::{self, Stream},
@@ -96,7 +95,7 @@ impl Collector {
     /// Convenience method to fetch all unique links from inputs
     /// with the default extensions.
     pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
-        self.collect_links_with_ext(inputs, crate::types::FileType::default_extensions())
+        self.collect_links_with_filetype(inputs, FileType::default())
     }
 
     /// Fetch all unique links from inputs
@@ -106,14 +105,11 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub fn collect_links_with_ext<F>(
+    pub fn collect_links_with_filetype(
         self,
         inputs: Vec<Input>,
-        file_extensions: F,
-    ) -> impl Stream<Item = Result<Request>>
-    where
-        F: Into<FileExtensions> + Clone + Send + 'static,
-    {
+        file_type: FileType,
+    ) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
         let skip_hidden = self.skip_hidden;
         let skip_ignored = self.skip_ignored;
@@ -121,19 +117,13 @@ impl Collector {
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {
                 let default_base = global_base.clone();
-                let extensions = file_extensions.clone();
                 async move {
                     let base = match &input.source {
                         InputSource::RemoteUrl(url) => Base::try_from(url.as_str()).ok(),
                         _ => default_base,
                     };
                     input
-                        .get_contents(
-                            skip_missing_inputs,
-                            skip_hidden,
-                            skip_ignored,
-                            extensions.into(),
-                        )
+                        .get_contents(skip_missing_inputs, skip_hidden, skip_ignored, file_type)
                         .map(move |content| (content, base.clone()))
                 }
             })
@@ -154,18 +144,15 @@ impl Collector {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
-
-    use http::StatusCode;
-    use reqwest::Url;
-
     use super::*;
     use crate::{
         mock_server,
         test_utils::{load_fixture, mail, path, website},
-        types::{FileType, Input, InputSource},
         Result, Uri,
     };
+    use http::StatusCode;
+    use reqwest::Url;
+    use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
 
     // Helper function to run the collector on the given inputs
     async fn collect(inputs: Vec<Input>, base: Option<Base>) -> HashSet<Uri> {
@@ -180,11 +167,11 @@ mod tests {
     async fn collect_verbatim(
         inputs: Vec<Input>,
         base: Option<Base>,
-        extensions: FileExtensions,
+        file_type: FileType,
     ) -> HashSet<Uri> {
         let responses = Collector::new(base)
             .include_verbatim(true)
-            .collect_links_with_ext(inputs, extensions);
+            .collect_links_with_filetype(inputs, file_type);
         responses.map(|r| r.unwrap().uri).collect().await
     }
 
@@ -202,7 +189,7 @@ mod tests {
         let _file = File::create(&file_path).unwrap();
         let input = Input::new(&file_path.as_path().display().to_string(), None, true, None)?;
         let contents: Vec<_> = input
-            .get_contents(true, true, true, FileType::default_extensions())
+            .get_contents(true, true, true, FileType::default())
             .collect::<Vec<_>>()
             .await;
 
@@ -215,7 +202,7 @@ mod tests {
     async fn test_url_without_extension_is_html() -> Result<()> {
         let input = Input::new("https://example.com/", None, true, None)?;
         let contents: Vec<_> = input
-            .get_contents(true, true, true, FileType::default_extensions())
+            .get_contents(true, true, true, FileType::default())
             .collect::<Vec<_>>()
             .await;
 
@@ -273,7 +260,7 @@ mod tests {
             },
         ];
 
-        let links = collect_verbatim(inputs, None, FileType::default_extensions()).await;
+        let links = collect_verbatim(inputs, None, FileType::default()).await;
 
         let expected_links = HashSet::from_iter([
             website(TEST_STRING),
