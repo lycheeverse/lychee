@@ -16,6 +16,7 @@ async-stream = "0.3.6"
 async-trait = "0.1.83"
 cached = "0.54.0"
 check-if-email-exists = { version = "0.9.1", optional = true }
+cookie_store = "0.21.1"
 email_address = "0.2.9"
 futures = "0.3.31"
 glob = "0.3.1"
@@ -42,7 +43,7 @@ reqwest = { version = "0.12.9", default-features = false, features = [
     "trust-dns",
     "cookies",
 ] }
-reqwest_cookie_store = "0.8.0"
+reqwest_cookie_store = { version = "0.8.0", features = ["serde"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build

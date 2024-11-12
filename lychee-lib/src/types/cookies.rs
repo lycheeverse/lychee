@@ -30,7 +30,7 @@ impl CookieJar {
             Ok(reader) => {
                 info!("Loading cookies from {}", path.display());
                 let inner = Arc::new(CookieStoreMutex::new(
-                    ReqwestCookieStore::load_json(reader)
+                    cookie_store::serde::json::load(reader)
                         .map_err(|e| ErrorKind::Cookies(format!("Failed to load cookies: {e}")))?,
                 ));
                 Ok(Self { path, inner })
@@ -56,11 +56,20 @@ impl CookieJar {
     /// - if the file cannot be written to or
     /// - if the file cannot be serialized to JSON
     pub fn save(&self) -> Result<()> {
+        info!("Saving cookies to {}", self.path.display());
+
+        // Create parent directories if they don't exist
+        if let Some(parent) = self.path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
         let mut file = std::fs::File::create(&self.path)?;
-        self.inner
+        let store = self
+            .inner
             .lock()
-            .map_err(|e| ErrorKind::Cookies(format!("Failed to lock cookie store: {e}")))?
-            .save_json(&mut file)
+            .map_err(|e| ErrorKind::Cookies(format!("Failed to lock cookie store: {e}")))?;
+
+        cookie_store::serde::json::save(&store, &mut file)
             .map_err(|e| ErrorKind::Cookies(format!("Failed to save cookies: {e}")))
     }
 }

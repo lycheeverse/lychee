@@ -1662,7 +1662,6 @@ mod cli {
     async fn test_cookie_jar() -> Result<()> {
         // Create a random cookie jar file
         let cookie_jar = NamedTempFile::new()?;
-
         let mut cmd = main_command();
         cmd.arg("--cookie-jar")
             .arg(cookie_jar.path().to_str().unwrap())
@@ -1675,15 +1674,13 @@ mod cli {
 
         // check that the cookie jar file contains the expected cookies
         let file = std::fs::File::open(cookie_jar.path()).map(std::io::BufReader::new)?;
-        let cookie_store = reqwest_cookie_store::CookieStore::load_json(file).unwrap();
+        let cookie_store = cookie_store::serde::json::load(file)
+            .map_err(|e| anyhow::anyhow!("Failed to load cookie jar: {}", e))?;
         let all_cookies = cookie_store.iter_any().collect::<Vec<_>>();
-
         assert!(!all_cookies.is_empty());
         assert!(all_cookies.iter().all(|c| c.domain() == Some("google.com")));
-
         Ok(())
     }
-
     #[test]
     fn test_dump_inputs_glob_md() -> Result<()> {
         let pattern = fixtures_path().join("**/*.md");

@@ -58,6 +58,7 @@ url = "2.5.2"
 
 [dev-dependencies]
 assert_cmd = "2.0.16"
+cookie_store = "0.21.1"
 predicates = "3.1.2"
 pretty_assertions = "1.4.1"
 tempfile = "3.14.0"
