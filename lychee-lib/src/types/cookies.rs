@@ -58,7 +58,7 @@ impl CookieJar {
         }
     }
 
-    /// Save the cookie store to file as JSON using the new format
+    /// Save the cookie store to file as JSON
     /// This will overwrite the file, which was loaded if any
     ///
     /// # Errors

@@ -9,6 +9,7 @@ mod cli {
         time::Duration,
     };
 
+    use anyhow::anyhow;
     use assert_cmd::Command;
     use assert_json_diff::assert_json_include;
     use http::StatusCode;
@@ -1675,7 +1676,7 @@ mod cli {
         // check that the cookie jar file contains the expected cookies
         let file = std::fs::File::open(cookie_jar.path()).map(std::io::BufReader::new)?;
         let cookie_store = cookie_store::serde::json::load(file)
-            .map_err(|e| anyhow::anyhow!("Failed to load cookie jar: {}", e))?;
+            .map_err(|e| anyhow!("Failed to load cookie jar: {e}"))?;
         let all_cookies = cookie_store.iter_any().collect::<Vec<_>>();
         assert!(!all_cookies.is_empty());
         assert!(all_cookies.iter().all(|c| c.domain() == Some("google.com")));
