@@ -19,9 +19,6 @@ pkgs.mkShell {
   ] ++ (with pkgs; [
     pkg-config
     openssl
-    # other dependencies
-    #gtk3
-    #wrapGAppsHook
   ]);
   RUST_BACKTRACE = 1;
 }
