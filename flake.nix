@@ -34,29 +34,33 @@
           };
           devShells.default =
             let
+              rustVersion = "latest"; # using a specific version: "1.62.0"
+              rust = pkgs.rust-bin.stable.${rustVersion}.default.override {
+                extensions = [
+                  "rust-src" # for rust-analyzer
+                  "rust-analyzer" # usable by IDEs like zed-editor
+                  "clippy"
+                ];
+              };
               libPath =
                 with pkgs;
                 lib.makeLibraryPath [
                   pkg-config
                   openssl
                 ];
+
             in
             pkgs.mkShell {
               inputsFrom = builtins.attrValues self'.packages;
-              packages = with pkgs; [
-                # (rust-bin.selectLatestNightlyWith (toolchain: toolchain.default))
-                pkg-config
-                openssl
-                cargo
-                cargo-watch
-                rustc
-                rust-analyzer
-                clippy
+              packages = [
+                pkgs.pkg-config
+                pkgs.openssl
+                rust
               ];
               LD_LIBRARY_PATH = libPath;
               RUST_BACKTRACE = 1;
               LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
             };
         };
-      };
+    };
 }
