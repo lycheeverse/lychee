@@ -28,10 +28,6 @@
               "clippy"
             ];
           };
-          libPath = pkgs.lib.makeLibraryPath [
-            pkgs.pkg-config
-            pkgs.openssl
-          ];
         in
         pkgs.mkShell {
           packages = [
@@ -39,9 +35,7 @@
             pkgs.openssl
             rust
           ];
-          LD_LIBRARY_PATH = libPath;
           RUST_BACKTRACE = 1;
-          LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
         };
     };
 }
