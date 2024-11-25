@@ -24,12 +24,12 @@ headers = "0.4.0"
 html5ever = "0.29.0"
 html5gum = "0.7.0"
 http = "1.0.0"
-hyper = "1.5.0"
+hyper = "1.5.1"
 ignore = "0.4.23"
 ip_network = "0.4.1"
 linkify = "0.10.0"
 log = "0.4.22"
-octocrab = "0.42.0"
+octocrab = "0.42.1"
 once_cell = "1.20.2"
 openssl-sys = { version = "0.9.104", optional = true }
 path-clean = "1.0.1"
@@ -57,7 +57,7 @@ thiserror = "2.0.3"
 tokio = { version = "1.41.1", features = ["full"] }
 toml = "0.8.19"
 typed-builder = "0.20.0"
-url = { version = "2.5.3", features = ["serde"] }
+url = { version = "2.5.4", features = ["serde"] }
 
 [dependencies.par-stream]
 version = "0.10.2"
