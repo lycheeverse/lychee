@@ -16,11 +16,11 @@ pub(crate) trait RetryExt {
     fn should_retry(&self) -> bool;
 }
 
-impl RetryExt for reqwest::Response {
+impl RetryExt for reqwest::StatusCode {
     /// Try to map a `reqwest` response into `Retryable`.
     #[allow(clippy::if_same_then_else)]
     fn should_retry(&self) -> bool {
-        let status = self.status();
+        let status = *self;
         if status.is_server_error() {
             true
         } else if status.is_client_error()
@@ -71,10 +71,9 @@ impl RetryExt for reqwest::Error {
             } else {
                 false
             }
+        } else if let Some(status) = self.status() {
+            status.should_retry()
         } else {
-            // We omit checking if error.is_status() since we check that already.
-            // However, if Response::error_for_status is used the status will still
-            // remain in the response object.
             false
         }
     }
