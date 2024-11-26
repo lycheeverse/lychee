@@ -70,6 +70,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .method(method)
         .timeout(timeout)
         .retry_wait_time(retry_wait_time)
+        .max_retries(cfg.max_retries)
         .github_token(cfg.github_token.clone())
         .schemes(HashSet::from_iter(schemes))
         .accepted(accepted)
