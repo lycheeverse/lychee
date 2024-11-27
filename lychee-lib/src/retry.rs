@@ -74,6 +74,9 @@ impl RetryExt for reqwest::Error {
         } else if let Some(status) = self.status() {
             status.should_retry()
         } else {
+            // We omit checking if error.is_status() since we check that already.
+            // However, if Response::error_for_status is used the status will still
+            // remain in the response object.
             false
         }
     }
