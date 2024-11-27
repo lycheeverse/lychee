@@ -159,9 +159,9 @@ mod tests {
 
     #[test]
     fn test_should_retry() {
-        assert_eq!(StatusCode::REQUEST_TIMEOUT.should_retry(), true);
-        assert_eq!(StatusCode::TOO_MANY_REQUESTS.should_retry(), true);
-        assert_eq!(StatusCode::FORBIDDEN.should_retry(), false);
-        assert_eq!(StatusCode::INTERNAL_SERVER_ERROR.should_retry(), true);
+        assert!(StatusCode::REQUEST_TIMEOUT.should_retry());
+        assert!(StatusCode::TOO_MANY_REQUESTS.should_retry());
+        assert!(!StatusCode::FORBIDDEN.should_retry());
+        assert!(StatusCode::INTERNAL_SERVER_ERROR.should_retry());
     }
 }
