@@ -16,11 +16,11 @@ pub(crate) trait RetryExt {
     fn should_retry(&self) -> bool;
 }
 
-impl RetryExt for reqwest::Response {
+impl RetryExt for reqwest::StatusCode {
     /// Try to map a `reqwest` response into `Retryable`.
     #[allow(clippy::if_same_then_else)]
     fn should_retry(&self) -> bool {
-        let status = self.status();
+        let status = *self;
         if status.is_server_error() {
             true
         } else if status.is_client_error()
@@ -71,6 +71,8 @@ impl RetryExt for reqwest::Error {
             } else {
                 false
             }
+        } else if let Some(status) = self.status() {
+            status.should_retry()
         } else {
             // We omit checking if error.is_status() since we check that already.
             // However, if Response::error_for_status is used the status will still
@@ -147,4 +149,19 @@ fn get_source_error_type<T: std::error::Error + 'static>(
         source = err.source();
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use http::StatusCode;
+
+    use super::RetryExt;
+
+    #[test]
+    fn test_should_retry() {
+        assert!(StatusCode::REQUEST_TIMEOUT.should_retry());
+        assert!(StatusCode::TOO_MANY_REQUESTS.should_retry());
+        assert!(!StatusCode::FORBIDDEN.should_retry());
+        assert!(StatusCode::INTERNAL_SERVER_ERROR.should_retry());
+    }
 }

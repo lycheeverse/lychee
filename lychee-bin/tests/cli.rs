@@ -1880,4 +1880,28 @@ mod cli {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_retry() -> Result<()> {
+        let mock_server = wiremock::MockServer::start().await;
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(ResponseTemplate::new(429))
+            .up_to_n_times(1)
+            .mount(&mock_server)
+            .await;
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let mut cmd = main_command();
+        cmd.arg("-")
+            .write_stdin(mock_server.uri())
+            .assert()
+            .success();
+
+        Ok(())
+    }
 }
