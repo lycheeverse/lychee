@@ -75,6 +75,7 @@ use openssl_sys as _; // required for vendored-openssl feature
 use options::LYCHEE_CONFIG_FILE;
 use ring as _; // required for apple silicon
 
+use lychee_lib::Base;
 use lychee_lib::BasicAuthExtractor;
 use lychee_lib::Collector;
 use lychee_lib::CookieJar;
@@ -288,7 +289,13 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
 
-    let mut collector = Collector::new(opts.config.base.clone())
+    let base = if let Some(root_path) = &opts.config.root_path {
+        Base::create_root_path(&root_path).ok()
+    } else {
+        opts.config.base.clone()
+    };
+
+    let mut collector = Collector::new(base)
         .skip_missing_inputs(opts.config.skip_missing)
         .skip_hidden(!opts.config.hidden)
         .skip_ignored(!opts.config.no_ignore)

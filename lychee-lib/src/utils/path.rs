@@ -42,14 +42,14 @@ fn dirname(src: &'_ Path) -> Option<&'_ Path> {
 /// Returns Ok(None) in case of an absolute local link without a `base_url`
 pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Option<PathBuf>> {
     let resolved = match dst {
-        relative if dst.is_relative() => {
+        relative if !dst.starts_with("/") => {
             // Find `dst` in the parent directory of `src`
             let Some(parent) = src.parent() else {
                 return Err(ErrorKind::InvalidFile(relative.to_path_buf()));
             };
             parent.join(relative)
         }
-        absolute if dst.is_absolute() => {
+        absolute if dst.starts_with("/") => {
             // Absolute local links (leading slash) require the `base_url` to
             // define the document root. Silently ignore the link in case the
             // `base_url` is not defined.

@@ -53,13 +53,13 @@ fn try_parse_into_uri(raw_uri: &RawUri, source: &InputSource, base: &Option<Base
     let uri = match Uri::try_from(raw_uri.clone()) {
         Ok(uri) => uri,
         Err(_) => match base {
+            Some(Base::RootPath(_)) | None => match source {
+                InputSource::FsPath(root) => create_uri_from_file_path(root, &text, base)?,
+                _ => return Err(ErrorKind::UnsupportedUriType(text)),
+            },
             Some(base_url) => match base_url.join(&text) {
                 Some(url) => Uri { url },
                 None => return Err(ErrorKind::InvalidBaseJoin(text.clone())),
-            },
-            None => match source {
-                InputSource::FsPath(root) => create_uri_from_file_path(root, &text, base)?,
-                _ => return Err(ErrorKind::UnsupportedUriType(text)),
             },
         },
     };

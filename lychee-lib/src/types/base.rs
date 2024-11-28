@@ -15,6 +15,8 @@ pub enum Base {
     Local(PathBuf),
     /// Remote URL pointing to a website homepage
     Remote(Url),
+    /// Root path for checking absolute local links
+    RootPath(PathBuf),
 }
 
 impl Base {
@@ -27,16 +29,26 @@ impl Base {
                 let full_path = path.join(link);
                 Url::from_file_path(full_path).ok()
             }
+            Self::RootPath(_path) => {
+                // this is unused currently because joining on RootPath is handled by create_uri_from_file_path
+                unreachable!()
+            }
         }
     }
 
-    /// Return the directory if the base is local
+    /// Return the directory if the base is not remote
     #[must_use]
     pub(crate) fn dir(&self) -> Option<PathBuf> {
         match self {
             Self::Remote(_) => None,
             Self::Local(d) => Some(d.clone()),
+            Self::RootPath(d) => Some(d.clone()),
         }
+    }
+
+    /// Create a root path base
+    pub fn create_root_path(value: &str) -> Result<Base, ErrorKind> {
+        return Ok(Self::RootPath(PathBuf::from(value)));
     }
 
     pub(crate) fn from_source(source: &InputSource) -> Option<Base> {
@@ -61,12 +73,6 @@ impl TryFrom<&str> for Base {
     type Error = ErrorKind;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let path = PathBuf::from(value);
-        if path.exists() {
-            // need to check path first since Url::parse accepts windows paths
-            // e.g. C:\src\lychee and C:/src/lychee are both parsed as URLs
-            return Ok(Self::Local(PathBuf::from(value)))
-        }
         if let Ok(url) = Url::parse(value) {
             if url.cannot_be_a_base() {
                 return Err(ErrorKind::InvalidBase(
