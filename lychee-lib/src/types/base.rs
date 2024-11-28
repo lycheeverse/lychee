@@ -46,6 +46,7 @@ impl Base {
     }
 
     /// Create a root path base
+    #[must_use]
     pub fn create_root_path(value: &str) -> Base {
         Self::RootPath(PathBuf::from(value))
     }
