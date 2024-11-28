@@ -61,6 +61,12 @@ impl TryFrom<&str> for Base {
     type Error = ErrorKind;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let path = PathBuf::from(value);
+        if path.exists() {
+            // need to check path first since Url::parse accepts windows paths
+            // e.g. C:\src\lychee and C:/src/lychee are both parsed as URLs
+            return Ok(Self::Local(PathBuf::from(value)))
+        }
         if let Ok(url) = Url::parse(value) {
             if url.cannot_be_a_base() {
                 return Err(ErrorKind::InvalidBase(
