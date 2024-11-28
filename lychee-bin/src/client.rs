@@ -54,7 +54,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     };
 
     let base = if let Some(root_path) = &cfg.root_path {
-        Base::create_root_path(&root_path).ok()
+        Some(Base::create_root_path(&root_path))
     } else {
         cfg.base.clone()
     };

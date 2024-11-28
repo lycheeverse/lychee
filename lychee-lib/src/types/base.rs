@@ -41,14 +41,13 @@ impl Base {
     pub(crate) fn dir(&self) -> Option<PathBuf> {
         match self {
             Self::Remote(_) => None,
-            Self::Local(d) => Some(d.clone()),
-            Self::RootPath(d) => Some(d.clone()),
+            Self::Local(d) | Self::RootPath(d) => Some(d.clone()),
         }
     }
 
     /// Create a root path base
-    pub fn create_root_path(value: &str) -> Result<Base, ErrorKind> {
-        return Ok(Self::RootPath(PathBuf::from(value)));
+    pub fn create_root_path(value: &str) -> Base {
+        Self::RootPath(PathBuf::from(value))
     }
 
     pub(crate) fn from_source(source: &InputSource) -> Option<Base> {

@@ -290,7 +290,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
 
     let base = if let Some(root_path) = &opts.config.root_path {
-        Base::create_root_path(&root_path).ok()
+        Some(Base::create_root_path(&root_path))
     } else {
         opts.config.base.clone()
     };
