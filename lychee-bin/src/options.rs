@@ -446,7 +446,7 @@ separated list of accepted status codes. This example will accept 200, 201,
     pub(crate) base: Option<Base>,
 
     /// Root path to use when checking absolute local links,
-    /// "base" option is ignored when this is set
+    /// base option is ignored when this is set
     #[arg(long)]
     #[serde(default)]
     pub(crate) root_path: Option<String>,
