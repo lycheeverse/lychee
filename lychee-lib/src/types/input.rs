@@ -140,7 +140,11 @@ impl Input {
                 Ok(url) if url.scheme() == "http" || url.scheme() == "https" => {
                     InputSource::RemoteUrl(Box::new(url))
                 }
-                Ok(_) | _ => {
+                Ok(_) => {
+                    // URL parsed successfully, but it's not http or https
+                    return Err(ErrorKind::InvalidFile(PathBuf::from(value)));
+                }
+                _ => {
                     // this seems to be the only way to determine if this is a glob pattern
                     let is_glob = glob::Pattern::escape(value) != value;
 
