@@ -267,6 +267,76 @@ mod tests {
     }
 
     #[test]
+    fn test_relative_url_resolution_from_root_path() {
+        let base = Some(Base::create_root_path("/tmp/lychee"));
+        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+
+        let uris = vec![RawUri::from("relative.html")];
+        let requests = create(uris, &source, &base, &None);
+
+        assert_eq!(requests.len(), 1);
+        assert!(requests
+            .iter()
+            .any(|r| r.uri.url.as_str() == "file:///some/relative.html"));
+    }
+
+    #[test]
+    fn test_absolute_url_resolution_from_root_path() {
+        let base = Some(Base::create_root_path("/tmp/lychee"));
+        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+
+        let uris = vec![RawUri::from("https://another.com/page")];
+        let requests = create(uris, &source, &base, &None);
+
+        assert_eq!(requests.len(), 1);
+        assert!(requests
+            .iter()
+            .any(|r| r.uri.url.as_str() == "https://another.com/page"));
+    }
+
+    #[test]
+    fn test_root_relative_url_resolution_from_root_path() {
+        let base = Some(Base::create_root_path("/tmp/lychee"));
+        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+
+        let uris = vec![RawUri::from("/root-relative")];
+        let requests = create(uris, &source, &base, &None);
+
+        assert_eq!(requests.len(), 1);
+        assert!(requests
+            .iter()
+            .any(|r| r.uri.url.as_str() == "file:///tmp/lychee/root-relative"));
+    }
+
+    #[test]
+    fn test_parent_directory_url_resolution_from_root_path() {
+        let base = Some(Base::create_root_path("/tmp/lychee"));
+        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+
+        let uris = vec![RawUri::from("../parent")];
+        let requests = create(uris, &source, &base, &None);
+
+        assert_eq!(requests.len(), 1);
+        assert!(requests
+            .iter()
+            .any(|r| r.uri.url.as_str() == "file:///parent"));
+    }
+
+    #[test]
+    fn test_fragment_url_resolution_from_root_path() {
+        let base = Some(Base::create_root_path("/tmp/lychee"));
+        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+
+        let uris = vec![RawUri::from("#fragment")];
+        let requests = create(uris, &source, &base, &None);
+
+        assert_eq!(requests.len(), 1);
+        assert!(requests
+            .iter()
+            .any(|r| r.uri.url.as_str() == "file:///some/page.html#fragment"));
+    }
+
+    #[test]
     fn test_no_base_url_resolution() {
         let base = None;
         let source = InputSource::String(String::new());
