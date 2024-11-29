@@ -394,6 +394,24 @@ mod cli {
     }
 
     #[test]
+    fn test_resolve_paths_from_root_path() {
+        let mut cmd = main_command();
+        let dir = fixtures_path().join("resolve_paths_from_root_path");
+
+        cmd.arg("--offline")
+            .arg("--include-fragments")
+            .arg("--root-path")
+            .arg(&dir)
+            .arg(dir.join("nested").join("index.html"))
+            .env_clear()
+            .assert()
+            .failure()
+            .stdout(contains("7 Total"))
+            .stdout(contains("5 OK"))
+            .stdout(contains("2 Errors"));
+    }
+
+    #[test]
     fn test_youtube_quirk() {
         let url = "https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7";
 
