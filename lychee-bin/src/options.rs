@@ -445,11 +445,10 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[serde(default)]
     pub(crate) base: Option<Base>,
 
-    /// Root path to use when checking absolute local links,
-    /// base option is ignored when this is set
+    /// Root path to use when checking absolute local links
     #[arg(long)]
     #[serde(default)]
-    pub(crate) root_path: Option<String>,
+    pub(crate) root_path: Option<PathBuf>,
 
     /// Basic authentication support. E.g. `http://example.com username:password`
     #[arg(long)]

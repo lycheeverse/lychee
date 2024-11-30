@@ -2,7 +2,7 @@ use crate::options::Config;
 use crate::parse::{parse_duration_secs, parse_headers, parse_remaps};
 use anyhow::{Context, Result};
 use http::StatusCode;
-use lychee_lib::{Base, Client, ClientBuilder};
+use lychee_lib::{Client, ClientBuilder};
 use regex::RegexSet;
 use reqwest_cookie_store::CookieStoreMutex;
 use std::sync::Arc;
@@ -53,15 +53,9 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         cfg.include_mail
     };
 
-    let base = if let Some(root_path) = &cfg.root_path {
-        Some(Base::create_root_path(&root_path))
-    } else {
-        cfg.base.clone()
-    };
-
     ClientBuilder::builder()
         .remaps(remaps)
-        .base(base)
+        .base(cfg.base.clone())
         .includes(includes)
         .excludes(excludes)
         .exclude_all_private(cfg.exclude_all_private)

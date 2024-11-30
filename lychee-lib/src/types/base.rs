@@ -15,8 +15,6 @@ pub enum Base {
     Local(PathBuf),
     /// Remote URL pointing to a website homepage
     Remote(Url),
-    /// Root path for checking absolute local links
-    RootPath(PathBuf),
 }
 
 impl Base {
@@ -29,10 +27,6 @@ impl Base {
                 let full_path = path.join(link);
                 Url::from_file_path(full_path).ok()
             }
-            Self::RootPath(_path) => {
-                // this is unused currently because joining on RootPath is handled by create_uri_from_file_path
-                unreachable!()
-            }
         }
     }
 
@@ -41,14 +35,8 @@ impl Base {
     pub(crate) fn dir(&self) -> Option<PathBuf> {
         match self {
             Self::Remote(_) => None,
-            Self::Local(d) | Self::RootPath(d) => Some(d.clone()),
+            Self::Local(d) => Some(d.clone()),
         }
-    }
-
-    /// Create a root path base
-    #[must_use]
-    pub fn create_root_path(value: &str) -> Base {
-        Self::RootPath(PathBuf::from(value))
     }
 
     pub(crate) fn from_source(source: &InputSource) -> Option<Base> {

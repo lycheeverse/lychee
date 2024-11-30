@@ -25,10 +25,11 @@ fn extract_credentials(
 fn create_request(
     raw_uri: &RawUri,
     source: &InputSource,
+    root_path: &Option<PathBuf>,
     base: &Option<Base>,
     extractor: &Option<BasicAuthExtractor>,
 ) -> Result<Request> {
-    let uri = try_parse_into_uri(raw_uri, source, base)?;
+    let uri = try_parse_into_uri(raw_uri, source, root_path, base)?;
     let source = truncate_source(source);
     let element = raw_uri.element.clone();
     let attribute = raw_uri.attribute.clone();
@@ -48,18 +49,25 @@ fn create_request(
 ///   to create a valid URI.
 /// - If a URI cannot be created from the file path.
 /// - If the source is not a file path (i.e. the URI type is not supported).
-fn try_parse_into_uri(raw_uri: &RawUri, source: &InputSource, base: &Option<Base>) -> Result<Uri> {
+fn try_parse_into_uri(
+    raw_uri: &RawUri,
+    source: &InputSource,
+    root_path: &Option<PathBuf>,
+    base: &Option<Base>,
+) -> Result<Uri> {
     let text = raw_uri.text.clone();
     let uri = match Uri::try_from(raw_uri.clone()) {
         Ok(uri) => uri,
         Err(_) => match base {
-            Some(Base::RootPath(_)) | None => match source {
-                InputSource::FsPath(root) => create_uri_from_file_path(root, &text, base)?,
-                _ => return Err(ErrorKind::UnsupportedUriType(text)),
-            },
             Some(base_url) => match base_url.join(&text) {
                 Some(url) => Uri { url },
                 None => return Err(ErrorKind::InvalidBaseJoin(text.clone())),
+            },
+            None => match source {
+                InputSource::FsPath(root) => {
+                    create_uri_from_file_path(root, &text, root_path, base)?
+                }
+                _ => return Err(ErrorKind::UnsupportedUriType(text)),
             },
         },
     };
@@ -81,6 +89,7 @@ pub(crate) fn is_anchor(text: &str) -> bool {
 fn create_uri_from_file_path(
     file_path: &Path,
     link_text: &str,
+    root_path: &Option<PathBuf>,
     base: &Option<Base>,
 ) -> Result<Uri> {
     let target_path = if is_anchor(link_text) {
@@ -94,7 +103,8 @@ fn create_uri_from_file_path(
     } else {
         link_text.to_string()
     };
-    let Ok(constructed_url) = resolve_and_create_url(file_path, &target_path, base) else {
+    let Ok(constructed_url) = resolve_and_create_url(file_path, &target_path, root_path, base)
+    else {
         return Err(ErrorKind::InvalidPathToUri(target_path));
     };
     Ok(Uri {
@@ -126,21 +136,22 @@ fn truncate_source(source: &InputSource) -> InputSource {
 pub(crate) fn create(
     uris: Vec<RawUri>,
     source: &InputSource,
+    root_path: &Option<PathBuf>,
     base: &Option<Base>,
     extractor: &Option<BasicAuthExtractor>,
 ) -> HashSet<Request> {
     let base = base.clone().or_else(|| Base::from_source(&source));
 
     uris.into_iter()
-        .filter_map(
-            |raw_uri| match create_request(&raw_uri, &source, &base, extractor) {
+        .filter_map(|raw_uri| {
+            match create_request(&raw_uri, &source, &root_path, &base, extractor) {
                 Ok(request) => Some(request),
                 Err(e) => {
                     warn!("Error creating request: {:?}", e);
                     None
                 }
-            },
-        )
+            }
+        })
         .collect()
 }
 
@@ -158,6 +169,7 @@ pub(crate) fn create(
 fn resolve_and_create_url(
     src_path: &Path,
     dest_path: &str,
+    root_path: &Option<PathBuf>,
     base_uri: &Option<Base>,
 ) -> Result<Url> {
     let (dest_path, fragment) = url::remove_get_params_and_separate_fragment(dest_path);
@@ -166,8 +178,12 @@ fn resolve_and_create_url(
     // This addresses the issue mentioned in the original comment about double-encoding
     let decoded_dest = percent_decode_str(dest_path).decode_utf8()?;
 
-    let Ok(Some(resolved_path)) = path::resolve(src_path, &PathBuf::from(&*decoded_dest), base_uri)
-    else {
+    let Ok(Some(resolved_path)) = path::resolve(
+        src_path,
+        &PathBuf::from(&*decoded_dest),
+        root_path,
+        base_uri,
+    ) else {
         return Err(ErrorKind::InvalidPathToUri(decoded_dest.to_string()));
     };
 
@@ -192,7 +208,8 @@ mod tests {
     #[test]
     fn test_create_uri_from_path() {
         let result =
-            resolve_and_create_url(&PathBuf::from("/README.md"), "test+encoding", &None).unwrap();
+            resolve_and_create_url(&PathBuf::from("/README.md"), "test+encoding", &None, &None)
+                .unwrap();
         assert_eq!(result.as_str(), "file:///test+encoding");
     }
 
@@ -202,7 +219,7 @@ mod tests {
         let source = InputSource::String(String::new());
 
         let uris = vec![RawUri::from("relative.html")];
-        let requests = create(uris, &source, &base, &None);
+        let requests = create(uris, &source, &None, &base, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -216,7 +233,7 @@ mod tests {
         let source = InputSource::String(String::new());
 
         let uris = vec![RawUri::from("https://another.com/page")];
-        let requests = create(uris, &source, &base, &None);
+        let requests = create(uris, &source, &None, &base, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -230,7 +247,7 @@ mod tests {
         let source = InputSource::String(String::new());
 
         let uris = vec![RawUri::from("/root-relative")];
-        let requests = create(uris, &source, &base, &None);
+        let requests = create(uris, &source, &None, &base, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -244,7 +261,7 @@ mod tests {
         let source = InputSource::String(String::new());
 
         let uris = vec![RawUri::from("../parent")];
-        let requests = create(uris, &source, &base, &None);
+        let requests = create(uris, &source, &None, &base, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -258,7 +275,7 @@ mod tests {
         let source = InputSource::String(String::new());
 
         let uris = vec![RawUri::from("#fragment")];
-        let requests = create(uris, &source, &base, &None);
+        let requests = create(uris, &source, &None, &base, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -268,11 +285,11 @@ mod tests {
 
     #[test]
     fn test_relative_url_resolution_from_root_path() {
-        let base = Some(Base::create_root_path("/tmp/lychee"));
+        let root_path = Some(PathBuf::from("/tmp/lychee"));
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("relative.html")];
-        let requests = create(uris, &source, &base, &None);
+        let requests = create(uris, &source, &root_path, &None, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -282,11 +299,11 @@ mod tests {
 
     #[test]
     fn test_absolute_url_resolution_from_root_path() {
-        let base = Some(Base::create_root_path("/tmp/lychee"));
+        let root_path = Some(PathBuf::from("/tmp/lychee"));
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("https://another.com/page")];
-        let requests = create(uris, &source, &base, &None);
+        let requests = create(uris, &source, &root_path, &None, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -296,11 +313,11 @@ mod tests {
 
     #[test]
     fn test_root_relative_url_resolution_from_root_path() {
-        let base = Some(Base::create_root_path("/tmp/lychee"));
+        let root_path = Some(PathBuf::from("/tmp/lychee"));
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("/root-relative")];
-        let requests = create(uris, &source, &base, &None);
+        let requests = create(uris, &source, &root_path, &None, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -310,11 +327,11 @@ mod tests {
 
     #[test]
     fn test_parent_directory_url_resolution_from_root_path() {
-        let base = Some(Base::create_root_path("/tmp/lychee"));
+        let root_path = Some(PathBuf::from("/tmp/lychee"));
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("../parent")];
-        let requests = create(uris, &source, &base, &None);
+        let requests = create(uris, &source, &root_path, &None, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -324,11 +341,11 @@ mod tests {
 
     #[test]
     fn test_fragment_url_resolution_from_root_path() {
-        let base = Some(Base::create_root_path("/tmp/lychee"));
+        let root_path = Some(PathBuf::from("/tmp/lychee"));
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("#fragment")];
-        let requests = create(uris, &source, &base, &None);
+        let requests = create(uris, &source, &root_path, &None, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -342,7 +359,7 @@ mod tests {
         let source = InputSource::String(String::new());
 
         let uris = vec![RawUri::from("https://example.com/page")];
-        let requests = create(uris, &source, &base, &None);
+        let requests = create(uris, &source, &None, &base, &None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -355,8 +372,14 @@ mod tests {
         let base = Some(Base::Local(PathBuf::from("/tmp/lychee")));
         let input_source = InputSource::FsPath(PathBuf::from("page.html"));
 
-        let actual =
-            create_request(&RawUri::from("file.html"), &input_source, &base, &None).unwrap();
+        let actual = create_request(
+            &RawUri::from("file.html"),
+            &input_source,
+            &None,
+            &base,
+            &None,
+        )
+        .unwrap();
 
         assert_eq!(
             actual,
@@ -381,6 +404,7 @@ mod tests {
         let actual = create_request(
             &RawUri::from("/usr/local/share/doc/example.html"),
             &input_source,
+            &None,
             &base,
             &None,
         )
@@ -406,7 +430,7 @@ mod tests {
         let source = InputSource::String(String::new());
 
         let raw_uri = RawUri::from("relative.html");
-        let uri = try_parse_into_uri(&raw_uri, &source, &base).unwrap();
+        let uri = try_parse_into_uri(&raw_uri, &source, &None, &base).unwrap();
 
         assert_eq!(uri.url.as_str(), "file:///tmp/lychee/relative.html");
     }
@@ -417,7 +441,7 @@ mod tests {
         let source = InputSource::String(String::new());
 
         let raw_uri = RawUri::from("absolute.html");
-        let uri = try_parse_into_uri(&raw_uri, &source, &base).unwrap();
+        let uri = try_parse_into_uri(&raw_uri, &source, &None, &base).unwrap();
 
         assert_eq!(uri.url.as_str(), "file:///tmp/lychee/absolute.html");
     }
