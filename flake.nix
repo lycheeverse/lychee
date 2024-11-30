@@ -15,8 +15,8 @@
     ...
   }:
     flake-utils.lib.eachDefaultSystem (system: let
-      pkgs = import nixpkgs {inherit system;};
-      toolchain = fenix.packages.aarch64-darwin.fromToolchainFile {
+      pkgs = nixpkgs.legacyPackages.${system};
+      toolchain = fenix.packages.${system}.fromToolchainFile {
         file = ./rust-toolchain.toml;
         sha256 = "sha256-yMuSb5eQPO/bHv+Bcf/US8LVMbf/G/0MSfiPwBhiPpk=";
       };
@@ -31,10 +31,11 @@
 
         src = pkgs.lib.cleanSource ./.;
 
-        PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
         nativeBuildInputs = [
-          pkgs.openssl
           pkgs.pkg-config
+        ];
+        buildInputs = [
+          pkgs.openssl
         ];
 
         cargoLock.lockFile = ./Cargo.lock;
