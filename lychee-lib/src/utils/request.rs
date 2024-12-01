@@ -64,9 +64,7 @@ fn try_parse_into_uri(
                 None => return Err(ErrorKind::InvalidBaseJoin(text.clone())),
             },
             None => match source {
-                InputSource::FsPath(root) => {
-                    create_uri_from_file_path(root, &text, root_path, base)?
-                }
+                InputSource::FsPath(root) => create_uri_from_file_path(root, &text, root_path)?,
                 _ => return Err(ErrorKind::UnsupportedUriType(text)),
             },
         },
@@ -90,7 +88,6 @@ fn create_uri_from_file_path(
     file_path: &Path,
     link_text: &str,
     root_path: &Option<PathBuf>,
-    base: &Option<Base>,
 ) -> Result<Uri> {
     let target_path = if is_anchor(link_text) {
         // For anchors, we need to append the anchor to the file name.
@@ -103,8 +100,7 @@ fn create_uri_from_file_path(
     } else {
         link_text.to_string()
     };
-    let Ok(constructed_url) = resolve_and_create_url(file_path, &target_path, root_path, base)
-    else {
+    let Ok(constructed_url) = resolve_and_create_url(file_path, &target_path, root_path) else {
         return Err(ErrorKind::InvalidPathToUri(target_path));
     };
     Ok(Uri {
@@ -170,7 +166,6 @@ fn resolve_and_create_url(
     src_path: &Path,
     dest_path: &str,
     root_path: &Option<PathBuf>,
-    base_uri: &Option<Base>,
 ) -> Result<Url> {
     let (dest_path, fragment) = url::remove_get_params_and_separate_fragment(dest_path);
 
@@ -178,12 +173,9 @@ fn resolve_and_create_url(
     // This addresses the issue mentioned in the original comment about double-encoding
     let decoded_dest = percent_decode_str(dest_path).decode_utf8()?;
 
-    let Ok(Some(resolved_path)) = path::resolve(
-        src_path,
-        &PathBuf::from(&*decoded_dest),
-        root_path,
-        base_uri,
-    ) else {
+    let Ok(Some(resolved_path)) =
+        path::resolve(src_path, &PathBuf::from(&*decoded_dest), root_path)
+    else {
         return Err(ErrorKind::InvalidPathToUri(decoded_dest.to_string()));
     };
 
@@ -208,8 +200,7 @@ mod tests {
     #[test]
     fn test_create_uri_from_path() {
         let result =
-            resolve_and_create_url(&PathBuf::from("/README.md"), "test+encoding", &None, &None)
-                .unwrap();
+            resolve_and_create_url(&PathBuf::from("/README.md"), "test+encoding", &None).unwrap();
         assert_eq!(result.as_str(), "file:///test+encoding");
     }
 

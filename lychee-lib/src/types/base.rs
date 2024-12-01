@@ -30,15 +30,6 @@ impl Base {
         }
     }
 
-    /// Return the directory if the base is local
-    #[must_use]
-    pub(crate) fn dir(&self) -> Option<PathBuf> {
-        match self {
-            Self::Remote(_) => None,
-            Self::Local(d) => Some(d.clone()),
-        }
-    }
-
     pub(crate) fn from_source(source: &InputSource) -> Option<Base> {
         match &source {
             InputSource::RemoteUrl(url) => {
