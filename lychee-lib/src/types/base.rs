@@ -30,7 +30,7 @@ impl Base {
         }
     }
 
-    /// Return the directory if the base is not remote
+    /// Return the directory if the base is local
     #[must_use]
     pub(crate) fn dir(&self) -> Option<PathBuf> {
         match self {
