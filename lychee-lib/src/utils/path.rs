@@ -41,8 +41,6 @@ pub(crate) fn resolve(
             parent.join(relative)
         }
         absolute if dst.starts_with("/") => {
-            // Absolute local links (leading slash) are ignored unless
-            // root_path is provided
             if ignore_absolute_local_links {
                 return Ok(None);
             }
