@@ -24,21 +24,13 @@ pub(crate) fn absolute_path(path: PathBuf) -> PathBuf {
     .clean()
 }
 
-/// Get the directory name of a given `Path`.
-fn dirname(src: &'_ Path) -> Option<&'_ Path> {
-    if src.is_file() {
-        return src.parent();
-    }
-    Some(src)
-}
-
 /// Resolve `dst` that was linked to from within `src`
 ///
 /// Returns Ok(None) in case of an absolute local link without a `base_url`
 pub(crate) fn resolve(
     src: &Path,
     dst: &PathBuf,
-    root_path: &Option<PathBuf>,
+    ignore_absolute_local_links: bool,
 ) -> Result<Option<PathBuf>> {
     let resolved = match dst {
         relative if !dst.starts_with("/") => {
@@ -51,29 +43,14 @@ pub(crate) fn resolve(
         absolute if dst.starts_with("/") => {
             // Absolute local links (leading slash) are ignored unless
             // root_path is provided
-            let Some(base) = root_path else {
+            if ignore_absolute_local_links {
                 return Ok(None);
-            };
-            let Some(dir) = dirname(&base) else {
-                return Err(ErrorKind::InvalidBase(
-                    base.display().to_string(),
-                    "The given directory cannot be a base".to_string(),
-                ));
-            };
-            join(dir.to_path_buf(), absolute)
+            }
+            PathBuf::from(absolute)
         }
         _ => return Err(ErrorKind::InvalidFile(dst.to_path_buf())),
     };
     Ok(Some(absolute_path(resolved)))
-}
-
-/// A cumbersome way to concatenate paths without checking their
-/// existence on disk. See <https://github.com/rust-lang/rust/issues/16507>
-fn join(base: PathBuf, dst: &Path) -> PathBuf {
-    let mut abs = base.into_os_string();
-    let target_str = dst.as_os_str();
-    abs.push(target_str);
-    PathBuf::from(abs)
 }
 
 /// Check if `child` is a subdirectory/file inside `parent`
@@ -108,7 +85,7 @@ mod test_path {
         let dummy = PathBuf::from("index.html");
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
-            resolve(&dummy, &abs_path, &None)?,
+            resolve(&dummy, &abs_path, true)?,
             Some(env::current_dir().unwrap().join("foo.html"))
         );
         Ok(())
@@ -121,7 +98,7 @@ mod test_path {
         let dummy = PathBuf::from("./index.html");
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
-            resolve(&dummy, &abs_path, &None)?,
+            resolve(&dummy, &abs_path, true)?,
             Some(env::current_dir().unwrap().join("foo.html"))
         );
         Ok(())
@@ -134,7 +111,7 @@ mod test_path {
         let abs_index = PathBuf::from("/path/to/index.html");
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
-            resolve(&abs_index, &abs_path, &None)?,
+            resolve(&abs_index, &abs_path, true)?,
             Some(PathBuf::from("/path/to/foo.html"))
         );
         Ok(())
