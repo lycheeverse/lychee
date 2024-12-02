@@ -33,14 +33,14 @@ pub(crate) fn resolve(
     ignore_absolute_local_links: bool,
 ) -> Result<Option<PathBuf>> {
     let resolved = match dst {
-        relative if !dst.starts_with("/") => {
+        relative if dst.is_relative() => {
             // Find `dst` in the parent directory of `src`
             let Some(parent) = src.parent() else {
                 return Err(ErrorKind::InvalidFile(relative.to_path_buf()));
             };
             parent.join(relative)
         }
-        absolute if dst.starts_with("/") => {
+        absolute if dst.is_absolute() => {
             if ignore_absolute_local_links {
                 return Ok(None);
             }
