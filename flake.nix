@@ -3,42 +3,29 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-    fenix.url = "github:nix-community/fenix";
+    crane.url = "github:ipetkov/crane";
   };
 
-  outputs = {
-    self,
-    nixpkgs,
-    flake-utils,
-    fenix,
-    ...
-  }:
-    flake-utils.lib.eachDefaultSystem (system: let
-      pkgs = nixpkgs.legacyPackages.${system};
-      toolchain = fenix.packages.${system}.fromToolchainFile {
-        file = ./rust-toolchain.toml;
-        sha256 = "sha256-yMuSb5eQPO/bHv+Bcf/US8LVMbf/G/0MSfiPwBhiPpk=";
-      };
-      platform = pkgs.makeRustPlatform {
-        cargo = toolchain;
-        rustc = toolchain;
-      };
+  outputs = { self, nixpkgs, crane, ... }:
+    let testingFixtures = [ ./fixtures ./README.md ];
     in {
-      packages.default = platform.buildRustPackage {
-        pname = "lychee";
-        version = self.rev or self.dirtyShortRev;
+      packages = nixpkgs.lib.mapAttrs (_: pkgs: {
+        default = (crane.mkLib pkgs).buildPackage {
+          pname = "lychee";
+          version = self.rev or self.dirtyShortRev;
 
-        src = pkgs.lib.cleanSource ./.;
+          src = with nixpkgs.lib.fileset;
+            toSource {
+              root = ./.;
+              fileset = intersection (gitTracked ./.) (unions ([
+                ./Cargo.lock
+                (fileFilter (file: file.hasExt "rs" || file.hasExt "toml") ./.)
+              ] ++ testingFixtures));
+            };
 
-        nativeBuildInputs = [
-          pkgs.pkg-config
-        ];
-        buildInputs = [
-          pkgs.openssl
-        ];
-
-        cargoLock.lockFile = ./Cargo.lock;
-      };
-    });
+          nativeBuildInputs = [ pkgs.pkg-config ];
+          buildInputs = [ pkgs.openssl ];
+        };
+      }) nixpkgs.legacyPackages;
+    };
 }
