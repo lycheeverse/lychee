@@ -140,18 +140,18 @@ pub(crate) fn create(
     base: &Option<Base>,
     extractor: &Option<BasicAuthExtractor>,
 ) -> HashSet<Request> {
-    let base = base.clone().or_else(|| Base::from_source(&source));
+    let base = base.clone().or_else(|| Base::from_source(source));
 
     uris.into_iter()
-        .filter_map(|raw_uri| {
-            match create_request(&raw_uri, &source, &root_path, &base, extractor) {
+        .filter_map(
+            |raw_uri| match create_request(&raw_uri, source, root_path, &base, extractor) {
                 Ok(request) => Some(request),
                 Err(e) => {
                     warn!("Error creating request: {:?}", e);
                     None
                 }
-            }
-        })
+            },
+        )
         .collect()
 }
 
@@ -197,7 +197,7 @@ fn prepend_root_path_if_absolute_local_link(text: &str, root_path: &Option<PathB
     if text.starts_with('/') {
         if let Some(path) = root_path {
             if let Some(path_str) = path.to_str() {
-                return format!("{}{}", path_str, text);
+                return format!("{path_str}{text}");
             }
         }
     }

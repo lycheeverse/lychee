@@ -36,7 +36,7 @@ pub(crate) fn resolve(
         relative if dst.is_relative() => {
             // Find `dst` in the parent directory of `src`
             let Some(parent) = src.parent() else {
-                return Err(ErrorKind::InvalidFile(relative.to_path_buf()));
+                return Err(ErrorKind::InvalidFile(relative.clone()));
             };
             parent.join(relative)
         }
@@ -46,7 +46,7 @@ pub(crate) fn resolve(
             }
             PathBuf::from(absolute)
         }
-        _ => return Err(ErrorKind::InvalidFile(dst.to_path_buf())),
+        _ => return Err(ErrorKind::InvalidFile(dst.clone())),
     };
     Ok(Some(absolute_path(resolved)))
 }
