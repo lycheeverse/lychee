@@ -26,6 +26,21 @@ pub struct Collector {
     base: Option<Base>,
 }
 
+impl Default for Collector {
+    fn default() -> Self {
+        Collector {
+            basic_auth_extractor: None,
+            skip_missing_inputs: false,
+            include_verbatim: false,
+            use_html5ever: false,
+            skip_hidden: true,
+            skip_ignored: true,
+            root_path: None,
+            base: None,
+        }
+    }
+}
+
 impl Collector {
     /// Create a new collector with an empty cache
     #[must_use]

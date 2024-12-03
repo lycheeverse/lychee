@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
         },
     ];
 
-    let links = Collector::new(None, None) // root_path and base
+    let links = Collector::default() // root_path and base
         .skip_missing_inputs(false) // don't skip missing inputs? (default=false)
         .skip_hidden(false) // skip hidden files? (default=true)
         .skip_ignored(false) // skip files that are ignored by git? (default=true)
