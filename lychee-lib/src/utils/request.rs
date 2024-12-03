@@ -55,14 +55,7 @@ fn try_parse_into_uri(
     root_path: &Option<PathBuf>,
     base: &Option<Base>,
 ) -> Result<Uri> {
-    let mut text = raw_uri.text.clone();
-    if text.starts_with('/') {
-        if let Some(path) = root_path {
-            if let Some(path_str) = path.to_str() {
-                text = format!("{path_str}{text}");
-            }
-        }
-    }
+    let text = prepend_root_path_if_absolute_local_link(&raw_uri.text, root_path);
     let uri = match Uri::try_from(raw_uri.clone()) {
         Ok(uri) => uri,
         Err(_) => match base {
@@ -198,6 +191,17 @@ fn resolve_and_create_url(
 
     url.set_fragment(fragment);
     Ok(url)
+}
+
+fn prepend_root_path_if_absolute_local_link(text: &str, root_path: &Option<PathBuf>) -> String {
+    if text.starts_with('/') {
+        if let Some(path) = root_path {
+            if let Some(path_str) = path.to_str() {
+                return format!("{}{}", path_str, text);
+            }
+        }
+    }
+    text.to_string()
 }
 
 #[cfg(test)]
@@ -523,5 +527,37 @@ mod tests {
         let uri = try_parse_into_uri(&raw_uri, &source, &None, &base).unwrap();
 
         assert_eq!(uri.url.as_str(), "file:///tmp/lychee/absolute.html");
+    }
+
+    #[test]
+    fn test_prepend_with_absolute_local_link_and_root_path() {
+        let text = "/absolute/path";
+        let root_path = Some(PathBuf::from("/root"));
+        let result = prepend_root_path_if_absolute_local_link(text, &root_path);
+        assert_eq!(result, "/root/absolute/path");
+    }
+
+    #[test]
+    fn test_prepend_with_absolute_local_link_and_no_root_path() {
+        let text = "/absolute/path";
+        let root_path: Option<PathBuf> = None;
+        let result = prepend_root_path_if_absolute_local_link(text, &root_path);
+        assert_eq!(result, "/absolute/path");
+    }
+
+    #[test]
+    fn test_prepend_with_relative_link_and_root_path() {
+        let text = "relative/path";
+        let root_path = Some(PathBuf::from("/root"));
+        let result = prepend_root_path_if_absolute_local_link(text, &root_path);
+        assert_eq!(result, "relative/path");
+    }
+
+    #[test]
+    fn test_prepend_with_relative_link_and_no_root_path() {
+        let text = "relative/path";
+        let root_path = None;
+        let result = prepend_root_path_if_absolute_local_link(text, &root_path);
+        assert_eq!(result, "relative/path");
     }
 }
