@@ -94,7 +94,9 @@ jobs:
           context: .
           file: ${{ env.DOCKERFILE }}
           platforms: ${{ env.DOCKER_PLATFORMS }}
-          push: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }}
+          push: ${{ (github.event_name != 'pull_request' &&
+                     github.actor != 'dependabot[bot]') ||
+                     startsWith(github.ref, 'lychee-v') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
@@ -104,7 +106,9 @@ jobs:
           context: .
           file: ${{ env.DOCKERFILE_ALPINE }}
           platforms: ${{ env.DOCKER_PLATFORMS }}
-          push: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }}
+          push: ${{ (github.event_name != 'pull_request' &&
+                     github.actor != 'dependabot[bot]') ||
+                     startsWith(github.ref, 'lychee-v') }}
           tags: ${{ steps.meta-alpine.outputs.tags }}
           labels: ${{ steps.meta-alpine.outputs.labels }}
 
