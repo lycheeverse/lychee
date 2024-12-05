@@ -327,6 +327,13 @@ Options:
           Do not show progress bar.
           This is recommended for non-interactive shells (e.g. for continuous integration)
 
+      --extensions <EXTENSIONS>
+          Test the specified file extensions for URIs when checking files locally.
+
+          Multiple extensions can be separated by commas. Note that if you want to check filetypes,
+          which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
+          specify both extensions explicitly.
+
       --cache
           Use request cache stored on disk at `.lycheecache`
 
