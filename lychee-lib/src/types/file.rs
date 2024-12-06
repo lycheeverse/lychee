@@ -54,7 +54,6 @@ impl<P: AsRef<Path>> From<P> for FileType {
 }
 
 /// Helper function to check if a path is likely a URL.
-
 fn is_url(path: &Path) -> bool {
     path.to_str()
         .and_then(|s| Url::parse(s).ok())
