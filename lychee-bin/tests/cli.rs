@@ -394,13 +394,13 @@ mod cli {
     }
 
     #[test]
-    fn test_resolve_paths_from_root_path() {
+    fn test_resolve_paths_from_root_dir() {
         let mut cmd = main_command();
-        let dir = fixtures_path().join("resolve_paths_from_root_path");
+        let dir = fixtures_path().join("resolve_paths_from_root_dir");
 
         cmd.arg("--offline")
             .arg("--include-fragments")
-            .arg("--root-path")
+            .arg("--root-dir")
             .arg(&dir)
             .arg(dir.join("nested").join("index.html"))
             .env_clear()
@@ -412,12 +412,12 @@ mod cli {
     }
 
     #[test]
-    fn test_resolve_paths_from_root_path_and_base_url() {
+    fn test_resolve_paths_from_root_dir_and_base_url() {
         let mut cmd = main_command();
         let dir = fixtures_path();
 
         cmd.arg("--offline")
-            .arg("--root-path")
+            .arg("--root-dir")
             .arg("/resolve_paths")
             .arg("--base")
             .arg(&dir)

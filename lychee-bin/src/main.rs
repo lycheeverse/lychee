@@ -288,7 +288,7 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
 
-    let mut collector = Collector::new(opts.config.root_path.clone(), opts.config.base.clone())
+    let mut collector = Collector::new(opts.config.root_dir.clone(), opts.config.base.clone())
         .skip_missing_inputs(opts.config.skip_missing)
         .skip_hidden(!opts.config.hidden)
         .skip_ignored(!opts.config.no_ignore)

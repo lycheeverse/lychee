@@ -22,7 +22,7 @@ pub struct Collector {
     skip_hidden: bool,
     include_verbatim: bool,
     use_html5ever: bool,
-    root_path: Option<PathBuf>,
+    root_dir: Option<PathBuf>,
     base: Option<Base>,
 }
 
@@ -35,7 +35,7 @@ impl Default for Collector {
             use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
-            root_path: None,
+            root_dir: None,
             base: None,
         }
     }
@@ -44,7 +44,7 @@ impl Default for Collector {
 impl Collector {
     /// Create a new collector with an empty cache
     #[must_use]
-    pub const fn new(root_path: Option<PathBuf>, base: Option<Base>) -> Self {
+    pub const fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> Self {
         Collector {
             basic_auth_extractor: None,
             skip_missing_inputs: false,
@@ -52,7 +52,7 @@ impl Collector {
             use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
-            root_path,
+            root_dir,
             base,
         }
     }
@@ -137,7 +137,7 @@ impl Collector {
             })
             .flatten()
             .par_then_unordered(None, move |(content, base)| {
-                let root_path = self.root_path.clone();
+                let root_dir = self.root_dir.clone();
                 let basic_auth_extractor = self.basic_auth_extractor.clone();
                 async move {
                     let content = content?;
@@ -146,7 +146,7 @@ impl Collector {
                     let requests = request::create(
                         uris,
                         &content.source,
-                        root_path.as_ref(),
+                        root_dir.as_ref(),
                         base.as_ref(),
                         basic_auth_extractor.as_ref(),
                     );
@@ -175,20 +175,20 @@ mod tests {
     // Helper function to run the collector on the given inputs
     async fn collect(
         inputs: Vec<Input>,
-        root_path: Option<PathBuf>,
+        root_dir: Option<PathBuf>,
         base: Option<Base>,
     ) -> HashSet<Uri> {
-        let responses = Collector::new(root_path, base).collect_links(inputs);
+        let responses = Collector::new(root_dir, base).collect_links(inputs);
         responses.map(|r| r.unwrap().uri).collect().await
     }
 
     // Helper function for collecting verbatim links
     async fn collect_verbatim(
         inputs: Vec<Input>,
-        root_path: Option<PathBuf>,
+        root_dir: Option<PathBuf>,
         base: Option<Base>,
     ) -> HashSet<Uri> {
-        let responses = Collector::new(root_path, base)
+        let responses = Collector::new(root_dir, base)
             .include_verbatim(true)
             .collect_links(inputs);
         responses.map(|r| r.unwrap().uri).collect().await

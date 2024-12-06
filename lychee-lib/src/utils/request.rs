@@ -25,11 +25,11 @@ fn extract_credentials(
 fn create_request(
     raw_uri: &RawUri,
     source: &InputSource,
-    root_path: Option<&PathBuf>,
+    root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
 ) -> Result<Request> {
-    let uri = try_parse_into_uri(raw_uri, source, root_path, base)?;
+    let uri = try_parse_into_uri(raw_uri, source, root_dir, base)?;
     let source = truncate_source(source);
     let element = raw_uri.element.clone();
     let attribute = raw_uri.attribute.clone();
@@ -52,10 +52,10 @@ fn create_request(
 fn try_parse_into_uri(
     raw_uri: &RawUri,
     source: &InputSource,
-    root_path: Option<&PathBuf>,
+    root_dir: Option<&PathBuf>,
     base: Option<&Base>,
 ) -> Result<Uri> {
-    let text = prepend_root_path_if_absolute_local_link(&raw_uri.text, root_path);
+    let text = prepend_root_dir_if_absolute_local_link(&raw_uri.text, root_dir);
     let uri = match Uri::try_from(raw_uri.clone()) {
         Ok(uri) => uri,
         Err(_) => match base {
@@ -65,7 +65,7 @@ fn try_parse_into_uri(
             },
             None => match source {
                 InputSource::FsPath(root) => {
-                    create_uri_from_file_path(root, &text, root_path.is_none())?
+                    create_uri_from_file_path(root, &text, root_dir.is_none())?
                 }
                 _ => return Err(ErrorKind::UnsupportedUriType(text)),
             },
@@ -136,7 +136,7 @@ fn truncate_source(source: &InputSource) -> InputSource {
 pub(crate) fn create(
     uris: Vec<RawUri>,
     source: &InputSource,
-    root_path: Option<&PathBuf>,
+    root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
 ) -> HashSet<Request> {
@@ -144,7 +144,7 @@ pub(crate) fn create(
 
     uris.into_iter()
         .filter_map(|raw_uri| {
-            match create_request(&raw_uri, source, root_path, base.as_ref(), extractor) {
+            match create_request(&raw_uri, source, root_dir, base.as_ref(), extractor) {
                 Ok(request) => Some(request),
                 Err(e) => {
                     warn!("Error creating request: {:?}", e);
@@ -193,9 +193,9 @@ fn resolve_and_create_url(
     Ok(url)
 }
 
-fn prepend_root_path_if_absolute_local_link(text: &str, root_path: Option<&PathBuf>) -> String {
+fn prepend_root_dir_if_absolute_local_link(text: &str, root_dir: Option<&PathBuf>) -> String {
     if text.starts_with('/') {
-        if let Some(path) = root_path {
+        if let Some(path) = root_dir {
             if let Some(path_str) = path.to_str() {
                 return format!("{path_str}{text}");
             }
@@ -292,12 +292,12 @@ mod tests {
     }
 
     #[test]
-    fn test_relative_url_resolution_from_root_path() {
-        let root_path = PathBuf::from("/tmp/lychee");
+    fn test_relative_url_resolution_from_root_dir() {
+        let root_dir = PathBuf::from("/tmp/lychee");
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("relative.html")];
-        let requests = create(uris, &source, Some(&root_path), None, None);
+        let requests = create(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -306,12 +306,12 @@ mod tests {
     }
 
     #[test]
-    fn test_absolute_url_resolution_from_root_path() {
-        let root_path = PathBuf::from("/tmp/lychee");
+    fn test_absolute_url_resolution_from_root_dir() {
+        let root_dir = PathBuf::from("/tmp/lychee");
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("https://another.com/page")];
-        let requests = create(uris, &source, Some(&root_path), None, None);
+        let requests = create(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -320,12 +320,12 @@ mod tests {
     }
 
     #[test]
-    fn test_root_relative_url_resolution_from_root_path() {
-        let root_path = PathBuf::from("/tmp/lychee");
+    fn test_root_relative_url_resolution_from_root_dir() {
+        let root_dir = PathBuf::from("/tmp/lychee");
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("/root-relative")];
-        let requests = create(uris, &source, Some(&root_path), None, None);
+        let requests = create(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -334,12 +334,12 @@ mod tests {
     }
 
     #[test]
-    fn test_parent_directory_url_resolution_from_root_path() {
-        let root_path = PathBuf::from("/tmp/lychee");
+    fn test_parent_directory_url_resolution_from_root_dir() {
+        let root_dir = PathBuf::from("/tmp/lychee");
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("../parent")];
-        let requests = create(uris, &source, Some(&root_path), None, None);
+        let requests = create(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -348,12 +348,12 @@ mod tests {
     }
 
     #[test]
-    fn test_fragment_url_resolution_from_root_path() {
-        let root_path = PathBuf::from("/tmp/lychee");
+    fn test_fragment_url_resolution_from_root_dir() {
+        let root_dir = PathBuf::from("/tmp/lychee");
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("#fragment")];
-        let requests = create(uris, &source, Some(&root_path), None, None);
+        let requests = create(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -362,13 +362,13 @@ mod tests {
     }
 
     #[test]
-    fn test_relative_url_resolution_from_root_path_and_base_url() {
-        let root_path = PathBuf::from("/tmp/lychee");
+    fn test_relative_url_resolution_from_root_dir_and_base_url() {
+        let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("relative.html")];
-        let requests = create(uris, &source, Some(&root_path), Some(&base), None);
+        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -377,13 +377,13 @@ mod tests {
     }
 
     #[test]
-    fn test_absolute_url_resolution_from_root_path_and_base_url() {
-        let root_path = PathBuf::from("/tmp/lychee");
+    fn test_absolute_url_resolution_from_root_dir_and_base_url() {
+        let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("https://another.com/page")];
-        let requests = create(uris, &source, Some(&root_path), Some(&base), None);
+        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -392,13 +392,13 @@ mod tests {
     }
 
     #[test]
-    fn test_root_relative_url_resolution_from_root_path_and_base_url() {
-        let root_path = PathBuf::from("/tmp/lychee");
+    fn test_root_relative_url_resolution_from_root_dir_and_base_url() {
+        let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("/root-relative")];
-        let requests = create(uris, &source, Some(&root_path), Some(&base), None);
+        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -407,13 +407,13 @@ mod tests {
     }
 
     #[test]
-    fn test_parent_directory_url_resolution_from_root_path_and_base_url() {
-        let root_path = PathBuf::from("/tmp/lychee");
+    fn test_parent_directory_url_resolution_from_root_dir_and_base_url() {
+        let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("../parent")];
-        let requests = create(uris, &source, Some(&root_path), Some(&base), None);
+        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -422,13 +422,13 @@ mod tests {
     }
 
     #[test]
-    fn test_fragment_url_resolution_from_root_path_and_base_url() {
-        let root_path = PathBuf::from("/tmp/lychee");
+    fn test_fragment_url_resolution_from_root_dir_and_base_url() {
+        let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("#fragment")];
-        let requests = create(uris, &source, Some(&root_path), Some(&base), None);
+        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(requests
@@ -529,32 +529,32 @@ mod tests {
     }
 
     #[test]
-    fn test_prepend_with_absolute_local_link_and_root_path() {
+    fn test_prepend_with_absolute_local_link_and_root_dir() {
         let text = "/absolute/path";
-        let root_path = PathBuf::from("/root");
-        let result = prepend_root_path_if_absolute_local_link(text, Some(&root_path));
+        let root_dir = PathBuf::from("/root");
+        let result = prepend_root_dir_if_absolute_local_link(text, Some(&root_dir));
         assert_eq!(result, "/root/absolute/path");
     }
 
     #[test]
-    fn test_prepend_with_absolute_local_link_and_no_root_path() {
+    fn test_prepend_with_absolute_local_link_and_no_root_dir() {
         let text = "/absolute/path";
-        let result = prepend_root_path_if_absolute_local_link(text, None);
+        let result = prepend_root_dir_if_absolute_local_link(text, None);
         assert_eq!(result, "/absolute/path");
     }
 
     #[test]
-    fn test_prepend_with_relative_link_and_root_path() {
+    fn test_prepend_with_relative_link_and_root_dir() {
         let text = "relative/path";
-        let root_path = PathBuf::from("/root");
-        let result = prepend_root_path_if_absolute_local_link(text, Some(&root_path));
+        let root_dir = PathBuf::from("/root");
+        let result = prepend_root_dir_if_absolute_local_link(text, Some(&root_dir));
         assert_eq!(result, "relative/path");
     }
 
     #[test]
-    fn test_prepend_with_relative_link_and_no_root_path() {
+    fn test_prepend_with_relative_link_and_no_root_dir() {
         let text = "relative/path";
-        let result = prepend_root_path_if_absolute_local_link(text, None);
+        let result = prepend_root_dir_if_absolute_local_link(text, None);
         assert_eq!(result, "relative/path");
     }
 }
