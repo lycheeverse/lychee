@@ -23,7 +23,7 @@ glob = "0.3.1"
 headers = "0.4.0"
 html5ever = "0.29.0"
 html5gum = "0.7.0"
-http = "1.0.0"
+http = "1.2.0"
 hyper = "1.5.1"
 ignore = "0.4.23"
 ip_network = "0.4.1"
@@ -53,8 +53,8 @@ secrecy = "0.10.3"
 serde = { version = "1.0.214", features = ["derive"] }
 serde_with = "3.8.1"
 shellexpand = "3.1.0"
-thiserror = "2.0.3"
-tokio = { version = "1.41.1", features = ["full"] }
+thiserror = "2.0.6"
+tokio = { version = "1.42.0", features = ["full"] }
 toml = "0.8.19"
 typed-builder = "0.20.0"
 url = { version = "2.5.4", features = ["serde"] }
