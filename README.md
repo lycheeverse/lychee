@@ -480,6 +480,9 @@ Options:
   -b, --base <BASE>
           Base URL or website root directory to check relative URLs e.g. <https://example.com> or `/path/to/public`
 
+      --root-dir <ROOT_DIR>
+          Root path to use when checking absolute local links, must be an absolute path
+
       --basic-auth <BASIC_AUTH>
           Basic authentication support. E.g. `http://example.com username:password`
 
