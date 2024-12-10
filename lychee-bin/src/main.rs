@@ -288,6 +288,12 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
 
+    if let Some(root_dir) = &opts.config.root_dir {
+        if root_dir.is_relative() {
+            bail!("`--root_dir` must be an absolute path");
+        }
+    }
+
     let mut collector = Collector::new(opts.config.root_dir.clone(), opts.config.base.clone())
         .skip_missing_inputs(opts.config.skip_missing)
         .skip_hidden(!opts.config.hidden)
