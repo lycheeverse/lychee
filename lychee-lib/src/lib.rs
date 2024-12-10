@@ -73,6 +73,7 @@ pub mod filter;
 
 #[cfg(test)]
 #[macro_use]
+/// Utility functions and macros to help testing lychee
 pub mod test_utils;
 
 #[cfg(test)]

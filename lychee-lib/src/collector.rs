@@ -124,7 +124,12 @@ impl Collector {
                     let content = content?;
                     let extractor = Extractor::new(self.use_html5ever, self.include_verbatim);
                     let uris: Vec<RawUri> = extractor.extract(&content);
-                    let requests = request::create(uris, &content, &base, &basic_auth_extractor);
+                    let requests = request::create(
+                        uris,
+                        &content,
+                        base.as_ref(),
+                        basic_auth_extractor.as_ref(),
+                    );
                     Result::Ok(stream::iter(requests.into_iter().map(Ok)))
                 }
             })
@@ -493,8 +498,8 @@ mod tests {
             source: InputSource::String(
                 r#"
                 <a href="index.html">Index</a>
-                <a href="about.html">About</a> 
-                <a href="/another.html">Another</a> 
+                <a href="about.html">About</a>
+                <a href="/another.html">Another</a>
             "#
                 .into(),
             ),

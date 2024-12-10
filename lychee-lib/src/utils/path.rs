@@ -10,8 +10,8 @@ static CURRENT_DIR: Lazy<PathBuf> =
     Lazy::new(|| env::current_dir().expect("cannot get current dir from environment"));
 
 /// Returns the base if it is a valid `PathBuf`
-fn get_base_dir(base: &Option<Base>) -> Option<PathBuf> {
-    base.as_ref().and_then(Base::dir)
+fn get_base_dir(base: Option<&Base>) -> Option<PathBuf> {
+    base.and_then(Base::dir)
 }
 
 /// Create an absolute path out of a `PathBuf`.
@@ -40,7 +40,7 @@ fn dirname(src: &'_ Path) -> Option<&'_ Path> {
 /// Resolve `dst` that was linked to from within `src`
 ///
 /// Returns Ok(None) in case of an absolute local link without a `base_url`
-pub(crate) fn resolve(src: &Path, dst: &Path, base: &Option<Base>) -> Result<Option<PathBuf>> {
+pub(crate) fn resolve(src: &Path, dst: &Path, base: Option<&Base>) -> Result<Option<PathBuf>> {
     let resolved = match dst {
         relative if dst.is_relative() => {
             // Find `dst` in the parent directory of `src`
@@ -110,7 +110,7 @@ mod test_path {
         let dummy = PathBuf::from("index.html");
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
-            resolve(&dummy, &abs_path, &None)?,
+            resolve(&dummy, &abs_path, None)?,
             Some(env::current_dir().unwrap().join("foo.html"))
         );
         Ok(())
@@ -123,7 +123,7 @@ mod test_path {
         let dummy = PathBuf::from("./index.html");
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
-            resolve(&dummy, &abs_path, &None)?,
+            resolve(&dummy, &abs_path, None)?,
             Some(env::current_dir().unwrap().join("foo.html"))
         );
         Ok(())
@@ -136,7 +136,7 @@ mod test_path {
         let abs_index = PathBuf::from("/path/to/index.html");
         let abs_path = PathBuf::from("./foo.html");
         assert_eq!(
-            resolve(&abs_index, &abs_path, &None)?,
+            resolve(&abs_index, &abs_path, None)?,
             Some(PathBuf::from("/path/to/foo.html"))
         );
         Ok(())
@@ -149,9 +149,9 @@ mod test_path {
     fn test_resolve_absolute_from_base_dir() -> Result<()> {
         let dummy = PathBuf::new();
         let abs_path = PathBuf::from("/foo.html");
-        let base = Some(Base::Local(PathBuf::from("/some/absolute/base/dir")));
+        let base = Base::Local(PathBuf::from("/some/absolute/base/dir"));
         assert_eq!(
-            resolve(&dummy, &abs_path, &base)?,
+            resolve(&dummy, &abs_path, Some(&base))?,
             Some(PathBuf::from("/some/absolute/base/dir/foo.html"))
         );
         Ok(())
@@ -163,9 +163,9 @@ mod test_path {
     fn test_resolve_absolute_from_absolute() -> Result<()> {
         let abs_index = PathBuf::from("/path/to/index.html");
         let abs_path = PathBuf::from("/other/path/to/foo.html");
-        let base = Some(Base::Local(PathBuf::from("/some/absolute/base/dir")));
+        let base = Base::Local(PathBuf::from("/some/absolute/base/dir"));
         assert_eq!(
-            resolve(&abs_index, &abs_path, &base)?,
+            resolve(&abs_index, &abs_path, Some(&base))?,
             Some(PathBuf::from(
                 "/some/absolute/base/dir/other/path/to/foo.html"
             ))
