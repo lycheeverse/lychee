@@ -1,3 +1,4 @@
+use crate::ErrorKind;
 use crate::InputSource;
 use crate::{
     basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri, utils::request,
@@ -43,9 +44,17 @@ impl Default for Collector {
 
 impl Collector {
     /// Create a new collector with an empty cache
-    #[must_use]
-    pub const fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> Self {
-        Collector {
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Err` if the `root_dir` is not an absolute path
+    pub fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> Result<Self> {
+        if let Some(root_dir) = &root_dir {
+            if root_dir.is_relative() {
+                return Err(ErrorKind::RootDirMustBeAbsolute(root_dir.clone()));
+            }
+        }
+        Ok(Collector {
             basic_auth_extractor: None,
             skip_missing_inputs: false,
             include_verbatim: false,
@@ -54,7 +63,7 @@ impl Collector {
             skip_ignored: true,
             root_dir,
             base,
-        }
+        })
     }
 
     /// Skip missing input files (default is to error if they don't exist)
@@ -177,9 +186,9 @@ mod tests {
         inputs: Vec<Input>,
         root_dir: Option<PathBuf>,
         base: Option<Base>,
-    ) -> HashSet<Uri> {
-        let responses = Collector::new(root_dir, base).collect_links(inputs);
-        responses.map(|r| r.unwrap().uri).collect().await
+    ) -> Result<HashSet<Uri>> {
+        let responses = Collector::new(root_dir, base)?.collect_links(inputs);
+        Ok(responses.map(|r| r.unwrap().uri).collect().await)
     }
 
     // Helper function for collecting verbatim links
@@ -187,11 +196,11 @@ mod tests {
         inputs: Vec<Input>,
         root_dir: Option<PathBuf>,
         base: Option<Base>,
-    ) -> HashSet<Uri> {
-        let responses = Collector::new(root_dir, base)
+    ) -> Result<HashSet<Uri>> {
+        let responses = Collector::new(root_dir, base)?
             .include_verbatim(true)
             .collect_links(inputs);
-        responses.map(|r| r.unwrap().uri).collect().await
+        Ok(responses.map(|r| r.unwrap().uri).collect().await)
     }
 
     const TEST_STRING: &str = "http://test-string.com";
@@ -279,7 +288,7 @@ mod tests {
             },
         ];
 
-        let links = collect_verbatim(inputs, None, None).await;
+        let links = collect_verbatim(inputs, None, None).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             website(TEST_STRING),
@@ -302,7 +311,7 @@ mod tests {
             file_type_hint: Some(FileType::Markdown),
                 excluded_paths: None,
         };
-        let links = collect(vec![input], None, Some(base)).await;
+        let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             website("https://endler.dev"),
@@ -328,7 +337,7 @@ mod tests {
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
         };
-        let links = collect(vec![input], None, Some(base)).await;
+        let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             website("https://github.com/lycheeverse/lychee/"),
@@ -357,7 +366,7 @@ mod tests {
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
         };
-        let links = collect(vec![input], None, Some(base)).await;
+        let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             website("https://example.com/static/image.png"),
@@ -384,7 +393,7 @@ mod tests {
             excluded_paths: None,
         };
 
-        let links = collect(vec![input], None, Some(base)).await;
+        let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
         let expected = HashSet::from_iter([
             website("https://localhost.com/@/internal.md"),
@@ -406,7 +415,7 @@ mod tests {
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
         };
-        let links = collect(vec![input], None, Some(base)).await;
+        let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             // the body links wouldn't be present if the file was parsed strictly as XML
@@ -439,7 +448,7 @@ mod tests {
             excluded_paths: None,
         };
 
-        let links = collect(vec![input], None, None).await;
+        let links = collect(vec![input], None, None).await.ok().unwrap();
 
         let expected_urls = HashSet::from_iter([
             website("https://github.com/lycheeverse/lychee/"),
@@ -458,7 +467,7 @@ mod tests {
             file_type_hint: None,
             excluded_paths: None,
         };
-        let links = collect(vec![input], None, None).await;
+        let links = collect(vec![input], None, None).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([mail("user@example.com")]);
 
@@ -501,7 +510,7 @@ mod tests {
             },
         ];
 
-        let links = collect(inputs, None, None).await;
+        let links = collect(inputs, None, None).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             website(&format!(
@@ -535,7 +544,7 @@ mod tests {
             excluded_paths: None,
         };
 
-        let links = collect(vec![input], None, Some(base)).await;
+        let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             path("/path/to/root/index.html"),

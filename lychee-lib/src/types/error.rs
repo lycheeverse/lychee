@@ -94,6 +94,10 @@ pub enum ErrorKind {
     #[error("Cannot convert path '{0}' to a URI")]
     InvalidPathToUri(String),
 
+    /// Root dir must be an absolute path
+    #[error("Root dir must be an absolute path: '{0}'")]
+    RootDirMustBeAbsolute(PathBuf),
+
     /// The given URI type is not supported
     #[error("Unsupported URI type: '{0}'")]
     UnsupportedUriType(String),
@@ -310,6 +314,7 @@ impl Hash for ErrorKind {
             Self::InvalidBase(base, e) => (base, e).hash(state),
             Self::InvalidBaseJoin(s) => s.hash(state),
             Self::InvalidPathToUri(s) => s.hash(state),
+            Self::RootDirMustBeAbsolute(s) => s.hash(state),
             Self::UnsupportedUriType(s) => s.hash(state),
             Self::InvalidUrlRemap(remap) => (remap).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
