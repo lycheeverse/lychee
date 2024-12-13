@@ -19,9 +19,9 @@
         default =
           let
             pkgs = import nixpkgs {
-            inherit system;
-            overlays = [ (import rust-overlay) ];
-          };
+              inherit system;
+              overlays = [ (import rust-overlay) ];
+            };
             rustVersion = "latest"; # using a specific version: "1.62.0"
             rust = pkgs.rust-bin.stable.${rustVersion}.default.override {
               extensions = [
