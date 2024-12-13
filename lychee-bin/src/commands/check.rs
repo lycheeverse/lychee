@@ -192,7 +192,7 @@ async fn progress_bar_task(
     while let Some(response) = recv_resp.recv().await {
         show_progress(
             &mut io::stderr(),
-            &pb,
+            pb.as_ref(),
             &response,
             formatter.as_ref(),
             &verbose,
@@ -331,7 +331,7 @@ fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<u16>)
 
 fn show_progress(
     output: &mut dyn Write,
-    progress_bar: &Option<ProgressBar>,
+    progress_bar: Option<&ProgressBar>,
     response: &Response,
     formatter: &dyn ResponseFormatter,
     verbose: &Verbosity,
@@ -401,7 +401,7 @@ mod tests {
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(
             &mut buf,
-            &None,
+            None,
             &response,
             formatter.as_ref(),
             &Verbosity::default(),
@@ -423,7 +423,7 @@ mod tests {
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(
             &mut buf,
-            &None,
+            None,
             &response,
             formatter.as_ref(),
             &Verbosity::debug(),
