@@ -22,6 +22,3 @@ debug/
 # lychee-specific files
 .lycheecache
 .config.dummy.report.md
-
-# direnv cache
-.direnv/
