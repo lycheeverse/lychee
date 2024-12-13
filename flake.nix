@@ -37,7 +37,6 @@
               pkgs.openssl
               rust
             ];
-            RUST_BACKTRACE = 1;
           };
       });
     };
