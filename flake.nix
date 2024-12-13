@@ -11,31 +11,34 @@
       ...
     }:
     let
-      system = "x86_64-linux";
-      pkgs = import nixpkgs {
-        inherit system;
-        overlays = [ (import rust-overlay) ];
-      };
+      systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
+      forAllSystems = nixpkgs.lib.genAttrs systems;
     in
     {
-      devShells.${system}.default =
-        let
-          rustVersion = "latest"; # using a specific version: "1.62.0"
-          rust = pkgs.rust-bin.stable.${rustVersion}.default.override {
-            extensions = [
-              "rust-src" # for rust-analyzer
-              "rust-analyzer" # usable by IDEs like zed-editor
-              "clippy"
-            ];
+      devShells = forAllSystems (system: {
+        default =
+          let
+            pkgs = import nixpkgs {
+            inherit system;
+            overlays = [ (import rust-overlay) ];
           };
-        in
-        pkgs.mkShell {
-          packages = [
-            pkgs.pkg-config
-            pkgs.openssl
-            rust
-          ];
-          RUST_BACKTRACE = 1;
-        };
+            rustVersion = "latest"; # using a specific version: "1.62.0"
+            rust = pkgs.rust-bin.stable.${rustVersion}.default.override {
+              extensions = [
+                "rust-src" # for rust-analyzer
+                "rust-analyzer" # usable by IDEs like zed-editor
+                "clippy"
+              ];
+            };
+          in
+          pkgs.mkShell {
+            packages = [
+              pkgs.pkg-config
+              pkgs.openssl
+              rust
+            ];
+            RUST_BACKTRACE = 1;
+          };
+      });
     };
 }
