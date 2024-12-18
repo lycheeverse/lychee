@@ -11,10 +11,10 @@ RUN apt-get update \
     wget \
     && case $(dpkg --print-architecture) in \
       "amd64") \
-        wget -q -O - https://github.com/lycheeverse/lychee/releases/$LYCHEE_VERSION/download/lychee-x86_64-unknown-linux-gnu.tar.gz | tar -xz lychee \
+        wget -q -O - https://github.com/lycheeverse/lychee/releases/download/$LYCHEE_VERSION/lychee-x86_64-unknown-linux-gnu.tar.gz | tar -xz lychee \
       ;; \
       "arm64") \
-        wget -q -O - https://github.com/lycheeverse/lychee/releases/$LYCHEE_VERSION/download/lychee-aarch64-unknown-linux-gnu.tar.gz | tar -xz lychee \
+        wget -q -O - https://github.com/lycheeverse/lychee/releases/download/$LYCHEE_VERSION/lychee-aarch64-unknown-linux-gnu.tar.gz | tar -xz lychee \
       ;; \
     esac \
     && chmod +x lychee
