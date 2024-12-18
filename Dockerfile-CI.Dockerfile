@@ -1,20 +1,24 @@
 FROM debian:bookworm-slim AS builder
 WORKDIR /builder
 
+ARG LYCHEE_VERSION="latest"
+
 RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    --no-install-recommends \
-    ca-certificates \
-    jq \
-    wget \
-    && case $(dpkg --print-architecture) in \
-      "amd64") \
-        wget -q -O - https://github.com/lycheeverse/lychee/releases/latest/download/lychee-x86_64-unknown-linux-gnu.tar.gz | tar -xz lychee \
-      ;; \
-      "arm64") \
-        wget -q -O - https://github.com/lycheeverse/lychee/releases/latest/download/lychee-aarch64-unknown-linux-gnu.tar.gz | tar -xz lychee \
-      ;; \
-    esac \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ca-certificates \
+        jq \
+        wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && ARCH=$(case $(dpkg --print-architecture) in \
+        "amd64") echo "x86_64";; \
+        "arm64") echo "aarch64";; \
+        *) echo "Unsupported architecture" && exit 1;; \
+        esac) \
+    && BASE_URL=$(case $LYCHEE_VERSION in \
+        "latest") echo "https://github.com/lycheeverse/lychee/releases/latest/download";; \
+        *) echo "https://github.com/lycheeverse/lychee/releases/download/$LYCHEE_VERSION";; \
+        esac) \
+    && wget -q -O - "$BASE_URL/lychee-$ARCH-unknown-linux-gnu.tar.gz" | tar -xz lychee \
     && chmod +x lychee
 
 FROM debian:bookworm-slim
