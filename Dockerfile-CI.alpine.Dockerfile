@@ -3,16 +3,17 @@ WORKDIR /builder
 
 ARG LYCHEE_VERSION="latest"
 
-RUN apk update \
-    && apk add --no-cache ca-certificates jq wget \
-    && case $(arch) in \
-      "x86_64") \
-        wget -4 -q -O - https://github.com/lycheeverse/lychee/releases/download/$LYCHEE_VERSION/lychee-x86_64-unknown-linux-musl.tar.gz | tar -xz lychee \
-      ;; \
-      "aarch64") \
-        wget -4 -q -O - https://github.com/lycheeverse/lychee/releases/download/$LYCHEE_VERSION/lychee-arm-unknown-linux-musleabihf.tar.gz | tar -xz lychee \
-      ;; \
-    esac \
+RUN apk add --no-cache ca-certificates jq wget \
+    && ARCH=$(case $(arch) in \
+        "x86_64") echo "x86_64-unknown-linux-musl";; \
+        "aarch64") echo "arm-unknown-linux-musleabihf";; \
+        *) echo "Unsupported architecture" && exit 1;; \
+        esac) \
+    && BASE_URL=$(case $LYCHEE_VERSION in \
+        "latest") echo "https://github.com/lycheeverse/lychee/releases/latest/download";; \
+        *) echo "https://github.com/lycheeverse/lychee/releases/download/$LYCHEE_VERSION";; \
+        esac) \
+    && wget -4 -q -O - "$BASE_URL/lychee-$ARCH.tar.gz" | tar -xz lychee \
     && chmod +x lychee
 
 FROM alpine:latest
