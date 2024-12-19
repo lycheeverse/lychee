@@ -1,10 +1,16 @@
 { pkgs }:
 let
+  version =
+    let
+      cargoToml = builtins.readFile ./Cargo.toml;
+      match = builtins.match ''.*version = "([^"]+)".*'' cargoToml;
+    in
+    if match != null then builtins.elemAt match 0 else throw "Version not found in Cargo.toml";
 in
 {
   app = pkgs.rustPlatform.buildRustPackage {
     pname = "lychee";
-    version = "0.17.0";
+    inherit version;
     src = ./.;
 
     cargoLock = {
