@@ -1,15 +1,5 @@
-{
-  pkgs,
-  nixpkgs,
-  system,
-  rust-overlay,
-  rustVersion,
-}:
+{ pkgs }:
 let
-  rustPkgs = import nixpkgs {
-    inherit system;
-    overlays = [ (import rust-overlay) ];
-  };
 in
 {
   app = pkgs.rustPlatform.buildRustPackage {

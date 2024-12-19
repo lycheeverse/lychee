@@ -49,14 +49,7 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          code = pkgs.callPackage ./. {
-            inherit
-              nixpkgs
-              system
-              rust-overlay
-              rustVersion
-              ;
-          };
+          code = import ./default.nix { inherit pkgs; };
         in
         {
           default = code.app;
