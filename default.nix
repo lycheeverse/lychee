@@ -10,8 +10,10 @@ let
     inherit system;
     overlays = [ (import rust-overlay) ];
   };
-
-  common = {
+in
+{
+  app = pkgs.rustPlatform.buildRustPackage {
+    pname = "lychee";
     version = "0.17.0";
     src = ./.;
 
@@ -36,12 +38,4 @@ let
       "--skip=collector::tests::test_url_without_extension_is_html"
     ];
   };
-in
-{
-  app = pkgs.rustPlatform.buildRustPackage (
-    common
-    // {
-      pname = "lychee";
-    }
-  );
 }
