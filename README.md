@@ -20,8 +20,8 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 ## Table of Contents
 
-- [Installation](#installation)
 - [Development](#development)
+- [Installation](#installation)
 - [Features](#features)
 - [Commandline usage](#commandline-usage)
 - [Library usage](#library-usage)
@@ -34,6 +34,12 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## Development
+
+After [installing Rust](https://www.rust-lang.org/tools/install) use [Cargo](https://doc.rust-lang.org/cargo/) for building and testing.
+On Linux the OpenSSL package [is required](https://github.com/seanmonstar/reqwest?tab=readme-ov-file#requirements) to compile `reqwest`, a dependendy of lychee.
+For Nix we provide a flake so you can use `nix develop` and `nix build`.
 
 ## Installation
 
@@ -148,12 +154,6 @@ Lychee supports several feature flags:
 - `check_example_domains` allows checking example domains such as `example.com`. This feature is useful for testing.
 
 By default, `native-tls` and `email-check` are enabled.
-
-## Development
-
-After [installing Rust](https://www.rust-lang.org/tools/install) use [Cargo](https://doc.rust-lang.org/cargo/) for building and testing.
-On Linux the OpenSSL package [is required](https://github.com/seanmonstar/reqwest?tab=readme-ov-file#requirements) to compile `reqwest`, a dependendy of lychee.
-For Nix we provide a flake so you can use `nix develop` and `nix build`.
 
 ## Features
 
