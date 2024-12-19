@@ -59,10 +59,7 @@
           };
         in
         {
-          default = pkgs.symlinkJoin {
-            name = "all";
-            paths = with code; [ app ];
-          };
+          default = code.app;
         }
       );
     };
