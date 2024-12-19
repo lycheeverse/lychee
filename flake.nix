@@ -9,6 +9,7 @@
     {
       nixpkgs,
       rust-overlay,
+      self,
       ...
     }:
     let
@@ -51,10 +52,15 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          code = import ./default.nix { inherit pkgs; };
         in
         {
-          default = code.app;
+          default = pkgs.lychee.overrideAttrs {
+            src = ./.;
+            version = self.rev or self.dirtyShortRev;
+            cargoDeps = pkgs.rustPlatform.importCargoLock {
+              lockFile = ./Cargo.lock;
+            };
+          };
         }
       );
     };
