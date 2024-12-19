@@ -38,7 +38,7 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 ## Development
 
 After [installing Rust](https://www.rust-lang.org/tools/install) use [Cargo](https://doc.rust-lang.org/cargo/) for building and testing.
-On Linux the OpenSSL package [is required](https://github.com/seanmonstar/reqwest?tab=readme-ov-file#requirements) to compile `reqwest`, a dependendy of lychee.
+On Linux the OpenSSL package [is required](https://github.com/seanmonstar/reqwest?tab=readme-ov-file#requirements) to compile `reqwest`, a dependency of lychee.
 For Nix we provide a flake so you can use `nix develop` and `nix build`.
 
 ## Installation
