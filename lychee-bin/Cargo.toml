@@ -14,7 +14,7 @@ version.workspace = true
 [dependencies]
 # NOTE: We need to specify the version of lychee-lib here because crates.io
 # requires all dependencies to have a version number.
-lychee-lib = { path = "../lychee-lib", version = "0.18.0", default-features = false }
+lychee-lib = { path = "../lychee-lib", version = "0.18.1", default-features = false }
 
 anyhow = "1.0.95"
 assert-json-diff = "2.0.2"
