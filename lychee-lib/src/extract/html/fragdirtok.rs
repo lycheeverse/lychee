@@ -10,7 +10,6 @@ use html5ever::tokenizer::{CharacterTokens, EndTag, NullCharacterToken, StartTag
 use html5ever::tokenizer::{
     ParseError, Token, TokenSink, TokenSinkResult,
 };
-use log::debug;
 
 use crate::types::TextDirective;
 
@@ -245,8 +244,8 @@ impl TokenSink for FragmentDirectiveTokenizer {
                         if is_block_element {
                             // If already a block element is present, this becomes nested block element...
                             // let us process the existing content first
-                            if let Some(last_block_elt) = self.block_elements.borrow().last() {
-                                debug!("new block element (nested inside: {last_block_elt}) - {tag_name}...");
+                            if let Some(_last_block_elt) = self.block_elements.borrow().last() {
+                                // info!("new block element (nested inside: {last_block_elt}) - {tag_name}...");
                                 self.check_all_text_directives();
                             }
 
@@ -263,7 +262,7 @@ impl TokenSink for FragmentDirectiveTokenizer {
                             assert!(self.block_elements.borrow().contains(&tag_name));
                             self.content.borrow().set_end_line(line_number);
 
-                            debug!("ënd of block element {tag_name}");
+                            // info!("ënd of block element {tag_name}");
                             self.check_all_text_directives();
 
                             // Remove the block element reference from the queue
@@ -483,7 +482,7 @@ impl FragmentDirectiveTokenizer {
                         // We've matched all the text directives...time to exit!
                         if next_directive == search_kind {
                             td.status = CheckerStatus::Completed.into();
-                            debug!("found: {}", td.get_result_str());
+                            // info!("found: {}", td.get_result_str());
                             break 'directive_loop;
                         }
                     },
@@ -652,7 +651,7 @@ mod tests {
 
     use html5ever::tokenizer::{BufferQueue, Tokenizer, TokenizerOpts};
     use http::StatusCode;
-    use log::debug;
+    use log::info;
 
     use crate::{types::ErrorKind, Status};
 
@@ -677,16 +676,16 @@ mod tests {
         input.push_back(buf.into());
 
         let res = tok.feed(&input);
-        debug!("{res:?}");
+        info!("{res:?}");
         tok.end();
 
         let mut error = None;
 
         for td in tok.sink.text_directives.borrow().iter() {
             let status = td.get_status();
-            debug!("tdirective: {:?}", td.get_text_directive());
-            debug!("status: {:?}", status);
-            debug!("result: {:?}", td.get_result_str());
+            info!("tdirective: {:?}", td.get_text_directive());
+            info!("status: {:?}", status);
+            info!("result: {:?}", td.get_result_str());
 
             if status != CheckerStatus::Completed {
                 error = Some(ErrorKind::TextFragmentError(TextFragmentStatus::TextDirectiveNotFound(td.get_text_directive())));

@@ -8,7 +8,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use http::StatusCode;
-use log::debug;
+use log::info;
 use octocrab::Octocrab;
 use reqwest::Request;
 use std::{collections::HashSet, time::Duration};
@@ -108,11 +108,9 @@ impl WebsiteChecker {
                 let mut status = Status::new(&response, self.accepted.clone());
                 if self.validate_text_fragments && has_fragment_directive {
                     if let Ok(res) = response.text().await {
-                        debug!("response received! {res}");
-
-                        debug!("checking fragment directive...");
+                        info!("checking fragment directive...");
                         if let Some(fd) = req_url.fragment_directive() {
-                            debug!("directive: {:?}", fd.text_directives);
+                            info!("directive: {:?}", fd.text_directives);
                             match fd.check(&res) {
                                 Ok(stat) => { 
                                     status = stat;

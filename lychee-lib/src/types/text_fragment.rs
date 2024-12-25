@@ -369,6 +369,7 @@ impl FragmentDirective {
         }
 
         if let Some(error) = error {
+            log::error!("Error finding the text directives: {error}");
             return Err(error);
         }
 
