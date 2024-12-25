@@ -9,9 +9,9 @@ path = "client_pool.rs"
 
 [dependencies]
 futures = "0.3.31"
-tokio-stream = "0.1.16"
+tokio-stream = "0.1.17"
 lychee-lib = { path = "../../lychee-lib", default-features = false }
-tokio = { version = "1.41.1", features = ["full"] }
+tokio = { version = "1.42.0", features = ["full"] }
 
 [features]
 email-check = ["lychee-lib/email-check"]

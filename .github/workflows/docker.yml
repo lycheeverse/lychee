@@ -99,6 +99,8 @@ jobs:
                      startsWith(github.ref, 'lychee-v') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            "LYCHEE_VERSION=${{ github.ref == 'refs/heads/master' && 'nightly' || 'latest' }}"
 
       - name: Push Image (alpine)
         uses: docker/build-push-action@v6
@@ -111,6 +113,8 @@ jobs:
                      startsWith(github.ref, 'lychee-v') }}
           tags: ${{ steps.meta-alpine.outputs.tags }}
           labels: ${{ steps.meta-alpine.outputs.labels }}
+          build-args: |
+            "LYCHEE_VERSION=${{ github.ref == 'refs/heads/master' && 'nightly' || 'latest' }}"
 
       - name: Update DockerHub description
         uses: peter-evans/dockerhub-description@v4

@@ -20,6 +20,7 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 ## Table of Contents
 
+- [Development](#development)
 - [Installation](#installation)
 - [Features](#features)
 - [Commandline usage](#commandline-usage)
@@ -33,6 +34,12 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## Development
+
+After [installing Rust](https://www.rust-lang.org/tools/install) use [Cargo](https://doc.rust-lang.org/cargo/) for building and testing.
+On Linux the OpenSSL package [is required](https://github.com/seanmonstar/reqwest?tab=readme-ov-file#requirements) to compile `reqwest`, a dependency of lychee.
+For Nix we provide a flake so you can use `nix develop` and `nix build`.
 
 ## Installation
 
@@ -482,6 +489,9 @@ Options:
 
   -b, --base <BASE>
           Base URL or website root directory to check relative URLs e.g. <https://example.com> or `/path/to/public`
+
+      --root-dir <ROOT_DIR>
+          Root path to use when checking absolute local links, must be an absolute path
 
       --basic-auth <BASIC_AUTH>
           Basic authentication support. E.g. `http://example.com username:password`

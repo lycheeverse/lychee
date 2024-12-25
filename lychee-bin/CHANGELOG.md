@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.17.0...lychee-v0.18.0) - 2024-12-18
+
+### Other
+
+- Bump the dependencies group across 1 directory with 11 updates ([#1589](https://github.com/lycheeverse/lychee/pull/1589))
+- Introduce --root-dir ([#1576](https://github.com/lycheeverse/lychee/pull/1576))
+- Fix retries ([#1573](https://github.com/lycheeverse/lychee/pull/1573))
+- Pass along --max-retries config option ([#1572](https://github.com/lycheeverse/lychee/pull/1572))
+- Bump the dependencies group with 4 updates ([#1571](https://github.com/lycheeverse/lychee/pull/1571))
+- Bump the dependencies group with 4 updates ([#1570](https://github.com/lycheeverse/lychee/pull/1570))
+- Bump the dependencies group with 4 updates ([#1566](https://github.com/lycheeverse/lychee/pull/1566))
+- Rename `fail_map` to `error_map` for improved clarity in response statistics ([#1560](https://github.com/lycheeverse/lychee/pull/1560))
+- Add quirks support for `youtube-nocookie.com` and youtube embed URLs ([#1563](https://github.com/lycheeverse/lychee/pull/1563))
+- Support excluded paths in `--dump-inputs` ([#1556](https://github.com/lycheeverse/lychee/pull/1556))
+- Improve robustness of cache integration test ([#1557](https://github.com/lycheeverse/lychee/pull/1557))
+- Bump the dependencies group across 1 directory with 7 updates ([#1552](https://github.com/lycheeverse/lychee/pull/1552))
+- Bring back error output for links (#1553)
+
 ## [0.17.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.16.1...lychee-v0.17.0) - 2024-11-06
 
 ### Fixed
