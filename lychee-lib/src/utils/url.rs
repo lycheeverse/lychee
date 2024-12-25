@@ -66,18 +66,18 @@ mod test_fs_tree {
 
     #[test]
     fn test_fragment_directive_through_url() {
-        let _url = Url::parse(
+        let url = Url::parse(
             "https://example.com#:~:text=prefix-,start,end,-suffix&text=unknown_directive",
         );
-        match _url {
-            Ok(_url) => {
+        match url {
+            Ok(url) => {
                 eprintln!(
                     "fragment is: {:#?}, {:?}",
-                    _url.fragment(),
-                    _url.fragment_directive()
+                    url.fragment(),
+                    url.fragment_directive()
                 );
             }
-            Err(e) => eprintln!("{}", e),
+            Err(e) => eprintln!("{e}"),
         }
     }
 

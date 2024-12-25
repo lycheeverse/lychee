@@ -88,7 +88,7 @@ struct BlockElementContent {
 }
 
 impl BlockElementContent {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             element_name: RefCell::new(String::new()),
             content: RefCell::new(String::new()),
@@ -762,15 +762,15 @@ mod tests {
     #[test]
     fn test_fragment_directive_checker() {
         const FRAGMENT: &str = ":~:text=par-,agraph,inp,-ut";
-        let fd = FragmentDirective::from_fragment_as_str(&FRAGMENT);
+        let fd = FragmentDirective::from_fragment_as_str(FRAGMENT);
 
-        let res = check(&HTML_INPUT, fd.unwrap().text_directives);
+        let res = check(HTML_INPUT, fd.unwrap().text_directives);
         match res {
             Ok(result) => {
                 assert_eq!(result, Status::Ok(StatusCode::OK));
             }
             Err(e) => {
-                panic!("{}", e);
+                panic!("{e}");
             }
         };
     }

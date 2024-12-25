@@ -397,18 +397,15 @@ mod tests {
 
     const TEST_FRAGMENT: &str = ":~:text=prefix-,start,end,-suffix&text=start,-suffix%2Dwith%2Ddashes&unknown_directive&text=prefix%2Donly-";
 
-    fn print_fragment_directive(fd: &Option<FragmentDirective>) {
-        match fd {
-            Some(fd) => {
-                println!("url: {:?}", fd.url);
-                for td in fd.text_directives.clone().into_iter().enumerate() {
-                    println!(
-                        "{}. for fragment directive - {}, Text Directive is:\n\tprefix: {:?}, start: {:?}, end: {:?}, suffix: {:?}",
-                        td.0, td.1.raw_directive, td.1.prefix, td.1.start, td.1.end, td.1.suffix
-                    );
-                }
+    fn print_fragment_directive(fd: Option<FragmentDirective>) {
+        if let Some(fd) = fd {
+            println!("url: {:?}", fd.url);
+            for td in fd.text_directives.clone().into_iter().enumerate() {
+                println!(
+                    "{}. for fragment directive - {}, Text Directive is:\n\tprefix: {:?}, start: {:?}, end: {:?}, suffix: {:?}",
+                    td.0, td.1.raw_directive, td.1.prefix, td.1.start, td.1.end, td.1.suffix
+                );
             }
-            _ => {}
         }
     }
 
@@ -426,132 +423,126 @@ mod tests {
     #[test]
     fn test_fragment_directive_start_only() {
         const FRAGMENT: &str = ":~:text=repeated";
-        println!("as_str...{:#?}", FRAGMENT);
+        println!("as_str...{FRAGMENT:#?}");
 
-        let fd = FragmentDirective::from_fragment_as_str(&FRAGMENT);
-        print_fragment_directive(&fd);
+        let fd = FragmentDirective::from_fragment_as_str(FRAGMENT);
+        print_fragment_directive(fd.clone());
 
-        match fd {
-            Some(fd) => match fd.check(&MULTILINE_INPUT) {
+        if let Some(fd) = fd {
+            match fd.check(MULTILINE_INPUT) {
                 Ok(status) => {
-                    println!("Fragment directive found {}!", status);
+                    println!("Fragment directive found {status}!");
                     assert_eq!(status, Status::Ok(StatusCode::OK));
                 }
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                 }
-            },
-            None => {}
+            }
         };
     }
 
     #[test]
     fn test_fragment_directive_start_end() {
         const FRAGMENT: &str = ":~:text=repeated, block";
-        println!("as_str...{:#?}", FRAGMENT);
+        println!("as_str...{FRAGMENT:#?}");
 
-        let fd = FragmentDirective::from_fragment_as_str(&FRAGMENT);
-        print_fragment_directive(&fd);
+        let fd = FragmentDirective::from_fragment_as_str(FRAGMENT);
+        print_fragment_directive(fd.clone());
 
-        match fd {
-            Some(fd) => match fd.check(&MULTILINE_INPUT) {
+        if let Some(fd) = fd {
+            match fd.check(MULTILINE_INPUT) {
                 Ok(status) => {
-                    println!("Fragment directive found {}!", status);
+                    println!("Fragment directive found {status}!");
                     assert_eq!(status, Status::Ok(StatusCode::OK));
                 }
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                 }
-            },
-            None => {}
+            }
         };
     }
 
     #[test]
     fn test_fragment_directive_prefix_start() {
         const FRAGMENT: &str = ":~:text=with-,repeated";
-        println!("as_str...{:#?}", FRAGMENT);
+        println!("as_str...{FRAGMENT:#?}");
 
-        let fd = FragmentDirective::from_fragment_as_str(&FRAGMENT);
-        print_fragment_directive(&fd);
+        let fd = FragmentDirective::from_fragment_as_str(FRAGMENT);
+        print_fragment_directive(fd.clone());
 
-        match fd {
-            Some(fd) => match fd.check(&MULTILINE_INPUT) {
+        if let Some(fd) = fd {
+            match fd.check(MULTILINE_INPUT) {
                 Ok(status) => {
-                    println!("Fragment directive found {}!", status);
+                    println!("Fragment directive found {status}!");
                     assert_eq!(status, Status::Ok(StatusCode::OK));
                 }
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                 }
-            },
-            None => {}
+            }
         };
     }
 
     #[test]
     fn test_fragment_directive_start_suffix() {
         const FRAGMENT: &str = ":~:text=linked%20URL,-'s%20format";
-        println!("as_str...{:#?}", FRAGMENT);
+        println!("as_str...{FRAGMENT:#?}");
 
-        let fd = FragmentDirective::from_fragment_as_str(&FRAGMENT);
-        print_fragment_directive(&fd);
+        let fd = FragmentDirective::from_fragment_as_str(FRAGMENT);
+        print_fragment_directive(fd.clone());
 
-        match fd {
-            Some(fd) => match fd.check(&MULTILINE_INPUT) {
+        if let Some(fd) = fd {
+            match fd.check(MULTILINE_INPUT) {
                 Ok(status) => {
-                    println!("Fragment directive found {}!", status);
+                    println!("Fragment directive found {status}!");
                     assert_eq!(status, Status::Ok(StatusCode::OK));
                 }
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                 }
-            },
-            None => {}
+            }
         };
     }
 
     #[test]
     fn test_fragment_directive_prefix_start_suffix() {
         const FRAGMENT: &str = ":~:text=with-,repeated,-instance";
-        println!("as_str...{:#?}", FRAGMENT);
+        println!("as_str...{FRAGMENT:#?}");
 
-        let fd = FragmentDirective::from_fragment_as_str(&FRAGMENT);
-        print_fragment_directive(&fd);
+        let fd = FragmentDirective::from_fragment_as_str(FRAGMENT);
+        print_fragment_directive(fd.clone());
 
-        match fd {
-            Some(fd) => match fd.check(&MULTILINE_INPUT) {
+        if let Some(fd) = fd {
+            match fd.check(MULTILINE_INPUT) {
                 Ok(status) => {
-                    println!("Fragment directive found {}!", status);
+                    println!("Fragment directive found {status}!");
                     assert_eq!(status, Status::Ok(StatusCode::OK));
                 }
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                 }
-            },
-            None => {}
+            }
         };
     }
 
     #[test]
     fn test_fragment_directive_prefix_start_suffix_end() {
         const FRAGMENT: &str = ":~:text=with-,repeated, For, -instance";
-        println!("as_str...{:#?}", FRAGMENT);
+        println!("as_str...{FRAGMENT:#?}");
 
-        let fd = FragmentDirective::from_fragment_as_str(&FRAGMENT);
-        print_fragment_directive(&fd);
+        let fd = FragmentDirective::from_fragment_as_str(FRAGMENT);
+        print_fragment_directive(fd.clone());
 
-        match fd {
-            Some(fd) => match fd.check(&MULTILINE_INPUT) {
+        if let Some(fd) = fd {
+            match fd.check(MULTILINE_INPUT) {
                 Ok(status) => {
-                    println!("Fragment directive found {}!", status);
+                    println!("Fragment directive found {status}!");
                     assert_eq!(status, Status::Ok(StatusCode::OK));
                 }
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                 }
-            },
-            None => {}
+            }
         };
     }
 
@@ -561,11 +552,11 @@ mod tests {
 
         let fd = FragmentDirective::from_url(&url);
 
-        println!("as_url...{:?}", TEST_FRAGMENT);
-        print_fragment_directive(&fd);
+        println!("as_url...{TEST_FRAGMENT:?}");
+        print_fragment_directive(fd);
 
         println!("--- FROM Url.fragment_text_directives() ----");
         let fd = url.fragment_directive();
-        print_fragment_directive(&fd);
+        print_fragment_directive(fd);
     }
 }
