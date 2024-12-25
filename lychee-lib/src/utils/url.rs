@@ -38,7 +38,7 @@ pub(crate) trait UrlExt {
 
 impl UrlExt for Url {
     /// Returns whether the URL has fragment directive or not
-    /// 
+    ///
     /// **Note:** Fragment Directive is possible only for the URL that has a fragment
     fn has_fragment_directive(&self) -> bool {
         if let Some(fragment) = self.fragment() {
@@ -49,7 +49,7 @@ impl UrlExt for Url {
     }
 
     /// Return this URL's fragment directive, if any
-    /// 
+    ///
     /// **Note:** A fragment directive is part of the URL's fragment following the `:~:` delimiter
     fn fragment_directive(&self) -> Option<FragmentDirective> {
         if self.has_fragment_directive() {

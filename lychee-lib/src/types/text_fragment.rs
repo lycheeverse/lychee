@@ -20,11 +20,15 @@ use log::{debug, warn};
 use std::str::Utf8Error;
 use thiserror::Error;
 
-use percent_encoding::percent_decode_str;
 use fancy_regex::Regex;
+use percent_encoding::percent_decode_str;
 use url::Url;
 
-use crate::{extract::html::fragdirtok::{CheckerStatus, FragmentDirectiveTokenizer}, types::ErrorKind, Status};
+use crate::{
+    extract::html::fragdirtok::{CheckerStatus, FragmentDirectiveTokenizer},
+    types::ErrorKind,
+    Status,
+};
 
 #[derive(Debug, Error, PartialEq)]
 pub enum TextFragmentStatus {
@@ -107,12 +111,12 @@ impl TextDirective {
     }
 
     /// Extract `TextDirective` from fragment string
-    /// 
+    ///
     /// Text directives are percent encoded and we'll decode after extracting
-    /// 
+    ///
     /// Start is MANDATORY field - cannot be empty
     /// end, prefix & suffix are optional
-    /// 
+    ///
     /// # Errors
     /// - `TextFragmentError::NotTextDirective`, if delimiter (text=) is missing
     /// - `TextFragmentError::RegexNoCaptureError`, if the regex capture returns empty
@@ -124,7 +128,7 @@ impl TextDirective {
         if !fragment.contains(TEXT_DIRECTIVE_DELIMITER) {
             return Err(ErrorKind::TextFragmentError(
                 TextFragmentStatus::NotTextDirective,
-            ))
+            ));
         }
 
         let regex = Regex::new(TEXT_DIRECTIVE_REGEX).unwrap();
@@ -132,11 +136,11 @@ impl TextDirective {
         // let result = regex.captures(&fragment).unwrap();
         let result = match regex.captures(fragment) {
             Ok(Some(result)) => result,
-            Ok(None)  => {
+            Ok(None) => {
                 return Err(ErrorKind::TextFragmentError(
                     TextFragmentStatus::RegexNoCaptureError(fragment.to_string()),
                 ));
-            },
+            }
             Err(e) => {
                 return Err(ErrorKind::TextFragmentError(
                     TextFragmentStatus::RegexNoCaptureError(e.to_string()),
@@ -157,10 +161,7 @@ impl TextDirective {
             ));
         }
 
-        let end = result
-            .name("end")
-            .map(|e|e.as_str())
-            .unwrap_or_default();
+        let end = result.name("end").map(|e| e.as_str()).unwrap_or_default();
         let end = TextDirective::percent_decode(end)?;
 
         let prefix = result
@@ -203,7 +204,10 @@ impl TextDirective {
         }
 
         if !self.suffix.is_empty() {
-            regex.push_str(&format!(r"(.|\n)+?(?P<last_word>\w+?)\s\b(?={})", self.suffix));
+            regex.push_str(&format!(
+                r"(.|\n)+?(?P<last_word>\w+?)\s\b(?={})",
+                self.suffix
+            ));
         }
 
         // regex.push_str(r")");
@@ -222,7 +226,9 @@ impl TextDirective {
                 if let Ok(Some(captures)) = regex.captures(input) {
                     captures
                 } else {
-                    return Err(ErrorKind::TextFragmentError(TextFragmentStatus::RegexNoCaptureError(self.raw_directive.clone())));
+                    return Err(ErrorKind::TextFragmentError(
+                        TextFragmentStatus::RegexNoCaptureError(self.raw_directive.clone()),
+                    ));
                 }
             }
             Err(_e) => {
@@ -238,20 +244,19 @@ impl TextDirective {
             if let Some(m) = regex_match {
                 let selection = m.as_str();
                 println!("selected text: {selection}");
-
             }
         }
 
-        // If suffix is given, the regex will not include END explicitly but is checked as the 
+        // If suffix is given, the regex will not include END explicitly but is checked as the
         // **last_word** from the regex capture
         if !self.suffix.is_empty() && !self.end.is_empty() {
             let end_lowercase = self.end.clone().to_lowercase();
             let lastword_lowercase = match captures.name("last_word") {
-                Some(lw) => {
-                    lw.as_str().to_lowercase()
-                },
+                Some(lw) => lw.as_str().to_lowercase(),
                 None => {
-                    return Err(ErrorKind::TextFragmentError(TextFragmentStatus::TextDirectiveNotFound(self.raw_directive.clone())))
+                    return Err(ErrorKind::TextFragmentError(
+                        TextFragmentStatus::TextDirectiveNotFound(self.raw_directive.clone()),
+                    ))
                 }
             };
 
@@ -259,7 +264,9 @@ impl TextDirective {
             // let lastword_lowercase = lastword_lowercase.to_lowercase();
 
             if !end_lowercase.eq(&lastword_lowercase) {
-                return Err(ErrorKind::TextFragmentError(TextFragmentStatus::TextDirectiveRangeError(end_lowercase, lastword_lowercase)));
+                return Err(ErrorKind::TextFragmentError(
+                    TextFragmentStatus::TextDirectiveRangeError(end_lowercase, lastword_lowercase),
+                ));
             }
         }
 
@@ -293,7 +300,7 @@ impl FragmentDirective {
             }
 
             return Some(text_directives);
-        } 
+        }
 
         // WARN: <log>
         warn!("Not a fragment directive!");
@@ -303,7 +310,10 @@ impl FragmentDirective {
     /// Extract Fragment Directive from the (fragment) string as input
     /// Returns a list of the Text Directives from the fragment string
     pub(crate) fn from_fragment_as_str(fragment: &str) -> Option<FragmentDirective> {
-        FragmentDirective::extract_text_directives(fragment).map(|text_directives| Self { text_directives, url: None })
+        FragmentDirective::extract_text_directives(fragment).map(|text_directives| Self {
+            text_directives,
+            url: None,
+        })
     }
 
     /// Find the Fragment Directive from the Url
@@ -312,13 +322,12 @@ impl FragmentDirective {
         let fragment = url.fragment()?;
 
         FragmentDirective::from_fragment_as_str(fragment)
-
     }
 
-    /// Check the presence of given directive on the (web site response) input 
-    /// 
+    /// Check the presence of given directive on the (web site response) input
+    ///
     /// A fragment directive shall have multiple Text Directives included - the check will validate
-    /// each of the text directives 
+    /// each of the text directives
     ///
     /// # Errors
     ///
@@ -326,21 +335,21 @@ impl FragmentDirective {
     /// - No match is found
     /// - Suffix error (spec instructs the fragment SHALL be upto **Suffix** and this error is returned if this condition is violated)
     ///
-    /// 
+    ///
     pub(crate) fn check(&self, input: &str) -> Result<Status, ErrorKind> {
         self.check_fragment_directive(input)
     }
 
-    /// Fragment Directive checker method - takes website response text and text directives 
+    /// Fragment Directive checker method - takes website response text and text directives
     /// as input and returns Directive check status (as HTTP Status)
-    /// 
+    ///
     /// # Errors
     /// - `TextDirectiveNotFound`, if text directive match fails
-    fn check_fragment_directive(&self, buf: &str)  -> Result<Status, ErrorKind> {
+    fn check_fragment_directive(&self, buf: &str) -> Result<Status, ErrorKind> {
         let fd_checker = FragmentDirectiveTokenizer::new(self.text_directives.clone());
 
         let tok = Tokenizer::new(
-            fd_checker, 
+            fd_checker,
             TokenizerOpts {
                 ..Default::default()
             },
@@ -363,8 +372,8 @@ impl FragmentDirective {
 
             if status != CheckerStatus::Completed {
                 error = Some(ErrorKind::TextFragmentError(
-                    TextFragmentStatus::TextDirectiveNotFound(td.get_text_directive()))
-                );
+                    TextFragmentStatus::TextDirectiveNotFound(td.get_text_directive()),
+                ));
             }
         }
 
@@ -375,7 +384,6 @@ impl FragmentDirective {
 
         Ok(Status::Ok(StatusCode::OK))
     }
-
 }
 
 #[cfg(test)]
@@ -404,8 +412,7 @@ mod tests {
         }
     }
 
-    const MULTILINE_INPUT: &str = 
-    "Is there a way to deal with repeated instances of this split in a block of text? FOr instance: \"This is just\na simple sentence. Here is some additional stuff. This is just\na simple sentence. And here is some more stuff. This is just\na simple sentence. \". Currently it matches the entire string, rather than and therefore each instance. prefix   
+    const MULTILINE_INPUT: &str = "Is there a way to deal with repeated instances of this split in a block of text? FOr instance: \"This is just\na simple sentence. Here is some additional stuff. This is just\na simple sentence. And here is some more stuff. This is just\na simple sentence. \". Currently it matches the entire string, rather than and therefore each instance. prefix   
     
     start (immediately after the prefix and this) is start the statement and continue till the end. the suffix shall come into effect as well.there is going to be a test for starting is mapped or not.
     
@@ -415,7 +422,7 @@ mod tests {
     Hints at the linked URL's format with a MIME type. No built-in functionality.
 
     ";
-    
+
     #[test]
     fn test_fragment_directive_start_only() {
         const FRAGMENT: &str = ":~:text=repeated";
@@ -425,18 +432,16 @@ mod tests {
         print_fragment_directive(&fd);
 
         match fd {
-            Some(fd) => {
-                match fd.check(&MULTILINE_INPUT) {
-                    Ok(status) => {
-                        println!("Fragment directive found {}!", status);
-                        assert_eq!(status, Status::Ok(StatusCode::OK));
-                    },
-                    Err(e) => {
-                        eprintln!("Error: {}", e);
-                    }
+            Some(fd) => match fd.check(&MULTILINE_INPUT) {
+                Ok(status) => {
+                    println!("Fragment directive found {}!", status);
+                    assert_eq!(status, Status::Ok(StatusCode::OK));
                 }
-            }
-            None => {},
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                }
+            },
+            None => {}
         };
     }
 
@@ -449,18 +454,16 @@ mod tests {
         print_fragment_directive(&fd);
 
         match fd {
-            Some(fd) => {
-                match fd.check(&MULTILINE_INPUT) {
-                    Ok(status) => {
-                        println!("Fragment directive found {}!", status);
-                        assert_eq!(status, Status::Ok(StatusCode::OK));
-                    },
-                    Err(e) => {
-                        eprintln!("Error: {}", e);
-                    }
+            Some(fd) => match fd.check(&MULTILINE_INPUT) {
+                Ok(status) => {
+                    println!("Fragment directive found {}!", status);
+                    assert_eq!(status, Status::Ok(StatusCode::OK));
                 }
-            }
-            None => {},
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                }
+            },
+            None => {}
         };
     }
 
@@ -473,18 +476,16 @@ mod tests {
         print_fragment_directive(&fd);
 
         match fd {
-            Some(fd) => {
-                match fd.check(&MULTILINE_INPUT) {
-                    Ok(status) => {
-                        println!("Fragment directive found {}!", status);
-                        assert_eq!(status, Status::Ok(StatusCode::OK));
-                    },
-                    Err(e) => {
-                        eprintln!("Error: {}", e);
-                    }
+            Some(fd) => match fd.check(&MULTILINE_INPUT) {
+                Ok(status) => {
+                    println!("Fragment directive found {}!", status);
+                    assert_eq!(status, Status::Ok(StatusCode::OK));
                 }
-            }
-            None => {},
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                }
+            },
+            None => {}
         };
     }
 
@@ -497,18 +498,16 @@ mod tests {
         print_fragment_directive(&fd);
 
         match fd {
-            Some(fd) => {
-                match fd.check(&MULTILINE_INPUT) {
-                    Ok(status) => {
-                        println!("Fragment directive found {}!", status);
-                        assert_eq!(status, Status::Ok(StatusCode::OK));
-                    },
-                    Err(e) => {
-                        eprintln!("Error: {}", e);
-                    }
+            Some(fd) => match fd.check(&MULTILINE_INPUT) {
+                Ok(status) => {
+                    println!("Fragment directive found {}!", status);
+                    assert_eq!(status, Status::Ok(StatusCode::OK));
                 }
-            }
-            None => {},
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                }
+            },
+            None => {}
         };
     }
 
@@ -521,18 +520,16 @@ mod tests {
         print_fragment_directive(&fd);
 
         match fd {
-            Some(fd) => {
-                match fd.check(&MULTILINE_INPUT) {
-                    Ok(status) => {
-                        println!("Fragment directive found {}!", status);
-                        assert_eq!(status, Status::Ok(StatusCode::OK));
-                    },
-                    Err(e) => {
-                        eprintln!("Error: {}", e);
-                    }
+            Some(fd) => match fd.check(&MULTILINE_INPUT) {
+                Ok(status) => {
+                    println!("Fragment directive found {}!", status);
+                    assert_eq!(status, Status::Ok(StatusCode::OK));
                 }
-            }
-            None => {},
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                }
+            },
+            None => {}
         };
     }
 
@@ -545,18 +542,16 @@ mod tests {
         print_fragment_directive(&fd);
 
         match fd {
-            Some(fd) => {
-                match fd.check(&MULTILINE_INPUT) {
-                    Ok(status) => {
-                        println!("Fragment directive found {}!", status);
-                        assert_eq!(status, Status::Ok(StatusCode::OK));
-                    },
-                    Err(e) => {
-                        eprintln!("Error: {}", e);
-                    }
+            Some(fd) => match fd.check(&MULTILINE_INPUT) {
+                Ok(status) => {
+                    println!("Fragment directive found {}!", status);
+                    assert_eq!(status, Status::Ok(StatusCode::OK));
                 }
-            }
-            None => {},
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                }
+            },
+            None => {}
         };
     }
 

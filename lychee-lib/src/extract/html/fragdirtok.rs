@@ -1,30 +1,67 @@
-/// Fragment Directive Tokenizer using Html5ever
-/// 
-use std::ops::Range;
 use std::borrow::{self, Borrow, BorrowMut};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+/// Fragment Directive Tokenizer using Html5ever
+///
+use std::ops::Range;
 
-use html5ever::{self, Attribute};
 use html5ever::tokenizer::{CharacterTokens, EndTag, NullCharacterToken, StartTag, TagToken};
-use html5ever::tokenizer::{
-    ParseError, Token, TokenSink, TokenSinkResult,
-};
+use html5ever::tokenizer::{ParseError, Token, TokenSink, TokenSinkResult};
+use html5ever::{self, Attribute};
 
 use crate::types::TextDirective;
 
 const BLOCK_ELEMENTS: &[&str] = &[
-        "ADDRESS", "ARTICLE", "ASIDE", "BLOCKQUOTE", "BR", "DETAILS", "DIALOG", "DD", "DIV", "DL", "DT",
-        "FIELDSET", "FIGCAPTION", "FIGURE", "FOOTER", "FORM", "H1", "H2", "H3", "H4", "H5", "H6", "HEADER",
-        "HGROUP", "HR", "LI", "MAIN", "NAV", "OL", "P", "PRE", "SECTION", "TABLE", "UL", "TR", "TH", "TD",
-        "COLGROUP", "COL", "CAPTION", "THEAD", "TBODY", "TFOOT"
-    ];
+    "ADDRESS",
+    "ARTICLE",
+    "ASIDE",
+    "BLOCKQUOTE",
+    "BR",
+    "DETAILS",
+    "DIALOG",
+    "DD",
+    "DIV",
+    "DL",
+    "DT",
+    "FIELDSET",
+    "FIGCAPTION",
+    "FIGURE",
+    "FOOTER",
+    "FORM",
+    "H1",
+    "H2",
+    "H3",
+    "H4",
+    "H5",
+    "H6",
+    "HEADER",
+    "HGROUP",
+    "HR",
+    "LI",
+    "MAIN",
+    "NAV",
+    "OL",
+    "P",
+    "PRE",
+    "SECTION",
+    "TABLE",
+    "UL",
+    "TR",
+    "TH",
+    "TD",
+    "COLGROUP",
+    "COL",
+    "CAPTION",
+    "THEAD",
+    "TBODY",
+    "TFOOT",
+];
 
 const _INLINE_ELEMENTS: &[&str] = &[
-        "A", "ABBR", "ACRONYM", "B", "BDO", "BIG", "BR", "BUTTON", "CITE", "CODE", "DFN", "EM", "I", "IMG",
-        "INPUT", "KBD", "LABEL", "MAP", "OBJECT", "OUTPUT", "Q", "SAMP", "SCRIPT", "SELECT", "SMALL", "SPAN",
-        "STRONG", "SUB", "SUP", "TEXTAREA", "TIME", "TT", "VAR"
-    ];
+    "A", "ABBR", "ACRONYM", "B", "BDO", "BIG", "BR", "BUTTON", "CITE", "CODE", "DFN", "EM", "I",
+    "IMG", "INPUT", "KBD", "LABEL", "MAP", "OBJECT", "OUTPUT", "Q", "SAMP", "SCRIPT", "SELECT",
+    "SMALL", "SPAN", "STRONG", "SUB", "SUP", "TEXTAREA", "TIME", "TT", "VAR",
+];
 
 const INVISIBLE_CLAUSES: &[&str] = &["none", "hidden"];
 const INVISIBLE_NAMES: &[&str] = &["display", "visibility"];
@@ -42,7 +79,7 @@ struct BlockElementContent {
     content: RefCell<String>,
     /// Visibility flag (default is true)
     visible: Cell<bool>,
-    /// Indicate if the content is right to left 
+    /// Indicate if the content is right to left
     _rtl: Cell<bool>,
     /// Control code - to compute word count (inline)
     new_word: Cell<bool>,
@@ -91,7 +128,7 @@ impl BlockElementContent {
         }
 
         let mut is_word = false;
-        
+
         if !c.is_whitespace() {
             is_word = true;
         }
@@ -109,7 +146,6 @@ impl BlockElementContent {
 
         self.nwords.borrow_mut().set(nwords);
         self.new_word.borrow_mut().set(is_word);
-
     }
 
     fn word_count(&self) -> usize {
@@ -117,10 +153,13 @@ impl BlockElementContent {
     }
 
     fn get_content_by_range(&self, start: usize, end: usize) -> String {
-        let content = self.content.borrow().clone()
-                                .split_whitespace()
-                                .collect::<Vec<&str>>()[start..=end]
-                                .join(" ");
+        let content = self
+            .content
+            .borrow()
+            .clone()
+            .split_whitespace()
+            .collect::<Vec<&str>>()[start..=end]
+            .join(" ");
         content
     }
 
@@ -145,7 +184,13 @@ impl BlockElementContent {
     /// Find the `**search_str**` in the block content and, when found, return a pair of
     /// start and end offset on the block content
     /// If content is hidden and/or no match is found, return None
-    fn find(&self, search_str: &str, start_offset: usize, start_bounded_word: bool, end_bounded_word: bool) -> Option<CheckerStatus> {
+    fn find(
+        &self,
+        search_str: &str,
+        start_offset: usize,
+        start_bounded_word: bool,
+        end_bounded_word: bool,
+    ) -> Option<CheckerStatus> {
         if !self.visible.borrow().get() {
             return None;
         }
@@ -154,34 +199,32 @@ impl BlockElementContent {
             return Some(CheckerStatus::EndOfContent);
         }
 
-        let c_words = self.content
-                                .borrow()
-                                .clone();
+        let c_words = self.content.borrow().clone();
         let c_words = c_words
-                                .split_whitespace()
-                                .skip(start_offset)
-                                .map(str::to_lowercase)
-                                .collect::<Vec<String>>();
+            .split_whitespace()
+            .skip(start_offset)
+            .map(str::to_lowercase)
+            .collect::<Vec<String>>();
 
-        let mut  found = false; 
+        let mut found = false;
         let mut start_index = None;
         let mut len = 0;
 
         let mut u_words_iter = c_words.into_iter().enumerate();
         let swords = search_str
-                                .split_whitespace()
-                                .map(str::to_lowercase)
-                                .collect::<Vec<String>>();
+            .split_whitespace()
+            .map(str::to_lowercase)
+            .collect::<Vec<String>>();
 
         'çontent_loop: while !found {
             len = 0;
             start_index = None;
             'search_str: for sw in &swords {
                 if let Some(uw) = u_words_iter.next() {
-                    found = start_bounded_word && end_bounded_word && sw.eq(&uw.1) || 
-                            start_bounded_word && uw.1.starts_with(sw) ||
-                            end_bounded_word && uw.1.ends_with(sw) ||
-                            uw.1.contains(sw);
+                    found = start_bounded_word && end_bounded_word && sw.eq(&uw.1)
+                        || start_bounded_word && uw.1.starts_with(sw)
+                        || end_bounded_word && uw.1.ends_with(sw)
+                        || uw.1.contains(sw);
 
                     if found {
                         len += 1;
@@ -192,8 +235,8 @@ impl BlockElementContent {
                     }
 
                     // no match - we don't have to process rest of `search_str`
-                    break 'search_str;    
-                } 
+                    break 'search_str;
+                }
 
                 break 'çontent_loop;
             }
@@ -202,12 +245,12 @@ impl BlockElementContent {
         if found {
             assert!(len == search_str.split_whitespace().collect::<Vec<&str>>().len());
 
-            let start = start_index.unwrap() + start_offset;            
+            let start = start_index.unwrap() + start_offset;
             let end = start + len - 1;
-            
+
             return Some(CheckerStatus::Found((start, end)));
         }
-        
+
         Some(CheckerStatus::NotFound)
     }
 }
@@ -217,7 +260,7 @@ impl BlockElementContent {
 pub(crate) struct FragmentDirectiveTokenizer {
     /// The name of current block element the tokenizer is processing
     recent_block_element: RefCell<String>,
-    /// Lists the nested block element names - element is popped when the block ends 
+    /// Lists the nested block element names - element is popped when the block ends
     block_elements: RefCell<Vec<String>>,
     /// block element content store
     content: RefCell<BlockElementContent>,
@@ -234,7 +277,7 @@ impl TokenSink for FragmentDirectiveTokenizer {
                 for c in b.chars() {
                     self.content.borrow_mut().set_content(c);
                 }
-            },
+            }
             NullCharacterToken => self.content.borrow_mut().set_content('\0'),
             TagToken(tag) => {
                 let tag_name = tag.name.to_string().to_uppercase();
@@ -256,7 +299,7 @@ impl TokenSink for FragmentDirectiveTokenizer {
                             self.content.borrow().set_name(&tag_name);
                             self.content.borrow().set_start_line(line_number);
                         }
-                    },
+                    }
                     EndTag => {
                         if is_block_element {
                             assert!(self.block_elements.borrow().contains(&tag_name));
@@ -275,7 +318,7 @@ impl TokenSink for FragmentDirectiveTokenizer {
                                 self.set_active_element("");
                             }
                         }
-                    },
+                    }
                 }
                 for attr in &tag.attrs {
                     self.update_element_visibility(attr);
@@ -284,13 +327,13 @@ impl TokenSink for FragmentDirectiveTokenizer {
                 if tag.self_closing {
                     self.content.borrow().set_end_line(line_number);
                 }
-            },
+            }
             ParseError(_err) => {
                 self.content.borrow_mut().clear();
-            },
+            }
             _ => {
                 self.content.borrow_mut().clear();
-            },
+            }
         }
 
         TokenSinkResult::Continue
@@ -315,11 +358,11 @@ impl FragmentDirectiveTokenizer {
 
     pub(crate) fn get_text_directive_checkers(&self) -> Vec<TextDirectiveChecker> {
         self.text_directives
-        .borrow()
-        .iter()
-        // .clone()
-        .map(borrow::ToOwned::to_owned)
-        .collect::<Vec<TextDirectiveChecker>>()
+            .borrow()
+            .iter()
+            // .clone()
+            .map(borrow::ToOwned::to_owned)
+            .collect::<Vec<TextDirectiveChecker>>()
     }
 
     /// Check element attributes for visibility field and update the block
@@ -331,15 +374,17 @@ impl FragmentDirectiveTokenizer {
             assert!(attr_val.find(':').is_some());
 
             // Gather all the stryle attribute values delimited by ';'
-            let style_attrib_map: HashMap<&str, &str> = attr_val.split(';')
+            let style_attrib_map: HashMap<&str, &str> = attr_val
+                .split(';')
                 .take_while(|s| s.trim().is_empty())
                 .map(|attrib| attrib.split_at(attrib.find(':').unwrap()))
                 .map(|(k, v)| (k, &v[1..]))
                 .collect();
 
             for sam in style_attrib_map {
-                if INVISIBLE_NAMES.contains(&sam.0.to_lowercase().as_str()) 
-                    && INVISIBLE_CLAUSES.contains(&sam.1.to_lowercase().as_str()) {
+                if INVISIBLE_NAMES.contains(&sam.0.to_lowercase().as_str())
+                    && INVISIBLE_CLAUSES.contains(&sam.1.to_lowercase().as_str())
+                {
                     self.content.borrow_mut().set_visible(false);
                 }
             }
@@ -366,15 +411,18 @@ impl FragmentDirectiveTokenizer {
         self.content.borrow_mut().clear();
     }
 
-    fn gather_directive_flags(search_kind: &TextDirectiveKind, directive: &TextDirective) -> (bool, bool, String) {
+    fn gather_directive_flags(
+        search_kind: &TextDirectiveKind,
+        directive: &TextDirective,
+    ) -> (bool, bool, String) {
         let mut start_bounded_word = false;
-        let mut end_bounded_word  = false;
+        let mut end_bounded_word = false;
 
         let search_str = match search_kind {
             TextDirectiveKind::Prefix => {
                 start_bounded_word = true;
                 directive.prefix.clone()
-            },
+            }
             TextDirectiveKind::Start => {
                 if directive.prefix.is_empty() {
                     start_bounded_word = true;
@@ -382,30 +430,30 @@ impl FragmentDirectiveTokenizer {
 
                 if !directive.end.is_empty() || directive.suffix.is_empty() {
                     end_bounded_word = true;
-                } 
+                }
                 directive.start.clone()
-            },
+            }
             TextDirectiveKind::End => {
                 start_bounded_word = true;
                 if directive.suffix.is_empty() {
                     end_bounded_word = true;
-                }                
+                }
                 directive.end.clone()
-            },
+            }
             TextDirectiveKind::Suffix => {
                 end_bounded_word = true;
                 directive.suffix.clone()
-            },
+            }
         };
 
         (start_bounded_word, end_bounded_word, search_str)
     }
 
     /// Check presence of (each) Text Directive(s) for the current block element content
-    /// If all directives are found, return Ok 
+    /// If all directives are found, return Ok
     /// if only partial directives are found, mark the next directive to be matched with
     /// position information captured and return partial found message
-    /// 
+    ///
     fn check_text_directive(&self, td: &mut TextDirectiveChecker) {
         let mut all_directives_found = false;
         let directive = td.directive.borrow();
@@ -414,48 +462,56 @@ impl FragmentDirectiveTokenizer {
             let search_kind = td.search_kind.borrow().clone();
 
             let mut next_directive = search_kind.clone();
-            let (start_bounded_word, end_bounded_word, search_str) = FragmentDirectiveTokenizer::gather_directive_flags(&search_kind, directive);
+            let (start_bounded_word, end_bounded_word, search_str) =
+                FragmentDirectiveTokenizer::gather_directive_flags(&search_kind, directive);
             all_directives_found = match search_kind {
                 TextDirectiveKind::Prefix => {
                     next_directive = TextDirectiveKind::Start;
                     false
-                },
+                }
                 TextDirectiveKind::Start => {
                     if !directive.end.is_empty() {
                         next_directive = TextDirectiveKind::End;
                     }
                     directive.end.is_empty() && directive.suffix.is_empty()
-                },
+                }
                 TextDirectiveKind::End => {
                     if !directive.suffix.is_empty() {
                         next_directive = TextDirectiveKind::Suffix;
                     }
                     directive.suffix.is_empty()
-                },
-                TextDirectiveKind::Suffix => { true },
+                }
+                TextDirectiveKind::Suffix => true,
             };
-            
+
             td.status = CheckerStatus::NotFound.into();
 
             let start_offset = td.next_offset.borrow().get();
-            if let Some(status) = self.content.borrow().find(&search_str, start_offset, start_bounded_word, end_bounded_word) {
+            if let Some(status) = self.content.borrow().find(
+                &search_str,
+                start_offset,
+                start_bounded_word,
+                end_bounded_word,
+            ) {
                 match status {
                     CheckerStatus::Found((start, end)) => {
                         match search_kind {
-                            TextDirectiveKind::Prefix => {},
+                            TextDirectiveKind::Prefix => {}
                             TextDirectiveKind::Start => {
-                                let mut found_content = self.content.borrow().get_content(Some(start..end));
+                                let mut found_content =
+                                    self.content.borrow().get_content(Some(start..end));
 
                                 // [UGLY]: If prefix is found, and if it part of the starting word, then let us skip the prefix
                                 if !directive.prefix.is_empty() && start == start_offset {
                                     found_content = found_content.replace(&directive.prefix, "");
                                 }
-                                td.update_result_str(&found_content);    
-                            },
-                            TextDirectiveKind::End => {
-                                let found_content = self.content.borrow().get_content(Some(start_offset..end));
                                 td.update_result_str(&found_content);
-                            },
+                            }
+                            TextDirectiveKind::End => {
+                                let found_content =
+                                    self.content.borrow().get_content(Some(start_offset..end));
+                                td.update_result_str(&found_content);
+                            }
                             TextDirectiveKind::Suffix => {
                                 // Suffix MUST be found on the start_offset (or) in the immediate word next to it
                                 // **Note:** start is relative to the start offset and hence shall be 0 or 1
@@ -464,12 +520,13 @@ impl FragmentDirectiveTokenizer {
                                     td.reset();
                                     break 'directive_loop;
                                 }
-                                
+
                                 // repeat the prefix clean-up logic here too
-                                let found_content = td.resultant_str.borrow_mut().replace(&directive.suffix, "");
+                                let found_content =
+                                    td.resultant_str.borrow_mut().replace(&directive.suffix, "");
                                 td.clear_result_str();
                                 td.update_result_str(&found_content);
-                            },
+                            }
                         }
 
                         // Let us save the end as the next start offset (for Suffix directives)
@@ -485,7 +542,7 @@ impl FragmentDirectiveTokenizer {
                             // info!("found: {}", td.get_result_str());
                             break 'directive_loop;
                         }
-                    },
+                    }
                     CheckerStatus::NotFound => {
                         // If the directive kind is End, we MIGHT find the end in  some other block element's content -
                         // until then, we keep collecting the block element contents
@@ -497,7 +554,7 @@ impl FragmentDirectiveTokenizer {
                                 None
                             };
 
-                            let end_content = self.content.borrow().get_content(range);                            
+                            let end_content = self.content.borrow().get_content(range);
                             td.update_result_str(&end_content);
                         }
 
@@ -505,14 +562,14 @@ impl FragmentDirectiveTokenizer {
                         td.status = CheckerStatus::NotFound.into();
                         td.reset();
                         break 'directive_loop;
-                    },
+                    }
                     CheckerStatus::EndOfContent => {
                         td.reset();
                         break 'directive_loop;
-                    },
+                    }
                     CheckerStatus::NotStarted | CheckerStatus::Completed => {}
                 }
-            } 
+            }
 
             td.search_kind = next_directive.into();
         }
@@ -539,10 +596,10 @@ pub(crate) enum CheckerStatus {
     NotStarted,
     /// Text Directive is found in the content
     /// and return start offset and end index of the search string
-    Found((usize, usize)), 
+    Found((usize, usize)),
     /// Not Found
     NotFound,
-    /// End of content - indicator to start searching from start of the 
+    /// End of content - indicator to start searching from start of the
     /// next block element
     EndOfContent,
     /// Completed directive checks successfully
@@ -566,7 +623,7 @@ pub(crate) struct TextDirectiveChecker {
 impl TextDirectiveChecker {
     fn new(td: &TextDirective) -> Self {
         let mut directive_kind = TextDirectiveKind::Prefix;
-        if td.prefix.is_empty() { 
+        if td.prefix.is_empty() {
             directive_kind = TextDirectiveKind::Start;
         };
 
@@ -582,7 +639,7 @@ impl TextDirectiveChecker {
     fn reset(&self) {
         // reset the search kind, and offset fields
         self.next_offset.borrow().set(0);
-        
+
         // If the next directive is End, we retain the resultant string found so far
         if TextDirectiveKind::End != *self.search_kind.borrow() {
             self.resultant_str.borrow_mut().clear();
@@ -593,7 +650,7 @@ impl TextDirectiveChecker {
             let directive = self.directive.borrow();
             if !directive.prefix.is_empty() {
                 *self.search_kind.borrow_mut() = TextDirectiveKind::Prefix;
-            } 
+            }
         }
     }
 
@@ -620,14 +677,15 @@ impl TextDirectiveChecker {
     }
 
     pub(crate) fn get_text_directive(&self) -> String {
-        self.directive/*.borrow()*/.raw_directive.clone()
+        self.directive /*.borrow()*/
+            .raw_directive
+            .clone()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    const HTML_INPUT: &str = 
-    "<html>
+    const HTML_INPUT: &str = "<html>
     <body>
         <p>This is a paragraph with some inline <code>https://example.com</code> and a normal <a style=\"display:none;\" href=\"https://example.org\">example</a></p>
         <pre>
@@ -646,8 +704,8 @@ mod tests {
     </body>
     </html>";
 
-    use crate::types::{FragmentDirective, TextFragmentStatus};
     use super::*;
+    use crate::types::{FragmentDirective, TextFragmentStatus};
 
     use html5ever::tokenizer::{BufferQueue, Tokenizer, TokenizerOpts};
     use http::StatusCode;
@@ -655,16 +713,16 @@ mod tests {
 
     use crate::{types::ErrorKind, Status};
 
-    /// Fragment Directive checker method - takes website response text and text directives 
+    /// Fragment Directive checker method - takes website response text and text directives
     /// as input and returns Directive check status (as HTTP Status)
-    /// 
+    ///
     /// # Errors
-    /// - 
-    fn check(buf: &str, text_directives: Vec<TextDirective>)  -> Result<Status, ErrorKind> {
+    /// -
+    fn check(buf: &str, text_directives: Vec<TextDirective>) -> Result<Status, ErrorKind> {
         let fd_checker = FragmentDirectiveTokenizer::new(text_directives);
 
         let tok = Tokenizer::new(
-            fd_checker, 
+            fd_checker,
             TokenizerOpts {
                 profile: true,
                 ..Default::default()
@@ -688,7 +746,9 @@ mod tests {
             info!("result: {:?}", td.get_result_str());
 
             if status != CheckerStatus::Completed {
-                error = Some(ErrorKind::TextFragmentError(TextFragmentStatus::TextDirectiveNotFound(td.get_text_directive())));
+                error = Some(ErrorKind::TextFragmentError(
+                    TextFragmentStatus::TextDirectiveNotFound(td.get_text_directive()),
+                ));
             }
         }
 
@@ -711,7 +771,7 @@ mod tests {
             }
             Err(e) => {
                 panic!("{}", e);
-            },
+            }
         };
     }
 }

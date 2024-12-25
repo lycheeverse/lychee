@@ -1,8 +1,8 @@
 //! Extract links and fragments from HTML documents
+pub(crate) mod fragdirtok;
 pub(crate) mod html5ever;
 pub(crate) mod html5gum;
 mod srcset;
-pub(crate) mod fragdirtok;
 
 use linkify::{LinkFinder, LinkKind};
 

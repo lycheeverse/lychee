@@ -6,8 +6,8 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 use super::InputContent;
-use crate::types::StatusCodeSelectorError;
 use crate::types::text_fragment::TextFragmentStatus;
+use crate::types::StatusCodeSelectorError;
 use crate::{basic_auth::BasicAuthExtractorError, utils, Uri};
 
 /// Kinds of status errors

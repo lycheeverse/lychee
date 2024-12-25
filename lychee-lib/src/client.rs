@@ -866,7 +866,10 @@ mod tests {
 
         // Prefix and start
         println!("\ntesting Prefix with START...");
-        let res = client.check("https://example.com/#:~:text=asking-,for").await.unwrap();
+        let res = client
+            .check("https://example.com/#:~:text=asking-,for")
+            .await
+            .unwrap();
         assert!(res.status().is_success());
 
         // start with suffix

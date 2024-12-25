@@ -93,10 +93,10 @@ impl WebsiteChecker {
     }
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
-    /// 
+    ///
     /// If Fragment Directive check is enabled and the URL has fragment directive,
     /// Fragment Directive checker is run to validate the response against directives given
-    /// 
+    ///
     /// # Errors
     /// - if the fragment directive check fails, return one of the `TextFragmentStatus` error code
     async fn check_default(&self, request: Request) -> Status {
@@ -112,16 +112,15 @@ impl WebsiteChecker {
                         if let Some(fd) = req_url.fragment_directive() {
                             info!("directive: {:?}", fd.text_directives);
                             match fd.check(&res) {
-                                Ok(stat) => { 
+                                Ok(stat) => {
                                     status = stat;
-                                },
-                                Err(e) => { 
+                                }
+                                Err(e) => {
                                     return e.into();
                                 }
                             }
                         }
                     }
-        
                 }
                 status
             }

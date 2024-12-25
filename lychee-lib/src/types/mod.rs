@@ -13,8 +13,8 @@ mod request;
 mod response;
 mod status;
 mod status_code;
-pub(crate) mod uri;
 pub(crate) mod text_fragment;
+pub(crate) mod uri;
 
 pub use accept::*;
 pub use base::Base;
