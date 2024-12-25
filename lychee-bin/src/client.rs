@@ -77,6 +77,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .require_https(cfg.require_https)
         .cookie_jar(cookie_jar.cloned())
         .include_fragments(cfg.include_fragments)
+        .include_text_fragments(cfg.include_text_fragments)
         .fallback_extensions(cfg.fallback_extensions.clone())
         .build()
         .client()

@@ -462,6 +462,9 @@ Options:
       --include-fragments
           Enable the checking of fragments in links
 
+      --include-text-fragments
+          Enable the checking of Text Fragments in links
+
   -t, --timeout <TIMEOUT>
           Website timeout in seconds from connect to response finished
 

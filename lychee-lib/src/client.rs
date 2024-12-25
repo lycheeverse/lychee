@@ -278,6 +278,9 @@ pub struct ClientBuilder {
     /// Enable the checking of fragments in links.
     include_fragments: bool,
 
+    /// Enable the checking of text fragment in a website
+    include_text_fragments: bool,
+
     /// Requests run through this chain where each item in the chain
     /// can modify the request. A chained item can also decide to exit
     /// early and return a status, so that subsequent chain items are
@@ -391,6 +394,7 @@ impl ClientBuilder {
             self.accepted,
             github_client,
             self.require_https,
+            self.include_text_fragments,
             self.plugin_request_chain,
         );
 
@@ -665,6 +669,7 @@ mod tests {
         // Same, but ignore certificate error
         let res = ClientBuilder::builder()
             .allow_insecure(true)
+            .include_text_fragments(true)
             .build()
             .client()
             .unwrap()
@@ -839,6 +844,62 @@ mod tests {
             Status::Unsupported(ErrorKind::BuildRequestClient(_))
         ));
         assert!(res.status().is_unsupported());
+    }
+
+    #[tokio::test]
+    async fn test_fragment_directive() {
+        let client = ClientBuilder::builder()
+            .include_text_fragments(true)
+            .build()
+            .client()
+            .unwrap();
+
+        // Start only
+        println!("testing START only directive...");
+        let res = client.check("https://developer.mozilla.org/en-US/docs/Web/URI/Fragment/Text_fragments#:~:text=without%20relying%20on%20the%20presence%20of%20IDs").await.unwrap();
+        assert!(res.status().is_success());
+
+        // Start and End
+        println!("\ntesting START and END directive...");
+        let res = client.check("https://developer.mozilla.org/en-US/docs/Web/HTML/Element/a#:~:text=linked%20URL,defining%20a%20value").await.unwrap();
+        assert!(res.status().is_success());
+
+        // Prefix and start
+        println!("\ntesting Prefix with START...");
+        let res = client.check("https://example.com/#:~:text=asking-,for").await.unwrap();
+        assert!(res.status().is_success());
+
+        // start with suffix
+        println!("\ntesting start with suffix...");
+        let res = client.check("https://developer.mozilla.org/en-US/docs/Web/HTML/Element/a#:~:text=linked%20URL\'s,-format").await.unwrap();
+        assert!(res.status().is_success());
+
+        let res = client.check("https://developer.mozilla.org/en-US/docs/Web/HTML/Element/a#:~:text=downgrade:-,The%20Referer,be%20sent,-to%20origins").await.unwrap();
+        assert!(res.status().is_success());
+    }
+
+    #[tokio::test]
+    async fn test_multiple_directives() {
+        let client = ClientBuilder::builder()
+            .include_text_fragments(true)
+            .build()
+            .client()
+            .unwrap();
+
+        let res = client.check("https://developer.mozilla.org/en-US/docs/Web/HTML/Element/a#:~:text=causes&text=linked").await.unwrap();
+        assert!(res.status().is_success());
+    }
+
+    #[tokio::test]
+    async fn fail_fragment_directive_test() {
+        let client = ClientBuilder::builder()
+            .include_text_fragments(true)
+            .build()
+            .client()
+            .unwrap();
+
+        let res = client.check("https://developer.mozilla.org/en-US/docs/Web/URI/Fragment/Text_fragments#:~:text=without%20relying%20on%20the%20presence%20of%20DIs").await.unwrap();
+        assert!(res.status().is_error());
     }
 
     #[tokio::test]

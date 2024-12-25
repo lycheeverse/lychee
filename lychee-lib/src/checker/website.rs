@@ -3,10 +3,12 @@ use crate::{
     quirks::Quirks,
     retry::RetryExt,
     types::uri::github::GithubUri,
+    utils::url::UrlExt,
     BasicAuthCredentials, ErrorKind, Status, Uri,
 };
 use async_trait::async_trait;
 use http::StatusCode;
+use log::debug;
 use octocrab::Octocrab;
 use reqwest::Request;
 use std::{collections::HashSet, time::Duration};
@@ -41,6 +43,9 @@ pub(crate) struct WebsiteChecker {
     ///
     /// This would treat unencrypted links as errors when HTTPS is available.
     require_https: bool,
+
+    /// Verify Text Fragments for a website
+    validate_text_fragments: bool,
 }
 
 impl WebsiteChecker {
@@ -53,6 +58,7 @@ impl WebsiteChecker {
         accepted: Option<HashSet<StatusCode>>,
         github_client: Option<Octocrab>,
         require_https: bool,
+        validate_text_fragments: bool,
         plugin_request_chain: RequestChain,
     ) -> Self {
         Self {
@@ -64,6 +70,7 @@ impl WebsiteChecker {
             retry_wait_time,
             accepted,
             require_https,
+            validate_text_fragments,
         }
     }
 
@@ -86,9 +93,40 @@ impl WebsiteChecker {
     }
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
+    /// 
+    /// If Fragment Directive check is enabled and the URL has fragment directive,
+    /// Fragment Directive checker is run to validate the response against directives given
+    /// 
+    /// # Errors
+    /// - if the fragment directive check fails, return one of the `TextFragmentStatus` error code
     async fn check_default(&self, request: Request) -> Status {
+        let req_url = request.url().clone();
+        let has_fragment_directive = req_url.has_fragment_directive();
+
         match self.reqwest_client.execute(request).await {
-            Ok(ref response) => Status::new(response, self.accepted.clone()),
+            Ok(response) => {
+                let mut status = Status::new(&response, self.accepted.clone());
+                if self.validate_text_fragments && has_fragment_directive {
+                    if let Ok(res) = response.text().await {
+                        debug!("response received! {res}");
+
+                        debug!("checking fragment directive...");
+                        if let Some(fd) = req_url.fragment_directive() {
+                            debug!("directive: {:?}", fd.text_directives);
+                            match fd.check(&res) {
+                                Ok(stat) => { 
+                                    status = stat;
+                                },
+                                Err(e) => { 
+                                    return e.into();
+                                }
+                            }
+                        }
+                    }
+        
+                }
+                status
+            }
             Err(e) => e.into(),
         }
     }

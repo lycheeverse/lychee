@@ -2,6 +2,7 @@
 pub(crate) mod html5ever;
 pub(crate) mod html5gum;
 mod srcset;
+pub(crate) mod fragdirtok;
 
 use linkify::{LinkFinder, LinkKind};
 

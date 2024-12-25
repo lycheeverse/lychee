@@ -14,6 +14,7 @@ mod response;
 mod status;
 mod status_code;
 pub(crate) mod uri;
+pub(crate) mod text_fragment;
 
 pub use accept::*;
 pub use base::Base;
@@ -27,6 +28,7 @@ pub use request::Request;
 pub use response::{Response, ResponseBody};
 pub use status::Status;
 pub use status_code::*;
+pub use text_fragment::*;
 
 /// The lychee `Result` type
 pub type Result<T> = std::result::Result<T, crate::ErrorKind>;
