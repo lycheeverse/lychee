@@ -9,7 +9,6 @@ use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 use reqwest::Url;
 use tokio::sync::mpsc;
-use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
@@ -274,7 +273,7 @@ async fn request_channel_task(
         max_concurrency,
         |request: Result<Request>| async {
             let request = request.expect("cannot read request");
-            let uri = request.uri.clone();
+            // let uri = request.uri.clone();
             // println!("received request for {}", uri);
             let response = handle(
                 &client,

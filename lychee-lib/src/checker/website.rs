@@ -3,7 +3,7 @@ use crate::{
     quirks::Quirks,
     retry::RetryExt,
     types::uri::github::GithubUri,
-    Base, BasicAuthCredentials, Collector, ErrorKind, FileType, Input, InputSource, Status, Uri,
+    Base, BasicAuthCredentials, Collector, ErrorKind, FileType, Input, Status, Uri,
 };
 use async_trait::async_trait;
 use futures::StreamExt;
