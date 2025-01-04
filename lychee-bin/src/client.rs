@@ -78,6 +78,11 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .cookie_jar(cookie_jar.cloned())
         .include_fragments(cfg.include_fragments)
         .fallback_extensions(cfg.fallback_extensions.clone())
+        .recursive_domains(match (cfg.recursive, cfg.recursed_domains.clone()) {
+            (true, domains) if domains.is_empty() => todo!("please specify --recursed-domains for now"),
+            (true, domains) => domains,
+            _ => vec![],
+        })
         .build()
         .client()
         .context("Failed to create request client")

@@ -3,9 +3,10 @@ use crate::{
     quirks::Quirks,
     retry::RetryExt,
     types::uri::github::GithubUri,
-    BasicAuthCredentials, ErrorKind, Status, Uri,
+    Base, BasicAuthCredentials, Collector, ErrorKind, FileType, Input, InputSource, Status, Uri,
 };
 use async_trait::async_trait;
+use futures::StreamExt;
 use http::StatusCode;
 use octocrab::Octocrab;
 use reqwest::Request;
@@ -41,6 +42,14 @@ pub(crate) struct WebsiteChecker {
     ///
     /// This would treat unencrypted links as errors when HTTPS is available.
     require_https: bool,
+
+    /// Domains we should enable recursion for.
+    /// Leave empty to disable recursion.
+    recursive_domains: Vec<String>,
+
+    /// Subsequent URIs to check for potential recursive checks.
+    /// This is used for the `--recursive` flag.
+    subsequent_uris: Vec<Uri>,
 }
 
 impl WebsiteChecker {
@@ -54,6 +63,7 @@ impl WebsiteChecker {
         github_client: Option<Octocrab>,
         require_https: bool,
         plugin_request_chain: RequestChain,
+        recursive_domains: Vec<String>,
     ) -> Self {
         Self {
             method,
@@ -64,32 +74,77 @@ impl WebsiteChecker {
             retry_wait_time,
             accepted,
             require_https,
+            recursive_domains,
+            subsequent_uris: vec![],
         }
     }
 
     /// Retry requests up to `max_retries` times
     /// with an exponential backoff.
-    pub(crate) async fn retry_request(&self, request: Request) -> Status {
+    pub(crate) async fn retry_request(&self, request: Request) -> (Status, Vec<Uri>) {
         let mut retries: u64 = 0;
         let mut wait_time = self.retry_wait_time;
-        let mut status = self.check_default(clone_unwrap(&request)).await;
+        let (mut status, mut new_uris) = self.check_default(clone_unwrap(&request)).await;
         while retries < self.max_retries {
             if status.is_success() || !status.should_retry() {
-                return status;
+                return (status, new_uris);
             }
             retries += 1;
             tokio::time::sleep(wait_time).await;
             wait_time = wait_time.saturating_mul(2);
-            status = self.check_default(clone_unwrap(&request)).await;
+            (status, new_uris) = self.check_default(clone_unwrap(&request)).await;
         }
-        status
+        (status, vec![])
     }
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
-    async fn check_default(&self, request: Request) -> Status {
+    async fn check_default(&self, request: Request) -> (Status, Vec<Uri>) {
+        // println!("checking {}", request.url());
         match self.reqwest_client.execute(request).await {
-            Ok(ref response) => Status::new(response, self.accepted.clone()),
-            Err(e) => e.into(),
+            Ok(response) => {
+                let response_url = response.url().clone();
+                let status = Status::new(&response, self.accepted.clone());
+
+                if !self
+                    .recursive_domains
+                    .iter()
+                    .any(|d| response.url().domain() == Some(d))
+                {
+                    return (status, vec![]);
+                }
+
+                let mut base_url = response_url.clone();
+                base_url.set_path("/");
+
+                match response.text().await {
+                    Err(_) => (status, vec![]),
+                    Ok(response_text) => {
+                        let links: Vec<_> = Collector::new(None, Some(Base::Remote(base_url)))
+                            .unwrap()
+                            .collect_links(vec![Input::raw_string(
+                                &response_text,
+                                Some(FileType::Html),
+                            )])
+                            .collect::<Vec<_>>()
+                            .await
+                            .iter()
+                            // i feel like there's a cleaner way to do this
+                            .filter(|req| req.is_ok())
+                            .map(|req| req.as_ref().unwrap().uri.clone())
+                            // .filter(|uri| {
+                            //     uri.clone()
+                            //         .to_https()
+                            //         .map(|u| u.domain() == response_url.domain())
+                            //         .unwrap_or(true)
+                            // })
+                            .collect();
+                        // println!("recursing {}: found {:?}", response_url, links.clone());
+
+                        return (status, links);
+                    }
+                }
+            }
+            Err(e) => (e.into(), vec![]),
         }
     }
 
@@ -106,7 +161,7 @@ impl WebsiteChecker {
         &self,
         uri: &Uri,
         credentials: Option<BasicAuthCredentials>,
-    ) -> Result<Status, ErrorKind> {
+    ) -> Result<(Status, Vec<Uri>), ErrorKind> {
         let default_chain: RequestChain = Chain::new(vec![
             Box::<Quirks>::default(),
             Box::new(credentials),
@@ -114,15 +169,18 @@ impl WebsiteChecker {
         ]);
 
         match self.check_website_inner(uri, &default_chain).await {
-            Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
-                if self
+            (Status::Ok(code), _) if self.require_https && uri.scheme() == "http" => {
+                let (status, new_uris) = self
                     .check_website_inner(&uri.to_https()?, &default_chain)
-                    .await
-                    .is_success()
-                {
-                    Ok(Status::Error(ErrorKind::InsecureURL(uri.to_https()?)))
+                    .await;
+
+                if !status.is_success() {
+                    Ok((
+                        Status::Error(ErrorKind::InsecureURL(uri.to_https()?)),
+                        vec![],
+                    ))
                 } else {
-                    Ok(Status::Ok(code))
+                    Ok((Status::Ok(code), new_uris))
                 }
             }
             s => Ok(s),
@@ -141,7 +199,11 @@ impl WebsiteChecker {
     /// - The URI is invalid.
     /// - The request failed.
     /// - The response status code is not accepted.
-    async fn check_website_inner(&self, uri: &Uri, default_chain: &RequestChain) -> Status {
+    async fn check_website_inner(
+        &self,
+        uri: &Uri,
+        default_chain: &RequestChain,
+    ) -> (Status, Vec<Uri>) {
         let request = self
             .reqwest_client
             .request(self.method.clone(), uri.as_str())
@@ -149,14 +211,17 @@ impl WebsiteChecker {
 
         let request = match request {
             Ok(r) => r,
-            Err(e) => return e.into(),
+            Err(e) => return (e.into(), vec![]),
         };
 
-        let status = ClientRequestChains::new(vec![&self.plugin_request_chain, default_chain])
-            .traverse(request)
-            .await;
+        let (status, subsequent_uris) =
+            ClientRequestChains::new(vec![&self.plugin_request_chain, default_chain])
+                .traverse(request)
+                .await;
 
-        self.handle_github(status, uri).await
+        // This means github-uri-checking does not create new requests
+        // which is a good thing i guess???
+        (self.handle_github(status, uri).await, subsequent_uris)
     }
 
     // Pull out the heavy machinery in case of a failed normal request.
@@ -221,6 +286,12 @@ fn clone_unwrap(request: &Request) -> Request {
 #[async_trait]
 impl Handler<Request, Status> for WebsiteChecker {
     async fn handle(&mut self, input: Request) -> ChainResult<Request, Status> {
-        ChainResult::Done(self.retry_request(input).await)
+        let (status, new_uris) = self.retry_request(input).await;
+        self.subsequent_uris = new_uris;
+        ChainResult::Done(status)
+    }
+
+    fn subsequent_uris(&self) -> Vec<Uri> {
+        self.subsequent_uris.clone()
     }
 }

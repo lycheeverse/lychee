@@ -20,8 +20,8 @@ impl Response {
     #[inline]
     #[must_use]
     /// Create new response
-    pub const fn new(uri: Uri, status: Status, source: InputSource) -> Self {
-        Response(source, ResponseBody { uri, status })
+    pub const fn new(uri: Uri, status: Status, source: InputSource, subsequent_uris: Vec<Uri>) -> Self {
+        Response(source, ResponseBody { uri, status, subsequent_uris })
     }
 
     #[inline]
@@ -71,6 +71,8 @@ pub struct ResponseBody {
     pub uri: Uri,
     /// The status of the check
     pub status: Status,
+    /// Subsequent URIs that need checking (via --recursive)
+    pub subsequent_uris: Vec<Uri>,
 }
 
 // Extract as much information from the underlying error conditions as possible

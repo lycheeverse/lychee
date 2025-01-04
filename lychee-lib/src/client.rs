@@ -283,6 +283,10 @@ pub struct ClientBuilder {
     /// early and return a status, so that subsequent chain items are
     /// skipped and the lychee-internal request chain is not activated.
     plugin_request_chain: RequestChain,
+
+    /// Domains we should enable recursion for.
+    /// Leave empty to disable recursion.
+    recursive_domains: Vec<String>,
 }
 
 impl Default for ClientBuilder {
@@ -392,6 +396,7 @@ impl ClientBuilder {
             github_client,
             self.require_https,
             self.plugin_request_chain,
+            self.recursive_domains,
         );
 
         Ok(Client {
@@ -471,18 +476,24 @@ impl Client {
         self.remap(uri)?;
 
         if self.is_excluded(uri) {
-            return Ok(Response::new(uri.clone(), Status::Excluded, source));
+            return Ok(Response::new(uri.clone(), Status::Excluded, source, vec![]));
         }
+
+        let mut subsequent_uris: Vec<Uri> = vec![];
 
         let status = match uri.scheme() {
             // We don't check tel: URIs
             _ if uri.is_tel() => Status::Excluded,
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
-            _ => self.check_website(uri, credentials).await?,
+            _ => {
+                let (status, new_uris) = self.check_website(uri, credentials).await?;
+                subsequent_uris.extend(new_uris);
+                status
+            }
         };
 
-        Ok(Response::new(uri.clone(), status, source))
+        Ok(Response::new(uri.clone(), status, source, subsequent_uris))
     }
 
     /// Check a single file using the file checker.
@@ -521,7 +532,7 @@ impl Client {
         &self,
         uri: &Uri,
         credentials: Option<BasicAuthCredentials>,
-    ) -> Result<Status> {
+    ) -> Result<(Status, Vec<Uri>)> {
         self.website_checker.check_website(uri, credentials).await
     }
 
@@ -639,10 +650,10 @@ mod tests {
         let res = get_mock_client_response(r.clone()).await;
         assert_eq!(res.status().code(), Some(401.try_into().unwrap()));
 
-        r.credentials = Some(crate::BasicAuthCredentials {
-            username: "user".into(),
-            password: "pass".into(),
-        });
+        r.credentials = Some(crate::BasicAuthCredentials::new(
+            "user".into(),
+            "pass".into(),
+        ));
 
         let res = get_mock_client_response(r).await;
         assert!(res.status().is_success());
@@ -931,6 +942,10 @@ mod tests {
         impl Handler<Request, Status> for ExampleHandler {
             async fn handle(&mut self, _: Request) -> ChainResult<Request, Status> {
                 ChainResult::Done(Status::Excluded)
+            }
+
+            fn subsequent_uris(&self) -> Vec<Uri> {
+                vec![]
             }
         }
 

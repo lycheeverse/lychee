@@ -47,6 +47,7 @@ mod emoji_tests {
         ResponseBody {
             uri: Uri::try_from(uri).unwrap(),
             status,
+            subsequent_uris: vec![],
         }
     }
 

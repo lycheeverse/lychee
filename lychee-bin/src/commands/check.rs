@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::io::{self, Write};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -8,6 +9,7 @@ use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 use reqwest::Url;
 use tokio::sync::mpsc;
+use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
@@ -30,9 +32,9 @@ where
     S: futures::Stream<Item = Result<Request>>,
 {
     // Setup
-    let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
-    let (send_resp, recv_resp) = mpsc::channel(params.cfg.max_concurrency);
     let max_concurrency = params.cfg.max_concurrency;
+    let (send_req, recv_req) = mpsc::channel(max_concurrency);
+    let (send_resp, recv_resp) = mpsc::channel(max_concurrency);
 
     // Measure check time
     let start = std::time::Instant::now();
@@ -55,6 +57,16 @@ where
         Some(init_progress_bar("Extracting links"))
     };
 
+    // Fill the request channel with the initial requests
+    let remaining_requests = Arc::new(AtomicUsize::new(0));
+    send_inputs_loop(
+        params.requests,
+        send_req.clone(),
+        pb.clone(),
+        remaining_requests.clone(),
+    )
+    .await?;
+
     // Start receiving requests
     tokio::spawn(request_channel_task(
         recv_req,
@@ -68,16 +80,15 @@ where
 
     let formatter = get_response_formatter(&params.cfg.mode);
 
-    let show_results_task = tokio::spawn(progress_bar_task(
+    let show_results_task = tokio::spawn(response_receive_task(
         recv_resp,
+        send_req,
+        remaining_requests,
         params.cfg.verbose,
-        pb.clone(),
+        pb,
         formatter,
         stats,
     ));
-
-    // Wait until all messages are sent
-    send_inputs_loop(params.requests, send_req, pb).await?;
 
     // Wait until all responses are received
     let result = show_results_task.await?;
@@ -162,6 +173,7 @@ async fn send_inputs_loop<S>(
     requests: S,
     send_req: mpsc::Sender<Result<Request>>,
     bar: Option<ProgressBar>,
+    remaining_requests: Arc<AtomicUsize>,
 ) -> Result<()>
 where
     S: futures::Stream<Item = Result<Request>>,
@@ -173,6 +185,7 @@ where
             pb.inc_length(1);
             pb.set_message(request.to_string());
         };
+        remaining_requests.fetch_add(1, Ordering::Relaxed);
         send_req
             .send(Ok(request))
             .await
@@ -181,15 +194,24 @@ where
     Ok(())
 }
 
-/// Reads from the request channel and updates the progress bar status
-async fn progress_bar_task(
+/// Reads from the response channel, updates the progress bar status and (if recursing) sends new requests.
+async fn response_receive_task(
     mut recv_resp: mpsc::Receiver<Response>,
+    req_send: mpsc::Sender<Result<Request>>,
+    remaining_requests: Arc<AtomicUsize>,
     verbose: Verbosity,
     pb: Option<ProgressBar>,
     formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
 ) -> Result<(Option<ProgressBar>, ResponseStats)> {
+    let mut i = 0;
     while let Some(response) = recv_resp.recv().await {
+        i = i + 1;
+        // println!(
+        //     "starting response #{} out of {}",
+        //     i,
+        //     remaining_requests.load(Ordering::Relaxed),
+        // );
         show_progress(
             &mut io::stderr(),
             pb.as_ref(),
@@ -197,8 +219,31 @@ async fn progress_bar_task(
             formatter.as_ref(),
             &verbose,
         )?;
+
+        for uri in response.body().subsequent_uris.iter() {
+            let request = Request::try_from(uri.clone())?;
+            req_send
+                .send(Ok(request))
+                .await
+                .expect("Cannot send request");
+            remaining_requests.fetch_add(1, Ordering::Relaxed);
+
+            if let Some(bar) = &pb {
+                bar.inc_length(1);
+                bar.set_message(uri.clone().to_string());
+            }
+        }
+        remaining_requests.fetch_sub(1, Ordering::Relaxed);
+        let remaining_now = remaining_requests.load(Ordering::Relaxed);
+        // println!("remaining requests: {}", remaining_now);
+        if remaining_now <= 0 {
+            break;
+        }
+
         stats.add(response);
+        // println!("finished response #{}", i);
     }
+    // println!("Processed {} responses", i);
     Ok((pb, stats))
 }
 
@@ -229,6 +274,8 @@ async fn request_channel_task(
         max_concurrency,
         |request: Result<Request>| async {
             let request = request.expect("cannot read request");
+            let uri = request.uri.clone();
+            // println!("received request for {}", uri);
             let response = handle(
                 &client,
                 cache.clone(),
@@ -238,10 +285,14 @@ async fn request_channel_task(
             )
             .await;
 
-            send_resp
-                .send(response)
-                .await
-                .expect("cannot send response to queue");
+            send_resp.send(response).await.expect("Cannot send response");
+            // if let Err(_) = timeout(Duration::from_millis(500), send_resp.send(response)).await {
+            //     println!(
+            //         "Timeout occurred while sending response to queue for {}",
+            //         uri
+            //     );
+            // }
+            // println!("sent response to queue for {}", uri);
         },
     )
     .await;
@@ -262,6 +313,7 @@ async fn check_url(client: &Client, request: Request) -> Response {
             uri.clone(),
             Status::Error(ErrorKind::InvalidURI(uri.clone())),
             source,
+            vec![],
         )
     })
 }
@@ -288,7 +340,9 @@ async fn handle(
             // code.
             Status::from_cache_status(v.value().status, &accept)
         };
-        return Response::new(uri.clone(), status, request.source);
+        // TODO: not too sure about it, we never recurse on cached requests
+        // println!("Found cached response for {}", uri);
+        return Response::new(uri.clone(), status, request.source, vec![]);
     }
 
     // Request was not cached; run a normal check
@@ -366,7 +420,7 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
         .iter()
         .flat_map(|(source, set)| {
             set.iter()
-                .map(move |ResponseBody { uri, status: _ }| (source, uri))
+                .map(move |ResponseBody { uri, .. }| (source, uri))
         })
         .filter_map(|(source, uri)| {
             if uri.is_data() || uri.is_mail() || uri.is_file() {
@@ -397,6 +451,7 @@ mod tests {
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
+            vec![],
         );
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(
@@ -419,6 +474,7 @@ mod tests {
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
+            vec![],
         );
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(
@@ -439,9 +495,9 @@ mod tests {
     async fn test_invalid_url() {
         let client = ClientBuilder::builder().build().client().unwrap();
         let uri = Uri::try_from("http://\"").unwrap();
-        let response = client.check_website(&uri, None).await.unwrap();
+        let (status, _) = client.check_website(&uri, None).await.unwrap();
         assert!(matches!(
-            response,
+            status,
             Status::Unsupported(ErrorKind::BuildRequestClient(_))
         ));
     }
