@@ -298,6 +298,21 @@ list of excluded status codes. This example will not cache results with a status
     #[serde(default)]
     pub(crate) threads: Option<usize>,
 
+    /// Recursively check all links found on the page.
+    /// Only links on the same domain (or subdomain) are checked by default.
+    /// Use `--recursed-domains` to specify additional domains to recurse into.
+    #[arg(short = 'R', long)]
+    #[serde(default)]
+    pub(crate) recursive: bool,
+
+    /// Only recurse into links that point to one of these domains.
+    /// To be used with the `--recursive` option.
+    /// By default, only links pointing to the entry point's domain (or a subdomain) are recursed into.
+    /// Separate multiple domains with commas.
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) recursed_domains: Vec<String>,
+
     /// User agent
     #[arg(short, long, default_value = DEFAULT_USER_AGENT)]
     #[serde(default = "user_agent")]
