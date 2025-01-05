@@ -198,6 +198,7 @@ impl Input {
     }
 
     /// Construct a new `Input` source from a raw string that represents the contents of the input (website, file, etc.)
+    #[must_use]
     pub fn raw_string(s: &str, file_type_hint: Option<FileType>) -> Self {
         Self {
             source: InputSource::String(s.to_owned()),

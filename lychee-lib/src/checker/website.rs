@@ -140,7 +140,7 @@ impl WebsiteChecker {
                             .collect();
                         // println!("recursing {}: found {:?}", response_url, links.clone());
 
-                        return (status, links);
+                        (status, links)
                     }
                 }
             }
@@ -174,13 +174,13 @@ impl WebsiteChecker {
                     .check_website_inner(&uri.to_https()?, &default_chain)
                     .await;
 
-                if !status.is_success() {
+                if status.is_success() {
+                    Ok((Status::Ok(code), new_uris))
+                } else {
                     Ok((
                         Status::Error(ErrorKind::InsecureURL(uri.to_https()?)),
                         vec![],
                     ))
-                } else {
-                    Ok((Status::Ok(code), new_uris))
                 }
             }
             s => Ok(s),

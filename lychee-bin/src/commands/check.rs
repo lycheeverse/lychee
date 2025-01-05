@@ -203,9 +203,9 @@ async fn response_receive_task(
     formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
 ) -> Result<(Option<ProgressBar>, ResponseStats)> {
-    let mut i = 0;
+    // let mut i = 0;
     while let Some(response) = recv_resp.recv().await {
-        i = i + 1;
+        // i += 1;
         // println!(
         //     "starting response #{} out of {}",
         //     i,
@@ -219,7 +219,7 @@ async fn response_receive_task(
             &verbose,
         )?;
 
-        for uri in response.body().subsequent_uris.iter() {
+        for uri in &response.body().subsequent_uris {
             let request = Request::try_from(uri.clone())?;
             req_send
                 .send(Ok(request))
@@ -235,7 +235,7 @@ async fn response_receive_task(
         remaining_requests.fetch_sub(1, Ordering::Relaxed);
         let remaining_now = remaining_requests.load(Ordering::Relaxed);
         // println!("remaining requests: {}", remaining_now);
-        if remaining_now <= 0 {
+        if remaining_now == 0 {
             break;
         }
 

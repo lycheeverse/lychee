@@ -43,7 +43,8 @@ pub struct BasicAuthCredentials {
 
 impl BasicAuthCredentials {
     /// Create a new [`BasicAuthCredentials`] instance.
-    pub fn new(username: String, password: String) -> Self {
+    #[must_use]
+    pub const fn new(username: String, password: String) -> Self {
         Self {
             username,
             password,
@@ -62,6 +63,7 @@ impl Hash for BasicAuthCredentials {
 impl FromStr for BasicAuthCredentials {
     type Err = BasicAuthCredentialsParseError;
 
+    #[must_use]
     fn from_str(credentials: &str) -> Result<Self, Self::Err> {
         let parts: Vec<_> = credentials.trim().split(':').collect();
 
