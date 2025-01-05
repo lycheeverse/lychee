@@ -284,7 +284,10 @@ async fn request_channel_task(
             )
             .await;
 
-            send_resp.send(response).await.expect("Cannot send response");
+            send_resp
+                .send(response)
+                .await
+                .expect("Cannot send response");
             // if let Err(_) = timeout(Duration::from_millis(500), send_resp.send(response)).await {
             //     println!(
             //         "Timeout occurred while sending response to queue for {}",

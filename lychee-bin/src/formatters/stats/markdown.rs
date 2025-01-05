@@ -229,7 +229,7 @@ mod tests {
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Error(Some(404))),
             InputSource::Stdin,
-            vec![]
+            vec![],
         );
         stats.add(response);
         stats

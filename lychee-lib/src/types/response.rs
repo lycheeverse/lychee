@@ -20,8 +20,20 @@ impl Response {
     #[inline]
     #[must_use]
     /// Create new response
-    pub const fn new(uri: Uri, status: Status, source: InputSource, subsequent_uris: Vec<Uri>) -> Self {
-        Response(source, ResponseBody { uri, status, subsequent_uris })
+    pub const fn new(
+        uri: Uri,
+        status: Status,
+        source: InputSource,
+        subsequent_uris: Vec<Uri>,
+    ) -> Self {
+        Response(
+            source,
+            ResponseBody {
+                uri,
+                status,
+                subsequent_uris,
+            },
+        )
     }
 
     #[inline]
