@@ -203,7 +203,11 @@ impl AsRef<str> for Uri {
 
 impl From<Url> for Uri {
     fn from(url: Url) -> Self {
-        Self { url }
+        let mut without_fragment = url.clone();
+        without_fragment.set_fragment(None);
+        Self {
+            url: without_fragment,
+        }
     }
 }
 

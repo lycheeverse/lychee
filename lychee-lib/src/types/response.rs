@@ -1,4 +1,8 @@
-use std::{fmt::Display, hash::Hash, hash::Hasher};
+use std::{
+    fmt::Display,
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 use http::StatusCode;
 use serde::Serialize;
@@ -63,10 +67,15 @@ impl Response {
     }
 
     /// Retrieve subsequent requests that need to be made when recursion is enabled
-    pub fn subsequent_requests(&self, credentials: Option<BasicAuthCredentials>) -> Vec<Request> {
+    pub fn subsequent_requests<IsCached: Fn(&Uri) -> bool>(
+        &self,
+        is_cached: IsCached,
+        credentials: Option<BasicAuthCredentials>,
+    ) -> Vec<Request> {
         self.1
             .subsequent_uris
             .iter()
+            .filter(|uri| !is_cached(uri))
             .map(|uri| {
                 Request::new(
                     uri.clone(),

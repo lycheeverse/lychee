@@ -58,23 +58,25 @@ where
     };
 
     // Start receiving requests
-    tokio::spawn(request_channel_task(
+    tokio::spawn(request_to_response(
         recv_req,
         send_resp,
         max_concurrency,
         client,
-        cache,
+        cache.clone(),
         cache_exclude_status,
         accept,
+        params.cfg.recursive,
     ));
 
     let formatter = get_response_formatter(&params.cfg.mode);
 
-    let show_results_task = tokio::spawn(response_receive_task(
+    let show_results_task = tokio::spawn(receive_responses(
         recv_resp,
         send_req.clone(),
         remaining_requests.clone(),
         params.cfg.max_depth,
+        cache,
         params.cfg.recursive,
         params.cfg.verbose,
         pb.clone(),
@@ -83,14 +85,7 @@ where
     ));
 
     // Fill the request channel with the initial requests
-    send_inputs_loop(
-        params.requests,
-        send_req,
-        pb,
-        remaining_requests,
-        params.cfg.max_depth,
-    )
-    .await?;
+    send_requests(params.requests, send_req, pb, remaining_requests).await?;
 
     // Wait until all responses are received
     let result = show_results_task.await?;
@@ -171,12 +166,11 @@ async fn suggest_archived_links(
 // drops the `send_req` channel on exit
 // required for the receiver task to end, which closes send_resp, which allows
 // the show_results_task to finish
-async fn send_inputs_loop<S>(
+async fn send_requests<S>(
     requests: S,
     send_req: mpsc::Sender<Result<Request>>,
     bar: Option<ProgressBar>,
     remaining_requests: Arc<AtomicUsize>,
-    max_recursion_depth: Option<usize>,
 ) -> Result<()>
 where
     S: futures::Stream<Item = Result<Request>>,
@@ -188,13 +182,6 @@ where
         // println!("#{} starting request", i);
         i += 1;
         let request = request?;
-
-        if max_recursion_depth
-            .map(|limit| request.recursion_level > limit)
-            .unwrap_or(false)
-        {
-            continue;
-        }
 
         if let Some(pb) = &bar {
             pb.inc_length(1);
@@ -209,15 +196,17 @@ where
             .expect("Cannot send request");
         // println!("sent request to queue for {}", uri);
     }
+    println!("--- END OF INITIAL REQUESTS ---");
     Ok(())
 }
 
 /// Reads from the response channel, updates the progress bar status and (if recursing) sends new requests.
-async fn response_receive_task(
+async fn receive_responses(
     mut recv_resp: mpsc::Receiver<Response>,
     req_send: mpsc::Sender<Result<Request>>,
     remaining_requests: Arc<AtomicUsize>,
     max_recursion_depth: Option<usize>,
+    cache: Arc<Cache>,
     recurse: bool,
     verbose: Verbosity,
     pb: Option<ProgressBar>,
@@ -243,9 +232,15 @@ async fn response_receive_task(
 
         if recurse
             && max_recursion_depth
-                .map(|limit| response.1.recursion_level <= limit)
+                .map(|limit| response.1.recursion_level < limit)
                 .unwrap_or(true)
         {
+            println!(
+                "recursing: {} has depth {} < {}",
+                response.1.uri,
+                response.1.recursion_level,
+                max_recursion_depth.unwrap()
+            );
             tokio::spawn((|requests: Vec<Request>,
                            req_send: mpsc::Sender<Result<Request>>,
                            remaining_requests: Arc<AtomicUsize>,
@@ -264,7 +259,7 @@ async fn response_receive_task(
                     }
                 }
             })(
-                response.subsequent_requests(None),
+                response.subsequent_requests(|uri| cache.contains_key(uri), None),
                 req_send.clone(),
                 remaining_requests.clone(),
                 pb.clone(),
@@ -278,7 +273,7 @@ async fn response_receive_task(
             break;
         }
 
-        stats.add(response);
+        stats.insert(response);
         // println!("finished response #{}", i);
     }
     // println!("Processed {} responses", i);
@@ -298,7 +293,7 @@ fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
     bar
 }
 
-async fn request_channel_task(
+async fn request_to_response(
     recv_req: mpsc::Receiver<Result<Request>>,
     send_resp: mpsc::Sender<Response>,
     max_concurrency: usize,
@@ -306,6 +301,7 @@ async fn request_channel_task(
     cache: Arc<Cache>,
     cache_exclude_status: HashSet<u16>,
     accept: HashSet<u16>,
+    recursive: bool,
 ) {
     // while let Some(request) = recv_req.recv().await {
     StreamExt::for_each_concurrent(
@@ -313,6 +309,9 @@ async fn request_channel_task(
         max_concurrency,
         |request: Result<Request>| async {
             let request = request.expect("cannot read request");
+            if recursive && cache.contains_key(&request.uri) {
+                return;
+            }
             // let uri = request.uri.clone();
             // println!("handling request {}", uri);
             // let uri = request.uri.clone();
@@ -352,6 +351,7 @@ async fn check_url(client: &Client, request: Request) -> Response {
     // Request was not cached; run a normal check
     let uri = request.uri.clone();
     let source = request.source.clone();
+    let depth = request.recursion_level;
     client.check(request).await.unwrap_or_else(|e| {
         log::error!("Error checking URL {}: Cannot parse URL to URI: {}", uri, e);
         Response::new(
@@ -359,7 +359,7 @@ async fn check_url(client: &Client, request: Request) -> Response {
             Status::Error(ErrorKind::InvalidURI(uri.clone())),
             source,
             vec![],
-            0,
+            depth,
         )
     })
 }
@@ -388,7 +388,13 @@ async fn handle(
         };
         // TODO: not too sure about it, we never recurse on cached requests
         // println!("Found cached response for {}", uri);
-        return Response::new(uri.clone(), status, request.source, vec![], 0);
+        return Response::new(
+            uri.clone(),
+            status,
+            request.source,
+            vec![],
+            request.recursion_level,
+        );
     }
 
     // Request was not cached; run a normal check
