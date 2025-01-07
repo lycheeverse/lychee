@@ -139,7 +139,7 @@ mod tests {
     // and it's a lot faster to just generate a fake response
     fn mock_response(status: Status) -> Response {
         let uri = website("https://some-url.com/ok");
-        Response::new(uri, status, InputSource::Stdin, vec![])
+        Response::new(uri, status, InputSource::Stdin, vec![], 0)
     }
 
     fn dummy_ok() -> Response {

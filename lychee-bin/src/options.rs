@@ -292,6 +292,10 @@ list of excluded status codes. This example will not cache results with a status
     #[serde(default = "max_concurrency")]
     pub(crate) max_concurrency: usize,
 
+    /// Maximum recursion depth for recursive link checking.
+    #[arg(long)]
+    pub(crate) max_depth: Option<usize>,
+
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
     #[arg(short = 'T', long)]

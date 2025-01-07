@@ -28,6 +28,7 @@ fn create_request(
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
+    recursion_depth: usize,
 ) -> Result<Request> {
     let uri = try_parse_into_uri(raw_uri, source, root_dir, base)?;
     let source = truncate_source(source);
@@ -35,7 +36,14 @@ fn create_request(
     let attribute = raw_uri.attribute.clone();
     let credentials = extract_credentials(extractor, &uri);
 
-    Ok(Request::new(uri, source, element, attribute, credentials))
+    Ok(Request::new(
+        uri,
+        source,
+        element,
+        attribute,
+        credentials,
+        recursion_depth,
+    ))
 }
 
 /// Try to parse the raw URI into a `Uri`.
@@ -141,10 +149,18 @@ pub(crate) fn create(
     extractor: Option<&BasicAuthExtractor>,
 ) -> HashSet<Request> {
     let base = base.cloned().or_else(|| Base::from_source(source));
+    let recursion_depth = 0; // TODO allow changing?
 
     uris.into_iter()
         .filter_map(|raw_uri| {
-            match create_request(&raw_uri, source, root_dir, base.as_ref(), extractor) {
+            match create_request(
+                &raw_uri,
+                source,
+                root_dir,
+                base.as_ref(),
+                extractor,
+                recursion_depth,
+            ) {
                 Ok(request) => Some(request),
                 Err(e) => {
                     warn!("Error creating request: {:?}", e);
@@ -460,6 +476,7 @@ mod tests {
             None,
             Some(&base),
             None,
+            0,
         )
         .unwrap();
 
@@ -473,6 +490,7 @@ mod tests {
                 None,
                 None,
                 None,
+                0,
             )
         );
     }
@@ -489,6 +507,7 @@ mod tests {
             None,
             Some(&base),
             None,
+            0,
         )
         .unwrap();
 
@@ -502,6 +521,7 @@ mod tests {
                 None,
                 None,
                 None,
+                0,
             )
         );
     }

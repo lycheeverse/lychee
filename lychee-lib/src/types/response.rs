@@ -3,7 +3,9 @@ use std::fmt::Display;
 use http::StatusCode;
 use serde::Serialize;
 
-use crate::{InputSource, Status, Uri};
+use crate::{InputSource, Request, Status, Uri};
+
+use super::BasicAuthCredentials;
 
 /// Response type returned by lychee after checking a URI
 //
@@ -25,6 +27,7 @@ impl Response {
         status: Status,
         source: InputSource,
         subsequent_uris: Vec<Uri>,
+        recursion_level: usize,
     ) -> Self {
         Response(
             source,
@@ -32,6 +35,7 @@ impl Response {
                 uri,
                 status,
                 subsequent_uris,
+                recursion_level,
             },
         )
     }
@@ -56,6 +60,24 @@ impl Response {
     /// Retrieve the underlying body of the response
     pub const fn body(&self) -> &ResponseBody {
         &self.1
+    }
+
+    /// Retrieve subsequent requests that need to be made when recursion is enabled
+    pub fn subsequent_requests(&self, credentials: Option<BasicAuthCredentials>) -> Vec<Request> {
+        self.1
+            .subsequent_uris
+            .iter()
+            .map(|uri| {
+                Request::new(
+                    uri.clone(),
+                    self.0.clone(),
+                    None,
+                    None,
+                    credentials.clone(),
+                    self.1.recursion_level + 1,
+                )
+            })
+            .collect()
     }
 }
 
@@ -85,6 +107,8 @@ pub struct ResponseBody {
     pub status: Status,
     /// Subsequent URIs that need checking (via --recursive)
     pub subsequent_uris: Vec<Uri>,
+    /// The recursion depth of the associated request
+    pub recursion_level: usize,
 }
 
 // Extract as much information from the underlying error conditions as possible

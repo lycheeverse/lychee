@@ -461,6 +461,7 @@ impl Client {
             ref mut uri,
             credentials,
             source,
+            recursion_level,
             ..
         } = request.try_into()?;
 
@@ -476,7 +477,7 @@ impl Client {
         self.remap(uri)?;
 
         if self.is_excluded(uri) {
-            return Ok(Response::new(uri.clone(), Status::Excluded, source, vec![]));
+            return Ok(Response::new(uri.clone(), Status::Excluded, source, vec![], recursion_level));
         }
 
         let mut subsequent_uris: Vec<Uri> = vec![];
@@ -493,7 +494,7 @@ impl Client {
             }
         };
 
-        Ok(Response::new(uri.clone(), status, source, subsequent_uris))
+        Ok(Response::new(uri.clone(), status, source, subsequent_uris, recursion_level))
     }
 
     /// Check a single file using the file checker.
