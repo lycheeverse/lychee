@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, hash::Hash, hash::Hasher};
 
 use http::StatusCode;
 use serde::Serialize;
@@ -97,7 +97,7 @@ impl Serialize for Response {
 }
 
 #[allow(clippy::module_name_repetitions)]
-#[derive(Debug, Serialize, Hash, PartialEq, Eq)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 /// Encapsulates the state of a URI check
 pub struct ResponseBody {
     #[serde(flatten)]
@@ -109,6 +109,13 @@ pub struct ResponseBody {
     pub subsequent_uris: Vec<Uri>,
     /// The recursion depth of the associated request
     pub recursion_level: usize,
+}
+
+impl Hash for ResponseBody {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.uri.hash(state);
+        self.status.hash(state);
+    }
 }
 
 // Extract as much information from the underlying error conditions as possible

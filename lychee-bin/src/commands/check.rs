@@ -75,6 +75,7 @@ where
         send_req.clone(),
         remaining_requests.clone(),
         params.cfg.max_depth,
+        params.cfg.recursive,
         params.cfg.verbose,
         pb.clone(),
         formatter,
@@ -217,6 +218,7 @@ async fn response_receive_task(
     req_send: mpsc::Sender<Result<Request>>,
     remaining_requests: Arc<AtomicUsize>,
     max_recursion_depth: Option<usize>,
+    recurse: bool,
     verbose: Verbosity,
     pb: Option<ProgressBar>,
     formatter: Box<dyn ResponseFormatter>,
@@ -230,7 +232,6 @@ async fn response_receive_task(
         //     remaining_requests.load(Ordering::Relaxed),
         // );
         // println!("#{} received response from queue for {}", i, response.1.uri);
-        println!("{:?}", max_recursion_depth);
         i += 1;
         show_progress(
             &mut io::stderr(),
@@ -240,11 +241,10 @@ async fn response_receive_task(
             &verbose,
         )?;
 
-        println!("rec={:?}", response.1.recursion_level);
-
-        if max_recursion_depth
-            .map(|limit| response.1.recursion_level <= limit)
-            .unwrap_or(true)
+        if recurse
+            && max_recursion_depth
+                .map(|limit| response.1.recursion_level <= limit)
+                .unwrap_or(true)
         {
             tokio::spawn((|requests: Vec<Request>,
                            req_send: mpsc::Sender<Result<Request>>,
@@ -299,7 +299,7 @@ fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
 }
 
 async fn request_channel_task(
-    mut recv_req: mpsc::Receiver<Result<Request>>,
+    recv_req: mpsc::Receiver<Result<Request>>,
     send_resp: mpsc::Sender<Response>,
     max_concurrency: usize,
     client: Client,
@@ -307,39 +307,40 @@ async fn request_channel_task(
     cache_exclude_status: HashSet<u16>,
     accept: HashSet<u16>,
 ) {
-    while let Some(request) = recv_req.recv().await {
-        // StreamExt::for_each_concurrent(
-        //     ReceiverStream::new(recv_req),
-        //     max_concurrency,
-        //     |request: Result<Request>| async {
+    // while let Some(request) = recv_req.recv().await {
+    StreamExt::for_each_concurrent(
+        ReceiverStream::new(recv_req),
+        max_concurrency,
+        |request: Result<Request>| async {
+            let request = request.expect("cannot read request");
+            // let uri = request.uri.clone();
+            // println!("handling request {}", uri);
+            // let uri = request.uri.clone();
+            // println!("received request for {}", uri);
+            let response = handle(
+                &client,
+                cache.clone(),
+                cache_exclude_status.clone(),
+                request,
+                accept.clone(),
+            )
+            .await;
 
-        let request = request.expect("cannot read request");
-        // let uri = request.uri.clone();
-        // println!("handling request {}", uri);
-        // let uri = request.uri.clone();
-        // println!("received request for {}", uri);
-        let response = handle(
-            &client,
-            cache.clone(),
-            cache_exclude_status.clone(),
-            request,
-            accept.clone(),
-        )
-        .await;
-
-        // println!("sending response to queue for {}", uri);
-        send_resp
-            .send(response)
-            .await
-            .expect("Cannot send response");
-        // if let Err(_) = timeout(Duration::from_millis(500), send_resp.send(response)).await {
-        //     println!(
-        //         "Timeout occurred while sending response to queue for {}",
-        //         uri
-        //     );
-        // }
-        // println!("sent response to queue for {}", uri);
-    }
+            // println!("sending response to queue for {}", uri);
+            send_resp
+                .send(response)
+                .await
+                .expect("Cannot send response");
+            // if let Err(_) = timeout(Duration::from_millis(500), send_resp.send(response)).await {
+            //     println!(
+            //         "Timeout occurred while sending response to queue for {}",
+            //         uri
+            //     );
+            // }
+            // println!("sent response to queue for {}", uri);
+        },
+    )
+    .await;
 }
 
 /// Check a URL and return a response.
