@@ -1,4 +1,3 @@
-use log::warn;
 use percent_encoding::percent_decode_str;
 use reqwest::Url;
 use std::{
@@ -112,6 +111,43 @@ fn create_uri_from_file_path(
     })
 }
 
+/// Create a URL from a path
+///
+/// `src_path` is the path of the source file.
+/// `dest_path` is the path being linked to.
+/// The optional `base_uri` specifies the base URI to resolve the destination path against.
+///
+/// # Errors
+///
+/// - If the percent-decoded destination path cannot be decoded as UTF-8.
+/// - The path cannot be resolved
+/// - The resolved path cannot be converted to a URL.
+fn resolve_and_create_url(
+    src_path: &Path,
+    dest_path: &str,
+    ignore_absolute_local_links: bool,
+) -> Result<Url> {
+    let (dest_path, fragment) = url::remove_get_params_and_separate_fragment(dest_path);
+
+    // Decode the destination path to avoid double-encoding
+    let decoded_dest = percent_decode_str(dest_path).decode_utf8()?;
+
+    let Ok(Some(resolved_path)) = path::resolve(
+        src_path,
+        &PathBuf::from(&*decoded_dest),
+        ignore_absolute_local_links,
+    ) else {
+        return Err(ErrorKind::InvalidPathToUri(decoded_dest.to_string()));
+    };
+
+    let Ok(mut url) = Url::from_file_path(&resolved_path) else {
+        return Err(ErrorKind::InvalidUrlFromPath(resolved_path.clone()));
+    };
+
+    url.set_fragment(fragment);
+    Ok(url)
+}
+
 /// Truncate the source in case it gets too long
 ///
 /// This is only needed for string inputs.
@@ -139,58 +175,11 @@ pub(crate) fn create(
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
-) -> HashSet<Request> {
+) -> HashSet<Result<Request>> {
     let base = base.cloned().or_else(|| Base::from_source(source));
-
     uris.into_iter()
-        .filter_map(|raw_uri| {
-            match create_request(&raw_uri, source, root_dir, base.as_ref(), extractor) {
-                Ok(request) => Some(request),
-                Err(e) => {
-                    warn!("Error creating request: {:?}", e);
-                    None
-                }
-            }
-        })
+        .map(|raw_uri| create_request(&raw_uri, source, root_dir, base.as_ref(), extractor))
         .collect()
-}
-
-/// Create a URI from a path
-///
-/// `src_path` is the path of the source file.
-/// `dest_path` is the path being linked to.
-/// The optional `base_uri` specifies the base URI to resolve the destination path against.
-///
-/// # Errors
-///
-/// - If the percent-decoded destination path cannot be decoded as UTF-8.
-/// - The path cannot be resolved
-/// - The resolved path cannot be converted to a URL.
-fn resolve_and_create_url(
-    src_path: &Path,
-    dest_path: &str,
-    ignore_absolute_local_links: bool,
-) -> Result<Url> {
-    let (dest_path, fragment) = url::remove_get_params_and_separate_fragment(dest_path);
-
-    // Decode the destination path to avoid double-encoding
-    // This addresses the issue mentioned in the original comment about double-encoding
-    let decoded_dest = percent_decode_str(dest_path).decode_utf8()?;
-
-    let Ok(Some(resolved_path)) = path::resolve(
-        src_path,
-        &PathBuf::from(&*decoded_dest),
-        ignore_absolute_local_links,
-    ) else {
-        return Err(ErrorKind::InvalidPathToUri(decoded_dest.to_string()));
-    };
-
-    let Ok(mut url) = Url::from_file_path(&resolved_path) else {
-        return Err(ErrorKind::InvalidUrlFromPath(resolved_path.clone()));
-    };
-
-    url.set_fragment(fragment);
-    Ok(url)
 }
 
 fn prepend_root_dir_if_absolute_local_link(text: &str, root_dir: Option<&PathBuf>) -> String {
@@ -232,7 +221,8 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests
             .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/path/relative.html"));
+            .any(|r| r.as_ref().unwrap().uri.url.as_str()
+                == "https://example.com/path/relative.html"));
     }
 
     #[test]
@@ -246,7 +236,7 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests
             .iter()
-            .any(|r| r.uri.url.as_str() == "https://another.com/page"));
+            .any(|r| r.as_ref().unwrap().uri.url.as_str() == "https://another.com/page"));
     }
 
     #[test]
@@ -260,7 +250,7 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests
             .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/root-relative"));
+            .any(|r| r.as_ref().unwrap().uri.url.as_str() == "https://example.com/root-relative"));
     }
 
     #[test]
@@ -274,7 +264,7 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests
             .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/parent"));
+            .any(|r| r.as_ref().unwrap().uri.url.as_str() == "https://example.com/parent"));
     }
 
     #[test]
@@ -286,9 +276,8 @@ mod tests {
         let requests = create(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/path/page.html#fragment"));
+        assert!(requests.iter().any(|r| r.as_ref().unwrap().uri.url.as_str()
+            == "https://example.com/path/page.html#fragment"));
     }
 
     #[test]
@@ -302,7 +291,7 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests
             .iter()
-            .any(|r| r.uri.url.as_str() == "file:///some/relative.html"));
+            .any(|r| r.as_ref().unwrap().uri.url.as_str() == "file:///some/relative.html"));
     }
 
     #[test]
@@ -316,7 +305,7 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests
             .iter()
-            .any(|r| r.uri.url.as_str() == "https://another.com/page"));
+            .any(|r| r.as_ref().unwrap().uri.url.as_str() == "https://another.com/page"));
     }
 
     #[test]
@@ -330,7 +319,7 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests
             .iter()
-            .any(|r| r.uri.url.as_str() == "file:///tmp/lychee/root-relative"));
+            .any(|r| r.as_ref().unwrap().uri.url.as_str() == "file:///tmp/lychee/root-relative"));
     }
 
     #[test]
@@ -344,7 +333,7 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests
             .iter()
-            .any(|r| r.uri.url.as_str() == "file:///parent"));
+            .any(|r| r.as_ref().unwrap().uri.url.as_str() == "file:///parent"));
     }
 
     #[test]
@@ -358,7 +347,7 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests
             .iter()
-            .any(|r| r.uri.url.as_str() == "file:///some/page.html#fragment"));
+            .any(|r| r.as_ref().unwrap().uri.url.as_str() == "file:///some/page.html#fragment"));
     }
 
     #[test]
@@ -373,7 +362,8 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests
             .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/path/relative.html"));
+            .any(|r| r.as_ref().unwrap().uri.url.as_str()
+                == "https://example.com/path/relative.html"));
     }
 
     #[test]
@@ -388,7 +378,7 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests
             .iter()
-            .any(|r| r.uri.url.as_str() == "https://another.com/page"));
+            .any(|r| r.as_ref().unwrap().uri.url.as_str() == "https://another.com/page"));
     }
 
     #[test]
@@ -401,9 +391,8 @@ mod tests {
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/tmp/lychee/root-relative"));
+        assert!(requests.iter().any(|r| r.as_ref().unwrap().uri.url.as_str()
+            == "https://example.com/tmp/lychee/root-relative"));
     }
 
     #[test]
@@ -418,7 +407,7 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests
             .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/parent"));
+            .any(|r| r.as_ref().unwrap().uri.url.as_str() == "https://example.com/parent"));
     }
 
     #[test]
@@ -431,9 +420,8 @@ mod tests {
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/path/page.html#fragment"));
+        assert!(requests.iter().any(|r| r.as_ref().unwrap().uri.url.as_str()
+            == "https://example.com/path/page.html#fragment"));
     }
 
     #[test]
@@ -446,19 +434,19 @@ mod tests {
         assert_eq!(requests.len(), 1);
         assert!(requests
             .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/page"));
+            .any(|r| r.as_ref().unwrap().uri.url.as_str() == "https://example.com/page"));
     }
 
     #[test]
     fn test_create_request_from_relative_file_path() {
-        let base = Base::Local(PathBuf::from("/tmp/lychee"));
+        let root_dir = PathBuf::from("/tmp/lychee");
         let input_source = InputSource::FsPath(PathBuf::from("page.html"));
 
         let actual = create_request(
             &RawUri::from("file.html"),
             &input_source,
+            Some(&root_dir),
             None,
-            Some(&base),
             None,
         )
         .unwrap();
@@ -479,15 +467,15 @@ mod tests {
 
     #[test]
     fn test_create_request_from_absolute_file_path() {
-        let base = Base::Local(PathBuf::from("/tmp/lychee"));
+        let root_dir = PathBuf::from("/tmp/lychee");
         let input_source = InputSource::FsPath(PathBuf::from("/tmp/lychee/page.html"));
 
-        // Use an absolute path that's outside the base directory
+        // Use an absolute path that's outside the root directory
         let actual = create_request(
             &RawUri::from("/usr/local/share/doc/example.html"),
             &input_source,
+            Some(&root_dir),
             None,
-            Some(&base),
             None,
         )
         .unwrap();
@@ -508,22 +496,22 @@ mod tests {
 
     #[test]
     fn test_parse_relative_path_into_uri() {
-        let base = Base::Local(PathBuf::from("/tmp/lychee"));
+        let root_dir = PathBuf::from("/tmp/lychee");
         let source = InputSource::String(String::new());
 
         let raw_uri = RawUri::from("relative.html");
-        let uri = try_parse_into_uri(&raw_uri, &source, None, Some(&base)).unwrap();
+        let uri = try_parse_into_uri(&raw_uri, &source, Some(&root_dir), None).unwrap();
 
         assert_eq!(uri.url.as_str(), "file:///tmp/lychee/relative.html");
     }
 
     #[test]
     fn test_parse_absolute_path_into_uri() {
-        let base = Base::Local(PathBuf::from("/tmp/lychee"));
+        let root_dir = PathBuf::from("/tmp/lychee");
         let source = InputSource::String(String::new());
 
         let raw_uri = RawUri::from("absolute.html");
-        let uri = try_parse_into_uri(&raw_uri, &source, None, Some(&base)).unwrap();
+        let uri = try_parse_into_uri(&raw_uri, &source, Some(&root_dir), None).unwrap();
 
         assert_eq!(uri.url.as_str(), "file:///tmp/lychee/absolute.html");
     }
@@ -556,5 +544,44 @@ mod tests {
         let text = "relative/path";
         let result = prepend_root_dir_if_absolute_local_link(text, None);
         assert_eq!(result, "relative/path");
+    }
+
+    #[test]
+    fn test_parse_url_with_anchor() {
+        let base = Base::try_from("https://example.com/path/page.html").unwrap();
+        let source = InputSource::String(String::new());
+
+        let raw_uri = RawUri::from("#fragment");
+        let uri = try_parse_into_uri(&raw_uri, &source, None, Some(&base)).unwrap();
+
+        assert_eq!(
+            uri.url.as_str(),
+            "https://example.com/path/page.html#fragment"
+        );
+    }
+
+    #[test]
+    fn test_parse_url_to_different_page_with_anchor() {
+        let base = Base::try_from("https://example.com/path/page.html").unwrap();
+        let source = InputSource::String(String::new());
+
+        let raw_uri = RawUri::from("other-page.html#fragment");
+        let uri = try_parse_into_uri(&raw_uri, &source, None, Some(&base)).unwrap();
+
+        assert_eq!(
+            uri.url.as_str(),
+            "https://example.com/path/other-page.html#fragment"
+        );
+    }
+
+    #[test]
+    fn test_parse_url_from_path_with_anchor() {
+        let root_dir = PathBuf::from("/tmp/lychee");
+        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+
+        let raw_uri = RawUri::from("#fragment");
+        let uri = try_parse_into_uri(&raw_uri, &source, Some(&root_dir), None).unwrap();
+
+        assert_eq!(uri.url.as_str(), "file:///some/page.html#fragment");
     }
 }

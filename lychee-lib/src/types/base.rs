@@ -1,33 +1,28 @@
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
-use std::{convert::TryFrom, path::PathBuf};
+use std::convert::TryFrom;
 
 use crate::{ErrorKind, InputSource};
 
-/// When encountering links without a full domain in a document,
+/// When encountering links without a domain in a document,
 /// the base determines where this resource can be found.
-/// Both, local and remote targets are supported.
+///
+/// This can be only be a remote URL.
+/// For local paths, use `root-dir`
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[allow(variant_size_differences)]
 #[serde(try_from = "String")]
-pub enum Base {
-    /// Local file path pointing to root directory
-    Local(PathBuf),
-    /// Remote URL pointing to a website homepage
-    Remote(Url),
-}
+pub struct Base(Url);
 
 impl Base {
     /// Join link with base url
     #[must_use]
     pub(crate) fn join(&self, link: &str) -> Option<Url> {
-        match self {
-            Self::Remote(url) => url.join(link).ok(),
-            Self::Local(path) => {
-                let full_path = path.join(link);
-                Url::from_file_path(full_path).ok()
-            }
+        // Ensure the link doesn't contain a scheme
+        if Url::parse(link).is_ok() {
+            return None;
         }
+        self.0.join(link).ok()
     }
 
     pub(crate) fn from_source(source: &InputSource) -> Option<Base> {
@@ -40,7 +35,7 @@ impl Base {
                 base_url.set_fragment(None);
 
                 // We keep the username and password intact
-                Some(Base::Remote(*base_url))
+                Some(Base(*base_url))
             }
             // other inputs do not have a URL to extract a base
             _ => None,
@@ -52,16 +47,16 @@ impl TryFrom<&str> for Base {
     type Error = ErrorKind;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        if let Ok(url) = Url::parse(value) {
-            if url.cannot_be_a_base() {
-                return Err(ErrorKind::InvalidBase(
-                    value.to_string(),
-                    "The given URL cannot be a base".to_string(),
-                ));
-            }
-            return Ok(Self::Remote(url));
+        let url = Url::parse(value).map_err(|_| {
+            ErrorKind::InvalidBase(value.to_string(), "The given URL is invalid".to_string())
+        })?;
+        if url.cannot_be_a_base() {
+            return Err(ErrorKind::InvalidBase(
+                value.to_string(),
+                "The given URL cannot be a base".to_string(),
+            ));
         }
-        Ok(Self::Local(PathBuf::from(value)))
+        return Ok(Self(url));
     }
 }
 
@@ -82,10 +77,7 @@ mod test_base {
     #[test]
     fn test_valid_remote() -> Result<()> {
         let base = Base::try_from("https://endler.dev")?;
-        assert_eq!(
-            base,
-            Base::Remote(Url::parse("https://endler.dev").unwrap())
-        );
+        assert_eq!(base, Base(Url::parse("https://endler.dev").unwrap()));
         Ok(())
     }
 
@@ -95,19 +87,12 @@ mod test_base {
     }
 
     #[test]
-    fn test_valid_local_path_string_as_base() -> Result<()> {
+    fn test_local_path_string_is_invalid_base() -> Result<()> {
         let cases = vec!["/tmp/lychee", "/tmp/lychee/", "tmp/lychee/"];
 
         for case in cases {
-            assert_eq!(Base::try_from(case)?, Base::Local(PathBuf::from(case)));
+            assert!(Base::try_from(case).is_err());
         }
-        Ok(())
-    }
-
-    #[test]
-    fn test_valid_local() -> Result<()> {
-        let dir = tempfile::tempdir().unwrap();
-        Base::try_from(dir.as_ref().to_str().unwrap())?;
         Ok(())
     }
 
@@ -126,8 +111,31 @@ mod test_base {
             let url = Url::parse(url).unwrap();
             let source = InputSource::RemoteUrl(Box::new(url.clone()));
             let base = Base::from_source(&source);
-            let expected = Base::Remote(Url::parse(expected).unwrap());
+            let expected = Base(Url::parse(expected).unwrap());
             assert_eq!(base, Some(expected));
         }
+    }
+
+    #[test]
+    fn test_join_remote() {
+        let base = Base(Url::parse("https://example.com").unwrap());
+        let url = base.join("foo/bar").unwrap();
+        assert_eq!(url, Url::parse("https://example.com/foo/bar").unwrap());
+    }
+
+    #[test]
+    fn test_join_query_params() {
+        let base = Base(Url::parse("https://example.com").unwrap());
+        let url = base.join("foo/bar?query=something").unwrap();
+        assert_eq!(
+            url,
+            Url::parse("https://example.com/foo/bar?query=something").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_join_data_invalid() {
+        let base = Base(Url::parse("https://example.com").unwrap());
+        assert!(base.join("data:text/plain,Hello?World#").is_none());
     }
 }

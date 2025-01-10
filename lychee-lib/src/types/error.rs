@@ -17,9 +17,11 @@ pub enum ErrorKind {
     /// Network error while handling request
     #[error("Network error")]
     NetworkRequest(#[source] reqwest::Error),
+
     /// Cannot read the body of the received response
     #[error("Error reading response body: {0}")]
     ReadResponseBody(#[source] reqwest::Error),
+
     /// The network client required for making requests cannot be created
     #[error("Error creating request client: {0}")]
     BuildRequestClient(#[source] reqwest::Error),
@@ -82,12 +84,12 @@ pub enum ErrorKind {
     #[error("Header could not be parsed.")]
     InvalidHeader(#[from] http::header::InvalidHeaderValue),
 
-    /// The given string can not be parsed into a valid base URL or base directory
-    #[error("Error with base dir `{0}` : {1}")]
+    /// The given string can not be parsed into a valid base URL
+    #[error("Error with base URL `{0}` : {1}")]
     InvalidBase(String, String),
 
     /// Cannot join the given text with the base URL
-    #[error("Cannot join '{0}' with the base URL")]
+    #[error("Cannot join '{0}' with base URL")]
     InvalidBaseJoin(String),
 
     /// Cannot convert the given path to a URI
@@ -161,6 +163,10 @@ pub enum ErrorKind {
     /// Status code selector parse error
     #[error("Status code range error")]
     StatusCodeSelectorError(#[from] StatusCodeSelectorError),
+
+    /// The given fragment does not exist in the URL
+    #[error("Fragment not found: {0}")]
+    FragmentNotFound(String),
 }
 
 impl ErrorKind {
@@ -276,7 +282,14 @@ impl PartialEq for ErrorKind {
             (Self::InvalidBase(b1, e1), Self::InvalidBase(b2, e2)) => b1 == b2 && e1 == e2,
             (Self::InvalidUrlRemap(r1), Self::InvalidUrlRemap(r2)) => r1 == r2,
             (Self::EmptyUrl, Self::EmptyUrl) => true,
-
+            (Self::InvalidBaseJoin(s1), Self::InvalidBaseJoin(s2)) => s1 == s2,
+            (Self::InvalidPathToUri(s1), Self::InvalidPathToUri(s2)) => s1 == s2,
+            (Self::RootDirMustBeAbsolute(s1), Self::RootDirMustBeAbsolute(s2)) => s1 == s2,
+            (Self::UnsupportedUriType(s1), Self::UnsupportedUriType(s2)) => s1 == s2,
+            (Self::StatusCodeSelectorError(e1), Self::StatusCodeSelectorError(e2)) => {
+                e1.to_string() == e2.to_string()
+            }
+            (Self::FragmentNotFound(s1), Self::FragmentNotFound(s2)) => s1 == s2,
             _ => false,
         }
     }
@@ -329,6 +342,7 @@ impl Hash for ErrorKind {
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
             Self::Cookies(e) => e.to_string().hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
+            Self::FragmentNotFound(s) => s.hash(state),
         }
     }
 }

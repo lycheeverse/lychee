@@ -16,8 +16,8 @@ use url::Url;
 /// Holds a cache of fragments for a given URL.
 ///
 /// Fragments, also known as anchors, are used to link to a specific
-/// part of a page. For example, the URL `https://example.com#foo`
-/// will link to the element with the `id` of `foo`.
+/// part of a document. For example, the URL `https://example.com#foo`
+/// will link to the element with the `id` of `foo` in the document.
 ///
 /// This cache is used to avoid having to re-parse the same file
 /// multiple times when checking if a given URL contains a fragment.
@@ -39,16 +39,16 @@ impl FragmentChecker {
 
     /// Checks if the given path contains the given fragment.
     ///
-    /// Returns false, if there is a fragment in the link and the path is to a
-    /// Markdown file, which doesn't contain the given fragment.
+    /// Returns false, if there is a fragment in the link and the path points to
+    /// a file, which doesn't contain said fragment.
     ///
     /// In all other cases, returns true.
-    pub(crate) async fn check(&self, path: &Path, url: &Url) -> Result<bool> {
-        let Some(fragment) = url.fragment() else {
+    pub(crate) async fn check(&self, path: &Path, url_with_fragment: &Url) -> Result<bool> {
+        let Some(fragment) = url_with_fragment.fragment() else {
             return Ok(true);
         };
         let mut fragment_decoded = percent_decode_str(fragment).decode_utf8()?;
-        let url_without_frag = Self::remove_fragment(url.clone());
+        let url_without_frag = Self::remove_fragment(url_with_fragment.clone());
 
         let file_type = FileType::from(path);
         let extractor = match file_type {
@@ -75,6 +75,9 @@ impl FragmentChecker {
         }
     }
 
+    /// Removes the fragment from the given URL.
+    ///
+    /// Sets the fragment to `None` and returns the URL as a string.
     fn remove_fragment(mut url: Url) -> String {
         url.set_fragment(None);
         url.into()
