@@ -56,7 +56,7 @@ impl TryFrom<&str> for Base {
                 "The given URL cannot be a base".to_string(),
             ));
         }
-        return Ok(Self(url));
+        Ok(Self(url))
     }
 }
 
@@ -87,13 +87,12 @@ mod test_base {
     }
 
     #[test]
-    fn test_local_path_string_is_invalid_base() -> Result<()> {
+    fn test_local_path_string_is_invalid_base() {
         let cases = vec!["/tmp/lychee", "/tmp/lychee/", "tmp/lychee/"];
 
         for case in cases {
             assert!(Base::try_from(case).is_err());
         }
-        Ok(())
     }
 
     #[test]

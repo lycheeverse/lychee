@@ -203,10 +203,10 @@ mod tests {
         ];
 
         for (uri, expected, name) in cases {
-            let url = url::Url::parse(uri).unwrap();
-            let uri = Uri::from(url);
+            let raw_url = url::Url::parse(uri).unwrap();
+            let uri = Uri::from(raw_url);
             let path = uri_to_path(&uri).unwrap();
-            assert_eq!(path, expected, "{}", name);
+            assert_eq!(path, expected, "{name}");
         }
     }
 }

@@ -1,14 +1,10 @@
-use percent_encoding::percent_decode_str;
 use reqwest::Url;
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-};
+use std::path::PathBuf;
 
 use crate::{
     basic_auth::BasicAuthExtractor,
     types::{uri::raw::RawUri, InputSource},
-    utils::{path, url},
+    utils::path,
     Base, BasicAuthCredentials, ErrorKind, Request, Result, Uri,
 };
 
@@ -66,7 +62,7 @@ fn try_parse_into_uri(
         // For absolute paths with root_dir, insert root_dir after base
         if text.starts_with('/') && root_dir.is_some() {
             let root_path = root_dir.unwrap().to_string_lossy();
-            let combined = format!("{}{}", root_path, text);
+            let combined = format!("{root_path}{text}");
             return base_url
                 .join(&combined)
                 .map(|url| Uri { url })
@@ -92,7 +88,7 @@ fn try_parse_into_uri(
                 if is_anchor(&text) {
                     return Url::from_file_path(source_path)
                         .map(|url| Uri { url })
-                        .map_err(|_| ErrorKind::InvalidUrlFromPath(source_path.clone()))
+                        .map_err(|()| ErrorKind::InvalidUrlFromPath(source_path.clone()))
                         .map(|mut uri| {
                             uri.url.set_fragment(Some(&text[1..]));
                             uri
@@ -101,10 +97,13 @@ fn try_parse_into_uri(
 
                 // If source_path is relative and we have a root_dir,
                 // we need to resolve both source_path and text relative to root_dir
-                let resolved_source = if !source_path.is_absolute() && root_dir.is_some() {
-                    root_dir.unwrap().join(source_path)
+                let resolved_source = if source_path.is_absolute() {
+                    source_path.clone()
                 } else {
-                    source_path.to_path_buf()
+                    match root_dir {
+                        Some(dir) => dir.join(source_path),
+                        None => source_path.clone(),
+                    }
                 };
 
                 match path::resolve(&resolved_source, &PathBuf::from(&text), false) {
@@ -115,7 +114,7 @@ fn try_parse_into_uri(
 
             Url::from_file_path(&target_path)
                 .map(|url| Uri { url })
-                .map_err(|_| ErrorKind::InvalidUrlFromPath(target_path))
+                .map_err(|()| ErrorKind::InvalidUrlFromPath(target_path))
         }
         InputSource::String(s) => {
             // If we have a root_dir, we can still resolve paths against it
@@ -124,15 +123,14 @@ fn try_parse_into_uri(
                 let target_path = root.join(&text);
                 return Url::from_file_path(&target_path)
                     .map(|url| Uri { url })
-                    .map_err(|_| ErrorKind::InvalidUrlFromPath(target_path));
+                    .map_err(|()| ErrorKind::InvalidUrlFromPath(target_path));
             }
             // Otherwise, we can't resolve the path
             Err(ErrorKind::UnsupportedUriType(s.clone()))
         }
         InputSource::RemoteUrl(url) => {
-            let base_url = Url::parse(url.as_str()).map_err(|e| {
-                ErrorKind::ParseUrl(e, format!("Could not parse base URL: {}", url))
-            })?;
+            let base_url = Url::parse(url.as_str())
+                .map_err(|e| ErrorKind::ParseUrl(e, format!("Could not parse base URL: {url}")))?;
             base_url
                 .join(&text)
                 .map(|url| Uri { url })
@@ -145,43 +143,6 @@ fn try_parse_into_uri(
 // Taken from https://github.com/getzola/zola/blob/master/components/link_checker/src/lib.rs
 pub(crate) fn is_anchor(text: &str) -> bool {
     text.starts_with('#')
-}
-
-/// Create a URL from a path
-///
-/// `src_path` is the path of the source file.
-/// `dest_path` is the path being linked to.
-/// The optional `base_uri` specifies the base URI to resolve the destination path against.
-///
-/// # Errors
-///
-/// - If the percent-decoded destination path cannot be decoded as UTF-8.
-/// - The path cannot be resolved
-/// - The resolved path cannot be converted to a URL.
-fn resolve_and_create_url(
-    src_path: &Path,
-    dest_path: &str,
-    ignore_absolute_local_links: bool,
-) -> Result<Url> {
-    let (dest_path, fragment) = url::remove_get_params_and_separate_fragment(dest_path);
-
-    // Decode the destination path to avoid double-encoding
-    let decoded_dest = percent_decode_str(dest_path).decode_utf8()?;
-
-    let Ok(Some(resolved_path)) = path::resolve(
-        src_path,
-        &PathBuf::from(&*decoded_dest),
-        ignore_absolute_local_links,
-    ) else {
-        return Err(ErrorKind::InvalidPathToUri(decoded_dest.to_string()));
-    };
-
-    let Ok(mut url) = Url::from_file_path(&resolved_path) else {
-        return Err(ErrorKind::InvalidUrlFromPath(resolved_path.clone()));
-    };
-
-    url.set_fragment(fragment);
-    Ok(url)
 }
 
 /// Truncate the source in case it gets too long
@@ -204,29 +165,18 @@ fn truncate_source(source: &InputSource) -> InputSource {
 /// Only keeps "valid" URLs. This filters out anchors for example.
 ///
 /// If a URLs is ignored (because of the current settings),
-/// it will not be added to the `HashSet`.
+/// it will not be added to the `Vector`.
 pub(crate) fn create(
     uris: Vec<RawUri>,
     source: &InputSource,
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
-) -> HashSet<Result<Request>> {
+) -> Vec<Result<Request>> {
     let base = base.cloned().or_else(|| Base::from_source(source));
     uris.into_iter()
         .map(|raw_uri| create_request(&raw_uri, source, root_dir, base.as_ref(), extractor))
         .collect()
-}
-
-fn prepend_root_dir_if_absolute_local_link(text: &str, root_dir: Option<&PathBuf>) -> String {
-    if text.starts_with('/') {
-        if let Some(path) = root_dir {
-            if let Some(path_str) = path.to_str() {
-                return format!("{path_str}{text}");
-            }
-        }
-    }
-    text.to_string()
 }
 
 #[cfg(test)]
@@ -237,13 +187,6 @@ mod tests {
     fn test_is_anchor() {
         assert!(is_anchor("#anchor"));
         assert!(!is_anchor("notan#anchor"));
-    }
-
-    #[test]
-    fn test_create_uri_from_path() {
-        let result =
-            resolve_and_create_url(&PathBuf::from("/README.md"), "test+encoding", true).unwrap();
-        assert_eq!(result.as_str(), "file:///test+encoding");
     }
 
     #[test]
@@ -362,27 +305,11 @@ mod tests {
     fn test_parent_directory_url_resolution_from_root_dir() {
         let root_dir = PathBuf::from("/tmp/lychee");
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
-
         let uris = vec![RawUri::from("../parent")];
         let requests = create(uris, &source, Some(&root_dir), None, None);
 
-        assert_eq!(requests.len(), 1);
-        // assert!(requests
-        //     .iter()
-        //     .any(|r| r.as_ref().unwrap().uri.url.as_str() == "file:///parent"));
-
-        assert_eq!(
-            requests
-                .iter()
-                .next()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .uri
-                .url
-                .as_str(),
-            "file:///parent",
-        );
+        let url = &requests[0].as_ref().unwrap().uri.url;
+        assert_eq!(url.as_str(), "file:///parent");
     }
 
     #[test]
@@ -563,36 +490,6 @@ mod tests {
         let uri = try_parse_into_uri(&raw_uri, &source, Some(&root_dir), None).unwrap();
 
         assert_eq!(uri.url.as_str(), "file:///tmp/lychee/absolute.html");
-    }
-
-    #[test]
-    fn test_prepend_with_absolute_local_link_and_root_dir() {
-        let text = "/absolute/path";
-        let root_dir = PathBuf::from("/root");
-        let result = prepend_root_dir_if_absolute_local_link(text, Some(&root_dir));
-        assert_eq!(result, "/root/absolute/path");
-    }
-
-    #[test]
-    fn test_prepend_with_absolute_local_link_and_no_root_dir() {
-        let text = "/absolute/path";
-        let result = prepend_root_dir_if_absolute_local_link(text, None);
-        assert_eq!(result, "/absolute/path");
-    }
-
-    #[test]
-    fn test_prepend_with_relative_link_and_root_dir() {
-        let text = "relative/path";
-        let root_dir = PathBuf::from("/root");
-        let result = prepend_root_dir_if_absolute_local_link(text, Some(&root_dir));
-        assert_eq!(result, "relative/path");
-    }
-
-    #[test]
-    fn test_prepend_with_relative_link_and_no_root_dir() {
-        let text = "relative/path";
-        let result = prepend_root_dir_if_absolute_local_link(text, None);
-        assert_eq!(result, "relative/path");
     }
 
     #[test]
