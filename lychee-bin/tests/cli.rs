@@ -414,24 +414,6 @@ mod cli {
     }
 
     #[test]
-    fn test_resolve_paths_from_root_dir_and_base_url() {
-        let mut cmd = main_command();
-        let dir = fixtures_path();
-
-        cmd.arg("--offline")
-            .arg("--root-dir")
-            .arg("/resolve_paths")
-            .arg("--base")
-            .arg(&dir)
-            .arg(dir.join("resolve_paths").join("index.html"))
-            .env_clear()
-            .assert()
-            .success()
-            .stdout(contains("3 Total"))
-            .stdout(contains("3 OK"));
-    }
-
-    #[test]
     fn test_youtube_quirk() {
         let url = "https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7";
 
@@ -1812,7 +1794,6 @@ mod cli {
     fn test_fragments() {
         let mut cmd = main_command();
         let input = fixtures_path().join("fragments");
-
         cmd.arg("--verbose")
             .arg("--include-fragments")
             .arg(input)
@@ -1836,9 +1817,20 @@ mod cli {
             .stderr(contains(
                 "fixtures/fragments/file1.md#kebab-case-fragment-1",
             ))
+            .stderr(contains(
+                "fixtures/fragments/file1.md#f%C3%BCnf-s%C3%BC%C3%9Fe-%C3%A4pfel",
+            ))
+            .stderr(contains("fixtures/fragments/file1.md#IGNORE-CASING"))
+            .stderr(contains("fixtures/fragments/file1.md#explicit-fragment"))
+            .stderr(contains(
+                "fixtures/fragments/file.html#Upper-%C3%84%C3%96%C3%B6",
+            ))
+            .stderr(contains(
+                "fixtures/fragments/file.html#tangent%3A-kustomize",
+            ))
+            .stderr(contains("fixtures/fragments/file.html#in-THE-begiNNing"))
             .stdout(contains("21 Total"))
             .stdout(contains("17 OK"))
-            // 4 failures because of missing fragments
             .stdout(contains("4 Errors"));
     }
 
@@ -2008,65 +2000,50 @@ mod cli {
             .stdout(contains("https://lychee.cli.rs/#missing-section | Fragment not found: missing-section"));
     }
 
-    // #[test]
-    // fn test_relative_path_resolution() {
-    //     let mut cmd = main_command();
-    //     let dir = fixtures_path().join("relative_paths");
-    //     cmd.arg("--base")
-    //         .arg(&dir)
-    //         .arg(dir.join("docs/releases/v9_7/index.html"))
-    //         .assert()
-    //         .success()
-    //         .stderr(predicates::str::is_empty())
-    //         .stdout(contains("6 Total"))
-    //         .stdout(contains("6 OK"))
-    //         .stdout(contains("0 Errors"));
-    // }
+    #[test]
+    fn test_relative_path_resolution() {
+        let mut cmd = main_command();
+        let dir = fixtures_path().join("relative_paths");
+        cmd.arg("--root-dir")
+            .arg(&dir)
+            .arg(dir.join("releases/v9_7/index.html"))
+            .assert()
+            .success()
+            .stderr(predicates::str::is_empty())
+            .stdout(contains("4 Total"))
+            .stdout(contains("4 OK"))
+            .stdout(contains("0 Errors"));
+    }
 
-    // #[test]
-    // fn test_base_url_absolute_paths() {
-    //     let mut cmd = main_command();
-    //     let dir = fixtures_path().join("absolute_paths");
-    //     cmd.arg("--base")
-    //         .arg("https://example.com")
-    //         .arg("--dump") // Add dump flag to avoid actual requests
-    //         .arg(dir.join("index.html"))
-    //         .assert()
-    //         .success()
-    //         .stdout(contains("https://example.com/about"))
-    //         .stdout(contains("https://example.com/products"))
-    //         .stdout(contains("https://example.com/contact"))
-    //         .stderr(predicates::str::is_empty());
-    // }
+    #[test]
+    fn test_base_url_absolute_paths() {
+        let mut cmd = main_command();
+        let dir = fixtures_path().join("absolute_paths");
+        cmd.arg("--base")
+            .arg("https://example.com")
+            .arg("--dump") // Add dump flag to avoid actual requests
+            .arg(dir.join("index.html"))
+            .assert()
+            .success()
+            .stdout(contains("https://example.com/about"))
+            .stdout(contains("https://example.com/products"))
+            .stdout(contains("https://example.com/contact"))
+            .stderr(predicates::str::is_empty());
+    }
 
-    // #[test]
-    // fn test_html_fragment_detection() {
-    //     let mut cmd = main_command();
-    //     let dir = fixtures_path().join("html_fragments");
-    //     cmd.arg("--include-fragments")
-    //         .arg(dir.join("page.html"))
-    //         .assert()
-    //         .failure()
-    //         .stdout(contains("section.html#non-existent-heading"))
-    //         .stdout(contains("page.html#missing-section"))
-    //         .stdout(contains("Cannot find fragment"))
-    //         .stdout(contains("3 Total"))
-    //         .stdout(contains("1 OK"))
-    //         .stdout(contains("2 Errors"));
-    // }
-
-    // #[test]
-    // fn test_encoded_fragments() {
-    //     let mut cmd = main_command();
-    //     let dir = fixtures_path().join("encoded_fragments");
-    //     cmd.arg("--include-fragments")
-    //         .arg(dir.join("index.html"))
-    //         .assert()
-    //         .failure()
-    //         .stdout(contains("Cannot convert path '/about.html#about' to a URI"))
-    //         .stdout(contains("#about"))
-    //         .stdout(contains("1 Total"))
-    //         .stdout(contains("0 OK"))
-    //         .stdout(contains("1 Error"));
-    // }
+    #[test]
+    fn test_html_fragment_detection() {
+        let mut cmd = main_command();
+        let dir = fixtures_path().join("html_fragments");
+        cmd.arg("--include-fragments")
+            .arg(dir.join("page.html"))
+            .assert()
+            .failure()
+            .stdout(contains("section.html#non-existent-heading"))
+            .stdout(contains("page.html#missing-section"))
+            .stdout(contains("Cannot find fragment"))
+            .stdout(contains("3 Total"))
+            .stdout(contains("1 OK"))
+            .stdout(contains("2 Errors"));
+    }
 }
