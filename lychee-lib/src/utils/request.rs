@@ -90,7 +90,7 @@ fn try_parse_into_uri(
             } else {
                 // If text is just a fragment, we need to append it to the source path
                 if is_anchor(&text) {
-                    return Url::from_file_path(&source_path)
+                    return Url::from_file_path(source_path)
                         .map(|url| Uri { url })
                         .map_err(|_| ErrorKind::InvalidUrlFromPath(source_path.clone()))
                         .map(|mut uri| {
@@ -99,12 +99,15 @@ fn try_parse_into_uri(
                         });
                 }
 
-                // Relative paths: resolve relative to source
-                match path::resolve(
-                    source_path,
-                    &PathBuf::from(&text),
-                    false, // don't ignore absolute local links since we handled that case already
-                ) {
+                // If source_path is relative and we have a root_dir,
+                // we need to resolve both source_path and text relative to root_dir
+                let resolved_source = if !source_path.is_absolute() && root_dir.is_some() {
+                    root_dir.unwrap().join(source_path)
+                } else {
+                    source_path.to_path_buf()
+                };
+
+                match path::resolve(&resolved_source, &PathBuf::from(&text), false) {
                     Ok(Some(resolved)) => resolved,
                     _ => return Err(ErrorKind::InvalidPathToUri(text)),
                 }
@@ -114,7 +117,18 @@ fn try_parse_into_uri(
                 .map(|url| Uri { url })
                 .map_err(|_| ErrorKind::InvalidUrlFromPath(target_path))
         }
-        InputSource::String(s) => Err(ErrorKind::UnsupportedUriType(s.clone())),
+        InputSource::String(s) => {
+            // If we have a root_dir, we can still resolve paths against it
+            // even for string sources
+            if let Some(root) = root_dir {
+                let target_path = root.join(&text);
+                return Url::from_file_path(&target_path)
+                    .map(|url| Uri { url })
+                    .map_err(|_| ErrorKind::InvalidUrlFromPath(target_path));
+            }
+            // Otherwise, we can't resolve the path
+            Err(ErrorKind::UnsupportedUriType(s.clone()))
+        }
         InputSource::RemoteUrl(url) => {
             let base_url = Url::parse(url.as_str()).map_err(|e| {
                 ErrorKind::ParseUrl(e, format!("Could not parse base URL: {}", url))
@@ -131,39 +145,6 @@ fn try_parse_into_uri(
 // Taken from https://github.com/getzola/zola/blob/master/components/link_checker/src/lib.rs
 pub(crate) fn is_anchor(text: &str) -> bool {
     text.starts_with('#')
-}
-
-/// Create a URI from a file path
-///
-/// # Errors
-///
-/// - If the link text is an anchor and the file name cannot be extracted from the file path.
-/// - If the path cannot be resolved.
-/// - If the resolved path cannot be converted to a URL.
-fn create_uri_from_file_path(
-    file_path: &Path,
-    link_text: &str,
-    ignore_absolute_local_links: bool,
-) -> Result<Uri> {
-    let target_path = if is_anchor(link_text) {
-        // For anchors, we need to append the anchor to the file name.
-        let file_name = file_path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .ok_or_else(|| ErrorKind::InvalidFile(file_path.to_path_buf()))?;
-
-        format!("{file_name}{link_text}")
-    } else {
-        link_text.to_string()
-    };
-    let Ok(constructed_url) =
-        resolve_and_create_url(file_path, &target_path, ignore_absolute_local_links)
-    else {
-        return Err(ErrorKind::InvalidPathToUri(target_path));
-    };
-    Ok(Uri {
-        url: constructed_url,
-    })
 }
 
 /// Create a URL from a path
