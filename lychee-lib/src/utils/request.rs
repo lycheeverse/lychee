@@ -1,5 +1,5 @@
 use reqwest::Url;
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
 
 use crate::{
     basic_auth::BasicAuthExtractor,
@@ -172,7 +172,7 @@ pub(crate) fn create(
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
-) -> Vec<Result<Request>> {
+) -> HashSet<Result<Request>> {
     let base = base.cloned().or_else(|| Base::from_source(source));
     uris.into_iter()
         .map(|raw_uri| create_request(&raw_uri, source, root_dir, base.as_ref(), extractor))
@@ -308,7 +308,15 @@ mod tests {
         let uris = vec![RawUri::from("../parent")];
         let requests = create(uris, &source, Some(&root_dir), None, None);
 
-        let url = &requests[0].as_ref().unwrap().uri.url;
+        let url = requests
+            .iter()
+            .next()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .uri
+            .url
+            .clone();
         assert_eq!(url.as_str(), "file:///parent");
     }
 
