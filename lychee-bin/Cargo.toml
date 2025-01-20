@@ -18,7 +18,7 @@ lychee-lib = { path = "../lychee-lib", version = "0.18.0", default-features = fa
 
 anyhow = "1.0.95"
 assert-json-diff = "2.0.2"
-clap = { version = "4.5.23", features = ["env", "derive"] }
+clap = { version = "4.5.26", features = ["env", "derive"] }
 console = "0.15.10"
 const_format = "0.2.34"
 csv = "1.3.1"
@@ -30,7 +30,7 @@ http = "1.2.0"
 humantime = "2.1.0"
 humantime-serde = "1.1.1"
 indicatif = "0.17.9"
-log = "0.4.22"
+log = "0.4.25"
 once_cell = "1.20.2"
 openssl-sys = { version = "0.9.104", optional = true }
 pad = "0.1.6"
@@ -47,11 +47,11 @@ reqwest_cookie_store = "0.8.0"
 ring = "0.17.8"
 secrecy = { version = "0.10.3", features = ["serde"] }
 serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.134"
+serde_json = "1.0.137"
 strum = { version = "0.26.3", features = ["derive"] }
 supports-color = "3.0.2"
 tabled = "0.17.0"
-tokio = { version = "1.42.0", features = ["full"] }
+tokio = { version = "1.43.0", features = ["full"] }
 tokio-stream = "0.1.17"
 toml = "0.8.19"
 url = "2.5.4"
@@ -67,7 +67,7 @@ tracing-subscriber = { version = "0.3.19", default-features = false, features = 
     "registry",
     "env-filter",
 ] }
-uuid = { version = "1.11.0", features = ["v4"] }
+uuid = { version = "1.12.0", features = ["v4"] }
 wiremock = "0.6.2"
 
 [features]
