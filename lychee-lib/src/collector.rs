@@ -1,4 +1,3 @@
-use crate::ErrorKind;
 use crate::InputSource;
 use crate::{
     basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri, utils::request,
@@ -51,8 +50,14 @@ impl Collector {
     pub fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> Result<Self> {
         if let Some(root_dir) = &root_dir {
             if root_dir.is_relative() {
-                return Err(ErrorKind::RootDirMustBeAbsolute(root_dir.clone()));
-            }
+                // The root directory must be an absolute path
+                // Canonicalize the path relative to the current working directory
+                let root_dir = std::env::current_dir()?.join(root_dir);
+                root_dir.canonicalize()?;
+                root_dir
+            } else {
+                root_dir.clone()
+            };
         }
         Ok(Collector {
             basic_auth_extractor: None,

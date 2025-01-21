@@ -96,10 +96,6 @@ pub enum ErrorKind {
     #[error("Cannot convert path '{0}' to a URI")]
     InvalidPathToUri(String),
 
-    /// Root dir must be an absolute path
-    #[error("Root dir must be an absolute path: '{0}'")]
-    RootDirMustBeAbsolute(PathBuf),
-
     /// The given URI type is not supported
     #[error("Unsupported URI type: '{0}'")]
     UnsupportedUriType(String),
@@ -284,7 +280,6 @@ impl PartialEq for ErrorKind {
             (Self::EmptyUrl, Self::EmptyUrl) => true,
             (Self::InvalidBaseJoin(s1), Self::InvalidBaseJoin(s2)) => s1 == s2,
             (Self::InvalidPathToUri(s1), Self::InvalidPathToUri(s2)) => s1 == s2,
-            (Self::RootDirMustBeAbsolute(s1), Self::RootDirMustBeAbsolute(s2)) => s1 == s2,
             (Self::UnsupportedUriType(s1), Self::UnsupportedUriType(s2)) => s1 == s2,
             (Self::StatusCodeSelectorError(e1), Self::StatusCodeSelectorError(e2)) => {
                 e1.to_string() == e2.to_string()
@@ -327,7 +322,6 @@ impl Hash for ErrorKind {
             Self::InvalidBase(base, e) => (base, e).hash(state),
             Self::InvalidBaseJoin(s) => s.hash(state),
             Self::InvalidPathToUri(s) => s.hash(state),
-            Self::RootDirMustBeAbsolute(s) => s.hash(state),
             Self::UnsupportedUriType(s) => s.hash(state),
             Self::InvalidUrlRemap(remap) => (remap).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),

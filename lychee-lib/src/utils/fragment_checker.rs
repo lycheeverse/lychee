@@ -56,9 +56,7 @@ impl FragmentChecker {
             FileType::Html => extract_html_fragments,
             FileType::Plaintext => return Ok(true),
         };
-        if file_type == FileType::Markdown {
-            fragment_decoded = fragment_decoded.to_lowercase().into();
-        }
+        fragment_decoded = fragment_decoded.to_lowercase().into();
         match self.cache.lock().await.entry(url_without_frag) {
             Entry::Vacant(entry) => {
                 let content = fs::read_to_string(path).await?;
