@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::PathBuf};
 
 use crate::{
     basic_auth::BasicAuthExtractor,
-    types::{uri::raw::RawUri, InputSource},
+    types::{uri::raw::RawUri, InputSource, RootDir},
     utils::path,
     Base, BasicAuthCredentials, ErrorKind, Request, Result, Uri,
 };
@@ -20,7 +20,7 @@ fn extract_credentials(
 fn create_request(
     raw_uri: &RawUri,
     source: &InputSource,
-    root_dir: Option<&PathBuf>,
+    root_dir: Option<&RootDir>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
 ) -> Result<Request> {
@@ -47,7 +47,7 @@ fn create_request(
 fn try_parse_into_uri(
     raw_uri: &RawUri,
     source: &InputSource,
-    root_dir: Option<&PathBuf>,
+    root_dir: Option<&RootDir>,
     base: Option<&Base>,
 ) -> Result<Uri> {
     // First try direct URI parsing (handles explicit URLs)
@@ -61,8 +61,8 @@ fn try_parse_into_uri(
     if let Some(base_url) = base {
         // For absolute paths with root_dir, insert root_dir after base
         if text.starts_with('/') && root_dir.is_some() {
-            let root_path = root_dir.unwrap().to_string_lossy();
-            let combined = format!("{root_path}{text}");
+            let root_dir = root_dir.unwrap();
+            let combined = format!("{root_dir}{text}");
             return base_url
                 .join(&combined)
                 .map(|url| Uri { url })
@@ -80,9 +80,8 @@ fn try_parse_into_uri(
         InputSource::FsPath(source_path) => {
             let target_path = if text.starts_with('/') && root_dir.is_some() {
                 // Absolute paths: resolve via root_dir
-                let mut path = root_dir.unwrap().clone();
-                path.push(&text[1..]);
-                path
+                let root = root_dir.unwrap();
+                root.join(&text[1..])
             } else {
                 // If text is just a fragment, we need to append it to the source path
                 if is_anchor(&text) {
@@ -169,7 +168,7 @@ fn truncate_source(source: &InputSource) -> InputSource {
 pub(crate) fn create(
     uris: Vec<RawUri>,
     source: &InputSource,
-    root_dir: Option<&PathBuf>,
+    root_dir: Option<&RootDir>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
 ) -> HashSet<Result<Request>> {
@@ -261,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_relative_url_resolution_from_root_dir() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("relative.html")];
@@ -275,7 +274,7 @@ mod tests {
 
     #[test]
     fn test_absolute_url_resolution_from_root_dir() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("https://another.com/page")];
@@ -289,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_root_relative_url_resolution_from_root_dir() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("/root-relative")];
@@ -303,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_parent_directory_url_resolution_from_root_dir() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
         let uris = vec![RawUri::from("../parent")];
         let requests = create(uris, &source, Some(&root_dir), None, None);
@@ -322,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_fragment_url_resolution_from_root_dir() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("#fragment")];
@@ -336,7 +335,7 @@ mod tests {
 
     #[test]
     fn test_relative_url_resolution_from_root_dir_and_base_url() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
@@ -352,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_absolute_url_resolution_from_root_dir_and_base_url() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
@@ -367,7 +366,7 @@ mod tests {
 
     #[test]
     fn test_root_relative_url_resolution_from_root_dir_and_base_url() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
@@ -381,7 +380,7 @@ mod tests {
 
     #[test]
     fn test_parent_directory_url_resolution_from_root_dir_and_base_url() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
@@ -396,7 +395,7 @@ mod tests {
 
     #[test]
     fn test_fragment_url_resolution_from_root_dir_and_base_url() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
@@ -423,7 +422,7 @@ mod tests {
 
     #[test]
     fn test_create_request_from_relative_file_path() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let input_source = InputSource::FsPath(PathBuf::from("page.html"));
 
         let actual = create_request(
@@ -451,7 +450,7 @@ mod tests {
 
     #[test]
     fn test_create_request_from_absolute_file_path() {
-        let root_dir = PathBuf::from("/foo/bar");
+        let root_dir = RootDir::new("/foo/bar").unwrap();
         let input_source = InputSource::FsPath(PathBuf::from("/foo/bar/page.html"));
 
         // Use an absolute path that's outside the root directory
@@ -480,7 +479,7 @@ mod tests {
 
     #[test]
     fn test_parse_relative_path_into_uri() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let source = InputSource::String(String::new());
 
         let raw_uri = RawUri::from("relative.html");
@@ -491,7 +490,7 @@ mod tests {
 
     #[test]
     fn test_parse_absolute_path_into_uri() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let source = InputSource::String(String::new());
 
         let raw_uri = RawUri::from("absolute.html");
@@ -530,7 +529,7 @@ mod tests {
 
     #[test]
     fn test_parse_url_from_path_with_anchor() {
-        let root_dir = PathBuf::from("/tmp/lychee");
+        let root_dir = RootDir::new("/tmp/lychee").unwrap();
         let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let raw_uri = RawUri::from("#fragment");

@@ -1,3 +1,4 @@
+use crate::types::RootDir;
 use crate::InputSource;
 use crate::{
     basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri, utils::request,
@@ -9,7 +10,6 @@ use futures::{
     StreamExt,
 };
 use par_stream::ParStreamExt;
-use std::path::PathBuf;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -22,7 +22,7 @@ pub struct Collector {
     skip_hidden: bool,
     include_verbatim: bool,
     use_html5ever: bool,
-    root_dir: Option<PathBuf>,
+    root_dir: Option<RootDir>,
     base: Option<Base>,
 }
 
@@ -47,18 +47,7 @@ impl Collector {
     /// # Errors
     ///
     /// Returns an `Err` if the `root_dir` is not an absolute path
-    pub fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> Result<Self> {
-        if let Some(root_dir) = &root_dir {
-            if root_dir.is_relative() {
-                // The root directory must be an absolute path
-                // Canonicalize the path relative to the current working directory
-                let root_dir = std::env::current_dir()?.join(root_dir);
-                root_dir.canonicalize()?;
-                root_dir
-            } else {
-                root_dir.clone()
-            };
-        }
+    pub fn new(root_dir: Option<RootDir>, base: Option<Base>) -> Result<Self> {
         Ok(Collector {
             basic_auth_extractor: None,
             skip_missing_inputs: false,
@@ -189,7 +178,7 @@ mod tests {
     // Helper function to run the collector on the given inputs
     async fn collect(
         inputs: Vec<Input>,
-        root_dir: Option<PathBuf>,
+        root_dir: Option<RootDir>,
         base: Option<Base>,
     ) -> Result<HashSet<Uri>> {
         let responses = Collector::new(root_dir, base)?.collect_links(inputs);
@@ -199,7 +188,7 @@ mod tests {
     // Helper function for collecting verbatim links
     async fn collect_verbatim(
         inputs: Vec<Input>,
-        root_dir: Option<PathBuf>,
+        root_dir: Option<RootDir>,
         base: Option<Base>,
     ) -> Result<HashSet<Uri>> {
         let responses = Collector::new(root_dir, base)?

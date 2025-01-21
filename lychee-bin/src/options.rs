@@ -1,13 +1,12 @@
 use crate::archive::Archive;
-use crate::parse::parse_base;
+use crate::parse::{parse_base, parse_root_dir};
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
 use clap::builder::PossibleValuesParser;
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, BasicAuthSelector, Input, StatusCodeExcluder, StatusCodeSelector, DEFAULT_MAX_REDIRECTS,
-    DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+    Base, BasicAuthSelector, Input, RootDir, StatusCodeExcluder, StatusCodeSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -447,9 +446,9 @@ separated list of accepted status codes. This example will accept 200, 201,
 
     /// Root path to use when checking absolute local links,
     /// must be an absolute path
-    #[arg(long)]
+    #[arg(long, value_parser = parse_root_dir)]
     #[serde(default)]
-    pub(crate) root_dir: Option<PathBuf>,
+    pub(crate) root_dir: Option<RootDir>,
 
     /// Basic authentication support. E.g. `http://example.com username:password`
     #[arg(long)]
