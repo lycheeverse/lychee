@@ -104,6 +104,21 @@ impl Display for InputSource {
     }
 }
 
+// Compare InputSources by their string representations
+impl PartialOrd for InputSource {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.to_string().partial_cmp(&other.to_string())
+    }
+}
+
+impl Ord for InputSource {
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.to_string().cmp(&other.to_string())
+    }
+}
+
 /// Lychee Input with optional file hint for parsing
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Input {

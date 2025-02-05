@@ -49,7 +49,7 @@ impl Display for DetailedResponseStats {
 
         let response_formatter = get_response_formatter(&self.mode);
 
-        for (source, responses) in &stats.error_map {
+        for (source, responses) in super::sort_stat_map(&stats.error_map) {
             // Using leading newlines over trailing ones (e.g. `writeln!`)
             // lets us avoid extra newlines without any additional logic.
             write!(f, "\n\nErrors in {source}")?;

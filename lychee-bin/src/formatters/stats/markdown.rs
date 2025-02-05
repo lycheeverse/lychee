@@ -127,7 +127,7 @@ where
 {
     if !&map.is_empty() {
         writeln!(f, "\n## {name} per input")?;
-        for (source, responses) in map {
+        for (source, responses) in super::sort_stat_map(map) {
             writeln!(f, "\n### {name} in {source}\n")?;
             for response in responses {
                 writeln!(f, "{}", write_stat(response)?)?;
