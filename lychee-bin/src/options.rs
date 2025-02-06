@@ -109,6 +109,14 @@ pub(crate) enum OutputMode {
     #[serde(rename = "emoji")]
     #[strum(serialize = "emoji", ascii_case_insensitive)]
     Emoji,
+
+    /// Task output.
+    ///
+    /// This mode uses Markdown-styled checkboxes to represent the status of the requests.
+    /// Some people may find this mode more intuitive and useful for task tracking.
+    #[serde(rename = "task")]
+    #[strum(serialize = "task", ascii_case_insensitive)]
+    Task,
 }
 
 impl OutputMode {

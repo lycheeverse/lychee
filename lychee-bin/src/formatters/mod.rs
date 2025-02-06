@@ -37,5 +37,6 @@ pub(crate) fn get_response_formatter(mode: &OutputMode) -> Box<dyn ResponseForma
         OutputMode::Plain => Box::new(response::PlainFormatter),
         OutputMode::Color => Box::new(response::ColorFormatter),
         OutputMode::Emoji => Box::new(response::EmojiFormatter),
+        OutputMode::Task => Box::new(response::TaskFormatter),
     }
 }
