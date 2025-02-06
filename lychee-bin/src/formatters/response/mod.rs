@@ -3,10 +3,12 @@ use lychee_lib::ResponseBody;
 mod color;
 mod emoji;
 mod plain;
+mod task;
 
 pub(crate) use color::ColorFormatter;
 pub(crate) use emoji::EmojiFormatter;
 pub(crate) use plain::PlainFormatter;
+pub(crate) use task::TaskFormatter;
 
 /// Desired total width of formatted string for color formatter
 ///
