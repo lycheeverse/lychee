@@ -168,6 +168,7 @@ macro_rules! fold_in {
 #[command(version, about)]
 pub(crate) struct LycheeOptions {
     /// The inputs (where to get links to check from).
+    /// 
     /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
     /// remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`).
     /// NOTE: Use `--` to separate inputs from options that allow multiple arguments.
@@ -179,13 +180,14 @@ pub(crate) struct LycheeOptions {
     #[arg(help = HELP_MSG_CONFIG_FILE)]
     pub(crate) config_file: Option<PathBuf>,
 
+    /// The parsed configuration
     #[clap(flatten)]
     pub(crate) config: Config,
 }
 
 impl LycheeOptions {
     /// Get parsed inputs from options.
-    // This depends on the config, which is why a method is required (we could
+    // This depends on the parsed config, which is why a method is required (we could
     // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there, but
     // we wouldn't get access to `glob_ignore_case`.
     pub(crate) fn inputs(&self) -> Result<Vec<Input>> {
@@ -444,8 +446,7 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[serde(default)]
     pub(crate) base: Option<Base>,
 
-    /// Root path to use when checking absolute local links,
-    /// must be an absolute path
+    /// Root directory to use when checking absolute local links
     #[arg(long, value_parser = parse_root_dir)]
     #[serde(default)]
     pub(crate) root_dir: Option<RootDir>,

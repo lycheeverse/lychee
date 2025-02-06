@@ -7,6 +7,8 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use super::{ErrorKind, Input, InputSource};
+
 /// The canonical root directory during document processing.
 ///
 /// This is used to resolve relative paths in a document,
@@ -52,12 +54,16 @@ impl RootDir {
         let root_dir = if path.is_relative() {
             // The root directory must be an absolute path
             // Canonicalize the path relative to the current working directory
-            let root_dir = std::env::current_dir()?.join(path);
-            root_dir.canonicalize()?;
+            let root_dir = std::env::current_dir()?.join(&path);
+            root_dir
+                .canonicalize()
+                .map_err(|_| ErrorKind::InvalidRootDir(path.display().to_string()))?;
             root_dir
         } else {
             path.clone()
         };
+
+        println!("Set root directory to: {}", root_dir.display());
 
         Ok(Self(root_dir))
     }
@@ -80,5 +86,41 @@ impl Deref for RootDir {
 impl From<RootDir> for PathBuf {
     fn from(root_dir: RootDir) -> Self {
         root_dir.0
+    }
+}
+
+impl TryFrom<Input> for RootDir {
+    type Error = ErrorKind;
+
+    fn try_from(input: Input) -> std::result::Result<Self, Self::Error> {
+        let source = input.source;
+        match source {
+            InputSource::FsPath(path) => {
+                if path.is_dir() {
+                    Ok(Self::new(path)?)
+                } else {
+                    Err(ErrorKind::InvalidRootDir(path.display().to_string()))
+                }
+            }
+            _ => Err(ErrorKind::InvalidRootDir(
+                "Root directory must be a local path".to_string(),
+            )),
+        }
+    }
+}
+
+impl TryFrom<&Input> for RootDir {
+    type Error = ErrorKind;
+
+    fn try_from(input: &Input) -> std::result::Result<Self, Self::Error> {
+        RootDir::try_from(input.clone())
+    }
+}
+
+impl TryFrom<&str> for RootDir {
+    type Error = ErrorKind;
+
+    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+        RootDir::new(value)
     }
 }

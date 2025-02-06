@@ -84,6 +84,11 @@ pub enum ErrorKind {
     #[error("Header could not be parsed.")]
     InvalidHeader(#[from] http::header::InvalidHeaderValue),
 
+    /// The given path is not a valid root directory
+    /// (e.g. it does not exist or is not a directory)
+    #[error("Invalid root directory. Must exist and must be a directory: {0}")]
+    InvalidRootDir(String),
+
     /// The given string can not be parsed into a valid base URL
     #[error("Error with base URL `{0}` : {1}")]
     InvalidBase(String, String),
@@ -275,6 +280,7 @@ impl PartialEq for ErrorKind {
             (Self::InvalidFilePath(u1), Self::InvalidFilePath(u2)) => u1 == u2,
             (Self::InvalidFragment(u1), Self::InvalidFragment(u2)) => u1 == u2,
             (Self::InvalidUrlFromPath(p1), Self::InvalidUrlFromPath(p2)) => p1 == p2,
+            (Self::InvalidRootDir(s1), Self::InvalidRootDir(s2)) => s1 == s2,
             (Self::InvalidBase(b1, e1), Self::InvalidBase(b2, e2)) => b1 == b2 && e1 == e2,
             (Self::InvalidUrlRemap(r1), Self::InvalidUrlRemap(r2)) => r1 == r2,
             (Self::EmptyUrl, Self::EmptyUrl) => true,
@@ -319,6 +325,7 @@ impl Hash for ErrorKind {
             Self::InvalidFragment(u) => u.hash(state),
             Self::UnreachableEmailAddress(u, ..) => u.hash(state),
             Self::InsecureURL(u, ..) => u.hash(state),
+            Self::InvalidRootDir(s) => s.hash(state),
             Self::InvalidBase(base, e) => (base, e).hash(state),
             Self::InvalidBaseJoin(s) => s.hash(state),
             Self::InvalidPathToUri(s) => s.hash(state),

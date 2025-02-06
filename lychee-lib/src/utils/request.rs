@@ -78,11 +78,14 @@ fn try_parse_into_uri(
     // No base URL - handle as filesystem paths
     match source {
         InputSource::FsPath(source_path) => {
+            println!("Starting path resolution for: {:?}", source_path);
             let target_path = if text.starts_with('/') && root_dir.is_some() {
-                // Absolute paths: resolve via root_dir
-                let root = root_dir.unwrap();
-                root.join(&text[1..])
+                println!("Pre-root dir resolution: {:?}", text);
+                let result = root_dir.unwrap().join(&text[1..]);
+                println!("Post-root dir resolution: {:?}", result);
+                result
             } else {
+                println!("Resolving relative path");
                 // If text is just a fragment, we need to append it to the source path
                 if is_anchor(&text) {
                     return Url::from_file_path(source_path)
@@ -110,6 +113,8 @@ fn try_parse_into_uri(
                     _ => return Err(ErrorKind::InvalidPathToUri(text)),
                 }
             };
+
+            println!("Final path: {:?}", target_path);
 
             Url::from_file_path(&target_path)
                 .map(|url| Uri { url })

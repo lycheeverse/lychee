@@ -36,12 +36,12 @@ pub(crate) fn parse_remaps(remaps: &[String]) -> Result<Remaps> {
         .context("Remaps must be of the form '<pattern> <uri>' (separated by whitespace)")
 }
 
-pub(crate) fn parse_base(src: &str) -> Result<Base, lychee_lib::ErrorKind> {
-    Base::try_from(src)
+pub(crate) fn parse_base(base: &str) -> Result<Base, lychee_lib::ErrorKind> {
+    Base::try_from(base)
 }
 
 pub(crate) fn parse_root_dir(root_dir: &str) -> Result<RootDir, lychee_lib::ErrorKind> {
-    RootDir::new(root_dir)
+    RootDir::try_from(root_dir)
 }
 
 #[cfg(test)]

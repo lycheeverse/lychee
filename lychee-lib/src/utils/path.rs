@@ -32,6 +32,7 @@ pub(crate) fn resolve(
     dst: &PathBuf,
     ignore_absolute_local_links: bool,
 ) -> Result<Option<PathBuf>> {
+    println!("Resolving {} from {}", dst.display(), src.display());
     let resolved = match dst {
         relative if dst.is_relative() => {
             // Find `dst` in the parent directory of `src`

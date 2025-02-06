@@ -75,9 +75,9 @@ use openssl_sys as _; // required for vendored-openssl feature
 use options::LYCHEE_CONFIG_FILE;
 use ring as _; // required for apple silicon
 
-use lychee_lib::BasicAuthExtractor;
-use lychee_lib::Collector;
 use lychee_lib::CookieJar;
+use lychee_lib::{BasicAuthExtractor, RootDir};
+use lychee_lib::{Collector, Input, InputSource};
 
 mod archive;
 mod cache;
@@ -287,8 +287,9 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 /// Run lychee on the given inputs
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
+    let root_dir = set_root_dir(&inputs, &opts.config)?;
 
-    let mut collector = Collector::new(opts.config.root_dir.clone(), opts.config.base.clone())?
+    let mut collector = Collector::new(root_dir, opts.config.base.clone())?
         .skip_missing_inputs(opts.config.skip_missing)
         .skip_hidden(!opts.config.hidden)
         .skip_ignored(!opts.config.no_ignore)
@@ -386,4 +387,29 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     };
 
     Ok(exit_code as i32)
+}
+
+/// Set the root directory based on the passed configuration
+/// as well as the current working directory if no root directory is set
+/// and we have exactly one input, which is a directory.
+///
+/// In all other cases, set the root directory to `None`.
+fn set_root_dir(inputs: &[Input], config: &Config) -> Result<Option<RootDir>> {
+    if let Some(root_dir) = &config.root_dir {
+        Ok(Some(root_dir.clone()))
+    } else {
+        if inputs.len() == 1 {
+            let input = &inputs[0];
+            if input.is_dir() {
+                match input.source {
+                    InputSource::FsPath(ref path) => Ok(Some(RootDir::new(path)?)),
+                    _ => bail!("Cannot set root directory for input: {:?}", input),
+                }
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    }
 }
