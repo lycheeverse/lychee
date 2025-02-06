@@ -26,12 +26,6 @@ jobs:
         github.actor != 'dependabot[bot]' &&
         ( github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == github.event.pull_request.base.repo.owner.login )
     steps:
-      # If we got triggered with a new tag and it was not through a
-      # workflow_run, then stop here and let the release workflow handle it.
-      - name: Exit early if tag and not from release workflow
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        run: exit 0
-
       - name: Checkout
         uses: actions/checkout@v4
 
