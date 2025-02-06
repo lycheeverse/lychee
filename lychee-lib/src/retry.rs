@@ -88,7 +88,7 @@ impl RetryExt for http::Error {
         inner
             .source()
             .and_then(<(dyn std::error::Error + 'static)>::downcast_ref)
-            .map_or(false, should_retry_io)
+            .is_some_and(should_retry_io)
     }
 }
 

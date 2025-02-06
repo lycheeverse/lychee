@@ -1604,6 +1604,8 @@ mod cli {
     #[test]
     #[ignore = "Skipping test because it is flaky"]
     fn test_suggests_url_alternatives() -> Result<()> {
+        let re = Regex::new(r"http://web\.archive\.org/web/.*google\.com/jobs\.html").unwrap();
+
         for _ in 0..3 {
             // This can be flaky. Try up to 3 times
             let mut cmd = main_command();
@@ -1619,7 +1621,6 @@ mod cli {
             // We're looking for a suggestion that
             // - starts with http://web.archive.org/web/
             // - ends with google.com/jobs.html
-            let re = Regex::new(r"http://web\.archive\.org/web/.*google\.com/jobs\.html").unwrap();
             if re.is_match(&String::from_utf8_lossy(&output.stdout)) {
                 // Test passed
                 return Ok(());
