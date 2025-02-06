@@ -70,7 +70,7 @@ where
     // fixes bad rendering of some formatters
     let formatter_default = OutputMode::default();
 
-    // making it easier to add new formatters in the future (without breaking progress bar)
+    // Make it easier to add new formatters in the future (without breaking the progress bar)
     let allowed_output_modes = [OutputMode::Emoji, OutputMode::Plain, OutputMode::Color];
 
     let formatter = get_response_formatter(if allowed_output_modes.contains(&params.cfg.mode) {
