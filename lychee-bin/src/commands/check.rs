@@ -67,7 +67,7 @@ where
         accept,
     ));
 
-    // fixes bad rendering of some formatters
+    // Set the default formatter for progress bar output
     let formatter_default = OutputMode::default();
 
     // Make it easier to add new formatters in the future (without breaking the progress bar)
