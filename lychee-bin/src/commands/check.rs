@@ -67,12 +67,16 @@ where
         accept,
     ));
 
+    // fixes bad rendering of some formatters
     let formatter_default = OutputMode::default();
 
-    let formatter = get_response_formatter(if matches!(params.cfg.mode, OutputMode::Task) {
-         &formatter_default
-    } else {
+    // making it easier to add new formatters in the future (without breaking progress bar)
+    let allowed_output_modes = [OutputMode::Emoji, OutputMode::Plain, OutputMode::Color];
+
+    let formatter = get_response_formatter(if allowed_output_modes.contains(&params.cfg.mode) {
         &params.cfg.mode
+    } else {
+        &formatter_default
     });
 
     let show_results_task = tokio::spawn(progress_bar_task(
