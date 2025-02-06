@@ -30,7 +30,7 @@ You have two options:
    conservative like 32. This works, but it also comes with a performance
    penalty.
 2. Increase the number of maximum file handles. See instructions
-   [here](https://wilsonmar.github.io/maximum-limits/) or
+   [here](https://web.archive.org/web/20241127024709/https://wilsonmar.github.io/maximum-limits/) or
    [here](https://synthomat.de/blog/2020/01/increasing-the-file-descriptor-limit-on-macos/).
 
 ## Unexpected Status Codes
