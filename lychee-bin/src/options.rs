@@ -78,7 +78,9 @@ impl FromStr for StatsFormat {
 ///
 /// This decides over whether to use color,
 /// emojis, or plain text for the output.
-#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq)]
+#[derive(
+    Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq,
+)]
 #[non_exhaustive]
 pub(crate) enum OutputMode {
     /// Plain text output.
