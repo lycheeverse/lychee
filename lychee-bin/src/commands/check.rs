@@ -67,8 +67,10 @@ where
         accept,
     ));
 
+    let formatter_default = OutputMode::default();
+
     let formatter = get_response_formatter(if matches!(params.cfg.mode, OutputMode::Task) {
-        &OutputMode::default()
+         &formatter_default
     } else {
         &params.cfg.mode
     });
