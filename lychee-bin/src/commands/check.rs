@@ -320,7 +320,7 @@ async fn handle(
 fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<u16>) -> bool {
     let status_code_excluded = status
         .code()
-        .map_or(false, |code| cache_exclude_status.contains(&code.as_u16()));
+        .is_some_and(|code| cache_exclude_status.contains(&code.as_u16()));
 
     uri.is_file()
         || status.is_excluded()
