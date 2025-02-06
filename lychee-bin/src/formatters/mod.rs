@@ -31,7 +31,10 @@ pub(crate) fn get_stats_formatter(
 /// Create a response formatter based on the given format option
 pub(crate) fn get_response_formatter(mode: &OutputMode) -> Box<dyn ResponseFormatter> {
     if !supports_color() {
-        return Box::new(response::PlainFormatter);
+        return match mode {
+            OutputMode::Task => Box::new(response::TaskFormatter),
+            _ => Box::new(response::PlainFormatter),
+        };
     }
     match mode {
         OutputMode::Plain => Box::new(response::PlainFormatter),

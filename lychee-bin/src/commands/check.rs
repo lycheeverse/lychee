@@ -17,6 +17,7 @@ use lychee_lib::{ResponseBody, Status};
 use crate::archive::{Archive, Suggestion};
 use crate::formatters::get_response_formatter;
 use crate::formatters::response::ResponseFormatter;
+use crate::options::OutputMode;
 use crate::parse::parse_duration_secs;
 use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
@@ -66,7 +67,11 @@ where
         accept,
     ));
 
-    let formatter = get_response_formatter(&params.cfg.mode);
+    let formatter = get_response_formatter(if matches!(params.cfg.mode, OutputMode::Task) {
+        &OutputMode::default()
+    } else {
+        &params.cfg.mode
+    });
 
     let show_results_task = tokio::spawn(progress_bar_task(
         recv_resp,
