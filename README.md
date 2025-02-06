@@ -520,7 +520,7 @@ Options:
           Set the output display mode. Determines how results are presented in the terminal
 
           [default: color]
-          [possible values: plain, color, emoji]
+          [possible values: plain, color, emoji, task]
 
   -f, --format <FORMAT>
           Output format of final status report

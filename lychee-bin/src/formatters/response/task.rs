@@ -1,6 +1,5 @@
-use lychee_lib::ResponseBody;
 use super::ResponseFormatter;
-
+use lychee_lib::ResponseBody;
 
 pub(crate) struct TaskFormatter;
 
@@ -83,4 +82,3 @@ mod task_tests {
         );
     }
 }
-
