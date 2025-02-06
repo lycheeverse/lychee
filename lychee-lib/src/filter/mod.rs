@@ -74,7 +74,7 @@ pub fn is_example_domain(uri: &Uri) -> bool {
                 domain == example
                     || domain
                         .split_once('.')
-                        .map_or(false, |(_subdomain, tld_part)| tld_part == example)
+                        .is_some_and(|(_subdomain, tld_part)| tld_part == example)
             }) || EXAMPLE_TLDS
                 .iter()
                 .any(|&example_tld| domain.ends_with(example_tld))

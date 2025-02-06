@@ -169,7 +169,7 @@ impl LinkExtractor {
             return;
         }
 
-        if self.current_attributes.get("rel").map_or(false, |rel| {
+        if self.current_attributes.get("rel").is_some_and(|rel| {
             rel.split(',').any(|r| {
                 r.trim() == "nofollow" || r.trim() == "preconnect" || r.trim() == "dns-prefetch"
             })
@@ -189,7 +189,7 @@ impl LinkExtractor {
         if self
             .current_attributes
             .get("rel")
-            .map_or(false, |rel| rel.contains("stylesheet"))
+            .is_some_and(|rel| rel.contains("stylesheet"))
         {
             if let Some(href) = self.current_attributes.get("href") {
                 if href.starts_with("/@") || href.starts_with('@') {
