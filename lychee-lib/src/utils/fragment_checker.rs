@@ -39,12 +39,16 @@ impl FragmentChecker {
 
     /// Checks if the given path contains the given fragment.
     ///
-    /// Returns false, if there is a fragment in the link and the path is to a
-    /// Markdown file, which doesn't contain the given fragment.
+    /// Returns false, if there is a fragment in the link which is not empty or "top"
+    /// and the path is to a Markdown file, which doesn't contain the given fragment.
+    /// (Empty # and #top fragments are always valid, triggering the browser to scroll to top.)
     ///
     /// In all other cases, returns true.
     pub(crate) async fn check(&self, path: &Path, url: &Url) -> Result<bool> {
         let Some(fragment) = url.fragment() else {
+            return Ok(true);
+        };
+        if fragment.is_empty() || fragment.eq_ignore_ascii_case("top") {
             return Ok(true);
         };
         let mut fragment_decoded = percent_decode_str(fragment).decode_utf8()?;
