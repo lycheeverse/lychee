@@ -19,6 +19,10 @@ pub(crate) struct WebsiteChecker {
     /// The HTTP client used for requests.
     reqwest_client: reqwest::Client,
 
+    /// Whether to check for fragments (e.g. `#foo`) in the response body
+    /// (if any).
+    include_fragment: bool,
+
     /// GitHub client used for requests.
     github_client: Option<Octocrab>,
 
@@ -50,6 +54,7 @@ impl WebsiteChecker {
         retry_wait_time: Duration,
         max_retries: u64,
         reqwest_client: reqwest::Client,
+        include_fragment: bool,
         accepted: Option<HashSet<StatusCode>>,
         github_client: Option<Octocrab>,
         require_https: bool,
@@ -58,6 +63,7 @@ impl WebsiteChecker {
         Self {
             method,
             reqwest_client,
+            include_fragment,
             github_client,
             plugin_request_chain,
             max_retries,
@@ -88,10 +94,54 @@ impl WebsiteChecker {
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, request: Request) -> Status {
         match self.reqwest_client.execute(request).await {
-            Ok(ref response) => Status::new(response, self.accepted.clone()),
+            Ok(response) => {
+                if !self.include_fragment {
+                    return Status::new(&response, self.accepted.clone());
+                }
+
+                let uri = response.url();
+                let fragment = match uri.fragment() {
+                    Some(fragment) => fragment.to_string(),
+                    None => return Status::new(&response, self.accepted.clone()),
+                };
+
+                // Create the status object first, because the response
+                // gets consumed when reading the body
+                let success_status = Status::new(&response, self.accepted.clone());
+
+                match response.text().await {
+                    Ok(body) if body.contains(&fragment) => success_status,
+                    _ => Status::Error(ErrorKind::FragmentNotFound(fragment)),
+                }
+            }
             Err(e) => e.into(),
         }
     }
+
+    // async fn check_default(&self, request: Request) -> Status {
+    //     let response = self.reqwest_client.execute(request).await;
+
+    //     match response {
+    //         Ok(ref response) if self.include_fragment => {
+    //             let uri = response.url();
+    //             let fragment = match uri.fragment() {
+    //                 Some(fragment) => fragment.to_string(),
+    //                 None => return Status::new(response, self.accepted.clone()),
+    //             };
+
+    //             // We have a fragment, so we need to check if the fragment is present
+    //             // in the response body
+
+    //             if !body.contains(&fragment) {
+    //                 return Status::Error(ErrorKind::FragmentNotFound(fragment));
+    //             } else {
+    //                 return Status::new(response, self.accepted.clone());
+    //             }
+    //         }
+    //         Ok(ref response) => Status::new(response, self.accepted.clone()),
+    //         Err(e) => e.into(),
+    //     }
+    // }
 
     /// Checks the given URI of a website.
     ///

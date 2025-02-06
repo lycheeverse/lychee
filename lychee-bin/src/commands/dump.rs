@@ -34,39 +34,64 @@ pub(crate) async fn dump<S>(params: CommandParams<S>) -> Result<ExitCode>
 where
     S: futures::Stream<Item = Result<Request>>,
 {
+    println!("Starting dump function");
+    println!("About to get requests from params");
     let requests = params.requests;
+    println!("Got requests stream: {:?}", std::any::type_name::<S>());
     tokio::pin!(requests);
+    println!("Pinned requests stream");
 
     if let Some(out_file) = &params.cfg.output {
+        println!("Creating output file: {:?}", out_file);
         fs::File::create(out_file)?;
     }
 
     let mut writer = create_writer(params.cfg.output)?;
+    println!("Writer created successfully");
+    println!("About to await first request");
+
+    match requests.next().await {
+        Some(Ok(req)) => {
+            println!(
+                "Got valid request: source={:?}, uri={:?}",
+                req.source, req.uri
+            );
+        }
+        Some(Err(e)) => {
+            println!("Got error from stream: {:?}", e);
+        }
+        None => {
+            println!("Stream returned None immediately");
+        }
+    }
 
     while let Some(request) = requests.next().await {
+        println!("Processing new request");
         let mut request = request?;
 
-        // Apply URI remappings (if any)
+        println!("Original URI: {:?}", request.uri);
         params.client.remap(&mut request.uri)?;
+        println!("Remapped URI: {:?}", request.uri);
 
         let excluded = params.client.is_excluded(&request.uri);
+        println!("Request excluded: {}", excluded);
 
         if excluded && params.cfg.verbose.log_level() < log::Level::Info {
+            println!("Skipping excluded request");
             continue;
         }
 
         if let Err(e) = write(&mut writer, &request, &params.cfg.verbose, excluded) {
-            // Avoid panic on broken pipe.
-            // See https://github.com/rust-lang/rust/issues/46016
-            // This can occur when piping the output of lychee
-            // to another program like `grep`.
+            println!("Write error occurred: {:?}", e);
             if e.kind() != io::ErrorKind::BrokenPipe {
                 error!("{e}");
                 return Ok(ExitCode::UnexpectedFailure);
             }
+            println!("Broken pipe detected, continuing");
         }
     }
 
+    println!("Dump completed successfully");
     Ok(ExitCode::Success)
 }
 

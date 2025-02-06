@@ -168,15 +168,14 @@ where
 {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
-        let request = request?;
+        let request = request;
         if let Some(pb) = &bar {
             pb.inc_length(1);
-            pb.set_message(request.to_string());
+            if let Ok(request) = &request {
+                pb.set_message(request.to_string());
+            }
         };
-        send_req
-            .send(Ok(request))
-            .await
-            .expect("Cannot send request");
+        send_req.send(request).await.expect("Cannot send request");
     }
     Ok(())
 }
@@ -228,20 +227,40 @@ async fn request_channel_task(
         ReceiverStream::new(recv_req),
         max_concurrency,
         |request: Result<Request>| async {
-            let request = request.expect("cannot read request");
-            let response = handle(
-                &client,
-                cache.clone(),
-                cache_exclude_status.clone(),
-                request,
-                accept.clone(),
-            )
-            .await;
+            if let Ok(request) = request {
+                let response = handle(
+                    &client,
+                    cache.clone(),
+                    cache_exclude_status.clone(),
+                    request,
+                    accept.clone(),
+                )
+                .await;
+                send_resp
+                    .send(response)
+                    .await
+                    .expect("cannot send response to queue");
+            };
 
-            send_resp
-                .send(response)
-                .await
-                .expect("cannot send response to queue");
+            // let response = match request {
+            //     Ok(req) => {
+            //         handle(
+            //             &client,
+            //             cache.clone(),
+            //             cache_exclude_status.clone(),
+            //             req,
+            //             accept.clone(),
+            //         )
+            //         .await
+            //     }
+            //     Err(e) => {
+            //         log::error!("Error reading request: {}", e);
+            // }
+
+            // send_resp
+            //     .send(response)
+            //     .await
+            //     .expect("cannot send response to queue");
         },
     )
     .await;

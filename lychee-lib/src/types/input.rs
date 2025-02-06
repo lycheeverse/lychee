@@ -309,6 +309,7 @@ impl Input {
         }
     }
 
+    /// Retrieve the contents from the input by making a network request
     async fn url_contents(url: &Url) -> Result<InputContent> {
         // Assume HTML for default paths
         let file_type = if url.path().is_empty() || url.path() == "/" {
@@ -329,6 +330,8 @@ impl Input {
         Ok(input_content)
     }
 
+    /// Retrieve the contents from the input by expanding the glob pattern and
+    /// reading from the filesystem
     fn glob_contents(
         &self,
         pattern: &str,
@@ -372,6 +375,7 @@ impl Input {
     }
 
     /// Get the input content of a given path
+    ///
     /// # Errors
     ///
     /// Will return `Err` if file contents can't be read
@@ -391,6 +395,7 @@ impl Input {
         Ok(input_content)
     }
 
+    /// Get the input content from stdin
     async fn stdin_content(file_type_hint: Option<FileType>) -> Result<InputContent> {
         let mut content = String::new();
         let mut stdin = stdin();
@@ -405,8 +410,17 @@ impl Input {
         Ok(input_content)
     }
 
+    /// Get the input content from a raw string
     fn string_content(s: &str, file_type_hint: Option<FileType>) -> InputContent {
         InputContent::from_string(s, file_type_hint.unwrap_or_default())
+    }
+
+    /// Check if the given input is a directory
+    pub fn is_dir(&self) -> bool {
+        match &self.source {
+            InputSource::FsPath(path) => path.is_dir(),
+            _ => false,
+        }
     }
 }
 

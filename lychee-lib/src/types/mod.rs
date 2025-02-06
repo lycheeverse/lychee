@@ -11,6 +11,7 @@ mod input;
 pub(crate) mod mail;
 mod request;
 mod response;
+mod root_dir;
 mod status;
 mod status_code;
 pub(crate) mod uri;
@@ -25,6 +26,7 @@ pub use file::FileType;
 pub use input::{Input, InputContent, InputSource};
 pub use request::Request;
 pub use response::{Response, ResponseBody};
+pub use root_dir::RootDir;
 pub use status::Status;
 pub use status_code::*;
 

@@ -109,7 +109,7 @@ impl ResponseStats {
     #[inline]
     /// Check if the entire run was successful
     pub(crate) const fn is_success(&self) -> bool {
-        self.total == self.successful + self.excludes + self.unsupported
+        self.total == self.successful + self.excludes + self.unsupported && self.errors == 0
     }
 
     #[inline]

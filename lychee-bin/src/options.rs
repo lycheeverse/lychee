@@ -1,13 +1,12 @@
 use crate::archive::Archive;
-use crate::parse::parse_base;
+use crate::parse::{parse_base, parse_root_dir};
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
 use clap::builder::PossibleValuesParser;
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, BasicAuthSelector, Input, StatusCodeExcluder, StatusCodeSelector, DEFAULT_MAX_REDIRECTS,
-    DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+    Base, BasicAuthSelector, Input, RootDir, StatusCodeExcluder, StatusCodeSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -169,6 +168,7 @@ macro_rules! fold_in {
 #[command(version, about)]
 pub(crate) struct LycheeOptions {
     /// The inputs (where to get links to check from).
+    /// 
     /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
     /// remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`).
     /// NOTE: Use `--` to separate inputs from options that allow multiple arguments.
@@ -180,13 +180,14 @@ pub(crate) struct LycheeOptions {
     #[arg(help = HELP_MSG_CONFIG_FILE)]
     pub(crate) config_file: Option<PathBuf>,
 
+    /// The parsed configuration
     #[clap(flatten)]
     pub(crate) config: Config,
 }
 
 impl LycheeOptions {
     /// Get parsed inputs from options.
-    // This depends on the config, which is why a method is required (we could
+    // This depends on the parsed config, which is why a method is required (we could
     // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there, but
     // we wouldn't get access to `glob_ignore_case`.
     pub(crate) fn inputs(&self) -> Result<Vec<Input>> {
@@ -441,15 +442,14 @@ separated list of accepted status codes. This example will accept 200, 201,
 
     /// Base URL or website root directory to check relative URLs
     /// e.g. <https://example.com> or `/path/to/public`
-    #[arg(short, long, value_parser= parse_base)]
+    #[arg(short, long, value_parser = parse_base)]
     #[serde(default)]
     pub(crate) base: Option<Base>,
 
-    /// Root path to use when checking absolute local links,
-    /// must be an absolute path
-    #[arg(long)]
+    /// Root directory to use when checking absolute local links
+    #[arg(long, value_parser = parse_root_dir)]
     #[serde(default)]
-    pub(crate) root_dir: Option<PathBuf>,
+    pub(crate) root_dir: Option<RootDir>,
 
     /// Basic authentication support. E.g. `http://example.com username:password`
     #[arg(long)]

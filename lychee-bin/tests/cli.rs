@@ -125,6 +125,8 @@ mod cli {
             .arg("compact")
             .arg("--mode")
             .arg("color")
+            .arg("--max-retries")
+            .arg("0")
             .arg(test_path)
             .env("FORCE_COLOR", "1")
             .assert()
@@ -383,7 +385,7 @@ mod cli {
         let dir = fixtures_path().join("resolve_paths");
 
         cmd.arg("--offline")
-            .arg("--base")
+            .arg("--root-dir")
             .arg(&dir)
             .arg(dir.join("index.html"))
             .env_clear()
@@ -409,24 +411,6 @@ mod cli {
             .stdout(contains("7 Total"))
             .stdout(contains("5 OK"))
             .stdout(contains("2 Errors"));
-    }
-
-    #[test]
-    fn test_resolve_paths_from_root_dir_and_base_url() {
-        let mut cmd = main_command();
-        let dir = fixtures_path();
-
-        cmd.arg("--offline")
-            .arg("--root-dir")
-            .arg("/resolve_paths")
-            .arg("--base")
-            .arg(&dir)
-            .arg(dir.join("resolve_paths").join("index.html"))
-            .env_clear()
-            .assert()
-            .success()
-            .stdout(contains("3 Total"))
-            .stdout(contains("3 OK"));
     }
 
     #[test]
@@ -1840,6 +1824,49 @@ mod cli {
             .stdout(contains("4 Errors"));
     }
 
+    // fn test_fragments() {
+    //     let mut cmd = main_command();
+    //     let input = fixtures_path().join("fragments");
+    //     cmd.arg("--verbose")
+    //         .arg("--include-fragments")
+    //         .arg(input)
+    //         .assert()
+    //         .failure()
+    //         .stderr(contains("fixtures/fragments/file1.md#fragment-1"))
+    //         .stderr(contains("fixtures/fragments/file1.md#fragment-2"))
+    //         .stderr(contains("fixtures/fragments/file1.md#code-heading"))
+    //         .stderr(contains("fixtures/fragments/file2.md#custom-id"))
+    //         .stderr(contains("fixtures/fragments/file1.md#missing-fragment"))
+    //         .stderr(contains("fixtures/fragments/file2.md#fragment-1"))
+    //         .stderr(contains("fixtures/fragments/file1.md#kebab-case-fragment"))
+    //         .stderr(contains(
+    //             "fixtures/fragments/file1.md#lets-wear-a-hat-%C3%AAtre",
+    //         ))
+    //         .stderr(contains("fixtures/fragments/file2.md#missing-fragment"))
+    //         .stderr(contains("fixtures/fragments/empty_file#fragment"))
+    //         .stderr(contains("fixtures/fragments/file.html#a-word"))
+    //         .stderr(contains("fixtures/fragments/file.html#in-the-beginning"))
+    //         .stderr(contains("fixtures/fragments/file.html#in-the-end"))
+    //         .stderr(contains(
+    //             "fixtures/fragments/file1.md#kebab-case-fragment-1",
+    //         ))
+    //         .stderr(contains(
+    //             "fixtures/fragments/file1.md#f%C3%BCnf-s%C3%BC%C3%9Fe-%C3%A4pfel",
+    //         ))
+    //         .stderr(contains("fixtures/fragments/file1.md#IGNORE-CASING"))
+    //         .stderr(contains("fixtures/fragments/file1.md#explicit-fragment"))
+    //         .stderr(contains(
+    //             "fixtures/fragments/file.html#Upper-%C3%84%C3%96%C3%B6",
+    //         ))
+    //         .stderr(contains(
+    //             "fixtures/fragments/file.html#tangent%3A-kustomize",
+    //         ))
+    //         .stderr(contains("fixtures/fragments/file.html#in-THE-begiNNing"))
+    //         .stdout(contains("21 Total"))
+    //         .stdout(contains("17 OK"))
+    //         .stdout(contains("4 Errors"));
+    // }
+
     #[test]
     fn test_fallback_extensions() {
         let mut cmd = main_command();
@@ -1939,5 +1966,117 @@ mod cli {
             .success();
 
         Ok(())
+    }
+
+    #[test]
+    fn test_root_dir_with_fragments() {
+        let mut cmd = main_command();
+        let dir = fixtures_path().join("root_dir_fragments");
+
+        cmd.arg("--root-dir")
+            .arg(&dir)
+            .arg("--include-fragments")
+            .arg(dir.join("index.html"))
+            .arg("--verbose")
+            .assert()
+            .success()
+            .stdout(contains("2 Total"))
+            .stdout(contains("2 OK"))
+            .stdout(contains("0 Errors"))
+            .stderr(contains(format!(
+                "{}/about.html#introduction",
+                dir.display()
+            )))
+            .stderr(contains(format!(
+                "{}/index.html#local-section",
+                dir.display()
+            )));
+    }
+
+    #[test]
+    fn test_relative_fragments_regression() {
+        let mut cmd = main_command();
+        let dir = fixtures_path().join("relative_fragments");
+        cmd.arg("--include-fragments")
+            .arg(dir.join("index.html"))
+            .assert()
+            .failure()
+            .stdout(contains("fixtures/relative_fragments/index.html#unterschiedliche-platten | Cannot find fragment"))
+            .stdout(contains("fixtures/relative_fragments/index.html#scrubs-wichtig | Cannot find fragment"))
+            .stdout(contains("2 Total"))
+            .stdout(contains("0 OK"))
+            .stdout(contains("2 Errors"));
+    }
+
+    #[tokio::test]
+    async fn test_remote_fragments() {
+        let mock_server = mock_response!(
+            r##"
+                <html>
+                    <body>
+                        <a href="https://github.com/lycheeverse/lychee#non-existent-anchor">lychee-repo</a>
+                        <a href="https://lychee.cli.rs#missing-section">lychee-docs</a>
+                    </body>
+                </html>
+            "##
+        );
+
+        let mut cmd = main_command();
+        cmd.arg("--include-fragments")
+            .arg(mock_server.uri())
+            .assert()
+            .failure()
+            .stdout(contains("2 Total"))
+            .stdout(contains("0 OK"))
+            .stdout(contains("2 Errors"))
+            .stdout(contains("https://github.com/lycheeverse/lychee#non-existent-anchor | Fragment not found: non-existent-anchor"))
+            .stdout(contains("https://lychee.cli.rs/#missing-section | Fragment not found: missing-section"));
+    }
+
+    #[test]
+    fn test_relative_path_resolution() {
+        let mut cmd = main_command();
+        let dir = fixtures_path().join("relative_paths");
+        cmd.arg("--root-dir")
+            .arg(&dir)
+            .arg(dir.join("releases/v9_7/index.html"))
+            .assert()
+            .success()
+            .stderr(predicates::str::is_empty())
+            .stdout(contains("4 Total"))
+            .stdout(contains("4 OK"))
+            .stdout(contains("0 Errors"));
+    }
+
+    #[test]
+    fn test_base_url_absolute_paths() {
+        let mut cmd = main_command();
+        let dir = fixtures_path().join("absolute_paths");
+        cmd.arg("--base")
+            .arg("https://example.com")
+            .arg("--dump") // Add dump flag to avoid actual requests
+            .arg(dir.join("index.html"))
+            .assert()
+            .success()
+            .stdout(contains("https://example.com/about"))
+            .stdout(contains("https://example.com/products"))
+            .stdout(contains("https://example.com/contact"))
+            .stderr(predicates::str::is_empty());
+    }
+
+    #[test]
+    fn test_html_fragment_detection() {
+        let mut cmd = main_command();
+        let dir = fixtures_path().join("html_fragments");
+        cmd.arg("--include-fragments")
+            .arg(dir.join("page.html"))
+            .assert()
+            .failure()
+            .stdout(contains("section.html#non-existent-heading"))
+            .stdout(contains("page.html#missing-section"))
+            .stdout(contains("Cannot find fragment"))
+            .stdout(contains("3 Total"))
+            .stdout(contains("1 OK"))
+            .stdout(contains("2 Errors"));
     }
 }

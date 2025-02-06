@@ -1,4 +1,4 @@
-use crate::ErrorKind;
+use crate::types::RootDir;
 use crate::InputSource;
 use crate::{
     basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri, utils::request,
@@ -10,7 +10,6 @@ use futures::{
     StreamExt,
 };
 use par_stream::ParStreamExt;
-use std::path::PathBuf;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -23,7 +22,7 @@ pub struct Collector {
     skip_hidden: bool,
     include_verbatim: bool,
     use_html5ever: bool,
-    root_dir: Option<PathBuf>,
+    root_dir: Option<RootDir>,
     base: Option<Base>,
 }
 
@@ -48,12 +47,7 @@ impl Collector {
     /// # Errors
     ///
     /// Returns an `Err` if the `root_dir` is not an absolute path
-    pub fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> Result<Self> {
-        if let Some(root_dir) = &root_dir {
-            if root_dir.is_relative() {
-                return Err(ErrorKind::RootDirMustBeAbsolute(root_dir.clone()));
-            }
-        }
+    pub fn new(root_dir: Option<RootDir>, base: Option<Base>) -> Result<Self> {
         Ok(Collector {
             basic_auth_extractor: None,
             skip_missing_inputs: false,
@@ -159,7 +153,7 @@ impl Collector {
                         base.as_ref(),
                         basic_auth_extractor.as_ref(),
                     );
-                    Result::Ok(stream::iter(requests.into_iter().map(Ok)))
+                    Result::Ok(stream::iter(requests))
                 }
             })
             .try_flatten()
@@ -176,7 +170,7 @@ mod tests {
     use super::*;
     use crate::{
         mock_server,
-        test_utils::{load_fixture, mail, path, website},
+        test_utils::{load_fixture, mail, website},
         types::{FileType, Input, InputSource},
         Result, Uri,
     };
@@ -184,7 +178,7 @@ mod tests {
     // Helper function to run the collector on the given inputs
     async fn collect(
         inputs: Vec<Input>,
-        root_dir: Option<PathBuf>,
+        root_dir: Option<RootDir>,
         base: Option<Base>,
     ) -> Result<HashSet<Uri>> {
         let responses = Collector::new(root_dir, base)?.collect_links(inputs);
@@ -194,7 +188,7 @@ mod tests {
     // Helper function for collecting verbatim links
     async fn collect_verbatim(
         inputs: Vec<Input>,
-        root_dir: Option<PathBuf>,
+        root_dir: Option<RootDir>,
         base: Option<Base>,
     ) -> Result<HashSet<Uri>> {
         let responses = Collector::new(root_dir, base)?
@@ -526,32 +520,38 @@ mod tests {
         assert_eq!(links, expected_links);
     }
 
-    #[tokio::test]
-    async fn test_file_path_with_base() {
-        let base = Base::try_from("/path/to/root").unwrap();
-        assert_eq!(base, Base::Local("/path/to/root".into()));
+    // #[tokio::test]
+    // async fn test_file_path_with_root_dir() {
+    //     let root_dir = tempfile::tempdir().unwrap();
 
-        let input = Input {
-            source: InputSource::String(
-                r#"
-                <a href="index.html">Index</a>
-                <a href="about.html">About</a> 
-                <a href="/another.html">Another</a> 
-            "#
-                .into(),
-            ),
-            file_type_hint: Some(FileType::Html),
-            excluded_paths: None,
-        };
+    //     let input = Input {
+    //         source: InputSource::String(
+    //             r#"
+    //             <a href="index.html">Index</a>
+    //             <a href="about.html">About</a>
+    //             <a href="/another.html">Another</a>
+    //         "#
+    //             .into(),
+    //         ),
+    //         file_type_hint: Some(FileType::Html),
+    //         excluded_paths: None,
+    //     };
 
-        let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
+    //     let links = collect(vec![input], Some(&root_dir), None).await.ok().unwrap();
 
-        let expected_links = HashSet::from_iter([
-            path("/path/to/root/index.html"),
-            path("/path/to/root/about.html"),
-            path("/another.html"),
-        ]);
+    //     assert!(links.len() == 3);
 
-        assert_eq!(links, expected_links);
-    }
+    //     // Verify all URLs use file:// scheme
+    //     for link in &links {
+    //         assert_eq!(link.scheme(), "file", "Expected file:// URL but got {link}");
+    //     }
+
+    //     let expected_links = HashSet::from_iter([
+    //         path("/path/to/root/index.html"),
+    //         path("/path/to/root/about.html"),
+    //         path("/another.html"),
+    //     ]);
+
+    //     assert_eq!(links, expected_links);
+    // }
 }

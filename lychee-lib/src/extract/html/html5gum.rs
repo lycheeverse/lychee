@@ -343,9 +343,9 @@ impl Emitter for &mut LinkExtractor {
 }
 
 /// Extract unparsed URL strings from an HTML string.
-pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
+pub(crate) fn extract_html(html_str: &str, include_verbatim: bool) -> Vec<RawUri> {
     let mut extractor = LinkExtractor::new(include_verbatim);
-    let mut tokenizer = Tokenizer::new_with_emitter(buf, &mut extractor);
+    let mut tokenizer = Tokenizer::new_with_emitter(html_str, &mut extractor);
     assert!(tokenizer.next().is_none());
     extractor
         .links
@@ -355,9 +355,9 @@ pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
 }
 
 /// Extract fragments from id attributes within a HTML string.
-pub(crate) fn extract_html_fragments(buf: &str) -> HashSet<String> {
+pub(crate) fn extract_html_fragments(html_str: &str) -> HashSet<String> {
     let mut extractor = LinkExtractor::new(true);
-    let mut tokenizer = Tokenizer::new_with_emitter(buf, &mut extractor);
+    let mut tokenizer = Tokenizer::new_with_emitter(html_str, &mut extractor);
     assert!(tokenizer.next().is_none());
     extractor.fragments
 }

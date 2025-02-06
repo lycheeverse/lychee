@@ -46,6 +46,10 @@
 #![deny(anonymous_parameters, macro_use_extern_crate)]
 #![deny(missing_docs)]
 #![allow(clippy::module_name_repetitions)]
+// We use a `HashSet` for deduplicating requests, a `Request` is mutable, so we
+// need to allow mutable hash keys. The alternative would be to use a `Vec` and
+// do the deduplication on the call-site.
+#![allow(clippy::mutable_key_type)]
 
 #[cfg(doctest)]
 doc_comment::doctest!("../../README.md");
@@ -98,7 +102,7 @@ pub use crate::{
     types::{
         uri::valid::Uri, AcceptRange, AcceptRangeError, Base, BasicAuthCredentials,
         BasicAuthSelector, CacheStatus, CookieJar, ErrorKind, FileType, Input, InputContent,
-        InputSource, Request, Response, ResponseBody, Result, Status, StatusCodeExcluder,
+        InputSource, Request, Response, ResponseBody, Result, RootDir, Status, StatusCodeExcluder,
         StatusCodeSelector,
     },
 };
