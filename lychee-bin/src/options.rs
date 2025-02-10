@@ -449,8 +449,13 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[serde(default = "method")]
     pub(crate) method: String,
 
-    /// Base URL or website root directory to check relative URLs
-    /// e.g. <https://example.com> or `/path/to/public`
+    /// Deprecated; use `--base-url` instead
+    #[arg(long, value_parser = parse_base)]
+    #[serde(skip)]
+    pub(crate) base: Option<Base>,
+
+    /// Base URL used to resolve relative URLs during link checking
+    /// Example: <https://example.com>
     #[arg(short, long, value_parser= parse_base)]
     #[serde(default)]
     pub(crate) base_url: Option<Base>,

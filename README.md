@@ -484,9 +484,12 @@ Options:
 
           [default: get]
 
-  -b, --base-url <BASE_URL>
-          Base URL or website root directory to check relative URLs e.g. <https://example.com> or `/path/to/public`
+      --base <BASE>
+          Deprecated; use `--base-url` instead
 
+  -b, --base-url <BASE_URL>
+          Base URL used to resolve relative URLs during link checking Example: <https://example.com>
+          
       --root-dir <ROOT_DIR>
           Root path to use when checking absolute local links, must be an absolute path
 
