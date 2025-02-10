@@ -453,7 +453,7 @@ separated list of accepted status codes. This example will accept 200, 201,
     /// e.g. <https://example.com> or `/path/to/public`
     #[arg(short, long, value_parser= parse_base)]
     #[serde(default)]
-    pub(crate) base: Option<Base>,
+    pub(crate) base_url: Option<Base>,
 
     /// Root path to use when checking absolute local links,
     /// must be an absolute path
@@ -568,7 +568,7 @@ impl Config {
             timeout: DEFAULT_TIMEOUT_SECS;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
             method: DEFAULT_METHOD;
-            base: None;
+            base_url: None;
             basic_auth: None;
             skip_missing: false;
             include_verbatim: false;
