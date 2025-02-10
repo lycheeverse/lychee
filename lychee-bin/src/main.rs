@@ -179,7 +179,9 @@ fn load_config() -> Result<LycheeOptions> {
 
     // TODO: Remove this warning and the parameter with 1.0
     if opts.config.base.is_some() {
-        warn!("WARNING: `--base` is deprecated and will soon be removed; use `--base-url` instead.");
+        warn!(
+            "WARNING: `--base` is deprecated and will soon be removed; use `--base-url` instead."
+        );
     }
 
     // Load excludes from file
