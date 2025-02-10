@@ -484,7 +484,7 @@ Options:
 
           [default: get]
 
-  -b, --base-url <BASE>
+  -b, --base-url <BASE_URL>
           Base URL or website root directory to check relative URLs e.g. <https://example.com> or `/path/to/public`
 
       --root-dir <ROOT_DIR>
