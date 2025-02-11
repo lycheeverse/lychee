@@ -6,6 +6,7 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 use super::InputContent;
+use crate::types::text_fragment::TextFragmentStatus;
 use crate::types::StatusCodeSelectorError;
 use crate::{basic_auth::BasicAuthExtractorError, utils, Uri};
 
@@ -161,6 +162,10 @@ pub enum ErrorKind {
     /// Status code selector parse error
     #[error("Status code range error")]
     StatusCodeSelectorError(#[from] StatusCodeSelectorError),
+
+    /// Text Fragment format error
+    #[error("Text Fragment error")]
+    TextFragmentError(#[from] TextFragmentStatus),
 }
 
 impl ErrorKind {
@@ -329,6 +334,7 @@ impl Hash for ErrorKind {
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
             Self::Cookies(e) => e.to_string().hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
+            Self::TextFragmentError(e) => e.to_string().hash(state),
         }
     }
 }
