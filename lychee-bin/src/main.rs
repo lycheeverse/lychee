@@ -177,6 +177,13 @@ fn load_config() -> Result<LycheeOptions> {
         warn!("WARNING: `--exclude-mail` is deprecated and will soon be removed; E-Mail is no longer checked by default. Use `--include-mail` to enable E-Mail checking.");
     }
 
+    // TODO: Remove this warning and the parameter with 1.0
+    if opts.config.base.is_some() {
+        warn!(
+            "WARNING: `--base` is deprecated and will soon be removed; use `--base-url` instead."
+        );
+    }
+
     // Load excludes from file
     for path in &opts.config.exclude_file {
         let file = File::open(path)?;
@@ -288,7 +295,7 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
 
-    let mut collector = Collector::new(opts.config.root_dir.clone(), opts.config.base.clone())?
+    let mut collector = Collector::new(opts.config.root_dir.clone(), opts.config.base_url.clone())?
         .skip_missing_inputs(opts.config.skip_missing)
         .skip_hidden(!opts.config.hidden)
         .skip_ignored(!opts.config.no_ignore)
