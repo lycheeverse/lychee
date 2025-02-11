@@ -37,7 +37,7 @@ impl Display for CompactResponseStats {
 
         let response_formatter = get_response_formatter(&self.mode);
 
-        for (source, responses) in &stats.error_map {
+        for (source, responses) in super::sort_stat_map(&stats.error_map) {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             for response in responses {
                 writeln!(
