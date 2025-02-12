@@ -5,6 +5,10 @@ use anyhow::{anyhow, Context, Error, Result};
 use clap::builder::PossibleValuesParser;
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
+use http::{
+    header::{HeaderName, HeaderValue},
+    HeaderMap,
+};
 use lychee_lib::{
     Base, BasicAuthSelector, Input, StatusCodeExcluder, StatusCodeSelector, DEFAULT_MAX_REDIRECTS,
     DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
@@ -14,6 +18,32 @@ use serde::Deserialize;
 use std::path::Path;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use strum::{Display, EnumIter, EnumString, VariantNames};
+
+mod header_map_option {
+    use http::HeaderMap;
+    use serde::{Deserializer, Serializer};
+
+    pub(super) fn serialize<S>(
+        headers: &Option<HeaderMap>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match headers {
+            Some(h) => http_serde::header_map::serialize(h, serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub(super) fn deserialize<'de, D>(deserializer: D) -> Result<Option<HeaderMap>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let map = http_serde::header_map::deserialize(deserializer)?;
+        Ok(Some(map))
+    }
+}
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
@@ -171,6 +201,63 @@ macro_rules! fold_in {
     };
 }
 
+fn parse_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
+    let parts: Vec<&str> = header.splitn(2, ':').collect();
+    match parts.as_slice() {
+        [name, value] => {
+            let name = HeaderName::from_bytes(name.trim().as_bytes())
+                .map_err(|e| anyhow!("Invalid header name '{}': {}", name.trim(), e))?;
+            let value = HeaderValue::from_str(value.trim())
+                .map_err(|e| anyhow!("Invalid header value '{}': {}", value.trim(), e))?;
+            Ok((name, value))
+        }
+        _ => Err(anyhow!(
+            "Invalid header format. Expected 'Name: Value', got '{}'",
+            header
+        )),
+    }
+}
+
+#[derive(Clone, Debug)]
+struct HeaderParser;
+
+impl TypedValueParser for HeaderParser {
+    type Value = HeaderMap;
+
+    fn parse_ref(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        let header_str = value.to_str().ok_or_else(|| {
+            clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                "Header value contains invalid UTF-8",
+            )
+        })?;
+
+        let mut headers = HeaderMap::new();
+        match parse_header(header_str) {
+            Ok((name, value)) => {
+                headers.insert(name, value);
+                Ok(headers)
+            }
+            Err(e) => Err(clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                e.to_string(),
+            )),
+        }
+    }
+}
+
+impl clap::builder::ValueParserFactory for HeaderParser {
+    type Parser = HeaderParser;
+    fn value_parser() -> Self::Parser {
+        HeaderParser
+    }
+}
+
 /// A fast, async link checker
 ///
 /// Finds broken URLs and mail addresses inside Markdown, HTML,
@@ -207,7 +294,15 @@ impl LycheeOptions {
         };
         self.raw_inputs
             .iter()
-            .map(|s| Input::new(s, None, self.config.glob_ignore_case, excluded.clone()))
+            .map(|s| {
+                Input::new(
+                    s,
+                    None,
+                    self.config.glob_ignore_case,
+                    excluded.clone(),
+                    self.config.header.clone().unwrap_or_default(),
+                )
+            })
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
@@ -400,10 +495,10 @@ Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
     )]
     pub(crate) fallback_extensions: Vec<String>,
 
-    /// Custom request header
-    #[arg(long)]
-    #[serde(default)]
-    pub(crate) header: Vec<String>,
+    /// Set custom header for requests
+    #[arg(long = "header", action = clap::ArgAction::Append, value_parser = HeaderParser)]
+    #[serde(with = "header_map_option", default)]
+    pub header: Option<HeaderMap>,
 
     /// A List of accepted status codes for valid links
     #[arg(
@@ -564,7 +659,7 @@ impl Config {
             format: StatsFormat::default();
             remap: Vec::<String>::new();
             fallback_extensions: Vec::<String>::new();
-            header: Vec::<String>::new();
+            header: None;
             timeout: DEFAULT_TIMEOUT_SECS;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
             method: DEFAULT_METHOD;
