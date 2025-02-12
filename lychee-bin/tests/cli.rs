@@ -1951,25 +1951,22 @@ mod cli {
         server
             .register(
                 wiremock::Mock::given(wiremock::matchers::method("GET"))
-                    .and(wiremock::matchers::header("X-Foo", "Bar"))
                     .respond_with(wiremock::ResponseTemplate::new(200))
-                    // We expect the mock to be called exactly least once.
-                    .expect(1)
-                    .named("GET expecting custom header"),
+                    .expect(1),
             )
             .await;
 
         cmd.arg("--verbose").arg(server.uri()).assert().success();
 
-        // Assert that the server did not receive the request with the header
         let received_requests = server.received_requests().await.unwrap();
         assert_eq!(received_requests.len(), 1);
 
         let received_request = &received_requests[0];
         assert_eq!(received_request.method, Method::GET);
         assert_eq!(received_request.url.path(), "/");
-        assert!(received_request.body.is_empty());
-        assert!(received_request.headers.is_empty());
+
+        // Make sure the request does not contain the custom header
+        assert!(!received_request.headers.contains_key("X-Foo"));
         Ok(())
     }
 

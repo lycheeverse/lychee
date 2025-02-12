@@ -65,7 +65,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .max_redirects(cfg.max_redirects)
         .user_agent(cfg.user_agent.clone())
         .allow_insecure(cfg.insecure)
-        .custom_headers(cfg.header.clone())
+        .custom_headers(cfg.header.clone().unwrap_or_default())
         .method(method)
         .timeout(timeout)
         .retry_wait_time(retry_wait_time)

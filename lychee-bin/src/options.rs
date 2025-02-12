@@ -19,6 +19,32 @@ use std::path::Path;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use strum::{Display, EnumIter, EnumString, VariantNames};
 
+mod header_map_option {
+    use http::HeaderMap;
+    use serde::{Deserializer, Serializer};
+
+    pub(super) fn serialize<S>(
+        headers: &Option<HeaderMap>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match headers {
+            Some(h) => http_serde::header_map::serialize(h, serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub(super) fn deserialize<'de, D>(deserializer: D) -> Result<Option<HeaderMap>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let map = http_serde::header_map::deserialize(deserializer)?;
+        Ok(Some(map))
+    }
+}
+
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
 pub(crate) const LYCHEE_CONFIG_FILE: &str = "lychee.toml";
@@ -274,7 +300,7 @@ impl LycheeOptions {
                     None,
                     self.config.glob_ignore_case,
                     excluded.clone(),
-                    self.config.header.clone(),
+                    self.config.header.clone().unwrap_or_default(),
                 )
             })
             .collect::<Result<_, _>>()
@@ -471,8 +497,8 @@ Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
 
     /// Set custom header for requests
     #[arg(long = "header", action = clap::ArgAction::Append, value_parser = HeaderParser)]
-    #[serde(with = "http_serde::header_map", default)]
-    pub header: HeaderMap,
+    #[serde(with = "header_map_option", default)]
+    pub header: Option<HeaderMap>,
 
     /// A List of accepted status codes for valid links
     #[arg(
@@ -633,7 +659,7 @@ impl Config {
             format: StatsFormat::default();
             remap: Vec::<String>::new();
             fallback_extensions: Vec::<String>::new();
-            header: HeaderMap::new();
+            header: None;
             timeout: DEFAULT_TIMEOUT_SECS;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
             method: DEFAULT_METHOD;
