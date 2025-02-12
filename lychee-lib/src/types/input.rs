@@ -228,7 +228,7 @@ impl Input {
         try_stream! {
             match self.source {
                 InputSource::RemoteUrl(ref url) => {
-                    let content = Self::url_contents(url).await;
+                    let content = Self::url_contents(url, &self.headers).await;
                     match content {
                         Err(_) if skip_missing => (),
                         Err(e) => Err(e)?,
@@ -324,7 +324,7 @@ impl Input {
         }
     }
 
-    async fn url_contents(url: &Url) -> Result<InputContent> {
+    async fn url_contents(url: &Url, headers: &HeaderMap) -> Result<InputContent> {
         // Assume HTML for default paths
         let file_type = if url.path().is_empty() || url.path() == "/" {
             FileType::Html
@@ -332,7 +332,12 @@ impl Input {
             FileType::from(url.as_str())
         };
 
-        let res = reqwest::get(url.clone())
+        let client = reqwest::Client::new();
+
+        let res = client
+            .get(url.clone())
+            .headers(headers.clone())
+            .send()
             .await
             .map_err(ErrorKind::NetworkRequest)?;
         let input_content = InputContent {

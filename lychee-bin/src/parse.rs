@@ -55,18 +55,9 @@ pub(crate) fn parse_base(src: &str) -> Result<Base, lychee_lib::ErrorKind> {
 #[cfg(test)]
 mod tests {
 
-    use headers::HeaderMap;
     use regex::Regex;
-    use reqwest::header;
 
     use super::*;
-
-    #[test]
-    fn test_parse_custom_headers() {
-        let mut custom = HeaderMap::new();
-        custom.insert(header::ACCEPT, "text/html".parse().unwrap());
-        assert_eq!(parse_headers(&["accept=text/html"]).unwrap(), custom);
-    }
 
     #[test]
     fn test_parse_remap() {

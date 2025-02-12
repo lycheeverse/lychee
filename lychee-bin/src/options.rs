@@ -1,11 +1,14 @@
 use crate::archive::Archive;
-use crate::parse::{parse_base, parse_headers};
+use crate::parse::parse_base;
 use crate::verbosity::Verbosity;
 use anyhow::{anyhow, Context, Error, Result};
 use clap::builder::PossibleValuesParser;
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
-use http::HeaderMap;
+use http::{
+    header::{HeaderName, HeaderValue},
+    HeaderMap,
+};
 use lychee_lib::{
     Base, BasicAuthSelector, Input, StatusCodeExcluder, StatusCodeSelector, DEFAULT_MAX_REDIRECTS,
     DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
@@ -170,6 +173,63 @@ macro_rules! fold_in {
             }
         )*
     };
+}
+
+fn parse_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
+    let parts: Vec<&str> = header.splitn(2, ':').collect();
+    match parts.as_slice() {
+        [name, value] => {
+            let name = HeaderName::from_bytes(name.trim().as_bytes())
+                .map_err(|e| anyhow!("Invalid header name '{}': {}", name.trim(), e))?;
+            let value = HeaderValue::from_str(value.trim())
+                .map_err(|e| anyhow!("Invalid header value '{}': {}", value.trim(), e))?;
+            Ok((name, value))
+        }
+        _ => Err(anyhow!(
+            "Invalid header format. Expected 'Name: Value', got '{}'",
+            header
+        )),
+    }
+}
+
+#[derive(Clone, Debug)]
+struct HeaderParser;
+
+impl TypedValueParser for HeaderParser {
+    type Value = HeaderMap;
+
+    fn parse_ref(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        let header_str = value.to_str().ok_or_else(|| {
+            clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                "Header value contains invalid UTF-8",
+            )
+        })?;
+
+        let mut headers = HeaderMap::new();
+        match parse_header(header_str) {
+            Ok((name, value)) => {
+                headers.insert(name, value);
+                Ok(headers)
+            }
+            Err(e) => Err(clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                e.to_string(),
+            )),
+        }
+    }
+}
+
+impl clap::builder::ValueParserFactory for HeaderParser {
+    type Parser = HeaderParser;
+    fn value_parser() -> Self::Parser {
+        HeaderParser
+    }
 }
 
 /// A fast, async link checker
@@ -410,12 +470,9 @@ Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
     pub(crate) fallback_extensions: Vec<String>,
 
     /// Set custom header for requests
-    #[clap(
-        long = "header",
-        value_parser = parse_header,
-        number_of_values = 1
-    )]
-    pub header: Vec<HeaderMap>,
+    #[arg(long = "header", action = clap::ArgAction::Append, value_parser = HeaderParser)]
+    #[serde(with = "http_serde::header_map", default)]
+    pub header: HeaderMap,
 
     /// A List of accepted status codes for valid links
     #[arg(
@@ -576,7 +633,7 @@ impl Config {
             format: StatsFormat::default();
             remap: Vec::<String>::new();
             fallback_extensions: Vec::<String>::new();
-            header: Vec::<String>::new();
+            header: HeaderMap::new();
             timeout: DEFAULT_TIMEOUT_SECS;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
             method: DEFAULT_METHOD;

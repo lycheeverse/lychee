@@ -12,7 +12,7 @@ mod cli {
     use anyhow::anyhow;
     use assert_cmd::Command;
     use assert_json_diff::assert_json_include;
-    use http::StatusCode;
+    use http::{Method, StatusCode};
     use lychee_lib::{InputSource, ResponseBody};
     use predicates::{
         prelude::{predicate, PredicateBooleanExt},
@@ -1941,6 +1941,92 @@ mod cli {
             .assert()
             .success();
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_no_header_set_on_input() -> Result<()> {
+        let mut cmd = main_command();
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("X-Foo", "Bar"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    // We expect the mock to be called exactly least once.
+                    .expect(1)
+                    .named("GET expecting custom header"),
+            )
+            .await;
+
+        cmd.arg("--verbose").arg(server.uri()).assert().success();
+
+        // Assert that the server did not receive the request with the header
+        let received_requests = server.received_requests().await.unwrap();
+        assert_eq!(received_requests.len(), 1);
+
+        let received_request = &received_requests[0];
+        assert_eq!(received_request.method, Method::GET);
+        assert_eq!(received_request.url.path(), "/");
+        assert!(received_request.body.is_empty());
+        assert!(received_request.headers.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_header_set_on_input() -> Result<()> {
+        let mut cmd = main_command();
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("X-Foo", "Bar"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    // We expect the mock to be called exactly least once.
+                    .expect(1)
+                    .named("GET expecting custom header"),
+            )
+            .await;
+
+        cmd.arg("--verbose")
+            .arg("--header")
+            .arg("X-Foo: Bar")
+            .arg(server.uri())
+            .assert()
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_multi_header_set_on_input() -> Result<()> {
+        let mut cmd = main_command();
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("X-Foo", "Bar"))
+                    .and(wiremock::matchers::header("X-Bar", "Baz"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    // We expect the mock to be called exactly least once.
+                    .expect(1)
+                    .named("GET expecting custom header"),
+            )
+            .await;
+
+        cmd.arg("--verbose")
+            .arg("--header")
+            .arg("X-Foo: Bar")
+            .arg("--header")
+            .arg("X-Bar: Baz")
+            .arg(server.uri())
+            .assert()
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
         Ok(())
     }
 }

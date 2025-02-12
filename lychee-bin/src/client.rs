@@ -1,5 +1,5 @@
 use crate::options::Config;
-use crate::parse::{parse_duration_secs, parse_headers, parse_remaps};
+use crate::parse::{parse_duration_secs, parse_remaps};
 use anyhow::{Context, Result};
 use http::StatusCode;
 use lychee_lib::{Client, ClientBuilder};
@@ -10,7 +10,6 @@ use std::{collections::HashSet, str::FromStr};
 
 /// Creates a client according to the command-line config
 pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -> Result<Client> {
-    let headers = parse_headers(&cfg.header)?;
     let timeout = parse_duration_secs(cfg.timeout);
     let retry_wait_time = parse_duration_secs(cfg.retry_wait_time);
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
@@ -66,7 +65,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .max_redirects(cfg.max_redirects)
         .user_agent(cfg.user_agent.clone())
         .allow_insecure(cfg.insecure)
-        .custom_headers(headers)
+        .custom_headers(cfg.header.clone())
         .method(method)
         .timeout(timeout)
         .retry_wait_time(retry_wait_time)
