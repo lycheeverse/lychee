@@ -13,7 +13,7 @@ version.workspace = true
 
 [dependencies]
 async-stream = "0.3.6"
-async-trait = "0.1.83"
+async-trait = "0.1.84"
 cached = "0.54.0"
 check-if-email-exists = { version = "0.9.1", optional = true }
 cookie_store = "0.21.1"
@@ -65,10 +65,10 @@ features = ["runtime-tokio"]
 
 [dev-dependencies]
 doc-comment = "0.3.3"
-tempfile = "3.14.0"
+tempfile = "3.15.0"
 wiremock = "0.6.2"
 serde_json = "1.0.134"
-rstest = "0.23.0"
+rstest = "0.24.0"
 toml = "0.8.19"
 pretty_assertions = "1.4.0"
 

@@ -78,7 +78,9 @@ impl FromStr for StatsFormat {
 ///
 /// This decides over whether to use color,
 /// emojis, or plain text for the output.
-#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames)]
+#[derive(
+    Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq,
+)]
 #[non_exhaustive]
 pub(crate) enum OutputMode {
     /// Plain text output.
@@ -109,6 +111,14 @@ pub(crate) enum OutputMode {
     #[serde(rename = "emoji")]
     #[strum(serialize = "emoji", ascii_case_insensitive)]
     Emoji,
+
+    /// Task output.
+    ///
+    /// This mode uses Markdown-styled checkboxes to represent the status of the requests.
+    /// Some people may find this mode more intuitive and useful for task tracking.
+    #[serde(rename = "task")]
+    #[strum(serialize = "task", ascii_case_insensitive)]
+    Task,
 }
 
 impl OutputMode {
