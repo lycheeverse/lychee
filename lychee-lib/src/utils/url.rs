@@ -1,9 +1,6 @@
 use linkify::LinkFinder;
 
 use once_cell::sync::Lazy;
-use url::Url;
-
-use crate::types::{FragmentDirective, FRAGMENT_DIRECTIVE_DELIMITER};
 
 static LINK_FINDER: Lazy<LinkFinder> = Lazy::new(LinkFinder::new);
 
@@ -26,60 +23,9 @@ pub(crate) fn find_links(input: &str) -> impl Iterator<Item = linkify::Link> {
     LINK_FINDER.links(input)
 }
 
-/// Fragment Directive feature trait
-/// we will use the extension trait pattern to extend the Url to support Text Fragment feature
-pub(crate) trait UrlExt {
-    /// Checks if the url has a fragment and if the fragment is has the fragment directive delimiter embedded
-    fn has_fragment_directive(&self) -> bool;
-
-    /// Constructs `FragmentDirective`, if the URL contains a fragment and has fragment directive delimiter
-    fn fragment_directive(&self) -> Option<FragmentDirective>;
-}
-
-impl UrlExt for Url {
-    /// Returns whether the URL has fragment directive or not
-    ///
-    /// **Note:** Fragment Directive is possible only for the URL that has a fragment
-    fn has_fragment_directive(&self) -> bool {
-        if let Some(fragment) = self.fragment() {
-            return fragment.contains(FRAGMENT_DIRECTIVE_DELIMITER);
-        }
-
-        false
-    }
-
-    /// Return this URL's fragment directive, if any
-    ///
-    /// **Note:** A fragment directive is part of the URL's fragment following the `:~:` delimiter
-    fn fragment_directive(&self) -> Option<FragmentDirective> {
-        if self.has_fragment_directive() {
-            FragmentDirective::from_url(self)
-        } else {
-            None
-        }
-    }
-}
-
 #[cfg(test)]
 mod test_fs_tree {
     use super::*;
-
-    #[test]
-    fn test_fragment_directive_through_url() {
-        let url = Url::parse(
-            "https://example.com#:~:text=prefix-,start,end,-suffix&text=unknown_directive",
-        );
-        match url {
-            Ok(url) => {
-                eprintln!(
-                    "fragment is: {:#?}, {:?}",
-                    url.fragment(),
-                    url.fragment_directive()
-                );
-            }
-            Err(e) => eprintln!("{e}"),
-        }
-    }
 
     #[test]
     fn test_remove_get_params_and_fragment() {

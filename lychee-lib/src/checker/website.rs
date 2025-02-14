@@ -3,15 +3,15 @@ use crate::{
     quirks::Quirks,
     retry::RetryExt,
     types::uri::github::GithubUri,
-    utils::url::UrlExt,
     BasicAuthCredentials, ErrorKind, Status, Uri,
 };
 use async_trait::async_trait;
 use http::StatusCode;
-use log::info;
 use octocrab::Octocrab;
 use reqwest::Request;
 use std::{collections::HashSet, time::Duration};
+use textfrag::{check_text_fragments, FragmentDirectiveError, UrlExt};
+use url::Url;
 
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
@@ -44,7 +44,9 @@ pub(crate) struct WebsiteChecker {
     /// This would treat unencrypted links as errors when HTTPS is available.
     require_https: bool,
 
-    /// Verify Text Fragments for a website
+    /// Verify Text Fragment for a website - Text Fragments are placed `[url::Url]`'s
+    /// starting with fragment directive `:~:` and followed by text directive
+    /// using the template **text=[prefix-,start,end,-suffix]**
     validate_text_fragments: bool,
 }
 
@@ -92,34 +94,47 @@ impl WebsiteChecker {
         status
     }
 
+    fn check_text_fragments(site_data: &str, url: &Url, mut status: Status) -> Status {
+        let res = check_text_fragments(site_data, url);
+        if res.is_err() {
+            match res.err() {
+                Some(FragmentDirectiveError::PartialOk(_e)) => {
+                    status = Status::Error(ErrorKind::TextFragmentPartialSuccess);
+                }
+                _res => {
+                    status = Status::Error(ErrorKind::TextFragmentsCheckError);
+                }
+            }
+        }
+
+        status
+    }
+
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     ///
     /// If Fragment Directive check is enabled and the URL has fragment directive,
     /// Fragment Directive checker is run to validate the response against directives given
     ///
+    /// **NOTE:**
+    /// `has_fragment_directive()` call on url shall fail for the below conditions:
+    /// - if there is no fragment delimiter **:~:** in the Url's fragment
+    ///   (malformed delimiter wil also be treated as *no* fragment directive)
+    ///
+    /// If there is no `fragment_directive` for the Url, the request status will be returned
+    ///
     /// # Errors
-    /// - if the fragment directive check fails, return one of the `TextFragmentStatus` error code
+    /// - `TextFragmentPartialSuccess` - if the fragment check succeeds partially
+    /// - `TextFragmentChecksError` - if the fragment check failed
+    /// - Response status, as returned by the server for no fragment directive in Url's fragment
     async fn check_default(&self, request: Request) -> Status {
-        let req_url = request.url().clone();
-        let has_fragment_directive = req_url.has_fragment_directive();
+        let url = request.url().clone();
 
         match self.reqwest_client.execute(request).await {
             Ok(response) => {
-                let mut status = Status::new(&response, self.accepted.clone());
-                if self.validate_text_fragments && has_fragment_directive {
-                    if let Ok(res) = response.text().await {
-                        info!("checking fragment directive...");
-                        if let Some(fd) = req_url.fragment_directive() {
-                            info!("directive: {:?}", fd.text_directives);
-                            match fd.check(&res) {
-                                Ok(stat) => {
-                                    status = stat;
-                                }
-                                Err(e) => {
-                                    return e.into();
-                                }
-                            }
-                        }
+                let status = Status::new(&response, self.accepted.clone());
+                if self.validate_text_fragments && url.has_fragment_directive() {
+                    if let Ok(site_data) = response.text().await {
+                        return WebsiteChecker::check_text_fragments(&site_data, &url, status);
                     }
                 }
                 status

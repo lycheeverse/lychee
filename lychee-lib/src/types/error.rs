@@ -6,7 +6,6 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 use super::InputContent;
-use crate::types::text_fragment::TextFragmentStatus;
 use crate::types::StatusCodeSelectorError;
 use crate::{basic_auth::BasicAuthExtractorError, utils, Uri};
 
@@ -163,9 +162,13 @@ pub enum ErrorKind {
     #[error("Status code range error")]
     StatusCodeSelectorError(#[from] StatusCodeSelectorError),
 
-    /// Text Fragment format error
-    #[error("Text Fragment error")]
-    TextFragmentError(#[from] TextFragmentStatus),
+    /// Text Fragments check partial success
+    #[error("Text Fragments Partial Success")]
+    TextFragmentPartialSuccess,
+
+    /// Text Fragments check error
+    #[error("Text Fragments verification error")]
+    TextFragmentsCheckError,
 }
 
 impl ErrorKind {
@@ -281,6 +284,8 @@ impl PartialEq for ErrorKind {
             (Self::InvalidBase(b1, e1), Self::InvalidBase(b2, e2)) => b1 == b2 && e1 == e2,
             (Self::InvalidUrlRemap(r1), Self::InvalidUrlRemap(r2)) => r1 == r2,
             (Self::EmptyUrl, Self::EmptyUrl) => true,
+            (Self::TextFragmentsCheckError, Self::TextFragmentsCheckError) => true,
+            (Self::TextFragmentPartialSuccess, Self::TextFragmentPartialSuccess) => true,
 
             _ => false,
         }
@@ -334,7 +339,10 @@ impl Hash for ErrorKind {
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
             Self::Cookies(e) => e.to_string().hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
-            Self::TextFragmentError(e) => e.to_string().hash(state),
+            Self::TextFragmentsCheckError => "Text Fragments Check Error".hash(state),
+            Self::TextFragmentPartialSuccess => {
+                "Text Fragments Partial Check Succeeded".hash(state);
+            }
         }
     }
 }
