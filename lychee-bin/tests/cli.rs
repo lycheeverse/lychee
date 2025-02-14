@@ -1940,4 +1940,51 @@ mod cli {
 
         Ok(())
     }
+
+    #[test]
+    fn test_sorted_error_output() -> Result<()> {
+        let test_files = ["TEST_GITHUB_404.md", "TEST_INVALID_URLS.html"];
+
+        let test_urls = [
+            "https://httpbin.org/status/404",
+            "https://httpbin.org/status/500",
+            "https://httpbin.org/status/502",
+        ];
+
+        let mut cmd = &mut main_command()
+            .arg("--format")
+            .arg("compact")
+            .arg(fixtures_path().join(test_files[1]))
+            .arg(fixtures_path().join(test_files[0]))
+            .assert()
+            .failure()
+            .code(2);
+
+        let output = String::from_utf8_lossy(&cmd.get_output().stdout);
+        let mut position: usize = 0;
+
+        // Check that the input sources are sorted
+        for file in test_files.into_iter() {
+            assert!(output.contains(file));
+
+            let next_position = output.find(file).unwrap();
+
+            assert!(next_position > position);
+            position = next_position;
+        }
+
+        position = 0;
+
+        // Check that the responses are sorted
+        for url in test_urls.into_iter() {
+            assert!(output.contains(url));
+
+            let next_position = output.find(url).unwrap();
+
+            assert!(next_position > position);
+            position = next_position;
+        }
+
+        Ok(())
+    }
 }

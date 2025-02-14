@@ -47,9 +47,16 @@ impl Display for CompactResponseStats {
                 )?;
             }
 
-            if let Some(suggestions) = &stats.suggestion_map.get(source) {
+            if let Some(suggestions) = stats.suggestion_map.get(source) {
+                // Sort suggestions
+                let mut sorted_suggestions: Vec<_> = suggestions.iter().collect();
+                sorted_suggestions.sort_by(|a, b| {
+                    let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
+                    human_sort::compare(&a, &b)
+                });
+
                 writeln!(f, "\n\u{2139} Suggestions")?;
-                for suggestion in *suggestions {
+                for suggestion in sorted_suggestions {
                     writeln!(f, "{suggestion}")?;
                 }
             }

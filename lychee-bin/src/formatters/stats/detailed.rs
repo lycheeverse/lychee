@@ -60,12 +60,19 @@ impl Display for DetailedResponseStats {
                     "\n{}",
                     response_formatter.format_detailed_response(response)
                 )?;
+            }
 
-                if let Some(suggestions) = &stats.suggestion_map.get(source) {
-                    writeln!(f, "\nSuggestions in {source}")?;
-                    for suggestion in *suggestions {
-                        writeln!(f, "{suggestion}")?;
-                    }
+            if let Some(suggestions) = stats.suggestion_map.get(source) {
+                // Sort suggestions
+                let mut sorted_suggestions: Vec<_> = suggestions.iter().collect();
+                sorted_suggestions.sort_by(|a, b| {
+                    let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
+                    human_sort::compare(&a, &b)
+                });
+
+                writeln!(f, "\nSuggestions in {source}")?;
+                for suggestion in sorted_suggestions {
+                    writeln!(f, "{suggestion}")?;
                 }
             }
         }
