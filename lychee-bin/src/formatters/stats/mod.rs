@@ -43,7 +43,10 @@ where
         })
         .collect();
 
-    entries.sort_by(|(a, _), (b, _)| human_sort::compare(&a.to_string(), &b.to_string()));
+    entries.sort_by(|(a, _), (b, _)| {
+        let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
+        human_sort::compare(&a, &b)
+    });
 
     entries
 }
@@ -51,8 +54,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // use crate::stats::ResponseStats;
 
     use lychee_lib::{ErrorKind, Response, Status, Uri};
     use url::Url;
