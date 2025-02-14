@@ -294,7 +294,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         .skip_ignored(!opts.config.no_ignore)
         .include_verbatim(opts.config.include_verbatim)
         // File a bug if you rely on this envvar! It's going to go away eventually.
-        .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").map_or(false, |x| x == "1"));
+        .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").is_ok_and(|x| x == "1"));
 
     if opts.config.dump_inputs {
         let sources = collector.collect_sources(inputs);

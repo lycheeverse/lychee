@@ -17,6 +17,7 @@ use lychee_lib::{ResponseBody, Status};
 use crate::archive::{Archive, Suggestion};
 use crate::formatters::get_response_formatter;
 use crate::formatters::response::ResponseFormatter;
+use crate::options::OutputMode;
 use crate::parse::parse_duration_secs;
 use crate::verbosity::Verbosity;
 use crate::{cache::Cache, stats::ResponseStats, ExitCode};
@@ -66,7 +67,17 @@ where
         accept,
     ));
 
-    let formatter = get_response_formatter(&params.cfg.mode);
+    // Set the default formatter for progress bar output
+    let formatter_default = OutputMode::default();
+
+    // Make it easier to add new formatters in the future (without breaking the progress bar)
+    let allowed_output_modes = [OutputMode::Emoji, OutputMode::Plain, OutputMode::Color];
+
+    let formatter = get_response_formatter(if allowed_output_modes.contains(&params.cfg.mode) {
+        &params.cfg.mode
+    } else {
+        &formatter_default
+    });
 
     let show_results_task = tokio::spawn(progress_bar_task(
         recv_resp,
@@ -320,7 +331,7 @@ async fn handle(
 fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<u16>) -> bool {
     let status_code_excluded = status
         .code()
-        .map_or(false, |code| cache_exclude_status.contains(&code.as_u16()));
+        .is_some_and(|code| cache_exclude_status.contains(&code.as_u16()));
 
     uri.is_file()
         || status.is_excluded()

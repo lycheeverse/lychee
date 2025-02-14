@@ -1604,6 +1604,8 @@ mod cli {
     #[test]
     #[ignore = "Skipping test because it is flaky"]
     fn test_suggests_url_alternatives() -> Result<()> {
+        let re = Regex::new(r"http://web\.archive\.org/web/.*google\.com/jobs\.html").unwrap();
+
         for _ in 0..3 {
             // This can be flaky. Try up to 3 times
             let mut cmd = main_command();
@@ -1619,7 +1621,6 @@ mod cli {
             // We're looking for a suggestion that
             // - starts with http://web.archive.org/web/
             // - ends with google.com/jobs.html
-            let re = Regex::new(r"http://web\.archive\.org/web/.*google\.com/jobs\.html").unwrap();
             if re.is_match(&String::from_utf8_lossy(&output.stdout)) {
                 // Test passed
                 return Ok(());
@@ -1834,8 +1835,10 @@ mod cli {
             .stderr(contains(
                 "fixtures/fragments/file1.md#kebab-case-fragment-1",
             ))
-            .stdout(contains("21 Total"))
-            .stdout(contains("17 OK"))
+            .stderr(contains("fixtures/fragments/file.html#top"))
+            .stderr(contains("fixtures/fragments/file2.md#top"))
+            .stdout(contains("25 Total"))
+            .stdout(contains("21 OK"))
             // 4 failures because of missing fragments
             .stdout(contains("4 Errors"));
     }

@@ -30,12 +30,18 @@ pub(crate) fn get_stats_formatter(
 
 /// Create a response formatter based on the given format option
 pub(crate) fn get_response_formatter(mode: &OutputMode) -> Box<dyn ResponseFormatter> {
+    // Checks if color is supported in current environment or NO_COLOR is set (https://no-color.org)
     if !supports_color() {
-        return Box::new(response::PlainFormatter);
+        // To fix `TaskFormatter` not working if color is not supported
+        return match mode {
+            OutputMode::Task => Box::new(response::TaskFormatter),
+            _ => Box::new(response::PlainFormatter),
+        };
     }
     match mode {
         OutputMode::Plain => Box::new(response::PlainFormatter),
         OutputMode::Color => Box::new(response::ColorFormatter),
         OutputMode::Emoji => Box::new(response::EmojiFormatter),
+        OutputMode::Task => Box::new(response::TaskFormatter),
     }
 }

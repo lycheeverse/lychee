@@ -54,4 +54,12 @@ Therefore we put the test into a code block for now to prevent false positives.
 [Link to umlauts wrong case](#fünf-sÜße-Äpfel)
 [Link to umlauts with percent encoding](#f%C3%BCnf-s%C3%BC%C3%9Fe-%C3%A4pfel)
 
+# To top fragments
+
+The empty "#" and "#top" fragments are always valid
+without related HTML element. Browser will scroll to the top of the page.
+
+[Link to top of file2](file2.md#)
+[Alternative link to top of file2](file2.md#top)
+
 ##### Lets wear a hat: être
