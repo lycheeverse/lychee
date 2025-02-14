@@ -1951,7 +1951,7 @@ mod cli {
             "https://httpbin.org/status/502",
         ];
 
-        let mut cmd = &mut main_command()
+        let cmd = &mut main_command()
             .arg("--format")
             .arg("compact")
             .arg(fixtures_path().join(test_files[1]))
@@ -1964,7 +1964,7 @@ mod cli {
         let mut position: usize = 0;
 
         // Check that the input sources are sorted
-        for file in test_files.into_iter() {
+        for file in test_files {
             assert!(output.contains(file));
 
             let next_position = output.find(file).unwrap();
@@ -1976,7 +1976,7 @@ mod cli {
         position = 0;
 
         // Check that the responses are sorted
-        for url in test_urls.into_iter() {
+        for url in test_urls {
             assert!(output.contains(url));
 
             let next_position = output.find(url).unwrap();

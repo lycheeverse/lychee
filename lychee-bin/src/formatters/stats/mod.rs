@@ -61,8 +61,8 @@ mod tests {
         Url::parse(url).expect("Expected valid Website URI")
     }
 
-    fn make_test_response(url: &str, source: InputSource) -> Response {
-        let uri = Uri::from(make_test_url(url));
+    fn make_test_response(url_str: &str, source: InputSource) -> Response {
+        let uri = Uri::from(make_test_url(url_str));
 
         Response::new(uri, Status::Error(ErrorKind::InvalidUrlHost), source)
     }
@@ -89,7 +89,7 @@ mod tests {
 
         // Add responses to stats
         // Responses are added to a HashMap, so the order is not preserved
-        for source in test_sources.iter() {
+        for source in &test_sources {
             for response in test_response_urls.iter() {
                 test_stats.add(make_test_response(response, source.clone()));
             }
@@ -106,7 +106,7 @@ mod tests {
         assert_eq!(test_sources, sorted_sources);
 
         // Check that the responses are sorted
-        for (_, response_bodies) in sorted_errors.into_iter() {
+        for (_, response_bodies) in sorted_errors {
             let response_urls: Vec<&str> = response_bodies
                 .into_iter()
                 .map(|response| response.uri.as_str())
