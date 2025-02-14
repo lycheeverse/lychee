@@ -91,7 +91,7 @@ mod tests {
         // Add responses to stats
         // Responses are added to a HashMap, so the order is not preserved
         for source in &test_sources {
-            for response in test_response_urls.iter() {
+            for response in &test_response_urls {
                 test_stats.add(make_test_response(response, source.clone()));
             }
         }
