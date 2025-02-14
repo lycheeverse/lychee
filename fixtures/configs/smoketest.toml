@@ -80,7 +80,7 @@ remap = [
 ]
 
 # Base URL or website root directory to check relative URLs.
-base-url = "https://example.com"
+base_url = "https://example.com"
 
 # HTTP basic auth support. This will be the username and password passed to the
 # authorization HTTP header. See
