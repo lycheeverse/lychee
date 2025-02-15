@@ -163,7 +163,7 @@ pub(crate) fn create(
             ) {
                 Ok(request) => Some(request),
                 Err(e) => {
-                    warn!("Error creating request: {:?}", e);
+                    warn!("Error creating request: {e:?}");
                     None
                 }
             }

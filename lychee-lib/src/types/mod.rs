@@ -21,7 +21,7 @@ pub use basic_auth::{BasicAuthCredentials, BasicAuthSelector};
 pub use cache::CacheStatus;
 pub use cookies::CookieJar;
 pub use error::ErrorKind;
-pub use file::FileType;
+pub use file::{FileExtensions, FileType};
 pub use input::{Input, InputContent, InputSource};
 pub use request::Request;
 pub use response::{Response, ResponseBody};

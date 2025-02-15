@@ -353,7 +353,7 @@ async fn check_url(client: &Client, request: Request) -> Response {
     let source = request.source.clone();
     let depth = request.recursion_level;
     client.check(request).await.unwrap_or_else(|e| {
-        log::error!("Error checking URL {}: Cannot parse URL to URI: {}", uri, e);
+        log::error!("Error checking URL {uri}: Cannot parse URL to URI: {e}");
         Response::new(
             uri.clone(),
             Status::Error(ErrorKind::InvalidURI(uri.clone())),
