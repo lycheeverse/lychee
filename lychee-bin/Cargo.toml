@@ -56,6 +56,7 @@ tokio-stream = "0.1.17"
 toml = "0.8.19"
 url = "2.5.4"
 console-subscriber = "0.4.1"
+human-sort = "0.2.2"
 
 [dev-dependencies]
 assert_cmd = "2.0.16"
