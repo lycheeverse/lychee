@@ -55,6 +55,7 @@ tokio = { version = "1.42.0", features = ["full"] }
 tokio-stream = "0.1.17"
 toml = "0.8.19"
 url = "2.5.4"
+console-subscriber = "0.4.1"
 
 [dev-dependencies]
 assert_cmd = "2.0.16"

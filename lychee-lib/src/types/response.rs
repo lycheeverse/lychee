@@ -1,7 +1,6 @@
 use std::{
     fmt::Display,
     hash::{Hash, Hasher},
-    sync::Arc,
 };
 
 use http::StatusCode;

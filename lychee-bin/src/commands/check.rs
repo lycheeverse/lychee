@@ -4,14 +4,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use futures::{task, StreamExt};
+use futures::StreamExt;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use lychee_lib::{BasicAuthCredentials, Client, ErrorKind, Request, Response, Uri};
+use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
 use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
@@ -188,10 +188,8 @@ where
 {
     tokio::pin!(requests);
     println!("--- INITIAL REQUESTS ---");
-    let mut i = 0;
     while let Some(request) = requests.next().await {
         // println!("#{} starting request", i);
-        i += 1;
         let request = request?;
 
         if let Some(pb) = &bar {
@@ -199,7 +197,6 @@ where
             pb.set_message(request.to_string());
         };
         remaining_requests.fetch_add(1, Ordering::Relaxed);
-        let uri = request.uri.clone();
         // println!("sending request to queue for {}", uri);
         send_req
             .send(Ok(request))
@@ -224,15 +221,7 @@ async fn receive_responses(
     formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
 ) -> Result<(Option<ProgressBar>, ResponseStats)> {
-    let mut i = 0;
     while let Some(response) = recv_resp.recv().await {
-        // println!(
-        //     "starting response #{} out of {}",
-        //     i,
-        //     remaining_requests.load(Ordering::Relaxed),
-        // );
-        // println!("#{} received response from queue for {}", i, response.1.uri);
-        i += 1;
         show_progress(
             &mut io::stderr(),
             pb.as_ref(),
