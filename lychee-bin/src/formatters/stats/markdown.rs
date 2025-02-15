@@ -67,9 +67,8 @@ fn stats_table(stats: &ResponseStats) -> String {
 /// Optional details get added if available.
 fn markdown_response(response: &ResponseBody) -> Result<String> {
     let mut formatted = format!(
-        "* [{}] [{}]({})",
+        "* [{}] <{}>",
         response.status.code_as_string(),
-        response.uri,
         response.uri,
     );
 
@@ -127,7 +126,7 @@ where
 {
     if !&map.is_empty() {
         writeln!(f, "\n## {name} per input")?;
-        for (source, responses) in map {
+        for (source, responses) in super::sort_stat_map(map) {
             writeln!(f, "\n### {name} in {source}\n")?;
             for response in responses {
                 writeln!(f, "{}", write_stat(response)?)?;
@@ -173,10 +172,7 @@ mod tests {
             recursion_level: 0,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(
-            markdown,
-            "* [200] [http://example.com/](http://example.com/)"
-        );
+        assert_eq!(markdown, "* [200] <http://example.com/>");
     }
 
     #[test]
@@ -188,10 +184,7 @@ mod tests {
             recursion_level: 0,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(
-            markdown,
-            "* [200] [http://example.com/](http://example.com/) | OK (cached)"
-        );
+        assert_eq!(markdown, "* [200] <http://example.com/> | OK (cached)");
     }
 
     #[test]
@@ -203,10 +196,7 @@ mod tests {
             recursion_level: 0,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(
-            markdown,
-            "* [400] [http://example.com/](http://example.com/) | Error (cached)"
-        );
+        assert_eq!(markdown, "* [400] <http://example.com/> | Error (cached)");
     }
 
     #[test]
@@ -261,7 +251,7 @@ mod tests {
 
 ### Errors in stdin
 
-* [404] [http://127.0.0.1/](http://127.0.0.1/) | Error (cached)
+* [404] <http://127.0.0.1/> | Error (cached)
 
 ## Suggestions per input
 
