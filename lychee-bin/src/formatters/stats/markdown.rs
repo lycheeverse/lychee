@@ -170,10 +170,7 @@ mod tests {
             status: Status::Ok(StatusCode::OK),
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(
-            markdown,
-            "* [200] <http://example.com/>"
-        );
+        assert_eq!(markdown, "* [200] <http://example.com/>");
     }
 
     #[test]
@@ -183,10 +180,7 @@ mod tests {
             status: Status::Cached(CacheStatus::Ok(200)),
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(
-            markdown,
-            "* [200] <http://example.com/> | OK (cached)"
-        );
+        assert_eq!(markdown, "* [200] <http://example.com/> | OK (cached)");
     }
 
     #[test]
@@ -196,10 +190,7 @@ mod tests {
             status: Status::Cached(CacheStatus::Error(Some(400))),
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(
-            markdown,
-            "* [400] <http://example.com/> | Error (cached)"
-        );
+        assert_eq!(markdown, "* [400] <http://example.com/> | Error (cached)");
     }
 
     #[test]
