@@ -67,9 +67,8 @@ fn stats_table(stats: &ResponseStats) -> String {
 /// Optional details get added if available.
 fn markdown_response(response: &ResponseBody) -> Result<String> {
     let mut formatted = format!(
-        "* [{}] [{}]({})",
+        "* [{}] <{}>",
         response.status.code_as_string(),
-        response.uri,
         response.uri,
     );
 
