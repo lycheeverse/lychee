@@ -454,11 +454,16 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[serde(default = "method")]
     pub(crate) method: String,
 
-    /// Base URL or website root directory to check relative URLs
-    /// e.g. <https://example.com> or `/path/to/public`
+    /// Deprecated; use `--base-url` instead
+    #[arg(long, value_parser = parse_base)]
+    #[serde(skip)]
+    pub(crate) base: Option<Base>,
+
+    /// Base URL used to resolve relative URLs during link checking
+    /// Example: <https://example.com>
     #[arg(short, long, value_parser= parse_base)]
     #[serde(default)]
-    pub(crate) base: Option<Base>,
+    pub(crate) base_url: Option<Base>,
 
     /// Root path to use when checking absolute local links,
     /// must be an absolute path
@@ -573,7 +578,7 @@ impl Config {
             timeout: DEFAULT_TIMEOUT_SECS;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
             method: DEFAULT_METHOD;
-            base: None;
+            base_url: None;
             basic_auth: None;
             skip_missing: false;
             include_verbatim: false;
