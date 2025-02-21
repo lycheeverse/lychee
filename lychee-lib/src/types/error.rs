@@ -169,6 +169,11 @@ pub enum ErrorKind {
     /// Text Fragments check error
     #[error("Text Fragments verification error")]
     TextFragmentsCheckError,
+
+    /// Fragment Directive processing error - usually occurs if the directive
+    /// is malformed in the `[url:Url]`'s fragment string
+    #[error("Fragment Directive processing error")]
+    FragmentDirectiveProcessingError,
 }
 
 impl ErrorKind {
@@ -286,6 +291,9 @@ impl PartialEq for ErrorKind {
             (Self::EmptyUrl, Self::EmptyUrl) => true,
             (Self::TextFragmentsCheckError, Self::TextFragmentsCheckError) => true,
             (Self::TextFragmentPartialSuccess, Self::TextFragmentPartialSuccess) => true,
+            (Self::FragmentDirectiveProcessingError, Self::FragmentDirectiveProcessingError) => {
+                true
+            }
 
             _ => false,
         }
@@ -342,6 +350,9 @@ impl Hash for ErrorKind {
             Self::TextFragmentsCheckError => "Text Fragments Check Error".hash(state),
             Self::TextFragmentPartialSuccess => {
                 "Text Fragments Partial Check Succeeded".hash(state);
+            }
+            Self::FragmentDirectiveProcessingError => {
+                "Error processing Fragment Directive in the fragment string".hash(state);
             }
         }
     }

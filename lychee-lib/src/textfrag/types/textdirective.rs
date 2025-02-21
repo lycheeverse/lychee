@@ -1,13 +1,41 @@
-/// Text Directive struct and its support functions
-use std::cell::{Cell, RefCell, RefMut};
-
+//! Text Directive struct and its support functions
+//!
+//! This module defines the `TextDirective` struct, which represents a range of text in a
+//! web page for highlighting to the user.
+//!
+//! The syntax for a text directive is:
+//!     text=[prefix-,]start[,end][,-suffix]
+//! * `start` is required to be non-null, with the other three terms marked as optional.
+//! * An empty string is NOT valid for any of the directive items.
+//! * `start` with `end` constitutes a text range.
+//! * `prefix` and `suffix` are contextual terms and are not part of the text fragments
+//!    to search and gather.
+//!
+//! NOTE: Directives are percent-encoded by the caller. The `TextDirective` will return
+//! percent-decoded directives.
+//!
+//! # Example
+//!
+//! ```rust
+//! use lychee_lib::textfrag::types::TextDirective;
+//!
+//!
+//! let fragment = "text=prefix-,start,end,-suffix";
+//! let text_directive = TextDirective::from_fragment_as_str(fragment).unwrap();
+//! println!("Prefix: {}", text_directive.prefix());
+//! println!("Start: {}", text_directive.start());
+//! println!("End: {}", text_directive.end());
+//! println!("Suffix: {}", text_directive.suffix());
+//!
+//! ```
 use fancy_regex::Regex;
 use percent_encoding::percent_decode_str;
+use std::cell::{Cell, RefCell, RefMut};
 
-use crate::types::{
-    directive::TextDirectiveKind,
+use crate::textfrag::types::{
     error::TextFragmentError,
     status::{FragmentDirectiveStatus, TextDirectiveStatus},
+    TextDirectiveKind,
 };
 
 /// Text Directive represents the range of text in the web-page for highlighting to the user
@@ -51,38 +79,51 @@ pub struct TextDirective {
     status: RefCell<TextDirectiveStatus>,
     /// Current search string - this will be dynamically updated by the tokenizer state machine
     search_kind: RefCell<TextDirectiveKind>,
-    /// start offset to start searching **search_str** on the block element content
+    /// start offset to start searching `**search_str**` on the block element content
     next_offset: Cell<usize>,
-    /// Tokenizer resultant string
+    /// Tokenizer resultant string - contains the found content
     resultant_str: RefCell<String>,
 }
 
-pub(crate) const TEXT_DIRECTIVE_DELIMITER: &str = "text=";
+/// `TextDirective` delimiter
+pub const TEXT_DIRECTIVE_DELIMITER: &str = "text=";
 
-pub(crate) const TEXT_DIRECTIVE_REGEX: &str = r"(?s)^text=(?:\s*(?P<prefix>[^,&-]*)-\s*[,$]?\s*)?(?:\s*(?P<start>[^-&,]*)\s*)(?:\s*,\s*(?P<end>[^,&-]*)\s*)?(?:\s*,\s*-(?P<suffix>[^,&-]*)\s*)?$";
+/// Regex to match `TextDirective` in `[url:Url]`'s fragment
+const TEXT_DIRECTIVE_REGEX: &str = r"(?s)^text=(?:\s*(?P<prefix>[^,&-]*)-\s*[,$]?\s*)?(?:\s*(?P<start>[^-&,]*)\s*)(?:\s*,\s*(?P<end>[^,&-]*)\s*)?(?:\s*,\s*-(?P<suffix>[^,&-]*)\s*)?$";
 
 /// Text Directive getters and setters
 impl TextDirective {
+    /// returns the current directive search kind
     pub fn search_kind(&self) -> TextDirectiveKind {
         self.search_kind.borrow().to_owned()
     }
 
+    /// Setter for marking the next directive search kind
     pub fn set_search_kind(&self, kind: TextDirectiveKind) {
         *self.search_kind.borrow_mut() = kind;
     }
 
+    /// Getter to know the next directive's search start offset
     pub fn next_offset(&self) -> usize {
         self.next_offset.get()
     }
 
+    /// Setter for updating the next directive search offset
     pub fn set_next_offset(&self, offset: usize) {
         self.next_offset.set(offset);
     }
 
+    /// Resets the `TextDirective` state information.
+    ///
+    /// When called with current search directive as `End` element, the reset will
+    /// skip over the resultant string content, in anticipation that the `End`
+    /// shall span over and be found across blocks.
+    ///
+    /// For rest of the directive state, reset will force restart of the search.
     pub fn reset(&self) {
         // reset the search kind, and offset fields
         self.set_next_offset(0);
-        self.set_status(TextDirectiveStatus::NotFound);
+        self.set_status(&TextDirectiveStatus::NotFound);
 
         // End directive can span across blocks (rest other directives MUST be on the same block)
         // If the next directive is End, we retain the resultant string found so far
@@ -107,52 +148,67 @@ impl TextDirective {
         res_str.push_str(content);
     }
 
+    /// Clears the resultant string
     pub fn clear_result_str(&self) {
         self.resultant_str.borrow_mut().clear();
     }
 
+    /// Getter for the resultant string - based on the directive search results
+    /// from the block content
     pub fn get_result_str(&self) -> String {
         self.resultant_str.borrow().to_string()
     }
 
+    /// Returns mutable resultant string - used for updating the block content
+    /// (for example, removing the prefix or suffix string from the content)
     pub fn get_result_str_mut(&self) -> RefMut<String> {
         self.resultant_str.borrow_mut()
     }
 
+    /// Getter for the `TextDirective` status
     pub fn get_status(&self) -> TextDirectiveStatus {
-        self.status.borrow().clone()
+        *self.status.borrow()
     }
 
-    pub fn set_status(&self, status: TextDirectiveStatus) {
-        *self.status.borrow_mut() = status.clone();
+    /// Setter for the `TextDirective` status
+    pub fn set_status(&self, status: &TextDirectiveStatus) {
+        *self.status.borrow_mut() = *status;
     }
 
-    /// Return the raw text directive
+    /// Return the raw text directive as `String`
+    #[allow(dead_code)]
     pub fn get_text_directive(&self) -> String {
         self.raw_directive().to_owned()
     }
+
+    /// Getter for the prefix directive
     pub fn prefix(&self) -> &str {
         self.prefix.as_str()
     }
 
+    /// Getter for the start directive
     pub fn start(&self) -> &str {
         self.start.as_str()
     }
 
+    /// Getter for end directive
     pub fn end(&self) -> &str {
         self.end.as_str()
     }
 
+    /// Getter for the suffix directive
     pub fn suffix(&self) -> &str {
         self.suffix.as_str()
     }
 
+    /// Returns the raw directive, as in the `[url:Url]`'s fragment string
     pub fn raw_directive(&self) -> &str {
         self.raw_directive.as_str()
     }
 }
 
-/// Text Directive construction and validation
+/// Implementation of `TextDirective` object construction from `[url:Url]`'s fragment and
+/// percent decode support method.
 impl TextDirective {
     /// Percent decode the input string
     /// Returns the decoded string or error
@@ -187,73 +243,70 @@ impl TextDirective {
             return Err(TextFragmentError::NotTextDirective);
         }
 
-        // XXX: we anticipate no issues in constructing the regex - otherwise, let there be panic!
-        let regex = Regex::new(TEXT_DIRECTIVE_REGEX);
-        if regex.is_err() {
+        if let Ok(regex) = Regex::new(TEXT_DIRECTIVE_REGEX) {
+            if let Ok(Some(result)) = regex.captures(fragment) {
+                let start = result
+                    .name("start")
+                    .map(|start| start.as_str())
+                    .unwrap_or_default();
+                let start = TextDirective::percent_decode(start)?;
+
+                // Start is MANDATORY - check for valid directive input
+                if start.is_empty() {
+                    return Err(TextFragmentError::StartDirectiveMissingError);
+                }
+
+                let mut search_kind = TextDirectiveKind::Start;
+
+                let prefix = result
+                    .name("prefix")
+                    .map(|m| m.as_str())
+                    .unwrap_or_default();
+                let prefix = TextDirective::percent_decode(prefix)?;
+                if !prefix.is_empty() {
+                    search_kind = TextDirectiveKind::Prefix;
+                }
+
+                let end = result.name("end").map(|e| e.as_str()).unwrap_or_default();
+                let end = TextDirective::percent_decode(end)?;
+
+                let suffix = result
+                    .name("suffix")
+                    .map(|m| m.as_str())
+                    .unwrap_or_default();
+                let suffix = TextDirective::percent_decode(suffix)?;
+
+                Ok(TextDirective {
+                    prefix,
+                    start,
+                    end,
+                    suffix,
+                    raw_directive: fragment.to_owned(),
+                    status: RefCell::new(TextDirectiveStatus::NotStarted),
+                    search_kind: search_kind.into(),
+                    next_offset: Cell::new(0),
+                    resultant_str: RefCell::new(String::new()),
+                })
+            } else {
+                Err(TextFragmentError::RegexCaptureError(
+                    fragment.to_string(),
+                    TEXT_DIRECTIVE_REGEX.to_string(),
+                ))
+            }
+        } else {
             log::error!(
                 "Error constructing the regex object: {}",
                 TEXT_DIRECTIVE_REGEX
             );
-            return Err(TextFragmentError::RegexConsructionError(
-                TEXT_DIRECTIVE_REGEX.to_string(),
-            ));
-        }
-
-        let regex = regex.unwrap();
-        if let Ok(Some(result)) = regex.captures(fragment) {
-            let start = result
-                .name("start")
-                .map(|start| start.as_str())
-                .unwrap_or_default();
-            let start = TextDirective::percent_decode(start)?;
-
-            // Start is MANDATORY - check for valid directive input
-            if start.is_empty() {
-                return Err(TextFragmentError::StartDirectiveMissingError);
-            }
-
-            let mut search_kind = TextDirectiveKind::Start;
-
-            let prefix = result
-                .name("prefix")
-                .map(|m| m.as_str())
-                .unwrap_or_default();
-            let prefix = TextDirective::percent_decode(prefix)?;
-            if !prefix.is_empty() {
-                search_kind = TextDirectiveKind::Prefix;
-            }
-
-            let end = result.name("end").map(|e| e.as_str()).unwrap_or_default();
-            let end = TextDirective::percent_decode(end)?;
-
-            let suffix = result
-                .name("suffix")
-                .map(|m| m.as_str())
-                .unwrap_or_default();
-            let suffix = TextDirective::percent_decode(suffix)?;
-
-            Ok(TextDirective {
-                prefix,
-                start,
-                end,
-                suffix,
-                raw_directive: fragment.to_owned(),
-                status: RefCell::new(TextDirectiveStatus::NotStarted),
-                search_kind: search_kind.into(),
-                next_offset: Cell::new(0),
-                resultant_str: RefCell::new(String::new()),
-            })
-        } else {
-            Err(TextFragmentError::RegexCaptureError(
-                fragment.to_string(),
+            Err(TextFragmentError::RegexConsructionError(
                 TEXT_DIRECTIVE_REGEX.to_string(),
             ))
         }
     }
 
-    /// [Internal] the use of regular expression does not comply with the specification
-    /// To be used for testing purposes only
-    fn _check(&self, input: &str) -> Result<FragmentDirectiveStatus, TextFragmentError> {
+    /// [Internal] To be used for testing purposes only
+    #[allow(dead_code)]
+    fn check(&self, input: &str) -> Result<FragmentDirectiveStatus, TextFragmentError> {
         let mut s_regex = r"(?mi)(?P<selection>".to_string();
 
         // Construct regex with prefix, start and suffix - as below
@@ -330,7 +383,7 @@ impl TextDirective {
 
 #[cfg(test)]
 mod tests {
-    use crate::types::{TextDirective, TextDirectiveKind, TextFragmentError};
+    use crate::textfrag::types::{TextDirective, TextDirectiveKind, TextFragmentError};
 
     #[test]
     fn test_fragment_directive_start_only() {

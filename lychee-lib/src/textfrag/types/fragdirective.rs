@@ -1,11 +1,29 @@
-/// Fragment Directive object is collection of text fragments in the URL's fragment
-/// :~: is the fragment directive delmiter, followed by list of `[TextDirective]`
+//! Fragment Directive object is collection of text fragments in the URL's fragment
+//! The delimiter `:~:` is the fragment directive delmiter to separate a list of `[TextDirective]`'s
+//! This module defines the functionality to parse, construct and store the `[TextDirective]`'s defined in
+//! `[url:Url]`'s fragment.
+//!
+//! # Example
+//!
+//! ```rust
+//!
+//! use url::Url;
+//! use lychee_lib::textfrag::types::FragmentDirective;
+//!
+//! let url = Url::parse("https://example.com/#:~:text=prefix-,start,end,-suffix").unwrap();
+//! if let Some(fragment_directive) = FragmentDirective::from_url(&url) {
+//!    let directives = fragment_directive.text_directives();
+//!    for directive in directives {
+//!        println!("Directive: {:?}", directive);
+//!    }
+//! }
+//! ```
 use std::{cell::RefCell, collections::HashMap};
 
 use html5ever::tokenizer::{BufferQueue, Tokenizer, TokenizerOpts};
 use url::Url;
 
-use crate::{
+use crate::textfrag::{
     extract::FragmentDirectiveTokenizer,
     types::{
         FragmentDirectiveError, FragmentDirectiveStatus, TextDirective, TextDirectiveStatus,
@@ -13,6 +31,7 @@ use crate::{
     },
 };
 
+/// Fragment directive delimiter constant
 pub const FRAGMENT_DIRECTIVE_DELIMITER: &str = ":~:";
 
 /// Fragment Directive defines the base url and collection of Text Directives
@@ -24,15 +43,27 @@ pub struct FragmentDirective {
 }
 
 impl FragmentDirective {
+    /// Returns all the processed text directives for the `[url:Url]`
     pub fn text_directives(&self) -> Vec<TextDirective> {
         self.text_directives.borrow().to_owned()
     }
 
+    /// Returns a mutable list of all the processed text directives for the `[url:Url]`
+    #[allow(dead_code)]
     pub fn text_directives_mut(&self) -> Vec<TextDirective> {
         self.text_directives.borrow_mut().to_owned()
     }
 
-    // Extract Text Directives, from the Url fragment string
+    /// Extract Text Directives, from the Url fragment string, and return a list
+    /// of `TextDirective`'s as vector
+    ///
+    /// The method supports multiple text directives - each text directive is delimited by `&`.
+    /// If the text directive is malformed, the method will skip over it and continue processing
+    /// the next text directive.
+    ///
+    /// # Errors
+    /// - `FragmentDirectiveDelimiterMissing` - if the fragment directive delimiter is not found
+    ///    in the `[url:Url]`'s fragment
     fn build_text_directives(fragment: &str) -> Result<Vec<TextDirective>, TextFragmentError> {
         // Find the start of the fragment directive delimiter
         if let Some(offset) = fragment.find(FRAGMENT_DIRECTIVE_DELIMITER) {
@@ -44,7 +75,6 @@ impl FragmentDirective {
                 if let Ok(text_directive) = text_directive {
                     text_directives.push(text_directive);
                 } else {
-                    // WARN: <log> & continue with other directives!
                     log::warn!(
                         "Failed with error {:?} to parse the text directive: {1}",
                         text_directive.err(),
@@ -56,13 +86,15 @@ impl FragmentDirective {
             return Ok(text_directives);
         }
 
-        // WARN: <log>
         log::warn!("Not a fragment directive!");
         Err(TextFragmentError::FragmentDirectiveDelimiterMissing)
     }
 
-    /// Extract Fragment Directive from the (fragment) string as input
-    /// Returns a list of the Text Directives from the fragment string
+    /// Constructs `FragmentDirective` object, containing a list of `TextDirective`'s
+    /// processed from the `[url:Url]`'s fragment string, and returns the object.
+    ///
+    /// If no fragment directive is found in the `[url:Url]`'s fragment, returns None
+    #[must_use]
     pub fn from_fragment_as_str(fragment: &str) -> Option<FragmentDirective> {
         if let Ok(text_directives) = FragmentDirective::build_text_directives(fragment) {
             return Some(Self {
@@ -74,8 +106,9 @@ impl FragmentDirective {
         None
     }
 
-    /// Find the Fragment Directive from the Url
-    /// If the fragment is not found, return None
+    /// Finds the Fragment Directive from the Url
+    /// If the fragment directive is not found, return None
+    #[must_use]
     pub fn from_url(url: &Url) -> Option<FragmentDirective> {
         let fragment = url.fragment()?;
         FragmentDirective::from_fragment_as_str(fragment)
@@ -91,8 +124,6 @@ impl FragmentDirective {
     /// Return an error if
     /// - No match is found
     /// - Suffix error (spec instructs the fragment SHALL be upto **Suffix** and this error is returned if this condition is violated)
-    ///
-    ///
     pub fn check(&self, input: &str) -> Result<FragmentDirectiveStatus, FragmentDirectiveError> {
         self.check_fragment_directive(input)
     }
@@ -108,7 +139,7 @@ impl FragmentDirective {
         buf: &str,
     ) -> Result<FragmentDirectiveStatus, FragmentDirectiveError> {
         let mut map = HashMap::new();
-        let fd_checker = FragmentDirectiveTokenizer::new(self.text_directives()); // self.text_directives().clone());
+        let fd_checker = FragmentDirectiveTokenizer::new(self.text_directives());
 
         let tok = Tokenizer::new(
             fd_checker,
@@ -124,31 +155,33 @@ impl FragmentDirective {
         let _res = tok.feed(&input);
         tok.end();
 
-        let mut all_directives_ok = true;
-        for td in &tok.sink.get_text_directives() {
+        let mut error_count = 0;
+        let tds = tok.sink.get_text_directives();
+        for td in &tds {
             let directive = td.raw_directive().to_string();
             log::debug!("text directive: {:?}", directive);
-            println!("text directive: {:?}", directive);
 
             let status = td.get_status();
             if TextDirectiveStatus::Completed != status {
                 log::warn!("directive ({:?}) status: {:?}", directive, status);
-                all_directives_ok = false;
+                error_count += 1;
             }
 
             let _status = status.to_string();
             log::debug!("search status: {:?}", status);
-            println!("search status: {:?}", status);
 
             let res_str = td.get_result_str();
             log::debug!("search result: {:?}", res_str);
-            println!("search result: {:?}", res_str);
 
             map.insert(directive, status);
         }
 
-        if !all_directives_ok {
-            return Err(FragmentDirectiveError::PartialOk(map.clone()));
+        if error_count > 0 {
+            if error_count < tds.len() {
+                return Err(FragmentDirectiveError::PartialOk(map.clone()));
+            }
+
+            return Err(FragmentDirectiveError::NotFoundError);
         }
 
         Ok(FragmentDirectiveStatus::Ok)
@@ -160,7 +193,7 @@ mod tests {
     use url::Url;
 
     use super::FragmentDirective;
-    use crate::types::{TextDirectiveKind, UrlExt};
+    use crate::textfrag::types::{TextDirectiveKind, UrlExt};
 
     const TEST_FRAGMENT: &str = ":~:text=prefix-,start,end,-suffix&text=start,-suffix%2Dwith%2Ddashes&unknown_directive&text=prefix%2Donly-";
 
@@ -181,7 +214,7 @@ mod tests {
     #[test]
     fn test_fragment_directive_start_only() {
         const FRAGMENT: &str = "text=repeated";
-        let directive_str = format!(":~:{}", FRAGMENT);
+        let directive_str = format!(":~:{FRAGMENT}",);
 
         let fd = FragmentDirective::from_fragment_as_str(&directive_str);
         assert!(fd.is_some());
@@ -196,15 +229,13 @@ mod tests {
 
             let results = fd.check(MULTILINE_INPUT);
             assert!(results.is_ok());
-            // assert_eq!(results.len(), 1);
-            // assert_eq!(results[FRAGMENT], Ok(TextDirectiveStatus::Completed));
         }
     }
 
     #[test]
     fn test_fragment_directive_start_end() {
         const FRAGMENT: &str = "text=repeated, block";
-        let directive_str = format!(":~:{}", FRAGMENT);
+        let directive_str = format!(":~:{FRAGMENT}",);
 
         let fd = FragmentDirective::from_fragment_as_str(&directive_str);
         assert!(fd.is_some());
@@ -220,15 +251,41 @@ mod tests {
 
             let res = fd.check(MULTILINE_INPUT);
             assert!(res.is_ok());
-            // assert_eq!(res.len(), 1);
-            // assert_eq!(res[FRAGMENT], TextDirectiveStatus::Completed);
+        }
+    }
+
+    #[test]
+    fn test_prefix_start_end() {
+        const INPUT: &str = r#"
+                <html>
+                    <body>
+                        <p>This is a paragraph with some inline <code>https://example.com</code> and a normal 
+                            <a style="display:none;" href="https://example.org">example</a>
+                        </p>
+                    </body>
+                </html>
+                "#;
+        let text_directive = "text=a-,paragraph,inline";
+        let fd_str = format!(":~:{text_directive}",);
+
+        let fd = FragmentDirective::from_fragment_as_str(&fd_str);
+        assert!(fd.is_some());
+
+        if let Some(fd) = fd {
+            assert!(fd.text_directives().len() == 1);
+            assert_eq!(fd.text_directives()[0].prefix(), "a");
+            assert_eq!(fd.text_directives()[0].start(), "paragraph");
+            assert_eq!(fd.text_directives()[0].end(), "inline");
+
+            let res = fd.check(INPUT);
+            assert!(res.is_ok());
         }
     }
 
     #[test]
     fn test_fragment_directive_prefix_start() {
         const FRAGMENT: &str = "text=with-,repeated";
-        let directive_str = format!(":~:{}", FRAGMENT);
+        let directive_str = format!(":~:{FRAGMENT}",);
 
         let fd = FragmentDirective::from_fragment_as_str(&directive_str);
         assert!(fd.is_some());
@@ -244,8 +301,6 @@ mod tests {
 
             let results = fd.check(MULTILINE_INPUT);
             assert!(results.is_ok());
-            // assert_eq!(results.len(), 1);
-            // assert_eq!(results[FRAGMENT], TextDirectiveStatus::Completed);
         }
     }
 
@@ -253,7 +308,7 @@ mod tests {
     fn test_fragment_directive_start_suffix() {
         const FRAGMENT: &str = "text=linked%20URL,-'s format";
 
-        let directive_str = format!(":~:{}", FRAGMENT);
+        let directive_str = format!(":~:{FRAGMENT}",);
         let fd = FragmentDirective::from_fragment_as_str(&directive_str);
         assert!(fd.is_some());
 
@@ -268,15 +323,13 @@ mod tests {
 
             let results = fd.check(MULTILINE_INPUT);
             assert!(results.is_ok());
-            // assert_eq!(results.len(), 1);
-            // assert_eq!(results[FRAGMENT], TextDirectiveStatus::Completed);
         };
     }
 
     #[test]
     fn test_fragment_directive_prefix_start_suffix() {
         const FRAGMENT: &str = "text=with-,repeated,-instance";
-        let directive_str = format!(":~:{}", FRAGMENT);
+        let directive_str = format!(":~:{FRAGMENT}",);
 
         let fd = FragmentDirective::from_fragment_as_str(&directive_str);
 
@@ -292,15 +345,13 @@ mod tests {
 
             let results = fd.check(MULTILINE_INPUT);
             assert!(results.is_ok());
-            // assert_eq!(results.len(), 1);
-            // assert_eq!(results[FRAGMENT], TextDirectiveStatus::Completed);
         };
     }
 
     #[test]
     fn test_fragment_directive_prefix_start_suffix_end() {
         const FRAGMENT: &str = "text=with-,repeated, mapped, -or";
-        let directive_str = format!(":~:{}", FRAGMENT);
+        let directive_str = format!(":~:{FRAGMENT}",);
 
         let fd = FragmentDirective::from_fragment_as_str(&directive_str);
 
@@ -317,8 +368,6 @@ mod tests {
 
             let results = fd.check(MULTILINE_INPUT);
             assert!(results.is_ok());
-            // assert!(results.len() == 1);
-            // assert_eq!(results[FRAGMENT], TextDirectiveStatus::Completed);
         };
     }
 

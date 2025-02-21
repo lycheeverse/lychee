@@ -4,9 +4,8 @@ use std::{
     fmt::{Display, Formatter, Result},
 };
 
-use crate::types::error::TextFragmentError;
-
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+/// Defines the `FragmentDirective` check status
 pub enum FragmentDirectiveStatus {
     /// Text Fragment search was successful for all directives
     Ok,
@@ -16,32 +15,37 @@ impl Display for FragmentDirectiveStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             FragmentDirectiveStatus::Ok => write!(f, "Ok"),
-            // FragmentDirectiveStatus::PartialOk(m) => write!(f, "Partial Ok {:?}", m),
-            // FragmentDirectiveStatus::Error(e) => write!(f, "Error: {:?}", e),
         }
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
+/// `FragmentDirective` check error status
 pub enum FragmentDirectiveError {
-    /// Text Fragment search was partially successful - check individual text directive status
-    /// for more details
+    /// Text Fragment search found one or more directives and so was partially successful
+    /// - check individual text directive status for more details
     PartialOk(HashMap<String, TextDirectiveStatus>),
-    /// Failed to find the Text Fragment
-    Error(TextFragmentError),
+    /// Failed to find the `TextDirective`s
+    NotFoundError,
+    /// Error processing `FragmentDirective` in the `[url:Url]`'s fragment string
+    DirectiveProcessingError,
 }
 
 impl Display for FragmentDirectiveError {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
-            FragmentDirectiveError::PartialOk(m) => write!(f, "Partial Ok {:?}", m),
-            FragmentDirectiveError::Error(e) => write!(f, "Error: {:?}", e),
+            FragmentDirectiveError::PartialOk(m) => write!(f, "Partial Ok {m:?}"),
+            FragmentDirectiveError::NotFoundError => write!(f, "Directives not found Error"),
+            FragmentDirectiveError::DirectiveProcessingError => write!(
+                f,
+                "Error processing the fragment directive in fragment string"
+            ),
         }
     }
 }
 
 /// Text Directive check status
-#[derive(PartialEq, Clone, Eq, Debug, Default)]
+#[derive(PartialEq, Clone, Copy, Eq, Debug, Default)]
 pub enum TextDirectiveStatus {
     /// Text Directive check Not started
     #[default]
@@ -66,12 +70,12 @@ impl Display for TextDirectiveStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
             TextDirectiveStatus::NotStarted => write!(f, "Not Started"),
-            TextDirectiveStatus::Found((start, end)) => write!(f, "Found: ({}, {})", start, end),
+            TextDirectiveStatus::Found((start, end)) => write!(f, "Found: ({start}, {end})"), // start, end),
             TextDirectiveStatus::NotFound => write!(f, "Not Found"),
             TextDirectiveStatus::EndOfContent => write!(f, "End of Content"),
             TextDirectiveStatus::Completed => write!(f, "Completed"),
             TextDirectiveStatus::WordDistanceExceeded(offset) => {
-                write!(f, "Word distance exceeded at: {}", offset)
+                write!(f, "Word distance exceeded at: {offset}") //, offset)
             }
         }
     }

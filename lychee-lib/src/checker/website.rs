@@ -1,3 +1,4 @@
+use crate::textfrag::{check_text_fragments, FragmentDirectiveError, UrlExt};
 use crate::{
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
@@ -10,7 +11,6 @@ use http::StatusCode;
 use octocrab::Octocrab;
 use reqwest::Request;
 use std::{collections::HashSet, time::Duration};
-use textfrag::{check_text_fragments, FragmentDirectiveError, UrlExt};
 use url::Url;
 
 #[derive(Debug, Clone)]
@@ -94,20 +94,35 @@ impl WebsiteChecker {
         status
     }
 
-    fn check_text_fragments(site_data: &str, url: &Url, mut status: Status) -> Status {
-        let res = check_text_fragments(site_data, url);
-        if res.is_err() {
-            match res.err() {
-                Some(FragmentDirectiveError::PartialOk(_e)) => {
-                    status = Status::Error(ErrorKind::TextFragmentPartialSuccess);
+    /// Validates if the text fragment directive defined text data is present in the 
+    /// `site_data` or not
+    /// 
+    /// `Status::OK` is returned if the text directive check successfully completed for 
+    /// all the directives
+    /// 
+    /// # Errors
+    /// - `TextFragmentPartialSuccess` - if the text directive check was successful for one
+    ///   or more of the directives but not all
+    /// - `TextFragmentsCheckError` - if all the text directives check failed
+    /// - `FragmentDirectiveProcessingError` - when the directive processing failed in gathering
+    ///   the text directives from `[url:Url]`'s fragment string
+    fn check_text_fragments(site_data: &str, url: &Url) -> Status {
+        // If check has failed - map the error to `ErrorKind` and return
+        if let Err(res) = check_text_fragments(site_data, url) {
+            match res {
+                FragmentDirectiveError::PartialOk(_e) => {
+                    return Status::Error(ErrorKind::TextFragmentPartialSuccess);
                 }
-                _res => {
-                    status = Status::Error(ErrorKind::TextFragmentsCheckError);
+                FragmentDirectiveError::NotFoundError => {
+                    return Status::Error(ErrorKind::TextFragmentsCheckError);
+                }
+                FragmentDirectiveError::DirectiveProcessingError => {
+                    return Status::Error(ErrorKind::FragmentDirectiveProcessingError);
                 }
             }
-        }
+        };
 
-        status
+        Status::Ok(StatusCode::OK)
     }
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
@@ -134,7 +149,7 @@ impl WebsiteChecker {
                 let status = Status::new(&response, self.accepted.clone());
                 if self.validate_text_fragments && url.has_fragment_directive() {
                     if let Ok(site_data) = response.text().await {
-                        return WebsiteChecker::check_text_fragments(&site_data, &url, status);
+                        return WebsiteChecker::check_text_fragments(&site_data, &url);
                     }
                 }
                 status

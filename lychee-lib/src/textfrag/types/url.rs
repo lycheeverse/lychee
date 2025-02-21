@@ -1,8 +1,8 @@
 use url::Url;
 
-use crate::types::{FragmentDirective, FRAGMENT_DIRECTIVE_DELIMITER};
+use crate::textfrag::types::{FragmentDirective, FRAGMENT_DIRECTIVE_DELIMITER};
 
-/// Fragment Directive feature trait
+/// Fragment Directive extension trait
 /// We will use the extension trait pattern to extend [`url::Url`] to support the text fragment feature  
 pub trait UrlExt {
     /// Checks if the url has a fragment and the fragment directive delimiter is present  
@@ -38,7 +38,7 @@ impl UrlExt for Url {
 
 #[cfg(test)]
 mod test_fs_tree {
-    use crate::types::TextDirectiveKind;
+    use crate::textfrag::types::TextDirectiveKind;
 
     use super::*;
     use url::Url;
