@@ -94,12 +94,11 @@ impl WebsiteChecker {
         status
     }
 
-    /// Validates if the text fragment directive defined text data is present in the 
-    /// `site_data` or not
-    /// 
-    /// `Status::OK` is returned if the text directive check successfully completed for 
+    /// Validates if the text fragment directive defined text data is present in the `site_data` or not
+    ///
+    /// `Status::OK` is returned if the text directive check successfully completed for
     /// all the directives
-    /// 
+    ///
     /// # Errors
     /// - `TextFragmentPartialSuccess` - if the text directive check was successful for one
     ///   or more of the directives but not all

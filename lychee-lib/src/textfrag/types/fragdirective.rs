@@ -129,7 +129,7 @@ impl FragmentDirective {
     }
 
     /// Fragment Directive checker method - takes website response text and text directives
-    /// as input and returns Directive check status (as HTTP Status)
+    /// as input and returns Directive check status
     ///
     /// # Errors
     /// - `TextDirectiveNotFound`, if text directive match fails
