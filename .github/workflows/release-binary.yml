@@ -121,6 +121,7 @@ jobs:
           mkdir dmg
           mv lychee dmg/
           hdiutil create -fs HFS+ -srcfolder dmg -volname lychee lychee.dmg
+          tar -czvf lychee.tar.gz -C dmg/ lychee
 
       - name: Upload binary
         uses: actions/upload-release-asset@v1
