@@ -55,6 +55,7 @@ tokio = { version = "1.43.0", features = ["full"] }
 tokio-stream = "0.1.17"
 toml = "0.8.20"
 url = "2.5.4"
+console-subscriber = "0.4.1"
 human-sort = "0.2.2"
 
 [dev-dependencies]
