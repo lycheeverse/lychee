@@ -1844,6 +1844,19 @@ mod cli {
     }
 
     #[test]
+    fn test_text_fragments() {
+        let mut cmd = main_command();
+        let input = "https://developer.mozilla.org/en-US/docs/Web/URI/Fragment/Text_fragments#:~:text=without%20relying%20on%20the%20presence%20of%20IDs";
+
+        cmd.arg("--verbose")
+            .arg("--include-text-fragments")
+            .arg(input)
+            .assert()
+            .success()
+            .stdout(contains("0 Errors"));
+    }
+
+    #[test]
     fn test_fallback_extensions() {
         let mut cmd = main_command();
         let input = fixtures_path().join("fallback-extensions");
