@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.2](https://github.com/lycheeverse/lychee/compare/lychee-v0.18.1...lychee-v0.18.2) - 2025-02-24
+
+### Other
+
+- Format Markdown URLs with `<>` instead of `[]()` ([#1638](https://github.com/lycheeverse/lychee/pull/1638))
+- Bump the dependencies group across 1 directory with 21 updates ([#1643](https://github.com/lycheeverse/lychee/pull/1643))
+- add tests for URL extraction ending with a period (#1641)
+- renamed `base` to `base_url` (fixes [#1607](https://github.com/lycheeverse/lychee/pull/1607)) ([#1629](https://github.com/lycheeverse/lychee/pull/1629))
+- Sort compact/detailed/markdown error output by file path ([#1622](https://github.com/lycheeverse/lychee/pull/1622))
+
 ## [0.18.1](https://github.com/lycheeverse/lychee/compare/lychee-v0.18.0...lychee-v0.18.1) - 2025-02-06
 
 ### Fixed
