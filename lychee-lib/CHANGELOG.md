@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.2](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.18.1...lychee-lib-v0.18.2) - 2025-02-24
+
+### Other
+
+- Bump the dependencies group across 1 directory with 21 updates ([#1643](https://github.com/lycheeverse/lychee/pull/1643))
+
 ## [0.18.1](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.18.0...lychee-lib-v0.18.1) - 2025-02-06
 
 ### Fixed
