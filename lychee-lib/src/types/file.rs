@@ -12,28 +12,46 @@ pub enum FileType {
     Plaintext,
 }
 
+impl FileType {
+    /// All known Markdown extensions
+    const MARKDOWN_EXTENSIONS: &'static [&'static str] = &[
+        "markdown", "mkdown", "mkdn", "mdwn", "mdown", "mdx", "mkd", "md",
+    ];
+
+    /// All known HTML extensions
+    const HTML_EXTENSIONS: &'static [&'static str] = &["htm", "html"];
+
+    /// Default extensions which are supported by lychee
+    #[must_use]
+    pub fn default_extensions() -> Vec<String> {
+        let mut extensions = Vec::new();
+        extensions.extend(Self::MARKDOWN_EXTENSIONS.iter().map(|&s| s.to_string()));
+        extensions.extend(Self::HTML_EXTENSIONS.iter().map(|&s| s.to_string()));
+        extensions
+    }
+
+    /// Get the [`FileType`] from an extension string
+    fn from_extension(ext: &str) -> Option<Self> {
+        let ext = ext.to_lowercase();
+        if Self::MARKDOWN_EXTENSIONS.contains(&ext.as_str()) {
+            Some(Self::Markdown)
+        } else if Self::HTML_EXTENSIONS.contains(&ext.as_str()) {
+            Some(Self::Html)
+        } else {
+            None
+        }
+    }
+}
+
 impl Default for FileType {
     fn default() -> Self {
+        // This is the default file type when no other type can be determined.
+        // It represents a generic text file with no specific syntax.
         Self::Plaintext
     }
 }
 
 impl<P: AsRef<Path>> From<P> for FileType {
-    /// Detect if the given path points to a Markdown, HTML, or plaintext file.
-    //
-    // Assume HTML in case of no extension.
-    //
-    // This is only reasonable for URLs, not paths on disk. For example,
-    // a file named `README` without an extension is more likely to be a
-    // plaintext file.
-    //
-    // A better solution would be to also implement `From<Url> for
-    // FileType`. Unfortunately that's not possible without refactoring, as
-    // `AsRef<Path>` could be implemented for `Url` in the future, which is
-    // why `From<Url> for FileType` is not allowed (orphan rule).
-    //
-    // As a workaround, we check if the scheme is `http` or `https` and
-    // assume HTML in that case.
     fn from(p: P) -> FileType {
         let path = p.as_ref();
         match path
@@ -41,12 +59,9 @@ impl<P: AsRef<Path>> From<P> for FileType {
             .and_then(std::ffi::OsStr::to_str)
             .map(str::to_lowercase)
             .as_deref()
+            .and_then(FileType::from_extension)
         {
-            // https://superuser.com/a/285878
-            Some("markdown" | "mkdown" | "mkdn" | "mdwn" | "mdown" | "mdx" | "mkd" | "md") => {
-                FileType::Markdown
-            }
-            Some("htm" | "html") => FileType::Html,
+            Some(file_type) => file_type,
             None if is_url(path) => FileType::Html,
             _ => FileType::default(),
         }
@@ -83,6 +98,21 @@ mod tests {
         assert_eq!(
             FileType::from(Path::new("http://foo.com/index.html")),
             FileType::Html
+        );
+    }
+
+    #[test]
+    fn test_default_extensions() {
+        let extensions = FileType::default_extensions();
+        // Test some known extensions
+        assert!(extensions.contains(&"md".to_string()));
+        assert!(extensions.contains(&"html".to_string()));
+        assert!(extensions.contains(&"markdown".to_string()));
+        assert!(extensions.contains(&"htm".to_string()));
+        // Test the count matches our static arrays
+        assert_eq!(
+            extensions.len(),
+            FileType::MARKDOWN_EXTENSIONS.len() + FileType::HTML_EXTENSIONS.len()
         );
     }
 
