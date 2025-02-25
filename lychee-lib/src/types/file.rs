@@ -73,7 +73,7 @@ impl From<FileType> for FileExtensions {
         match file_type {
             FileType::Html => FileType::html_extensions(),
             FileType::Markdown => FileType::markdown_extensions(),
-            FileType::Plaintext => Self::empty(),
+            FileType::Plaintext => FileType::plaintext_extensions(),
         }
     }
 }
@@ -120,12 +120,16 @@ impl FileType {
     /// All known HTML extensions
     const HTML_EXTENSIONS: &'static [&'static str] = &["htm", "html"];
 
-    /// Default extensions which are supported by lychee
+    /// All known plaintext extensions
+    const PLAINTEXT_EXTENSIONS: &'static [&'static str] = &["txt"];
+
+    /// Default extensions which are checked by lychee
     #[must_use]
     pub fn default_extensions() -> FileExtensions {
         let mut extensions = FileExtensions::empty();
         extensions.extend(Self::markdown_extensions());
         extensions.extend(Self::html_extensions());
+        extensions.extend(Self::plaintext_extensions());
         extensions
     }
 
@@ -142,6 +146,15 @@ impl FileType {
     #[must_use]
     pub fn html_extensions() -> FileExtensions {
         Self::HTML_EXTENSIONS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
+    }
+
+    /// All known plaintext extensions
+    #[must_use]
+    pub fn plaintext_extensions() -> FileExtensions {
+        Self::PLAINTEXT_EXTENSIONS
             .iter()
             .map(|&s| s.to_string())
             .collect()
