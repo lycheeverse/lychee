@@ -100,8 +100,8 @@ impl std::str::FromStr for FileExtensions {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
 /// `FileType` defines which file types lychee can handle
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub enum FileType {
     /// File in HTML format
     Html,
