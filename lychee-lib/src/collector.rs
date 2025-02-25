@@ -1,8 +1,8 @@
 use crate::ErrorKind;
 use crate::InputSource;
 use crate::{
-    basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri, utils::request,
-    Base, Input, Request, Result,
+    basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri,
+    types::FileExtensions, utils::request, Base, Input, Request, Result,
 };
 use futures::TryStreamExt;
 use futures::{
@@ -122,7 +122,7 @@ impl Collector {
     /// Convenience method to fetch all unique links from inputs
     /// with the default extensions.
     pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
-        self.collect_links_with_ext(inputs, crate::types::FileType::default_extensions())
+        self.collect_links_from_file_types(inputs, crate::types::FileType::default_extensions())
     }
 
     /// Fetch all unique links from inputs
@@ -132,10 +132,10 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub fn collect_links_with_ext(
+    pub fn collect_links_from_file_types(
         self,
         inputs: Vec<Input>,
-        extensions: Vec<String>,
+        extensions: FileExtensions,
     ) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
         let skip_hidden = self.skip_hidden;
@@ -210,11 +210,11 @@ mod tests {
         inputs: Vec<Input>,
         root_dir: Option<PathBuf>,
         base: Option<Base>,
-        extensions: Vec<String>,
+        extensions: FileExtensions,
     ) -> Result<HashSet<Uri>> {
         let responses = Collector::new(root_dir, base)?
             .include_verbatim(true)
-            .collect_links_with_ext(inputs, extensions);
+            .collect_links_from_file_types(inputs, extensions);
         Ok(responses.map(|r| r.unwrap().uri).collect().await)
     }
 
@@ -303,7 +303,10 @@ mod tests {
             },
         ];
 
-        let links = collect_verbatim(inputs, None, None, FileType::default_extensions()).await.ok().unwrap();
+        let links = collect_verbatim(inputs, None, None, FileType::default_extensions())
+            .await
+            .ok()
+            .unwrap();
 
         let expected_links = HashSet::from_iter([
             website(TEST_STRING),

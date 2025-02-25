@@ -6,9 +6,9 @@ use clap::builder::PossibleValuesParser;
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, BasicAuthSelector, FileType, Input, StatusCodeExcluder, StatusCodeSelector,
-    DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS,
-    DEFAULT_USER_AGENT,
+    Base, BasicAuthSelector, FileExtensions, FileType, Input, StatusCodeExcluder,
+    StatusCodeSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
+    DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -238,15 +238,17 @@ pub(crate) struct Config {
     /// want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
     #[arg(
         long,
-        value_delimiter = ',',
+        value_parser = |s: &str| -> Result<FileExtensions, String> {
+            Ok(FileExtensions::from(s.split(',').map(String::from).collect::<Vec<_>>()))
+        },
         long_help = "Test the specified file extensions for URIs when checking files locally.
-
+    
 Multiple extensions can be separated by commas. Note that if you want to check filetypes,
 which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
 specify both extensions explicitly."
     )]
-    #[serde(default = "FileType::default_extensions")]
-    pub(crate) extensions: Vec<String>,
+    #[serde(default = "FileExtensions::default")]
+    pub(crate) extensions: FileExtensions,
 
     #[arg(help = HELP_MSG_CACHE)]
     #[arg(long)]

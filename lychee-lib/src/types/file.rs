@@ -1,7 +1,98 @@
+use ignore::types::{Types, TypesBuilder};
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use url::Url;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+/// Represents an ordered list of file extensions.
+///
+/// This holds the actual extension strings (e.g. `md`, `html`, etc.) and is
+/// used to build a [`Types`] object which can be used to match file types.
+///
+/// In a sense, it is more "low-level" than [`FileType`] as it is closer to the
+/// actual representation of file extensions, while [`FileType`] is a higher-level
+/// abstraction that represents the "category" of a file (e.g. Markdown, HTML).
+///
+/// The order is significant as extensions at the beginning of the vector will
+/// be treated with higher priority (e.g. when deciding which file to pick out
+/// of a set of options)
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct FileExtensions(Vec<String>);
+
+impl Default for FileExtensions {
+    fn default() -> Self {
+        FileType::default().into()
+    }
+}
+
+impl FileExtensions {
+    /// Create an empty list of file extensions
+    #[must_use]
+    pub const fn empty() -> Self {
+        Self(vec![])
+    }
+
+    /// Extend the list of existing extensions by the values from the iterator
+    pub fn extend<I: IntoIterator<Item = String>>(&mut self, iter: I) {
+        self.0.extend(iter);
+    }
+
+    /// Check if the list of file extensions contains the given file extension
+    pub fn contains<T: Into<String>>(&self, file_extension: T) -> bool {
+        self.0.contains(&file_extension.into())
+    }
+
+    /// Build the current list of file extensions into a file type matcher.
+    ///
+    /// # Errors
+    ///
+    /// Fails if an extension is `all` or otherwise contains any character that
+    /// is not a Unicode letter or number.
+    pub fn all(&self) -> super::Result<Types> {
+        let mut types_builder = TypesBuilder::new();
+        for ext in self.0.clone() {
+            types_builder.add(&ext, &format!("*.{ext}"))?;
+        }
+        Ok(types_builder.select("all").build()?)
+    }
+}
+
+impl From<FileExtensions> for Vec<String> {
+    fn from(value: FileExtensions) -> Self {
+        value.0
+    }
+}
+
+impl From<Vec<String>> for FileExtensions {
+    fn from(value: Vec<String>) -> Self {
+        Self(value)
+    }
+}
+
+impl From<FileType> for FileExtensions {
+    fn from(file_type: FileType) -> Self {
+        match file_type {
+            FileType::Html => FileType::html_extensions(),
+            FileType::Markdown => FileType::markdown_extensions(),
+            FileType::Plaintext => Self::empty(),
+        }
+    }
+}
+
+impl FromIterator<String> for FileExtensions {
+    fn from_iter<T: IntoIterator<Item = String>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl Iterator for FileExtensions {
+    type Item = String;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.pop()
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
 /// `FileType` defines which file types lychee can handle
 pub enum FileType {
     /// File in HTML format
@@ -23,11 +114,29 @@ impl FileType {
 
     /// Default extensions which are supported by lychee
     #[must_use]
-    pub fn default_extensions() -> Vec<String> {
-        let mut extensions = Vec::new();
-        extensions.extend(Self::MARKDOWN_EXTENSIONS.iter().map(|&s| s.to_string()));
-        extensions.extend(Self::HTML_EXTENSIONS.iter().map(|&s| s.to_string()));
+    pub fn default_extensions() -> FileExtensions {
+        let mut extensions = FileExtensions::empty();
+        extensions.extend(Self::markdown_extensions());
+        extensions.extend(Self::html_extensions());
         extensions
+    }
+
+    /// All known Markdown extensions
+    #[must_use]
+    pub fn markdown_extensions() -> FileExtensions {
+        Self::MARKDOWN_EXTENSIONS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
+    }
+
+    /// All known HTML extensions
+    #[must_use]
+    pub fn html_extensions() -> FileExtensions {
+        Self::HTML_EXTENSIONS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
     }
 
     /// Get the [`FileType`] from an extension string
@@ -105,13 +214,14 @@ mod tests {
     fn test_default_extensions() {
         let extensions = FileType::default_extensions();
         // Test some known extensions
-        assert!(extensions.contains(&"md".to_string()));
-        assert!(extensions.contains(&"html".to_string()));
-        assert!(extensions.contains(&"markdown".to_string()));
-        assert!(extensions.contains(&"htm".to_string()));
+        assert!(extensions.contains("md"));
+        assert!(extensions.contains("html"));
+        assert!(extensions.contains("markdown"));
+        assert!(extensions.contains("htm"));
         // Test the count matches our static arrays
+        let all_extensions: Vec<_> = extensions.into();
         assert_eq!(
-            extensions.len(),
+            all_extensions.len(),
             FileType::MARKDOWN_EXTENSIONS.len() + FileType::HTML_EXTENSIONS.len()
         );
     }
