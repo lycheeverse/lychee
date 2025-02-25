@@ -92,6 +92,14 @@ impl Iterator for FileExtensions {
     }
 }
 
+impl std::str::FromStr for FileExtensions {
+    type Err = std::convert::Infallible; // Cannot fail parsing
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.split(',').map(String::from).collect()))
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
 /// `FileType` defines which file types lychee can handle
 pub enum FileType {

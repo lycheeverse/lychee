@@ -238,9 +238,6 @@ pub(crate) struct Config {
     /// want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
     #[arg(
         long,
-        value_parser = |s: &str| -> Result<FileExtensions, String> {
-            Ok(FileExtensions::from(s.split(',').map(String::from).collect::<Vec<_>>()))
-        },
         long_help = "Test the specified file extensions for URIs when checking files locally.
     
 Multiple extensions can be separated by commas. Note that if you want to check filetypes,
