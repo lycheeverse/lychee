@@ -20,7 +20,7 @@ pub struct FileExtensions(Vec<String>);
 
 impl Default for FileExtensions {
     fn default() -> Self {
-        FileType::default_extensions().into()
+        FileType::default_extensions()
     }
 }
 
