@@ -238,6 +238,7 @@ pub(crate) struct Config {
     /// want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
     #[arg(
         long,
+        default_value_t = FileExtensions::default(),
         long_help = "Test the specified file extensions for URIs when checking files locally.
     
 Multiple extensions can be separated by commas. Note that if you want to check filetypes,

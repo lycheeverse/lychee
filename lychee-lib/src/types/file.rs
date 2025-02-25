@@ -20,7 +20,13 @@ pub struct FileExtensions(Vec<String>);
 
 impl Default for FileExtensions {
     fn default() -> Self {
-        FileType::default().into()
+        FileType::default_extensions().into()
+    }
+}
+
+impl std::fmt::Display for FileExtensions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.join(","))
     }
 }
 
