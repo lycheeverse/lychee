@@ -226,7 +226,7 @@ mod tests {
         assert!(extensions.contains("html"));
         assert!(extensions.contains("markdown"));
         assert!(extensions.contains("htm"));
-        // Test the count matches our static arrays
+        // Test that the count matches our static arrays
         let all_extensions: Vec<_> = extensions.into();
         assert_eq!(
             all_extensions.len(),
