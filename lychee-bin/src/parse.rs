@@ -4,15 +4,15 @@ use lychee_lib::{remap::Remaps, Base};
 use std::time::Duration;
 
 /// Split a single HTTP header into a (key, value) tuple
-fn read_header(input: &str) -> Result<(String, String)> {
-    let elements: Vec<_> = input.split('=').collect();
-    if elements.len() != 2 {
-        return Err(anyhow!(
+fn read_header(input: &str) -> Result<(String, String), anyhow::Error> {
+    if let Some((key, value)) = input.split_once('=') {
+        Ok((key.to_string(), value.to_string()))
+    } else {
+        Err(anyhow!(
             "Header value must be of the form key=value, got {}",
             input
-        ));
+        ))
     }
-    Ok((elements[0].into(), elements[1].into()))
 }
 
 /// Parse seconds into a `Duration`
