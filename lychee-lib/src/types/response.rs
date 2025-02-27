@@ -69,7 +69,7 @@ impl Response {
     pub fn subsequent_requests<IsCached: Fn(&Uri) -> bool>(
         &self,
         is_cached: IsCached,
-        credentials: Option<BasicAuthCredentials>,
+        credentials: &Option<BasicAuthCredentials>,
     ) -> Vec<Request> {
         self.1
             .subsequent_uris

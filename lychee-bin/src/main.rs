@@ -251,8 +251,6 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
 fn run_main() -> Result<i32> {
     use std::process::exit;
 
-    console_subscriber::init();
-
     let opts = match load_config() {
         Ok(opts) => opts,
         Err(e) => {

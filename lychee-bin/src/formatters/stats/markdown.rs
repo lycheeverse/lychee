@@ -223,7 +223,7 @@ mod tests {
             Status::Cached(CacheStatus::Error(Some(404))),
             InputSource::Stdin,
             vec![],
-             0,
+            0,
         );
         stats.add(response);
         stats

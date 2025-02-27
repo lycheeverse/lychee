@@ -145,6 +145,7 @@ mod tests {
             success_map: HashMap::default(),
             error_map,
             excluded_map: HashMap::default(),
+            other_map: HashMap::default(),
             detailed_stats: true,
         };
 

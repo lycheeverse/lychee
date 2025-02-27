@@ -63,7 +63,6 @@ impl Hash for BasicAuthCredentials {
 impl FromStr for BasicAuthCredentials {
     type Err = BasicAuthCredentialsParseError;
 
-    #[must_use]
     fn from_str(credentials: &str) -> Result<Self, Self::Err> {
         let parts: Vec<_> = credentials.trim().split(':').collect();
 
