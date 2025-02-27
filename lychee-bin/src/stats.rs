@@ -90,7 +90,7 @@ impl ResponseStats {
 
     /// Check if a response was already checked and added to the stats
     pub(crate) fn was_checked(&self, response: &Response) -> bool {
-        vec![
+        [
             self.success_map.get(response.source()),
             self.error_map.get(response.source()),
             self.excluded_map.get(response.source()),

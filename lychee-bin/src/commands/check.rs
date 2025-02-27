@@ -209,6 +209,7 @@ where
 }
 
 /// Reads from the response channel, updates the progress bar status and (if recursing) sends new requests.
+#[allow(clippy::too_many_arguments)]
 async fn receive_responses(
     mut recv_resp: mpsc::Receiver<Response>,
     req_send: mpsc::Sender<Result<Request>>,
@@ -230,17 +231,16 @@ async fn receive_responses(
             &verbose,
         )?;
 
-        if recurse
-            && max_recursion_depth
-                .map(|limit| response.1.recursion_level < limit)
-                .unwrap_or(true)
-        {
+        if recurse && max_recursion_depth.is_none_or(|limit| response.1.recursion_level < limit) {
             println!(
                 "recursing: {} has depth {} < {}",
                 response.1.uri,
                 response.1.recursion_level,
                 max_recursion_depth.unwrap()
             );
+
+            // TODO fix the lint
+            #[allow(clippy::redundant_closure_call)]
             tokio::spawn((|requests: Vec<Request>,
                            req_send: mpsc::Sender<Result<Request>>,
                            remaining_requests: Arc<AtomicUsize>,
@@ -259,7 +259,7 @@ async fn receive_responses(
                     }
                 }
             })(
-                response.subsequent_requests(|uri| cache.contains_key(uri), None),
+                response.subsequent_requests(|uri| cache.contains_key(uri), &None),
                 req_send.clone(),
                 remaining_requests.clone(),
                 pb.clone(),
@@ -293,6 +293,7 @@ fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
     bar
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn request_to_response(
     recv_req: mpsc::Receiver<Result<Request>>,
     send_resp: mpsc::Sender<Response>,

@@ -177,6 +177,7 @@ mod tests {
             cached: 0,
             success_map,
             excluded_map: HashMap::default(),
+            other_map: HashMap::default(),
             detailed_stats: false,
         };
 
