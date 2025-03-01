@@ -320,6 +320,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             sources,
             opts.config.output.as_ref(),
             &opts.config.exclude_path,
+            &opts.config.extensions,
         )
         .await?;
 
