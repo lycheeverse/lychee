@@ -193,6 +193,104 @@ impl Input {
         })
     }
 
+    /// Get all file paths matching this input source.
+    ///
+    /// This method returns a stream of paths that match the input source,
+    /// taking into account file extensions and exclusions.
+    ///
+    /// # Parameters
+    ///
+    /// * `file_extensions` - The file extensions to filter on
+    ///
+    /// # Returns
+    ///
+    /// Returns a stream of Result<PathBuf> for all matching file paths.
+    ///
+    /// # Errors
+    ///
+    /// Will return errors for file system operations or glob pattern issues
+    pub fn get_file_paths(
+        &self,
+        file_extensions: FileExtensions,
+    ) -> impl Stream<Item = Result<PathBuf>> + '_ {
+        try_stream! {
+            match &self.source {
+                InputSource::RemoteUrl(url) => {
+                    // For URLs, we just yield the URL string as a path
+                    yield PathBuf::from(url.to_string());
+                },
+                InputSource::FsGlob { pattern, ignore_case } => {
+                    // For glob patterns, we expand the pattern and yield matching paths
+                    let glob_expanded = tilde(pattern).to_string();
+                    let mut match_opts = glob::MatchOptions::new();
+                    match_opts.case_sensitive = !ignore_case;
+
+                    for entry in glob_with(&glob_expanded, match_opts)? {
+                        match entry {
+                            Ok(path) => {
+                                // Skip directories or files that don't match extensions
+                                if path.is_dir() {
+                                    continue;
+                                }
+                                if self.is_excluded_path(&path) {
+                                    continue;
+                                }
+
+                                // Check if it matches one of our file extensions
+                                if file_extensions_match(&path, &file_extensions) {
+                                    yield path;
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Error in glob pattern: {e:?}");
+                                continue;
+                            }
+                        }
+                    }
+                },
+                InputSource::FsPath(path) => {
+                    if path.is_dir() {
+                        // For directories, we walk through and yield matching files
+                        for entry in WalkBuilder::new(path)
+                            .standard_filters(true) // Skip gitignored files
+                            .types(file_extensions.all()?)
+                            .hidden(false)
+                            .build()
+                        {
+                            let entry = entry?;
+                            if self.is_excluded_path(&entry.path().to_path_buf()) {
+                                continue;
+                            }
+                            match entry.file_type() {
+                                None => continue,
+                                Some(file_type) => {
+                                    if !file_type.is_file() {
+                                        continue;
+                                    }
+                                }
+                            }
+
+                            yield entry.path().to_path_buf();
+                        }
+                    } else {
+                        // For individual files, yield if not excluded and matches extensions
+                        if !self.is_excluded_path(path) && file_extensions_match(path, &file_extensions) {
+                            yield path.clone();
+                        }
+                    }
+                },
+                InputSource::Stdin => {
+                    // Stdin is handled specially - we yield a marker path
+                    yield PathBuf::from("stdin");
+                },
+                InputSource::String(_) => {
+                    // For raw strings, we yield a marker path
+                    yield PathBuf::from("string");
+                },
+            }
+        }
+    }
+
     /// Retrieve the contents from the input
     ///
     /// If the input is a path, only search through files that match the given
@@ -412,6 +510,13 @@ impl Input {
     fn string_content(s: &str, file_type_hint: Option<FileType>) -> InputContent {
         InputContent::from_string(s, file_type_hint.unwrap_or_default())
     }
+}
+
+/// Helper function to check if a file path matches any of the given extensions
+fn file_extensions_match(path: &Path, extensions: &FileExtensions) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| extensions.contains(ext.to_lowercase()))
 }
 
 /// Function for path exclusion tests

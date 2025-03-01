@@ -315,9 +315,8 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").is_ok_and(|x| x == "1"));
 
     if opts.config.dump_inputs {
-        let sources = collector.collect_sources(inputs);
         let exit_code = commands::dump_inputs(
-            sources,
+            inputs,
             opts.config.output.as_ref(),
             &opts.config.exclude_path,
             &opts.config.extensions,
