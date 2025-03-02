@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use lychee_lib::{chain::RequestChain, ChainResult, ClientBuilder, Handler, Result, Status};
+use lychee_lib::{chain::RequestChain, ChainResult, ClientBuilder, Handler, Result, Status, Uri};
 use reqwest::{Method, Request};
 
 #[derive(Debug)]
@@ -15,6 +15,10 @@ impl Handler<Request, Status> for MyHandler {
         }
 
         ChainResult::Next(request)
+    }
+
+    fn subsequent_uris(&self) -> Vec<Uri> {
+        vec![]
     }
 }
 

@@ -44,6 +44,8 @@ pub(crate) struct ResponseStats {
     pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
     /// Map to store excluded responses (if `detailed_stats` is enabled)
     pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// Map to store other responses (nor success, error, or excluded)
+    pub(crate) other_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Used to store the duration of the run in seconds.
     pub(crate) duration_secs: u64,
     /// Also track successful and excluded responses
@@ -86,6 +88,18 @@ impl ResponseStats {
         }
     }
 
+    /// Check if a response was already checked and added to the stats
+    pub(crate) fn was_checked(&self, response: &Response) -> bool {
+        [
+            self.success_map.get(response.source()),
+            self.error_map.get(response.source()),
+            self.excluded_map.get(response.source()),
+            self.other_map.get(response.source()),
+        ]
+        .iter()
+        .any(|&x| x.is_some_and(|x| x.contains(response.body())))
+    }
+
     /// Add a response status to the appropriate map (success, fail, excluded)
     fn add_response_status(&mut self, response: Response) {
         let status = response.status();
@@ -94,7 +108,7 @@ impl ResponseStats {
             _ if status.is_error() => self.error_map.entry(source).or_default(),
             Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),
             Status::Excluded if self.detailed_stats => self.excluded_map.entry(source).or_default(),
-            _ => return,
+            _ => self.other_map.entry(source).or_default(),
         };
         status_map_entry.insert(response.1);
     }
@@ -104,6 +118,13 @@ impl ResponseStats {
         self.total += 1;
         self.increment_status_counters(response.status());
         self.add_response_status(response);
+    }
+
+    /// Update the stats with a new response if it was not already checked
+    pub(crate) fn insert(&mut self, response: Response) {
+        if !self.was_checked(&response) {
+            self.add(response);
+        }
     }
 
     #[inline]
@@ -139,7 +160,7 @@ mod tests {
     // and it's a lot faster to just generate a fake response
     fn mock_response(status: Status) -> Response {
         let uri = website("https://some-url.com/ok");
-        Response::new(uri, status, InputSource::Stdin)
+        Response::new(uri, status, InputSource::Stdin, vec![], 0)
     }
 
     fn dummy_ok() -> Response {

@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use std::hash::Hash;
 use std::str::FromStr;
 
 use headers::authorization::Credentials;
@@ -9,7 +10,7 @@ use serde::Deserialize;
 use thiserror::Error;
 
 use crate::chain::{ChainResult, Handler};
-use crate::Status;
+use crate::{Status, Uri};
 
 #[derive(Copy, Clone, Debug, Error, PartialEq)]
 pub enum BasicAuthCredentialsParseError {
@@ -28,13 +29,35 @@ pub enum BasicAuthCredentialsParseError {
 
 /// [`BasicAuthCredentials`] contains a pair of basic auth values consisting of
 /// a username and password.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct BasicAuthCredentials {
     /// Basic auth username
     pub username: String,
 
     /// Basic auth password
     pub password: String,
+
+    /// Subsequent URIs
+    subsequent_uris: Vec<Uri>,
+}
+
+impl BasicAuthCredentials {
+    /// Create a new [`BasicAuthCredentials`] instance.
+    #[must_use]
+    pub const fn new(username: String, password: String) -> Self {
+        Self {
+            username,
+            password,
+            subsequent_uris: Vec::new(),
+        }
+    }
+}
+
+impl Hash for BasicAuthCredentials {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.username.hash(state);
+        self.password.hash(state);
+    }
 }
 
 impl FromStr for BasicAuthCredentials {
@@ -59,10 +82,7 @@ impl FromStr for BasicAuthCredentials {
             return Err(BasicAuthCredentialsParseError::MissingPassword);
         }
 
-        Ok(Self {
-            username: parts[0].to_string(),
-            password: parts[1].to_string(),
-        })
+        Ok(Self::new(parts[0].to_string(), parts[1].to_string()))
     }
 }
 
@@ -84,5 +104,13 @@ impl Handler<Request, Status> for Option<BasicAuthCredentials> {
         }
 
         ChainResult::Next(request)
+    }
+
+    fn subsequent_uris(&self) -> Vec<Uri> {
+        if let Some(credentials) = self {
+            credentials.subsequent_uris.clone()
+        } else {
+            Vec::new()
+        }
     }
 }
