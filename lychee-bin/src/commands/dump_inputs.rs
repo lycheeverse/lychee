@@ -16,6 +16,8 @@ pub(crate) async fn dump_inputs(
     output: Option<&PathBuf>,
     excluded_paths: &[PathBuf],
     valid_extensions: &FileExtensions,
+    skip_hidden: bool,
+    skip_gitignored: bool,
 ) -> Result<ExitCode> {
     if let Some(out_file) = output {
         fs::File::create(out_file)?;
@@ -24,7 +26,8 @@ pub(crate) async fn dump_inputs(
     let mut writer = super::create_writer(output.cloned())?;
 
     for input in inputs {
-        let paths_stream = input.get_file_paths(valid_extensions.clone());
+        let paths_stream =
+            input.get_file_paths(valid_extensions.clone(), skip_hidden, skip_gitignored);
         tokio::pin!(paths_stream);
 
         while let Some(path_result) = paths_stream.next().await {
