@@ -217,100 +217,100 @@ impl Input {
         skip_gitignored: bool,
     ) -> impl Stream<Item = Result<PathBuf>> + '_ {
         try_stream! {
-                            match &self.source {
-                                InputSource::RemoteUrl(url) => {
-                                    // For URLs, we just yield the URL string as a path
-                                    yield PathBuf::from(url.to_string());
-                                },
-                                InputSource::FsGlob { pattern, ignore_case } => {
-                                    // For glob patterns, we expand the pattern and yield matching paths
-                                    let glob_expanded = tilde(pattern).to_string();
-                                    let mut match_opts = glob::MatchOptions::new();
-                                    match_opts.case_sensitive = !ignore_case;
+            match &self.source {
+                InputSource::RemoteUrl(url) => {
+                    // For URLs, we just yield the URL string as a path
+                    yield PathBuf::from(url.to_string());
+                },
+                InputSource::FsGlob { pattern, ignore_case } => {
+                    // For glob patterns, we expand the pattern and yield matching paths
+                    let glob_expanded = tilde(pattern).to_string();
+                    let mut match_opts = glob::MatchOptions::new();
+                    match_opts.case_sensitive = !ignore_case;
 
-                                    for entry in glob_with(&glob_expanded, match_opts)? {
-                                        match entry {
-                                            Ok(path) => {
-                                                // Skip directories or files that don't match extensions
-                                                if path.is_dir() {
-                                                    continue;
-                                                }
-                                                if self.is_excluded_path(&path) {
-                                                    continue;
-                                                }
+                    for entry in glob_with(&glob_expanded, match_opts)? {
+                        match entry {
+                            Ok(path) => {
+                                // Skip directories or files that don't match extensions
+                                if path.is_dir() {
+                                    continue;
+                                }
+                                if self.is_excluded_path(&path) {
+                                    continue;
+                                }
 
-                                                // Check if it matches one of our file extensions
-                                                if file_extensions_match(&path, &file_extensions) {
-                                                    yield path;
-                                                }
-                                            }
-                                            Err(e) => {
-                                                eprintln!("Error in glob pattern: {e:?}");
-                                                continue;
-                                            }
-                                        }
-                                    }
-                                },
-                                InputSource::FsPath(path) => {
-                                    if path.is_dir() {
-                                        // For directories, we walk through and yield matching files
-
-
-                                        // In the get_file_paths method:
-        for entry in WalkBuilder::new(path)
-        // Enable or disable standard filters based on skip_gitignored parameter.
-        // This controls:
-        // - Hidden files/directories (skip files starting with '.')
-        // - Parent directory gitignore rules
-        // - .ignore files
-        // - .gitignore files
-        // - Global git ignore files
-        // - .git/info/exclude files
-        // When skip_gitignored is true, these filters are enabled (files will be skipped).
-        // When skip_gitignored is false, these filters are disabled (all files will be included).
-        .standard_filters(skip_gitignored)
-
-        // Override hidden file behavior to be controlled by the separate skip_hidden parameter
-        .hidden(skip_hidden)
-
-        // Configure the file types filter to only include files with matching extensions
-        .types(file_extensions.try_into()?)
-
-        .build()
-        {
-                                            let entry = entry?;
-                                            if self.is_excluded_path(&entry.path().to_path_buf()) {
-                                                continue;
-                                            }
-                                            match entry.file_type() {
-                                                None => continue,
-                                                Some(file_type) => {
-                                                    if !file_type.is_file() {
-                                                        continue;
-                                                    }
-                                                }
-                                            }
-
-
-                                            yield entry.path().to_path_buf();
-                                        }
-                                    } else {
-                                        // For individual files, yield if not excluded and matches extensions
-                                        if !self.is_excluded_path(path) && file_extensions_match(path, &file_extensions) {
-                                            yield path.clone();
-                                        }
-                                    }
-                                },
-                                InputSource::Stdin => {
-                                    // Stdin is handled specially - we yield a marker path
-                                    yield PathBuf::from("stdin");
-                                },
-                                InputSource::String(_) => {
-                                    // For raw strings, we yield a marker path
-                                    yield PathBuf::from("string");
-                                },
+                                // Check if it matches one of our file extensions
+                                if file_extensions_match(&path, &file_extensions) {
+                                    yield path;
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Error in glob pattern: {e:?}");
+                                continue;
                             }
                         }
+                    }
+                },
+                InputSource::FsPath(path) => {
+                    if path.is_dir() {
+                        // For directories, we walk through and yield matching files
+                        println!("Walking through directory: {}", path.display());
+
+                        // In the get_file_paths method:
+                        for entry in WalkBuilder::new(path)
+                            // Enable or disable standard filters based on skip_gitignored parameter.
+                            // This controls:
+                            // - Hidden files/directories (skip files starting with '.')
+                            // - Parent directory gitignore rules
+                            // - .ignore files
+                            // - .gitignore files
+                            // - Global git ignore files
+                            // - .git/info/exclude files
+                            // When skip_gitignored is true, these filters are enabled (files will be skipped).
+                            // When skip_gitignored is false, these filters are disabled (all files will be included).
+                            .standard_filters(skip_gitignored)
+
+                            // Override hidden file behavior to be controlled by the separate skip_hidden parameter
+                            .hidden(skip_hidden)
+
+                            // Configure the file types filter to only include files with matching extensions
+                            .types(file_extensions.try_into()?)
+
+                            .build()
+                        {
+                            let entry = entry?;
+                            if self.is_excluded_path(&entry.path().to_path_buf()) {
+                                continue;
+                            }
+                            match entry.file_type() {
+                                None => continue,
+                                Some(file_type) => {
+                                    println!("Is file: {:?}", file_type.is_file());
+                                    if !file_type.is_file() {
+                                        continue;
+                                    }
+                                }
+                            }
+
+                            yield entry.path().to_path_buf();
+                        }
+                    } else {
+                        // For individual files, yield if not excluded and matches extensions
+                        if !self.is_excluded_path(path) && file_extensions_match(path, &file_extensions) {
+                            yield path.clone();
+                        }
+                    }
+                },
+                InputSource::Stdin => {
+                    // Stdin is handled specially - we yield a marker path
+                    yield PathBuf::from("stdin");
+                },
+                InputSource::String(_) => {
+                    // For raw strings, we yield a marker path
+                    yield PathBuf::from("string");
+                },
+            }
+        }
     }
 
     /// Retrieve the contents from the input
