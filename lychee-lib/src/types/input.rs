@@ -235,7 +235,7 @@ impl Input {
                     if path.is_dir() {
                         for entry in WalkBuilder::new(path)
                             .standard_filters(skip_gitignored)
-                            .types(file_extensions.all()?)
+                            .types(file_extensions.try_into()?)
                             .hidden(skip_hidden)
                             .build()
                         {
