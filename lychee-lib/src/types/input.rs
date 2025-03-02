@@ -253,7 +253,7 @@ impl Input {
                         // For directories, we walk through and yield matching files
                         for entry in WalkBuilder::new(path)
                             .standard_filters(true) // Skip gitignored files
-                            .types(file_extensions.all()?)
+                            .types(file_extensions.try_into()?)
                             .hidden(false)
                             .build()
                         {
