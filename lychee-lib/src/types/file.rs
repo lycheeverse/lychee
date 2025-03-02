@@ -177,6 +177,8 @@ impl FileType {
             Some(Self::Markdown)
         } else if Self::HTML_EXTENSIONS.contains(&ext.as_str()) {
             Some(Self::Html)
+        } else if Self::PLAINTEXT_EXTENSIONS.contains(&ext.as_str()) {
+            Some(Self::Plaintext)
         } else {
             None
         }
@@ -253,7 +255,9 @@ mod tests {
         let all_extensions: Vec<_> = extensions.into();
         assert_eq!(
             all_extensions.len(),
-            FileType::MARKDOWN_EXTENSIONS.len() + FileType::HTML_EXTENSIONS.len()
+            FileType::MARKDOWN_EXTENSIONS.len()
+                + FileType::HTML_EXTENSIONS.len()
+                + FileType::PLAINTEXT_EXTENSIONS.len()
         );
     }
 
