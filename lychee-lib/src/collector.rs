@@ -117,6 +117,12 @@ impl Collector {
         self.collect_links_from_file_types(inputs, crate::types::FileType::default_extensions())
     }
 
+    /// Convenience method to fetch all unique links from inputs
+    /// with the default extensions.
+    pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
+        self.collect_links_from_file_types(inputs, crate::types::FileType::default_extensions())
+    }
+
     /// Fetch all unique links from inputs
     /// All relative URLs get prefixed with `base` (if given).
     /// (This can be a directory or a base URL)
