@@ -6,8 +6,9 @@ use clap::builder::PossibleValuesParser;
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, BasicAuthSelector, Input, StatusCodeExcluder, StatusCodeSelector, DEFAULT_MAX_REDIRECTS,
-    DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+    Base, BasicAuthSelector, FileExtensions, FileType, Input, StatusCodeExcluder,
+    StatusCodeSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
+    DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -227,6 +228,25 @@ pub(crate) struct Config {
     #[arg(short, long, verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) no_progress: bool,
+
+    /// A list of file extensions. Files not matching the specified extensions are skipped.
+    ///
+    /// E.g. a user can specify `--extensions html,htm,php,asp,aspx,jsp,cgi`
+    /// to check for links in files with these extensions.
+    ///
+    /// This is useful when the default extensions are not enough and you don't
+    /// want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
+    #[arg(
+        long,
+        default_value_t = FileExtensions::default(),
+        long_help = "Test the specified file extensions for URIs when checking files locally.
+    
+Multiple extensions can be separated by commas. Note that if you want to check filetypes,
+which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
+specify both extensions explicitly."
+    )]
+    #[serde(default = "FileExtensions::default")]
+    pub(crate) extensions: FileExtensions,
 
     #[arg(help = HELP_MSG_CACHE)]
     #[arg(long)]
@@ -584,6 +604,7 @@ impl Config {
             cookie_jar: None;
             include_fragments: false;
             accept: StatusCodeSelector::default();
+            extensions: FileType::default_extensions();
         }
 
         if self

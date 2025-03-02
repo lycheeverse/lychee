@@ -12,13 +12,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::io::{stdin, AsyncReadExt};
 
-const STDIN: &str = "-";
+use super::file::FileExtensions;
 
-// Check the extension of the given path against the list of known/accepted
-// file extensions
-fn valid_extension(p: &Path) -> bool {
-    matches!(FileType::from(p), FileType::Markdown | FileType::Html)
-}
+const STDIN: &str = "-";
 
 #[derive(Debug)]
 /// Encapsulates the content for a given input
@@ -199,6 +195,9 @@ impl Input {
 
     /// Retrieve the contents from the input
     ///
+    /// If the input is a path, only search through files that match the given
+    /// file extensions.
+    ///
     /// # Errors
     ///
     /// Returns an error if the contents can not be retrieved
@@ -209,6 +208,9 @@ impl Input {
         skip_missing: bool,
         skip_hidden: bool,
         skip_gitignored: bool,
+        // If `Input` is a file path, try the given file extensions in order.
+        // Stop on the first match.
+        file_extensions: FileExtensions,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             match self.source {
@@ -231,24 +233,26 @@ impl Input {
                 }
                 InputSource::FsPath(ref path) => {
                     if path.is_dir() {
-                        for entry in WalkBuilder::new(path).standard_filters(skip_gitignored).hidden(skip_hidden).build() {
+                        for entry in WalkBuilder::new(path)
+                            .standard_filters(skip_gitignored)
+                            .types(file_extensions.try_into()?)
+                            .hidden(skip_hidden)
+                            .build()
+                        {
                             let entry = entry?;
-
                             if self.is_excluded_path(&entry.path().to_path_buf()) {
                                 continue;
                             }
-
                             match entry.file_type() {
                                 None => continue,
                                 Some(file_type) => {
-                                    if !file_type.is_file() || !valid_extension(entry.path()) {
+                                    if !file_type.is_file() {
                                         continue;
                                     }
                                 }
-                            };
-
+                            }
                             let content = Self::path_content(entry.path()).await?;
-                            yield content
+                            yield content;
                         }
                     } else {
                         if self.is_excluded_path(path) {
@@ -457,17 +461,6 @@ mod tests {
         let input = Input::new(test_file, None, false, None);
         assert!(input.is_err());
         assert!(matches!(input, Err(ErrorKind::InvalidFile(PathBuf { .. }))));
-    }
-
-    #[test]
-    fn test_valid_extension() {
-        assert!(valid_extension(Path::new("file.md")));
-        assert!(valid_extension(Path::new("file.markdown")));
-        assert!(valid_extension(Path::new("file.html")));
-        assert!(valid_extension(Path::new("file.htm")));
-        assert!(valid_extension(Path::new("file.HTM")));
-        assert!(!valid_extension(Path::new("file.txt")));
-        assert!(!valid_extension(Path::new("file")));
     }
 
     #[test]
