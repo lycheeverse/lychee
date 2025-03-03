@@ -285,7 +285,6 @@ impl Input {
                             match entry.file_type() {
                                 None => continue,
                                 Some(file_type) => {
-                                    println!("Is file: {:?}", file_type.is_file());
                                     if !file_type.is_file() {
                                         continue;
                                     }
