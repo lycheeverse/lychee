@@ -54,6 +54,10 @@ mod tests {
         let mut custom = HeaderMap::new();
         custom.insert(header::ACCEPT, "text/html".parse().unwrap());
         assert_eq!(parse_headers(&["accept=text/html"]).unwrap(), custom);
+
+        let mut custom_with_equals = HeaderMap::new();
+        custom_with_equals.insert("Authorization", "Bearer abc=def".parse().unwrap());
+        assert_eq!(parse_headers(&["Authorization=Bearer abc=def"]).unwrap(), custom_with_equals);
     }
 
     #[test]
