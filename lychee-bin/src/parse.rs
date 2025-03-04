@@ -57,7 +57,10 @@ mod tests {
 
         let mut custom_with_equals = HeaderMap::new();
         custom_with_equals.insert("x-test", "check=this".parse().unwrap());
-        assert_eq!(parse_headers(&["x-test=check=this"]).unwrap(), custom_with_equals);
+        assert_eq!(
+            parse_headers(&["x-test=check=this"]).unwrap(),
+            custom_with_equals
+        );
     }
 
     #[test]
