@@ -168,6 +168,8 @@ mod tests {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Ok(StatusCode::OK),
+            subsequent_uris: vec![],
+            recursion_level: 0,
         };
         let markdown = markdown_response(&response).unwrap();
         assert_eq!(markdown, "* [200] <http://example.com/>");
@@ -178,6 +180,8 @@ mod tests {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Cached(CacheStatus::Ok(200)),
+            subsequent_uris: vec![],
+            recursion_level: 0,
         };
         let markdown = markdown_response(&response).unwrap();
         assert_eq!(markdown, "* [200] <http://example.com/> | OK (cached)");
@@ -188,6 +192,8 @@ mod tests {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Cached(CacheStatus::Error(Some(400))),
+            subsequent_uris: vec![],
+            recursion_level: 0,
         };
         let markdown = markdown_response(&response).unwrap();
         assert_eq!(markdown, "* [400] <http://example.com/> | Error (cached)");
@@ -216,6 +222,8 @@ mod tests {
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Error(Some(404))),
             InputSource::Stdin,
+            vec![],
+            0,
         );
         stats.add(response);
         stats
