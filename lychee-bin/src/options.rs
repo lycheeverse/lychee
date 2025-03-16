@@ -47,19 +47,31 @@ const HELP_MSG_CONFIG_FILE: &str = formatcp!(
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
-const TLS_VERSIONS: [&'static str; 4] = [
-    "TLSv1_0",
-    "TLSv1_1",
-    "TLSv1_2",
-    "TLSv1_3",
-];
-fn tls_from_str(ver: impl AsRef<str>) -> Option<tls::Version> {
-    match ver.as_ref() {
-        "TLSv1_0" => Some(tls::Version::TLS_1_0),
-        "TLSv1_1" => Some(tls::Version::TLS_1_1),
-        "TLSv1_2" => Some(tls::Version::TLS_1_2),
-        "TLSv1_3" => Some(tls::Version::TLS_1_3),
-        _ => None,
+#[derive(Debug, Display, Deserialize, Default, Clone, EnumString)]
+#[non_exhaustive]
+pub(crate) enum TlsVersion {
+    #[serde(rename = "TLSv1_0")]
+    #[strum(serialize = "TLSv1_0")]
+    V1_0,
+    #[serde(rename = "TLSv1_1")]
+    #[strum(serialize = "TLSv1_1")]
+    V1_1,
+    #[serde(rename = "TLSv1_2")]
+    #[strum(serialize = "TLSv1_2")]
+    #[default]
+    V1_2,
+    #[serde(rename = "TLSv1_3")]
+    #[strum(serialize = "TLSv1_3")]
+    V1_3,
+}
+impl From<TlsVersion> for tls::Version {
+    fn from(ver: TlsVersion) -> Self {
+        match ver {
+            TlsVersion::V1_0 => tls::Version::TLS_1_0,
+            TlsVersion::V1_1 => tls::Version::TLS_1_1,
+            TlsVersion::V1_2 => tls::Version::TLS_1_2,
+            TlsVersion::V1_3 => tls::Version::TLS_1_3,
+        }
     }
 }
 
@@ -335,15 +347,9 @@ list of excluded status codes. This example will not cache results with a status
     pub(crate) max_retries: u64,
 
     // Minimum TLS Version
-    #[arg(
-        long,
-        default_value = "TLSv1_0",
-        value_parser=PossibleValuesParser::new(TLS_VERSIONS).map(tls_from_str),
-    )]
-    #[serde(
-        skip,
-    )]
-    pub(crate) min_tls: tls::Version,
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) min_tls: Option<TlsVersion>,
 
     /// Maximum number of concurrent network requests
     #[arg(long, default_value = &MAX_CONCURRENCY_STR)]

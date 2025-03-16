@@ -354,6 +354,7 @@ impl ClientBuilder {
         if let Some(cookie_jar) = self.cookie_jar {
             builder = builder.cookie_provider(cookie_jar);
         }
+
         if let Some(min_tls) = self.min_tls_version {
             builder = builder.min_tls_version(min_tls);
         }
