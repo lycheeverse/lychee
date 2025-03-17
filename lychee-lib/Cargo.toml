@@ -38,7 +38,7 @@ pulldown-cmark = "0.13.0"
 regex = "1.11.1"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.12.9", default-features = false, features = [
+reqwest = { version = "0.12.14", default-features = false, features = [
     "gzip",
     "trust-dns",
     "cookies",
@@ -70,7 +70,7 @@ wiremock = "0.6.3"
 serde_json = "1.0.140"
 rstest = "0.25.0"
 toml = "0.8.20"
-pretty_assertions = "1.4.0"
+pretty_assertions = "1.4.1"
 
 [features]
 
