@@ -8,10 +8,10 @@ name = "chain"
 path = "chain.rs"
 
 [dependencies]
-async-trait = "0.1.87"
+async-trait = "0.1.88"
 lychee-lib = { path = "../../lychee-lib", default-features = false }
 reqwest = "0.12.9"
-tokio = { version = "1.44.0", features = ["full"] }
+tokio = { version = "1.44.1", features = ["full"] }
 
 [features]
 email-check = ["lychee-lib/email-check"]
