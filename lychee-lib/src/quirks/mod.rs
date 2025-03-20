@@ -1,6 +1,6 @@
 use crate::{
     chain::{ChainResult, Handler},
-    Status,
+    Status, Uri,
 };
 use async_trait::async_trait;
 use header::HeaderValue;
@@ -103,6 +103,10 @@ impl Quirks {
 impl Handler<Request, Status> for Quirks {
     async fn handle(&mut self, input: Request) -> ChainResult<Request, Status> {
         ChainResult::Next(self.apply(input))
+    }
+
+    fn subsequent_uris(&self) -> Vec<Uri> {
+        vec![]
     }
 }
 
