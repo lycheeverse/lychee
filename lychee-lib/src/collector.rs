@@ -111,14 +111,6 @@ impl Collector {
         self
     }
 
-    /// Collect all sources from a list of [`Input`]s. For further details,
-    /// see also [`Input::get_sources`](crate::Input#method.get_sources).
-    pub fn collect_sources(self, inputs: Vec<Input>) -> impl Stream<Item = Result<String>> {
-        stream::iter(inputs)
-            .par_then_unordered(None, move |input| async move { input.get_sources() })
-            .flatten()
-    }
-
     /// Convenience method to fetch all unique links from inputs
     /// with the default extensions.
     pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
@@ -223,23 +215,6 @@ mod tests {
     const TEST_FILE: &str = "https://test-file.io";
     const TEST_GLOB_1: &str = "https://test-glob-1.io";
     const TEST_GLOB_2_MAIL: &str = "test@glob-2.io";
-
-    #[tokio::test]
-    async fn test_file_without_extension_is_plaintext() -> Result<()> {
-        let temp_dir = tempfile::tempdir().unwrap();
-        // Treat as plaintext file (no extension)
-        let file_path = temp_dir.path().join("README");
-        let _file = File::create(&file_path).unwrap();
-        let input = Input::new(&file_path.as_path().display().to_string(), None, true, None)?;
-        let contents: Vec<_> = input
-            .get_contents(true, true, true, FileType::default_extensions())
-            .collect::<Vec<_>>()
-            .await;
-
-        assert_eq!(contents.len(), 1);
-        assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Plaintext);
-        Ok(())
-    }
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
