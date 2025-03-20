@@ -1,8 +1,8 @@
 use crate::ErrorKind;
 use crate::InputSource;
 use crate::{
-    basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri, utils::request,
-    Base, Input, Request, Result,
+    basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri,
+    types::FileExtensions, utils::request, Base, Input, Request, Result,
 };
 use futures::TryStreamExt;
 use futures::{
@@ -119,6 +119,12 @@ impl Collector {
             .flatten()
     }
 
+    /// Convenience method to fetch all unique links from inputs
+    /// with the default extensions.
+    pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
+        self.collect_links_from_file_types(inputs, crate::types::FileType::default_extensions())
+    }
+
     /// Fetch all unique links from inputs
     /// All relative URLs get prefixed with `base` (if given).
     /// (This can be a directory or a base URL)
@@ -126,7 +132,11 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
+    pub fn collect_links_from_file_types(
+        self,
+        inputs: Vec<Input>,
+        extensions: FileExtensions,
+    ) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
         let skip_hidden = self.skip_hidden;
         let skip_ignored = self.skip_ignored;
@@ -134,13 +144,14 @@ impl Collector {
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {
                 let default_base = global_base.clone();
+                let extensions = extensions.clone();
                 async move {
                     let base = match &input.source {
                         InputSource::RemoteUrl(url) => Base::try_from(url.as_str()).ok(),
                         _ => default_base,
                     };
                     input
-                        .get_contents(skip_missing_inputs, skip_hidden, skip_ignored)
+                        .get_contents(skip_missing_inputs, skip_hidden, skip_ignored, extensions)
                         .map(move |content| (content, base.clone()))
                 }
             })
@@ -191,15 +202,19 @@ mod tests {
         Ok(responses.map(|r| r.unwrap().uri).collect().await)
     }
 
-    // Helper function for collecting verbatim links
+    /// Helper function for collecting verbatim links
+    ///
+    /// A verbatim link is a link that is not parsed by the HTML parser.
+    /// For example, a link in a code block or a script tag.
     async fn collect_verbatim(
         inputs: Vec<Input>,
         root_dir: Option<PathBuf>,
         base: Option<Base>,
+        extensions: FileExtensions,
     ) -> Result<HashSet<Uri>> {
         let responses = Collector::new(root_dir, base)?
             .include_verbatim(true)
-            .collect_links(inputs);
+            .collect_links_from_file_types(inputs, extensions);
         Ok(responses.map(|r| r.unwrap().uri).collect().await)
     }
 
@@ -223,7 +238,7 @@ mod tests {
             HeaderMap::new(),
         )?;
         let contents: Vec<_> = input
-            .get_contents(true, true, true)
+            .get_contents(true, true, true, FileType::default_extensions())
             .collect::<Vec<_>>()
             .await;
 
@@ -236,7 +251,7 @@ mod tests {
     async fn test_url_without_extension_is_html() -> Result<()> {
         let input = Input::new("https://example.com/", None, true, None, HeaderMap::new())?;
         let contents: Vec<_> = input
-            .get_contents(true, true, true)
+            .get_contents(true, true, true, FileType::default_extensions())
             .collect::<Vec<_>>()
             .await;
 
@@ -298,7 +313,10 @@ mod tests {
             },
         ];
 
-        let links = collect_verbatim(inputs, None, None).await.ok().unwrap();
+        let links = collect_verbatim(inputs, None, None, FileType::default_extensions())
+            .await
+            .ok()
+            .unwrap();
 
         let expected_links = HashSet::from_iter([
             website(TEST_STRING),
