@@ -54,7 +54,10 @@ mod tests {
         let mut custom = HeaderMap::new();
         custom.insert(header::ACCEPT, "text/html".parse().unwrap());
         assert_eq!(parse_headers(&["accept=text/html"]).unwrap(), custom);
+    }
 
+    #[test]
+    fn test_parse_custom_headers_with_equals() {
         let mut custom_with_equals = HeaderMap::new();
         custom_with_equals.insert("x-test", "check=this".parse().unwrap());
         assert_eq!(
