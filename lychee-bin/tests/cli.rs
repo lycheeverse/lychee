@@ -12,7 +12,7 @@ mod cli {
     use anyhow::anyhow;
     use assert_cmd::Command;
     use assert_json_diff::assert_json_include;
-    use http::StatusCode;
+    use http::{Method, StatusCode};
     use lychee_lib::{InputSource, ResponseBody};
     use predicates::{
         prelude::{predicate, PredicateBooleanExt},
@@ -383,7 +383,7 @@ mod cli {
         let dir = fixtures_path().join("resolve_paths");
 
         cmd.arg("--offline")
-            .arg("--base-url")
+            .arg("--base")
             .arg(&dir)
             .arg(dir.join("index.html"))
             .env_clear()
@@ -419,7 +419,7 @@ mod cli {
         cmd.arg("--offline")
             .arg("--root-dir")
             .arg("/resolve_paths")
-            .arg("--base-url")
+            .arg("--base")
             .arg(&dir)
             .arg(dir.join("resolve_paths").join("index.html"))
             .env_clear()
@@ -1944,75 +1944,86 @@ mod cli {
         Ok(())
     }
 
-    #[test]
-    fn test_sorted_error_output() -> Result<()> {
-        let test_files = ["TEST_GITHUB_404.md", "TEST_INVALID_URLS.html"];
+    #[tokio::test]
+    async fn test_no_header_set_on_input() -> Result<()> {
+        let mut cmd = main_command();
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1),
+            )
+            .await;
 
-        let test_urls = [
-            "https://httpbin.org/status/404",
-            "https://httpbin.org/status/500",
-            "https://httpbin.org/status/502",
-        ];
+        cmd.arg("--verbose").arg(server.uri()).assert().success();
 
-        let cmd = &mut main_command()
-            .arg("--format")
-            .arg("compact")
-            .arg(fixtures_path().join(test_files[1]))
-            .arg(fixtures_path().join(test_files[0]))
-            .assert()
-            .failure()
-            .code(2);
+        let received_requests = server.received_requests().await.unwrap();
+        assert_eq!(received_requests.len(), 1);
 
-        let output = String::from_utf8_lossy(&cmd.get_output().stdout);
-        let mut position: usize = 0;
+        let received_request = &received_requests[0];
+        assert_eq!(received_request.method, Method::GET);
+        assert_eq!(received_request.url.path(), "/");
 
-        // Check that the input sources are sorted
-        for file in test_files {
-            assert!(output.contains(file));
-
-            let next_position = output.find(file).unwrap();
-
-            assert!(next_position > position);
-            position = next_position;
-        }
-
-        position = 0;
-
-        // Check that the responses are sorted
-        for url in test_urls {
-            assert!(output.contains(url));
-
-            let next_position = output.find(url).unwrap();
-
-            assert!(next_position > position);
-            position = next_position;
-        }
-
+        // Make sure the request does not contain the custom header
+        assert!(!received_request.headers.contains_key("X-Foo"));
         Ok(())
     }
 
-    #[test]
-    fn test_extract_url_ending_with_period_file() {
-        let test_path = fixtures_path().join("LINK_PERIOD.html");
-
+    #[tokio::test]
+    async fn test_header_set_on_input() -> Result<()> {
         let mut cmd = main_command();
-        cmd.arg("--dump")
-            .arg(test_path)
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("X-Foo", "Bar"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    // We expect the mock to be called exactly least once.
+                    .expect(1)
+                    .named("GET expecting custom header"),
+            )
+            .await;
+
+        cmd.arg("--verbose")
+            .arg("--header")
+            .arg("X-Foo: Bar")
+            .arg(server.uri())
             .assert()
-            .success()
-            .stdout(contains("https://www.example.com/smth."));
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_extract_url_ending_with_period_webserver() {
+    async fn test_multi_header_set_on_input() -> Result<()> {
         let mut cmd = main_command();
-        let body = r#"<a href="https://www.example.com/smth.">link</a>"#;
-        let mock_server = mock_response!(body);
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("X-Foo", "Bar"))
+                    .and(wiremock::matchers::header("X-Bar", "Baz"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    // We expect the mock to be called exactly least once.
+                    .expect(1)
+                    .named("GET expecting custom header"),
+            )
+            .await;
 
-        cmd.arg("--dump")
-            .arg(mock_server.uri())
+        cmd.arg("--verbose")
+            .arg("--header")
+            .arg("X-Foo: Bar")
+            .arg("--header")
+            .arg("X-Bar: Baz")
+            .arg(server.uri())
             .assert()
-            .success()
-            .stdout(contains("https://www.example.com/smth."));
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
+        Ok(())
     }
 }

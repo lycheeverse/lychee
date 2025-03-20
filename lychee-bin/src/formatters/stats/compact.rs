@@ -37,7 +37,7 @@ impl Display for CompactResponseStats {
 
         let response_formatter = get_response_formatter(&self.mode);
 
-        for (source, responses) in super::sort_stat_map(&stats.error_map) {
+        for (source, responses) in &stats.error_map {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             for response in responses {
                 writeln!(
@@ -47,16 +47,9 @@ impl Display for CompactResponseStats {
                 )?;
             }
 
-            if let Some(suggestions) = stats.suggestion_map.get(source) {
-                // Sort suggestions
-                let mut sorted_suggestions: Vec<_> = suggestions.iter().collect();
-                sorted_suggestions.sort_by(|a, b| {
-                    let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-                    human_sort::compare(&a, &b)
-                });
-
+            if let Some(suggestions) = &stats.suggestion_map.get(source) {
                 writeln!(f, "\n\u{2139} Suggestions")?;
-                for suggestion in sorted_suggestions {
+                for suggestion in *suggestions {
                     writeln!(f, "{suggestion}")?;
                 }
             }

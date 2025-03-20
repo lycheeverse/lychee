@@ -3,11 +3,9 @@ on:
   workflow_dispatch:
   workflow_run:
     workflows: 
-      - "Release Binary"
+      - release
     types:
       - completed
-    branches:
-      - master
   push:
     branches:
       - master
@@ -43,9 +41,9 @@ jobs:
             type=schedule
             type=ref,event=branch
             type=ref,event=pr
-            type=semver,pattern={{version}},value=${{ github.ref_name }},prefix=lychee-
-            type=semver,pattern={{major}}.{{minor}},value=${{ github.ref_name }},prefix=lychee-
-            type=semver,pattern={{major}},value=${{ github.ref_name }},prefix=lychee-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
             type=sha
             # set latest tag for default branch
             type=raw,value=latest,enable={{is_default_branch}}
@@ -65,18 +63,12 @@ jobs:
             type=schedule
             type=ref,event=branch
             type=ref,event=pr
-            type=semver,pattern={{version}},value=${{ github.ref_name }},prefix=lychee-
-            type=semver,pattern={{major}}.{{minor}},value=${{ github.ref_name }},prefix=lychee-
-            type=semver,pattern={{major}},value=${{ github.ref_name }},prefix=lychee-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
             type=sha
             # set latest tag for default branch
             type=raw,value=latest,enable={{is_default_branch}}
-
-      # Debug step to see generated tags
-      - name: Show tags
-        run: |
-          echo "Tags for debian: ${{ steps.meta.outputs.tags }}"
-          echo "Tags for alpine: ${{ steps.meta-alpine.outputs.tags }}"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

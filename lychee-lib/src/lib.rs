@@ -97,8 +97,8 @@ pub use crate::{
     filter::{Excludes, Filter, Includes},
     types::{
         uri::valid::Uri, AcceptRange, AcceptRangeError, Base, BasicAuthCredentials,
-        BasicAuthSelector, CacheStatus, CookieJar, ErrorKind, FileExtensions, FileType, Input,
-        InputContent, InputSource, Request, Response, ResponseBody, Result, Status,
-        StatusCodeExcluder, StatusCodeSelector,
+        BasicAuthSelector, CacheStatus, CookieJar, ErrorKind, FileType, Input, InputContent,
+        InputSource, Request, Response, ResponseBody, Result, Status, StatusCodeExcluder,
+        StatusCodeSelector,
     },
 };

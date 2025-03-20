@@ -30,7 +30,6 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
             }) => {
                 // Note: Explicitly listing all link types below to make it easier to
                 // change the behavior for a specific link type in the future.
-                #[allow(clippy::match_same_arms)]
                 match link_type {
                     // Inline link like `[foo](bar)`
                     // This is the most common link type
@@ -61,17 +60,6 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
                     // Email address in autolink like `<john@example.org>`
                     LinkType::Email =>
                      Some(extract_raw_uri_from_plaintext(&dest_url)),
-                    // Wiki URL (`[[http://example.com]]`)
-                    // This element is currently not matched and I'm not sure why.
-                    // However, we keep it in here for future compatibility with
-                    // markup5ever.
-                    LinkType::WikiLink { has_pothole: _ } => {
-                        Some(vec![RawUri {
-                            text: dest_url.to_string(),
-                            element: Some("a".to_string()),
-                            attribute: Some("href".to_string()),
-                        }])
-                    }
                 }
             }
 
@@ -381,21 +369,6 @@ $$
             text: "https://example.com/_".to_string(),
             element: None,
             attribute: None,
-        }];
-        let uris = extract_markdown(markdown, true);
-        assert_eq!(uris, expected);
-    }
-
-    #[test]
-    fn test_wiki_link() {
-        let markdown = r"[[https://example.com/destination]]";
-        let expected = vec![RawUri {
-            text: "https://example.com/destination".to_string(),
-            // This should be a link element, but is currently matched as plaintext
-            element: None,
-            attribute: None,
-            // element: Some("a".to_string()),
-            // attribute: Some("href".to_string()),
         }];
         let uris = extract_markdown(markdown, true);
         assert_eq!(uris, expected);

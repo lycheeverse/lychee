@@ -121,25 +121,14 @@ jobs:
           mkdir dmg
           mv lychee dmg/
           hdiutil create -fs HFS+ -srcfolder dmg -volname lychee lychee.dmg
-          tar -czvf lychee.tar.gz -C dmg/ lychee
 
-      - name: Upload .dmg
+      - name: Upload binary
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           asset_name: lychee-arm64-macos.dmg
           asset_path: target/release/lychee.dmg
-          upload_url: ${{needs.prepare.outputs.upload_url}}
-          asset_content_type: application/octet-stream
-
-      - name: Upload .tar.gz
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          asset_name: lychee-arm64-macos.tar.gz
-          asset_path: target/release/lychee.tar.gz
           upload_url: ${{needs.prepare.outputs.upload_url}}
           asset_content_type: application/octet-stream
 

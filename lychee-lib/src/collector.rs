@@ -1,8 +1,8 @@
 use crate::ErrorKind;
 use crate::InputSource;
 use crate::{
-    basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri,
-    types::FileExtensions, utils::request, Base, Input, Request, Result,
+    basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri, utils::request,
+    Base, Input, Request, Result,
 };
 use futures::TryStreamExt;
 use futures::{
@@ -119,12 +119,6 @@ impl Collector {
             .flatten()
     }
 
-    /// Convenience method to fetch all unique links from inputs
-    /// with the default extensions.
-    pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
-        self.collect_links_from_file_types(inputs, crate::types::FileType::default_extensions())
-    }
-
     /// Fetch all unique links from inputs
     /// All relative URLs get prefixed with `base` (if given).
     /// (This can be a directory or a base URL)
@@ -132,11 +126,7 @@ impl Collector {
     /// # Errors
     ///
     /// Will return `Err` if links cannot be extracted from an input
-    pub fn collect_links_from_file_types(
-        self,
-        inputs: Vec<Input>,
-        extensions: FileExtensions,
-    ) -> impl Stream<Item = Result<Request>> {
+    pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
         let skip_hidden = self.skip_hidden;
         let skip_ignored = self.skip_ignored;
@@ -144,14 +134,13 @@ impl Collector {
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {
                 let default_base = global_base.clone();
-                let extensions = extensions.clone();
                 async move {
                     let base = match &input.source {
                         InputSource::RemoteUrl(url) => Base::try_from(url.as_str()).ok(),
                         _ => default_base,
                     };
                     input
-                        .get_contents(skip_missing_inputs, skip_hidden, skip_ignored, extensions)
+                        .get_contents(skip_missing_inputs, skip_hidden, skip_ignored)
                         .map(move |content| (content, base.clone()))
                 }
             })
@@ -181,7 +170,7 @@ impl Collector {
 mod tests {
     use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
 
-    use http::StatusCode;
+    use http::{HeaderMap, StatusCode};
     use reqwest::Url;
 
     use super::*;
@@ -202,19 +191,15 @@ mod tests {
         Ok(responses.map(|r| r.unwrap().uri).collect().await)
     }
 
-    /// Helper function for collecting verbatim links
-    ///
-    /// A verbatim link is a link that is not parsed by the HTML parser.
-    /// For example, a link in a code block or a script tag.
+    // Helper function for collecting verbatim links
     async fn collect_verbatim(
         inputs: Vec<Input>,
         root_dir: Option<PathBuf>,
         base: Option<Base>,
-        extensions: FileExtensions,
     ) -> Result<HashSet<Uri>> {
         let responses = Collector::new(root_dir, base)?
             .include_verbatim(true)
-            .collect_links_from_file_types(inputs, extensions);
+            .collect_links(inputs);
         Ok(responses.map(|r| r.unwrap().uri).collect().await)
     }
 
@@ -230,9 +215,15 @@ mod tests {
         // Treat as plaintext file (no extension)
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path).unwrap();
-        let input = Input::new(&file_path.as_path().display().to_string(), None, true, None)?;
+        let input = Input::new(
+            &file_path.as_path().display().to_string(),
+            None,
+            true,
+            None,
+            HeaderMap::new(),
+        )?;
         let contents: Vec<_> = input
-            .get_contents(true, true, true, FileType::default_extensions())
+            .get_contents(true, true, true)
             .collect::<Vec<_>>()
             .await;
 
@@ -243,9 +234,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
-        let input = Input::new("https://example.com/", None, true, None)?;
+        let input = Input::new("https://example.com/", None, true, None, HeaderMap::new())?;
         let contents: Vec<_> = input
-            .get_contents(true, true, true, FileType::default_extensions())
+            .get_contents(true, true, true)
             .collect::<Vec<_>>()
             .await;
 
@@ -278,6 +269,7 @@ mod tests {
                 source: InputSource::String(TEST_STRING.to_owned()),
                 file_type_hint: None,
                 excluded_paths: None,
+                headers: HeaderMap::new(),
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
@@ -287,11 +279,13 @@ mod tests {
                 )),
                 file_type_hint: None,
                 excluded_paths: None,
+                headers: HeaderMap::new(),
             },
             Input {
                 source: InputSource::FsPath(file_path),
                 file_type_hint: None,
                 excluded_paths: None,
+                headers: HeaderMap::new(),
             },
             Input {
                 source: InputSource::FsGlob {
@@ -300,13 +294,11 @@ mod tests {
                 },
                 file_type_hint: None,
                 excluded_paths: None,
+                headers: HeaderMap::new(),
             },
         ];
 
-        let links = collect_verbatim(inputs, None, None, FileType::default_extensions())
-            .await
-            .ok()
-            .unwrap();
+        let links = collect_verbatim(inputs, None, None).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             website(TEST_STRING),
@@ -327,7 +319,8 @@ mod tests {
         let input = Input {
             source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
             file_type_hint: Some(FileType::Markdown),
-                excluded_paths: None,
+            excluded_paths: None,
+            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -354,6 +347,7 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -383,6 +377,7 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -409,6 +404,7 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Markdown),
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
 
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
@@ -432,6 +428,7 @@ mod tests {
             source: InputSource::String(input),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -464,6 +461,7 @@ mod tests {
             source: InputSource::RemoteUrl(Box::new(server_uri.clone())),
             file_type_hint: None,
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
 
         let links = collect(vec![input], None, None).await.ok().unwrap();
@@ -484,6 +482,7 @@ mod tests {
             ),
             file_type_hint: None,
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, None).await.ok().unwrap();
 
@@ -514,6 +513,7 @@ mod tests {
                 )),
                 file_type_hint: Some(FileType::Html),
                 excluded_paths: None,
+                headers: HeaderMap::new(),
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
@@ -525,6 +525,7 @@ mod tests {
                 )),
                 file_type_hint: Some(FileType::Html),
                 excluded_paths: None,
+                headers: HeaderMap::new(),
             },
         ];
 
@@ -560,6 +561,7 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
+            headers: HeaderMap::new(),
         };
 
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
