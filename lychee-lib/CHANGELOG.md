@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.18.1...lychee-lib-v0.19.0) - 2025-03-20
+
+### Other
+
+- Bump the dependencies group with 11 updates ([#1656](https://github.com/lycheeverse/lychee/pull/1656))
+- Bump the dependencies group across 1 directory with 14 updates ([#1653](https://github.com/lycheeverse/lychee/pull/1653))
+- Add support for custom file extensions in link checking. ([#1559](https://github.com/lycheeverse/lychee/pull/1559))
+- Bump the dependencies group across 1 directory with 21 updates ([#1643](https://github.com/lycheeverse/lychee/pull/1643))
+
 ## [0.18.1](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.18.0...lychee-lib-v0.18.1) - 2025-02-06
 
 ### Fixed
