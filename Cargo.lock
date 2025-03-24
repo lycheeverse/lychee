@@ -1897,7 +1897,7 @@ version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0f056c8559e3757392c8d091e796416e4649d8e49e88b8d76df6c002f05027fd"
 dependencies = [
- "http 1.2.0",
+ "http 1.3.1",
  "serde",
 ]
 
@@ -2538,6 +2538,7 @@ dependencies = [
  "futures",
  "headers",
  "http 1.3.1",
+ "http-serde",
  "human-sort",
  "humantime",
  "humantime-serde",
