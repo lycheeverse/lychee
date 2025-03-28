@@ -240,7 +240,7 @@ pub(crate) struct Config {
         long,
         default_value_t = FileExtensions::default(),
         long_help = "Test the specified file extensions for URIs when checking files locally.
-    
+
 Multiple extensions can be separated by commas. Note that if you want to check filetypes,
 which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
 specify both extensions explicitly."
@@ -269,16 +269,18 @@ specify both extensions explicitly."
         default_value_t,
         long_help = "A list of status codes that will be ignored from the cache
 
-The following accept range syntax is supported: [start]..[=]end|code. Some valid
+The following exclude range syntax is supported: [start]..[[=]end]|code. Some valid
 examples are:
 
-- 429
-- 500..=599
-- 500..
+- 429 (excludes the 429 status code only)
+- 500.. (excludes any status code >= 500)
+- ..100 (excludes any status code < 100)
+- 500..=599 (excludes any status code from 500 to 599 inclusive)
+- 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)
 
 Use \"lychee --cache-exclude-status '429, 500..502' <inputs>...\" to provide a comma- separated
-list of excluded status codes. This example will not cache results with a status code of 429, 500,
-501 and 502."
+list of excluded status codes. This example will not cache results with a status code of 429, 500
+and 501."
     )]
     #[serde(default = "cache_exclude_selector")]
     pub(crate) cache_exclude_status: StatusCodeExcluder,
@@ -432,14 +434,14 @@ Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
         default_value_t,
         long_help = "A List of accepted status codes for valid links
 
-The following accept range syntax is supported: [start]..[=]end|code. Some valid
+The following accept range syntax is supported: [start]..[[=]end]|code. Some valid
 examples are:
 
-- 200..=204
-- 200..204
-- ..=204
-- ..204
-- 200
+- 200 (accepts the 200 status code only)
+- ..204 (accepts any status code < 204)
+- ..=204 (accepts any status code <= 204)
+- 200..=204 (accepts any status code from 200 to 204 inclusive)
+- 200..205 (accepts any status code from 200 to 205 excluding 205, same as 200..=204)
 
 Use \"lychee --accept '200..=204, 429, 500' <inputs>...\" to provide a comma-
 separated list of accepted status codes. This example will accept 200, 201,
