@@ -10,6 +10,7 @@ use lychee_lib::{
     StatusCodeSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
     DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
+use reqwest::tls;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::path::Path;
@@ -45,6 +46,34 @@ const HELP_MSG_CONFIG_FILE: &str = formatcp!(
 );
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
+
+#[derive(Debug, Display, Deserialize, Default, Clone, EnumString)]
+#[non_exhaustive]
+pub(crate) enum TlsVersion {
+    #[serde(rename = "TLSv1_0")]
+    #[strum(serialize = "TLSv1_0")]
+    V1_0,
+    #[serde(rename = "TLSv1_1")]
+    #[strum(serialize = "TLSv1_1")]
+    V1_1,
+    #[serde(rename = "TLSv1_2")]
+    #[strum(serialize = "TLSv1_2")]
+    #[default]
+    V1_2,
+    #[serde(rename = "TLSv1_3")]
+    #[strum(serialize = "TLSv1_3")]
+    V1_3,
+}
+impl From<TlsVersion> for tls::Version {
+    fn from(ver: TlsVersion) -> Self {
+        match ver {
+            TlsVersion::V1_0 => tls::Version::TLS_1_0,
+            TlsVersion::V1_1 => tls::Version::TLS_1_1,
+            TlsVersion::V1_2 => tls::Version::TLS_1_2,
+            TlsVersion::V1_3 => tls::Version::TLS_1_3,
+        }
+    }
+}
 
 /// The format to use for the final status report
 #[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, VariantNames, PartialEq)]
@@ -318,6 +347,11 @@ and 501."
     #[arg(long, default_value = &MAX_RETRIES_STR)]
     #[serde(default = "max_retries")]
     pub(crate) max_retries: u64,
+
+    // Minimum TLS Version
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) min_tls: Option<TlsVersion>,
 
     /// Maximum number of concurrent network requests
     #[arg(long, default_value = &MAX_CONCURRENCY_STR)]
