@@ -1,9 +1,14 @@
-use std::fmt::Display;
+use std::{
+    fmt::Display,
+    hash::{Hash, Hasher},
+};
 
 use http::StatusCode;
 use serde::Serialize;
 
-use crate::{InputSource, Status, Uri};
+use crate::{InputSource, Request, Status, Uri};
+
+use super::BasicAuthCredentials;
 
 /// Response type returned by lychee after checking a URI
 //
@@ -20,8 +25,22 @@ impl Response {
     #[inline]
     #[must_use]
     /// Create new response
-    pub const fn new(uri: Uri, status: Status, source: InputSource) -> Self {
-        Response(source, ResponseBody { uri, status })
+    pub const fn new(
+        uri: Uri,
+        status: Status,
+        source: InputSource,
+        subsequent_uris: Vec<Uri>,
+        recursion_level: usize,
+    ) -> Self {
+        Response(
+            source,
+            ResponseBody {
+                uri,
+                status,
+                subsequent_uris,
+                recursion_level,
+            },
+        )
     }
 
     #[inline]
@@ -45,6 +64,29 @@ impl Response {
     pub const fn body(&self) -> &ResponseBody {
         &self.1
     }
+
+    /// Retrieve subsequent requests that need to be made when recursion is enabled
+    pub fn subsequent_requests<IsCached: Fn(&Uri) -> bool>(
+        &self,
+        is_cached: IsCached,
+        credentials: &Option<BasicAuthCredentials>,
+    ) -> Vec<Request> {
+        self.1
+            .subsequent_uris
+            .iter()
+            .filter(|uri| !is_cached(uri))
+            .map(|uri| {
+                Request::new(
+                    uri.clone(),
+                    self.0.clone(),
+                    None,
+                    None,
+                    credentials.clone(),
+                    self.1.recursion_level + 1,
+                )
+            })
+            .collect()
+    }
 }
 
 impl Display for Response {
@@ -63,7 +105,7 @@ impl Serialize for Response {
 }
 
 #[allow(clippy::module_name_repetitions)]
-#[derive(Debug, Serialize, Hash, PartialEq, Eq)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 /// Encapsulates the state of a URI check
 pub struct ResponseBody {
     #[serde(flatten)]
@@ -71,6 +113,17 @@ pub struct ResponseBody {
     pub uri: Uri,
     /// The status of the check
     pub status: Status,
+    /// Subsequent URIs that need checking (via --recursive)
+    pub subsequent_uris: Vec<Uri>,
+    /// The recursion depth of the associated request
+    pub recursion_level: usize,
+}
+
+impl Hash for ResponseBody {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.uri.hash(state);
+        self.status.hash(state);
+    }
 }
 
 // Extract as much information from the underlying error conditions as possible

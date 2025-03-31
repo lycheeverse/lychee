@@ -24,6 +24,9 @@ pub struct Request {
 
     /// Basic auth credentials
     pub credentials: Option<BasicAuthCredentials>,
+
+    /// Current recursion level
+    pub recursion_level: usize,
 }
 
 impl Request {
@@ -36,6 +39,7 @@ impl Request {
         element: Option<String>,
         attribute: Option<String>,
         credentials: Option<BasicAuthCredentials>,
+        recursion_level: usize,
     ) -> Self {
         Request {
             uri,
@@ -43,6 +47,7 @@ impl Request {
             element,
             attribute,
             credentials,
+            recursion_level,
         }
     }
 }
@@ -63,6 +68,7 @@ impl TryFrom<Uri> for Request {
             None,
             None,
             None,
+            0,
         ))
     }
 }
@@ -72,7 +78,14 @@ impl TryFrom<String> for Request {
 
     fn try_from(s: String) -> Result<Self, Self::Error> {
         let uri = Uri::try_from(s.as_str())?;
-        Ok(Request::new(uri, InputSource::String(s), None, None, None))
+        Ok(Request::new(
+            uri,
+            InputSource::String(s),
+            None,
+            None,
+            None,
+            0,
+        ))
     }
 }
 
@@ -87,6 +100,7 @@ impl TryFrom<&str> for Request {
             None,
             None,
             None,
+            0,
         ))
     }
 }

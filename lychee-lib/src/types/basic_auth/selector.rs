@@ -74,10 +74,7 @@ mod test {
         assert_eq!(selector.raw_uri_regex, "http://example.com".to_string());
         assert_eq!(
             selector.credentials,
-            BasicAuthCredentials {
-                username: "foo".to_string(),
-                password: "bar".to_string()
-            }
+            BasicAuthCredentials::new("foo".to_string(), "bar".to_string())
         );
     }
 

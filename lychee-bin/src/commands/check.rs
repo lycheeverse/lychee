@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::io::{self, Write};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -31,9 +32,10 @@ where
     S: futures::Stream<Item = Result<Request>>,
 {
     // Setup
-    let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
-    let (send_resp, recv_resp) = mpsc::channel(params.cfg.max_concurrency);
     let max_concurrency = params.cfg.max_concurrency;
+    let (send_req, recv_req) = mpsc::channel(max_concurrency);
+    let (send_resp, recv_resp) = mpsc::channel(max_concurrency);
+    let remaining_requests = Arc::new(AtomicUsize::new(0));
 
     // Measure check time
     let start = std::time::Instant::now();
@@ -57,14 +59,15 @@ where
     };
 
     // Start receiving requests
-    tokio::spawn(request_channel_task(
+    tokio::spawn(request_to_response(
         recv_req,
         send_resp,
         max_concurrency,
         client,
-        cache,
+        cache.clone(),
         cache_exclude_status,
         accept,
+        params.cfg.recursive,
     ));
 
     // Set the default formatter for progress bar output
@@ -79,16 +82,21 @@ where
         &formatter_default
     });
 
-    let show_results_task = tokio::spawn(progress_bar_task(
+    let show_results_task = tokio::spawn(receive_responses(
         recv_resp,
+        send_req.clone(),
+        remaining_requests.clone(),
+        params.cfg.max_depth,
+        cache,
+        params.cfg.recursive,
         params.cfg.verbose,
         pb.clone(),
         formatter,
         stats,
     ));
 
-    // Wait until all messages are sent
-    send_inputs_loop(params.requests, send_req, pb).await?;
+    // Fill the request channel with the initial requests
+    send_requests(params.requests, send_req, pb, remaining_requests).await?;
 
     // Wait until all responses are received
     let result = show_results_task.await?;
@@ -169,32 +177,46 @@ async fn suggest_archived_links(
 // drops the `send_req` channel on exit
 // required for the receiver task to end, which closes send_resp, which allows
 // the show_results_task to finish
-async fn send_inputs_loop<S>(
+async fn send_requests<S>(
     requests: S,
     send_req: mpsc::Sender<Result<Request>>,
     bar: Option<ProgressBar>,
+    remaining_requests: Arc<AtomicUsize>,
 ) -> Result<()>
 where
     S: futures::Stream<Item = Result<Request>>,
 {
     tokio::pin!(requests);
+    println!("--- INITIAL REQUESTS ---");
     while let Some(request) = requests.next().await {
+        // println!("#{} starting request", i);
         let request = request?;
+
         if let Some(pb) = &bar {
             pb.inc_length(1);
             pb.set_message(request.to_string());
         };
+        remaining_requests.fetch_add(1, Ordering::Relaxed);
+        // println!("sending request to queue for {}", uri);
         send_req
             .send(Ok(request))
             .await
             .expect("Cannot send request");
+        // println!("sent request to queue for {}", uri);
     }
+    println!("--- END OF INITIAL REQUESTS ---");
     Ok(())
 }
 
-/// Reads from the request channel and updates the progress bar status
-async fn progress_bar_task(
+/// Reads from the response channel, updates the progress bar status and (if recursing) sends new requests.
+#[allow(clippy::too_many_arguments)]
+async fn receive_responses(
     mut recv_resp: mpsc::Receiver<Response>,
+    req_send: mpsc::Sender<Result<Request>>,
+    remaining_requests: Arc<AtomicUsize>,
+    max_recursion_depth: Option<usize>,
+    cache: Arc<Cache>,
+    recurse: bool,
     verbose: Verbosity,
     pb: Option<ProgressBar>,
     formatter: Box<dyn ResponseFormatter>,
@@ -208,8 +230,53 @@ async fn progress_bar_task(
             formatter.as_ref(),
             &verbose,
         )?;
-        stats.add(response);
+
+        if recurse && max_recursion_depth.is_none_or(|limit| response.1.recursion_level < limit) {
+            println!(
+                "recursing: {} has depth {} < {}",
+                response.1.uri,
+                response.1.recursion_level,
+                max_recursion_depth.unwrap()
+            );
+
+            // TODO fix the lint
+            #[allow(clippy::redundant_closure_call)]
+            tokio::spawn((|requests: Vec<Request>,
+                           req_send: mpsc::Sender<Result<Request>>,
+                           remaining_requests: Arc<AtomicUsize>,
+                           pb: Option<ProgressBar>| async move {
+                for request in requests {
+                    let uri = request.uri.clone().to_string();
+                    req_send
+                        .send(Ok(request))
+                        .await
+                        .expect("Cannot send request");
+                    remaining_requests.fetch_add(1, Ordering::Relaxed);
+
+                    if let Some(bar) = &pb {
+                        bar.inc_length(1);
+                        bar.set_message(uri);
+                    }
+                }
+            })(
+                response.subsequent_requests(|uri| cache.contains_key(uri), &None),
+                req_send.clone(),
+                remaining_requests.clone(),
+                pb.clone(),
+            ));
+        }
+
+        remaining_requests.fetch_sub(1, Ordering::Relaxed);
+        let remaining_now = remaining_requests.load(Ordering::Relaxed);
+        // println!("remaining requests: {}", remaining_now);
+        if remaining_now == 0 {
+            break;
+        }
+
+        stats.insert(response);
+        // println!("finished response #{}", i);
     }
+    // println!("Processed {} responses", i);
     Ok((pb, stats))
 }
 
@@ -226,7 +293,8 @@ fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
     bar
 }
 
-async fn request_channel_task(
+#[allow(clippy::too_many_arguments)]
+async fn request_to_response(
     recv_req: mpsc::Receiver<Result<Request>>,
     send_resp: mpsc::Sender<Response>,
     max_concurrency: usize,
@@ -234,12 +302,21 @@ async fn request_channel_task(
     cache: Arc<Cache>,
     cache_exclude_status: HashSet<u16>,
     accept: HashSet<u16>,
+    recursive: bool,
 ) {
+    // while let Some(request) = recv_req.recv().await {
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
         |request: Result<Request>| async {
             let request = request.expect("cannot read request");
+            if recursive && cache.contains_key(&request.uri) {
+                return;
+            }
+            // let uri = request.uri.clone();
+            // println!("handling request {}", uri);
+            // let uri = request.uri.clone();
+            // println!("received request for {}", uri);
             let response = handle(
                 &client,
                 cache.clone(),
@@ -249,10 +326,18 @@ async fn request_channel_task(
             )
             .await;
 
+            // println!("sending response to queue for {}", uri);
             send_resp
                 .send(response)
                 .await
-                .expect("cannot send response to queue");
+                .expect("Cannot send response");
+            // if let Err(_) = timeout(Duration::from_millis(500), send_resp.send(response)).await {
+            //     println!(
+            //         "Timeout occurred while sending response to queue for {}",
+            //         uri
+            //     );
+            // }
+            // println!("sent response to queue for {}", uri);
         },
     )
     .await;
@@ -267,12 +352,15 @@ async fn check_url(client: &Client, request: Request) -> Response {
     // Request was not cached; run a normal check
     let uri = request.uri.clone();
     let source = request.source.clone();
+    let depth = request.recursion_level;
     client.check(request).await.unwrap_or_else(|e| {
         log::error!("Error checking URL {uri}: Cannot parse URL to URI: {e}");
         Response::new(
             uri.clone(),
             Status::Error(ErrorKind::InvalidURI(uri.clone())),
             source,
+            vec![],
+            depth,
         )
     })
 }
@@ -299,7 +387,15 @@ async fn handle(
             // code.
             Status::from_cache_status(v.value().status, &accept)
         };
-        return Response::new(uri.clone(), status, request.source);
+        // TODO: not too sure about it, we never recurse on cached requests
+        // println!("Found cached response for {}", uri);
+        return Response::new(
+            uri.clone(),
+            status,
+            request.source,
+            vec![],
+            request.recursion_level,
+        );
     }
 
     // Request was not cached; run a normal check
@@ -377,7 +473,7 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
         .iter()
         .flat_map(|(source, set)| {
             set.iter()
-                .map(move |ResponseBody { uri, status: _ }| (source, uri))
+                .map(move |ResponseBody { uri, .. }| (source, uri))
         })
         .filter_map(|(source, uri)| {
             if uri.is_data() || uri.is_mail() || uri.is_file() {
@@ -408,6 +504,8 @@ mod tests {
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
+            vec![],
+            0,
         );
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(
@@ -430,6 +528,8 @@ mod tests {
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Ok(200)),
             InputSource::Stdin,
+            vec![],
+            0,
         );
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(
@@ -450,9 +550,9 @@ mod tests {
     async fn test_invalid_url() {
         let client = ClientBuilder::builder().build().client().unwrap();
         let uri = Uri::try_from("http://\"").unwrap();
-        let response = client.check_website(&uri, None).await.unwrap();
+        let (status, _) = client.check_website(&uri, None).await.unwrap();
         assert!(matches!(
-            response,
+            status,
             Status::Unsupported(ErrorKind::BuildRequestClient(_))
         ));
     }

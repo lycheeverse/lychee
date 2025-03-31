@@ -11,7 +11,7 @@
 //! the handler to the chain.
 //!
 //! [pattern]: https://github.com/lpxxn/rust-design-pattern/blob/master/behavioral/chain_of_responsibility.rs
-use crate::Status;
+use crate::{Status, Uri};
 use async_trait::async_trait;
 use core::fmt::Debug;
 use std::sync::Arc;
@@ -133,18 +133,18 @@ impl<T, R> Chain<T, R> {
     ///
     /// If no handler returns `ChainResult::Done`, the chain will return
     /// `ChainResult::Next` with the input.
-    pub(crate) async fn traverse(&self, mut input: T) -> ChainResult<T, R> {
+    pub(crate) async fn traverse(&self, mut input: T) -> (ChainResult<T, R>, Vec<Uri>) {
         use ChainResult::{Done, Next};
         for e in self.0.lock().await.iter_mut() {
             match e.handle(input).await {
                 Next(r) => input = r,
                 Done(r) => {
-                    return Done(r);
+                    return (Done(r), e.subsequent_uris());
                 }
             }
         }
 
-        Next(input)
+        (Next(input), vec![])
     }
 }
 
@@ -190,6 +190,10 @@ pub trait Handler<T, R>: Debug {
     /// }
     /// ```
     async fn handle(&mut self, input: T) -> ChainResult<T, R>;
+
+    /// Return the subsequent URIs to check after the request has been handled.
+    /// To be called after calling handle().
+    fn subsequent_uris(&self) -> Vec<Uri>;
 }
 
 /// Client request chains
@@ -210,25 +214,27 @@ impl<'a> ClientRequestChains<'a> {
     }
 
     /// Traverse all request chains and resolve to a status.
-    pub(crate) async fn traverse(&self, mut input: reqwest::Request) -> Status {
+    pub(crate) async fn traverse(&self, mut input: reqwest::Request) -> (Status, Vec<Uri>) {
         use ChainResult::{Done, Next};
 
         for e in &self.chains {
             match e.traverse(input).await {
-                Next(r) => input = r,
-                Done(r) => {
-                    return r;
+                (Next(r), _) => input = r,
+                (Done(r), uris) => {
+                    return (r, uris);
                 }
             }
         }
 
         // Consider the request to be excluded if no chain element has converted
         // it to a `ChainResult::Done`
-        Status::Excluded
+        (Status::Excluded, vec![])
     }
 }
 
 mod test {
+    use crate::Uri;
+
     use super::{
         ChainResult,
         ChainResult::{Done, Next},
@@ -253,14 +259,20 @@ mod test {
                 Next(Result(added))
             }
         }
+
+        fn subsequent_uris(&self) -> Vec<Uri> {
+            vec![]
+        }
     }
+
+    // TODO tests that check actual values for subsequent_uris
 
     #[tokio::test]
     async fn simple_chain() {
         use super::Chain;
         let chain: Chain<Result, Result> = Chain::new(vec![Box::new(Add(7)), Box::new(Add(3))]);
         let result = chain.traverse(Result(0)).await;
-        assert_eq!(result, Next(Result(10)));
+        assert_eq!(result, (Next(Result(10)), vec![]));
     }
 
     #[tokio::test]
@@ -269,6 +281,6 @@ mod test {
         let chain: Chain<Result, Result> =
             Chain::new(vec![Box::new(Add(80)), Box::new(Add(30)), Box::new(Add(1))]);
         let result = chain.traverse(Result(0)).await;
-        assert_eq!(result, Done(Result(80)));
+        assert_eq!(result, (Done(Result(80)), vec![]));
     }
 }

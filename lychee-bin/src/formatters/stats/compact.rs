@@ -139,17 +139,23 @@ mod tests {
             HashSet::from_iter(vec![ResponseBody {
                 uri: Uri::from(Url::parse("https://example.com").unwrap()),
                 status: Status::Ok(StatusCode::OK),
+                subsequent_uris: vec![],
+                recursion_level: 0,
             }]),
         );
 
         let err1 = ResponseBody {
             uri: Uri::try_from("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap(),
             status: Status::Ok(StatusCode::NOT_FOUND),
+            subsequent_uris: vec![],
+            recursion_level: 0,
         };
 
         let err2 = ResponseBody {
             uri: Uri::try_from("https://github.com/mre/boom").unwrap(),
             status: Status::Ok(StatusCode::INTERNAL_SERVER_ERROR),
+            subsequent_uris: vec![],
+            recursion_level: 0,
         };
 
         let mut error_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
@@ -171,6 +177,7 @@ mod tests {
             cached: 0,
             success_map,
             excluded_map: HashMap::default(),
+            other_map: HashMap::default(),
             detailed_stats: false,
         };
 

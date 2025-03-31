@@ -20,6 +20,8 @@ mod task_tests {
         ResponseBody {
             uri: Uri::try_from(uri).unwrap(),
             status,
+            recursion_level: 0,
+            subsequent_uris: vec![],
         }
     }
 
