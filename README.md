@@ -354,16 +354,18 @@ Options:
       --cache-exclude-status <CACHE_EXCLUDE_STATUS>
           A list of status codes that will be ignored from the cache
 
-          The following accept range syntax is supported: [start]..[=]end|code. Some valid
+          The following exclude range syntax is supported: [start]..[[=]end]|code. Some valid
           examples are:
 
-          - 429
-          - 500..=599
-          - 500..
+          - 429 (excludes the 429 status code only)
+          - 500.. (excludes any status code >= 500)
+          - ..100 (excludes any status code < 100)
+          - 500..=599 (excludes any status code from 500 to 599 inclusive)
+          - 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)
 
           Use "lychee --cache-exclude-status '429, 500..502' <inputs>..." to provide a comma- separated
-          list of excluded status codes. This example will not cache results with a status code of 429, 500,
-          501 and 502.
+          list of excluded status codes. This example will not cache results with a status code of 429, 500
+          and 501.
 
           [default: ]
 
@@ -460,14 +462,14 @@ Options:
   -a, --accept <ACCEPT>
           A List of accepted status codes for valid links
 
-          The following accept range syntax is supported: [start]..[=]end|code. Some valid
+          The following accept range syntax is supported: [start]..[[=]end]|code. Some valid
           examples are:
 
-          - 200..=204
-          - 200..204
-          - ..=204
-          - ..204
-          - 200
+          - 200 (accepts the 200 status code only)
+          - ..204 (accepts any status code < 204)
+          - ..=204 (accepts any status code <= 204)
+          - 200..=204 (accepts any status code from 200 to 204 inclusive)
+          - 200..205 (accepts any status code from 200 to 205 excluding 205, same as 200..=204)
 
           Use "lychee --accept '200..=204, 429, 500' <inputs>..." to provide a comma-
           separated list of accepted status codes. This example will accept 200, 201,
