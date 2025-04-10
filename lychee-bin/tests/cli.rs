@@ -2003,4 +2003,29 @@ mod cli {
 
         Ok(())
     }
+
+    #[test]
+    fn test_extract_url_ending_with_period_file() {
+        let test_path = fixtures_path().join("LINK_PERIOD.html");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump")
+            .arg(test_path)
+            .assert()
+            .success()
+            .stdout(contains("https://www.example.com/smth."));
+    }
+
+    #[tokio::test]
+    async fn test_extract_url_ending_with_period_webserver() {
+        let mut cmd = main_command();
+        let body = r#"<a href="https://www.example.com/smth.">link</a>"#;
+        let mock_server = mock_response!(body);
+
+        cmd.arg("--dump")
+            .arg(mock_server.uri())
+            .assert()
+            .success()
+            .stdout(contains("https://www.example.com/smth."));
+    }
 }

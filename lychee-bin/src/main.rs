@@ -169,7 +169,7 @@ fn load_config() -> Result<LycheeOptions> {
 
     // TODO: Remove this warning and the parameter with 1.0
     if !&opts.config.exclude_file.is_empty() {
-        warn!("WARNING: `--exclude-file` is deprecated and will soon be removed; use the `{}` file to ignore URL patterns instead. To exclude paths of files and directories, use `--exclude-path`.", LYCHEE_IGNORE_FILE);
+        warn!("WARNING: `--exclude-file` is deprecated and will soon be removed; use the `{LYCHEE_IGNORE_FILE}` file to ignore URL patterns instead. To exclude paths of files and directories, use `--exclude-path`.");
     }
 
     // TODO: Remove this warning and the parameter with 1.0
@@ -332,7 +332,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         collector
     };
 
-    let requests = collector.collect_links(inputs);
+    let requests = collector.collect_links_from_file_types(inputs, opts.config.extensions.clone());
 
     let cache = load_cache(&opts.config).unwrap_or_default();
     let cache = Arc::new(cache);
