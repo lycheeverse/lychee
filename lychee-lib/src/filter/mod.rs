@@ -1,9 +1,9 @@
 mod excludes;
 mod includes;
 
-use once_cell::sync::Lazy;
 use regex::RegexSet;
 use std::collections::HashSet;
+use std::sync::LazyLock;
 
 pub use excludes::Excludes;
 pub use includes::Includes;
@@ -14,23 +14,24 @@ use crate::Uri;
 /// These domains are explicitly defined by RFC 2606, section 3 Reserved Example
 /// Second Level Domain Names for describing example cases and should not be
 /// dereferenced as they should not have content.
-static EXAMPLE_DOMAINS: Lazy<HashSet<&'static str>> =
-    Lazy::new(|| HashSet::from_iter(["example.com", "example.org", "example.net", "example.edu"]));
+static EXAMPLE_DOMAINS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
+    HashSet::from_iter(["example.com", "example.org", "example.net", "example.edu"])
+});
 
 #[cfg(all(not(test), not(feature = "check_example_domains")))]
 /// We also exclude the example TLDs in section 2 of the same RFC.
 /// This exclusion gets subsumed by the `check_example_domains` feature.
-static EXAMPLE_TLDS: Lazy<HashSet<&'static str>> =
-    Lazy::new(|| HashSet::from_iter([".test", ".example", ".invalid", ".localhost"]));
+static EXAMPLE_TLDS: LazyLock<HashSet<&'static str>> =
+    LazyLock::new(|| HashSet::from_iter([".test", ".example", ".invalid", ".localhost"]));
 
 // Allow usage of example domains in tests
 #[cfg(any(test, feature = "check_example_domains"))]
-static EXAMPLE_DOMAINS: Lazy<HashSet<&'static str>> = Lazy::new(HashSet::new);
+static EXAMPLE_DOMAINS: LazyLock<HashSet<&'static str>> = LazyLock::new(HashSet::new);
 
 #[cfg(any(test, feature = "check_example_domains"))]
-static EXAMPLE_TLDS: Lazy<HashSet<&'static str>> = Lazy::new(HashSet::new);
+static EXAMPLE_TLDS: LazyLock<HashSet<&'static str>> = LazyLock::new(HashSet::new);
 
-static UNSUPPORTED_DOMAINS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static UNSUPPORTED_DOMAINS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     HashSet::from_iter([
         // Twitter requires an account to view tweets
         // https://news.ycombinator.com/item?id=36540957
@@ -50,8 +51,8 @@ const FALSE_POSITIVE_PAT: &[&str] = &[
     r"^https?://(.*)/xmlrpc.php$",
 ];
 
-static FALSE_POSITIVE_SET: Lazy<RegexSet> =
-    Lazy::new(|| regex::RegexSet::new(FALSE_POSITIVE_PAT).expect("Failed to create RegexSet"));
+static FALSE_POSITIVE_SET: LazyLock<RegexSet> =
+    LazyLock::new(|| regex::RegexSet::new(FALSE_POSITIVE_PAT).expect("Failed to create RegexSet"));
 
 #[inline]
 #[must_use]

@@ -183,7 +183,7 @@ where
         if let Some(pb) = &bar {
             pb.inc_length(1);
             pb.set_message(request.to_string());
-        };
+        }
         send_req
             .send(Ok(request))
             .await

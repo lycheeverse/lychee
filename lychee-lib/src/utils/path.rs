@@ -1,13 +1,13 @@
 use crate::{ErrorKind, Result};
 use cached::proc_macro::cached;
-use once_cell::sync::Lazy;
 use path_clean::PathClean;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
-static CURRENT_DIR: Lazy<PathBuf> =
-    Lazy::new(|| env::current_dir().expect("cannot get current dir from environment"));
+static CURRENT_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| env::current_dir().expect("cannot get current dir from environment"));
 
 /// Create an absolute path out of a `PathBuf`.
 ///

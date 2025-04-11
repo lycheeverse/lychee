@@ -1,11 +1,11 @@
 use std::{fmt::Display, num::ParseIntError, ops::RangeInclusive, str::FromStr};
 
-use once_cell::sync::Lazy;
 use regex::Regex;
+use std::sync::LazyLock;
 use thiserror::Error;
 
-static RANGE_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^([0-9]{3})?\.\.((=?)([0-9]{3}))?$|^([0-9]{3})$").unwrap());
+static RANGE_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^([0-9]{3})?\.\.((=?)([0-9]{3}))?$|^([0-9]{3})$").unwrap());
 
 /// Indicates that the parsing process of an [`AcceptRange`]  from a string
 /// failed due to various underlying reasons.
@@ -113,7 +113,7 @@ impl AcceptRange {
         self.0
     }
 
-    pub(crate) fn update_start(&mut self, new_start: u16) -> Result<(), AcceptRangeError> {
+    pub(crate) const fn update_start(&mut self, new_start: u16) -> Result<(), AcceptRangeError> {
         let end = *self.end();
 
         if new_start > end {
@@ -124,7 +124,7 @@ impl AcceptRange {
         Ok(())
     }
 
-    pub(crate) fn update_end(&mut self, new_end: u16) -> Result<(), AcceptRangeError> {
+    pub(crate) const fn update_end(&mut self, new_end: u16) -> Result<(), AcceptRangeError> {
         let start = *self.start();
 
         if start > new_end {

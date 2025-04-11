@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 use crate::{ErrorKind, Result, Uri};
 
-static GITHUB_API_EXCLUDED_ENDPOINTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static GITHUB_API_EXCLUDED_ENDPOINTS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     HashSet::from_iter([
         "about",
         "collections",
@@ -74,7 +74,7 @@ impl GithubUri {
             "github.com" | "www.github.com" | "raw.githubusercontent.com"
         ) {
             return Err(ErrorKind::InvalidGithubUrl(uri.to_string()));
-        };
+        }
 
         let parts: Vec<_> = match uri.path_segments() {
             Some(parts) => parts.collect(),
