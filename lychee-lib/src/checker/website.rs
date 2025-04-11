@@ -3,13 +3,15 @@ use crate::{
     quirks::Quirks,
     retry::RetryExt,
     types::uri::github::GithubUri,
+    utils::fragment_checker::FragmentChecker,
     BasicAuthCredentials, ErrorKind, Status, Uri,
 };
 use async_trait::async_trait;
-use http::StatusCode;
+use http::{Method, StatusCode};
 use octocrab::Octocrab;
-use reqwest::Request;
-use std::{collections::HashSet, time::Duration};
+use reqwest::{Request, Response};
+use std::{collections::HashSet, io::Write, time::Duration};
+use tempfile::NamedTempFile;
 
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
@@ -41,11 +43,19 @@ pub(crate) struct WebsiteChecker {
     ///
     /// This would treat unencrypted links as errors when HTTPS is available.
     require_https: bool,
+
+    /// Whether to check the existence of fragments in the response HTML files.
+    ///
+    /// Will be disabled if the request method is `HEAD`.
+    include_fragments: bool,
+
+    /// Utility for performing fragment checks in HTML files.
+    fragment_checker: FragmentChecker,
 }
 
 impl WebsiteChecker {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) const fn new(
+    pub(crate) fn new(
         method: reqwest::Method,
         retry_wait_time: Duration,
         max_retries: u64,
@@ -54,6 +64,7 @@ impl WebsiteChecker {
         github_client: Option<Octocrab>,
         require_https: bool,
         plugin_request_chain: RequestChain,
+        include_fragments: bool,
     ) -> Self {
         Self {
             method,
@@ -64,6 +75,8 @@ impl WebsiteChecker {
             retry_wait_time,
             accepted,
             require_https,
+            include_fragments,
+            fragment_checker: FragmentChecker::new(),
         }
     }
 
@@ -87,9 +100,34 @@ impl WebsiteChecker {
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, request: Request) -> Status {
+        let method = request.method().clone();
         match self.reqwest_client.execute(request).await {
-            Ok(ref response) => Status::new(response, self.accepted.clone()),
+            Ok(response) => {
+                let mut status = Status::new(&response, self.accepted.clone());
+                if self.include_fragments && status.is_success() && method == Method::GET {
+                    status = self.check_html_fragment(status, response).await;
+                }
+                status
+            }
             Err(e) => e.into(),
+        }
+    }
+
+    async fn check_html_fragment(&self, status: Status, response: Response) -> Status {
+        let url = response.url().clone();
+        match response.text().await {
+            Ok(text) => {
+                let mut file = NamedTempFile::with_suffix(".html").unwrap();
+                if let Err(e) = file.write_all(text.as_bytes()) {
+                    return Status::Error(ErrorKind::ReadFileInput(e, file.path().to_path_buf()));
+                }
+                return match self.fragment_checker.check(file.path(), &url).await {
+                    Ok(true) => status,
+                    Ok(false) => Status::Error(ErrorKind::InvalidFragment(url.clone().into())),
+                    Err(e) => Status::Error(e),
+                };
+            }
+            Err(e) => Status::Error(ErrorKind::ReadResponseBody(e)),
         }
     }
 
