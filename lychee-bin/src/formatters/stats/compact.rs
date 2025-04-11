@@ -1,6 +1,6 @@
 use anyhow::Result;
 use console::Style;
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use std::{
     fmt::{self, Display},
     time::Duration,
@@ -89,7 +89,7 @@ fn write_if_any(
     value: usize,
     symbol: &str,
     text: &str,
-    style: &Lazy<Style>,
+    style: &LazyLock<Style>,
     f: &mut fmt::Formatter<'_>,
 ) -> Result<(), fmt::Error> {
     if value > 0 {
