@@ -392,6 +392,7 @@ impl ClientBuilder {
             github_client,
             self.require_https,
             self.plugin_request_chain,
+            self.include_fragments,
         );
 
         Ok(Client {
