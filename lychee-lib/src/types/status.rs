@@ -113,14 +113,14 @@ impl Status {
             CacheStatus::Ok(code) => {
                 if matches!(s, CacheStatus::Ok(_)) || accepted.contains(&code) {
                     return Self::Cached(CacheStatus::Ok(code));
-                };
+                }
                 Self::Cached(CacheStatus::Error(Some(code)))
             }
             CacheStatus::Error(code) => {
                 if let Some(code) = code {
                     if accepted.contains(&code) {
                         return Self::Cached(CacheStatus::Ok(code));
-                    };
+                    }
                 }
                 Self::Cached(CacheStatus::Error(code))
             }
@@ -225,10 +225,7 @@ impl Status {
                 }
             }
             Status::Cached(CacheStatus::Ok(code) | CacheStatus::Error(Some(code))) => {
-                match StatusCode::from_u16(*code) {
-                    Ok(code) => Some(code),
-                    Err(_) => None,
-                }
+                StatusCode::from_u16(*code).ok()
             }
             _ => None,
         }
