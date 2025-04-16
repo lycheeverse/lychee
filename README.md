@@ -393,6 +393,9 @@ Options:
 
           [default: 3]
 
+      --min-tls <MIN_TLS>
+
+
       --max-concurrency <MAX_CONCURRENCY>
           Maximum number of concurrent network requests
 
