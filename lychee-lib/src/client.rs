@@ -322,7 +322,7 @@ impl ClientBuilder {
                 "Found user-agent in headers: {}. Overriding it with {user_agent}.",
                 prev_user_agent.to_str().unwrap_or("�"),
             );
-        };
+        }
 
         headers.insert(
             header::TRANSFER_ENCODING,

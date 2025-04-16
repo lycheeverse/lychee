@@ -65,7 +65,7 @@ impl ResponseStats {
     ///
     /// This function is used to update the counters (success, error, etc.)
     /// based on the given response status.
-    pub(crate) fn increment_status_counters(&mut self, status: &Status) {
+    pub(crate) const fn increment_status_counters(&mut self, status: &Status) {
         match status {
             Status::Ok(_) => self.successful += 1,
             Status::Error(_) => self.errors += 1,

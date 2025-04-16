@@ -2582,7 +2582,6 @@ dependencies = [
  "linkify",
  "log",
  "octocrab",
- "once_cell",
  "openssl-sys",
  "par-stream",
  "path-clean",

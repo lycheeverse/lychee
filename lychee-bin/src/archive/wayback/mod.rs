@@ -1,13 +1,13 @@
+use std::sync::LazyLock;
 use std::time::Duration;
 
-use once_cell::sync::Lazy;
 use serde::de::Error as SerdeError;
 use serde::{Deserialize, Deserializer};
 
 use http::StatusCode;
 use reqwest::{Client, Error, Url};
-static WAYBACK_URL: Lazy<Url> =
-    Lazy::new(|| Url::parse("https://archive.org/wayback/available").unwrap());
+static WAYBACK_URL: LazyLock<Url> =
+    LazyLock::new(|| Url::parse("https://archive.org/wayback/available").unwrap());
 
 pub(crate) async fn get_wayback_link(url: &Url, timeout: Duration) -> Result<Option<Url>, Error> {
     let mut archive_url: Url = WAYBACK_URL.clone();

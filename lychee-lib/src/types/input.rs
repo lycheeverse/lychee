@@ -263,7 +263,7 @@ impl Input {
                             Err(_) if skip_missing => (),
                             Err(e) => Err(e)?,
                             Ok(content) => yield content,
-                        };
+                        }
                     }
                 },
                 InputSource::Stdin => {
