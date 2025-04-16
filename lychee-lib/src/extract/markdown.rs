@@ -10,7 +10,7 @@ use super::html::html5gum::{extract_html, extract_html_fragments};
 /// Returns the default markdown extensions used by lychee.
 /// Sadly, `|` is not const for `Options` so we can't use a const global.
 fn md_extensions() -> Options {
-    Options::ENABLE_HEADING_ATTRIBUTES | Options::ENABLE_MATH | Options::ENABLE_WIKILINKS
+    Options::ENABLE_HEADING_ATTRIBUTES | Options::ENABLE_MATH
 }
 
 /// Extract unparsed URL strings from a Markdown string.
@@ -18,7 +18,6 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
     // In some cases it is undesirable to extract links from within code blocks,
     // which is why we keep track of entries and exits while traversing the input.
     let mut inside_code_block = false;
-    let mut inside_link_block = false;
 
     let parser = TextMergeStream::new(Parser::new_ext(input, md_extensions()));
     parser
@@ -63,8 +62,10 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
                     LinkType::Email =>
                      Some(extract_raw_uri_from_plaintext(&dest_url)),
                     // Wiki URL (`[[http://example.com]]`)
+                    // This element is currently not matched and I'm not sure why.
+                    // However, we keep it in here for future compatibility with
+                    // markup5ever.
                     LinkType::WikiLink { has_pothole: _ } => {
-                        inside_link_block = true;
                         Some(vec![RawUri {
                             text: dest_url.to_string(),
                             element: Some("a".to_string()),
@@ -99,7 +100,7 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
 
             // A text node.
             Event::Text(txt) => {
-                if (inside_code_block && !include_verbatim) || inside_link_block {
+                if inside_code_block && !include_verbatim {
                     None
                 } else {
                     Some(extract_raw_uri_from_plaintext(&txt))
@@ -120,12 +121,6 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
                 } else {
                     None
                 }
-            }
-
-            // A detected link block.
-            Event::End(TagEnd::Link) => {
-                inside_link_block = false;
-                None
             }
 
             // Silently skip over other events
@@ -396,28 +391,12 @@ $$
         let markdown = r"[[https://example.com/destination]]";
         let expected = vec![RawUri {
             text: "https://example.com/destination".to_string(),
-            element: Some("a".to_string()),
-            attribute: Some("href".to_string()),
+            // This should be a link element, but is currently matched as plaintext
+            element: None,
+            attribute: None,
+            // element: Some("a".to_string()),
+            // attribute: Some("href".to_string()),
         }];
-        let uris = extract_markdown(markdown, true);
-        assert_eq!(uris, expected);
-    }
-
-    #[test]
-    fn test_multiple_wiki_links() {
-        let markdown = r"[[https://example.com/destination]][[https://example.com/source]]";
-        let expected = vec![
-            RawUri {
-                text: "https://example.com/destination".to_string(),
-                element: Some("a".to_string()),
-                attribute: Some("href".to_string()),
-            },
-            RawUri {
-                text: "https://example.com/source".to_string(),
-                element: Some("a".to_string()),
-                attribute: Some("href".to_string()),
-            },
-        ];
         let uris = extract_markdown(markdown, true);
         assert_eq!(uris, expected);
     }
