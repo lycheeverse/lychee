@@ -1,3 +1,4 @@
+use http::StatusCode;
 use serde::{Serialize, Serializer};
 use std::error::Error;
 use std::hash::Hash;
@@ -143,6 +144,10 @@ pub enum ErrorKind {
     /// The given status code is invalid (not in the range 100-1000)
     #[error("Invalid status code: {0}")]
     InvalidStatusCode(u16),
+
+    /// The given status code might be considered valid but was rejected as because of the configuration
+    #[error("Rejected status code: {0}")]
+    RejectedStatusCode(StatusCode),
 
     /// Regex error
     #[error("Error when using regex engine: {0}")]
@@ -322,6 +327,7 @@ impl Hash for ErrorKind {
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
             Self::InvalidStatusCode(c) => c.hash(state),
+            Self::RejectedStatusCode(c) => c.hash(state),
             Self::Channel(e) => e.to_string().hash(state),
             Self::MissingGitHubToken | Self::InvalidUrlHost => {
                 std::mem::discriminant(self).hash(state);
