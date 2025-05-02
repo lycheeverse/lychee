@@ -89,12 +89,7 @@ impl Status {
         if let Some(true) = accepted.map(|a| a.contains(&code)) {
             Self::Ok(code)
         } else {
-            match response.error_for_status_ref() {
-                Ok(_) if code.is_success() => Self::Ok(code),
-                Ok(_) if code.is_redirection() => Self::Redirected(code),
-                Ok(_) => Self::UnknownStatusCode(code),
-                Err(e) => e.into(),
-            }
+            Self::Error(ErrorKind::RejectedStatusCode(code))
         }
     }
 
