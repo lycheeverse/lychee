@@ -434,6 +434,14 @@ impl Input {
     }
 }
 
+impl TryFrom<&str> for Input {
+    type Error = crate::ErrorKind;
+
+    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+        Self::from_value(value)
+    }
+}
+
 /// Function for path exclusion tests
 ///
 /// This is a standalone function to allow for easier testing
