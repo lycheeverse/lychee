@@ -1,7 +1,7 @@
 use crate::options::Config;
 use crate::parse::{parse_duration_secs, parse_remaps};
 use anyhow::{Context, Result};
-use http::StatusCode;
+use http::{HeaderMap, StatusCode};
 use lychee_lib::{Client, ClientBuilder};
 use regex::RegexSet;
 use reqwest_cookie_store::CookieStoreMutex;
@@ -51,6 +51,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     } else {
         cfg.include_mail
     };
+    let headers: HeaderMap = (&cfg.header).try_into()?;
 
     ClientBuilder::builder()
         .remaps(remaps)
@@ -65,7 +66,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .max_redirects(cfg.max_redirects)
         .user_agent(cfg.user_agent.clone())
         .allow_insecure(cfg.insecure)
-        .custom_headers(cfg.header.clone().unwrap_or_default())
+        .custom_headers(headers)
         .method(method)
         .timeout(timeout)
         .retry_wait_time(retry_wait_time)

@@ -16,6 +16,8 @@ use lychee_lib::{
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
+use std::collections::HashMap;
+use std::convert::TryInto;
 use std::path::Path;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use strum::{Display, EnumIter, EnumString, VariantNames};
@@ -204,7 +206,7 @@ fn parse_single_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
 struct HeaderParser;
 
 impl TypedValueParser for HeaderParser {
-    type Value = HeaderMap;
+    type Value = HashMap<String, String>;
 
     fn parse_ref(
         &self,
@@ -219,11 +221,11 @@ impl TypedValueParser for HeaderParser {
             )
         })?;
 
-        let mut headers = HeaderMap::new();
         match parse_single_header(header_str) {
             Ok((name, value)) => {
-                headers.insert(name, value);
-                Ok(headers)
+                let mut map = HashMap::new();
+                map.insert(name.to_string(), value.to_str().unwrap().to_string());
+                Ok(map)
             }
             Err(e) => Err(clap::Error::raw(
                 clap::error::ErrorKind::InvalidValue,
@@ -274,6 +276,8 @@ impl LycheeOptions {
         } else {
             Some(self.config.exclude_path.clone())
         };
+        let headers: HeaderMap = (&self.config.header).try_into()?;
+
         self.raw_inputs
             .iter()
             .map(|s| {
@@ -282,7 +286,7 @@ impl LycheeOptions {
                     None,
                     self.config.glob_ignore_case,
                     excluded.clone(),
-                    self.config.header.clone().unwrap_or_default(),
+                    headers.clone(),
                 )
             })
             .collect::<Result<_, _>>()
@@ -509,8 +513,7 @@ You can specify custom headers in the format 'Name: Value'. For example, 'Accept
 This is the same format that other tools like curl or wget use. 
 Multiple headers can be specified by using the flag multiple times."
     )]
-    #[serde(default, with = "http_serde::option::header_map")]
-    pub header: Option<HeaderMap>,
+    pub header: HashMap<String, String>,
 
     /// A List of accepted status codes for valid links
     #[arg(
@@ -676,7 +679,7 @@ impl Config {
             format: StatsFormat::default();
             remap: Vec::<String>::new();
             fallback_extensions: Vec::<String>::new();
-            header: None;
+            header: HashMap::default();
             timeout: DEFAULT_TIMEOUT_SECS;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
             method: DEFAULT_METHOD;
@@ -791,7 +794,7 @@ mod tests {
         let opts = crate::LycheeOptions::parse_from(args);
 
         // Check that the headers were merged correctly
-        let headers = opts.config.header.unwrap();
+        let headers = opts.config.header;
         assert_eq!(headers.len(), 2);
         assert_eq!(headers["accept"], "text/html");
         assert_eq!(headers["x-test"], "check=this");
