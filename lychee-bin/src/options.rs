@@ -194,7 +194,7 @@ fn parse_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
             Ok((name, value))
         }
         _ => Err(anyhow!(
-            "Invalid header format. Expected 'Name: Value', got '{}'",
+            "Invalid header format. Expected colon-separated string in the format 'HeaderName: HeaderValue', got '{}'",
             header
         )),
     }
@@ -745,7 +745,7 @@ mod tests {
     #[test]
     fn test_parse_custom_headers() {
         assert_eq!(
-            parse_header("accept=text/html").unwrap(),
+            parse_header("accept:text/html").unwrap(),
             (
                 HeaderName::from_static("accept"),
                 HeaderValue::from_static("text/html")
@@ -754,12 +754,23 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_custom_header_multiple_colons() {
+        assert_eq!(
+            parse_header("key:x-test:check=this").unwrap(),
+            (
+                HeaderName::from_static("key"),
+                HeaderValue::from_static("x-test:check=this")
+            )
+        );
+    }
+
+    #[test]
     fn test_parse_custom_headers_with_equals() {
         assert_eq!(
-            parse_header("x-test=check=this").unwrap(),
+            parse_header("key:x-test=check=this").unwrap(),
             (
-                HeaderName::from_static("x-test"),
-                HeaderValue::from_static("check=this")
+                HeaderName::from_static("key"),
+                HeaderValue::from_static("x-test=check=this")
             )
         );
     }
