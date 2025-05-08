@@ -183,7 +183,7 @@ macro_rules! fold_in {
 ///
 /// If the header contains multiple colons, the part after the first colon is
 /// considered the value.
-fn parse_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
+fn parse_single_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
     let parts: Vec<&str> = header.splitn(2, ':').collect();
     match parts.as_slice() {
         [name, value] => {
@@ -220,7 +220,7 @@ impl TypedValueParser for HeaderParser {
         })?;
 
         let mut headers = HeaderMap::new();
-        match parse_header(header_str) {
+        match parse_single_header(header_str) {
             Ok((name, value)) => {
                 headers.insert(name, value);
                 Ok(headers)
@@ -745,7 +745,7 @@ mod tests {
     #[test]
     fn test_parse_custom_headers() {
         assert_eq!(
-            parse_header("accept:text/html").unwrap(),
+            parse_single_header("accept:text/html").unwrap(),
             (
                 HeaderName::from_static("accept"),
                 HeaderValue::from_static("text/html")
@@ -756,7 +756,7 @@ mod tests {
     #[test]
     fn test_parse_custom_header_multiple_colons() {
         assert_eq!(
-            parse_header("key:x-test:check=this").unwrap(),
+            parse_single_header("key:x-test:check=this").unwrap(),
             (
                 HeaderName::from_static("key"),
                 HeaderValue::from_static("x-test:check=this")
@@ -767,11 +767,33 @@ mod tests {
     #[test]
     fn test_parse_custom_headers_with_equals() {
         assert_eq!(
-            parse_header("key:x-test=check=this").unwrap(),
+            parse_single_header("key:x-test=check=this").unwrap(),
             (
                 HeaderName::from_static("key"),
                 HeaderValue::from_static("x-test=check=this")
             )
         );
+    }
+
+    #[test]
+    fn test_header_parsing_and_merging() {
+        // Simulate commandline arguments with multiple headers
+        let args = vec![
+            "lychee",
+            "--header",
+            "Accept: text/html",
+            "--header",
+            "X-Test: check=this",
+            "input.md",
+        ];
+
+        // Parse the arguments
+        let opts = crate::LycheeOptions::parse_from(args);
+
+        // Check that the headers were merged correctly
+        let headers = opts.config.header.unwrap();
+        assert_eq!(headers.len(), 2);
+        assert_eq!(headers["accept"], "text/html");
+        assert_eq!(headers["x-test"], "check=this");
     }
 }
