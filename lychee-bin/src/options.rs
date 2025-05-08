@@ -178,7 +178,11 @@ macro_rules! fold_in {
 
 /// Parse a single header into a [`HeaderName`] and [`HeaderValue`]
 ///
-/// Headers are expected to be in format "key=value".
+/// Headers are expected to be in format `Header-Name: Header-Value`.
+/// The header name and value are trimmed of whitespace.
+///
+/// If the header contains multiple colons, the part after the first colon is
+/// considered the value.
 fn parse_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
     let parts: Vec<&str> = header.splitn(2, ':').collect();
     match parts.as_slice() {
