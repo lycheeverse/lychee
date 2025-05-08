@@ -16,8 +16,6 @@ use lychee_lib::{
 };
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
-use std::collections::HashMap;
-use std::convert::TryInto;
 use std::path::Path;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use strum::{Display, EnumIter, EnumString, VariantNames};
@@ -202,11 +200,14 @@ fn parse_single_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
     }
 }
 
+/// Parses a single HTTP header into a tuple of (String, String)
+///
+/// This does NOT merge multiple headers into one.
 #[derive(Clone, Debug)]
 struct HeaderParser;
 
 impl TypedValueParser for HeaderParser {
-    type Value = HashMap<String, String>;
+    type Value = (String, String);
 
     fn parse_ref(
         &self,
@@ -222,11 +223,7 @@ impl TypedValueParser for HeaderParser {
         })?;
 
         match parse_single_header(header_str) {
-            Ok((name, value)) => {
-                let mut map = HashMap::new();
-                map.insert(name.to_string(), value.to_str().unwrap().to_string());
-                Ok(map)
-            }
+            Ok((name, value)) => Ok((name.to_string(), value.to_str().unwrap().to_string())),
             Err(e) => Err(clap::Error::raw(
                 clap::error::ErrorKind::InvalidValue,
                 e.to_string(),
@@ -239,6 +236,26 @@ impl clap::builder::ValueParserFactory for HeaderParser {
     type Parser = HeaderParser;
     fn value_parser() -> Self::Parser {
         HeaderParser
+    }
+}
+
+/// Extension trait for converting a Vec of header pairs to a HeaderMap
+pub(crate) trait HeaderMapExt {
+    /// Convert a collection of header key-value pairs to a HeaderMap
+    fn from_header_pairs(headers: &Vec<(String, String)>) -> Result<HeaderMap, Error>;
+}
+
+impl HeaderMapExt for HeaderMap {
+    fn from_header_pairs(headers: &Vec<(String, String)>) -> Result<HeaderMap, Error> {
+        let mut header_map = HeaderMap::new();
+        for (name, value) in headers {
+            let header_name = HeaderName::from_bytes(name.as_bytes())
+                .map_err(|e| anyhow!("Invalid header name '{}': {}", name, e))?;
+            let header_value = HeaderValue::from_str(value)
+                .map_err(|e| anyhow!("Invalid header value '{}': {}", value, e))?;
+            header_map.insert(header_name, header_value);
+        }
+        Ok(header_map)
     }
 }
 
@@ -276,7 +293,7 @@ impl LycheeOptions {
         } else {
             Some(self.config.exclude_path.clone())
         };
-        let headers: HeaderMap = (&self.config.header).try_into()?;
+        let headers = HeaderMap::from_header_pairs(&self.config.header)?;
 
         self.raw_inputs
             .iter()
@@ -506,6 +523,7 @@ Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
         long = "header",
         action = clap::ArgAction::Append,
         value_parser = HeaderParser,
+        value_name = "HEADER:VALUE",
         long_help = "Set custom header for requests
 
 Some websites require custom headers to be passed in order to return valid responses. 
@@ -513,7 +531,8 @@ You can specify custom headers in the format 'Name: Value'. For example, 'Accept
 This is the same format that other tools like curl or wget use. 
 Multiple headers can be specified by using the flag multiple times."
     )]
-    pub header: HashMap<String, String>,
+    #[serde(default)]
+    pub header: Vec<(String, String)>,
 
     /// A List of accepted status codes for valid links
     #[arg(
@@ -641,6 +660,13 @@ separated list of accepted status codes. This example will accept 200, 201,
 }
 
 impl Config {
+    /// Special handling for merging headers from TOML config
+    fn merge_headers(&mut self, other: &Vec<(String, String)>) {
+        if self.header.is_empty() && !other.is_empty() {
+            self.header = other.clone();
+        }
+    }
+
     /// Load configuration from a file
     pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
         // Read configuration file
@@ -650,6 +676,9 @@ impl Config {
 
     /// Merge the configuration from TOML into the CLI configuration
     pub(crate) fn merge(&mut self, toml: Config) {
+        // Special handling for headers before fold_in!
+        self.merge_headers(&toml.header);
+
         fold_in! {
             // Destination and source configs
             self, toml;
@@ -679,7 +708,6 @@ impl Config {
             format: StatsFormat::default();
             remap: Vec::<String>::new();
             fallback_extensions: Vec::<String>::new();
-            header: HashMap::default();
             timeout: DEFAULT_TIMEOUT_SECS;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
             method: DEFAULT_METHOD;
@@ -715,6 +743,8 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
 
     #[test]
@@ -793,10 +823,13 @@ mod tests {
         // Parse the arguments
         let opts = crate::LycheeOptions::parse_from(args);
 
-        // Check that the headers were merged correctly
-        let headers = opts.config.header;
+        // Check that the headers were collected correctly
+        let headers = &opts.config.header;
         assert_eq!(headers.len(), 2);
-        assert_eq!(headers["accept"], "text/html");
-        assert_eq!(headers["x-test"], "check=this");
+
+        // Convert to HashMap for easier testing
+        let header_map: HashMap<String, String> = headers.iter().cloned().collect();
+        assert_eq!(header_map["accept"], "text/html");
+        assert_eq!(header_map["x-test"], "check=this");
     }
 }

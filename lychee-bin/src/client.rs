@@ -1,4 +1,4 @@
-use crate::options::Config;
+use crate::options::{Config, HeaderMapExt};
 use crate::parse::{parse_duration_secs, parse_remaps};
 use anyhow::{Context, Result};
 use http::{HeaderMap, StatusCode};
@@ -51,7 +51,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     } else {
         cfg.include_mail
     };
-    let headers: HeaderMap = (&cfg.header).try_into()?;
+    let headers = HeaderMap::from_header_pairs(&cfg.header)?;
 
     ClientBuilder::builder()
         .remaps(remaps)
