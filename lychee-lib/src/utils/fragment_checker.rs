@@ -50,7 +50,7 @@ impl FragmentChecker {
         };
         if fragment.is_empty() || fragment.eq_ignore_ascii_case("top") {
             return Ok(true);
-        };
+        }
         let mut fragment_decoded = percent_decode_str(fragment).decode_utf8()?;
         let url_without_frag = Self::remove_fragment(url.clone());
 

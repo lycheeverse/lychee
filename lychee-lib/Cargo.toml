@@ -30,7 +30,6 @@ ip_network = "0.4.1"
 linkify = "0.10.0"
 log = "0.4.27"
 octocrab = "0.44.0"
-once_cell = "1.21.3"
 openssl-sys = { version = "0.9.106", optional = true }
 path-clean = "1.0.1"
 percent-encoding = "2.3.1"
