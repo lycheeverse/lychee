@@ -5,17 +5,16 @@ use crate::{
 use async_trait::async_trait;
 use header::HeaderValue;
 use http::header;
-use once_cell::sync::Lazy;
 use regex::Regex;
 use reqwest::{Request, Url};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::LazyLock};
 
-static CRATES_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^(https?://)?(www\.)?crates.io").unwrap());
-static YOUTUBE_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^(https?://)?(www\.)?youtube(-nocookie)?\.com").unwrap());
-static YOUTUBE_SHORT_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^(https?://)?(www\.)?(youtu\.?be)").unwrap());
+static CRATES_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?crates.io").unwrap());
+static YOUTUBE_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?youtube(-nocookie)?\.com").unwrap());
+static YOUTUBE_SHORT_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?(youtu\.?be)").unwrap());
 
 // Retrieve a map of query params for the given request
 fn query(request: &Request) -> HashMap<String, String> {
@@ -24,7 +23,7 @@ fn query(request: &Request) -> HashMap<String, String> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Quirk {
-    pub(crate) pattern: &'static Lazy<Regex>,
+    pub(crate) pattern: &'static LazyLock<Regex>,
     pub(crate) rewrite: fn(Request) -> Request,
 }
 
