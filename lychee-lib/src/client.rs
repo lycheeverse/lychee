@@ -361,7 +361,7 @@ impl ClientBuilder {
             None => builder,
         }
         .build()
-        .map_err(ErrorKind::NetworkRequest)?;
+        .map_err(ErrorKind::BuildRequestClient)?;
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(
