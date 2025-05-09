@@ -1,5 +1,5 @@
 # Needed SHELL since I'm using zsh
-SHELL := /bin/bash
+SHELL := /usr/bin/env bash
 IMAGE_NAME := "lycheeverse/lychee"
 
 .PHONY: help
@@ -36,7 +36,7 @@ run: ## Run project locally
 
 .PHONY: docs
 docs: ## Generate and show documentation
-	cargo doc --open 
+	cargo doc --open
 
 .PHONY: lint
 lint: ## Run linter
@@ -55,6 +55,6 @@ doc: ## Open documentation
 
 .PHONY: screencast
 screencast: ## Create a screencast for the docs
-	termsvg rec --command=assets/screencast.sh recording.asc 
+	termsvg rec --command=assets/screencast.sh recording.asc
 	termsvg export --minify recording.asc --output=assets/screencast.svg
 	rm recording.asc
