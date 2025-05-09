@@ -1,7 +1,6 @@
 use std::{fmt::Display, num::ParseIntError, ops::RangeInclusive, str::FromStr, sync::LazyLock};
 
 use regex::Regex;
-use std::sync::LazyLock;
 use thiserror::Error;
 
 static RANGE_PATTERN: LazyLock<Regex> =

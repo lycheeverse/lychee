@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use serde::de::Error as SerdeError;
 use serde::{Deserialize, Deserializer};
-use std::sync::LazyLock;
 
 use http::StatusCode;
 use reqwest::{Client, Error, Url};
