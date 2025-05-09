@@ -1,6 +1,4 @@
-use std::collections::HashSet;
-
-use std::sync::LazyLock;
+use std::{collections::HashSet, sync::LazyLock};
 
 use crate::{ErrorKind, Result, Uri};
 

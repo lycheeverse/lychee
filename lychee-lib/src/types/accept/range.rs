@@ -1,4 +1,4 @@
-use std::{fmt::Display, num::ParseIntError, ops::RangeInclusive, str::FromStr};
+use std::{fmt::Display, num::ParseIntError, ops::RangeInclusive, str::FromStr, sync::LazyLock};
 
 use regex::Regex;
 use std::sync::LazyLock;

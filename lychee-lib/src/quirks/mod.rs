@@ -7,8 +7,7 @@ use header::HeaderValue;
 use http::header;
 use regex::Regex;
 use reqwest::{Request, Url};
-use std::collections::HashMap;
-use std::sync::LazyLock;
+use std::{collections::HashMap, sync::LazyLock};
 
 static CRATES_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?crates.io").unwrap());

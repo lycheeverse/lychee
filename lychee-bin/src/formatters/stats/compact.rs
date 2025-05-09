@@ -1,8 +1,8 @@
 use anyhow::Result;
 use console::Style;
-use std::sync::LazyLock;
 use std::{
     fmt::{self, Display},
+    sync::LazyLock,
     time::Duration,
 };
 

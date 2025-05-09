@@ -1,6 +1,6 @@
-use linkify::LinkFinder;
-
 use std::sync::LazyLock;
+
+use linkify::LinkFinder;
 
 static LINK_FINDER: LazyLock<LinkFinder> = LazyLock::new(LinkFinder::new);
 

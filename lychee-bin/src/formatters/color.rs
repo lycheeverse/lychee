@@ -1,8 +1,9 @@
 //! Defines the colors used in the output of the CLI.
 
+use std::sync::LazyLock;
+
 use console::Style;
 use log::Level;
-use std::sync::LazyLock;
 
 pub(crate) static NORMAL: LazyLock<Style> = LazyLock::new(Style::new);
 pub(crate) static DIM: LazyLock<Style> = LazyLock::new(|| Style::new().dim());
