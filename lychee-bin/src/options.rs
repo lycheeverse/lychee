@@ -393,12 +393,6 @@ and 501."
     #[serde(default)]
     pub(crate) exclude_loopback: bool,
 
-    /// Exclude all mail addresses from checking
-    /// (deprecated; excluded by default)
-    #[arg(long)]
-    #[serde(default)]
-    pub(crate) exclude_mail: bool,
-
     /// Also check email addresses
     #[arg(long)]
     #[serde(default)]
@@ -587,7 +581,6 @@ impl Config {
             exclude_private: false;
             exclude_link_local: false;
             exclude_loopback: false;
-            exclude_mail: false;
             format: StatsFormat::default();
             remap: Vec::<String>::new();
             fallback_extensions: Vec::<String>::new();

@@ -173,11 +173,6 @@ fn load_config() -> Result<LycheeOptions> {
     }
 
     // TODO: Remove this warning and the parameter with 1.0
-    if opts.config.exclude_mail {
-        warn!("WARNING: `--exclude-mail` is deprecated and will soon be removed; E-Mail is no longer checked by default. Use `--include-mail` to enable E-Mail checking.");
-    }
-
-    // TODO: Remove this warning and the parameter with 1.0
     if opts.config.base.is_some() {
         warn!(
             "WARNING: `--base` is deprecated and will soon be removed; use `--base-url` instead."

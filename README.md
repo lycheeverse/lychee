@@ -440,9 +440,6 @@ Options:
       --exclude-loopback
           Exclude loopback IP address range and localhost from checking
 
-      --exclude-mail
-          Exclude all mail addresses from checking (deprecated; excluded by default)
-
       --include-mail
           Also check email addresses
 
