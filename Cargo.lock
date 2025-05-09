@@ -2534,7 +2534,6 @@ dependencies = [
  "indicatif",
  "log",
  "lychee-lib",
- "once_cell",
  "openssl-sys",
  "pad",
  "predicates",
