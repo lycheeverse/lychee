@@ -235,12 +235,13 @@ impl Status {
             }
             Status::Excluded => "EXCLUDED".to_string(),
             Status::Error(e) => match e {
-                ErrorKind::NetworkRequest(e)
-                | ErrorKind::ReadResponseBody(e)
-                | ErrorKind::BuildRequestClient(e) => match e.status() {
-                    Some(code) => code.as_str().to_string(),
-                    None => "ERROR".to_string(),
-                },
+                ErrorKind::RejectedStatusCode(code) => code.as_str().to_string(),
+                ErrorKind::ReadResponseBody(e) | ErrorKind::BuildRequestClient(e) => {
+                    match e.status() {
+                        Some(code) => code.as_str().to_string(),
+                        None => "ERROR".to_string(),
+                    }
+                }
                 _ => "ERROR".to_string(),
             },
             Status::Timeout(code) => match code {
