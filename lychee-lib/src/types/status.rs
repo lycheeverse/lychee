@@ -89,12 +89,7 @@ impl Status {
         if let Some(true) = accepted.map(|a| a.contains(&code)) {
             Self::Ok(code)
         } else {
-            match response.error_for_status_ref() {
-                Ok(_) if code.is_success() => Self::Ok(code),
-                Ok(_) if code.is_redirection() => Self::Redirected(code),
-                Ok(_) => Self::UnknownStatusCode(code),
-                Err(e) => e.into(),
-            }
+            Self::Error(ErrorKind::RejectedStatusCode(code))
         }
     }
 
@@ -240,12 +235,13 @@ impl Status {
             }
             Status::Excluded => "EXCLUDED".to_string(),
             Status::Error(e) => match e {
-                ErrorKind::NetworkRequest(e)
-                | ErrorKind::ReadResponseBody(e)
-                | ErrorKind::BuildRequestClient(e) => match e.status() {
-                    Some(code) => code.as_str().to_string(),
-                    None => "ERROR".to_string(),
-                },
+                ErrorKind::RejectedStatusCode(code) => code.as_str().to_string(),
+                ErrorKind::ReadResponseBody(e) | ErrorKind::BuildRequestClient(e) => {
+                    match e.status() {
+                        Some(code) => code.as_str().to_string(),
+                        None => "ERROR".to_string(),
+                    }
+                }
                 _ => "ERROR".to_string(),
             },
             Status::Timeout(code) => match code {
