@@ -34,25 +34,6 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .map(|value| StatusCode::from_u16(*value))
         .collect::<Result<HashSet<_>, _>>()?;
 
-    // `exclude_mail` will be removed in 1.0. Until then, we need to support it.
-    // Therefore, we need to check if both `include_mail` and `exclude_mail` are set to `true`
-    // and return an error if that's the case.
-    if cfg.include_mail && cfg.exclude_mail {
-        return Err(anyhow::anyhow!(
-            "Cannot set both `include-mail` and `exclude-mail` to true"
-        ));
-    }
-
-    // By default, clap sets `exclude_mail` to `false`.
-    // Therefore, we need to check if `exclude_mail` is explicitly set to
-    // `true`. If so, we need to set `include_mail` to `false`.
-    // Otherwise, we use the value of `include_mail`.
-    let include_mail = if cfg.exclude_mail {
-        false
-    } else {
-        cfg.include_mail
-    };
-
     ClientBuilder::builder()
         .remaps(remaps)
         .base(cfg.base_url.clone())
@@ -62,7 +43,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .exclude_private_ips(cfg.exclude_private)
         .exclude_link_local_ips(cfg.exclude_link_local)
         .exclude_loopback_ips(cfg.exclude_loopback)
-        .include_mail(include_mail)
+        .include_mail(cfg.include_mail)
         .max_redirects(cfg.max_redirects)
         .user_agent(cfg.user_agent.clone())
         .allow_insecure(cfg.insecure)
