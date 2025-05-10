@@ -47,7 +47,7 @@ const HELP_MSG_CONFIG_FILE: &str = formatcp!(
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
-#[derive(Debug, Display, Deserialize, Default, Clone, EnumString)]
+#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames)]
 #[non_exhaustive]
 pub(crate) enum TlsVersion {
     #[serde(rename = "TLSv1_0")]
@@ -349,7 +349,7 @@ and 501."
     pub(crate) max_retries: u64,
 
     /// Minimum accepted TLS Version
-    #[arg(long)]
+    #[arg(long, value_parser = PossibleValuesParser::new(TlsVersion::VARIANTS).map(|s| s.parse::<TlsVersion>().unwrap()))]
     #[serde(default)]
     pub(crate) min_tls: Option<TlsVersion>,
 

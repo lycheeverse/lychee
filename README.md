@@ -396,6 +396,8 @@ Options:
       --min-tls <MIN_TLS>
           Minimum accepted TLS Version
 
+          [possible values: TLSv1_0, TLSv1_1, TLSv1_2, TLSv1_3]
+
       --max-concurrency <MAX_CONCURRENCY>
           Maximum number of concurrent network requests
 
