@@ -5,6 +5,10 @@ use anyhow::{anyhow, Context, Error, Result};
 use clap::builder::PossibleValuesParser;
 use clap::{arg, builder::TypedValueParser, Parser};
 use const_format::{concatcp, formatcp};
+use http::{
+    header::{HeaderName, HeaderValue},
+    HeaderMap,
+};
 use lychee_lib::{
     Base, BasicAuthSelector, FileExtensions, FileType, Input, StatusCodeExcluder,
     StatusCodeSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
@@ -201,6 +205,89 @@ macro_rules! fold_in {
     };
 }
 
+/// Parse a single header into a [`HeaderName`] and [`HeaderValue`]
+///
+/// Headers are expected to be in format `Header-Name: Header-Value`.
+/// The header name and value are trimmed of whitespace.
+///
+/// If the header contains multiple colons, the part after the first colon is
+/// considered the value.
+fn parse_single_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
+    let parts: Vec<&str> = header.splitn(2, ':').collect();
+    match parts.as_slice() {
+        [name, value] => {
+            let name = HeaderName::from_bytes(name.trim().as_bytes())
+                .map_err(|e| anyhow!("Invalid header name '{}': {}", name.trim(), e))?;
+            let value = HeaderValue::from_str(value.trim())
+                .map_err(|e| anyhow!("Invalid header value '{}': {}", value.trim(), e))?;
+            Ok((name, value))
+        }
+        _ => Err(anyhow!(
+            "Invalid header format. Expected colon-separated string in the format 'HeaderName: HeaderValue', got '{}'",
+            header
+        )),
+    }
+}
+
+/// Parses a single HTTP header into a tuple of (String, String)
+///
+/// This does NOT merge multiple headers into one.
+#[derive(Clone, Debug)]
+struct HeaderParser;
+
+impl TypedValueParser for HeaderParser {
+    type Value = (String, String);
+
+    fn parse_ref(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        let header_str = value.to_str().ok_or_else(|| {
+            clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                "Header value contains invalid UTF-8",
+            )
+        })?;
+
+        match parse_single_header(header_str) {
+            Ok((name, value)) => Ok((name.to_string(), value.to_str().unwrap().to_string())),
+            Err(e) => Err(clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                e.to_string(),
+            )),
+        }
+    }
+}
+
+impl clap::builder::ValueParserFactory for HeaderParser {
+    type Parser = HeaderParser;
+    fn value_parser() -> Self::Parser {
+        HeaderParser
+    }
+}
+
+/// Extension trait for converting a Vec of header pairs to a HeaderMap
+pub(crate) trait HeaderMapExt {
+    /// Convert a collection of header key-value pairs to a HeaderMap
+    fn from_header_pairs(headers: &Vec<(String, String)>) -> Result<HeaderMap, Error>;
+}
+
+impl HeaderMapExt for HeaderMap {
+    fn from_header_pairs(headers: &Vec<(String, String)>) -> Result<HeaderMap, Error> {
+        let mut header_map = HeaderMap::new();
+        for (name, value) in headers {
+            let header_name = HeaderName::from_bytes(name.as_bytes())
+                .map_err(|e| anyhow!("Invalid header name '{}': {}", name, e))?;
+            let header_value = HeaderValue::from_str(value)
+                .map_err(|e| anyhow!("Invalid header value '{}': {}", value, e))?;
+            header_map.insert(header_name, header_value);
+        }
+        Ok(header_map)
+    }
+}
+
 /// A fast, async link checker
 ///
 /// Finds broken URLs and mail addresses inside Markdown, HTML,
@@ -235,9 +322,19 @@ impl LycheeOptions {
         } else {
             Some(self.config.exclude_path.clone())
         };
+        let headers = HeaderMap::from_header_pairs(&self.config.header)?;
+
         self.raw_inputs
             .iter()
-            .map(|s| Input::new(s, None, self.config.glob_ignore_case, excluded.clone()))
+            .map(|s| {
+                Input::new(
+                    s,
+                    None,
+                    self.config.glob_ignore_case,
+                    excluded.clone(),
+                    headers.clone(),
+                )
+            })
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
@@ -456,10 +553,22 @@ Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
     )]
     pub(crate) fallback_extensions: Vec<String>,
 
-    /// Custom request header
-    #[arg(long)]
+    /// Set custom header for requests
+    #[arg(
+        short = 'H',
+        long = "header",
+        action = clap::ArgAction::Append,
+        value_parser = HeaderParser,
+        value_name = "HEADER:VALUE",
+        long_help = "Set custom header for requests
+
+Some websites require custom headers to be passed in order to return valid responses. 
+You can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.
+This is the same format that other tools like curl or wget use. 
+Multiple headers can be specified by using the flag multiple times."
+    )]
     #[serde(default)]
-    pub(crate) header: Vec<String>,
+    pub header: Vec<(String, String)>,
 
     /// A List of accepted status codes for valid links
     #[arg(
@@ -587,6 +696,13 @@ separated list of accepted status codes. This example will accept 200, 201,
 }
 
 impl Config {
+    /// Special handling for merging headers from TOML config
+    fn merge_headers(&mut self, other: &Vec<(String, String)>) {
+        if self.header.is_empty() && !other.is_empty() {
+            self.header = other.clone();
+        }
+    }
+
     /// Load configuration from a file
     pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
         // Read configuration file
@@ -596,6 +712,9 @@ impl Config {
 
     /// Merge the configuration from TOML into the CLI configuration
     pub(crate) fn merge(&mut self, toml: Config) {
+        // Special handling for headers before fold_in!
+        self.merge_headers(&toml.header);
+
         fold_in! {
             // Destination and source configs
             self, toml;
@@ -625,7 +744,6 @@ impl Config {
             format: StatsFormat::default();
             remap: Vec::<String>::new();
             fallback_extensions: Vec::<String>::new();
-            header: Vec::<String>::new();
             timeout: DEFAULT_TIMEOUT_SECS;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
             method: DEFAULT_METHOD;
@@ -661,6 +779,8 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
 
     #[test]
@@ -689,5 +809,63 @@ mod tests {
             StatusCodeSelector::from_str("100..=103,200..=299").expect("no error")
         );
         assert_eq!(cli.cache_exclude_status, StatusCodeExcluder::new());
+    }
+
+    #[test]
+    fn test_parse_custom_headers() {
+        assert_eq!(
+            parse_single_header("accept:text/html").unwrap(),
+            (
+                HeaderName::from_static("accept"),
+                HeaderValue::from_static("text/html")
+            )
+        );
+    }
+
+    #[test]
+    fn test_parse_custom_header_multiple_colons() {
+        assert_eq!(
+            parse_single_header("key:x-test:check=this").unwrap(),
+            (
+                HeaderName::from_static("key"),
+                HeaderValue::from_static("x-test:check=this")
+            )
+        );
+    }
+
+    #[test]
+    fn test_parse_custom_headers_with_equals() {
+        assert_eq!(
+            parse_single_header("key:x-test=check=this").unwrap(),
+            (
+                HeaderName::from_static("key"),
+                HeaderValue::from_static("x-test=check=this")
+            )
+        );
+    }
+
+    #[test]
+    fn test_header_parsing_and_merging() {
+        // Simulate commandline arguments with multiple headers
+        let args = vec![
+            "lychee",
+            "--header",
+            "Accept: text/html",
+            "--header",
+            "X-Test: check=this",
+            "input.md",
+        ];
+
+        // Parse the arguments
+        let opts = crate::LycheeOptions::parse_from(args);
+
+        // Check that the headers were collected correctly
+        let headers = &opts.config.header;
+        assert_eq!(headers.len(), 2);
+
+        // Convert to HashMap for easier testing
+        let header_map: HashMap<String, String> = headers.iter().cloned().collect();
+        assert_eq!(header_map["accept"], "text/html");
+        assert_eq!(header_map["x-test"], "check=this");
     }
 }

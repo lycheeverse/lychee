@@ -1,7 +1,7 @@
-use crate::options::Config;
-use crate::parse::{parse_duration_secs, parse_headers, parse_remaps};
+use crate::options::{Config, HeaderMapExt};
+use crate::parse::{parse_duration_secs, parse_remaps};
 use anyhow::{Context, Result};
-use http::StatusCode;
+use http::{HeaderMap, StatusCode};
 use lychee_lib::{Client, ClientBuilder};
 use regex::RegexSet;
 use reqwest_cookie_store::CookieStoreMutex;
@@ -10,7 +10,6 @@ use std::{collections::HashSet, str::FromStr};
 
 /// Creates a client according to the command-line config
 pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -> Result<Client> {
-    let headers = parse_headers(&cfg.header)?;
     let timeout = parse_duration_secs(cfg.timeout);
     let retry_wait_time = parse_duration_secs(cfg.retry_wait_time);
     let method: reqwest::Method = reqwest::Method::from_str(&cfg.method.to_uppercase())?;
@@ -52,6 +51,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     } else {
         cfg.include_mail
     };
+    let headers = HeaderMap::from_header_pairs(&cfg.header)?;
 
     ClientBuilder::builder()
         .remaps(remaps)
