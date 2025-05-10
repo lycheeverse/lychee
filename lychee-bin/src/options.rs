@@ -348,7 +348,7 @@ and 501."
     #[serde(default = "max_retries")]
     pub(crate) max_retries: u64,
 
-    // Minimum TLS Version
+    /// Minimum TLS Version
     #[arg(long)]
     #[serde(default)]
     pub(crate) min_tls: Option<TlsVersion>,
