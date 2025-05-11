@@ -3,15 +3,14 @@ use crate::{
     quirks::Quirks,
     retry::RetryExt,
     types::uri::github::GithubUri,
-    utils::fragment_checker::FragmentChecker,
+    utils::fragment_checker::{FragmentChecker, FragmentInput},
     BasicAuthCredentials, ErrorKind, Status, Uri,
 };
 use async_trait::async_trait;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
 use reqwest::{Request, Response};
-use std::{collections::HashSet, io::Write, time::Duration};
-use tempfile::NamedTempFile;
+use std::{collections::HashSet, time::Duration};
 
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
@@ -117,15 +116,21 @@ impl WebsiteChecker {
         let url = response.url().clone();
         match response.text().await {
             Ok(text) => {
-                let mut file = NamedTempFile::with_suffix(".html").unwrap();
-                if let Err(e) = file.write_all(text.as_bytes()) {
-                    return Status::Error(ErrorKind::ReadFileInput(e, file.path().to_path_buf()));
-                }
-                return match self.fragment_checker.check(file.path(), &url).await {
+                match self
+                    .fragment_checker
+                    .check(
+                        FragmentInput {
+                            content: text,
+                            file_type: crate::FileType::Html,
+                        },
+                        &url,
+                    )
+                    .await
+                {
                     Ok(true) => status,
                     Ok(false) => Status::Error(ErrorKind::InvalidFragment(url.clone().into())),
                     Err(e) => Status::Error(e),
-                };
+                }
             }
             Err(e) => Status::Error(ErrorKind::ReadResponseBody(e)),
         }
