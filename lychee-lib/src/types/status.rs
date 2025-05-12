@@ -83,10 +83,10 @@ impl Serialize for Status {
 impl Status {
     #[must_use]
     /// Create a status object from a response and the set of accepted status codes
-    pub fn new(response: &Response, accepted: Option<HashSet<StatusCode>>) -> Self {
+    pub fn new(response: &Response, accepted: HashSet<StatusCode>) -> Self {
         let code = response.status();
 
-        if let Some(true) = accepted.map(|a| a.contains(&code)) {
+        if accepted.contains(&code) {
             Self::Ok(code)
         } else {
             Self::Error(ErrorKind::RejectedStatusCode(code))
