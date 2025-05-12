@@ -1837,10 +1837,16 @@ mod cli {
             ))
             .stderr(contains("fixtures/fragments/file.html#top"))
             .stderr(contains("fixtures/fragments/file2.md#top"))
-            .stdout(contains("25 Total"))
-            .stdout(contains("21 OK"))
+            .stderr(contains(
+                "https://github.com/lycheeverse/lychee#user-content-table-of-contents",
+            ))
+            .stderr(contains(
+                "https://github.com/lycheeverse/lychee#non-existent-anchor",
+            ))
+            .stdout(contains("27 Total"))
+            .stdout(contains("22 OK"))
             // 4 failures because of missing fragments
-            .stdout(contains("4 Errors"));
+            .stdout(contains("5 Errors"));
     }
 
     #[test]

@@ -63,3 +63,5 @@ without related HTML element. Browser will scroll to the top of the page.
 [Alternative link to top of file2](file2.md#top)
 
 ##### Lets wear a hat: être
+
+A link to the non-existing fragment: [try](https://github.com/lycheeverse/lychee#non-existent-anchor).
