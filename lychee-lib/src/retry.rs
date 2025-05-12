@@ -94,6 +94,11 @@ impl RetryExt for http::Error {
 
 impl RetryExt for ErrorKind {
     fn should_retry(&self) -> bool {
+        match self {
+            Self::RejectedStatusCode(StatusCode::TOO_MANY_REQUESTS) => return true,
+            _ => {}
+        };
+
         // If the error is a `reqwest::Error`, delegate to that
         if let Some(r) = self.reqwest_error() {
             r.should_retry()
