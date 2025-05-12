@@ -212,13 +212,13 @@ impl Status {
             | Status::Redirected(code)
             | Status::UnknownStatusCode(code)
             | Status::Timeout(Some(code)) => Some(*code),
-            Status::Error(kind) | Status::Unsupported(kind) => {
-                if let Some(error) = kind.reqwest_error() {
-                    error.status()
-                } else {
-                    None
-                }
-            }
+            Status::Error(kind) | Status::Unsupported(kind) => match kind {
+                ErrorKind::RejectedStatusCode(status_code) => Some(*status_code),
+                _ => match kind.reqwest_error() {
+                    Some(error) => error.status(),
+                    None => None,
+                },
+            },
             Status::Cached(CacheStatus::Ok(code) | CacheStatus::Error(Some(code))) => {
                 StatusCode::from_u16(*code).ok()
             }
