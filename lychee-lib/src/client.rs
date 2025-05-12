@@ -636,7 +636,7 @@ mod tests {
             password: "pass".into(),
         });
 
-        let res = dbg!(get_mock_client_response(r).await);
+        let res = get_mock_client_response(r).await;
         assert!(res.status().is_success());
     }
 
