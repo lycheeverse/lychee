@@ -35,7 +35,7 @@ pub(crate) struct WebsiteChecker {
     /// Set of accepted return codes / status codes.
     ///
     /// Unmatched return codes/ status codes are deemed as errors.
-    accepted: Option<HashSet<StatusCode>>,
+    accepted: HashSet<StatusCode>,
 
     /// Requires using HTTPS when it's available.
     ///
@@ -50,7 +50,7 @@ impl WebsiteChecker {
         retry_wait_time: Duration,
         max_retries: u64,
         reqwest_client: reqwest::Client,
-        accepted: Option<HashSet<StatusCode>>,
+        accepted: HashSet<StatusCode>,
         github_client: Option<Octocrab>,
         require_https: bool,
         plugin_request_chain: RequestChain,
