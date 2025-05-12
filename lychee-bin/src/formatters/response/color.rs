@@ -13,7 +13,7 @@ pub(crate) struct ColorFormatter;
 impl ColorFormatter {
     /// Determine the color for formatted output based on the status of the
     /// response.
-    fn status_color(status: &Status) -> &'static once_cell::sync::Lazy<console::Style> {
+    fn status_color(status: &Status) -> &'static std::sync::LazyLock<console::Style> {
         match status {
             Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => &GREEN,
             Status::Excluded

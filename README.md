@@ -393,6 +393,11 @@ Options:
 
           [default: 3]
 
+      --min-tls <MIN_TLS>
+          Minimum accepted TLS Version
+
+          [possible values: TLSv1_0, TLSv1_1, TLSv1_2, TLSv1_3]
+
       --max-concurrency <MAX_CONCURRENCY>
           Maximum number of concurrent network requests
 
@@ -754,7 +759,7 @@ If you are using lychee for your project, **please add it here**.
 ## Credits
 
 The first prototype of lychee was built in [episode 10 of Hello
-Rust](https://hello-rust.show/10/). Thanks to all GitHub and Patreon sponsors
+Rust](https://hello-rust.github.io/10/). Thanks to all GitHub and Patreon sponsors
 for supporting the development since the beginning. Also, thanks to all the
 great contributors who have since made this project more mature.
 
