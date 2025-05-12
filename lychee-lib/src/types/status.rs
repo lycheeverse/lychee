@@ -83,7 +83,7 @@ impl Serialize for Status {
 impl Status {
     #[must_use]
     /// Create a status object from a response and the set of accepted status codes
-    pub fn new(response: &Response, accepted: HashSet<StatusCode>) -> Self {
+    pub fn new(response: &Response, accepted: &HashSet<StatusCode>) -> Self {
         let code = response.status();
 
         if accepted.contains(&code) {
