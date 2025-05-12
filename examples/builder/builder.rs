@@ -17,10 +17,7 @@ async fn main() -> Result<()> {
     let mut headers = HeaderMap::new();
     headers.insert(header::ACCEPT, "text/html".parse().unwrap());
 
-    let accepted = Some(HashSet::from_iter(vec![
-        StatusCode::OK,
-        StatusCode::NO_CONTENT,
-    ]));
+    let accepted = HashSet::from_iter(vec![StatusCode::OK, StatusCode::NO_CONTENT]);
 
     let client = ClientBuilder::builder()
         .excludes(excludes)
