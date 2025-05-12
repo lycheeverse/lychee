@@ -146,7 +146,7 @@ pub enum ErrorKind {
     InvalidStatusCode(u16),
 
     /// The given status code was not accepted (this depends on the `accept` configuration)
-    #[error(r#"Rejected status code: {0} (this depends on your "accept" configuration)"#)]
+    #[error(r#"Rejected status code (this depends on your "accept" configuration)"#)]
     RejectedStatusCode(StatusCode),
 
     /// Regex error
