@@ -88,7 +88,7 @@ impl WebsiteChecker {
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, request: Request) -> Status {
         match self.reqwest_client.execute(request).await {
-            Ok(ref response) => Status::new(response, self.accepted.clone()),
+            Ok(response) => Status::new(&response, &self.accepted),
             Err(e) => e.into(),
         }
     }
