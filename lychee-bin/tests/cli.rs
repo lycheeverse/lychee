@@ -1118,7 +1118,7 @@ mod cli {
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
-                "[429] {}/ | Network error: Too Many Requests\n",
+                "[429] {}/ | Rejected status code (this depends on your \"accept\" configuration): Too Many Requests\n",
                 mock_server_too_many_requests.uri()
             )));
 
@@ -1176,11 +1176,11 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "[418] {}/ | Network error: I\'m a teapot",
+                r#"[418] {}/ | Rejected status code (this depends on your "accept" configuration): I'm a teapot"#,
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                "[500] {}/ | Network error: Internal Server Error",
+                r#"[500] {}/ | Rejected status code (this depends on your "accept" configuration): Internal Server Error"#,
                 mock_server_server_error.uri()
             )));
 
