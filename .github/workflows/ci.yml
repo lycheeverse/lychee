@@ -48,9 +48,11 @@ jobs:
         with:
           command: clippy
           args: --all-targets --all-features -- -D warnings
-      - uses: taiki-e/install-action@cargo-msrv
+      - uses: cargo-bins/cargo-binstall@main
       - name: Verify the MSRV
-        run: make verify
+        run: |
+          cargo binstall --no-confirm cargo-msrv
+          make verify
 
   publish-check:
     runs-on: ubuntu-latest
