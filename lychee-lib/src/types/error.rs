@@ -161,6 +161,19 @@ pub enum ErrorKind {
     /// Status code selector parse error
     #[error("Status code range error")]
     StatusCodeSelectorError(#[from] StatusCodeSelectorError),
+
+    /// Text Fragments check partial success
+    #[error("Text Fragments Partial Success")]
+    TextFragmentPartialSuccess,
+
+    /// Text Fragments check error
+    #[error("Text Fragments verification error")]
+    TextFragmentsCheckError,
+
+    /// Fragment Directive processing error - usually occurs if the directive
+    /// is malformed in the `[url:Url]`'s fragment string
+    #[error("Fragment Directive processing error")]
+    FragmentDirectiveProcessingError,
 }
 
 impl ErrorKind {
@@ -276,6 +289,11 @@ impl PartialEq for ErrorKind {
             (Self::InvalidBase(b1, e1), Self::InvalidBase(b2, e2)) => b1 == b2 && e1 == e2,
             (Self::InvalidUrlRemap(r1), Self::InvalidUrlRemap(r2)) => r1 == r2,
             (Self::EmptyUrl, Self::EmptyUrl) => true,
+            (Self::TextFragmentsCheckError, Self::TextFragmentsCheckError) => true,
+            (Self::TextFragmentPartialSuccess, Self::TextFragmentPartialSuccess) => true,
+            (Self::FragmentDirectiveProcessingError, Self::FragmentDirectiveProcessingError) => {
+                true
+            }
 
             _ => false,
         }
@@ -329,6 +347,13 @@ impl Hash for ErrorKind {
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
             Self::Cookies(e) => e.to_string().hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
+            Self::TextFragmentsCheckError => "Text Fragments Check Error".hash(state),
+            Self::TextFragmentPartialSuccess => {
+                "Text Fragments Partial Check Succeeded".hash(state);
+            }
+            Self::FragmentDirectiveProcessingError => {
+                "Error processing Fragment Directive in the fragment string".hash(state);
+            }
         }
     }
 }

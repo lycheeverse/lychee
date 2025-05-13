@@ -483,6 +483,11 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[serde(default)]
     pub(crate) include_fragments: bool,
 
+    /// Enable the checking of Text Fragments in links
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) include_text_fragments: bool,
+
     /// Website timeout in seconds from connect to response finished
     #[arg(short, long, default_value = &TIMEOUT_STR)]
     #[serde(default = "timeout")]
@@ -632,6 +637,7 @@ impl Config {
             require_https: false;
             cookie_jar: None;
             include_fragments: false;
+            include_text_fragments: false;
             accept: StatusCodeSelector::default();
             extensions: FileType::default_extensions();
         }

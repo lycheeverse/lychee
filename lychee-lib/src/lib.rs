@@ -71,6 +71,10 @@ pub mod remap;
 /// local IPs or e-mail addresses
 pub mod filter;
 
+/// Text fragments allow the web page to highlight the text fragment directive
+/// marked content
+pub mod textfrag;
+
 /// Test utilities
 #[cfg(test)]
 #[macro_use]
