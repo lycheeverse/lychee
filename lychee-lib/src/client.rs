@@ -29,11 +29,10 @@ use typed_builder::TypedBuilder;
 
 use crate::{
     chain::RequestChain,
-    checker::file::FileChecker,
-    checker::{mail::MailChecker, website::WebsiteChecker},
+    checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::{Excludes, Filter, Includes},
     remap::Remaps,
-    utils::fragment_checker::FragmentChecker,
+    utils::fragment_checker::{FragmentChecker, FragmentInput},
     Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
@@ -399,6 +398,7 @@ impl ClientBuilder {
             github_client,
             self.require_https,
             self.plugin_request_chain,
+            self.include_fragments,
         );
 
         Ok(Client {
@@ -539,9 +539,15 @@ impl Client {
 
     /// Checks a `file` URI's fragment.
     pub async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
-        match self.fragment_checker.check(path, &uri.url).await {
-            Ok(true) => Status::Ok(StatusCode::OK),
-            Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
+        match FragmentInput::from_path(path).await {
+            Ok(input) => match self.fragment_checker.check(input, &uri.url).await {
+                Ok(true) => Status::Ok(StatusCode::OK),
+                Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
+                Err(err) => {
+                    warn!("Skipping fragment check due to the following error: {err}");
+                    Status::Ok(StatusCode::OK)
+                }
+            },
             Err(err) => {
                 warn!("Skipping fragment check due to the following error: {err}");
                 Status::Ok(StatusCode::OK)

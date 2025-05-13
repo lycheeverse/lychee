@@ -2,7 +2,10 @@ use http::StatusCode;
 use log::warn;
 use std::path::{Path, PathBuf};
 
-use crate::{utils::fragment_checker::FragmentChecker, Base, ErrorKind, Status, Uri};
+use crate::{
+    utils::fragment_checker::{FragmentChecker, FragmentInput},
+    Base, ErrorKind, Status, Uri,
+};
 
 /// A utility for checking the existence and validity of file-based URIs.
 ///
@@ -167,9 +170,15 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the fragment check.
     async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
-        match self.fragment_checker.check(path, &uri.url).await {
-            Ok(true) => Status::Ok(StatusCode::OK),
-            Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
+        match FragmentInput::from_path(path).await {
+            Ok(input) => match self.fragment_checker.check(input, &uri.url).await {
+                Ok(true) => Status::Ok(StatusCode::OK),
+                Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
+                Err(err) => {
+                    warn!("Skipping fragment check due to the following error: {err}");
+                    Status::Ok(StatusCode::OK)
+                }
+            },
             Err(err) => {
                 warn!("Skipping fragment check due to the following error: {err}");
                 Status::Ok(StatusCode::OK)
