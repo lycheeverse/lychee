@@ -58,3 +58,8 @@ screencast: ## Create a screencast for the docs
 	termsvg rec --command=assets/screencast.sh recording.asc 
 	termsvg export --minify recording.asc --output=assets/screencast.svg
 	rm recording.asc
+
+.PHONY: verify
+verify: ## Verify the MSRV
+	cargo msrv --path lychee-lib verify
+	cargo msrv --path lychee-bin verify
