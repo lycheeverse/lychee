@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.18.1...lychee-v0.19.0) - 2025-05-13
+
+### Added
+
+- detect website fragments ([#1675](https://github.com/lycheeverse/lychee/pull/1675))
+
+### Other
+
+- Remove flag
+- Bump the dependencies group with 2 updates
+- Add possible values for minimum TLS version in help message ([#1693](https://github.com/lycheeverse/lychee/pull/1693))
+- Add TLS version option ([#1655](https://github.com/lycheeverse/lychee/pull/1655))
+- Bump the dependencies group across 1 directory with 11 updates ([#1692](https://github.com/lycheeverse/lychee/pull/1692))
+- Specify MSRV ([#1676](https://github.com/lycheeverse/lychee/pull/1676))
+- Fix outdated link
+- Remove once_cell as direct dependency
+- Make clippy happy ([#1681](https://github.com/lycheeverse/lychee/pull/1681))
+- Bump the dependencies group with 3 updates ([#1670](https://github.com/lycheeverse/lychee/pull/1670))
+- Fix accept/exclude range syntax and docs ([#1668](https://github.com/lycheeverse/lychee/pull/1668))
+- Add FreeBSD-Ask to users ([#1662](https://github.com/lycheeverse/lychee/pull/1662))
+- Bump the dependencies group with 4 updates ([#1664](https://github.com/lycheeverse/lychee/pull/1664))
+- Allow header values that contain equal signs ([#1647](https://github.com/lycheeverse/lychee/pull/1647))
+- Bump the dependencies group with 11 updates ([#1656](https://github.com/lycheeverse/lychee/pull/1656))
+- Bump the dependencies group across 1 directory with 14 updates ([#1653](https://github.com/lycheeverse/lychee/pull/1653))
+- Add support for custom file extensions in link checking. ([#1559](https://github.com/lycheeverse/lychee/pull/1559))
+- Format Markdown URLs with `<>` instead of `[]()` ([#1638](https://github.com/lycheeverse/lychee/pull/1638))
+- Bump the dependencies group across 1 directory with 21 updates ([#1643](https://github.com/lycheeverse/lychee/pull/1643))
+- add tests for URL extraction ending with a period ([#1641](https://github.com/lycheeverse/lychee/pull/1641))
+- renamed `base` to `base_url` (fixes #1607) ([#1629](https://github.com/lycheeverse/lychee/pull/1629))
+- Sort compact/detailed/markdown error output by file path ([#1622](https://github.com/lycheeverse/lychee/pull/1622))
+
 ## [0.18.1](https://github.com/lycheeverse/lychee/compare/lychee-v0.18.0...lychee-v0.18.1) - 2025-02-06
 
 ### Fixed
