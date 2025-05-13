@@ -240,7 +240,10 @@ pub struct ClientBuilder {
     /// Set of accepted return codes / status codes.
     ///
     /// Unmatched return codes/ status codes are deemed as errors.
-    accepted: Option<HashSet<StatusCode>>,
+    ///
+    /// TODO: accept all "valid" status codes by default. Maybe use `AcceptRange`?
+    #[builder(default = HashSet::from([StatusCode::OK]))]
+    accepted: HashSet<StatusCode>,
 
     /// Response timeout per request in seconds.
     timeout: Option<Duration>,
@@ -364,7 +367,7 @@ impl ClientBuilder {
             None => builder,
         }
         .build()
-        .map_err(ErrorKind::NetworkRequest)?;
+        .map_err(ErrorKind::BuildRequestClient)?;
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(

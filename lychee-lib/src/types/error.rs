@@ -1,3 +1,4 @@
+use http::StatusCode;
 use serde::{Serialize, Serializer};
 use std::error::Error;
 use std::hash::Hash;
@@ -142,6 +143,10 @@ pub enum ErrorKind {
     #[error("Invalid status code: {0}")]
     InvalidStatusCode(u16),
 
+    /// The given status code was not accepted (this depends on the `accept` configuration)
+    #[error(r#"Rejected status code (this depends on your "accept" configuration)"#)]
+    RejectedStatusCode(StatusCode),
+
     /// Regex error
     #[error("Error when using regex engine: {0}")]
     Regex(#[from] regex::Error),
@@ -173,25 +178,22 @@ impl ErrorKind {
     pub fn details(&self) -> Option<String> {
         match self {
             ErrorKind::NetworkRequest(e) => {
-                if let Some(status) = e.status() {
-                    Some(
-                        status
-                            .canonical_reason()
-                            .unwrap_or("Unknown status code")
-                            .to_string(),
-                    )
-                } else {
-                    // Get the relevant details from the specific reqwest error
-                    let details = utils::reqwest::trim_error_output(e);
+                // Get the relevant details from the specific reqwest error
+                let details = utils::reqwest::trim_error_output(e);
 
-                    // Provide support for common error types
-                    if e.is_connect() {
-                        Some(format!("{details} Maybe a certificate error?"))
-                    } else {
-                        Some(details)
-                    }
+                // Provide support for common error types
+                if e.is_connect() {
+                    Some(format!("{details} Maybe a certificate error?"))
+                } else {
+                    Some(details)
                 }
             }
+            ErrorKind::RejectedStatusCode(status) => Some(
+                status
+                    .canonical_reason()
+                    .unwrap_or("Unknown status code")
+                    .to_string(),
+            ),
             ErrorKind::GithubRequest(e) => {
                 if let octocrab::Error::GitHub { source, .. } = &**e {
                     Some(source.message.clone())
@@ -320,6 +322,7 @@ impl Hash for ErrorKind {
             Self::InvalidHeader(e) => e.to_string().hash(state),
             Self::InvalidGlobPattern(e) => e.to_string().hash(state),
             Self::InvalidStatusCode(c) => c.hash(state),
+            Self::RejectedStatusCode(c) => c.hash(state),
             Self::Channel(e) => e.to_string().hash(state),
             Self::MissingGitHubToken | Self::InvalidUrlHost => {
                 std::mem::discriminant(self).hash(state);
