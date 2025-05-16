@@ -77,10 +77,16 @@ remap = ["https://example.com http://example.invalid"]
 # Base URL or website root directory to check relative URLs.
 base_url = "https://example.com"
 
+# Root path to use when checking absolute local links, must be an absolute path
+root_dir = "/dist"
+
 # HTTP basic auth support. This will be the username and password passed to the
 # authorization HTTP header. See
 # <https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization>
 basic_auth = ["example.com user:pwd"]
+
+# Enable the checking of fragments in links.
+include_fragments = true
 
 #############################  Exclusions  ##########################
 
