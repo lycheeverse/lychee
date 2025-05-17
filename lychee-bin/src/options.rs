@@ -269,14 +269,14 @@ impl clap::builder::ValueParserFactory for HeaderParser {
     }
 }
 
-/// Extension trait for converting a Vec of header pairs to a HeaderMap
+/// Extension trait for converting a Vec of header pairs to a `HeaderMap`
 pub(crate) trait HeaderMapExt {
-    /// Convert a collection of header key-value pairs to a HeaderMap
-    fn from_header_pairs(headers: &Vec<(String, String)>) -> Result<HeaderMap, Error>;
+    /// Convert a collection of header key-value pairs to a `HeaderMap`
+    fn from_header_pairs(headers: &[(String, String)]) -> Result<HeaderMap, Error>;
 }
 
 impl HeaderMapExt for HeaderMap {
-    fn from_header_pairs(headers: &Vec<(String, String)>) -> Result<HeaderMap, Error> {
+    fn from_header_pairs(headers: &[(String, String)]) -> Result<HeaderMap, Error> {
         let mut header_map = HeaderMap::new();
         for (name, value) in headers {
             let header_name = HeaderName::from_bytes(name.as_bytes())
@@ -347,7 +347,7 @@ where
     D: Deserializer<'de>,
 {
     let map = HashMap::<String, String>::deserialize(deserializer)?;
-    return Ok(map.into_iter().map(|(k, v)| (k, v)).collect());
+    Ok(map.into_iter().collect())
 }
 
 /// The main configuration for lychee
@@ -705,11 +705,11 @@ impl Config {
     ///
     /// Overwrites existing headers in `self` with the values from `other`.
     fn merge_headers(&mut self, other: &[(String, String)]) {
-        let self_map: HashMap<_, _> = HashMap::from_iter(self.header.iter().cloned());
-        let other_map: HashMap<_, _> = HashMap::from_iter(other.iter().cloned());
+        let self_map = self.header.iter().cloned().collect::<HashMap<_, _>>();
+        let other_map = other.iter().cloned().collect::<HashMap<_, _>>();
 
         // Merge the two maps, with `other` taking precedence
-        let merged_map: HashMap<_, _> = self_map.into_iter().chain(other_map.into_iter()).collect();
+        let merged_map: HashMap<_, _> = self_map.into_iter().chain(other_map).collect();
 
         // Convert the merged map back to a Vec of tuples
         self.header = merged_map.into_iter().collect();
