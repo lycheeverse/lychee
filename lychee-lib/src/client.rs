@@ -288,7 +288,6 @@ pub struct ClientBuilder {
 }
 
 impl Default for ClientBuilder {
-    #[must_use]
     #[inline]
     fn default() -> Self {
         Self::builder().build()
