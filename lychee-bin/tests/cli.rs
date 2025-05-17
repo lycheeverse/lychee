@@ -2027,6 +2027,35 @@ mod cli {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_header_set_in_config() -> Result<()> {
+        let mut cmd = main_command();
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("X-Foo", "Bar"))
+                    .and(wiremock::matchers::header("X-Bar", "Baz"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    // We expect the mock to be called exactly least once.
+                    .expect(1)
+                    .named("GET expecting custom header"),
+            )
+            .await;
+
+        let config = fixtures_path().join("configs").join("headers.toml");
+        cmd.arg("--verbose")
+            .arg("--config")
+            .arg(config)
+            .arg(server.uri())
+            .assert()
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
+        Ok(())
+    }
+
     #[test]
     fn test_sorted_error_output() -> Result<()> {
         let test_files = ["TEST_GITHUB_404.md", "TEST_INVALID_URLS.html"];

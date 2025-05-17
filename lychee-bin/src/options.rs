@@ -15,7 +15,8 @@ use lychee_lib::{
     DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
 use secrecy::{ExposeSecret, SecretString};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
+use std::collections::HashMap;
 use std::path::Path;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use strum::{Display, EnumIter, EnumString, VariantNames};
@@ -311,6 +312,15 @@ impl LycheeOptions {
     }
 }
 
+// Custom deserializer function for the header field
+fn deserialize_headers<'de, D>(deserializer: D) -> Result<Vec<(String, String)>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let map = HashMap::<String, String>::deserialize(deserializer)?;
+    return Ok(map.into_iter().map(|(k, v)| (k, v)).collect());
+}
+
 /// The main configuration for lychee
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Parser, Debug, Deserialize, Clone, Default)]
@@ -532,6 +542,7 @@ This is the same format that other tools like curl or wget use.
 Multiple headers can be specified by using the flag multiple times."
     )]
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_headers")]
     pub header: Vec<(String, String)>,
 
     /// A List of accepted status codes for valid links
@@ -660,11 +671,18 @@ separated list of accepted status codes. This example will accept 200, 201,
 }
 
 impl Config {
-    /// Special handling for merging headers from TOML config
-    fn merge_headers(&mut self, other: &Vec<(String, String)>) {
-        if self.header.is_empty() && !other.is_empty() {
-            self.header = other.clone();
-        }
+    /// Special handling for merging headers
+    ///
+    /// Overwrites existing headers in `self` with the values from `other`.
+    fn merge_headers(&mut self, other: &[(String, String)]) {
+        let self_map: HashMap<_, _> = HashMap::from_iter(self.header.iter().cloned());
+        let other_map: HashMap<_, _> = HashMap::from_iter(other.iter().cloned());
+
+        // Merge the two maps, with `other` taking precedence
+        let merged_map: HashMap<_, _> = self_map.into_iter().chain(other_map.into_iter()).collect();
+
+        // Convert the merged map back to a Vec of tuples
+        self.header = merged_map.into_iter().collect();
     }
 
     /// Load configuration from a file
@@ -676,6 +694,8 @@ impl Config {
 
     /// Merge the configuration from TOML into the CLI configuration
     pub(crate) fn merge(&mut self, toml: Config) {
+        dbg!("Toml config", &toml);
+
         // Special handling for headers before fold_in!
         self.merge_headers(&toml.header);
 
@@ -684,47 +704,50 @@ impl Config {
             self, toml;
 
             // Keys with defaults to assign
-            verbose: Verbosity::default();
-            cache: false;
-            no_progress: false;
-            max_redirects: DEFAULT_MAX_REDIRECTS;
-            max_retries: DEFAULT_MAX_RETRIES;
-            max_concurrency: DEFAULT_MAX_CONCURRENCY;
-            max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
+            accept: StatusCodeSelector::default();
+            base_url: None;
+            basic_auth: None;
             cache_exclude_status: StatusCodeExcluder::default();
-            threads: None;
-            user_agent: DEFAULT_USER_AGENT;
-            insecure: false;
-            scheme: Vec::<String>::new();
-            include: Vec::<String>::new();
-            exclude: Vec::<String>::new();
-            exclude_file: Vec::<String>::new(); // deprecated
-            exclude_path: Vec::<PathBuf>::new();
+            cache: false;
+            cookie_jar: None;
             exclude_all_private: false;
-            exclude_private: false;
+            exclude_file: Vec::<String>::new(); // deprecated
             exclude_link_local: false;
             exclude_loopback: false;
             exclude_mail: false;
-            format: StatsFormat::default();
-            remap: Vec::<String>::new();
-            fallback_extensions: Vec::<String>::new();
-            timeout: DEFAULT_TIMEOUT_SECS;
-            retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
-            method: DEFAULT_METHOD;
-            base_url: None;
-            basic_auth: None;
-            skip_missing: false;
-            include_verbatim: false;
-            include_mail: false;
-            glob_ignore_case: false;
-            output: None;
-            require_https: false;
-            cookie_jar: None;
-            include_fragments: false;
-            accept: StatusCodeSelector::default();
+            exclude_path: Vec::<PathBuf>::new();
+            exclude_private: false;
+            exclude: Vec::<String>::new();
             extensions: FileType::default_extensions();
+            fallback_extensions: Vec::<String>::new();
+            format: StatsFormat::default();
+            glob_ignore_case: false;
+            header: Vec::<(String, String)>::new();
+            include_fragments: false;
+            include_mail: false;
+            include_verbatim: false;
+            include: Vec::<String>::new();
+            insecure: false;
+            max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
+            max_concurrency: DEFAULT_MAX_CONCURRENCY;
+            max_redirects: DEFAULT_MAX_REDIRECTS;
+            max_retries: DEFAULT_MAX_RETRIES;
+            method: DEFAULT_METHOD;
+            no_progress: false;
+            output: None;
+            remap: Vec::<String>::new();
+            require_https: false;
+            retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
+            scheme: Vec::<String>::new();
+            skip_missing: false;
+            threads: None;
+            timeout: DEFAULT_TIMEOUT_SECS;
+            user_agent: DEFAULT_USER_AGENT;
+            verbose: Verbosity::default();
         }
 
+        // If the config file has a value for the GitHub token, but the CLI
+        // doesn't, use the token from the config file.
         if self
             .github_token
             .as_ref()
@@ -831,5 +854,36 @@ mod tests {
         let header_map: HashMap<String, String> = headers.iter().cloned().collect();
         assert_eq!(header_map["accept"], "text/html");
         assert_eq!(header_map["x-test"], "check=this");
+    }
+
+    #[test]
+    fn test_merge_headers_with_config() {
+        let toml = Config {
+            header: vec![
+                ("Accept".to_string(), "text/html".to_string()),
+                ("X-Test".to_string(), "check=this".to_string()),
+            ],
+            ..Default::default()
+        };
+
+        // Set X-Test and see if it gets overwritten
+        let mut cli = Config {
+            header: vec![("X-Test".to_string(), "check=that".to_string())],
+            ..Default::default()
+        };
+        cli.merge(toml);
+
+        assert_eq!(cli.header.len(), 2);
+
+        // Sort vector before assert
+        cli.header.sort();
+
+        assert_eq!(
+            cli.header,
+            vec![
+                ("Accept".to_string(), "text/html".to_string()),
+                ("X-Test".to_string(), "check=this".to_string()),
+            ]
+        );
     }
 }
