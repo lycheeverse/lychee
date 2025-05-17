@@ -69,7 +69,7 @@ require_https = false
 method = "get"
 
 # Custom request headers
-header = ["name=value", "other=value"]
+header = { "accept" = "text/html", "x-custom-header" = "value" }
 
 # Remap URI matching pattern to different URI.
 remap = ["https://example.com http://example.invalid"]

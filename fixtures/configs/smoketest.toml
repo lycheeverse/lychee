@@ -69,7 +69,7 @@ require_https = false
 method = "get"
 
 # Custom request headers
-headers = []
+header = { X-Foo = "Bar", X-Bar = "Baz" }
 
 # Remap URI matching pattern to different URI.
 # This also supports (named) capturing groups.
