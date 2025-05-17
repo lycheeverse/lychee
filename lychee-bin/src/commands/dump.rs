@@ -209,7 +209,7 @@ mod tests {
 
         let inputs: Vec<Result<String>> = vec![
             Ok(String::from("test/path1")),
-            Err(io::Error::new(io::ErrorKind::Other, "test error").into()),
+            Err(io::Error::other("test error").into()),
             Ok(String::from("test/path2")),
         ];
         let stream = stream::iter(inputs);
