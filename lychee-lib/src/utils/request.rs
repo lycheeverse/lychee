@@ -147,7 +147,7 @@ pub(crate) fn create(
             match create_request(&raw_uri, source, root_dir, base.as_ref(), extractor) {
                 Ok(request) => Some(request),
                 Err(e) => {
-                    warn!("Error creating request: {:?}", e);
+                    warn!("Error creating request: {e:?}");
                     None
                 }
             }

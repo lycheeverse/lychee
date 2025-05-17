@@ -22,18 +22,17 @@ use http::{
 use log::{debug, warn};
 use octocrab::Octocrab;
 use regex::RegexSet;
-use reqwest::{header, redirect};
+use reqwest::{header, redirect, tls};
 use reqwest_cookie_store::CookieStoreMutex;
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
     chain::RequestChain,
-    checker::file::FileChecker,
-    checker::{mail::MailChecker, website::WebsiteChecker},
+    checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::{Excludes, Filter, Includes},
     remap::Remaps,
-    utils::fragment_checker::FragmentChecker,
+    utils::fragment_checker::{FragmentChecker, FragmentInput},
     Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
@@ -192,6 +191,9 @@ pub struct ClientBuilder {
     #[builder(default = DEFAULT_MAX_RETRIES)]
     max_retries: u64,
 
+    /// Minimum accepted TLS version.
+    min_tls_version: Option<tls::Version>,
+
     /// User-agent used for checking links.
     ///
     /// Defaults to [`DEFAULT_USER_AGENT`].
@@ -321,7 +323,7 @@ impl ClientBuilder {
                 "Found user-agent in headers: {}. Overriding it with {user_agent}.",
                 prev_user_agent.to_str().unwrap_or("�"),
             );
-        };
+        }
 
         headers.insert(
             header::TRANSFER_ENCODING,
@@ -349,6 +351,10 @@ impl ClientBuilder {
 
         if let Some(cookie_jar) = self.cookie_jar {
             builder = builder.cookie_provider(cookie_jar);
+        }
+
+        if let Some(min_tls) = self.min_tls_version {
+            builder = builder.min_tls_version(min_tls);
         }
 
         let reqwest_client = match self.timeout {
@@ -391,6 +397,7 @@ impl ClientBuilder {
             github_client,
             self.require_https,
             self.plugin_request_chain,
+            self.include_fragments,
         );
 
         Ok(Client {
@@ -531,9 +538,15 @@ impl Client {
 
     /// Checks a `file` URI's fragment.
     pub async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
-        match self.fragment_checker.check(path, &uri.url).await {
-            Ok(true) => Status::Ok(StatusCode::OK),
-            Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
+        match FragmentInput::from_path(path).await {
+            Ok(input) => match self.fragment_checker.check(input, &uri.url).await {
+                Ok(true) => Status::Ok(StatusCode::OK),
+                Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
+                Err(err) => {
+                    warn!("Skipping fragment check due to the following error: {err}");
+                    Status::Ok(StatusCode::OK)
+                }
+            },
             Err(err) => {
                 warn!("Skipping fragment check due to the following error: {err}");
                 Status::Ok(StatusCode::OK)

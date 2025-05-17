@@ -1,11 +1,10 @@
-use std::{fmt::Display, num::ParseIntError, ops::RangeInclusive, str::FromStr};
+use std::{fmt::Display, num::ParseIntError, ops::RangeInclusive, str::FromStr, sync::LazyLock};
 
-use once_cell::sync::Lazy;
 use regex::Regex;
 use thiserror::Error;
 
-static RANGE_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^([0-9]{3})?\.\.(=?)([0-9]{3})+$|^([0-9]{3})$").unwrap());
+static RANGE_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^([0-9]{3})?\.\.((=?)([0-9]{3}))?$|^([0-9]{3})$").unwrap());
 
 /// Indicates that the parsing process of an [`AcceptRange`]  from a string
 /// failed due to various underlying reasons.
@@ -37,7 +36,7 @@ impl FromStr for AcceptRange {
             .captures(s)
             .ok_or(AcceptRangeError::NoRangePattern)?;
 
-        if let Some(value) = captures.get(4) {
+        if let Some(value) = captures.get(5) {
             let value: u16 = value.as_str().parse()?;
             Self::new_from(value, value)
         } else {
@@ -45,9 +44,12 @@ impl FromStr for AcceptRange {
                 Some(start) => start.as_str().parse().unwrap_or_default(),
                 None => 0,
             };
+            if captures.get(2).is_none() {
+                return Self::new_from(start, u16::MAX);
+            }
 
-            let inclusive = !captures[2].is_empty();
-            let end: u16 = captures[3].parse()?;
+            let inclusive = !captures[3].is_empty();
+            let end: u16 = captures[4].parse()?;
 
             if inclusive {
                 Self::new_from(start, end)
@@ -110,7 +112,7 @@ impl AcceptRange {
         self.0
     }
 
-    pub(crate) fn update_start(&mut self, new_start: u16) -> Result<(), AcceptRangeError> {
+    pub(crate) const fn update_start(&mut self, new_start: u16) -> Result<(), AcceptRangeError> {
         let end = *self.end();
 
         if new_start > end {
@@ -121,7 +123,7 @@ impl AcceptRange {
         Ok(())
     }
 
-    pub(crate) fn update_end(&mut self, new_end: u16) -> Result<(), AcceptRangeError> {
+    pub(crate) const fn update_end(&mut self, new_end: u16) -> Result<(), AcceptRangeError> {
         let start = *self.start();
 
         if start > new_end {
@@ -159,11 +161,13 @@ mod test {
     use rstest::rstest;
 
     #[rstest]
-    #[case("100..=200", vec![100, 150, 200], vec![250, 300])]
-    #[case("..=100", vec![0, 50, 100], vec![150, 200])]
-    #[case("100..200", vec![100, 150], vec![200, 250])]
-    #[case("..100", vec![0, 50], vec![100, 150])]
-    #[case("404", vec![404], vec![200, 304, 500])]
+    #[case("..", vec![0, 100, 150, 200, u16::MAX], vec![])]
+    #[case("100..", vec![100, 101, 150, 200, u16::MAX], vec![0, 50, 99])]
+    #[case("100..=200", vec![100, 150, 200], vec![0, 50, 99, 201, 250])]
+    #[case("..=100", vec![0, 50, 100], vec![101, 150, 200])]
+    #[case("100..200", vec![100, 150, 199], vec![99, 200, 250])]
+    #[case("..100", vec![0, 50, 99], vec![100, 150])]
+    #[case("404", vec![404], vec![200, 304, 403, 405, 500])]
     fn test_from_str(
         #[case] input: &str,
         #[case] valid_values: Vec<u16>,
@@ -182,6 +186,8 @@ mod test {
 
     #[rstest]
     #[case("200..=100", AcceptRangeError::InvalidRangeIndices)]
+    #[case("..=", AcceptRangeError::NoRangePattern)]
+    #[case("100..=", AcceptRangeError::NoRangePattern)]
     #[case("-100..=100", AcceptRangeError::NoRangePattern)]
     #[case("-100..100", AcceptRangeError::NoRangePattern)]
     #[case("100..=-100", AcceptRangeError::NoRangePattern)]

@@ -14,6 +14,7 @@ use lychee_lib::{
     StatusCodeSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
     DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
 };
+use reqwest::tls;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
@@ -50,6 +51,34 @@ const HELP_MSG_CONFIG_FILE: &str = formatcp!(
 );
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
+
+#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames)]
+#[non_exhaustive]
+pub(crate) enum TlsVersion {
+    #[serde(rename = "TLSv1_0")]
+    #[strum(serialize = "TLSv1_0")]
+    V1_0,
+    #[serde(rename = "TLSv1_1")]
+    #[strum(serialize = "TLSv1_1")]
+    V1_1,
+    #[serde(rename = "TLSv1_2")]
+    #[strum(serialize = "TLSv1_2")]
+    #[default]
+    V1_2,
+    #[serde(rename = "TLSv1_3")]
+    #[strum(serialize = "TLSv1_3")]
+    V1_3,
+}
+impl From<TlsVersion> for tls::Version {
+    fn from(ver: TlsVersion) -> Self {
+        match ver {
+            TlsVersion::V1_0 => tls::Version::TLS_1_0,
+            TlsVersion::V1_1 => tls::Version::TLS_1_1,
+            TlsVersion::V1_2 => tls::Version::TLS_1_2,
+            TlsVersion::V1_3 => tls::Version::TLS_1_3,
+        }
+    }
+}
 
 /// The format to use for the final status report
 #[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, VariantNames, PartialEq)]
@@ -347,7 +376,7 @@ pub(crate) struct Config {
         long,
         default_value_t = FileExtensions::default(),
         long_help = "Test the specified file extensions for URIs when checking files locally.
-    
+
 Multiple extensions can be separated by commas. Note that if you want to check filetypes,
 which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
 specify both extensions explicitly."
@@ -376,16 +405,18 @@ specify both extensions explicitly."
         default_value_t,
         long_help = "A list of status codes that will be ignored from the cache
 
-The following accept range syntax is supported: [start]..[=]end|code. Some valid
+The following exclude range syntax is supported: [start]..[[=]end]|code. Some valid
 examples are:
 
-- 429
-- 500..=599
-- 500..
+- 429 (excludes the 429 status code only)
+- 500.. (excludes any status code >= 500)
+- ..100 (excludes any status code < 100)
+- 500..=599 (excludes any status code from 500 to 599 inclusive)
+- 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)
 
 Use \"lychee --cache-exclude-status '429, 500..502' <inputs>...\" to provide a comma- separated
-list of excluded status codes. This example will not cache results with a status code of 429, 500,
-501 and 502."
+list of excluded status codes. This example will not cache results with a status code of 429, 500
+and 501."
     )]
     #[serde(default = "cache_exclude_selector")]
     pub(crate) cache_exclude_status: StatusCodeExcluder,
@@ -423,6 +454,11 @@ list of excluded status codes. This example will not cache results with a status
     #[arg(long, default_value = &MAX_RETRIES_STR)]
     #[serde(default = "max_retries")]
     pub(crate) max_retries: u64,
+
+    /// Minimum accepted TLS Version
+    #[arg(long, value_parser = PossibleValuesParser::new(TlsVersion::VARIANTS).map(|s| s.parse::<TlsVersion>().unwrap()))]
+    #[serde(default)]
+    pub(crate) min_tls: Option<TlsVersion>,
 
     /// Maximum number of concurrent network requests
     #[arg(long, default_value = &MAX_CONCURRENCY_STR)]
@@ -498,12 +534,6 @@ list of excluded status codes. This example will not cache results with a status
     #[serde(default)]
     pub(crate) exclude_loopback: bool,
 
-    /// Exclude all mail addresses from checking
-    /// (deprecated; excluded by default)
-    #[arg(long)]
-    #[serde(default)]
-    pub(crate) exclude_mail: bool,
-
     /// Also check email addresses
     #[arg(long)]
     #[serde(default)]
@@ -552,14 +582,14 @@ Multiple headers can be specified by using the flag multiple times."
         default_value_t,
         long_help = "A List of accepted status codes for valid links
 
-The following accept range syntax is supported: [start]..[=]end|code. Some valid
+The following accept range syntax is supported: [start]..[[=]end]|code. Some valid
 examples are:
 
-- 200..=204
-- 200..204
-- ..=204
-- ..204
-- 200
+- 200 (accepts the 200 status code only)
+- ..204 (accepts any status code < 204)
+- ..=204 (accepts any status code <= 204)
+- 200..=204 (accepts any status code from 200 to 204 inclusive)
+- 200..205 (accepts any status code from 200 to 205 excluding 205, same as 200..=204)
 
 Use \"lychee --accept '200..=204, 429, 500' <inputs>...\" to provide a comma-
 separated list of accepted status codes. This example will accept 200, 201,
@@ -714,7 +744,6 @@ impl Config {
             exclude_file: Vec::<String>::new(); // deprecated
             exclude_link_local: false;
             exclude_loopback: false;
-            exclude_mail: false;
             exclude_path: Vec::<PathBuf>::new();
             exclude_private: false;
             exclude: Vec::<String>::new();

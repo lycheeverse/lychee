@@ -1,8 +1,8 @@
+use std::sync::LazyLock;
+
 use linkify::LinkFinder;
 
-use once_cell::sync::Lazy;
-
-static LINK_FINDER: Lazy<LinkFinder> = Lazy::new(LinkFinder::new);
+static LINK_FINDER: LazyLock<LinkFinder> = LazyLock::new(LinkFinder::new);
 
 /// Remove all GET parameters from a URL and separates out the fragment.
 /// The link is not a URL but a String as it may not have a base domain.

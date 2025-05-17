@@ -57,6 +57,7 @@ See more info about the Accept header
 
 ## Unreachable Mail Address
 
+You can check email addresses by providing the `--include-mail` flag.
 We use https://github.com/reacherhq/check-if-email-exists for email checking.
 You can test your mail address with curl:
 
@@ -70,6 +71,5 @@ You can test your mail address with curl:
 
 Some settings on your mail server (such as `SPF` Policy, `DNSBL`) may prevent
 your email from being verified. If you have an error with checking a working
-email, you can disable this check using the [commandline
-parameter](https://github.com/lycheeverse/lychee#commandline-parameters)
-`--exclude-mail`.
+email, you can exclude specific addresses with the `--exclude` flag or skip
+all email addresses by removing the `--include-mail` flag.

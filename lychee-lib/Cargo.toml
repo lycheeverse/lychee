@@ -10,6 +10,7 @@ license = "Apache-2.0 OR MIT"
 repository = "https://github.com/lycheeverse/lychee"
 readme = "../README.md"
 version.workspace = true
+rust-version = "1.83.0"
 
 [dependencies]
 async-stream = "0.3.6"
@@ -21,24 +22,23 @@ email_address = "0.2.9"
 futures = "0.3.31"
 glob = "0.3.2"
 headers = "0.4.0"
-html5ever = "0.30.0"
+html5ever = "0.31.0"
 html5gum = "0.7.0"
 http = "1.3.1"
 hyper = "1.6.0"
 ignore = "0.4.23"
 ip_network = "0.4.1"
 linkify = "0.10.0"
-log = "0.4.26"
-octocrab = "0.43.0"
-once_cell = "1.21.1"
-openssl-sys = { version = "0.9.106", optional = true }
+log = "0.4.27"
+octocrab = "0.44.1"
+openssl-sys = { version = "0.9.108", optional = true }
 path-clean = "1.0.1"
 percent-encoding = "2.3.1"
 pulldown-cmark = "0.13.0"
 regex = "1.11.1"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.12.14", default-features = false, features = [
+reqwest = { version = "0.12.15", default-features = false, features = [
     "gzip",
     "trust-dns",
     "cookies",
@@ -52,11 +52,11 @@ ring = "0.17.14"
 secrecy = "0.10.3"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_with = "3.12.0"
-shellexpand = "3.1.0"
+shellexpand = "3.1.1"
 thiserror = "2.0.12"
-tokio = { version = "1.44.1", features = ["full"] }
-toml = "0.8.20"
-typed-builder = "0.20.1"
+tokio = { version = "1.45.0", features = ["full"] }
+toml = "0.8.22"
+typed-builder = "0.21.0"
 url = { version = "2.5.4", features = ["serde"] }
 
 [dependencies.par-stream]
@@ -65,11 +65,11 @@ features = ["runtime-tokio"]
 
 [dev-dependencies]
 doc-comment = "0.3.3"
-tempfile = "3.19.0"
+tempfile = "3.20.0"
 wiremock = "0.6.3"
 serde_json = "1.0.140"
 rstest = "0.25.0"
-toml = "0.8.20"
+toml = "0.8.22"
 pretty_assertions = "1.4.1"
 
 [features]

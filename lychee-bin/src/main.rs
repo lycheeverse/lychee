@@ -169,12 +169,7 @@ fn load_config() -> Result<LycheeOptions> {
 
     // TODO: Remove this warning and the parameter with 1.0
     if !&opts.config.exclude_file.is_empty() {
-        warn!("WARNING: `--exclude-file` is deprecated and will soon be removed; use the `{}` file to ignore URL patterns instead. To exclude paths of files and directories, use `--exclude-path`.", LYCHEE_IGNORE_FILE);
-    }
-
-    // TODO: Remove this warning and the parameter with 1.0
-    if opts.config.exclude_mail {
-        warn!("WARNING: `--exclude-mail` is deprecated and will soon be removed; E-Mail is no longer checked by default. Use `--include-mail` to enable E-Mail checking.");
+        warn!("WARNING: `--exclude-file` is deprecated and will soon be removed; use the `{LYCHEE_IGNORE_FILE}` file to ignore URL patterns instead. To exclude paths of files and directories, use `--exclude-path`.");
     }
 
     // TODO: Remove this warning and the parameter with 1.0

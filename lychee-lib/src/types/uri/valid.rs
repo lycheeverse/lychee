@@ -254,8 +254,8 @@ impl TryFrom<&str> for Uri {
                     // which will allow `Url::parse` to parse them.
                     if let Ok(uri) = Url::parse(&format!("mailto:{s}")) {
                         return Ok(uri.into());
-                    };
-                };
+                    }
+                }
 
                 // We do not handle relative URLs here, as we do not know the base URL.
                 Err(ErrorKind::ParseUrl(err, s.to_owned()))
