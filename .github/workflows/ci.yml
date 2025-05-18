@@ -49,10 +49,12 @@ jobs:
           command: clippy
           args: --all-targets --all-features -- -D warnings
       - uses: cargo-bins/cargo-binstall@main
+      - name: Install cargo-msrv
+        run: cargo binstall --no-confirm --force cargo-msrv
+      - name: Check cargo-msrv version
+        run: cargo msrv --version
       - name: Verify the MSRV
-        run: |
-          cargo binstall --no-confirm cargo-msrv
-          make verify
+        run: make verify
 
   publish-check:
     runs-on: ubuntu-latest
