@@ -724,8 +724,6 @@ impl Config {
 
     /// Merge the configuration from TOML into the CLI configuration
     pub(crate) fn merge(&mut self, toml: Config) {
-        dbg!("Toml config", &toml);
-
         // Special handling for headers before fold_in!
         self.merge_headers(&toml.header);
 
