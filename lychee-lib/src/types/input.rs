@@ -262,7 +262,6 @@ impl Input {
                             }
                             Err(e) => {
                                 eprintln!("Error in glob pattern: {e:?}");
-                                continue;
                             }
                         }
                     }
@@ -391,7 +390,7 @@ impl Input {
                         // Process the actual file path
                         let content = Self::path_content(&path).await;
                         match content {
-                            Err(_) if skip_missing => continue,
+                            Err(_) if skip_missing => (),
                             Err(e) => Err(e)?,
                             Ok(content) => yield content,
                         }
@@ -491,7 +490,8 @@ impl TryFrom<&str> for Input {
 /// Helper function to check if a file path matches any of the given extensions
 fn file_extensions_match(path: &Path, extensions: &FileExtensions) -> bool {
     // If the path has no extension, check if we accept plaintext files
-    // Note: We treat files without extensions as plaintext
+    // NOTE: We treat files without extensions as plaintext, which might be problematic
+    // and is therefore subject to change
     if path.extension().is_none() {
         return extensions.contains("txt") || extensions.contains("");
     }
