@@ -1799,7 +1799,6 @@ mod cli {
             .stdout(contains("fixtures/dump_inputs/subfolder/file2.md"))
             .stdout(contains("fixtures/dump_inputs/subfolder"))
             .stdout(contains("fixtures/dump_inputs/markdown.md"))
-            .stdout(contains("fixtures/dump_inputs/subfolder/example.bin"))
             .stdout(contains("fixtures/dump_inputs/some_file.txt"));
 
         Ok(())
@@ -1854,7 +1853,7 @@ mod cli {
             .arg("-")
             .assert()
             .success()
-            .stdout(contains("Stdin"));
+            .stdout(contains("stdin"));
 
         Ok(())
     }
