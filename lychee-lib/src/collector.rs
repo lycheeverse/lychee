@@ -154,7 +154,6 @@ impl Collector {
         self.excluded_paths = excluded_paths;
         self
     }
-
     /// Collect all sources from a list of [`Input`]s. For further details,
     /// see also [`Input::get_sources`](crate::Input#method.get_sources).
     pub fn collect_sources(self, inputs: HashSet<Input>) -> impl Stream<Item = Result<String>> {
@@ -177,7 +176,6 @@ impl Collector {
                 }
             })
     }
-
     /// Convenience method to fetch all unique links from inputs
     /// with the default extensions.
     pub fn collect_links(self, inputs: HashSet<Input>) -> impl Stream<Item = Result<Request>> {
