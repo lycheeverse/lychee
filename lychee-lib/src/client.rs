@@ -16,8 +16,8 @@
 use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
 use http::{
-    header::{HeaderMap, HeaderValue},
     StatusCode,
+    header::{HeaderMap, HeaderValue},
 };
 use log::{debug, warn};
 use octocrab::Octocrab;
@@ -28,12 +28,12 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
+    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::{Excludes, Filter, Includes},
     remap::Remaps,
     utils::fragment_checker::{FragmentChecker, FragmentInput},
-    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
 /// Default number of redirects before a request is deemed as failed, 5.
@@ -584,17 +584,17 @@ mod tests {
     };
 
     use async_trait::async_trait;
-    use http::{header::HeaderMap, StatusCode};
+    use http::{StatusCode, header::HeaderMap};
     use reqwest::header;
     use tempfile::tempdir;
     use wiremock::matchers::path;
 
     use super::ClientBuilder;
     use crate::{
+        ErrorKind, Request, Status, Uri,
         chain::{ChainResult, Handler, RequestChain},
         mock_server,
         test_utils::get_mock_client_response,
-        ErrorKind, Request, Status, Uri,
     };
 
     #[tokio::test]

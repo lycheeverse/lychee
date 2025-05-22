@@ -1,14 +1,14 @@
 use crate::archive::Archive;
 use crate::parse::parse_base;
 use crate::verbosity::Verbosity;
-use anyhow::{anyhow, Context, Error, Result};
+use anyhow::{Context, Error, Result, anyhow};
 use clap::builder::PossibleValuesParser;
-use clap::{arg, builder::TypedValueParser, Parser};
+use clap::{Parser, arg, builder::TypedValueParser};
 use const_format::{concatcp, formatcp};
 use lychee_lib::{
-    Base, BasicAuthSelector, FileExtensions, FileType, Input, StatusCodeExcluder,
-    StatusCodeSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
-    DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+    Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
+    FileType, Input, StatusCodeExcluder, StatusCodeSelector,
 };
 use reqwest::tls;
 use secrecy::{ExposeSecret, SecretString};
@@ -165,7 +165,7 @@ impl OutputMode {
 
 // Macro for generating default functions to be used by serde
 macro_rules! default_function {
-    ( $( $name:ident : $T:ty = $e:expr; )* ) => {
+    ( $( $name:ident : $T:ty = $e:expr_2021; )* ) => {
         $(
             #[allow(clippy::missing_const_for_fn)]
             fn $name() -> $T {
@@ -192,7 +192,7 @@ default_function! {
 
 // Macro for merging configuration values
 macro_rules! fold_in {
-    ( $cli:ident , $toml:ident ; $( $key:ident : $default:expr; )* ) => {
+    ( $cli:ident , $toml:ident ; $( $key:ident : $default:expr_2021; )* ) => {
         $(
             if $cli.$key == $default && $toml.$key != $default {
                 $cli.$key = $toml.$key;

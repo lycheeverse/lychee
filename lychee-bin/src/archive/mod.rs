@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::{fmt::Display, time::Duration};
 use strum::{Display, EnumIter, EnumString, VariantNames};
 
-use crate::color::{color, GREEN, PINK};
+use crate::color::{GREEN, PINK, color};
 
 mod wayback;
 

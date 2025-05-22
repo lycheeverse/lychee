@@ -1,9 +1,9 @@
 use std::{collections::HashSet, fmt::Display, str::FromStr};
 
-use serde::{de::Visitor, Deserialize};
+use serde::{Deserialize, de::Visitor};
 
 use crate::{
-    types::accept::AcceptRange, types::status_code::StatusCodeSelectorError, AcceptRangeError,
+    AcceptRangeError, types::accept::AcceptRange, types::status_code::StatusCodeSelectorError,
 };
 
 /// A [`StatusCodeExcluder`] holds ranges of HTTP status codes, and determines

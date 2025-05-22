@@ -108,7 +108,7 @@ impl<'de> Deserialize<'de> for Verbosity {
             level => {
                 return Err(serde::de::Error::custom(format!(
                     "invalid log level `{level}`"
-                )))
+                )));
             }
         };
         Ok(Verbosity {

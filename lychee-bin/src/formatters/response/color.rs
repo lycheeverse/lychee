@@ -2,7 +2,7 @@ use lychee_lib::{CacheStatus, ResponseBody, Status};
 
 use crate::formatters::color::{DIM, GREEN, NORMAL, PINK, YELLOW};
 
-use super::{ResponseFormatter, MAX_RESPONSE_OUTPUT_WIDTH};
+use super::{MAX_RESPONSE_OUTPUT_WIDTH, ResponseFormatter};
 
 /// A colorized formatter for the response body
 ///

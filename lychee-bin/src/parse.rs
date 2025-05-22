@@ -1,6 +1,6 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use headers::{HeaderMap, HeaderName};
-use lychee_lib::{remap::Remaps, Base};
+use lychee_lib::{Base, remap::Remaps};
 use std::time::Duration;
 
 /// Split a single HTTP header into a (key, value) tuple

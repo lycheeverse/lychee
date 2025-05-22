@@ -1,4 +1,4 @@
-use crate::time::{self, timestamp, Timestamp};
+use crate::time::{self, Timestamp, timestamp};
 use anyhow::Result;
 use dashmap::DashMap;
 use lychee_lib::{CacheStatus, Status, Uri};

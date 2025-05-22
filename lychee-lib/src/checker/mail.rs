@@ -7,7 +7,7 @@ use crate::ErrorKind;
 use crate::{Status, Uri};
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
-use check_if_email_exists::{check_email, CheckEmailInput, Reachable};
+use check_if_email_exists::{CheckEmailInput, Reachable, check_email};
 
 #[cfg(all(feature = "email-check", feature = "native-tls"))]
 use crate::types::mail;

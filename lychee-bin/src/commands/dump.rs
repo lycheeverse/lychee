@@ -6,8 +6,8 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use tokio_stream::StreamExt;
 
-use crate::verbosity::Verbosity;
 use crate::ExitCode;
+use crate::verbosity::Verbosity;
 
 use super::CommandParams;
 

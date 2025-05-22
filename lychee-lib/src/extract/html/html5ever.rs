@@ -169,7 +169,7 @@ impl LinkExtractor {
         attr_name: &str,
         elem_name: &str,
         attr_value: &'a str,
-    ) -> Option<impl Iterator<Item = &'a str>> {
+    ) -> Option<impl Iterator<Item = &'a str> + use<'a>> {
         // For a comprehensive list of elements that might contain URLs/URIs
         // see https://www.w3.org/TR/REC-html40/index/attributes.html
         // and https://html.spec.whatwg.org/multipage/indices.html#attributes-1

@@ -157,8 +157,10 @@ mod tests {
         assert!(result.contains("❓ Unknown..........0"));
         assert!(result.contains("🚫 Errors...........2"));
         assert!(result.contains("Errors in https://example.com/"));
-        assert!(result
-            .contains("https://github.com/mre/idiomatic-rust-doesnt-exist-man | 404 Not Found"));
+        assert!(
+            result
+                .contains("https://github.com/mre/idiomatic-rust-doesnt-exist-man | 404 Not Found")
+        );
         assert!(result.contains("https://github.com/mre/boom | 500 Internal Server Error"));
     }
 }

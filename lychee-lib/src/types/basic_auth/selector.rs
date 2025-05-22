@@ -3,7 +3,7 @@ use std::str::FromStr;
 use serde_with::DeserializeFromStr;
 use thiserror::Error;
 
-use crate::{types::basic_auth::BasicAuthCredentialsParseError, BasicAuthCredentials};
+use crate::{BasicAuthCredentials, types::basic_auth::BasicAuthCredentialsParseError};
 
 #[derive(Clone, Debug, Error, PartialEq)]
 pub enum BasicAuthSelectorParseError {
@@ -13,7 +13,9 @@ pub enum BasicAuthSelectorParseError {
     #[error("Missing basic auth credentials or URI. Valid form is '<uri> <username>:<password>'")]
     InvalidSyntax,
 
-    #[error("Too many space separated values. Expected 2, got {0}. Valid form is '<uri> <username>:<password>'")]
+    #[error(
+        "Too many space separated values. Expected 2, got {0}. Valid form is '<uri> <username>:<password>'"
+    )]
     TooManyParts(usize),
 
     #[error("Basic auth credentials error")]

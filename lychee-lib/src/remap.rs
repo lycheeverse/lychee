@@ -114,9 +114,9 @@ impl TryFrom<&[String]> for Remaps {
         for remap in remaps {
             let params: Vec<_> = remap.split_whitespace().collect();
             if params.len() != 2 {
-                return Err(ErrorKind::InvalidUrlRemap(
-                    format!("Cannot parse into URI remapping, must be a Regex pattern and a URL separated by whitespaces: {remap}"
-                    )));
+                return Err(ErrorKind::InvalidUrlRemap(format!(
+                    "Cannot parse into URI remapping, must be a Regex pattern and a URL separated by whitespaces: {remap}"
+                )));
             }
 
             let pattern = Regex::new(params[0])?;

@@ -3,14 +3,14 @@ name = "lychee-lib"
 authors = ["Matthias Endler <matthias@endler.dev>"]
 description = "A fast, async link checker"
 documentation = "https://docs.rs/lychee_lib"
-edition = "2021"
+edition = "2024"
 homepage = "https://github.com/lycheeverse/lychee"
 keywords = ["link", "checker", "cli", "link-checker", "validator"]
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/lycheeverse/lychee"
 readme = "../README.md"
 version.workspace = true
-rust-version = "1.83.0"
+rust-version = "1.85.0"
 
 [dependencies]
 async-stream = "0.3.6"
