@@ -268,10 +268,7 @@ impl Input {
                 },
                 InputSource::FsPath(path) => {
                     if path.is_dir() {
-                        // For directories, we walk through and yield matching files
-                        println!("Walking through directory: {}", path.display());
 
-                        // In the get_file_paths method:
                         for entry in WalkBuilder::new(path)
                             // Enable or disable standard filters based on skip_gitignored parameter.
                             // This controls:
