@@ -238,9 +238,7 @@ pub struct ClientBuilder {
     /// Set of accepted return codes / status codes.
     ///
     /// Unmatched return codes/ status codes are deemed as errors.
-    ///
-    /// TODO: accept all "valid" status codes by default. Maybe use `AcceptRange`?
-    #[builder(default = HashSet::from([StatusCode::OK]))]
+    #[builder(default = HashSet::try_from(StatusCodeSelector::default()).unwrap())]
     accepted: HashSet<StatusCode>,
 
     /// Response timeout per request in seconds.
