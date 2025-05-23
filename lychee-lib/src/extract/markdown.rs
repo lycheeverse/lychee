@@ -429,8 +429,7 @@ $$
     #[test]
     fn test_ignore_gitlab_toc() {
         let markdown = r"[[_TOC_]][TOC]";
-        let expected = vec![];
         let uris = extract_markdown(markdown, true);
-        assert_eq!(uris, expected);
+        assert!(uris.is_empty());
     }
 }
