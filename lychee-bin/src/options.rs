@@ -570,6 +570,10 @@ Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
     #[arg(
         short = 'H',
         long = "header",
+        // Note: We use a `Vec<(String, String)>` for headers, which is
+        // unfortunate. The reason is that `clap::ArgAction::Append` collects
+        // multiple values, and `clap` cannot automatically convert these tuples
+        // into a `HashMap<String, String>`.
         action = clap::ArgAction::Append,
         value_parser = HeaderParser,
         value_name = "HEADER:VALUE",
