@@ -15,7 +15,8 @@ use crate::{Uri, basic_auth::BasicAuthExtractorError, utils};
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    /// Network error while handling request
+    /// Network error while handling request.
+    /// This does not include erroneous status codes, `RejectedStatusCode` will used in that case.
     #[error("Network error")]
     NetworkRequest(#[source] reqwest::Error),
     /// Cannot read the body of the received response
