@@ -32,9 +32,9 @@ use crate::{
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::{Excludes, Filter, Includes},
     remap::Remaps,
+    types::DEFAULT_ACCEPTED_STATUS_CODES,
     utils::fragment_checker::{FragmentChecker, FragmentInput},
-    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, StatusCodeSelector,
-    Uri,
+    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
 /// Default number of redirects before a request is deemed as failed, 5.
@@ -240,7 +240,7 @@ pub struct ClientBuilder {
     /// Set of accepted return codes / status codes.
     ///
     /// Unmatched return codes/ status codes are deemed as errors.
-    #[builder(default = HashSet::try_from(StatusCodeSelector::default()).unwrap())]
+    #[builder(default = DEFAULT_ACCEPTED_STATUS_CODES.clone())]
     accepted: HashSet<StatusCode>,
 
     /// Response timeout per request in seconds.
