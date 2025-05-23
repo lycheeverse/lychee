@@ -218,10 +218,6 @@ impl Input {
     /// This can be used for retrieving all inputs which lychee would check for
     /// links.
     ///
-    /// # Parameters
-    ///
-    /// * `file_extensions` - The file extensions to filter on
-    ///
     /// # Returns
     ///
     /// Returns a stream of `Result<PathBuf>` for all matching file paths.
