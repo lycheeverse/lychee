@@ -233,9 +233,10 @@ impl Input {
     ) -> impl Stream<Item = Result<PathBuf>> + '_ {
         try_stream! {
             match &self.source {
-                InputSource::RemoteUrl(url) => {
-                    // For URLs, we just yield the URL string as a path
-                    yield PathBuf::from(url.to_string());
+                InputSource::RemoteUrl(_url) => {
+                    // Skip remote URLs when collecting file paths.
+                    // Converting a URL to a `PathBuf` can be misleading.
+                    // This behavior may be revisited in the future if the need arises.
                 },
                 InputSource::FsGlob { pattern, ignore_case } => {
                     // For glob patterns, we expand the pattern and yield matching paths
