@@ -1,0 +1,6 @@
+[header]
+X-Foo = "Bar"
+X-Bar = "Baz"
+
+# Alternative TOML syntax:
+# header = { X-Foo = "Bar", X-Bar = "Baz" }

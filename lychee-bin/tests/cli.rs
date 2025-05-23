@@ -12,7 +12,7 @@ mod cli {
     use anyhow::anyhow;
     use assert_cmd::Command;
     use assert_json_diff::assert_json_include;
-    use http::StatusCode;
+    use http::{Method, StatusCode};
     use lychee_lib::{InputSource, ResponseBody};
     use predicates::{
         prelude::{predicate, PredicateBooleanExt},
@@ -1947,6 +1947,118 @@ mod cli {
             .assert()
             .success();
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_no_header_set_on_input() -> Result<()> {
+        let mut cmd = main_command();
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1),
+            )
+            .await;
+
+        cmd.arg("--verbose").arg(server.uri()).assert().success();
+
+        let received_requests = server.received_requests().await.unwrap();
+        assert_eq!(received_requests.len(), 1);
+
+        let received_request = &received_requests[0];
+        assert_eq!(received_request.method, Method::GET);
+        assert_eq!(received_request.url.path(), "/");
+
+        // Make sure the request does not contain the custom header
+        assert!(!received_request.headers.contains_key("X-Foo"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_header_set_on_input() -> Result<()> {
+        let mut cmd = main_command();
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("X-Foo", "Bar"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    // We expect the mock to be called exactly least once.
+                    .expect(1)
+                    .named("GET expecting custom header"),
+            )
+            .await;
+
+        cmd.arg("--verbose")
+            .arg("--header")
+            .arg("X-Foo: Bar")
+            .arg(server.uri())
+            .assert()
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_multi_header_set_on_input() -> Result<()> {
+        let mut cmd = main_command();
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("X-Foo", "Bar"))
+                    .and(wiremock::matchers::header("X-Bar", "Baz"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    // We expect the mock to be called exactly least once.
+                    .expect(1)
+                    .named("GET expecting custom header"),
+            )
+            .await;
+
+        cmd.arg("--verbose")
+            .arg("--header")
+            .arg("X-Foo: Bar")
+            .arg("--header")
+            .arg("X-Bar: Baz")
+            .arg(server.uri())
+            .assert()
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_header_set_in_config() -> Result<()> {
+        let mut cmd = main_command();
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("X-Foo", "Bar"))
+                    .and(wiremock::matchers::header("X-Bar", "Baz"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    // We expect the mock to be called exactly least once.
+                    .expect(1)
+                    .named("GET expecting custom header"),
+            )
+            .await;
+
+        let config = fixtures_path().join("configs").join("headers.toml");
+        cmd.arg("--verbose")
+            .arg("--config")
+            .arg(config)
+            .arg(server.uri())
+            .assert()
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
         Ok(())
     }
 
