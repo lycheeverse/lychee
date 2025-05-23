@@ -111,14 +111,6 @@ impl Collector {
         self
     }
 
-    /// Collect all sources from a list of [`Input`]s. For further details,
-    /// see also [`Input::get_sources`](crate::Input#method.get_sources).
-    pub fn collect_sources(self, inputs: Vec<Input>) -> impl Stream<Item = Result<String>> {
-        stream::iter(inputs)
-            .par_then_unordered(None, move |input| async move { input.get_sources() })
-            .flatten()
-    }
-
     /// Convenience method to fetch all unique links from inputs
     /// with the default extensions.
     pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
