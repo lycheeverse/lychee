@@ -102,11 +102,12 @@ impl WebsiteChecker {
         let method = request.method().clone();
         match self.reqwest_client.execute(request).await {
             Ok(response) => {
-                let mut status = Status::new(&response, &self.accepted);
+                let status = Status::new(&response, &self.accepted);
                 if self.include_fragments && status.is_success() && method == Method::GET {
-                    status = self.check_html_fragment(status, response).await;
+                    self.check_html_fragment(status, response).await
+                } else {
+                    status
                 }
-                status
             }
             Err(e) => e.into(),
         }
@@ -128,7 +129,7 @@ impl WebsiteChecker {
                     .await
                 {
                     Ok(true) => status,
-                    Ok(false) => Status::Error(ErrorKind::InvalidFragment(url.clone().into())),
+                    Ok(false) => Status::Error(ErrorKind::InvalidFragment(url.into())),
                     Err(e) => Status::Error(e),
                 }
             }
