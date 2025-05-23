@@ -165,7 +165,7 @@ impl OutputMode {
 
 // Macro for generating default functions to be used by serde
 macro_rules! default_function {
-    ( $( $name:ident : $T:ty = $e:expr_2021; )* ) => {
+    ( $( $name:ident : $T:ty = $e:expr; )* ) => {
         $(
             #[allow(clippy::missing_const_for_fn)]
             fn $name() -> $T {
@@ -192,7 +192,7 @@ default_function! {
 
 // Macro for merging configuration values
 macro_rules! fold_in {
-    ( $cli:ident , $toml:ident ; $( $key:ident : $default:expr_2021; )* ) => {
+    ( $cli:ident , $toml:ident ; $( $key:ident : $default:expr; )* ) => {
         $(
             if $cli.$key == $default && $toml.$key != $default {
                 $cli.$key = $toml.$key;

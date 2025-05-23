@@ -8,7 +8,7 @@ use crate::{ClientBuilder, ErrorKind, Request, Uri};
 /// Creates a mock web server, which responds with a predefined status when
 /// handling a matching request
 macro_rules! mock_server {
-    ($status:expr_2021 $(, $func:tt ($($arg:expr_2021),*))*) => {{
+    ($status:expr $(, $func:tt ($($arg:expr),*))*) => {{
         let mock_server = wiremock::MockServer::start().await;
         let response_template = wiremock::ResponseTemplate::new(http::StatusCode::from($status));
         let template = response_template$(.$func($($arg),*))*;
