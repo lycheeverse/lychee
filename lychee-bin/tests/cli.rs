@@ -4,7 +4,7 @@ mod cli {
         collections::{HashMap, HashSet},
         error::Error,
         fs::{self, File},
-        io::Write,
+        io::{BufRead, Write},
         path::{Path, PathBuf},
         time::Duration,
     };
@@ -1882,15 +1882,28 @@ mod cli {
     #[test]
     fn test_dump_inputs_path() -> Result<()> {
         let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
-            .arg("fixtures")
+        let output = cmd
+            .arg("--dump-inputs")
+            .arg(fixtures_path())
             .assert()
             .success()
-            .stdout(contains("fixtures"));
+            .get_output()
+            .stdout
+            .clone();
+
+        let lines: Vec<_> = output.lines().collect();
+        assert!(!lines.is_empty());
+
+        for line in lines {
+            let line = line.unwrap();
+            assert!(line.contains("/fixtures/"));
+        }
 
         Ok(())
     }
 
+    // Ensures that dumping stdin does not panic and results in an empty output
+    // as `stdin` is not a path
     #[test]
     fn test_dump_inputs_stdin() -> Result<()> {
         let mut cmd = main_command();
@@ -1898,7 +1911,7 @@ mod cli {
             .arg("-")
             .assert()
             .success()
-            .stdout(contains("stdin"));
+            .stdout(is_empty());
 
         Ok(())
     }
