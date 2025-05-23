@@ -253,7 +253,16 @@ impl TypedValueParser for HeaderParser {
         })?;
 
         match parse_single_header(header_str) {
-            Ok((name, value)) => Ok((name.to_string(), value.to_str().unwrap().to_string())),
+            Ok((name, value)) => {
+                let Ok(value) = value.to_str() else {
+                    return Err(clap::Error::raw(
+                        clap::error::ErrorKind::InvalidValue,
+                        "Header value contains invalid UTF-8",
+                    ));
+                };
+
+                Ok((name.to_string(), value.to_string()))
+            }
             Err(e) => Err(clap::Error::raw(
                 clap::error::ErrorKind::InvalidValue,
                 e.to_string(),
