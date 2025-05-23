@@ -1843,8 +1843,8 @@ mod cli {
             .stderr(contains(
                 "https://github.com/lycheeverse/lychee#non-existent-anchor",
             ))
-            .stdout(contains("27 Total"))
-            .stdout(contains("22 OK"))
+            .stdout(contains("28 Total"))
+            .stdout(contains("23 OK"))
             // 4 failures because of missing fragments
             .stdout(contains("5 Errors"));
     }

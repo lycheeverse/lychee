@@ -65,3 +65,5 @@ without related HTML element. Browser will scroll to the top of the page.
 ##### Lets wear a hat: être
 
 A link to the non-existing fragment: [try](https://github.com/lycheeverse/lychee#non-existent-anchor).
+
+Skip the fragment check for directories like: [empty](empty_dir/).
