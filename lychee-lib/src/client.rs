@@ -13,13 +13,13 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use http::{
     header::{HeaderMap, HeaderValue},
     StatusCode,
 };
-use log::{debug, warn};
+use log::debug;
 use octocrab::Octocrab;
 use regex::RegexSet;
 use reqwest::{header, redirect, tls};
@@ -32,7 +32,6 @@ use crate::{
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::{Excludes, Filter, Includes},
     remap::Remaps,
-    utils::fragment_checker::{FragmentChecker, FragmentInput},
     Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
@@ -410,7 +409,6 @@ impl ClientBuilder {
                 self.fallback_extensions,
                 self.include_fragments,
             ),
-            fragment_checker: FragmentChecker::new(),
         })
     }
 }
@@ -435,9 +433,6 @@ pub struct Client {
 
     /// A checker for email URLs.
     email_checker: MailChecker,
-
-    /// Caches Fragments
-    fragment_checker: FragmentChecker,
 }
 
 impl Client {
@@ -534,24 +529,6 @@ impl Client {
     /// Checks a `mailto` URI.
     pub async fn check_mail(&self, uri: &Uri) -> Status {
         self.email_checker.check_mail(uri).await
-    }
-
-    /// Checks a `file` URI's fragment.
-    pub async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
-        match FragmentInput::from_path(path).await {
-            Ok(input) => match self.fragment_checker.check(input, &uri.url).await {
-                Ok(true) => Status::Ok(StatusCode::OK),
-                Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
-                Err(err) => {
-                    warn!("Skipping fragment check for {uri} due to the following error: {err}");
-                    Status::Ok(StatusCode::OK)
-                }
-            },
-            Err(err) => {
-                warn!("Skipping fragment check for {uri} due to the following error: {err}");
-                Status::Ok(StatusCode::OK)
-            }
-        }
     }
 }
 
