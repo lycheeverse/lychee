@@ -32,6 +32,7 @@ use crate::{
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::{Excludes, Filter, Includes},
     remap::Remaps,
+    types::DEFAULT_ACCEPTED_STATUS_CODES,
     utils::fragment_checker::{FragmentChecker, FragmentInput},
     Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
@@ -239,7 +240,8 @@ pub struct ClientBuilder {
     /// Set of accepted return codes / status codes.
     ///
     /// Unmatched return codes/ status codes are deemed as errors.
-    accepted: Option<HashSet<StatusCode>>,
+    #[builder(default = DEFAULT_ACCEPTED_STATUS_CODES.clone())]
+    accepted: HashSet<StatusCode>,
 
     /// Response timeout per request in seconds.
     timeout: Option<Duration>,
@@ -362,7 +364,7 @@ impl ClientBuilder {
             None => builder,
         }
         .build()
-        .map_err(ErrorKind::NetworkRequest)?;
+        .map_err(ErrorKind::BuildRequestClient)?;
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(

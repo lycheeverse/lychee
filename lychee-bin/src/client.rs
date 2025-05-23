@@ -17,6 +17,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     let remaps = parse_remaps(&cfg.remap)?;
     let includes = RegexSet::new(&cfg.include)?;
     let excludes = RegexSet::new(&cfg.exclude)?;
+    let accepted: HashSet<StatusCode> = cfg.accept.clone().try_into()?;
 
     // Offline mode overrides the scheme
     let schemes = if cfg.offline {
@@ -24,14 +25,6 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     } else {
         cfg.scheme.clone()
     };
-
-    let accepted = cfg
-        .accept
-        .clone()
-        .into_set()
-        .iter()
-        .map(|value| StatusCode::from_u16(*value))
-        .collect::<Result<HashSet<_>, _>>()?;
 
     let headers = HeaderMap::from_header_pairs(&cfg.header)?;
 

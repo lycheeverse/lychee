@@ -105,6 +105,8 @@ impl RetryExt for ErrorKind {
         }) = self.github_error()
         {
             source.should_retry()
+        } else if let Self::RejectedStatusCode(StatusCode::TOO_MANY_REQUESTS) = self {
+            return true;
         } else {
             false
         }

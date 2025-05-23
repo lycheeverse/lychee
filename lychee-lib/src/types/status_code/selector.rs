@@ -1,9 +1,15 @@
-use std::{collections::HashSet, fmt::Display, str::FromStr};
+use std::{collections::HashSet, fmt::Display, hash::BuildHasher, str::FromStr, sync::LazyLock};
 
+use http::StatusCode;
 use serde::{de::Visitor, Deserialize};
 use thiserror::Error;
 
 use crate::{types::accept::AcceptRange, AcceptRangeError};
+
+/// These values are the default status codes which are accepted by lychee.
+/// SAFETY: This does not panic as all provided status codes are valid.
+pub static DEFAULT_ACCEPTED_STATUS_CODES: LazyLock<HashSet<StatusCode>> =
+    LazyLock::new(|| <HashSet<StatusCode>>::try_from(StatusCodeSelector::default()).unwrap());
 
 #[derive(Debug, Error, PartialEq)]
 pub enum StatusCodeSelectorError {
@@ -44,6 +50,7 @@ impl FromStr for StatusCodeSelector {
     }
 }
 
+/// These values are the default status codes which are accepted by lychee.
 impl Default for StatusCodeSelector {
     fn default() -> Self {
         Self::new_from(vec![AcceptRange::new(100, 103), AcceptRange::new(200, 299)])
@@ -98,24 +105,30 @@ impl StatusCodeSelector {
         self.ranges.iter().any(|range| range.contains(value))
     }
 
-    /// Consumes self and creates a [`HashSet`] which contains all
-    /// accepted status codes.
-    #[must_use]
-    pub fn into_set(self) -> HashSet<u16> {
-        let mut set = HashSet::new();
-
-        for range in self.ranges {
-            for value in range.inner() {
-                set.insert(value);
-            }
-        }
-
-        set
-    }
-
     #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.ranges.len()
+    }
+}
+
+impl<S: BuildHasher + Default> From<StatusCodeSelector> for HashSet<u16, S> {
+    fn from(value: StatusCodeSelector) -> Self {
+        value
+            .ranges
+            .into_iter()
+            .flat_map(|range| range.inner().collect::<Vec<_>>())
+            .collect()
+    }
+}
+
+impl<S: BuildHasher + Default> TryFrom<StatusCodeSelector> for HashSet<StatusCode, S> {
+    type Error = http::status::InvalidStatusCode;
+
+    fn try_from(value: StatusCodeSelector) -> Result<Self, Self::Error> {
+        <HashSet<u16>>::from(value)
+            .into_iter()
+            .map(StatusCode::from_u16)
+            .collect()
     }
 }
 
@@ -245,5 +258,18 @@ mod test {
     fn test_display(#[case] input: &str, #[case] display: &str) {
         let selector = StatusCodeSelector::from_str(input).unwrap();
         assert_eq!(selector.to_string(), display);
+    }
+
+    #[rstest]
+    #[case("100..=102,200..202", HashSet::from([100, 101, 102, 200, 201]))]
+    fn test_into_u16_set(#[case] input: &str, #[case] expected: HashSet<u16>) {
+        let actual: HashSet<u16> = StatusCodeSelector::from_str(input).unwrap().into();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_default_accepted_values() {
+        // assert that accessing the value does not panic as described in the SAFETY note.
+        let _ = &*DEFAULT_ACCEPTED_STATUS_CODES;
     }
 }

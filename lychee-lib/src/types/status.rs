@@ -83,18 +83,13 @@ impl Serialize for Status {
 impl Status {
     #[must_use]
     /// Create a status object from a response and the set of accepted status codes
-    pub fn new(response: &Response, accepted: Option<HashSet<StatusCode>>) -> Self {
+    pub fn new(response: &Response, accepted: &HashSet<StatusCode>) -> Self {
         let code = response.status();
 
-        if let Some(true) = accepted.map(|a| a.contains(&code)) {
+        if accepted.contains(&code) {
             Self::Ok(code)
         } else {
-            match response.error_for_status_ref() {
-                Ok(_) if code.is_success() => Self::Ok(code),
-                Ok(_) if code.is_redirection() => Self::Redirected(code),
-                Ok(_) => Self::UnknownStatusCode(code),
-                Err(e) => e.into(),
-            }
+            Self::Error(ErrorKind::RejectedStatusCode(code))
         }
     }
 
@@ -217,13 +212,13 @@ impl Status {
             | Status::Redirected(code)
             | Status::UnknownStatusCode(code)
             | Status::Timeout(Some(code)) => Some(*code),
-            Status::Error(kind) | Status::Unsupported(kind) => {
-                if let Some(error) = kind.reqwest_error() {
-                    error.status()
-                } else {
-                    None
-                }
-            }
+            Status::Error(kind) | Status::Unsupported(kind) => match kind {
+                ErrorKind::RejectedStatusCode(status_code) => Some(*status_code),
+                _ => match kind.reqwest_error() {
+                    Some(error) => error.status(),
+                    None => None,
+                },
+            },
             Status::Cached(CacheStatus::Ok(code) | CacheStatus::Error(Some(code))) => {
                 StatusCode::from_u16(*code).ok()
             }
@@ -240,12 +235,13 @@ impl Status {
             }
             Status::Excluded => "EXCLUDED".to_string(),
             Status::Error(e) => match e {
-                ErrorKind::NetworkRequest(e)
-                | ErrorKind::ReadResponseBody(e)
-                | ErrorKind::BuildRequestClient(e) => match e.status() {
-                    Some(code) => code.as_str().to_string(),
-                    None => "ERROR".to_string(),
-                },
+                ErrorKind::RejectedStatusCode(code) => code.as_str().to_string(),
+                ErrorKind::ReadResponseBody(e) | ErrorKind::BuildRequestClient(e) => {
+                    match e.status() {
+                        Some(code) => code.as_str().to_string(),
+                        None => "ERROR".to_string(),
+                    }
+                }
                 _ => "ERROR".to_string(),
             },
             Status::Timeout(code) => match code {
