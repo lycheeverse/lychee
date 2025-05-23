@@ -33,7 +33,8 @@ use crate::{
     filter::{Excludes, Filter, Includes},
     remap::Remaps,
     utils::fragment_checker::{FragmentChecker, FragmentInput},
-    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
+    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, StatusCodeSelector,
+    Uri,
 };
 
 /// Default number of redirects before a request is deemed as failed, 5.
@@ -239,9 +240,7 @@ pub struct ClientBuilder {
     /// Set of accepted return codes / status codes.
     ///
     /// Unmatched return codes/ status codes are deemed as errors.
-    ///
-    /// TODO: accept all "valid" status codes by default. Maybe use `AcceptRange`?
-    #[builder(default = HashSet::from([StatusCode::OK]))]
+    #[builder(default = HashSet::try_from(StatusCodeSelector::default()).unwrap())]
     accepted: HashSet<StatusCode>,
 
     /// Response timeout per request in seconds.
