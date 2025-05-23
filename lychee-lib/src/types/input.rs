@@ -212,8 +212,11 @@ impl Input {
 
     /// Get all file paths matching this input source.
     ///
-    /// This method returns a stream of paths that match the input source,
-    /// taking into account file extensions and exclusions.
+    /// This method returns a stream of paths from the input source, taking into
+    /// account the matching file extensions and respecting exclusions.
+    ///
+    /// This can be used for retrieving all inputs which lychee would check for
+    /// links.
     ///
     /// # Parameters
     ///
@@ -221,7 +224,7 @@ impl Input {
     ///
     /// # Returns
     ///
-    /// Returns a stream of Result<PathBuf> for all matching file paths.
+    /// Returns a stream of `Result<PathBuf>` for all matching file paths.
     ///
     /// # Errors
     ///
@@ -304,14 +307,9 @@ impl Input {
                         }
                     }
                 },
-                InputSource::Stdin => {
-                    // Stdin is handled specially - we yield a marker path
-                    yield PathBuf::from("stdin");
-                },
-                InputSource::String(_) => {
-                    // For raw strings, we yield a marker path
-                    yield PathBuf::from("string");
-                },
+                InputSource::Stdin | InputSource::String(_) => {
+                    // Skip `stdin` and strings as they are not valid file paths
+                }
             }
         }
     }
@@ -370,12 +368,6 @@ impl Input {
             while let Some(path_result) = paths_stream.next().await {
                 match path_result {
                     Ok(path) => {
-                        // Handle special marker paths
-                        let path_str = path.to_string_lossy();
-                        if path_str == "stdin" || path_str == "string" {
-                            continue;
-                        }
-
                         // Process the actual file path
                         let content = Self::path_content(&path).await;
                         match content {
