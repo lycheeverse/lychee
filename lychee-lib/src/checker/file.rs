@@ -123,7 +123,8 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     async fn check_existing_path(&self, path: &Path, uri: &Uri) -> Status {
-        if self.include_fragments {
+        // only files can contain content with fragments
+        if self.include_fragments && path.is_file() {
             self.check_fragment(path, uri).await
         } else {
             Status::Ok(StatusCode::OK)
@@ -175,12 +176,12 @@ impl FileChecker {
                 Ok(true) => Status::Ok(StatusCode::OK),
                 Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
                 Err(err) => {
-                    warn!("Skipping fragment check due to the following error: {err}");
+                    warn!("Skipping fragment check for {uri} due to the following error: {err}");
                     Status::Ok(StatusCode::OK)
                 }
             },
             Err(err) => {
-                warn!("Skipping fragment check due to the following error: {err}");
+                warn!("Skipping fragment check for {uri} due to the following error: {err}");
                 Status::Ok(StatusCode::OK)
             }
         }

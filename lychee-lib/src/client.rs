@@ -543,12 +543,12 @@ impl Client {
                 Ok(true) => Status::Ok(StatusCode::OK),
                 Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
                 Err(err) => {
-                    warn!("Skipping fragment check due to the following error: {err}");
+                    warn!("Skipping fragment check for {uri} due to the following error: {err}");
                     Status::Ok(StatusCode::OK)
                 }
             },
             Err(err) => {
-                warn!("Skipping fragment check due to the following error: {err}");
+                warn!("Skipping fragment check for {uri} due to the following error: {err}");
                 Status::Ok(StatusCode::OK)
             }
         }
