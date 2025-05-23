@@ -332,7 +332,7 @@ impl LycheeOptions {
         } else {
             Some(self.config.exclude_path.clone())
         };
-        let headers = HeaderMap::from_header_pairs(&self.config.header)?;
+        let headers = HeaderMap::try_from(self.config.header.as_ref().unwrap_or(&HashMap::new()))?;
 
         self.raw_inputs
             .iter()
@@ -351,12 +351,12 @@ impl LycheeOptions {
 }
 
 // Custom deserializer function for the header field
-fn deserialize_headers<'de, D>(deserializer: D) -> Result<Vec<(String, String)>, D::Error>
+fn deserialize_headers<'de, D>(deserializer: D) -> Result<Option<HashMap<String, String>>, D::Error>
 where
     D: Deserializer<'de>,
 {
     let map = HashMap::<String, String>::deserialize(deserializer)?;
-    Ok(map.into_iter().collect())
+    Ok(Some(map.into_iter().collect()))
 }
 
 /// The main configuration for lychee
@@ -582,7 +582,7 @@ Multiple headers can be specified by using the flag multiple times."
     )]
     #[serde(default)]
     #[serde(deserialize_with = "deserialize_headers")]
-    pub header: Vec<(String, String)>,
+    pub header: Option<HashMap<String, String>>,
 
     /// A List of accepted status codes for valid links
     #[arg(
@@ -710,20 +710,6 @@ separated list of accepted status codes. This example will accept 200, 201,
 }
 
 impl Config {
-    /// Special handling for merging headers
-    ///
-    /// Overwrites existing headers in `self` with the values from `other`.
-    fn merge_headers(&mut self, other: &[(String, String)]) {
-        let self_map = self.header.iter().cloned().collect::<HashMap<_, _>>();
-        let other_map = other.iter().cloned().collect::<HashMap<_, _>>();
-
-        // Merge the two maps, with `other` taking precedence
-        let merged_map: HashMap<_, _> = self_map.into_iter().chain(other_map).collect();
-
-        // Convert the merged map back to a Vec of tuples
-        self.header = merged_map.into_iter().collect();
-    }
-
     /// Load configuration from a file
     pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
         // Read configuration file
@@ -733,8 +719,15 @@ impl Config {
 
     /// Merge the configuration from TOML into the CLI configuration
     pub(crate) fn merge(&mut self, toml: Config) {
-        // Special handling for headers before fold_in!
-        self.merge_headers(&toml.header);
+        // Overwrite existing values of self with values from toml
+        // We only have a reference to the map to be merged in, which is why
+        // we need to clone the keys and values to avoid borrowing issues
+        if let Some(toml_map) = toml.header {
+            match &mut self.header {
+                Some(self_map) => self_map.extend(toml_map),
+                None => self.header = Some(toml_map),
+            }
+        }
 
         fold_in! {
             // Destination and source configs
@@ -758,7 +751,6 @@ impl Config {
             fallback_extensions: Vec::<String>::new();
             format: StatsFormat::default();
             glob_ignore_case: false;
-            header: Vec::<(String, String)>::new();
             include_fragments: false;
             include_mail: false;
             include_verbatim: false;
@@ -883,43 +875,39 @@ mod tests {
         let opts = crate::LycheeOptions::parse_from(args);
 
         // Check that the headers were collected correctly
-        let headers = &opts.config.header;
+        let headers = &opts.config.header.unwrap();
         assert_eq!(headers.len(), 2);
 
-        // Convert to HashMap for easier testing
-        let header_map: HashMap<String, String> = headers.iter().cloned().collect();
-        assert_eq!(header_map["accept"], "text/html");
-        assert_eq!(header_map["x-test"], "check=this");
+        assert_eq!(headers["accept"], "text/html");
+        assert_eq!(headers["x-test"], "check=this");
     }
 
     #[test]
     fn test_merge_headers_with_config() {
         let toml = Config {
-            header: vec![
+            header: Some(HashMap::from([
                 ("Accept".to_string(), "text/html".to_string()),
                 ("X-Test".to_string(), "check=this".to_string()),
-            ],
+            ])),
             ..Default::default()
         };
 
         // Set X-Test and see if it gets overwritten
         let mut cli = Config {
-            header: vec![("X-Test".to_string(), "check=that".to_string())],
+            header: Some(HashMap::from([(
+                "X-Test".to_string(),
+                "check=that".to_string(),
+            )])),
             ..Default::default()
         };
         cli.merge(toml);
 
-        assert_eq!(cli.header.len(), 2);
-
-        // Sort vector before assert
-        cli.header.sort();
-
         assert_eq!(
             cli.header,
-            vec![
+            Some(HashMap::from([
                 ("Accept".to_string(), "text/html".to_string()),
                 ("X-Test".to_string(), "check=this".to_string()),
-            ]
+            ]))
         );
     }
 }

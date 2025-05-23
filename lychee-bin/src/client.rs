@@ -1,4 +1,4 @@
-use crate::options::{Config, HeaderMapExt};
+use crate::options::Config;
 use crate::parse::{parse_duration_secs, parse_remaps};
 use anyhow::{Context, Result};
 use http::{HeaderMap, StatusCode};
@@ -33,7 +33,10 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .map(|value| StatusCode::from_u16(*value))
         .collect::<Result<HashSet<_>, _>>()?;
 
-    let headers = HeaderMap::from_header_pairs(&cfg.header)?;
+    let headers = match &cfg.header {
+        Some(hdrs) => HeaderMap::try_from(hdrs)?,
+        None => HeaderMap::new(),
+    };
 
     ClientBuilder::builder()
         .remaps(remaps)
