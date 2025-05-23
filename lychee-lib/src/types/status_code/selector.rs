@@ -1,10 +1,15 @@
-use std::{collections::HashSet, fmt::Display, str::FromStr};
+use std::{collections::HashSet, fmt::Display, hash::BuildHasher, str::FromStr, sync::LazyLock};
 
 use http::StatusCode;
 use serde::{Deserialize, de::Visitor};
 use thiserror::Error;
 
 use crate::{AcceptRangeError, types::accept::AcceptRange};
+
+/// These values are the default status codes which are accepted by lychee.
+/// SAFETY: This does not panic as all provided status codes are valid.
+pub static DEFAULT_ACCEPTED_STATUS_CODES: LazyLock<HashSet<StatusCode>> =
+    LazyLock::new(|| <HashSet<StatusCode>>::try_from(StatusCodeSelector::default()).unwrap());
 
 #[derive(Debug, Error, PartialEq)]
 pub enum StatusCodeSelectorError {
@@ -45,6 +50,7 @@ impl FromStr for StatusCodeSelector {
     }
 }
 
+/// These values are the default status codes which are accepted by lychee.
 impl Default for StatusCodeSelector {
     fn default() -> Self {
         Self::new_from(vec![AcceptRange::new(100, 103), AcceptRange::new(200, 299)])
@@ -105,7 +111,7 @@ impl StatusCodeSelector {
     }
 }
 
-impl From<StatusCodeSelector> for HashSet<u16> {
+impl<S: BuildHasher + Default> From<StatusCodeSelector> for HashSet<u16, S> {
     fn from(value: StatusCodeSelector) -> Self {
         value
             .ranges
@@ -115,7 +121,7 @@ impl From<StatusCodeSelector> for HashSet<u16> {
     }
 }
 
-impl TryFrom<StatusCodeSelector> for HashSet<StatusCode> {
+impl<S: BuildHasher + Default> TryFrom<StatusCodeSelector> for HashSet<StatusCode, S> {
     type Error = http::status::InvalidStatusCode;
 
     fn try_from(value: StatusCodeSelector) -> Result<Self, Self::Error> {
@@ -190,7 +196,6 @@ impl<'de> Deserialize<'de> for StatusCodeSelector {
 #[cfg(test)]
 mod test {
     use super::*;
-    use http::status::InvalidStatusCode;
     use rstest::rstest;
 
     #[rstest]
@@ -260,5 +265,11 @@ mod test {
     fn test_into_u16_set(#[case] input: &str, #[case] expected: HashSet<u16>) {
         let actual: HashSet<u16> = StatusCodeSelector::from_str(input).unwrap().into();
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_default_accepted_values() {
+        // assert that accessing the value does not panic as described in the SAFETY note.
+        let _ = &*DEFAULT_ACCEPTED_STATUS_CODES;
     }
 }
