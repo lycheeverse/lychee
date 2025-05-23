@@ -270,16 +270,8 @@ impl Input {
                     if path.is_dir() {
 
                         for entry in WalkBuilder::new(path)
-                            // Enable or disable standard filters based on skip_gitignored parameter.
-                            // This controls:
-                            // - Hidden files/directories (skip files starting with '.')
-                            // - Parent directory gitignore rules
-                            // - .ignore files
-                            // - .gitignore files
-                            // - Global git ignore files
-                            // - .git/info/exclude files
-                            // When skip_gitignored is true, these filters are enabled (files will be skipped).
-                            // When skip_gitignored is false, these filters are disabled (all files will be included).
+                            // Enable standard filters if skip_gitignored is true.
+                            // This will skip files ignored by .gitignore and other VCS ignore files.
                             .standard_filters(skip_gitignored)
 
                             // Override hidden file behavior to be controlled by the separate skip_hidden parameter
