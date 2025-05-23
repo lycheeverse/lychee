@@ -1,5 +1,6 @@
 use std::{collections::HashSet, fmt::Display, str::FromStr};
 
+use http::StatusCode;
 use serde::{Deserialize, de::Visitor};
 use thiserror::Error;
 
@@ -98,24 +99,30 @@ impl StatusCodeSelector {
         self.ranges.iter().any(|range| range.contains(value))
     }
 
-    /// Consumes self and creates a [`HashSet`] which contains all
-    /// accepted status codes.
-    #[must_use]
-    pub fn into_set(self) -> HashSet<u16> {
-        let mut set = HashSet::new();
-
-        for range in self.ranges {
-            for value in range.inner() {
-                set.insert(value);
-            }
-        }
-
-        set
-    }
-
     #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.ranges.len()
+    }
+}
+
+impl From<StatusCodeSelector> for HashSet<u16> {
+    fn from(value: StatusCodeSelector) -> Self {
+        value
+            .ranges
+            .into_iter()
+            .flat_map(|range| range.inner().collect::<Vec<_>>())
+            .collect()
+    }
+}
+
+impl TryFrom<StatusCodeSelector> for HashSet<StatusCode> {
+    type Error = http::status::InvalidStatusCode;
+
+    fn try_from(value: StatusCodeSelector) -> Result<Self, Self::Error> {
+        <HashSet<u16>>::from(value)
+            .into_iter()
+            .map(StatusCode::from_u16)
+            .collect()
     }
 }
 
@@ -183,6 +190,7 @@ impl<'de> Deserialize<'de> for StatusCodeSelector {
 #[cfg(test)]
 mod test {
     use super::*;
+    use http::status::InvalidStatusCode;
     use rstest::rstest;
 
     #[rstest]
@@ -245,5 +253,12 @@ mod test {
     fn test_display(#[case] input: &str, #[case] display: &str) {
         let selector = StatusCodeSelector::from_str(input).unwrap();
         assert_eq!(selector.to_string(), display);
+    }
+
+    #[rstest]
+    #[case("100..=102,200..202", HashSet::from([100, 101, 102, 200, 201]))]
+    fn test_into_u16_set(#[case] input: &str, #[case] expected: HashSet<u16>) {
+        let actual: HashSet<u16> = StatusCodeSelector::from_str(input).unwrap().into();
+        assert_eq!(actual, expected);
     }
 }
