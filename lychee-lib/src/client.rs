@@ -33,7 +33,6 @@ use crate::{
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::{Excludes, Filter, Includes},
     remap::Remaps,
-    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
 };
 
 /// Default number of redirects before a request is deemed as failed, 5.
