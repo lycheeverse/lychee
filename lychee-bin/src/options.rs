@@ -6,8 +6,8 @@ use clap::builder::PossibleValuesParser;
 use clap::{Parser, arg, builder::TypedValueParser};
 use const_format::{concatcp, formatcp};
 use http::{
-    header::{HeaderName, HeaderValue},
     HeaderMap,
+    header::{HeaderName, HeaderValue},
 };
 use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
