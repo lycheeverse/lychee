@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use lychee_lib::{remap::Remaps, Base};
+use lychee_lib::{Base, remap::Remaps};
 use std::time::Duration;
 
 /// Parse seconds into a `Duration`

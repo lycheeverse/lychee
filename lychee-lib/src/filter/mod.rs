@@ -259,8 +259,8 @@ mod tests {
 
     use super::{Excludes, Filter, Includes};
     use crate::{
-        test_utils::{mail, website},
         Uri,
+        test_utils::{mail, website},
     };
 
     // Note: the standard library, as of Rust stable 1.47.0, does not expose

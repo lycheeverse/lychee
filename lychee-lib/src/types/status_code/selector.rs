@@ -1,9 +1,9 @@
 use std::{collections::HashSet, fmt::Display, str::FromStr};
 
-use serde::{de::Visitor, Deserialize};
+use serde::{Deserialize, de::Visitor};
 use thiserror::Error;
 
-use crate::{types::accept::AcceptRange, AcceptRangeError};
+use crate::{AcceptRangeError, types::accept::AcceptRange};
 
 #[derive(Debug, Error, PartialEq)]
 pub enum StatusCodeSelectorError {

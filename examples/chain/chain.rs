@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use lychee_lib::{chain::RequestChain, ChainResult, ClientBuilder, Handler, Result, Status};
+use lychee_lib::{ChainResult, ClientBuilder, Handler, Result, Status, chain::RequestChain};
 use reqwest::{Method, Request};
 
 #[derive(Debug)]

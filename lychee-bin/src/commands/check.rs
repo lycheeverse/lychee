@@ -20,7 +20,7 @@ use crate::formatters::response::ResponseFormatter;
 use crate::options::OutputMode;
 use crate::parse::parse_duration_secs;
 use crate::verbosity::Verbosity;
-use crate::{cache::Cache, stats::ResponseStats, ExitCode};
+use crate::{ExitCode, cache::Cache, stats::ResponseStats};
 
 use super::CommandParams;
 

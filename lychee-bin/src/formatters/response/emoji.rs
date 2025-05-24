@@ -115,8 +115,10 @@ mod emoji_tests {
         );
 
         // Just assert the output contains the string
-        assert!(formatter
-            .format_detailed_response(&body)
-            .ends_with("| URL is missing a host"));
+        assert!(
+            formatter
+                .format_detailed_response(&body)
+                .ends_with("| URL is missing a host")
+        );
     }
 }

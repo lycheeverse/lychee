@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use crate::formatters::color::{color, BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, NORMAL};
+use crate::formatters::color::{BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, NORMAL, color};
 use crate::{formatters::get_response_formatter, options, stats::ResponseStats};
 
 use super::StatsFormatter;
@@ -185,8 +185,10 @@ mod tests {
         assert!(result.contains("🚫 2 Errors"));
 
         assert!(result.contains("[https://example.com/]:"));
-        assert!(result
-            .contains("https://github.com/mre/idiomatic-rust-doesnt-exist-man | 404 Not Found"));
+        assert!(
+            result
+                .contains("https://github.com/mre/idiomatic-rust-doesnt-exist-man | 404 Not Found")
+        );
         assert!(result.contains("https://github.com/mre/boom | 500 Internal Server Error"));
     }
 }

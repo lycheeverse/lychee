@@ -187,16 +187,20 @@ mod tests {
                 .is_err()
         );
 
-        assert!(GithubUri::try_from(website(
-            "https://github.com/marketplace/actions/lychee-broken-link-checker"
-        ))
-        .is_err());
+        assert!(
+            GithubUri::try_from(website(
+                "https://github.com/marketplace/actions/lychee-broken-link-checker"
+            ))
+            .is_err()
+        );
 
         assert!(GithubUri::try_from(website("https://github.com/features/actions")).is_err());
 
-        assert!(GithubUri::try_from(website(
-            "https://pkg.go.dev/github.com/Debian/pkg-go-tools/cmd/pgt-gopath"
-        ))
-        .is_err());
+        assert!(
+            GithubUri::try_from(website(
+                "https://pkg.go.dev/github.com/Debian/pkg-go-tools/cmd/pgt-gopath"
+            ))
+            .is_err()
+        );
     }
 }

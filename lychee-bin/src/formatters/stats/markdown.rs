@@ -9,8 +9,8 @@ use http::StatusCode;
 use lychee_lib::{InputSource, ResponseBody, Status};
 use std::fmt::Write;
 use tabled::{
-    settings::{object::Segment, Alignment, Modify, Style},
     Table, Tabled,
+    settings::{Alignment, Modify, Style, object::Segment},
 };
 
 use crate::stats::ResponseStats;

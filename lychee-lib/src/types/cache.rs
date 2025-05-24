@@ -90,8 +90,8 @@ impl From<&Status> for CacheStatus {
 
 #[cfg(test)]
 mod tests {
-    use serde::de::value::{BorrowedStrDeserializer, Error as DeserializerError};
     use serde::Deserialize;
+    use serde::de::value::{BorrowedStrDeserializer, Error as DeserializerError};
 
     use crate::CacheStatus;
 

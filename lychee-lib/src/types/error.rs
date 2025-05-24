@@ -7,7 +7,7 @@ use tokio::task::JoinError;
 
 use super::InputContent;
 use crate::types::StatusCodeSelectorError;
-use crate::{basic_auth::BasicAuthExtractorError, utils, Uri};
+use crate::{Uri, basic_auth::BasicAuthExtractorError, utils};
 
 /// Kinds of status errors
 /// Note: The error messages can change over time, so don't match on the output
@@ -119,7 +119,9 @@ pub enum ErrorKind {
     InvalidGlobPattern(#[from] glob::PatternError),
 
     /// The GitHub API could not be called because of a missing GitHub token.
-    #[error("GitHub token not specified. To check GitHub links reliably, use `--github-token` flag / `GITHUB_TOKEN` env var.")]
+    #[error(
+        "GitHub token not specified. To check GitHub links reliably, use `--github-token` flag / `GITHUB_TOKEN` env var."
+    )]
     MissingGitHubToken,
 
     /// Used an insecure URI where a secure variant was reachable

@@ -1,18 +1,18 @@
 use crate::archive::Archive;
 use crate::parse::parse_base;
 use crate::verbosity::Verbosity;
-use anyhow::{anyhow, Context, Error, Result};
+use anyhow::{Context, Error, Result, anyhow};
 use clap::builder::PossibleValuesParser;
-use clap::{arg, builder::TypedValueParser, Parser};
+use clap::{Parser, arg, builder::TypedValueParser};
 use const_format::{concatcp, formatcp};
 use http::{
-    header::{HeaderName, HeaderValue},
     HeaderMap,
+    header::{HeaderName, HeaderValue},
 };
 use lychee_lib::{
-    Base, BasicAuthSelector, FileExtensions, FileType, Input, StatusCodeExcluder,
-    StatusCodeSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES, DEFAULT_RETRY_WAIT_TIME_SECS,
-    DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+    Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
+    FileType, Input, StatusCodeExcluder, StatusCodeSelector,
 };
 use reqwest::tls;
 use secrecy::{ExposeSecret, SecretString};

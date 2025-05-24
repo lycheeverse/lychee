@@ -279,13 +279,11 @@ impl Emitter for &mut LinkExtractor {
     fn emit_current_tag(&mut self) -> Option<State> {
         self.flush_links();
 
-        let next_state = if self.current_element.is_closing {
+        if self.current_element.is_closing {
             None
         } else {
             html5gum::naive_next_state(self.current_element.name.as_bytes())
-        };
-
-        next_state
+        }
     }
 
     fn emit_current_doctype(&mut self) {}

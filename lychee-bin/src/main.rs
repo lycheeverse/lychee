@@ -63,7 +63,7 @@ use std::io::{self, BufRead, BufReader, ErrorKind, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Error, Result};
+use anyhow::{Context, Error, Result, bail};
 use clap::Parser;
 use commands::CommandParams;
 use formatters::{get_stats_formatter, log::init_logging};
@@ -95,7 +95,7 @@ use crate::formatters::duration::Duration;
 use crate::{
     cache::{Cache, StoreExt},
     formatters::stats::StatsFormatter,
-    options::{Config, LycheeOptions, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE},
+    options::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
 };
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
@@ -169,7 +169,9 @@ fn load_config() -> Result<LycheeOptions> {
 
     // TODO: Remove this warning and the parameter with 1.0
     if !&opts.config.exclude_file.is_empty() {
-        warn!("WARNING: `--exclude-file` is deprecated and will soon be removed; use the `{LYCHEE_IGNORE_FILE}` file to ignore URL patterns instead. To exclude paths of files and directories, use `--exclude-path`.");
+        warn!(
+            "WARNING: `--exclude-file` is deprecated and will soon be removed; use the `{LYCHEE_IGNORE_FILE}` file to ignore URL patterns instead. To exclude paths of files and directories, use `--exclude-path`."
+        );
     }
 
     // TODO: Remove this warning and the parameter with 1.0
@@ -296,7 +298,9 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         (Some(base), None) => Some(base),
         (None, Some(base_url)) => Some(base_url),
         (Some(_base), Some(base_url)) => {
-            warn!("WARNING: Both, `--base` and `--base-url` are set. Using `base-url` and ignoring `--base` (as it's deprecated).");
+            warn!(
+                "WARNING: Both, `--base` and `--base-url` are set. Using `base-url` and ignoring `--base` (as it's deprecated)."
+            );
             Some(base_url)
         }
     };
@@ -383,7 +387,9 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         }
 
         if github_issues && opts.config.github_token.is_none() {
-            warn!("There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",);
+            warn!(
+                "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
+            );
         }
 
         if opts.config.cache {

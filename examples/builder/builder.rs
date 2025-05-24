@@ -1,5 +1,5 @@
-use http::header::{self, HeaderMap};
 use http::StatusCode;
+use http::header::{self, HeaderMap};
 use lychee_lib::{ClientBuilder, Result};
 use regex::RegexSet;
 use reqwest::Method;

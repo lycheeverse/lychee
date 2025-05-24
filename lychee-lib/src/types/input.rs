@@ -1,5 +1,5 @@
 use crate::types::FileType;
-use crate::{utils, ErrorKind, Result};
+use crate::{ErrorKind, Result, utils};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
@@ -11,7 +11,7 @@ use shellexpand::tilde;
 use std::fmt::Display;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tokio::io::{stdin, AsyncReadExt};
+use tokio::io::{AsyncReadExt, stdin};
 
 use super::file::FileExtensions;
 
@@ -357,7 +357,7 @@ impl Input {
         &self,
         pattern: &str,
         ignore_case: bool,
-    ) -> impl Stream<Item = Result<InputContent>> + '_ {
+    ) -> impl Stream<Item = Result<InputContent>> + '_ + use<'_> {
         let glob_expanded = tilde(&pattern).to_string();
         let mut match_opts = glob::MatchOptions::new();
 

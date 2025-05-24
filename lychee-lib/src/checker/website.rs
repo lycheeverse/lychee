@@ -1,10 +1,10 @@
 use crate::{
+    BasicAuthCredentials, ErrorKind, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
     retry::RetryExt,
     types::uri::github::GithubUri,
     utils::fragment_checker::{FragmentChecker, FragmentInput},
-    BasicAuthCredentials, ErrorKind, Status, Uri,
 };
 use async_trait::async_trait;
 use http::{Method, StatusCode};

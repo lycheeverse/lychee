@@ -1,6 +1,6 @@
 use crate::{
-    chain::{ChainResult, Handler},
     Status,
+    chain::{ChainResult, Handler},
 };
 use async_trait::async_trait;
 use header::HeaderValue;
@@ -108,7 +108,7 @@ impl Handler<Request, Status> for Quirks {
 #[cfg(test)]
 mod tests {
     use header::HeaderValue;
-    use http::{header, Method};
+    use http::{Method, header};
     use reqwest::{Request, Url};
 
     use super::Quirks;

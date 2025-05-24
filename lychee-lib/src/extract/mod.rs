@@ -1,4 +1,4 @@
-use crate::types::{uri::raw::RawUri, FileType, InputContent};
+use crate::types::{FileType, InputContent, uri::raw::RawUri};
 
 pub mod html;
 pub mod markdown;
@@ -63,10 +63,10 @@ mod tests {
 
     use super::*;
     use crate::{
+        Uri,
         test_utils::{load_fixture, mail, website},
         types::{FileType, InputContent, InputSource},
         utils::url::find_links,
-        Uri,
     };
 
     fn extract_uris(input: &str, file_type: FileType) -> HashSet<Uri> {

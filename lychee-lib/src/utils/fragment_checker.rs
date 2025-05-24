@@ -1,13 +1,13 @@
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::Entry},
     path::Path,
     sync::Arc,
 };
 
 use crate::{
+    Result,
     extract::{html::html5gum::extract_html_fragments, markdown::extract_markdown_fragments},
     types::{ErrorKind, FileType},
-    Result,
 };
 use percent_encoding::percent_decode_str;
 use tokio::{fs, sync::Mutex};

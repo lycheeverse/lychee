@@ -1,13 +1,13 @@
 use crate::ErrorKind;
 use crate::InputSource;
 use crate::{
-    basic_auth::BasicAuthExtractor, extract::Extractor, types::uri::raw::RawUri,
-    types::FileExtensions, utils::request, Base, Input, Request, Result,
+    Base, Input, Request, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
+    types::FileExtensions, types::uri::raw::RawUri, utils::request,
 };
 use futures::TryStreamExt;
 use futures::{
-    stream::{self, Stream},
     StreamExt,
+    stream::{self, Stream},
 };
 use par_stream::ParStreamExt;
 use std::path::PathBuf;
@@ -186,10 +186,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        mock_server,
+        Result, Uri, mock_server,
         test_utils::{load_fixture, mail, path, website},
         types::{FileType, Input, InputSource},
-        Result, Uri,
     };
 
     // Helper function to run the collector on the given inputs

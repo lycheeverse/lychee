@@ -2,14 +2,14 @@ use async_trait::async_trait;
 use std::str::FromStr;
 
 use headers::authorization::Credentials;
-use headers::{authorization::Basic, Authorization};
+use headers::{Authorization, authorization::Basic};
 use http::header::AUTHORIZATION;
 use reqwest::Request;
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::chain::{ChainResult, Handler};
 use crate::Status;
+use crate::chain::{ChainResult, Handler};
 
 #[derive(Copy, Clone, Debug, Error, PartialEq)]
 pub enum BasicAuthCredentialsParseError {
@@ -22,7 +22,9 @@ pub enum BasicAuthCredentialsParseError {
     #[error("Missing basic auth username")]
     MissingUsername,
 
-    #[error("Too many values separated by colon. Expected 2, got {0}. Valid form is '<username>:<password>'")]
+    #[error(
+        "Too many values separated by colon. Expected 2, got {0}. Valid form is '<username>:<password>'"
+    )]
     TooManyParts(usize),
 }
 

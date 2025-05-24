@@ -4,13 +4,13 @@ authors = ["Matthias Endler <matthias@endler.dev>"]
 description = "A fast, async link checker"
 documentation = "https://docs.rs/lychee"
 homepage = "https://github.com/lycheeverse/lychee"
-edition = "2021"
+edition = "2024"
 keywords = ["link", "checker", "cli", "link-checker", "validator"]
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/lycheeverse/lychee"
 readme = "../README.md"
 version.workspace = true
-rust-version = "1.83.0"
+rust-version = "1.85.0"
 
 [dependencies]
 # NOTE: We need to specify the version of lychee-lib here because crates.io

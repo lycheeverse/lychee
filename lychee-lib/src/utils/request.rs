@@ -7,10 +7,10 @@ use std::{
 };
 
 use crate::{
-    basic_auth::BasicAuthExtractor,
-    types::{uri::raw::RawUri, InputSource},
-    utils::{path, url},
     Base, BasicAuthCredentials, ErrorKind, Request, Result, Uri,
+    basic_auth::BasicAuthExtractor,
+    types::{InputSource, uri::raw::RawUri},
+    utils::{path, url},
 };
 
 /// Extract basic auth credentials for a given URL.
@@ -230,9 +230,11 @@ mod tests {
         let requests = create(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/path/relative.html"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "https://example.com/path/relative.html")
+        );
     }
 
     #[test]
@@ -244,9 +246,11 @@ mod tests {
         let requests = create(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://another.com/page"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "https://another.com/page")
+        );
     }
 
     #[test]
@@ -258,9 +262,11 @@ mod tests {
         let requests = create(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/root-relative"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "https://example.com/root-relative")
+        );
     }
 
     #[test]
@@ -272,9 +278,11 @@ mod tests {
         let requests = create(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/parent"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "https://example.com/parent")
+        );
     }
 
     #[test]
@@ -286,9 +294,11 @@ mod tests {
         let requests = create(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/path/page.html#fragment"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "https://example.com/path/page.html#fragment")
+        );
     }
 
     #[test]
@@ -300,9 +310,11 @@ mod tests {
         let requests = create(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "file:///some/relative.html"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "file:///some/relative.html")
+        );
     }
 
     #[test]
@@ -314,9 +326,11 @@ mod tests {
         let requests = create(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://another.com/page"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "https://another.com/page")
+        );
     }
 
     #[test]
@@ -328,9 +342,11 @@ mod tests {
         let requests = create(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "file:///tmp/lychee/root-relative"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "file:///tmp/lychee/root-relative")
+        );
     }
 
     #[test]
@@ -342,9 +358,11 @@ mod tests {
         let requests = create(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "file:///parent"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "file:///parent")
+        );
     }
 
     #[test]
@@ -356,9 +374,11 @@ mod tests {
         let requests = create(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "file:///some/page.html#fragment"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "file:///some/page.html#fragment")
+        );
     }
 
     #[test]
@@ -371,9 +391,11 @@ mod tests {
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/path/relative.html"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "https://example.com/path/relative.html")
+        );
     }
 
     #[test]
@@ -386,9 +408,11 @@ mod tests {
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://another.com/page"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "https://another.com/page")
+        );
     }
 
     #[test]
@@ -401,9 +425,11 @@ mod tests {
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/tmp/lychee/root-relative"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "https://example.com/tmp/lychee/root-relative")
+        );
     }
 
     #[test]
@@ -416,9 +442,11 @@ mod tests {
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/parent"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "https://example.com/parent")
+        );
     }
 
     #[test]
@@ -431,9 +459,11 @@ mod tests {
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/path/page.html#fragment"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "https://example.com/path/page.html#fragment")
+        );
     }
 
     #[test]
@@ -444,9 +474,11 @@ mod tests {
         let requests = create(uris, &source, None, None, None);
 
         assert_eq!(requests.len(), 1);
-        assert!(requests
-            .iter()
-            .any(|r| r.uri.url.as_str() == "https://example.com/page"));
+        assert!(
+            requests
+                .iter()
+                .any(|r| r.uri.url.as_str() == "https://example.com/page")
+        );
     }
 
     #[test]

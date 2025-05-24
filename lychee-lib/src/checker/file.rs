@@ -3,8 +3,8 @@ use log::warn;
 use std::path::{Path, PathBuf};
 
 use crate::{
-    utils::fragment_checker::{FragmentChecker, FragmentInput},
     Base, ErrorKind, Status, Uri,
+    utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 
 /// A utility for checking the existence and validity of file-based URIs.

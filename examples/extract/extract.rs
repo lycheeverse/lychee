@@ -1,5 +1,5 @@
-use lychee_lib::extract::Extractor;
 use lychee_lib::Result;
+use lychee_lib::extract::Extractor;
 use lychee_lib::{FileType, InputContent};
 use std::fs;
 
