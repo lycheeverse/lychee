@@ -26,6 +26,7 @@ mod cli {
     }
 
     #[test]
+    #[cfg(not(feature = "check_example_domains"))]
     fn test_exclude_example_domains() -> Result<()> {
         let mut cmd = main_command();
         let input = fixtures_path().join("TEST_EXAMPLE_DOMAINS.md");

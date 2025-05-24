@@ -5,6 +5,10 @@ use anyhow::{Context, Error, Result, anyhow};
 use clap::builder::PossibleValuesParser;
 use clap::{Parser, arg, builder::TypedValueParser};
 use const_format::{concatcp, formatcp};
+use http::{
+    header::{HeaderName, HeaderValue},
+    HeaderMap,
+};
 use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
@@ -12,7 +16,8 @@ use lychee_lib::{
 };
 use reqwest::tls;
 use secrecy::{ExposeSecret, SecretString};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
+use std::collections::HashMap;
 use std::path::Path;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use strum::{Display, EnumIter, EnumString, VariantNames};
@@ -201,6 +206,98 @@ macro_rules! fold_in {
     };
 }
 
+/// Parse a single header into a [`HeaderName`] and [`HeaderValue`]
+///
+/// Headers are expected to be in format `Header-Name: Header-Value`.
+/// The header name and value are trimmed of whitespace.
+///
+/// If the header contains multiple colons, the part after the first colon is
+/// considered the value.
+fn parse_single_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
+    let parts: Vec<&str> = header.splitn(2, ':').collect();
+    match parts.as_slice() {
+        [name, value] => {
+            let name = HeaderName::from_bytes(name.trim().as_bytes())
+                .map_err(|e| anyhow!("Invalid header name '{}': {}", name.trim(), e))?;
+            let value = HeaderValue::from_str(value.trim())
+                .map_err(|e| anyhow!("Invalid header value '{}': {}", value.trim(), e))?;
+            Ok((name, value))
+        }
+        _ => Err(anyhow!(
+            "Invalid header format. Expected colon-separated string in the format 'HeaderName: HeaderValue', got '{}'",
+            header
+        )),
+    }
+}
+
+/// Parses a single HTTP header into a tuple of (String, String)
+///
+/// This does NOT merge multiple headers into one.
+#[derive(Clone, Debug)]
+struct HeaderParser;
+
+impl TypedValueParser for HeaderParser {
+    type Value = (String, String);
+
+    fn parse_ref(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        let header_str = value.to_str().ok_or_else(|| {
+            clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                "Header value contains invalid UTF-8",
+            )
+        })?;
+
+        match parse_single_header(header_str) {
+            Ok((name, value)) => {
+                let Ok(value) = value.to_str() else {
+                    return Err(clap::Error::raw(
+                        clap::error::ErrorKind::InvalidValue,
+                        "Header value contains invalid UTF-8",
+                    ));
+                };
+
+                Ok((name.to_string(), value.to_string()))
+            }
+            Err(e) => Err(clap::Error::raw(
+                clap::error::ErrorKind::InvalidValue,
+                e.to_string(),
+            )),
+        }
+    }
+}
+
+impl clap::builder::ValueParserFactory for HeaderParser {
+    type Parser = HeaderParser;
+    fn value_parser() -> Self::Parser {
+        HeaderParser
+    }
+}
+
+/// Extension trait for converting a Vec of header pairs to a `HeaderMap`
+pub(crate) trait HeaderMapExt {
+    /// Convert a collection of header key-value pairs to a `HeaderMap`
+    fn from_header_pairs(headers: &[(String, String)]) -> Result<HeaderMap, Error>;
+}
+
+impl HeaderMapExt for HeaderMap {
+    fn from_header_pairs(headers: &[(String, String)]) -> Result<HeaderMap, Error> {
+        let mut header_map = HeaderMap::new();
+        for (name, value) in headers {
+            let header_name = HeaderName::from_bytes(name.as_bytes())
+                .map_err(|e| anyhow!("Invalid header name '{}': {}", name, e))?;
+            let header_value = HeaderValue::from_str(value)
+                .map_err(|e| anyhow!("Invalid header value '{}': {}", value, e))?;
+            header_map.insert(header_name, header_value);
+        }
+        Ok(header_map)
+    }
+}
+
 /// A fast, async link checker
 ///
 /// Finds broken URLs and mail addresses inside Markdown, HTML,
@@ -235,12 +332,31 @@ impl LycheeOptions {
         } else {
             Some(self.config.exclude_path.clone())
         };
+        let headers = HeaderMap::from_header_pairs(&self.config.header)?;
+
         self.raw_inputs
             .iter()
-            .map(|s| Input::new(s, None, self.config.glob_ignore_case, excluded.clone()))
+            .map(|s| {
+                Input::new(
+                    s,
+                    None,
+                    self.config.glob_ignore_case,
+                    excluded.clone(),
+                    headers.clone(),
+                )
+            })
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
+}
+
+// Custom deserializer function for the header field
+fn deserialize_headers<'de, D>(deserializer: D) -> Result<Vec<(String, String)>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let map = HashMap::<String, String>::deserialize(deserializer)?;
+    Ok(map.into_iter().collect())
 }
 
 /// The main configuration for lychee
@@ -450,10 +566,27 @@ Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
     )]
     pub(crate) fallback_extensions: Vec<String>,
 
-    /// Custom request header
-    #[arg(long)]
+    /// Set custom header for requests
+    #[arg(
+        short = 'H',
+        long = "header",
+        // Note: We use a `Vec<(String, String)>` for headers, which is
+        // unfortunate. The reason is that `clap::ArgAction::Append` collects
+        // multiple values, and `clap` cannot automatically convert these tuples
+        // into a `HashMap<String, String>`.
+        action = clap::ArgAction::Append,
+        value_parser = HeaderParser,
+        value_name = "HEADER:VALUE",
+        long_help = "Set custom header for requests
+
+Some websites require custom headers to be passed in order to return valid responses. 
+You can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.
+This is the same format that other tools like curl or wget use. 
+Multiple headers can be specified by using the flag multiple times."
+    )]
     #[serde(default)]
-    pub(crate) header: Vec<String>,
+    #[serde(deserialize_with = "deserialize_headers")]
+    pub header: Vec<(String, String)>,
 
     /// A List of accepted status codes for valid links
     #[arg(
@@ -581,6 +714,20 @@ separated list of accepted status codes. This example will accept 200, 201,
 }
 
 impl Config {
+    /// Special handling for merging headers
+    ///
+    /// Overwrites existing headers in `self` with the values from `other`.
+    fn merge_headers(&mut self, other: &[(String, String)]) {
+        let self_map = self.header.iter().cloned().collect::<HashMap<_, _>>();
+        let other_map = other.iter().cloned().collect::<HashMap<_, _>>();
+
+        // Merge the two maps, with `other` taking precedence
+        let merged_map: HashMap<_, _> = self_map.into_iter().chain(other_map).collect();
+
+        // Convert the merged map back to a Vec of tuples
+        self.header = merged_map.into_iter().collect();
+    }
+
     /// Load configuration from a file
     pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
         // Read configuration file
@@ -590,52 +737,57 @@ impl Config {
 
     /// Merge the configuration from TOML into the CLI configuration
     pub(crate) fn merge(&mut self, toml: Config) {
+        // Special handling for headers before fold_in!
+        self.merge_headers(&toml.header);
+
         fold_in! {
             // Destination and source configs
             self, toml;
 
             // Keys with defaults to assign
-            verbose: Verbosity::default();
-            cache: false;
-            no_progress: false;
-            max_redirects: DEFAULT_MAX_REDIRECTS;
-            max_retries: DEFAULT_MAX_RETRIES;
-            max_concurrency: DEFAULT_MAX_CONCURRENCY;
-            max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
-            cache_exclude_status: StatusCodeExcluder::default();
-            threads: None;
-            user_agent: DEFAULT_USER_AGENT;
-            insecure: false;
-            scheme: Vec::<String>::new();
-            include: Vec::<String>::new();
-            exclude: Vec::<String>::new();
-            exclude_file: Vec::<String>::new(); // deprecated
-            exclude_path: Vec::<PathBuf>::new();
-            exclude_all_private: false;
-            exclude_private: false;
-            exclude_link_local: false;
-            exclude_loopback: false;
-            format: StatsFormat::default();
-            remap: Vec::<String>::new();
-            fallback_extensions: Vec::<String>::new();
-            header: Vec::<String>::new();
-            timeout: DEFAULT_TIMEOUT_SECS;
-            retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
-            method: DEFAULT_METHOD;
+            accept: StatusCodeSelector::default();
             base_url: None;
             basic_auth: None;
-            skip_missing: false;
-            include_verbatim: false;
-            include_mail: false;
-            glob_ignore_case: false;
-            output: None;
-            require_https: false;
+            cache_exclude_status: StatusCodeExcluder::default();
+            cache: false;
             cookie_jar: None;
-            include_fragments: false;
-            accept: StatusCodeSelector::default();
+            exclude_all_private: false;
+            exclude_file: Vec::<String>::new(); // deprecated
+            exclude_link_local: false;
+            exclude_loopback: false;
+            exclude_path: Vec::<PathBuf>::new();
+            exclude_private: false;
+            exclude: Vec::<String>::new();
             extensions: FileType::default_extensions();
+            fallback_extensions: Vec::<String>::new();
+            format: StatsFormat::default();
+            glob_ignore_case: false;
+            header: Vec::<(String, String)>::new();
+            include_fragments: false;
+            include_mail: false;
+            include_verbatim: false;
+            include: Vec::<String>::new();
+            insecure: false;
+            max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
+            max_concurrency: DEFAULT_MAX_CONCURRENCY;
+            max_redirects: DEFAULT_MAX_REDIRECTS;
+            max_retries: DEFAULT_MAX_RETRIES;
+            method: DEFAULT_METHOD;
+            no_progress: false;
+            output: None;
+            remap: Vec::<String>::new();
+            require_https: false;
+            retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
+            scheme: Vec::<String>::new();
+            skip_missing: false;
+            threads: None;
+            timeout: DEFAULT_TIMEOUT_SECS;
+            user_agent: DEFAULT_USER_AGENT;
+            verbose: Verbosity::default();
         }
 
+        // If the config file has a value for the GitHub token, but the CLI
+        // doesn't, use the token from the config file.
         if self
             .github_token
             .as_ref()
@@ -654,6 +806,8 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
 
     #[test]
@@ -682,5 +836,94 @@ mod tests {
             StatusCodeSelector::from_str("100..=103,200..=299").expect("no error")
         );
         assert_eq!(cli.cache_exclude_status, StatusCodeExcluder::new());
+    }
+
+    #[test]
+    fn test_parse_custom_headers() {
+        assert_eq!(
+            parse_single_header("accept:text/html").unwrap(),
+            (
+                HeaderName::from_static("accept"),
+                HeaderValue::from_static("text/html")
+            )
+        );
+    }
+
+    #[test]
+    fn test_parse_custom_header_multiple_colons() {
+        assert_eq!(
+            parse_single_header("key:x-test:check=this").unwrap(),
+            (
+                HeaderName::from_static("key"),
+                HeaderValue::from_static("x-test:check=this")
+            )
+        );
+    }
+
+    #[test]
+    fn test_parse_custom_headers_with_equals() {
+        assert_eq!(
+            parse_single_header("key:x-test=check=this").unwrap(),
+            (
+                HeaderName::from_static("key"),
+                HeaderValue::from_static("x-test=check=this")
+            )
+        );
+    }
+
+    #[test]
+    fn test_header_parsing_and_merging() {
+        // Simulate commandline arguments with multiple headers
+        let args = vec![
+            "lychee",
+            "--header",
+            "Accept: text/html",
+            "--header",
+            "X-Test: check=this",
+            "input.md",
+        ];
+
+        // Parse the arguments
+        let opts = crate::LycheeOptions::parse_from(args);
+
+        // Check that the headers were collected correctly
+        let headers = &opts.config.header;
+        assert_eq!(headers.len(), 2);
+
+        // Convert to HashMap for easier testing
+        let header_map: HashMap<String, String> = headers.iter().cloned().collect();
+        assert_eq!(header_map["accept"], "text/html");
+        assert_eq!(header_map["x-test"], "check=this");
+    }
+
+    #[test]
+    fn test_merge_headers_with_config() {
+        let toml = Config {
+            header: vec![
+                ("Accept".to_string(), "text/html".to_string()),
+                ("X-Test".to_string(), "check=this".to_string()),
+            ],
+            ..Default::default()
+        };
+
+        // Set X-Test and see if it gets overwritten
+        let mut cli = Config {
+            header: vec![("X-Test".to_string(), "check=that".to_string())],
+            ..Default::default()
+        };
+        cli.merge(toml);
+
+        assert_eq!(cli.header.len(), 2);
+
+        // Sort vector before assert
+        cli.header.sort();
+
+        assert_eq!(
+            cli.header,
+            vec![
+                ("Accept".to_string(), "text/html".to_string()),
+                ("X-Test".to_string(), "check=this".to_string()),
+            ]
+        );
     }
 }

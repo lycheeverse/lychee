@@ -3,6 +3,7 @@ use crate::{ErrorKind, Result, utils};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
+use http::HeaderMap;
 use ignore::WalkBuilder;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -101,7 +102,7 @@ impl Display for InputSource {
 }
 
 /// Lychee Input with optional file hint for parsing
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Input {
     /// Origin of input
     pub source: InputSource,
@@ -109,6 +110,8 @@ pub struct Input {
     pub file_type_hint: Option<FileType>,
     /// Excluded paths that will be skipped when reading content
     pub excluded_paths: Option<Vec<PathBuf>>,
+    /// Custom headers to be used when fetching remote URLs
+    pub headers: reqwest::header::HeaderMap,
 }
 
 impl Input {
@@ -125,6 +128,7 @@ impl Input {
         file_type_hint: Option<FileType>,
         glob_ignore_case: bool,
         excluded_paths: Option<Vec<PathBuf>>,
+        headers: reqwest::header::HeaderMap,
     ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
@@ -190,7 +194,18 @@ impl Input {
             source,
             file_type_hint,
             excluded_paths,
+            headers,
         })
+    }
+
+    /// Convenience constructor with sane defaults
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the input does not exist (i.e. invalid path)
+    /// and the input cannot be parsed as a URL.
+    pub fn from_value(value: &str) -> Result<Self> {
+        Self::new(value, None, false, None, HeaderMap::new())
     }
 
     /// Retrieve the contents from the input
@@ -215,7 +230,7 @@ impl Input {
         try_stream! {
             match self.source {
                 InputSource::RemoteUrl(ref url) => {
-                    let content = Self::url_contents(url).await;
+                    let content = Self::url_contents(url, &self.headers).await;
                     match content {
                         Err(_) if skip_missing => (),
                         Err(e) => Err(e)?,
@@ -313,7 +328,7 @@ impl Input {
         }
     }
 
-    async fn url_contents(url: &Url) -> Result<InputContent> {
+    async fn url_contents(url: &Url, headers: &HeaderMap) -> Result<InputContent> {
         // Assume HTML for default paths
         let file_type = if url.path().is_empty() || url.path() == "/" {
             FileType::Html
@@ -321,7 +336,12 @@ impl Input {
             FileType::from(url.as_str())
         };
 
-        let res = reqwest::get(url.clone())
+        let client = reqwest::Client::new();
+
+        let res = client
+            .get(url.clone())
+            .headers(headers.clone())
+            .send()
             .await
             .map_err(ErrorKind::NetworkRequest)?;
         let input_content = InputContent {
@@ -414,6 +434,14 @@ impl Input {
     }
 }
 
+impl TryFrom<&str> for Input {
+    type Error = crate::ErrorKind;
+
+    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+        Self::from_value(value)
+    }
+}
+
 /// Function for path exclusion tests
 ///
 /// This is a standalone function to allow for easier testing
@@ -428,6 +456,8 @@ fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use http::HeaderMap;
+
     use super::*;
 
     #[test]
@@ -438,14 +468,15 @@ mod tests {
         assert!(path.exists());
         assert!(path.is_relative());
 
-        let input = Input::new(test_file, None, false, None);
+        let input = Input::new(test_file, None, false, None, HeaderMap::new());
         assert!(input.is_ok());
         assert!(matches!(
             input,
             Ok(Input {
                 source: InputSource::FsPath(PathBuf { .. }),
                 file_type_hint: None,
-                excluded_paths: None
+                excluded_paths: None,
+                headers: _,
             })
         ));
     }
@@ -458,7 +489,7 @@ mod tests {
         assert!(!path.exists());
         assert!(path.is_relative());
 
-        let input = Input::new(test_file, None, false, None);
+        let input = Input::from_value(test_file);
         assert!(input.is_err());
         assert!(matches!(input, Err(ErrorKind::InvalidFile(PathBuf { .. }))));
     }
@@ -490,7 +521,7 @@ mod tests {
 
     #[test]
     fn test_url_without_scheme() {
-        let input = Input::new("example.com", None, false, None);
+        let input = Input::from_value("example.com");
         assert_eq!(
             input.unwrap().source.to_string(),
             String::from("http://example.com/")
@@ -501,7 +532,7 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn test_windows_style_filepath_not_existing() {
-        let input = Input::new("C:\\example\\project\\here", None, false, None);
+        let input = Input::from_value("C:\\example\\project\\here");
         assert!(input.is_err());
         let input = input.unwrap_err();
 
@@ -521,7 +552,7 @@ mod tests {
         let dir = temp_dir();
         let file = NamedTempFile::new_in(dir).unwrap();
         let path = file.path();
-        let input = Input::new(path.to_str().unwrap(), None, false, None).unwrap();
+        let input = Input::from_value(path.to_str().unwrap()).unwrap();
 
         match input.source {
             InputSource::FsPath(_) => (),
@@ -533,33 +564,28 @@ mod tests {
     fn test_url_scheme_check_succeeding() {
         // Valid http and https URLs
         assert!(matches!(
-            Input::new("http://example.com", None, false, None),
+            Input::from_value("http://example.com"),
             Ok(Input {
                 source: InputSource::RemoteUrl(_),
                 ..
             })
         ));
         assert!(matches!(
-            Input::new("https://example.com", None, false, None),
+            Input::from_value("https://example.com"),
             Ok(Input {
                 source: InputSource::RemoteUrl(_),
                 ..
             })
         ));
         assert!(matches!(
-            Input::new(
-                "http://subdomain.example.com/path?query=value",
-                None,
-                false,
-                None
-            ),
+            Input::from_value("http://subdomain.example.com/path?query=value",),
             Ok(Input {
                 source: InputSource::RemoteUrl(_),
                 ..
             })
         ));
         assert!(matches!(
-            Input::new("https://example.com:8080", None, false, None),
+            Input::from_value("https://example.com:8080"),
             Ok(Input {
                 source: InputSource::RemoteUrl(_),
                 ..
@@ -571,19 +597,19 @@ mod tests {
     fn test_url_scheme_check_failing() {
         // Invalid schemes
         assert!(matches!(
-            Input::new("ftp://example.com", None, false, None),
+            Input::from_value("ftp://example.com"),
             Err(ErrorKind::InvalidFile(_))
         ));
         assert!(matches!(
-            Input::new("httpx://example.com", None, false, None),
+            Input::from_value("httpx://example.com"),
             Err(ErrorKind::InvalidFile(_))
         ));
         assert!(matches!(
-            Input::new("file:///path/to/file", None, false, None),
+            Input::from_value("file:///path/to/file"),
             Err(ErrorKind::InvalidFile(_))
         ));
         assert!(matches!(
-            Input::new("mailto:user@example.com", None, false, None),
+            Input::from_value("mailto:user@example.com"),
             Err(ErrorKind::InvalidFile(_))
         ));
     }
@@ -592,11 +618,11 @@ mod tests {
     fn test_non_url_inputs() {
         // Non-URL inputs
         assert!(matches!(
-            Input::new("./local/path", None, false, None),
+            Input::from_value("./local/path"),
             Err(ErrorKind::InvalidFile(_))
         ));
         assert!(matches!(
-            Input::new("*.md", None, false, None),
+            Input::from_value("*.md"),
             Ok(Input {
                 source: InputSource::FsGlob { .. },
                 ..
@@ -604,7 +630,7 @@ mod tests {
         ));
         // Assuming the current directory exists
         assert!(matches!(
-            Input::new(".", None, false, None),
+            Input::from_value("."),
             Ok(Input {
                 source: InputSource::FsPath(_),
                 ..

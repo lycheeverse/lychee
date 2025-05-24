@@ -65,6 +65,10 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
                     // Wiki URL (`[[http://example.com]]`)
                     LinkType::WikiLink { has_pothole: _ } => {
                         inside_link_block = true;
+                        //Ignore gitlab toc notation: https://docs.gitlab.com/user/markdown/#table-of-contents
+                        if ["_TOC_".to_string(), "TOC".to_string()].contains(&dest_url.to_string()) {
+                            return None;
+                        }
                         Some(vec![RawUri {
                             text: dest_url.to_string(),
                             element: Some("a".to_string()),
@@ -420,5 +424,12 @@ $$
         ];
         let uris = extract_markdown(markdown, true);
         assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_ignore_gitlab_toc() {
+        let markdown = r"[[_TOC_]][TOC]";
+        let uris = extract_markdown(markdown, true);
+        assert!(uris.is_empty());
     }
 }
