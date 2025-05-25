@@ -815,6 +815,19 @@ mod cli {
         Ok(())
     }
 
+    #[test]
+    fn test_invalid_default_config() -> Result<()> {
+        let test_path = fixtures_path().join("configs");
+        let mut cmd = main_command();
+        cmd.current_dir(test_path)
+            .arg(".")
+            .assert()
+            .failure()
+            .stderr(contains("Cannot load default configuration file"));
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_include_mail_config() -> Result<()> {
         let test_mail_address = "mailto:hello-test@testingabc.io";

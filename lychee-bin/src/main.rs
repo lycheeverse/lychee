@@ -156,10 +156,20 @@ fn load_config() -> Result<LycheeOptions> {
         }
     } else {
         // If no config file was explicitly provided, we try to load the default
-        // config file from the current directory, but it's not an error if it
-        // doesn't exist.
-        if let Ok(c) = Config::load_from_file(&PathBuf::from(LYCHEE_CONFIG_FILE)) {
-            opts.config.merge(c);
+        // config file from the current directory if the file exits. This will
+        // raise an error if the file is invalid, just like the explicit provided
+        // config file.
+        let default_config = PathBuf::from(LYCHEE_CONFIG_FILE);
+        if default_config.is_file() {
+            match Config::load_from_file(&default_config) {
+                Ok(c) => opts.config.merge(c),
+                Err(e) => {
+                    bail!(
+                        "Cannot load default configuration file `{}`: {e:?}",
+                        default_config.display()
+                    );
+                }
+            }
         }
     }
 
