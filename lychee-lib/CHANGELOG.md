@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.18.1...lychee-lib-v0.19.0) - 2025-05-25
+
+### Added
+
+- detect website fragments ([#1675](https://github.com/lycheeverse/lychee/pull/1675))
+
+### Fixed
+
+- only check the fragment when it's a file ([#1713](https://github.com/lycheeverse/lychee/pull/1713))
+- ignore gitlab table of content in wikilinks ([#1710](https://github.com/lycheeverse/lychee/pull/1710))
+
+### Other
+
+- Upgrade to 2024 edition ([#1711](https://github.com/lycheeverse/lychee/pull/1711))
+- Add support for custom headers in input processing ([#1561](https://github.com/lycheeverse/lychee/pull/1561))
+- Fix lints ([#1705](https://github.com/lycheeverse/lychee/pull/1705))
+- Remove flag
+- detect wikilinks, prevent plaintext extraction from links #1650 ([#1679](https://github.com/lycheeverse/lychee/pull/1679))
+- Bump the dependencies group with 2 updates
+- Add possible values for minimum TLS version in help message ([#1693](https://github.com/lycheeverse/lychee/pull/1693))
+- Add TLS version option ([#1655](https://github.com/lycheeverse/lychee/pull/1655))
+- Bump the dependencies group across 1 directory with 11 updates ([#1692](https://github.com/lycheeverse/lychee/pull/1692))
+- Specify MSRV ([#1676](https://github.com/lycheeverse/lychee/pull/1676))
+- Fix outdated link
+- Remove once_cell as direct dependency
+- Make clippy happy ([#1681](https://github.com/lycheeverse/lychee/pull/1681))
+- Bump the dependencies group with 3 updates ([#1670](https://github.com/lycheeverse/lychee/pull/1670))
+- Fix accept/exclude range syntax and docs ([#1668](https://github.com/lycheeverse/lychee/pull/1668))
+- Add FreeBSD-Ask to users ([#1662](https://github.com/lycheeverse/lychee/pull/1662))
+- Bump the dependencies group with 4 updates ([#1664](https://github.com/lycheeverse/lychee/pull/1664))
+- Bump the dependencies group with 11 updates ([#1656](https://github.com/lycheeverse/lychee/pull/1656))
+- Bump the dependencies group across 1 directory with 14 updates ([#1653](https://github.com/lycheeverse/lychee/pull/1653))
+- Add support for custom file extensions in link checking. ([#1559](https://github.com/lycheeverse/lychee/pull/1559))
+- Bump the dependencies group across 1 directory with 21 updates ([#1643](https://github.com/lycheeverse/lychee/pull/1643))
+- renamed `base` to `base_url` (fixes #1607) ([#1629](https://github.com/lycheeverse/lychee/pull/1629))
+
 ## [0.18.1](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.18.0...lychee-lib-v0.18.1) - 2025-02-06
 
 ### Fixed
