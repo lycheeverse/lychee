@@ -1,6 +1,7 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 use lychee_lib::InputContent;
 use lychee_lib::extract::Extractor;
+use std::hint::black_box;
 use std::path::PathBuf;
 
 fn extract(paths: &[PathBuf]) {
