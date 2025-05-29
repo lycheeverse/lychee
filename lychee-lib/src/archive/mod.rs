@@ -17,13 +17,13 @@ pub enum Archive {
 }
 
 impl Archive {
-    /// Query the `Archive` to try and find the latest snapshot of the specified `original` `Url`.
-    /// Returns `None` if the specified `Url` hasn't been archived in the past.
-    pub async fn get_link(&self, original: &Url, timeout: Duration) -> Result<Option<Url>, Error> {
+    /// Query the `Archive` to try and find the latest snapshot of the specified `url`.
+    /// Returns `None` if the specified `url` hasn't been archived in the past.
+    pub async fn get_snapshot(&self, url: &Url, timeout: Duration) -> Result<Option<Url>, Error> {
         let function = match self {
             Archive::WaybackMachine => wayback::get_wayback_link,
         };
 
-        function(original, timeout).await
+        function(url, timeout).await
     }
 }
