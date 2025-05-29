@@ -10,13 +10,14 @@ use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
+use lychee_lib::archive::Archive;
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
 use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
-use crate::archive::{Archive, Suggestion};
 use crate::formatters::get_response_formatter;
 use crate::formatters::response::ResponseFormatter;
+use crate::formatters::stats::Suggestion;
 use crate::options::OutputMode;
 use crate::parse::parse_duration_secs;
 use crate::verbosity::Verbosity;

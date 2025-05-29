@@ -154,12 +154,11 @@ impl StatsFormatter for Markdown {
 
 #[cfg(test)]
 mod tests {
-
     use http::StatusCode;
     use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status, Uri};
     use reqwest::Url;
 
-    use crate::archive::Suggestion;
+    use crate::formatters::stats::Suggestion;
 
     use super::*;
 
