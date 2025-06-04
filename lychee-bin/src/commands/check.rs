@@ -142,7 +142,7 @@ async fn suggest_archived_links(
     let suggestions = Mutex::new(&mut stats.suggestion_map);
 
     futures::stream::iter(failed_urls)
-        .map(|(input, url)| (input, url, archive.get_snapshot(url, timeout)))
+        .map(|(input, url)| (input, url, archive.get_archive_snapshot(url, timeout)))
         .for_each_concurrent(max_concurrency, |(input, url, future)| async {
             if let Ok(Some(suggestion)) = future.await {
                 suggestions

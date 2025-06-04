@@ -10,11 +10,14 @@ use reqwest::{Client, Error, Url};
 static WAYBACK_URL: LazyLock<Url> =
     LazyLock::new(|| Url::parse("https://archive.org/wayback/available").unwrap());
 
-pub(crate) async fn get_wayback_link(url: &Url, timeout: Duration) -> Result<Option<Url>, Error> {
-    get_wayback_link_internal(url, timeout, WAYBACK_URL.clone()).await
+pub(crate) async fn get_archive_snapshot(
+    url: &Url,
+    timeout: Duration,
+) -> Result<Option<Url>, Error> {
+    get_archive_snapshot_internal(url, timeout, WAYBACK_URL.clone()).await
 }
 
-async fn get_wayback_link_internal(
+async fn get_archive_snapshot_internal(
     url: &Url,
     timeout: Duration,
     mut api: Url,
@@ -73,7 +76,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::archive::wayback::{get_wayback_link, get_wayback_link_internal};
+    use crate::archive::wayback::{get_archive_snapshot, get_archive_snapshot_internal};
     use http::StatusCode;
     use reqwest::{Client, Error, Url};
     use std::{error::Error as StdError, time::Duration};
@@ -116,7 +119,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let result = get_wayback_link_internal(&url_to_restore, TIMEOUT, api_url.parse()?).await;
+        let result =
+            get_archive_snapshot_internal(&url_to_restore, TIMEOUT, api_url.parse()?).await;
 
         assert_eq!(
             result?,
@@ -152,7 +156,7 @@ mod tests {
     /// That's why the test is ignored. For development and documentation this test is still useful.
     async fn wayback_suggestion_real() -> Result<(), Box<dyn StdError>> {
         let url = &"https://example.com".try_into()?;
-        let response = get_wayback_link(url, TIMEOUT).await?;
+        let response = get_archive_snapshot(url, TIMEOUT).await?;
         assert_eq!(
             response,
             Some("http://web.archive.org/web/20250603204626/http://www.example.com/".parse()?)
@@ -166,7 +170,7 @@ mod tests {
     /// the `archived_snapshots` field.
     async fn wayback_suggestion_real_unknown() -> Result<(), Box<dyn StdError>> {
         let url = &"https://github.com/mre/idiomatic-rust-doesnt-exist-man".try_into()?;
-        let response = get_wayback_link(url, TIMEOUT).await?;
+        let response = get_archive_snapshot(url, TIMEOUT).await?;
         assert_eq!(response, None);
         Ok(())
     }
