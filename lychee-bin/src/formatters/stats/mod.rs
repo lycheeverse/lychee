@@ -3,14 +3,12 @@ mod detailed;
 mod json;
 mod markdown;
 mod raw;
-mod suggestion;
 
 pub(crate) use compact::Compact;
 pub(crate) use detailed::Detailed;
 pub(crate) use json::Json;
 pub(crate) use markdown::Markdown;
 pub(crate) use raw::Raw;
-pub(crate) use suggestion::Suggestion;
 
 use std::{
     collections::{HashMap, HashSet},

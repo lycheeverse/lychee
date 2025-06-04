@@ -17,7 +17,7 @@ use lychee_lib::{ResponseBody, Status};
 
 use crate::formatters::get_response_formatter;
 use crate::formatters::response::ResponseFormatter;
-use crate::formatters::stats::Suggestion;
+use crate::formatters::suggestion::Suggestion;
 use crate::options::OutputMode;
 use crate::parse::parse_duration_secs;
 use crate::verbosity::Verbosity;

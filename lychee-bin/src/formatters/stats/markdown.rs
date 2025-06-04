@@ -158,7 +158,7 @@ mod tests {
     use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status, Uri};
     use reqwest::Url;
 
-    use crate::formatters::stats::Suggestion;
+    use crate::formatters::suggestion::Suggestion;
 
     use super::*;
 
