@@ -6,17 +6,25 @@ use serde::{Deserialize, Deserializer};
 
 use http::StatusCode;
 use reqwest::{Client, Error, Url};
+
 static WAYBACK_URL: LazyLock<Url> =
     LazyLock::new(|| Url::parse("https://archive.org/wayback/available").unwrap());
 
 pub(crate) async fn get_wayback_link(url: &Url, timeout: Duration) -> Result<Option<Url>, Error> {
-    let mut archive_url: Url = WAYBACK_URL.clone();
-    archive_url.set_query(Some(&format!("url={url}")));
+    get_wayback_link_internal(url, timeout, WAYBACK_URL.clone()).await
+}
+
+async fn get_wayback_link_internal(
+    url: &Url,
+    timeout: Duration,
+    mut api: Url,
+) -> Result<Option<Url>, Error> {
+    api.set_query(Some(&format!("url={url}")));
 
     let response = Client::builder()
         .timeout(timeout)
         .build()?
-        .get(archive_url)
+        .get(api)
         .send()
         .await?
         .json::<InternetArchiveResponse>()
@@ -61,76 +69,80 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::archive::wayback::get_wayback_link;
-    use reqwest::{Error, Url};
+    use crate::archive::wayback::{get_wayback_link, get_wayback_link_internal};
+    use http::StatusCode;
+    use reqwest::{Client, Error, Url};
     use std::{error::Error as StdError, time::Duration};
-    use tokio::time::sleep;
+    use wiremock::matchers::query_param;
 
-    // This test is currently ignored because it is flaky.
-    // The Wayback Machine does not always return a suggestion.
-    // We can consider mocking the endpoint in the future.
+    const TIMEOUT: Duration = Duration::from_secs(20);
+
     #[tokio::test]
-    #[ignore = "Wayback Machine currently has certificate issues"]
-    async fn wayback_suggestion() -> Result<(), Box<dyn StdError>> {
-        let target_url = "https://example.com".parse::<Url>()?;
-
-        // Extract domain from target_url without the scheme and trailing slash
-        let expected_ending = (target_url.host_str().ok_or("Invalid target URL")?).to_string();
-
-        // This test can be flaky, because the wayback machine does not always
-        // return a suggestion. Retry a few times if needed.
-        for _ in 0..3 {
-            match get_wayback_link(&target_url, Duration::from_secs(20)).await {
-                Ok(Some(suggested_url)) => {
-                    // Ensure the host is correct
-                    let host = suggested_url
-                        .host_str()
-                        .ok_or("Suggestion doesn't have a host")?;
-                    assert_eq!(host, "web.archive.org");
-
-                    // Extract the actual archived URL from the Wayback URL
-                    let archived_url = suggested_url
-                        .path()
-                        .trim_start_matches("/web/")
-                        .split_once('/')
-                        .map(|x| x.1)
-                        .ok_or("Failed to extract archived URL from Wayback suggestion")?;
-
-                    // Check the ending of the suggested URL without considering trailing slash
-                    if !archived_url
-                        .trim_end_matches('/')
-                        .ends_with(&expected_ending)
-                    {
-                        return Err(format!(
-                            "Expected suggestion '{archived_url}' to end with '{expected_ending}'"
-                        )
-                        .into());
+    /// Test retrieval by mocking the Wayback API.
+    /// We mock their API beacuse unfortuantely it happens quite often that the
+    /// `archived_snapshots` field is empty because the API is unreliable.
+    /// This way we avoid flaky tests.
+    async fn wayback_suggestion_mocked() -> Result<(), Box<dyn StdError>> {
+        let mock_server = wiremock::MockServer::start().await;
+        let api_url = mock_server.uri();
+        let api_response = wiremock::ResponseTemplate::new(StatusCode::OK).set_body_raw(
+            r#"
+                {
+                    "url": "https://google.com/jobs.html",
+                    "archived_snapshots": {
+                        "closest": {
+                            "available": true,
+                            "url": "http://web.archive.org/web/20130919044612/http://example.com/",
+                            "timestamp": "20130919044612",
+                            "status": "200"
+                        }
                     }
+                }
+                "#,
+            "application/json",
+        );
 
-                    return Ok(());
-                }
-                Ok(None) => {
-                    // No suggestion was returned, wait and retry
-                    sleep(Duration::from_secs(1)).await;
-                }
-                Err(e) => {
-                    // Propagate other errors
-                    return Err(format!("Error retrieving Wayback link: {e}").into());
-                }
-            }
-        }
+        let url_to_restore = "https://example.com".parse::<Url>()?;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(query_param("url", url_to_restore.as_str()))
+            .respond_with(api_response)
+            .mount(&mock_server)
+            .await;
 
-        Err("Did not get a valid Wayback Machine suggestion after multiple attempts.".into())
+        let result = get_wayback_link_internal(&url_to_restore, TIMEOUT, (&api_url).parse()?).await;
+
+        assert_eq!(
+            result?,
+            Some("http://web.archive.org/web/20130919044612/http://example.com/".parse()?)
+        );
+
+        Ok(())
     }
 
     #[tokio::test]
-    #[ignore = "Wayback Machine currently has certificate issues"]
-    async fn wayback_suggestion_unknown_url() -> Result<(), Error> {
-        let url = &"https://github.com/mre/idiomatic-rust-doesnt-exist-man"
-            .try_into()
-            .unwrap();
+    /// Their API documentation mentions when the last changes occurred.
+    /// Because we mock their API in previous tests we try to detect breaking API changes with this test.
+    async fn wayback_api_no_breaking_changes() -> Result<(), Error> {
+        let api_docs_url = "https://archive.org/help/wayback_api.php";
+        let html = Client::builder()
+            .timeout(TIMEOUT)
+            .build()?
+            .get(api_docs_url)
+            .send()
+            .await?
+            .text()
+            .await?;
 
-        let response = get_wayback_link(url, Duration::from_secs(20)).await?;
+        assert!(html.contains("Updated on September, 24, 2013"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    /// This tests the real Wayback API without any mocks.
+    /// This test should pass as long as the API is availalble.
+    async fn wayback_suggestion_real_unknown_url() -> Result<(), Box<dyn StdError>> {
+        let url = &"https://github.com/mre/idiomatic-rust-doesnt-exist-man".try_into()?;
+        let response = get_wayback_link(url, TIMEOUT).await?;
         assert_eq!(response, None);
         Ok(())
     }
