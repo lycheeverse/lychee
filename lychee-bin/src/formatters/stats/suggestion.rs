@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::color::{color, GREEN, PINK};
+use crate::color::{GREEN, PINK, color};
 use serde::Serialize;
 use url::Url;
 

@@ -116,7 +116,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let result = get_wayback_link_internal(&url_to_restore, TIMEOUT, (&api_url).parse()?).await;
+        let result = get_wayback_link_internal(&url_to_restore, TIMEOUT, api_url.parse()?).await;
 
         assert_eq!(
             result?,
