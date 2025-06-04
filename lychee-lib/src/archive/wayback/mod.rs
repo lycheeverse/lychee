@@ -19,7 +19,11 @@ async fn get_wayback_link_internal(
     timeout: Duration,
     mut api: Url,
 ) -> Result<Option<Url>, Error> {
-    api.set_query(Some(&format!("url={url}")));
+    let url = url.to_string();
+
+    // The Wayback API doesn't return any snapshots for URLs with trailing slashes
+    let stripped = url.strip_suffix("/").unwrap_or(&url);
+    api.set_query(Some(&format!("url={stripped}")));
 
     let response = Client::builder()
         .timeout(timeout)
@@ -104,7 +108,10 @@ mod tests {
 
         let url_to_restore = "https://example.com".parse::<Url>()?;
         wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(query_param("url", url_to_restore.as_str()))
+            .and(query_param(
+                "url",
+                url_to_restore.as_str().strip_suffix("/").unwrap(),
+            ))
             .respond_with(api_response)
             .mount(&mock_server)
             .await;
@@ -137,10 +144,27 @@ mod tests {
         Ok(())
     }
 
+    #[ignore]
     #[tokio::test]
     /// This tests the real Wayback API without any mocks.
-    /// This test should pass as long as the API is availalble.
-    async fn wayback_suggestion_real_unknown_url() -> Result<(), Box<dyn StdError>> {
+    /// It is flaky because the API does not reliably return snapshots,
+    /// i.e. the `archived_snapshots` field is unreliable.
+    /// That's why the test is ignored. For development and documentation this test is still useful.
+    async fn wayback_suggestion_real() -> Result<(), Box<dyn StdError>> {
+        let url = &"https://example.com".try_into()?;
+        let response = get_wayback_link(url, TIMEOUT).await?;
+        assert_eq!(
+            response,
+            Some("http://web.archive.org/web/20250603204626/http://www.example.com/".parse()?)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    /// This tests the real Wayback API without any mocks.
+    /// The flakyness of the API shouldn't affect this test because it originates from
+    /// the `archived_snapshots` field.
+    async fn wayback_suggestion_real_unknown() -> Result<(), Box<dyn StdError>> {
         let url = &"https://github.com/mre/idiomatic-rust-doesnt-exist-man".try_into()?;
         let response = get_wayback_link(url, TIMEOUT).await?;
         assert_eq!(response, None);
