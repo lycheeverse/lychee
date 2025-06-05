@@ -855,45 +855,28 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = ClientBuilder::builder()
+        let res = ClientBuilder::builder()
             .max_redirects(0_usize)
             .build()
             .client()
+            .unwrap()
+            .check(redirect_uri.clone())
+            .await
             .unwrap();
+        assert_eq!(
+            res.status(),
+            &Status::Redirected(StatusCode::PERMANENT_REDIRECT)
+        );
 
-        let res = client.check(redirect_uri.clone()).await.unwrap();
-        assert!(res.status().is_error());
-
-        let client = ClientBuilder::builder()
+        let res = ClientBuilder::builder()
             .max_redirects(1_usize)
             .build()
             .client()
+            .unwrap()
+            .check(redirect_uri)
+            .await
             .unwrap();
-
-        let res = client.check(redirect_uri).await.unwrap();
-        assert!(res.status().is_success());
-    }
-
-    #[tokio::test]
-    async fn test_limit_max_redirects() {
-        let mock_server = wiremock::MockServer::start().await;
-
-        // Set up permanent redirect loop
-        let template = wiremock::ResponseTemplate::new(StatusCode::PERMANENT_REDIRECT)
-            .insert_header("Location", mock_server.uri().as_str());
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .respond_with(template)
-            .mount(&mock_server)
-            .await;
-
-        let client = ClientBuilder::builder()
-            .max_redirects(0_usize)
-            .build()
-            .client()
-            .unwrap();
-
-        let res = client.check(mock_server.uri()).await.unwrap();
-        assert!(res.status().is_error());
+        assert_eq!(res.status(), &Status::Ok(StatusCode::OK));
     }
 
     #[tokio::test]
