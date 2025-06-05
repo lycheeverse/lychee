@@ -335,7 +335,7 @@ impl ClientBuilder {
         let max_redirects = self.max_redirects;
         let redirect_policy = redirect::Policy::custom(move |attempt| {
             if attempt.previous().len() > max_redirects {
-                attempt.error("too many redirects")
+                attempt.stop()
             } else {
                 debug!("Redirecting to {}", attempt.url());
                 attempt.follow()
