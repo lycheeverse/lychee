@@ -95,10 +95,6 @@ impl WebsiteChecker {
         let mut status = self.check_default(clone_unwrap(&request)).await;
         while retries < self.max_retries {
             if status.is_success() || !status.should_retry() {
-                if let Some(url) = self.redirect_map.lock().unwrap().get(dbg!(request.url())) {
-                    todo!("Redirected: {}", url)
-                }
-
                 return status;
             }
             retries += 1;
@@ -113,6 +109,7 @@ impl WebsiteChecker {
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, request: Request) -> Status {
         let method = request.method().clone();
+        let url = request.url().clone();
         match self.reqwest_client.execute(request).await {
             Ok(response) => {
                 let status = Status::new(&response, &self.accepted);
@@ -121,10 +118,14 @@ impl WebsiteChecker {
                     && method == Method::GET
                     && response.url().fragment().is_some_and(|x| !x.is_empty())
                 {
-                    self.check_html_fragment(status, response).await
-                } else {
-                    status
+                    return self.check_html_fragment(status, response).await;
                 }
+
+                if let Some(redirection) = self.redirect_map.lock().unwrap().get(&url) {
+                    todo!("Redirected from {} to {}", url, redirection)
+                }
+
+                status
             }
             Err(e) => e.into(),
         }
