@@ -43,6 +43,7 @@
               pkgs.pkg-config
               pkgs.openssl
               rust
+              pkgs.cargo-nextest
             ];
           };
         }
