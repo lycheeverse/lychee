@@ -10,7 +10,11 @@ use async_trait::async_trait;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
 use reqwest::{Request, Response};
-use std::{collections::HashSet, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
@@ -50,6 +54,8 @@ pub(crate) struct WebsiteChecker {
 
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
+
+    redirect_map: Arc<Mutex<HashMap<url::Url, url::Url>>>,
 }
 
 impl WebsiteChecker {
@@ -57,6 +63,7 @@ impl WebsiteChecker {
     pub(crate) fn new(
         method: reqwest::Method,
         retry_wait_time: Duration,
+        redirect_map: Arc<Mutex<HashMap<url::Url, url::Url>>>,
         max_retries: u64,
         reqwest_client: reqwest::Client,
         accepted: HashSet<StatusCode>,
@@ -70,6 +77,7 @@ impl WebsiteChecker {
             reqwest_client,
             github_client,
             plugin_request_chain,
+            redirect_map,
             max_retries,
             retry_wait_time,
             accepted,
@@ -87,6 +95,10 @@ impl WebsiteChecker {
         let mut status = self.check_default(clone_unwrap(&request)).await;
         while retries < self.max_retries {
             if status.is_success() || !status.should_retry() {
+                if let Some(url) = self.redirect_map.lock().unwrap().get(dbg!(request.url())) {
+                    todo!("Redirected: {}", url)
+                }
+
                 return status;
             }
             retries += 1;
@@ -94,6 +106,7 @@ impl WebsiteChecker {
             wait_time = wait_time.saturating_mul(2);
             status = self.check_default(clone_unwrap(&request)).await;
         }
+
         status
     }
 

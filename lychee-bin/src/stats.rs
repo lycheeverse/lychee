@@ -89,6 +89,7 @@ impl ResponseStats {
 
     /// Add a response status to the appropriate map (success, fail, excluded)
     fn add_response_status(&mut self, response: Response) {
+        // TODO: redirect map?
         let status = response.status();
         let source = response.source().clone();
         let status_map_entry = match status {
