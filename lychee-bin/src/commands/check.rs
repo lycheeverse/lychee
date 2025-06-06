@@ -10,13 +10,14 @@ use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
+use lychee_lib::archive::Archive;
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
 use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
-use crate::archive::{Archive, Suggestion};
 use crate::formatters::get_response_formatter;
 use crate::formatters::response::ResponseFormatter;
+use crate::formatters::suggestion::Suggestion;
 use crate::options::OutputMode;
 use crate::parse::parse_duration_secs;
 use crate::verbosity::Verbosity;
@@ -141,7 +142,7 @@ async fn suggest_archived_links(
     let suggestions = Mutex::new(&mut stats.suggestion_map);
 
     futures::stream::iter(failed_urls)
-        .map(|(input, url)| (input, url, archive.get_link(url, timeout)))
+        .map(|(input, url)| (input, url, archive.get_archive_snapshot(url, timeout)))
         .for_each_concurrent(max_concurrency, |(input, url, future)| async {
             if let Ok(Some(suggestion)) = future.await {
                 suggestions

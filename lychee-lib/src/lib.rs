@@ -50,6 +50,8 @@
 #[cfg(doctest)]
 doc_comment::doctest!("../../README.md");
 
+/// Check online archives to try and restore broken links
+pub mod archive;
 mod basic_auth;
 pub mod chain;
 mod checker;

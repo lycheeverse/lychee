@@ -79,7 +79,6 @@ use lychee_lib::BasicAuthExtractor;
 use lychee_lib::Collector;
 use lychee_lib::CookieJar;
 
-mod archive;
 mod cache;
 mod client;
 mod commands;

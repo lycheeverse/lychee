@@ -3,6 +3,7 @@ pub(crate) mod duration;
 pub(crate) mod log;
 pub(crate) mod response;
 pub(crate) mod stats;
+pub(crate) mod suggestion;
 
 use self::{response::ResponseFormatter, stats::StatsFormatter};
 use crate::options::{OutputMode, StatsFormat};

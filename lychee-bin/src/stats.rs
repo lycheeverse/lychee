@@ -3,9 +3,10 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::archive::Suggestion;
 use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status};
 use serde::Serialize;
+
+use crate::formatters::suggestion::Suggestion;
 
 /// Response statistics
 ///

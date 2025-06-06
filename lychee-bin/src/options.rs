@@ -1,4 +1,3 @@
-use crate::archive::Archive;
 use crate::parse::parse_base;
 use crate::verbosity::Verbosity;
 use anyhow::{Context, Error, Result, anyhow};
@@ -12,7 +11,7 @@ use http::{
 use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
-    FileType, Input, StatusCodeExcluder, StatusCodeSelector,
+    FileType, Input, StatusCodeExcluder, StatusCodeSelector, archive::Archive,
 };
 use reqwest::tls;
 use secrecy::{ExposeSecret, SecretString};
@@ -579,9 +578,9 @@ Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
         value_name = "HEADER:VALUE",
         long_help = "Set custom header for requests
 
-Some websites require custom headers to be passed in order to return valid responses. 
+Some websites require custom headers to be passed in order to return valid responses.
 You can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.
-This is the same format that other tools like curl or wget use. 
+This is the same format that other tools like curl or wget use.
 Multiple headers can be specified by using the flag multiple times."
     )]
     #[serde(default)]

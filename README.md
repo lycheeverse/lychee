@@ -461,9 +461,9 @@ Options:
   -H, --header <HEADER:VALUE>
           Set custom header for requests
 
-          Some websites require custom headers to be passed in order to return valid responses. 
+          Some websites require custom headers to be passed in order to return valid responses.
           You can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.
-          This is the same format that other tools like curl or wget use. 
+          This is the same format that other tools like curl or wget use.
           Multiple headers can be specified by using the flag multiple times.
 
   -a, --accept <ACCEPT>
@@ -666,10 +666,9 @@ let client = lychee_lib::ClientBuilder::builder()
 ```
 
 All options that you set will be used for all link checks.
-See the [builder
-documentation](https://docs.rs/lychee-lib/latest/lychee_lib/struct.ClientBuilder.html)
+See the [builder documentation](https://docs.rs/lychee-lib/latest/lychee_lib/struct.ClientBuilder.html)
 for all options. For more information, check out the [examples](examples)
-folder.
+directory. The examples can be run with `cargo run --example <example>`.
 
 ## GitHub Action Usage
 
