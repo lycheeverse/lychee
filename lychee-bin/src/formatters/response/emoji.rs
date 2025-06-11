@@ -17,7 +17,11 @@ impl EmojiFormatter {
             Status::Excluded
             | Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => "🚫",
-            Status::Redirected(_) => "↪️",
+            Status::Redirected {
+                original: _,
+                resolved: _,
+                code: _,
+            } => "↪️",
             Status::UnknownStatusCode(_) | Status::Timeout(_) => "⚠️",
             Status::Error(_) | Status::Cached(CacheStatus::Error(_)) => "❌",
         }
