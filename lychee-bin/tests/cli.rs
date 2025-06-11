@@ -1214,6 +1214,26 @@ mod cli {
     }
 
     #[tokio::test]
+    async fn test_accept_overrides_defaults_not_additive() -> Result<()> {
+        let mock_server_200 = mock_server!(StatusCode::OK);
+
+        let mut cmd = main_command();
+        cmd.arg("--accept")
+            .arg("404") // ONLY accept 404 - should reject 200 as we overwrite the default
+            .arg("-")
+            .write_stdin(mock_server_200.uri())
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains(format!(
+                r#"[200] {}/ | Rejected status code (this depends on your "accept" configuration): OK"#,
+                mock_server_200.uri()
+            )));
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_skip_cache_unsupported() -> Result<()> {
         let base_path = fixtures_path().join("cache");
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
