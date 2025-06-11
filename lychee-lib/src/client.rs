@@ -335,7 +335,7 @@ impl ClientBuilder {
             HeaderValue::from_static("chunked"),
         );
 
-        let mut redirect_map = Arc::new(Mutex::new(HashMap::new()));
+        let redirect_map = Arc::new(Mutex::new(HashMap::new()));
 
         let mut builder = reqwest::ClientBuilder::new()
             .gzip(true)
@@ -423,8 +423,6 @@ fn redirect_policy(
                 .unwrap()
                 .insert(first.clone(), attempt.url().clone());
         }
-
-        dbg!(&redirect_map); // todo
 
         if attempt.previous().len() > max_redirects {
             attempt.stop()

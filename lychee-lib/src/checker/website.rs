@@ -121,8 +121,14 @@ impl WebsiteChecker {
                     return self.check_html_fragment(status, response).await;
                 }
 
-                if let Some(redirection) = self.redirect_map.lock().unwrap().get(&url) {
-                    todo!("Redirected from {} to {}", url, redirection)
+                if let Some(code) = status.code() {
+                    if let Some(resolved) = self.redirect_map.lock().unwrap().get(&url).cloned() {
+                        return Status::Redirected {
+                            original: url,
+                            resolved,
+                            code,
+                        };
+                    }
                 }
 
                 status

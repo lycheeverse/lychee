@@ -72,7 +72,11 @@ impl ResponseStats {
             Status::Error(_) => self.errors += 1,
             Status::UnknownStatusCode(_) => self.unknown += 1,
             Status::Timeout(_) => self.timeouts += 1,
-            Status::Redirected(_) => self.redirects += 1,
+            Status::Redirected {
+                original: _,
+                resolved: _,
+                code: _,
+            } => self.redirects += 1,
             Status::Excluded => self.excludes += 1,
             Status::Unsupported(_) => self.unsupported += 1,
             Status::Cached(cache_status) => {
