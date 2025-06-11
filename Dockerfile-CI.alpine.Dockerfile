@@ -10,7 +10,7 @@ RUN apk add --no-cache ca-certificates jq wget \
         *) echo "Unsupported architecture" && exit 1;; \
         esac) \
     && BASE_URL=$(case $LYCHEE_VERSION in \
-        "latest") echo "https://github.com/lycheeverse/lychee/releases/latest/download";; \
+        "nightly") echo "https://github.com/lycheeverse/lychee/releases/latest/download";; \
         *) echo "https://github.com/lycheeverse/lychee/releases/download/$LYCHEE_VERSION";; \
         esac) \
     && wget -4 -q -O - "$BASE_URL/lychee-$ARCH.tar.gz" | tar -xz lychee \
