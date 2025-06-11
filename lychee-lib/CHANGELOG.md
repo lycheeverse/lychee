@@ -11,39 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- respect the `disabled` property for stylesheet links ([#1716](https://github.com/lycheeverse/lychee/pull/1716))
-- detect website fragments ([#1675](https://github.com/lycheeverse/lychee/pull/1675))
+- Respect the `disabled` property for stylesheet links ([#1716](https://github.com/lycheeverse/lychee/pull/1716))
+- Detect website fragments ([#1675](https://github.com/lycheeverse/lychee/pull/1675))
 
 ### Fixed
 
-- only check the fragment when it's a file ([#1713](https://github.com/lycheeverse/lychee/pull/1713))
-- ignore gitlab table of content in wikilinks ([#1710](https://github.com/lycheeverse/lychee/pull/1710))
+- Only check the fragment when it's a file ([#1713](https://github.com/lycheeverse/lychee/pull/1713))
+- Ignore gitlab table of content in wikilinks ([#1710](https://github.com/lycheeverse/lychee/pull/1710))
 
 ### Other
 
-- Add explanation
-- Fix grammar
-- Update docs
-- Extract DEFAULT_ACCEPTED_STATUS_CODES & apply clippy's suggestions
-- Use StatusCodeSelector default as default accepted StatusCodes
-- Tiny improvements
-- Remove dbg macro
-- Pass accepted values by reference
-- Make accepted codes non-optional
-- Handle rejected TOO_MANY_REQUESTS
-- Update Status::code
-- Remove duplicated information from output
-- Change usage of ErrorKind::NetworkRequest, as it no longer represents rejected status codes
-- Update doc comment
-- Make error message more user-friendly
-- Remove hardcoded rule for handling erroneous status codes differently
+- Update --accept behaviour [#1661](https://github.com/lycheeverse/lychee/issues/1661)
 - Move archive functionality to library ([#1720](https://github.com/lycheeverse/lychee/pull/1720))
 - Bump the dependencies group across 1 directory with 3 updates ([#1714](https://github.com/lycheeverse/lychee/pull/1714))
 - Upgrade to 2024 edition ([#1711](https://github.com/lycheeverse/lychee/pull/1711))
 - Add support for custom headers in input processing ([#1561](https://github.com/lycheeverse/lychee/pull/1561))
 - Fix lints ([#1705](https://github.com/lycheeverse/lychee/pull/1705))
-- Remove flag
-- detect wikilinks, prevent plaintext extraction from links #1650 ([#1679](https://github.com/lycheeverse/lychee/pull/1679))
+- Remove deprecated `--exclude-mail` flag ([#1669](https://github.com/lycheeverse/lychee/issues/1669))
+- Detect wikilinks, prevent plaintext extraction from links #1650 ([#1679](https://github.com/lycheeverse/lychee/pull/1679))
 - Bump the dependencies group with 2 updates
 - Add possible values for minimum TLS version in help message ([#1693](https://github.com/lycheeverse/lychee/pull/1693))
 - Add TLS version option ([#1655](https://github.com/lycheeverse/lychee/pull/1655))
@@ -60,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bump the dependencies group across 1 directory with 14 updates ([#1653](https://github.com/lycheeverse/lychee/pull/1653))
 - Add support for custom file extensions in link checking. ([#1559](https://github.com/lycheeverse/lychee/pull/1559))
 - Bump the dependencies group across 1 directory with 21 updates ([#1643](https://github.com/lycheeverse/lychee/pull/1643))
-- renamed `base` to `base_url` (fixes #1607) ([#1629](https://github.com/lycheeverse/lychee/pull/1629))
+- Renamed `base` to `base_url` (fixes #1607) ([#1629](https://github.com/lycheeverse/lychee/pull/1629))
 
 ## [0.18.1](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.18.0...lychee-lib-v0.18.1) - 2025-02-06
 
