@@ -106,6 +106,8 @@ impl RetryExt for ErrorKind {
         {
             source.should_retry()
         } else if let Self::RejectedStatusCode(StatusCode::TOO_MANY_REQUESTS) = self {
+            // We encountered `StatusCode::TOO_MANY_REQUESTS` and the user configured to reject this code.
+            // In this case we want to retry after some time because rate limiting is only temporary.
             return true;
         } else {
             false
