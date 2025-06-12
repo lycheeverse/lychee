@@ -1905,13 +1905,71 @@ mod cli {
     // Ensures that dumping stdin does not panic and results in an empty output
     // as `stdin` is not a path
     #[test]
+    fn test_dump_inputs_with_extensions() -> Result<()> {
+        let mut cmd = main_command();
+        let test_dir = fixtures_path().join("dump_inputs");
+
+        cmd.arg("--dump-inputs")
+            .arg("--extensions")
+            .arg("md,txt")
+            .arg(test_dir)
+            .assert()
+            .success()
+            .stdout(contains("markdown.md"))
+            .stdout(contains("some_file.txt"))
+            .stdout(contains("subfolder/file2.md"))
+            .stdout(contains("example.bin").not()); // Should be excluded
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_skip_hidden() -> Result<()> {
+        let test_dir = fixtures_path().join("hidden");
+
+        // Test default behavior (skip hidden)
+        main_command()
+            .arg("--dump-inputs")
+            .arg(&test_dir)
+            .assert()
+            .success()
+            .stdout(is_empty());
+
+        // Test with --hidden flag
+        main_command()
+            .arg("--dump-inputs")
+            .arg("--hidden")
+            .arg(test_dir)
+            .assert()
+            .success()
+            .stdout(contains(".hidden"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_individual_file() -> Result<()> {
+        let mut cmd = main_command();
+        let test_file = fixtures_path().join("TEST.md");
+
+        cmd.arg("--dump-inputs")
+            .arg(&test_file)
+            .assert()
+            .success()
+            .stdout(contains("TEST.md"));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_dump_inputs_stdin() -> Result<()> {
         let mut cmd = main_command();
+
         cmd.arg("--dump-inputs")
             .arg("-")
             .assert()
             .success()
-            .stdout(is_empty());
+            .stdout(contains("<stdin>"));
 
         Ok(())
     }

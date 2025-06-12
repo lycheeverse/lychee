@@ -269,18 +269,12 @@ impl Input {
                 InputSource::FsPath(path) => {
                     if path.is_dir() {
 
-                        for entry in WalkBuilder::new(path)
-                            // Enable standard filters if skip_gitignored is true.
-                            // This will skip files ignored by .gitignore and other VCS ignore files.
-                            .standard_filters(skip_gitignored)
-
-                            // Override hidden file behavior to be controlled by the separate skip_hidden parameter
-                            .hidden(skip_hidden)
-
-                            // Configure the file types filter to only include files with matching extensions
-                            .types(file_extensions.try_into()?)
-
-                            .build()
+                        for entry in Input::walk_entries(
+                            path,
+                            file_extensions,
+                            skip_hidden,
+                            skip_gitignored,
+                        )?
                         {
                             let entry = entry?;
                             if self.is_excluded_path(&entry.path().to_path_buf()) {
@@ -379,6 +373,24 @@ impl Input {
         }
     }
 
+    /// Create a `WalkBuilder` for directory traversal with consistent settings
+    fn walk_entries(
+        path: &Path,
+        file_extensions: FileExtensions,
+        skip_hidden: bool,
+        skip_gitignored: bool,
+    ) -> Result<ignore::Walk> {
+        Ok(WalkBuilder::new(path)
+            // Enable standard filters if `skip_gitignored `is true.
+            // This will skip files ignored by `.gitignore` and other VCS ignore files.
+            .standard_filters(skip_gitignored)
+            // Override hidden file behavior to be controlled by the separate skip_hidden parameter
+            .hidden(skip_hidden)
+            // Configure the file types filter to only include files with matching extensions
+            .types(file_extensions.try_into()?)
+            .build())
+    }
+
     /// Retrieve all sources from this input. The output depends on the type of
     /// input:
     ///
@@ -390,26 +402,51 @@ impl Input {
     /// # Errors
     ///
     /// Returns an error if the globbing fails with the expanded pattern.
-    pub fn get_sources(self) -> impl Stream<Item = Result<String>> {
+    pub fn get_sources(
+        self,
+        file_extensions: FileExtensions,
+        skip_hidden: bool,
+        skip_gitignored: bool,
+    ) -> impl Stream<Item = Result<String>> {
         try_stream! {
             match self.source {
                 InputSource::RemoteUrl(url) => yield url.to_string(),
-                InputSource::FsGlob { pattern, ignore_case } => {
+                InputSource::FsGlob {
+                    pattern,
+                    ignore_case,
+                } => {
                     let glob_expanded = tilde(&pattern).to_string();
                     let mut match_opts = glob::MatchOptions::new();
-
                     match_opts.case_sensitive = !ignore_case;
-
                     for entry in glob_with(&glob_expanded, match_opts)? {
                         match entry {
                             Ok(path) => yield path.to_string_lossy().to_string(),
-                            Err(e) => eprintln!("{e:?}")
+                            Err(e) => eprintln!("{e:?}"),
                         }
                     }
-                },
-                InputSource::FsPath(path) => yield path.to_string_lossy().to_string(),
-                InputSource::Stdin => yield "Stdin".into(),
-                InputSource::String(_) => yield "Raw String".into(),
+                }
+                InputSource::FsPath(ref path) => {
+                    if path.is_dir() {
+                        for entry in Input::walk_entries(
+                            path,
+                            file_extensions,
+                            skip_hidden,
+                            skip_gitignored,
+                        )? {
+                            let entry = entry?;
+                            if !self.is_excluded_path(&entry.path().to_path_buf()) {
+                                // Only yield files, not directories
+                                if entry.file_type().is_some_and(|ft| ft.is_file()) {
+                                    yield entry.path().to_string_lossy().to_string();
+                                }
+                            }
+                        }
+                    } else if !self.is_excluded_path(path) {
+                        yield path.to_string_lossy().to_string();
+                    }
+                }
+                InputSource::Stdin => yield "<stdin>".into(),
+                InputSource::String(_) => yield "<raw string>".into(),
             }
         }
     }
