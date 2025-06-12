@@ -80,6 +80,7 @@ impl Display for CompactResponseStats {
         write_if_any(stats.unknown, "❓", "Unknown", &BOLD_PINK, f)?;
         write_if_any(stats.excludes, "👻", "Excluded", &BOLD_YELLOW, f)?;
         write_if_any(stats.timeouts, "⏳", "Timeouts", &BOLD_YELLOW, f)?;
+        write_if_any(stats.unsupported, "⛔", "Unsupported", &BOLD_YELLOW, f)?;
 
         Ok(())
     }

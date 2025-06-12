@@ -45,7 +45,8 @@ impl Display for DetailedResponseStats {
         write_stat(f, "\u{1f500} Redirected", stats.redirects, true)?; // 🔀
         write_stat(f, "\u{1f47b} Excluded", stats.excludes, true)?; // 👻
         write_stat(f, "\u{2753} Unknown", stats.unknown, true)?; //❓
-        write_stat(f, "\u{1f6ab} Errors", stats.errors, false)?; // 🚫
+        write_stat(f, "\u{1f6ab} Errors", stats.errors, true)?; // 🚫
+        write_stat(f, "\u{26d4} Unsupported", stats.errors, false)?; // ⛔
 
         let response_formatter = get_response_formatter(&self.mode);
 
