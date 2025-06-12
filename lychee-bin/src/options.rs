@@ -212,19 +212,23 @@ macro_rules! fold_in {
 ///
 /// If the header contains multiple colons, the part after the first colon is
 /// considered the value.
+///
+/// # Errors
+///
+/// This fails if the header does not contain exactly one `:` character or
+/// if the header value or header name contain invalid characters.
 fn parse_single_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
     let parts: Vec<&str> = header.splitn(2, ':').collect();
     match parts.as_slice() {
         [name, value] => {
             let name = HeaderName::from_bytes(name.trim().as_bytes())
-                .map_err(|e| anyhow!("Invalid header name '{}': {}", name.trim(), e))?;
+                .map_err(|e| anyhow!("Unable to read header name: {}", e))?;
             let value = HeaderValue::from_str(value.trim())
-                .map_err(|e| anyhow!("Invalid header value '{}': {}", value.trim(), e))?;
+                .map_err(|e| anyhow!("Unable to read header value: {}", e))?;
             Ok((name, value))
         }
         _ => Err(anyhow!(
-            "Invalid header format. Expected colon-separated string in the format 'HeaderName: HeaderValue', got '{}'",
-            header
+            "Invalid header format. Expected colon-separated string in the format 'HeaderName: HeaderValue'"
         )),
     }
 }
@@ -868,6 +872,18 @@ mod tests {
                 HeaderValue::from_static("x-test=check=this")
             )
         );
+    }
+
+    #[test]
+    /// We should not reveal potentially sensitive data contained in the headers.
+    /// See: [#1297](https://github.com/lycheeverse/lychee/issues/1297)
+    fn test_does_not_echo_sensitive_data() {
+        let error =
+            parse_single_header("secret💣: secret").expect_err("Should not allow unicode as key");
+        assert!(!error.to_string().contains("secret"));
+
+        let error = parse_single_header("secret").expect_err("Should fail when no `:` given");
+        assert!(!error.to_string().contains("secret"));
     }
 
     #[test]
