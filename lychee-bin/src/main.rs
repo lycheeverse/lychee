@@ -323,6 +323,20 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         // File a bug if you rely on this envvar! It's going to go away eventually.
         .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").is_ok_and(|x| x == "1"));
 
+    if opts.config.dump_inputs {
+        let exit_code = commands::dump_inputs(
+            inputs,
+            opts.config.output.as_ref(),
+            &opts.config.exclude_path,
+            &opts.config.extensions,
+            !opts.config.hidden,
+            opts.config.no_ignore,
+        )
+        .await?;
+
+        return Ok(exit_code as i32);
+    }
+
     collector = if let Some(ref basic_auth) = opts.config.basic_auth {
         collector.basic_auth_extractor(BasicAuthExtractor::new(basic_auth)?)
     } else {
