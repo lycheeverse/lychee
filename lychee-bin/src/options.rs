@@ -216,15 +216,16 @@ macro_rules! fold_in {
 /// # Errors
 ///
 /// This fails if the header does not contain exactly one `:` character or
-/// if the header value or header name contain invalid characters.
+/// if the header name contains non-ASCII characters.
 fn parse_single_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
     let parts: Vec<&str> = header.splitn(2, ':').collect();
     match parts.as_slice() {
         [name, value] => {
-            let name = HeaderName::from_bytes(name.trim().as_bytes())
-                .map_err(|e| anyhow!("Unable to read header name: {}", e))?;
-            let value = HeaderValue::from_str(value.trim())
-                .map_err(|e| anyhow!("Unable to read header value: {}", e))?;
+            let name = HeaderName::from_str(name.trim())
+                .map_err(|e| anyhow!("Unable to convert header name '{}': {}", name.trim(), e))?;
+            let value = HeaderValue::from_str(value.trim()).map_err(|e| {
+                anyhow!("Unable to read value of header with name '{}': {}", name, e)
+            })?;
             Ok((name, value))
         }
         _ => Err(anyhow!(
@@ -878,8 +879,8 @@ mod tests {
     /// We should not reveal potentially sensitive data contained in the headers.
     /// See: [#1297](https://github.com/lycheeverse/lychee/issues/1297)
     fn test_does_not_echo_sensitive_data() {
-        let error =
-            parse_single_header("secret💣: secret").expect_err("Should not allow unicode as key");
+        let error = parse_single_header("My-Header💣: secret")
+            .expect_err("Should not allow unicode as key");
         assert!(!error.to_string().contains("secret"));
 
         let error = parse_single_header("secret").expect_err("Should fail when no `:` given");
