@@ -72,7 +72,11 @@ impl ResponseStats {
             Status::Error(_) => self.errors += 1,
             Status::UnknownStatusCode(_) => self.unknown += 1,
             Status::Timeout(_) => self.timeouts += 1,
-            Status::Redirected(_) => self.redirects += 1,
+            Status::Redirected {
+                original: _,
+                resolved: _,
+                code: _,
+            } => self.redirects += 1,
             Status::Excluded => self.excludes += 1,
             Status::Unsupported(_) => self.unsupported += 1,
             Status::Cached(cache_status) => {
@@ -89,6 +93,7 @@ impl ResponseStats {
 
     /// Add a response status to the appropriate map (success, fail, excluded)
     fn add_response_status(&mut self, response: Response) {
+        // TODO: redirect map?
         let status = response.status();
         let source = response.source().clone();
         let status_map_entry = match status {
