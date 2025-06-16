@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.19.0...lychee-lib-v0.19.1) - 2025-06-16
+
+### Fixed
+
+- skip the fragment check if the uri doesn't contain fragment ([#1730](https://github.com/lycheeverse/lychee/pull/1730))
+
+### Other
+
+- Update changelog
+
 ## [0.19.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.18.1...lychee-lib-v0.19.0) - 2025-06-11
 
 ### Added
