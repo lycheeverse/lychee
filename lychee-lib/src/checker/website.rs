@@ -103,7 +103,11 @@ impl WebsiteChecker {
         match self.reqwest_client.execute(request).await {
             Ok(response) => {
                 let status = Status::new(&response, &self.accepted);
-                if self.include_fragments && status.is_success() && method == Method::GET {
+                if self.include_fragments
+                    && status.is_success()
+                    && method == Method::GET
+                    && response.url().fragment().is_some()
+                {
                     self.check_html_fragment(status, response).await
                 } else {
                     status
