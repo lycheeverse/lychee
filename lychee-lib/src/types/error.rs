@@ -185,15 +185,8 @@ impl ErrorKind {
     pub fn details(&self) -> Option<String> {
         match self {
             ErrorKind::NetworkRequest(e) => {
-                // Get the relevant details from the specific reqwest error
-                let details = utils::reqwest::trim_error_output(e);
-
-                // Provide support for common error types
-                if e.is_connect() {
-                    Some(format!("{details} Maybe a certificate error?"))
-                } else {
-                    Some(details)
-                }
+                // Get detailed, actionable error analysis
+                Some(utils::reqwest::analyze_error_chain(e))
             }
             ErrorKind::RejectedStatusCode(status) => Some(
                 status
@@ -205,7 +198,8 @@ impl ErrorKind {
                 if let octocrab::Error::GitHub { source, .. } = &**e {
                     Some(source.message.clone())
                 } else {
-                    None
+                    // Fall back to generic error analysis
+                    Some(e.to_string())
                 }
             }
             _ => self.source().map(ToString::to_string),
