@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1](https://github.com/lycheeverse/lychee/compare/lychee-v0.19.0...lychee-v0.19.1) - 2025-06-16
+
+### Other
+
+- Don't echo potentially sensitive header data ([#1728](https://github.com/lycheeverse/lychee/pull/1728))
+- Update changelog
+
 ## [0.19.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.18.1...lychee-v0.19.0) - 2025-06-11
 
 Most notably with this release the deprecated `--exclude-mail` flag was removed and the behavior of the `--accept` flag was updated. Previously, status codes such as `200 OK` were always accepted. Now they are only accepted by default. This means providing the argument `--accept 201` now rejects status code `200 OK`.
