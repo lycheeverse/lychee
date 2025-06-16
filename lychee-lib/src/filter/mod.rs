@@ -46,6 +46,7 @@ const FALSE_POSITIVE_PAT: &[&str] = &[
     r"^https?://www.w3.org/1999/xhtml",
     r"^https?://www.w3.org/1999/xlink",
     r"^https?://www.w3.org/2000/svg",
+    r"^https?://www.w3.org/2001/XMLSchema-instance",
     r"^https?://ogp.me/ns#",
     r"^https?://schemas.microsoft.com",
     r"^https?://(.*)/xmlrpc.php$",
