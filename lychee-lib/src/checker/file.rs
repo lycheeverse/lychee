@@ -123,8 +123,9 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     async fn check_existing_path(&self, path: &Path, uri: &Uri) -> Status {
-        // only files can contain content with fragments
-        if self.include_fragments && path.is_file() {
+        // Only files can contain content with fragments.
+        // Skip if the uri doesn't have the fragment.
+        if self.include_fragments && path.is_file() && uri.url.fragment().is_some() {
             self.check_fragment(path, uri).await
         } else {
             Status::Ok(StatusCode::OK)
