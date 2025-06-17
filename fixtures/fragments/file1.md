@@ -80,8 +80,8 @@ Even with fragment checking enabled, the following links must hence succeed:
 
 [Link to local binary file without fragment](zero.bin)
 [Link to local binary file with empty fragment](zero.bin#)
-[Link to remote binary file without fragment](https://raw.githubusercontent.com/MichaIng/lychee/skip-fragment-check-by-url/fixtures/fragments/zero.bin)
-[Link to remote binary file with empty fragment](https://raw.githubusercontent.com/MichaIng/lychee/skip-fragment-check-by-url/fixtures/fragments/zero.bin#)
+[Link to remote binary file without fragment](https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin)
+[Link to remote binary file with empty fragment](https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#)
 
 ## Local file with fragment
 
@@ -96,4 +96,4 @@ Right now, there is not MIME/content type based exclusion for fragment checks in
 Also, other than the file checker, the website checker throws an error if reading the response body fails.
 The following link hence must fail:
 
-[Link to remote binary file with fragment](https://raw.githubusercontent.com/MichaIng/lychee/skip-fragment-check-by-url/fixtures/fragments/zero.bin#fragment)
+[Link to remote binary file with fragment](https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment)
