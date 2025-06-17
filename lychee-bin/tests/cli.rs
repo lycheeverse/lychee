@@ -1876,10 +1876,22 @@ mod cli {
             .stderr(contains(
                 "https://github.com/lycheeverse/lychee#non-existent-anchor",
             ))
-            .stdout(contains("28 Total"))
-            .stdout(contains("23 OK"))
-            // 4 failures because of missing fragments
-            .stdout(contains("5 Errors"));
+            .stderr(contains("fixtures/fragments/zero.bin"))
+            .stderr(contains("fixtures/fragments/zero.bin#"))
+            .stderr(contains(
+                "https://raw.githubusercontent.com/MichaIng/lychee/skip-fragment-check-by-url/fixtures/fragments/zero.bin",
+            ))
+            .stderr(contains(
+                "https://raw.githubusercontent.com/MichaIng/lychee/skip-fragment-check-by-url/fixtures/fragments/zero.bin#",
+            ))
+            .stderr(contains("fixtures/fragments/zero.bin#fragment"))
+            .stderr(contains(
+                "https://raw.githubusercontent.com/MichaIng/lychee/skip-fragment-check-by-url/fixtures/fragments/zero.bin#fragment",
+            ))
+            .stdout(contains("34 Total"))
+            .stdout(contains("28 OK"))
+            // Failures because of missing fragments or failed binary body scan
+            .stdout(contains("6 Errors"));
     }
 
     #[test]
