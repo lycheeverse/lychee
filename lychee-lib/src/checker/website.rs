@@ -106,7 +106,7 @@ impl WebsiteChecker {
                 if self.include_fragments
                     && status.is_success()
                     && method == Method::GET
-                    && response.url().fragment().is_some()
+                    && response.url().fragment().is_some_and(|x| !x.is_empty())
                 {
                     self.check_html_fragment(status, response).await
                 } else {
