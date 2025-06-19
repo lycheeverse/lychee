@@ -8,7 +8,6 @@ use reqwest::Request;
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::Status;
 use crate::chain::{ChainResult, Handler};
 
 #[derive(Copy, Clone, Debug, Error, PartialEq)]
@@ -77,8 +76,8 @@ impl BasicAuthCredentials {
 }
 
 #[async_trait]
-impl Handler<Request, Status> for Option<BasicAuthCredentials> {
-    async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Status> {
+impl<Response> Handler<Request, Response> for Option<BasicAuthCredentials> {
+    async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Response> {
         if let Some(credentials) = self {
             request
                 .headers_mut()

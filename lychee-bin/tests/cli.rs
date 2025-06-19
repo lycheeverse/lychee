@@ -1699,7 +1699,7 @@ mod cli {
             .stdout(contains("1 Total"))
             .stdout(contains("1 OK"));
 
-        // Websites as direct arguments must also be authenticated
+        // Websites as direct arguments must also use authentication
         main_command()
             .arg(mock_server.uri())
             .arg("--verbose")
@@ -1707,8 +1707,7 @@ mod cli {
             .arg(format!("{} {username}:{password}", mock_server.uri()))
             .assert()
             .success()
-            .stdout(contains("1 Total"))
-            .stdout(contains("1 OK"));
+            .stdout(contains("0 Total")); // Mock server returns no body, so there are no URLs to check
 
         Ok(())
     }

@@ -1,11 +1,14 @@
+use super::file::FileExtensions;
+use crate::chain::Chain;
 use crate::types::FileType;
-use crate::{ErrorKind, Result, utils};
+use crate::utils::request;
+use crate::{BasicAuthExtractor, ChainResult, ErrorKind, Handler, Result, Uri, utils};
 use async_stream::try_stream;
+use async_trait::async_trait;
 use futures::stream::Stream;
 use glob::glob_with;
-use http::HeaderMap;
 use ignore::WalkBuilder;
-use reqwest::Url;
+use reqwest::{Client, Request, Url};
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
 use std::fmt::Display;
@@ -13,9 +16,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
 
-use super::file::FileExtensions;
-
 const STDIN: &str = "-";
+
+type RequestChain = Chain<reqwest::Request, String>;
 
 #[derive(Debug)]
 /// Encapsulates the content for a given input
@@ -110,8 +113,6 @@ pub struct Input {
     pub file_type_hint: Option<FileType>,
     /// Excluded paths that will be skipped when reading content
     pub excluded_paths: Option<Vec<PathBuf>>,
-    /// Custom headers to be used when fetching remote URLs
-    pub headers: reqwest::header::HeaderMap,
 }
 
 impl Input {
@@ -128,7 +129,6 @@ impl Input {
         file_type_hint: Option<FileType>,
         glob_ignore_case: bool,
         excluded_paths: Option<Vec<PathBuf>>,
-        headers: reqwest::header::HeaderMap,
     ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
@@ -194,7 +194,6 @@ impl Input {
             source,
             file_type_hint,
             excluded_paths,
-            headers,
         })
     }
 
@@ -205,7 +204,7 @@ impl Input {
     /// Returns an error if the input does not exist (i.e. invalid path)
     /// and the input cannot be parsed as a URL.
     pub fn from_value(value: &str) -> Result<Self> {
-        Self::new(value, None, false, None, HeaderMap::new())
+        Self::new(value, None, false, None)
     }
 
     /// Retrieve the contents from the input
@@ -226,11 +225,19 @@ impl Input {
         // If `Input` is a file path, try the given file extensions in order.
         // Stop on the first match.
         file_extensions: FileExtensions,
+        basic_auth_extractor: Option<BasicAuthExtractor>,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             match self.source {
                 InputSource::RemoteUrl(ref url) => {
-                    let content = Self::url_contents(url, &self.headers).await;
+                    let credentials = request::extract_credentials(basic_auth_extractor.as_ref(), &Uri{ url: *url.clone() });
+
+                    let chain: RequestChain= Chain::new(vec![
+                        Box::new(credentials),
+                        Box::new(self.clone()),
+                    ]);
+
+                    let content = Self::url_contents(url, chain).await;
                     match content {
                         Err(_) if skip_missing => (),
                         Err(e) => Err(e)?,
@@ -328,7 +335,7 @@ impl Input {
         }
     }
 
-    async fn url_contents(url: &Url, headers: &HeaderMap) -> Result<InputContent> {
+    async fn url_contents(url: &Url, request_chain: RequestChain) -> Result<InputContent> {
         // Assume HTML for default paths
         let file_type = if url.path().is_empty() || url.path() == "/" {
             FileType::Html
@@ -336,18 +343,23 @@ impl Input {
             FileType::from(url.as_str())
         };
 
-        let client = reqwest::Client::new();
+        // TODO: Don't create a new Client for every call
+        let request = Client::builder()
+            .build()
+            .map_err(ErrorKind::BuildRequestClient)?
+            .request(reqwest::Method::GET, url.clone())
+            .build()
+            .map_err(ErrorKind::BuildRequestClient)?;
 
-        let res = client
-            .get(url.clone())
-            .headers(headers.clone())
-            .send()
-            .await
-            .map_err(ErrorKind::NetworkRequest)?;
+        let content = match request_chain.traverse(request).await {
+            ChainResult::Next(_) => todo!(),
+            ChainResult::Done(r) => r,
+        };
+
         let input_content = InputContent {
             source: InputSource::RemoteUrl(Box::new(url.clone())),
             file_type,
-            content: res.text().await.map_err(ErrorKind::ReadResponseBody)?,
+            content,
         };
 
         Ok(input_content)
@@ -454,10 +466,28 @@ fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
     false
 }
 
+#[async_trait]
+impl Handler<Request, String> for Input {
+    async fn handle(&mut self, input: Request) -> ChainResult<Request, String> {
+        let client = reqwest::Client::new();
+
+        let result = client
+            .execute(input)
+            .await
+            .map_err(ErrorKind::NetworkRequest)
+            .expect("todo") // todo
+            .text()
+            .await
+            .map_err(ErrorKind::ReadResponseBody)
+            .expect("todo"); // todo
+        // .headers(headers.clone()) // todo: add headers again
+
+        ChainResult::Done(result)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use http::HeaderMap;
-
     use super::*;
 
     #[test]
@@ -468,7 +498,7 @@ mod tests {
         assert!(path.exists());
         assert!(path.is_relative());
 
-        let input = Input::new(test_file, None, false, None, HeaderMap::new());
+        let input = Input::new(test_file, None, false, None);
         assert!(input.is_ok());
         assert!(matches!(
             input,
@@ -476,7 +506,6 @@ mod tests {
                 source: InputSource::FsPath(PathBuf { .. }),
                 file_type_hint: None,
                 excluded_paths: None,
-                headers: _,
             })
         ));
     }
