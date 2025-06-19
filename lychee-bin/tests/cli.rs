@@ -24,7 +24,10 @@ mod cli {
     use serde_json::Value;
     use tempfile::NamedTempFile;
     use uuid::Uuid;
-    use wiremock::{Mock, ResponseTemplate, matchers::basic_auth};
+    use wiremock::{
+        Mock, ResponseTemplate,
+        matchers::{basic_auth, method},
+    };
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -1673,8 +1676,14 @@ mod cli {
         let password = "password123";
 
         let mock_server = wiremock::MockServer::start().await;
-        Mock::given(basic_auth(username, password))
-            .respond_with(ResponseTemplate::new(200))
+
+        Mock::given(method("GET"))
+            .and(basic_auth(username, password))
+            .respond_with(ResponseTemplate::new(200)) // Authenticated requests are accepted
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .respond_with(|_: &_| panic!("Received unauthenticated request"))
             .mount(&mock_server)
             .await;
 
@@ -1685,6 +1694,17 @@ mod cli {
             .arg(format!("{} {username}:{password}", mock_server.uri()))
             .arg("-")
             .write_stdin(mock_server.uri())
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 OK"));
+
+        // Websites as direct arguments must also be authenticated
+        main_command()
+            .arg(mock_server.uri())
+            .arg("--verbose")
+            .arg("--basic-auth")
+            .arg(format!("{} {username}:{password}", mock_server.uri()))
             .assert()
             .success()
             .stdout(contains("1 Total"))
