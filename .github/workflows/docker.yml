@@ -1,16 +1,11 @@
 name: Docker
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: 
-      - "Release Binary"
-    types:
-      - completed
-    branches:
-      - master
   push:
     branches:
       - master
+    tags:
+      - 'lychee-v*'
   pull_request:
     branches:
       - master
