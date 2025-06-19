@@ -41,15 +41,15 @@ static UNSUPPORTED_DOMAINS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
 
 /// Pre-defined exclusions for known false-positives
 const FALSE_POSITIVE_PAT: &[&str] = &[
-    r"^https?://schemas.openxmlformats.org",
-    r"^https?://schemas.zune.net",
-    r"^https?://www.w3.org/1999/xhtml",
-    r"^https?://www.w3.org/1999/xlink",
-    r"^https?://www.w3.org/2000/svg",
-    r"^https?://www.w3.org/2001/XMLSchema-instance",
-    r"^https?://ogp.me/ns#",
-    r"^https?://schemas.microsoft.com",
-    r"^https?://(.*)/xmlrpc.php$",
+    r"^https?://schemas\.openxmlformats\.org",
+    r"^https?://schemas\.microsoft\.com",
+    r"^https?://schemas\.zune\.net",
+    r"^https?://www\.w3\.org/1999/xhtml",
+    r"^https?://www\.w3\.org/1999/xlink",
+    r"^https?://www\.w3\.org/2000/svg",
+    r"^https?://www\.w3\.org/2001/XMLSchema-instance",
+    r"^https?://ogp\.me/ns#",
+    r"^https?://(.*)/xmlrpc\.php$",
 ];
 
 static FALSE_POSITIVE_SET: LazyLock<RegexSet> =
