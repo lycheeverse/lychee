@@ -1879,14 +1879,14 @@ mod cli {
             .stderr(contains("fixtures/fragments/zero.bin"))
             .stderr(contains("fixtures/fragments/zero.bin#"))
             .stderr(contains(
-                "https://raw.githubusercontent.com/MichaIng/lychee/skip-fragment-check-by-url/fixtures/fragments/zero.bin",
+                "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin",
             ))
             .stderr(contains(
-                "https://raw.githubusercontent.com/MichaIng/lychee/skip-fragment-check-by-url/fixtures/fragments/zero.bin#",
+                "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#",
             ))
             .stderr(contains("fixtures/fragments/zero.bin#fragment"))
             .stderr(contains(
-                "https://raw.githubusercontent.com/MichaIng/lychee/skip-fragment-check-by-url/fixtures/fragments/zero.bin#fragment",
+                "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
             ))
             .stdout(contains("34 Total"))
             .stdout(contains("28 OK"))
