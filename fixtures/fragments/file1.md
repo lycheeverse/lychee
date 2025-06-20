@@ -67,3 +67,33 @@ without related HTML element. Browser will scroll to the top of the page.
 A link to the non-existing fragment: [try](https://github.com/lycheeverse/lychee#non-existent-anchor).
 
 Skip the fragment check for directories like: [empty](empty_dir/).
+
+# Binary data URLs checks
+
+Fragment checking tries to scan the (whole) content/response body for HTML element IDs.
+This fails for binary data and can cause unnecessary traffic for remote URLs.
+
+## Without fragment
+
+Fragment checking is skipped if the URL does not actually contain a fragment.
+Even with fragment checking enabled, the following links must hence succeed:
+
+[Link to local binary file without fragment](zero.bin)
+[Link to local binary file with empty fragment](zero.bin#)
+[Link to remote binary file without fragment](https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin)
+[Link to remote binary file with empty fragment](https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#)
+
+## Local file with fragment
+
+For local files URIs with fragment, the fragment checker is invoked and fails to read the content,
+but the file checker emits a warning only. The following link hence must succeed as well:
+
+[Link to local binary file with fragment](zero.bin#fragment)
+
+## Remote URL with fragment
+
+Right now, there is not MIME/content type based exclusion for fragment checks in the website checker.
+Also, other than the file checker, the website checker throws an error if reading the response body fails.
+The following link hence must fail:
+
+[Link to remote binary file with fragment](https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment)
