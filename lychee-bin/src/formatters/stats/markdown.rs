@@ -53,6 +53,10 @@ fn stats_table(stats: &ResponseStats) -> String {
             status: "\u{1f6ab} Errors",
             count: stats.errors,
         },
+        StatsTableEntry {
+            status: "\u{26d4} Unsupported",
+            count: stats.unsupported,
+        },
     ];
     let style = Style::markdown();
 
@@ -196,15 +200,16 @@ mod tests {
     fn test_render_stats() {
         let stats = ResponseStats::default();
         let table = stats_table(&stats);
-        let expected = "| Status        | Count |
-|---------------|-------|
-| 🔍 Total      | 0     |
-| ✅ Successful | 0     |
-| ⏳ Timeouts   | 0     |
-| 🔀 Redirected | 0     |
-| 👻 Excluded   | 0     |
-| ❓ Unknown    | 0     |
-| 🚫 Errors     | 0     |";
+        let expected = "| Status         | Count |
+|----------------|-------|
+| 🔍 Total       | 0     |
+| ✅ Successful  | 0     |
+| ⏳ Timeouts    | 0     |
+| 🔀 Redirected  | 0     |
+| 👻 Excluded    | 0     |
+| ❓ Unknown     | 0     |
+| 🚫 Errors      | 0     |
+| ⛔ Unsupported | 0     |";
         assert_eq!(table, expected.to_string());
     }
 
@@ -228,15 +233,16 @@ mod tests {
         let summary = MarkdownResponseStats(stats);
         let expected = "# Summary
 
-| Status        | Count |
-|---------------|-------|
-| 🔍 Total      | 1     |
-| ✅ Successful | 0     |
-| ⏳ Timeouts   | 0     |
-| 🔀 Redirected | 0     |
-| 👻 Excluded   | 0     |
-| ❓ Unknown    | 0     |
-| 🚫 Errors     | 1     |
+| Status         | Count |
+|----------------|-------|
+| 🔍 Total       | 1     |
+| ✅ Successful  | 0     |
+| ⏳ Timeouts    | 0     |
+| 🔀 Redirected  | 0     |
+| 👻 Excluded    | 0     |
+| ❓ Unknown     | 0     |
+| 🚫 Errors      | 1     |
+| ⛔ Unsupported | 0     |
 
 ## Errors per input
 
