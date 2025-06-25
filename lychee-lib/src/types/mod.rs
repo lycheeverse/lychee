@@ -14,6 +14,7 @@ mod response;
 mod status;
 mod status_code;
 pub(crate) mod uri;
+pub(crate) mod url_extractor;
 
 pub use accept::*;
 pub use base::Base;

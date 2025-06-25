@@ -1,5 +1,6 @@
 use crate::ErrorKind;
 use crate::InputSource;
+use crate::types::url_extractor::UrlExtractor;
 use crate::{
     Base, Input, Request, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
     types::FileExtensions, types::uri::raw::RawUri, utils::request,
@@ -9,7 +10,9 @@ use futures::{
     StreamExt,
     stream::{self, Stream},
 };
+use http::HeaderMap;
 use par_stream::ParStreamExt;
+use reqwest::Client;
 use std::path::PathBuf;
 
 /// Collector keeps the state of link collection
@@ -25,6 +28,7 @@ pub struct Collector {
     use_html5ever: bool,
     root_dir: Option<PathBuf>,
     base: Option<Base>,
+    headers: HeaderMap,
 }
 
 impl Default for Collector {
@@ -36,6 +40,7 @@ impl Default for Collector {
             use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
+            headers: HeaderMap::new(),
             root_dir: None,
             base: None,
         }
@@ -61,6 +66,7 @@ impl Collector {
             use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
+            headers: HeaderMap::new(),
             root_dir,
             base,
         })
@@ -84,6 +90,13 @@ impl Collector {
     #[must_use]
     pub const fn skip_ignored(mut self, yes: bool) -> Self {
         self.skip_ignored = yes;
+        self
+    }
+
+    /// Skip files that are ignored
+    #[must_use]
+    pub fn headers(mut self, headers: HeaderMap) -> Self {
+        self.headers = headers;
         self
     }
 
@@ -148,10 +161,22 @@ impl Collector {
                 let default_base = global_base.clone();
                 let extensions = extensions.clone();
                 let basic_auth_extractor = self.basic_auth_extractor.clone();
+                let headers = self.headers.clone();
                 async move {
                     let base = match &input.source {
                         InputSource::RemoteUrl(url) => Base::try_from(url.as_str()).ok(),
                         _ => default_base,
+                    };
+
+                    let client = Client::builder()
+                        .build()
+                        .map_err(ErrorKind::BuildRequestClient)
+                        .unwrap(); // TODO
+
+                    let extractor = UrlExtractor {
+                        basic_auth_extractor,
+                        headers,
+                        client,
                     };
 
                     input
@@ -160,7 +185,7 @@ impl Collector {
                             skip_hidden,
                             skip_ignored,
                             extensions,
-                            basic_auth_extractor,
+                            extractor,
                         )
                         .map(move |content| (content, base.clone()))
                 }
@@ -191,7 +216,7 @@ impl Collector {
 mod tests {
     use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
 
-    use http::{HeaderMap, StatusCode};
+    use http::StatusCode;
     use reqwest::Url;
 
     use super::*;
@@ -241,7 +266,13 @@ mod tests {
         let _file = File::create(&file_path).unwrap();
         let input = Input::new(&file_path.as_path().display().to_string(), None, true, None)?;
         let contents: Vec<_> = input
-            .get_contents(true, true, true, FileType::default_extensions(), None)
+            .get_contents(
+                true,
+                true,
+                true,
+                FileType::default_extensions(),
+                UrlExtractor::default(),
+            )
             .collect::<Vec<_>>()
             .await;
 
@@ -254,7 +285,13 @@ mod tests {
     async fn test_url_without_extension_is_html() -> Result<()> {
         let input = Input::new("https://example.com/", None, true, None)?;
         let contents: Vec<_> = input
-            .get_contents(true, true, true, FileType::default_extensions(), None)
+            .get_contents(
+                true,
+                true,
+                true,
+                FileType::default_extensions(),
+                UrlExtractor::default(),
+            )
             .collect::<Vec<_>>()
             .await;
 

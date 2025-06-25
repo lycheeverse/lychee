@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// Extract basic auth credentials for a given URL.
-pub fn extract_credentials(
+pub(crate) fn extract_credentials(
     extractor: Option<&BasicAuthExtractor>,
     uri: &Uri,
 ) -> Option<BasicAuthCredentials> {

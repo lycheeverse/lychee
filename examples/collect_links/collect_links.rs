@@ -14,13 +14,11 @@ async fn main() -> Result<()> {
             )),
             file_type_hint: None,
             excluded_paths: None,
-            headers: HeaderMap::new(),
         },
         Input {
             source: InputSource::FsPath(PathBuf::from("fixtures/TEST.md")),
             file_type_hint: None,
             excluded_paths: None,
-            headers: HeaderMap::new(),
         },
     ];
 

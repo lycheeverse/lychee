@@ -99,8 +99,6 @@ impl WebsiteChecker {
 
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, request: Request) -> Status {
-        // todo!("Handling in chain: {request:?}");
-
         let method = request.method().clone();
         match self.reqwest_client.execute(request).await {
             Ok(response) => {

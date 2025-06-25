@@ -1,14 +1,12 @@
 use super::file::FileExtensions;
-use crate::chain::Chain;
+use super::url_extractor::UrlExtractor;
 use crate::types::FileType;
-use crate::utils::request;
-use crate::{BasicAuthExtractor, ChainResult, ErrorKind, Handler, Result, Uri, utils};
+use crate::{ErrorKind, Result, utils};
 use async_stream::try_stream;
-use async_trait::async_trait;
 use futures::stream::Stream;
 use glob::glob_with;
 use ignore::WalkBuilder;
-use reqwest::{Client, Request, Url};
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
 use std::fmt::Display;
@@ -17,8 +15,6 @@ use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
 
 const STDIN: &str = "-";
-
-type RequestChain = Chain<reqwest::Request, String>;
 
 #[derive(Debug)]
 /// Encapsulates the content for a given input
@@ -225,19 +221,12 @@ impl Input {
         // If `Input` is a file path, try the given file extensions in order.
         // Stop on the first match.
         file_extensions: FileExtensions,
-        basic_auth_extractor: Option<BasicAuthExtractor>,
+        url_extractor: UrlExtractor,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             match self.source {
-                InputSource::RemoteUrl(ref url) => {
-                    let credentials = request::extract_credentials(basic_auth_extractor.as_ref(), &Uri{ url: *url.clone() });
-
-                    let chain: RequestChain= Chain::new(vec![
-                        Box::new(credentials),
-                        Box::new(self.clone()),
-                    ]);
-
-                    let content = Self::url_contents(url, chain).await;
+                InputSource::RemoteUrl(url) => {
+                    let content = url_extractor.url_contents(*url).await;
                     match content {
                         Err(_) if skip_missing => (),
                         Err(e) => Err(e)?,
@@ -333,36 +322,6 @@ impl Input {
                 InputSource::String(_) => yield "Raw String".into(),
             }
         }
-    }
-
-    async fn url_contents(url: &Url, request_chain: RequestChain) -> Result<InputContent> {
-        // Assume HTML for default paths
-        let file_type = if url.path().is_empty() || url.path() == "/" {
-            FileType::Html
-        } else {
-            FileType::from(url.as_str())
-        };
-
-        // TODO: Don't create a new Client for every call
-        let request = Client::builder()
-            .build()
-            .map_err(ErrorKind::BuildRequestClient)?
-            .request(reqwest::Method::GET, url.clone())
-            .build()
-            .map_err(ErrorKind::BuildRequestClient)?;
-
-        let content = match request_chain.traverse(request).await {
-            ChainResult::Next(_) => todo!(),
-            ChainResult::Done(r) => r,
-        };
-
-        let input_content = InputContent {
-            source: InputSource::RemoteUrl(Box::new(url.clone())),
-            file_type,
-            content,
-        };
-
-        Ok(input_content)
     }
 
     fn glob_contents(
@@ -464,26 +423,6 @@ fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
         }
     }
     false
-}
-
-#[async_trait]
-impl Handler<Request, String> for Input {
-    async fn handle(&mut self, input: Request) -> ChainResult<Request, String> {
-        let client = reqwest::Client::new();
-
-        let result = client
-            .execute(input)
-            .await
-            .map_err(ErrorKind::NetworkRequest)
-            .expect("todo") // todo
-            .text()
-            .await
-            .map_err(ErrorKind::ReadResponseBody)
-            .expect("todo"); // todo
-        // .headers(headers.clone()) // todo: add headers again
-
-        ChainResult::Done(result)
-    }
 }
 
 #[cfg(test)]

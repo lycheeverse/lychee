@@ -336,7 +336,6 @@ impl LycheeOptions {
         } else {
             Some(self.config.exclude_path.clone())
         };
-        let headers = HeaderMap::from_header_pairs(&self.config.header)?;
 
         self.raw_inputs
             .iter()
