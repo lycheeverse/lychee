@@ -1622,7 +1622,7 @@ mod cli {
     #[test]
     fn test_prevent_too_many_redirects() -> Result<()> {
         let mut cmd = main_command();
-        let url = "https://httpstat.us/308";
+        let url = "https://http.codes/308";
 
         cmd.write_stdin(url)
             .arg("--max-redirects")
