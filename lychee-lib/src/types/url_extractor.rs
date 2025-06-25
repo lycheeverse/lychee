@@ -57,7 +57,7 @@ impl UrlExtractor {
 #[async_trait]
 impl Handler<Request, Result<String>> for UrlExtractor {
     async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Result<String>> {
-        *request.headers_mut() = self.headers.clone();
+        request.headers_mut().extend(self.headers.clone());
         ChainResult::Done(execute_request(&self.client, request).await)
     }
 }
