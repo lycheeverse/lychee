@@ -4,7 +4,7 @@ use crate::utils::request;
 use crate::{BasicAuthExtractor, ChainResult, ErrorKind, Handler, Result, Uri};
 use async_trait::async_trait;
 use http::HeaderMap;
-use reqwest::{Request, Url};
+use reqwest::{Client, Request, Url};
 
 #[derive(Debug, Default, Clone)]
 pub struct UrlExtractor {
@@ -13,7 +13,7 @@ pub struct UrlExtractor {
     pub client: reqwest::Client,
 }
 
-type RequestChain = Chain<reqwest::Request, String>;
+type RequestChain = Chain<reqwest::Request, Result<String>>;
 
 impl UrlExtractor {
     pub async fn url_contents(&self, url: Url) -> Result<InputContent> {
@@ -38,9 +38,11 @@ impl UrlExtractor {
             .map_err(ErrorKind::BuildRequestClient)?;
 
         let content = match chain.traverse(request).await {
-            ChainResult::Next(_) => todo!(),
+            ChainResult::Next(_) => unreachable!(
+                "ChainResult::Done is unconditionally returned from the last chain element"
+            ),
             ChainResult::Done(r) => r,
-        };
+        }?;
 
         let input_content = InputContent {
             source: InputSource::RemoteUrl(Box::new(url.clone())),
@@ -53,21 +55,19 @@ impl UrlExtractor {
 }
 
 #[async_trait]
-impl Handler<Request, String> for UrlExtractor {
-    async fn handle(&mut self, mut input: Request) -> ChainResult<Request, String> {
-        *input.headers_mut() = self.headers.clone();
-
-        let result = self
-            .client
-            .execute(input)
-            .await
-            .map_err(ErrorKind::NetworkRequest)
-            .expect("todo") // todo
-            .text()
-            .await
-            .map_err(ErrorKind::ReadResponseBody)
-            .expect("todo"); // todo
-
-        ChainResult::Done(result)
+impl Handler<Request, Result<String>> for UrlExtractor {
+    async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Result<String>> {
+        *request.headers_mut() = self.headers.clone();
+        ChainResult::Done(execute_request(&self.client, request).await)
     }
+}
+
+async fn execute_request(client: &Client, request: Request) -> Result<String> {
+    Ok(client
+        .execute(request)
+        .await
+        .map_err(ErrorKind::NetworkRequest)?
+        .text()
+        .await
+        .map_err(ErrorKind::ReadResponseBody)?)
 }
