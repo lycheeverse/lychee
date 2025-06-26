@@ -1,12 +1,10 @@
 FROM alpine:latest AS builder
 WORKDIR /builder
-
 ARG LYCHEE_VERSION="latest"
-
 RUN apk add --no-cache ca-certificates jq wget \
     && ARCH=$(case $(arch) in \
         "x86_64") echo "x86_64-unknown-linux-musl";; \
-        "aarch64") echo "arm-unknown-linux-musleabihf";; \
+        "aarch64") echo "aarch64-unknown-linux-gnu";; \
         *) echo "Unsupported architecture" && exit 1;; \
         esac) \
     && BASE_URL=$(case $LYCHEE_VERSION in \
@@ -20,7 +18,6 @@ FROM alpine:latest
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S lychee \
     && adduser -D -G lychee -S lychee
-
 COPY --from=builder /builder/lychee /usr/local/bin/lychee
 # Run as non-root user
 USER lychee
