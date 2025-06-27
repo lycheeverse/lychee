@@ -314,7 +314,6 @@ or inline like `https://bar.org` for instance.
     }
 
     #[test]
-    #[ignore]
     fn test_skip_verbatim_html() {
         let input = "
 <code>

@@ -464,12 +464,7 @@ mod tests {
         assert_eq!(uris, expected);
     }
 
-    // TODO: This test is currently failing because we don't handle nested
-    // verbatim elements of the same type correctly. The first closing tag will
-    // lift the verbatim flag. This is a known issue and could be handled by
-    // keeping a stack of verbatim flags.
     #[test]
-    #[ignore]
     fn test_include_verbatim_nested_identical() {
         const HTML_INPUT: &str = r#"
         <pre>
