@@ -14,7 +14,7 @@ pub struct UrlContentResolver {
     pub client: reqwest::Client,
 }
 
-type RequestChain = Chain<reqwest::Request, Result<String>>;
+type RequestChain = Chain<Request, Result<String>>;
 
 impl UrlContentResolver {
     /// Fetch remote content by URL.

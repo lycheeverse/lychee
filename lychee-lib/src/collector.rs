@@ -41,9 +41,9 @@ impl Default for Collector {
             use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
-            headers: HeaderMap::new(),
             root_dir: None,
             base: None,
+            headers: HeaderMap::new(),
             client: Client::new(),
         }
     }
@@ -98,10 +98,17 @@ impl Collector {
         self
     }
 
-    /// Skip files that are ignored
+    /// Set headers to use when resolving input URLs
     #[must_use]
     pub fn headers(mut self, headers: HeaderMap) -> Self {
         self.headers = headers;
+        self
+    }
+
+    /// Set client to use when resolving input URLs
+    #[must_use]
+    pub fn client(mut self, client: Client) -> Self {
+        self.client = client;
         self
     }
 
