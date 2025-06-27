@@ -1,6 +1,6 @@
 use crate::ErrorKind;
 use crate::InputSource;
-use crate::types::url_extractor::UrlExtractor;
+use crate::types::resolver::UrlContentResolver;
 use crate::{
     Base, Input, Request, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
     types::FileExtensions, types::uri::raw::RawUri, utils::request,
@@ -29,6 +29,7 @@ pub struct Collector {
     root_dir: Option<PathBuf>,
     base: Option<Base>,
     headers: HeaderMap,
+    client: Client,
 }
 
 impl Default for Collector {
@@ -43,6 +44,7 @@ impl Default for Collector {
             headers: HeaderMap::new(),
             root_dir: None,
             base: None,
+            client: Client::new(),
         }
     }
 }
@@ -67,6 +69,9 @@ impl Collector {
             skip_hidden: true,
             skip_ignored: true,
             headers: HeaderMap::new(),
+            client: Client::builder()
+                .build()
+                .map_err(ErrorKind::BuildRequestClient)?,
             root_dir,
             base,
         })
@@ -154,29 +159,23 @@ impl Collector {
         let skip_hidden = self.skip_hidden;
         let skip_ignored = self.skip_ignored;
         let global_base = self.base;
-        let basic_auth_extractor = self.basic_auth_extractor.clone(); // TODO: not as ugly
+
+        let resolver = UrlContentResolver {
+            basic_auth_extractor: self.basic_auth_extractor.clone(),
+            headers: self.headers.clone(),
+            client: self.client,
+        };
 
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {
                 let default_base = global_base.clone();
                 let extensions = extensions.clone();
-                let basic_auth_extractor = self.basic_auth_extractor.clone();
-                let headers = self.headers.clone();
+                let resolver = resolver.clone();
+
                 async move {
                     let base = match &input.source {
                         InputSource::RemoteUrl(url) => Base::try_from(url.as_str()).ok(),
                         _ => default_base,
-                    };
-
-                    let client = Client::builder()
-                        .build()
-                        .map_err(ErrorKind::BuildRequestClient)
-                        .unwrap(); // TODO
-
-                    let extractor = UrlExtractor {
-                        basic_auth_extractor,
-                        headers,
-                        client,
                     };
 
                     input
@@ -185,7 +184,7 @@ impl Collector {
                             skip_hidden,
                             skip_ignored,
                             extensions,
-                            extractor,
+                            resolver,
                         )
                         .map(move |content| (content, base.clone()))
                 }
@@ -193,7 +192,7 @@ impl Collector {
             .flatten()
             .par_then_unordered(None, move |(content, base)| {
                 let root_dir = self.root_dir.clone();
-                let basic_auth_extractor = basic_auth_extractor.clone();
+                let basic_auth_extractor = self.basic_auth_extractor.clone();
                 async move {
                     let content = content?;
                     let extractor = Extractor::new(self.use_html5ever, self.include_verbatim);
@@ -271,7 +270,7 @@ mod tests {
                 true,
                 true,
                 FileType::default_extensions(),
-                UrlExtractor::default(),
+                UrlContentResolver::default(),
             )
             .collect::<Vec<_>>()
             .await;
@@ -290,7 +289,7 @@ mod tests {
                 true,
                 true,
                 FileType::default_extensions(),
-                UrlExtractor::default(),
+                UrlContentResolver::default(),
             )
             .collect::<Vec<_>>()
             .await;

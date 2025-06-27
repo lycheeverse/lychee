@@ -1,4 +1,3 @@
-use http::HeaderMap;
 use lychee_lib::{Collector, Input, InputSource, Result};
 use reqwest::Url;
 use std::path::PathBuf;

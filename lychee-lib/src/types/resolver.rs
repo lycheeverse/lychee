@@ -6,8 +6,9 @@ use async_trait::async_trait;
 use http::HeaderMap;
 use reqwest::{Client, Request, Url};
 
+/// Structure to fetch remote content.
 #[derive(Debug, Default, Clone)]
-pub struct UrlExtractor {
+pub struct UrlContentResolver {
     pub basic_auth_extractor: Option<BasicAuthExtractor>,
     pub headers: HeaderMap,
     pub client: reqwest::Client,
@@ -15,7 +16,10 @@ pub struct UrlExtractor {
 
 type RequestChain = Chain<reqwest::Request, Result<String>>;
 
-impl UrlExtractor {
+impl UrlContentResolver {
+    /// Fetch remote content by URL.
+    /// This method is not intended to check if a URL is functional but
+    /// to get a URL's content and process the content.
     pub async fn url_contents(&self, url: Url) -> Result<InputContent> {
         // Assume HTML for default paths
         let file_type = if url.path().is_empty() || url.path() == "/" {
@@ -55,7 +59,7 @@ impl UrlExtractor {
 }
 
 #[async_trait]
-impl Handler<Request, Result<String>> for UrlExtractor {
+impl Handler<Request, Result<String>> for UrlContentResolver {
     async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Result<String>> {
         request.headers_mut().extend(self.headers.clone());
         ChainResult::Done(execute_request(&self.client, request).await)
@@ -63,11 +67,11 @@ impl Handler<Request, Result<String>> for UrlExtractor {
 }
 
 async fn execute_request(client: &Client, request: Request) -> Result<String> {
-    Ok(client
+    client
         .execute(request)
         .await
         .map_err(ErrorKind::NetworkRequest)?
         .text()
         .await
-        .map_err(ErrorKind::ReadResponseBody)?)
+        .map_err(ErrorKind::ReadResponseBody)
 }

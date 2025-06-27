@@ -1,5 +1,5 @@
 use super::file::FileExtensions;
-use super::url_extractor::UrlExtractor;
+use super::resolver::UrlContentResolver;
 use crate::types::FileType;
 use crate::{ErrorKind, Result, utils};
 use async_stream::try_stream;
@@ -221,12 +221,12 @@ impl Input {
         // If `Input` is a file path, try the given file extensions in order.
         // Stop on the first match.
         file_extensions: FileExtensions,
-        url_extractor: UrlExtractor,
+        resolver: UrlContentResolver,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             match self.source {
                 InputSource::RemoteUrl(url) => {
-                    let content = url_extractor.url_contents(*url).await;
+                    let content = resolver.url_contents(*url).await;
                     match content {
                         Err(_) if skip_missing => (),
                         Err(e) => Err(e)?,
