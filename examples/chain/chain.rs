@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
         .client()?;
 
     let result = client.check("https://wikipedia.org/home").await;
-    println!("{:?}", result);
+    println!("{result:?}");
 
     Ok(())
 }

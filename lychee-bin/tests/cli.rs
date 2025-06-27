@@ -998,7 +998,7 @@ mod cli {
 
         // Ensure clean state
         if cache_file.exists() {
-            println!("Removing cache file before test: {:?}", cache_file);
+            println!("Removing cache file before test: {cache_file:?}");
             fs::remove_file(&cache_file)?;
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
@@ -1041,7 +1041,7 @@ mod cli {
 
         // Check cache contents
         let data = fs::read_to_string(&cache_file)?;
-        println!("Cache file contents: {}", data);
+        println!("Cache file contents: {data}");
 
         assert!(
             data.contains(&format!("{}/,200", mock_server_ok.uri())),

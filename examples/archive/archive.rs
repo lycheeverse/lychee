@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .await?;
 
     if let Some(replacement) = result {
-        println!("Good news! {} can be replaced with {}", url, replacement);
+        println!("Good news! {url} can be replaced with {replacement}");
     }
 
     Ok(())
