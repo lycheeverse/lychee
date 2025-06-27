@@ -1,5 +1,6 @@
 use crate::ErrorKind;
 use crate::InputSource;
+use crate::types::resolver::UrlContentResolver;
 use crate::{
     Base, Input, Request, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
     types::FileExtensions, types::uri::raw::RawUri, utils::request,
@@ -9,7 +10,9 @@ use futures::{
     StreamExt,
     stream::{self, Stream},
 };
+use http::HeaderMap;
 use par_stream::ParStreamExt;
+use reqwest::Client;
 use std::path::PathBuf;
 
 /// Collector keeps the state of link collection
@@ -25,9 +28,15 @@ pub struct Collector {
     use_html5ever: bool,
     root_dir: Option<PathBuf>,
     base: Option<Base>,
+    headers: HeaderMap,
+    client: Client,
 }
 
 impl Default for Collector {
+    /// # Panics
+    ///
+    /// We call `Client::new()` which can panic in certain scenarios.
+    /// Use `Collector::new()` to handle `ClientBuilder` errors gracefully.
     fn default() -> Self {
         Collector {
             basic_auth_extractor: None,
@@ -38,6 +47,8 @@ impl Default for Collector {
             skip_ignored: true,
             root_dir: None,
             base: None,
+            headers: HeaderMap::new(),
+            client: Client::new(),
         }
     }
 }
@@ -61,6 +72,10 @@ impl Collector {
             use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
+            headers: HeaderMap::new(),
+            client: Client::builder()
+                .build()
+                .map_err(ErrorKind::BuildRequestClient)?,
             root_dir,
             base,
         })
@@ -84,6 +99,20 @@ impl Collector {
     #[must_use]
     pub const fn skip_ignored(mut self, yes: bool) -> Self {
         self.skip_ignored = yes;
+        self
+    }
+
+    /// Set headers to use when resolving input URLs
+    #[must_use]
+    pub fn headers(mut self, headers: HeaderMap) -> Self {
+        self.headers = headers;
+        self
+    }
+
+    /// Set client to use for checking input URLs
+    #[must_use]
+    pub fn client(mut self, client: Client) -> Self {
+        self.client = client;
         self
     }
 
@@ -141,17 +170,33 @@ impl Collector {
         let skip_hidden = self.skip_hidden;
         let skip_ignored = self.skip_ignored;
         let global_base = self.base;
+
+        let resolver = UrlContentResolver {
+            basic_auth_extractor: self.basic_auth_extractor.clone(),
+            headers: self.headers.clone(),
+            client: self.client,
+        };
+
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {
                 let default_base = global_base.clone();
                 let extensions = extensions.clone();
+                let resolver = resolver.clone();
+
                 async move {
                     let base = match &input.source {
                         InputSource::RemoteUrl(url) => Base::try_from(url.as_str()).ok(),
                         _ => default_base,
                     };
+
                     input
-                        .get_contents(skip_missing_inputs, skip_hidden, skip_ignored, extensions)
+                        .get_contents(
+                            skip_missing_inputs,
+                            skip_hidden,
+                            skip_ignored,
+                            extensions,
+                            resolver,
+                        )
                         .map(move |content| (content, base.clone()))
                 }
             })
@@ -181,7 +226,7 @@ impl Collector {
 mod tests {
     use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
 
-    use http::{HeaderMap, StatusCode};
+    use http::StatusCode;
     use reqwest::Url;
 
     use super::*;
@@ -229,15 +274,15 @@ mod tests {
         // Treat as plaintext file (no extension)
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path).unwrap();
-        let input = Input::new(
-            &file_path.as_path().display().to_string(),
-            None,
-            true,
-            None,
-            HeaderMap::new(),
-        )?;
+        let input = Input::new(&file_path.as_path().display().to_string(), None, true, None)?;
         let contents: Vec<_> = input
-            .get_contents(true, true, true, FileType::default_extensions())
+            .get_contents(
+                true,
+                true,
+                true,
+                FileType::default_extensions(),
+                UrlContentResolver::default(),
+            )
             .collect::<Vec<_>>()
             .await;
 
@@ -248,9 +293,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
-        let input = Input::new("https://example.com/", None, true, None, HeaderMap::new())?;
+        let input = Input::new("https://example.com/", None, true, None)?;
         let contents: Vec<_> = input
-            .get_contents(true, true, true, FileType::default_extensions())
+            .get_contents(
+                true,
+                true,
+                true,
+                FileType::default_extensions(),
+                UrlContentResolver::default(),
+            )
             .collect::<Vec<_>>()
             .await;
 
@@ -283,7 +334,6 @@ mod tests {
                 source: InputSource::String(TEST_STRING.to_owned()),
                 file_type_hint: None,
                 excluded_paths: None,
-                headers: HeaderMap::new(),
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
@@ -293,13 +343,11 @@ mod tests {
                 )),
                 file_type_hint: None,
                 excluded_paths: None,
-                headers: HeaderMap::new(),
             },
             Input {
                 source: InputSource::FsPath(file_path),
                 file_type_hint: None,
                 excluded_paths: None,
-                headers: HeaderMap::new(),
             },
             Input {
                 source: InputSource::FsGlob {
@@ -308,7 +356,6 @@ mod tests {
                 },
                 file_type_hint: None,
                 excluded_paths: None,
-                headers: HeaderMap::new(),
             },
         ];
 
@@ -337,7 +384,6 @@ mod tests {
             source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
             file_type_hint: Some(FileType::Markdown),
             excluded_paths: None,
-            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -364,7 +410,6 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
-            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -394,7 +439,6 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
-            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -421,7 +465,6 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Markdown),
             excluded_paths: None,
-            headers: HeaderMap::new(),
         };
 
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
@@ -445,7 +488,6 @@ mod tests {
             source: InputSource::String(input),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
-            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -478,7 +520,6 @@ mod tests {
             source: InputSource::RemoteUrl(Box::new(server_uri.clone())),
             file_type_hint: None,
             excluded_paths: None,
-            headers: HeaderMap::new(),
         };
 
         let links = collect(vec![input], None, None).await.ok().unwrap();
@@ -499,7 +540,6 @@ mod tests {
             ),
             file_type_hint: None,
             excluded_paths: None,
-            headers: HeaderMap::new(),
         };
         let links = collect(vec![input], None, None).await.ok().unwrap();
 
@@ -530,7 +570,6 @@ mod tests {
                 )),
                 file_type_hint: Some(FileType::Html),
                 excluded_paths: None,
-                headers: HeaderMap::new(),
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
@@ -542,7 +581,6 @@ mod tests {
                 )),
                 file_type_hint: Some(FileType::Html),
                 excluded_paths: None,
-                headers: HeaderMap::new(),
             },
         ];
 
@@ -571,14 +609,13 @@ mod tests {
             source: InputSource::String(
                 r#"
                 <a href="index.html">Index</a>
-                <a href="about.html">About</a> 
-                <a href="/another.html">Another</a> 
+                <a href="about.html">About</a>
+                <a href="/another.html">Another</a>
             "#
                 .into(),
             ),
             file_type_hint: Some(FileType::Html),
             excluded_paths: None,
-            headers: HeaderMap::new(),
         };
 
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();

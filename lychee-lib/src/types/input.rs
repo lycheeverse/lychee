@@ -1,9 +1,10 @@
+use super::file::FileExtensions;
+use super::resolver::UrlContentResolver;
 use crate::types::FileType;
 use crate::{ErrorKind, Result, utils};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
-use http::HeaderMap;
 use ignore::WalkBuilder;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
@@ -12,8 +13,6 @@ use std::fmt::Display;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
-
-use super::file::FileExtensions;
 
 const STDIN: &str = "-";
 
@@ -110,8 +109,6 @@ pub struct Input {
     pub file_type_hint: Option<FileType>,
     /// Excluded paths that will be skipped when reading content
     pub excluded_paths: Option<Vec<PathBuf>>,
-    /// Custom headers to be used when fetching remote URLs
-    pub headers: reqwest::header::HeaderMap,
 }
 
 impl Input {
@@ -128,7 +125,6 @@ impl Input {
         file_type_hint: Option<FileType>,
         glob_ignore_case: bool,
         excluded_paths: Option<Vec<PathBuf>>,
-        headers: reqwest::header::HeaderMap,
     ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
@@ -194,7 +190,6 @@ impl Input {
             source,
             file_type_hint,
             excluded_paths,
-            headers,
         })
     }
 
@@ -205,7 +200,7 @@ impl Input {
     /// Returns an error if the input does not exist (i.e. invalid path)
     /// and the input cannot be parsed as a URL.
     pub fn from_value(value: &str) -> Result<Self> {
-        Self::new(value, None, false, None, HeaderMap::new())
+        Self::new(value, None, false, None)
     }
 
     /// Retrieve the contents from the input
@@ -226,11 +221,12 @@ impl Input {
         // If `Input` is a file path, try the given file extensions in order.
         // Stop on the first match.
         file_extensions: FileExtensions,
+        resolver: UrlContentResolver,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             match self.source {
-                InputSource::RemoteUrl(ref url) => {
-                    let content = Self::url_contents(url, &self.headers).await;
+                InputSource::RemoteUrl(url) => {
+                    let content = resolver.url_contents(*url).await;
                     match content {
                         Err(_) if skip_missing => (),
                         Err(e) => Err(e)?,
@@ -326,31 +322,6 @@ impl Input {
                 InputSource::String(_) => yield "Raw String".into(),
             }
         }
-    }
-
-    async fn url_contents(url: &Url, headers: &HeaderMap) -> Result<InputContent> {
-        // Assume HTML for default paths
-        let file_type = if url.path().is_empty() || url.path() == "/" {
-            FileType::Html
-        } else {
-            FileType::from(url.as_str())
-        };
-
-        let client = reqwest::Client::new();
-
-        let res = client
-            .get(url.clone())
-            .headers(headers.clone())
-            .send()
-            .await
-            .map_err(ErrorKind::NetworkRequest)?;
-        let input_content = InputContent {
-            source: InputSource::RemoteUrl(Box::new(url.clone())),
-            file_type,
-            content: res.text().await.map_err(ErrorKind::ReadResponseBody)?,
-        };
-
-        Ok(input_content)
     }
 
     fn glob_contents(
@@ -456,8 +427,6 @@ fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use http::HeaderMap;
-
     use super::*;
 
     #[test]
@@ -468,7 +437,7 @@ mod tests {
         assert!(path.exists());
         assert!(path.is_relative());
 
-        let input = Input::new(test_file, None, false, None, HeaderMap::new());
+        let input = Input::new(test_file, None, false, None);
         assert!(input.is_ok());
         assert!(matches!(
             input,
@@ -476,7 +445,6 @@ mod tests {
                 source: InputSource::FsPath(PathBuf { .. }),
                 file_type_hint: None,
                 excluded_paths: None,
-                headers: _,
             })
         ));
     }
