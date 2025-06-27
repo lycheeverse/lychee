@@ -18,14 +18,14 @@ type RequestChain = Chain<Request, Result<String>>;
 
 impl UrlContentResolver {
     /// Fetch remote content by URL.
+    ///
     /// This method is not intended to check if a URL is functional but
     /// to get a URL's content and process the content.
     pub async fn url_contents(&self, url: Url) -> Result<InputContent> {
         // Assume HTML for default paths
-        let file_type = if url.path().is_empty() || url.path() == "/" {
-            FileType::Html
-        } else {
-            FileType::from(url.as_str())
+        let file_type = match url.path() {
+            path if path.is_empty() || path == "/" => FileType::Html,
+            _ => FileType::from(url.as_str()),
         };
 
         let credentials = request::extract_credentials(
@@ -62,11 +62,11 @@ impl UrlContentResolver {
 impl Handler<Request, Result<String>> for UrlContentResolver {
     async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Result<String>> {
         request.headers_mut().extend(self.headers.clone());
-        ChainResult::Done(execute_request(&self.client, request).await)
+        ChainResult::Done(get_request_body_text(&self.client, request).await)
     }
 }
 
-async fn execute_request(client: &Client, request: Request) -> Result<String> {
+async fn get_request_body_text(client: &Client, request: Request) -> Result<String> {
     client
         .execute(request)
         .await

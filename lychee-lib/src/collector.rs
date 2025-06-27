@@ -105,7 +105,7 @@ impl Collector {
         self
     }
 
-    /// Set client to use when resolving input URLs
+    /// Set client to use for checking input URLs
     #[must_use]
     pub fn client(mut self, client: Client) -> Self {
         self.client = client;
