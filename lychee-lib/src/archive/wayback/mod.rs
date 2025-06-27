@@ -148,12 +148,12 @@ mod tests {
         Ok(())
     }
 
-    #[ignore]
+    #[ignore = "
+        It is flaky because the API does not reliably return snapshots,
+        i.e. the `archived_snapshots` field is unreliable.
+        That's why the test is ignored. For development and documentation this test is still useful."]
     #[tokio::test]
     /// This tests the real Wayback API without any mocks.
-    /// It is flaky because the API does not reliably return snapshots,
-    /// i.e. the `archived_snapshots` field is unreliable.
-    /// That's why the test is ignored. For development and documentation this test is still useful.
     async fn wayback_suggestion_real() -> Result<(), Box<dyn StdError>> {
         let url = &"https://example.com".try_into()?;
         let response = get_archive_snapshot(url, TIMEOUT).await?;
