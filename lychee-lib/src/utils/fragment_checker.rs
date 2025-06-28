@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet, hash_map::Entry},
     path::Path,
     sync::Arc,
@@ -67,7 +68,17 @@ impl FragmentChecker {
         if fragment.is_empty() || fragment.eq_ignore_ascii_case("top") {
             return Ok(true);
         }
-        let mut fragment_decoded = percent_decode_str(fragment).decode_utf8()?;
+        let mut fragment_candidates = vec![Cow::Borrowed(fragment)];
+        // For GitHub links, add "user-content-" prefix to the fragments.
+        // The following cases cannot be handled unless we simulate with a headless browser:
+        // - markdown files from any specific path (includes "blob/master/README.md")
+        // - "issuecomment" fragments from the GitHub issue pages
+        if url
+            .host_str()
+            .is_some_and(|host| host.ends_with("github.com"))
+        {
+            fragment_candidates.push(Cow::Owned(format!("user-content-{fragment}")));
+        }
         let url_without_frag = Self::remove_fragment(url.clone());
 
         let FragmentInput { content, file_type } = input;
@@ -76,20 +87,31 @@ impl FragmentChecker {
             FileType::Html => extract_html_fragments,
             FileType::Plaintext => return Ok(true),
         };
-        if file_type == FileType::Markdown {
-            fragment_decoded = fragment_decoded.to_lowercase().into();
+
+        let mut all_fragments = Vec::with_capacity(2 * fragment_candidates.len());
+        for fragment in &fragment_candidates {
+            let mut fragment_decoded = percent_decode_str(fragment).decode_utf8()?;
+            if file_type == FileType::Markdown {
+                fragment_decoded = fragment_decoded.to_lowercase().into();
+            }
+            all_fragments.push(fragment_decoded);
         }
+        all_fragments.extend(fragment_candidates.iter().cloned());
+
         match self.cache.lock().await.entry(url_without_frag) {
             Entry::Vacant(entry) => {
                 let file_frags = extractor(&content);
-                let contains_fragment =
-                    file_frags.contains(fragment) || file_frags.contains(&fragment_decoded as &str);
+                let contains_fragment = all_fragments
+                    .iter()
+                    .any(|frag| file_frags.contains(frag.as_ref()));
                 entry.insert(file_frags);
                 Ok(contains_fragment)
             }
             Entry::Occupied(entry) => {
-                Ok(entry.get().contains(fragment)
-                    || entry.get().contains(&fragment_decoded as &str))
+                let file_frags = entry.get();
+                Ok(all_fragments
+                    .iter()
+                    .any(|frag| file_frags.contains(frag.as_ref())))
             }
         }
     }
