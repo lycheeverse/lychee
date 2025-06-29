@@ -105,63 +105,111 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     async fn check_path(&self, path: &Path, uri: &Uri) -> Status {
-        if path.exists() {
-            return self.check_existing_path(path, uri).await;
+        let file_path = self.resolve_file_path(path);
+        let has_fragment = uri.url.fragment().is_some_and(|x| !x.is_empty());
+
+        // If file_path exists, check this file
+        if file_path.is_some() {
+            return self.check_file(&file_path.unwrap(), uri).await;
         }
-
-        self.check_with_fallback_extensions(path, uri).await
-    }
-
-    /// Checks an existing path, optionally verifying fragments for HTML files.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - The path to check.
-    /// * `uri` - The original URI, used for error reporting.
-    ///
-    /// # Returns
-    ///
-    /// Returns a `Status` indicating the result of the check.
-    async fn check_existing_path(&self, path: &Path, uri: &Uri) -> Status {
-        // Only files can contain content with fragments.
-        // Skip if the uri doesn't have the fragment.
-        if self.include_fragments
-            && path.is_file()
-            && uri.url.fragment().is_some_and(|x| !x.is_empty())
-        {
-            self.check_fragment(path, uri).await
-        } else {
-            Status::Ok(StatusCode::OK)
-        }
-    }
-
-    /// Attempts to find a file by trying different extensions specified in `fallback_extensions`.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - The original path to check.
-    /// * `uri` - The original URI, used for error reporting.
-    ///
-    /// # Returns
-    ///
-    /// Returns a `Status` indicating the result of the check.
-    async fn check_with_fallback_extensions(&self, path: &Path, uri: &Uri) -> Status {
-        let mut path_buf = path.to_path_buf();
-
-        // If the path already has an extension, try it first
-        if path_buf.extension().is_some() && path_buf.exists() {
-            return self.check_existing_path(&path_buf, uri).await;
-        }
-
-        // Try fallback extensions
-        for ext in &self.fallback_extensions {
-            path_buf.set_extension(ext);
-            if path_buf.exists() {
-                return self.check_existing_path(&path_buf, uri).await;
-            }
+        // If path is a directory, and we cannot find an index file inside it,
+        // and we don't have a fragment, just return success. This is for
+        // backward compatibility.
+        else if path.is_dir() && !has_fragment {
+            return Status::Ok(StatusCode::OK);
         }
 
         ErrorKind::InvalidFilePath(uri.clone()).into()
+    }
+
+    /// Resolves a path to an actual file, applying fallback extensions and directory index resolution.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to resolve.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(PathBuf)` with the resolved file path, or `None` if no valid file is found.
+    fn resolve_file_path(&self, path: &Path) -> Option<PathBuf> {
+        // If it's already a file, use it directly
+        if path.is_file() {
+            return Some(path.to_path_buf());
+        }
+
+        // Try fallback extensions
+        let mut path_buf = path.to_path_buf();
+        for ext in &self.fallback_extensions {
+            path_buf.set_extension(ext);
+            if path_buf.exists() && path_buf.is_file() {
+                return Some(path_buf);
+            }
+        }
+
+        // If it's a directory, try to find an index file
+        if path.is_dir() {
+            return self.get_index_file_path(path);
+        }
+
+        None
+    }
+
+    /// Tries to find an index file in the given directory, returning the first match.
+    ///
+    /// Searches for `index.{ext}` files using fallback extensions, defaulting to `index.html`
+    /// if no fallback extensions are configured. This encapsulates both the "index" filename
+    /// convention and the extension resolution logic.
+    ///
+    /// # Arguments
+    ///
+    /// * `dir_path` - The directory to search for index files
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(PathBuf)` pointing to the first existing index file, or `None` if no index file is found.
+    fn get_index_file_path(&self, dir_path: &Path) -> Option<PathBuf> {
+        // In this function, we hardcode the filename `index` and the extension
+        // `.html` since `index.html` is the most common scenario when serving a
+        // page from a directory. However, various servers may support other
+        // filenames and extensions, such as `README.md`. We could enhance this by
+        // giving users the option to configure the index filename and extension.
+
+        let extensions_to_try = if self.fallback_extensions.is_empty() {
+            vec!["html".to_string()]
+        } else {
+            self.fallback_extensions.clone()
+        };
+
+        for ext in &extensions_to_try {
+            let index_path = dir_path.join(format!("index.{ext}"));
+            if index_path.is_file() {
+                return Some(index_path);
+            }
+        }
+        None
+    }
+
+    /// Checks a resolved file, optionally verifying fragments for HTML files.
+    ///
+    /// # Arguments
+    ///
+    /// * `file_path` - The resolved file path to check.
+    /// * `uri` - The original URI, used for error reporting.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Status` indicating the result of the check.
+    async fn check_file(&self, file_path: &Path, uri: &Uri) -> Status {
+        if !file_path.is_file() {
+            return ErrorKind::InvalidFilePath(uri.clone()).into();
+        }
+
+        // Check if we need to verify fragments
+        if self.include_fragments && uri.url.fragment().is_some_and(|x| !x.is_empty()) {
+            self.check_fragment(file_path, uri).await
+        } else {
+            Status::Ok(StatusCode::OK)
+        }
     }
 
     /// Checks for the existence of a fragment in an HTML file.

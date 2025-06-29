@@ -1907,6 +1907,24 @@ mod cli {
             .stdout(contains("0 Errors"));
     }
 
+    #[test]
+    fn test_fragments_fallback_extensions() {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("fragments-fallback-extensions");
+
+        cmd.arg("--include-fragments")
+            .arg("--fallback-extensions=html")
+            .arg("--no-progress")
+            .arg("--offline")
+            .arg("-v")
+            .arg(input)
+            .assert()
+            .failure()
+            .stdout(contains("3 Total"))
+            .stdout(contains("1 OK"))
+            .stdout(contains("2 Errors"));
+    }
+
     /// Test relative paths
     ///
     /// Imagine a web server hosting a site with the following structure:
