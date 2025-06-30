@@ -753,6 +753,7 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 - https://github.com/gradle/gradle
 - https://github.com/forus-labs/forui
 - https://github.com/FreeBSD-Ask/FreeBSD-Ask
+- https://github.com/prosekit/prosekit
 - https://github.com/lycheeverse/lychee (yes, the lychee docs are checked with lychee 🤯)
 
 If you are using lychee for your project, **please add it here**.
