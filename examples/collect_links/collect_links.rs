@@ -1,4 +1,3 @@
-use http::HeaderMap;
 use lychee_lib::{Collector, Input, InputSource, Result};
 use reqwest::Url;
 use std::path::PathBuf;
@@ -14,13 +13,11 @@ async fn main() -> Result<()> {
             )),
             file_type_hint: None,
             excluded_paths: None,
-            headers: HeaderMap::new(),
         },
         Input {
             source: InputSource::FsPath(PathBuf::from("fixtures/TEST.md")),
             file_type_hint: None,
             excluded_paths: None,
-            headers: HeaderMap::new(),
         },
     ];
 
