@@ -13,11 +13,7 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use std::{
-    collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use http::{
     StatusCode,
@@ -34,7 +30,10 @@ use typed_builder::TypedBuilder;
 use crate::{
     Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
     chain::RequestChain,
-    checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
+    checker::{
+        file::FileChecker, mail::MailChecker, redirect_tracker::RedirectTracker,
+        website::WebsiteChecker,
+    },
     filter::{Excludes, Filter, Includes},
     remap::Remaps,
     types::DEFAULT_ACCEPTED_STATUS_CODES,
@@ -335,7 +334,7 @@ impl ClientBuilder {
             HeaderValue::from_static("chunked"),
         );
 
-        let redirect_map = Arc::new(Mutex::new(HashMap::new()));
+        let redirect_tracker = RedirectTracker::new();
 
         let mut builder = reqwest::ClientBuilder::new()
             .gzip(true)
@@ -343,7 +342,10 @@ impl ClientBuilder {
             .danger_accept_invalid_certs(self.allow_insecure)
             .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
             .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
-            .redirect(redirect_policy(redirect_map.clone(), self.max_redirects));
+            .redirect(redirect_policy(
+                redirect_tracker.clone(),
+                self.max_redirects,
+            ));
 
         if let Some(cookie_jar) = self.cookie_jar {
             builder = builder.cookie_provider(cookie_jar);
@@ -387,7 +389,7 @@ impl ClientBuilder {
         let website_checker = WebsiteChecker::new(
             self.method,
             self.retry_wait_time,
-            redirect_map.clone(),
+            redirect_tracker.clone(),
             self.max_retries,
             reqwest_client,
             self.accepted,
@@ -400,7 +402,7 @@ impl ClientBuilder {
         Ok(Client {
             remaps: self.remaps,
             filter,
-            redirect_map: redirect_map.clone(),
+            redirect_tracker,
             email_checker: MailChecker::new(),
             website_checker,
             file_checker: FileChecker::new(
@@ -412,16 +414,10 @@ impl ClientBuilder {
     }
 }
 
-fn redirect_policy(
-    redirect_map: Arc<Mutex<HashMap<url::Url, url::Url>>>,
-    max_redirects: usize,
-) -> redirect::Policy {
+fn redirect_policy(redirect_tracker: RedirectTracker, max_redirects: usize) -> redirect::Policy {
     let redirect_policy = redirect::Policy::custom(move |attempt| {
         if let Some(first) = attempt.previous().first() {
-            redirect_map
-                .lock()
-                .unwrap()
-                .insert(first.clone(), attempt.url().clone());
+            redirect_tracker.record_redirect(first.clone(), attempt.url().clone());
         }
 
         if attempt.previous().len() > max_redirects {
@@ -455,7 +451,7 @@ pub struct Client {
     /// A checker for email URLs.
     email_checker: MailChecker,
 
-    redirect_map: Arc<Mutex<HashMap<url::Url, url::Url>>>,
+    redirect_tracker: RedirectTracker,
 }
 
 impl Client {
@@ -578,6 +574,7 @@ mod tests {
     use http::{StatusCode, header::HeaderMap};
     use reqwest::header;
     use tempfile::tempdir;
+    use url::Url;
     use wiremock::matchers::path;
 
     use super::ClientBuilder;
@@ -877,7 +874,11 @@ mod tests {
             .unwrap();
         assert_eq!(
             res.status(),
-            &Status::Redirected(StatusCode::PERMANENT_REDIRECT)
+            &Status::Redirected {
+                code: StatusCode::PERMANENT_REDIRECT,
+                original: todo!(),
+                resolved: todo!()
+            }
         );
 
         let res = ClientBuilder::builder()
