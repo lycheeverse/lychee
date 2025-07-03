@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.2](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.19.1...lychee-lib-v0.19.2) - 2025-07-03
+
+### Fixed
+
+- skip fragment check if website URL doesn't contain fragment ([#1733](https://github.com/lycheeverse/lychee/pull/1733))
+
+### Other
+
+- Add ProseKit to users
+- Migrate to Clippy 1.88 ([#1749](https://github.com/lycheeverse/lychee/pull/1749))
+- Add xml schema found in xsd files to list of exclusions ([#1735](https://github.com/lycheeverse/lychee/pull/1735))
+
 ## [0.19.1](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.19.0...lychee-lib-v0.19.1) - 2025-06-16
 
 ### Fixed
