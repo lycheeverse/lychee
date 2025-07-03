@@ -1,8 +1,6 @@
 use super::{FileType, InputContent, InputSource};
-use crate::chain::Chain;
 use crate::utils::request;
-use crate::{BasicAuthExtractor, ChainResult, ErrorKind, Handler, Result, Uri};
-use async_trait::async_trait;
+use crate::{BasicAuthExtractor, ErrorKind, Result, Uri};
 use http::HeaderMap;
 use reqwest::{Client, Request, Url};
 
@@ -13,8 +11,6 @@ pub struct UrlContentResolver {
     pub headers: HeaderMap,
     pub client: reqwest::Client,
 }
-
-type RequestChain = Chain<Request, Result<String>>;
 
 impl UrlContentResolver {
     /// Fetch remote content by URL.
@@ -33,20 +29,8 @@ impl UrlContentResolver {
             &Uri { url: url.clone() },
         );
 
-        let chain: RequestChain = Chain::new(vec![Box::new(credentials), Box::new(self.clone())]);
-
-        let request = self
-            .client
-            .request(reqwest::Method::GET, url.clone())
-            .build()
-            .map_err(ErrorKind::BuildRequestClient)?;
-
-        let content = match chain.traverse(request).await {
-            ChainResult::Next(_) => unreachable!(
-                "ChainResult::Done is unconditionally returned from the last chain element"
-            ),
-            ChainResult::Done(r) => r,
-        }?;
+        let request = self.build_request(&url, credentials)?;
+        let content = get_request_body_text(&self.client, request).await?;
 
         let input_content = InputContent {
             source: InputSource::RemoteUrl(Box::new(url.clone())),
@@ -56,13 +40,24 @@ impl UrlContentResolver {
 
         Ok(input_content)
     }
-}
 
-#[async_trait]
-impl Handler<Request, Result<String>> for UrlContentResolver {
-    async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Result<String>> {
+    fn build_request(
+        &self,
+        url: &Url,
+        credentials: Option<super::BasicAuthCredentials>,
+    ) -> Result<Request> {
+        let mut request = self
+            .client
+            .request(reqwest::Method::GET, url.clone())
+            .build()
+            .map_err(ErrorKind::BuildRequestClient)?;
+
         request.headers_mut().extend(self.headers.clone());
-        ChainResult::Done(get_request_body_text(&self.client, request).await)
+        if let Some(credentials) = credentials {
+            credentials.append_to_request(&mut request);
+        }
+
+        Ok(request)
     }
 }
 

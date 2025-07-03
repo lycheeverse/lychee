@@ -73,15 +73,20 @@ impl BasicAuthCredentials {
     pub fn to_authorization(&self) -> Authorization<Basic> {
         Authorization::basic(&self.username, &self.password)
     }
+
+    /// Append the credentials as headers to a `Request`
+    pub fn append_to_request(&self, request: &mut Request) {
+        request
+            .headers_mut()
+            .append(AUTHORIZATION, self.to_authorization().0.encode());
+    }
 }
 
 #[async_trait]
 impl<Response> Handler<Request, Response> for Option<BasicAuthCredentials> {
     async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Response> {
         if let Some(credentials) = self {
-            request
-                .headers_mut()
-                .append(AUTHORIZATION, credentials.to_authorization().0.encode());
+            credentials.append_to_request(&mut request);
         }
 
         ChainResult::Next(request)
