@@ -94,57 +94,48 @@ impl Display for InputSource {
             Self::RemoteUrl(url) => f.write_str(url.as_str()),
             Self::FsGlob { pattern, .. } => f.write_str(pattern),
             Self::FsPath(path) => {
-                use std::path::Component;
+                // Use to_string_lossy() for safety with non-UTF8 paths
+                let original = path.to_string_lossy();
 
-                let mut result = String::new();
-                let mut components = path.components().peekable();
+                // Handle absolute paths specially to avoid double slashes
+                if path.is_absolute() {
+                    // For absolute paths, just normalize separators
+                    #[cfg(windows)]
+                    return f.write_str(&original.replace('\\', "/"));
+                    #[cfg(not(windows))]
+                    return f.write_str(&original);
+                }
 
-                while let Some(component) = components.next() {
-                    match component {
-                        Component::Prefix(prefix) => {
-                            // Windows drive letters (C:)
-                            result.push_str(&prefix.as_os_str().to_string_lossy());
-                        }
-                        Component::RootDir => {
-                            // Root directory - just add single slash
-                            result.push('/');
-                        }
-                        Component::CurDir => {
-                            // Skip "." components
-                            continue;
-                        }
-                        Component::ParentDir => {
-                            // Keep ".." components
-                            if !result.is_empty() && !result.ends_with('/') {
-                                result.push('/');
-                            }
-                            result.push_str("..");
-                        }
-                        Component::Normal(name) => {
-                            // Add separator if needed (but not after root)
-                            if !result.is_empty() && !result.ends_with('/') {
-                                result.push('/');
-                            }
-                            result.push_str(&name.to_string_lossy());
-                        }
+                // For relative paths, do component-based normalization
+                use std::path::{Component, PathBuf};
+
+                let normalized: PathBuf = path
+                    .components()
+                    .filter(|comp| !matches!(comp, Component::CurDir))
+                    .collect();
+
+                let mut result = normalized.to_string_lossy().into_owned();
+
+                // Handle empty path
+                if result.is_empty() {
+                    result = ".".to_string();
+                }
+
+                // Preserve trailing slash if present in original
+                if original.ends_with('/') || (cfg!(windows) && original.ends_with('\\')) {
+                    if !result.ends_with('/') && result != "." {
+                        result.push('/');
                     }
                 }
 
-                // Handle empty result (e.g., from just ".")
-                if result.is_empty() {
-                    result.push('.');
-                }
-
-                // Preserve trailing slash if original path had it
-                let original_str = path.to_string_lossy();
-                if (original_str.ends_with('/') || original_str.ends_with('\\'))
-                    && !result.ends_with('/')
-                    && result != "." {
-                    result.push('/');
+                // Ensure forward slashes on Windows
+                #[cfg(windows)]
+                {
+                    result = result.replace('\\', "/");
                 }
 
                 f.write_str(&result)
-            },
+            }
             Self::Stdin => f.write_str("stdin"),
             Self::String(s) => f.write_str(s),
         }
