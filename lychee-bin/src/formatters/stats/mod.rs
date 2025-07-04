@@ -19,8 +19,6 @@ use crate::stats::ResponseStats;
 use anyhow::Result;
 use lychee_lib::InputSource;
 
-use numeric_sort::cmp;
-
 pub(crate) trait StatsFormatter {
     /// Format the stats of all responses and write them to stdout
     fn format(&self, stats: ResponseStats) -> Result<Option<String>>;
@@ -38,7 +36,7 @@ where
             let mut sorted_responses: Vec<&T> = responses.iter().collect();
             sorted_responses.sort_by(|a, b| {
                 let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-                cmp(&a, &b)
+                numeric_sort::cmp(&a, &b)
             });
 
             (source, sorted_responses)
@@ -47,7 +45,7 @@ where
 
     entries.sort_by(|(a, _), (b, _)| {
         let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-        cmp(&a, &b)
+        numeric_sort::cmp(&a, &b)
     });
 
     entries
