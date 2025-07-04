@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.19.1...lychee-lib-v0.20.0) - 2025-07-04
+
+### Added
+
+- add 'user-content-' prefix to support github markdown fragment ([#1750](https://github.com/lycheeverse/lychee/pull/1750))
+
+### Fixed
+
+- treat a fragment in an empty directory as an error ([#1756](https://github.com/lycheeverse/lychee/pull/1756))
+- resolve index file inside a directory ([#1752](https://github.com/lycheeverse/lychee/pull/1752))
+- skip fragment check if website URL doesn't contain fragment ([#1733](https://github.com/lycheeverse/lychee/pull/1733))
+
+### Other
+
+- Fix basic auth ([#1748](https://github.com/lycheeverse/lychee/pull/1748))
+- Update 'Users' section in the README
+- Add ProseKit to users
+- Migrate to Clippy 1.88 ([#1749](https://github.com/lycheeverse/lychee/pull/1749))
+- Add xml schema found in xsd files to list of exclusions ([#1735](https://github.com/lycheeverse/lychee/pull/1735))
+
 ## [0.19.1](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.19.0...lychee-lib-v0.19.1) - 2025-06-16
 
 ### Fixed
