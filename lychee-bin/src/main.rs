@@ -67,12 +67,13 @@ use anyhow::{Context, Error, Result, bail};
 use clap::Parser;
 use commands::CommandParams;
 use formatters::{get_stats_formatter, log::init_logging};
+use http::HeaderMap;
 use log::{error, info, warn};
 
 #[cfg(feature = "native-tls")]
 use openssl_sys as _; // required for vendored-openssl feature
 
-use options::LYCHEE_CONFIG_FILE;
+use options::{HeaderMapExt, LYCHEE_CONFIG_FILE};
 use ring as _; // required for apple silicon
 
 use lychee_lib::BasicAuthExtractor;
@@ -319,6 +320,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         .skip_hidden(!opts.config.hidden)
         .skip_ignored(!opts.config.no_ignore)
         .include_verbatim(opts.config.include_verbatim)
+        .headers(HeaderMap::from_header_pairs(&opts.config.header)?)
         // File a bug if you rely on this envvar! It's going to go away eventually.
         .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").is_ok_and(|x| x == "1"));
 

@@ -24,7 +24,10 @@ mod cli {
     use serde_json::Value;
     use tempfile::NamedTempFile;
     use uuid::Uuid;
-    use wiremock::{Mock, ResponseTemplate, matchers::basic_auth};
+    use wiremock::{
+        Mock, ResponseTemplate,
+        matchers::{basic_auth, method},
+    };
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -1673,8 +1676,14 @@ mod cli {
         let password = "password123";
 
         let mock_server = wiremock::MockServer::start().await;
-        Mock::given(basic_auth(username, password))
-            .respond_with(ResponseTemplate::new(200))
+
+        Mock::given(method("GET"))
+            .and(basic_auth(username, password))
+            .respond_with(ResponseTemplate::new(200)) // Authenticated requests are accepted
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .respond_with(|_: &_| panic!("Received unauthenticated request"))
             .mount(&mock_server)
             .await;
 
@@ -1689,6 +1698,16 @@ mod cli {
             .success()
             .stdout(contains("1 Total"))
             .stdout(contains("1 OK"));
+
+        // Websites as direct arguments must also use authentication
+        main_command()
+            .arg(mock_server.uri())
+            .arg("--verbose")
+            .arg("--basic-auth")
+            .arg(format!("{} {username}:{password}", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("0 Total")); // Mock server returns no body, so there are no URLs to check
 
         Ok(())
     }
@@ -1876,6 +1895,13 @@ mod cli {
             .stderr(contains(
                 "https://github.com/lycheeverse/lychee#non-existent-anchor",
             ))
+            .stderr(contains("fixtures/fragments/sub_dir#non-existing-fragment-1"))
+            .stderr(contains("fixtures/fragments/sub_dir#non-existing-fragment-2"))
+            .stderr(contains("fixtures/fragments/sub_dir_non_existing_1"))
+            .stderr(contains("fixtures/fragments/sub_dir_non_existing_2"))
+            .stderr(contains("fixtures/fragments/empty_dir"))
+            .stderr(contains("fixtures/fragments/empty_dir#non-existing-fragment-3"))
+            .stderr(contains("fixtures/fragments/empty_dir#non-existing-fragment-4"))
             .stderr(contains("fixtures/fragments/zero.bin"))
             .stderr(contains("fixtures/fragments/zero.bin#"))
             .stderr(contains(
@@ -1888,10 +1914,10 @@ mod cli {
             .stderr(contains(
                 "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
             ))
-            .stdout(contains("34 Total"))
-            .stdout(contains("28 OK"))
+            .stdout(contains("42 Total"))
+            .stdout(contains("29 OK"))
             // Failures because of missing fragments or failed binary body scan
-            .stdout(contains("6 Errors"));
+            .stdout(contains("13 Errors"));
     }
 
     #[test]
@@ -1905,6 +1931,24 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("0 Errors"));
+    }
+
+    #[test]
+    fn test_fragments_fallback_extensions() {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("fragments-fallback-extensions");
+
+        cmd.arg("--include-fragments")
+            .arg("--fallback-extensions=html")
+            .arg("--no-progress")
+            .arg("--offline")
+            .arg("-v")
+            .arg(input)
+            .assert()
+            .failure()
+            .stdout(contains("3 Total"))
+            .stdout(contains("1 OK"))
+            .stdout(contains("2 Errors"));
     }
 
     /// Test relative paths

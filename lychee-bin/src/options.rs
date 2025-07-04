@@ -336,19 +336,10 @@ impl LycheeOptions {
         } else {
             Some(self.config.exclude_path.clone())
         };
-        let headers = HeaderMap::from_header_pairs(&self.config.header)?;
 
         self.raw_inputs
             .iter()
-            .map(|s| {
-                Input::new(
-                    s,
-                    None,
-                    self.config.glob_ignore_case,
-                    excluded.clone(),
-                    headers.clone(),
-                )
-            })
+            .map(|s| Input::new(s, None, self.config.glob_ignore_case, excluded.clone()))
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
