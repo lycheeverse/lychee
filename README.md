@@ -779,3 +779,11 @@ at your option.
 
 <br><hr>
 [🔼 Back to top](#back-to-top)
+
+
+
+# TODO: redirections
+
+- Accepting redirects: redirect should be accepted if the inner status code is accepted
+- Record full redirection chain
+- Print redirection chain in the end, depending on verbosity or mode

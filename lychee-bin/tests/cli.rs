@@ -86,7 +86,6 @@ mod cli {
         unknown: usize,
         unsupported: usize,
         timeouts: usize,
-        redirects: usize,
         excludes: usize,
         errors: usize,
         cached: usize,

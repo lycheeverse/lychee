@@ -17,7 +17,6 @@ impl EmojiFormatter {
             Status::Excluded
             | Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => "🚫",
-            Status::Redirected(_) => "↪️",
             Status::UnknownStatusCode(_) | Status::Timeout(_) => "⚠️",
             Status::Error(_) | Status::Cached(CacheStatus::Error(_)) => "❌",
         }
@@ -77,19 +76,6 @@ mod emoji_tests {
         assert_eq!(
             formatter.format_response(&body),
             "🚫 https://example.com/not-checked"
-        );
-    }
-
-    #[test]
-    fn test_format_response_with_redirect_status() {
-        let formatter = EmojiFormatter;
-        let body = mock_response_body(
-            Status::Redirected(StatusCode::MOVED_PERMANENTLY),
-            "https://example.com/redirect",
-        );
-        assert_eq!(
-            formatter.format_response(&body),
-            "↪️ https://example.com/redirect"
         );
     }
 

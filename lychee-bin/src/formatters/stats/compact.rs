@@ -168,7 +168,6 @@ mod tests {
             error_map,
             suggestion_map: HashMap::default(),
             unsupported: 0,
-            redirects: 0,
             cached: 0,
             success_map,
             excluded_map: HashMap::default(),

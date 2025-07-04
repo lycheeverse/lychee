@@ -154,10 +154,6 @@ pub enum ErrorKind {
     #[error("Error when using regex engine: {0}")]
     Regex(#[from] regex::Error),
 
-    /// Too many redirects (HTTP 3xx) were encountered (configurable)
-    #[error("Too many redirects")]
-    TooManyRedirects(#[source] reqwest::Error),
-
     /// Basic auth extractor error
     #[error("Basic auth extractor error")]
     BasicAuthExtractorError(#[from] BasicAuthExtractorError),
@@ -267,9 +263,6 @@ impl PartialEq for ErrorKind {
             (Self::Regex(e1), Self::Regex(e2)) => e1.to_string() == e2.to_string(),
             (Self::DirTraversal(e1), Self::DirTraversal(e2)) => e1.to_string() == e2.to_string(),
             (Self::Channel(_), Self::Channel(_)) => true,
-            (Self::TooManyRedirects(e1), Self::TooManyRedirects(e2)) => {
-                e1.to_string() == e2.to_string()
-            }
             (Self::BasicAuthExtractorError(e1), Self::BasicAuthExtractorError(e2)) => {
                 e1.to_string() == e2.to_string()
             }
@@ -281,7 +274,7 @@ impl PartialEq for ErrorKind {
             (Self::InvalidBase(b1, e1), Self::InvalidBase(b2, e2)) => b1 == b2 && e1 == e2,
             (Self::InvalidUrlRemap(r1), Self::InvalidUrlRemap(r2)) => r1 == r2,
             (Self::EmptyUrl, Self::EmptyUrl) => true,
-
+            (Self::RejectedStatusCode(c1), Self::RejectedStatusCode(c2)) => c1 == c2,
             _ => false,
         }
     }
@@ -331,7 +324,6 @@ impl Hash for ErrorKind {
                 std::mem::discriminant(self).hash(state);
             }
             Self::Regex(e) => e.to_string().hash(state),
-            Self::TooManyRedirects(e) => e.to_string().hash(state),
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
             Self::Cookies(e) => e.to_string().hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),

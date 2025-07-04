@@ -4,4 +4,5 @@
 
 pub(crate) mod file;
 pub(crate) mod mail;
+pub(crate) mod redirect_tracker;
 pub(crate) mod website;

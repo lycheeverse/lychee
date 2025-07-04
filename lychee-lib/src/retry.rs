@@ -122,7 +122,6 @@ impl RetryExt for Status {
             Status::Ok(_) => false,
             Status::Error(err) => err.should_retry(),
             Status::Timeout(_) => true,
-            Status::Redirected(_) => false,
             Status::UnknownStatusCode(_) => false,
             Status::Excluded => false,
             Status::Unsupported(_) => false,

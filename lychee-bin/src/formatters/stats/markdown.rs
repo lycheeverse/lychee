@@ -38,10 +38,6 @@ fn stats_table(stats: &ResponseStats) -> String {
             count: stats.timeouts,
         },
         StatsTableEntry {
-            status: "\u{1f500} Redirected",
-            count: stats.redirects,
-        },
-        StatsTableEntry {
             status: "\u{1f47b} Excluded",
             count: stats.excludes,
         },
@@ -205,7 +201,6 @@ mod tests {
 | 🔍 Total       | 0     |
 | ✅ Successful  | 0     |
 | ⏳ Timeouts    | 0     |
-| 🔀 Redirected  | 0     |
 | 👻 Excluded    | 0     |
 | ❓ Unknown     | 0     |
 | 🚫 Errors      | 0     |
@@ -238,7 +233,6 @@ mod tests {
 | 🔍 Total       | 1     |
 | ✅ Successful  | 0     |
 | ⏳ Timeouts    | 0     |
-| 🔀 Redirected  | 0     |
 | 👻 Excluded    | 0     |
 | ❓ Unknown     | 0     |
 | 🚫 Errors      | 1     |

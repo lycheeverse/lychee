@@ -41,7 +41,6 @@ impl Display for DetailedResponseStats {
         write_stat(f, "\u{1f50d} Total", stats.total, true)?; // 🔍
         write_stat(f, "\u{2705} Successful", stats.successful, true)?; // ✅
         write_stat(f, "\u{23f3} Timeouts", stats.timeouts, true)?; // ⏳
-        write_stat(f, "\u{1f500} Redirected", stats.redirects, true)?; // 🔀
         write_stat(f, "\u{1f47b} Excluded", stats.excludes, true)?; // 👻
         write_stat(f, "\u{2753} Unknown", stats.unknown, true)?; //❓
         write_stat(f, "\u{1f6ab} Errors", stats.errors, true)?; // 🚫
@@ -135,7 +134,6 @@ mod tests {
             timeouts: 0,
             duration_secs: 0,
             unsupported: 0,
-            redirects: 0,
             cached: 0,
             suggestion_map: HashMap::default(),
             success_map: HashMap::default(),
@@ -152,7 +150,6 @@ mod tests {
         assert!(result.contains("🔍 Total............2"));
         assert!(result.contains("✅ Successful.......0"));
         assert!(result.contains("⏳ Timeouts.........0"));
-        assert!(result.contains("🔀 Redirected.......0"));
         assert!(result.contains("👻 Excluded.........0"));
         assert!(result.contains("❓ Unknown..........0"));
         assert!(result.contains("🚫 Errors...........2"));
