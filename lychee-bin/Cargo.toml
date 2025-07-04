@@ -19,14 +19,14 @@ lychee-lib = { path = "../lychee-lib", version = "0.19.1", default-features = fa
 
 anyhow = "1.0.98"
 assert-json-diff = "2.0.2"
-clap = { version = "4.5.38", features = ["env", "derive"] }
+clap = { version = "4.5.40", features = ["env", "derive"] }
 console = "0.15.11"
 const_format = "0.2.34"
 csv = "1.3.1"
 dashmap = { version = "6.1.0", features = ["serde"] }
 env_logger = "0.11.8"
 futures = "0.3.31"
-headers = "0.4.0"
+headers = "0.4.1"
 http = "1.3.1"
 http-serde = "2.1.1"
 humantime = "2.2.0"
@@ -34,10 +34,10 @@ humantime-serde = "1.1.1"
 human-sort = "0.2.2"
 indicatif = "0.17.11"
 log = "0.4.27"
-openssl-sys = { version = "0.9.108", optional = true }
+openssl-sys = { version = "0.9.109", optional = true }
 pad = "0.1.6"
 regex = "1.11.1"
-reqwest = { version = "0.12.15", default-features = false, features = [
+reqwest = { version = "0.12.18", default-features = false, features = [
     "gzip",
     "json",
 ] }
@@ -52,10 +52,10 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 strum = { version = "0.27.1", features = ["derive"] }
 supports-color = "3.0.2"
-tabled = "0.19.0"
-tokio = { version = "1.45.1", features = ["full"] }
+tabled = "0.20.0"
+tokio = { version = "1.46.0", features = ["full"] }
 tokio-stream = "0.1.17"
-toml = "0.8.22"
+toml = "0.8.23"
 url = "2.5.4"
 
 
@@ -71,7 +71,7 @@ tracing-subscriber = { version = "0.3.19", default-features = false, features = 
     "env-filter",
 ] }
 uuid = { version = "1.17.0", features = ["v4"] }
-wiremock = "0.6.3"
+wiremock = "0.6.4"
 
 [features]
 
