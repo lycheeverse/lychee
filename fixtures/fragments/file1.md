@@ -107,7 +107,7 @@ Even with fragment checking enabled, the following links must hence succeed:
 ## With fragment
 
 Fragment checking is skipped if the Content-Type header is not "text/html", "text/markdown", or "text/plain" with ".md" URL path ending.
-Even that the URL contains a fragment, the following checks must hence succeed:
+Hence, despite containing fragments which cannot be checked in binary files, the following links are expected to succeed with a HTTP 200 status:
 
 [Link to local binary file with fragment](zero.bin#fragment)
 [Link to remote binary file with fragment](https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment)
