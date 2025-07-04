@@ -1890,7 +1890,7 @@ mod cli {
             .stderr(contains("fixtures/fragments/file.html#top"))
             .stderr(contains("fixtures/fragments/file2.md#top"))
             .stderr(contains(
-                "https://github.com/lycheeverse/lychee#user-content-table-of-contents",
+                "https://github.com/lycheeverse/lychee#table-of-contents",
             ))
             .stderr(contains(
                 "https://github.com/lycheeverse/lychee#non-existent-anchor",
