@@ -52,7 +52,7 @@ impl Display for CompactResponseStats {
                 let mut sorted_suggestions: Vec<_> = suggestions.iter().collect();
                 sorted_suggestions.sort_by(|a, b| {
                     let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-                    human_sort::compare(&a, &b)
+                    numeric_sort::cmp(&a, &b)
                 });
 
                 writeln!(f, "\n\u{2139} Suggestions")?;
