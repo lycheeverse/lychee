@@ -4,7 +4,7 @@ use crate::{formatters::get_response_formatter, options, stats::ResponseStats};
 use anyhow::Result;
 use pad::{Alignment, PadStr};
 use std::fmt::{self, Display};
-
+use numeric_sort::cmp;
 // Maximum padding for each entry in the final statistics output
 const MAX_PADDING: usize = 20;
 
@@ -68,7 +68,7 @@ impl Display for DetailedResponseStats {
                 let mut sorted_suggestions: Vec<_> = suggestions.iter().collect();
                 sorted_suggestions.sort_by(|a, b| {
                     let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-                    human_sort::compare(&a, &b)
+                    cmp(&a, &b)
                 });
 
                 writeln!(f, "\nSuggestions in {source}")?;
