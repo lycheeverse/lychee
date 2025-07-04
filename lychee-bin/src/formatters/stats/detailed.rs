@@ -2,9 +2,9 @@ use super::StatsFormatter;
 use crate::{formatters::get_response_formatter, options, stats::ResponseStats};
 
 use anyhow::Result;
+use numeric_sort::cmp;
 use pad::{Alignment, PadStr};
 use std::fmt::{self, Display};
-use numeric_sort::cmp;
 // Maximum padding for each entry in the final statistics output
 const MAX_PADDING: usize = 20;
 
