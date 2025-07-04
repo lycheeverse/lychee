@@ -17,6 +17,7 @@ This is a test file for the fragment loader.
 [Link to missing fragment in file2](file2.md#missing-fragment)
 
 ### `Code` ``Heading
+
 [Link to code heading](#code-heading)
 
 ## HTML Fragments
@@ -66,7 +67,27 @@ without related HTML element. Browser will scroll to the top of the page.
 
 A link to the non-existing fragment: [try](https://github.com/lycheeverse/lychee#non-existent-anchor).
 
-A link to a fragment in an empty directory: [empty](empty_dir/#fragment).
+
+# Sub directory
+
+- Link to a sub directory
+  - Good: [With trailing slash](sub_dir/)
+  - Good: [Without trailing slash](sub_dir)
+- Link to a fragment to index.html in sub directory
+  - Good: [With trailing slash](sub_dir/#a-link-inside-index-html-inside-sub-dir)
+  - Good: [Without trailing slash](sub_dir#a-link-inside-index-html-inside-sub-dir)
+- Link to a non-existing fragment in a sub directory
+  - Bad: [With trailing slash](sub_dir/#non-existing-fragment-1)
+  - Bad: [Without trailing slash](sub_dir#non-existing-fragment-2)
+- Link to a non-existing sub directory
+  - Bad: [With trailing slash](sub_dir_non_existing_1/)
+  - Bad: [Without trailing slash](sub_dir_non_existing_2)
+- Link to a empty directory
+  - Bad: [With trailing slash](empty_dir/)
+  - Bad: [Without trailing slash](empty_dir)
+- Link to a fragment in a non-existing sub directory
+  - Bad: [With trailing slash](empty_dir/#non-existing-fragment-3)
+  - Bad: [Without trailing slash](empty_dir#non-existing-fragment-4)
 
 # Binary data URLs checks
 
