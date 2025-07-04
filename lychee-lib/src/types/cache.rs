@@ -73,11 +73,6 @@ impl From<&Status> for CacheStatus {
             Status::Ok(code) | Status::UnknownStatusCode(code) => Self::Ok(code.as_u16()),
             Status::Excluded => Self::Excluded,
             Status::Unsupported(_) => Self::Unsupported,
-            Status::Redirected {
-                original: _,
-                resolved: _,
-                code,
-            } => Self::Error(Some(code.as_u16())),
             Status::Timeout(code) => Self::Error(code.map(|code| code.as_u16())),
             Status::Error(e) => match e {
                 ErrorKind::RejectedStatusCode(code) => Self::Error(Some(code.as_u16())),

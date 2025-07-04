@@ -120,16 +120,6 @@ impl WebsiteChecker {
                     status = self.check_html_fragment(status, response).await;
                 }
 
-                if let Some(code) = status.code() {
-                    if let Some(resolved) = self.redirect_tracker.get_resolved(&url) {
-                        return Status::Redirected {
-                            original: url,
-                            resolved,
-                            code,
-                        };
-                    }
-                }
-
                 status
             }
             Err(e) => e.into(),

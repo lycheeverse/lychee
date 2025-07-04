@@ -57,19 +57,6 @@ mod task_tests {
     }
 
     #[test]
-    fn test_format_response_with_redirect_status() {
-        let formatter = TaskFormatter;
-        let body = mock_response_body(
-            Status::Redirected(StatusCode::MOVED_PERMANENTLY),
-            "https://example.com/redirect",
-        );
-        assert_eq!(
-            formatter.format_response(&body),
-            "- [ ] [301] https://example.com/redirect | Redirect (301 Moved Permanently): Moved Permanently"
-        );
-    }
-
-    #[test]
     fn test_format_response_with_unknown_status_code() {
         let formatter = TaskFormatter;
         let body = mock_response_body(

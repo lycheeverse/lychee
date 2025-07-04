@@ -4,14 +4,12 @@ use http::StatusCode;
 use reqwest::Response;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
-use url::Url;
 
 use crate::ErrorKind;
 
 use super::CacheStatus;
 
 const ICON_OK: &str = "\u{2714}"; // ✔
-const ICON_REDIRECTED: &str = "\u{21c4}"; // ⇄
 const ICON_EXCLUDED: &str = "\u{003f}"; // ?
 const ICON_UNSUPPORTED: &str = "\u{003f}"; // ? (using same icon, but under different name for explicitness)
 const ICON_UNKNOWN: &str = "\u{003f}"; // ?
@@ -29,15 +27,6 @@ pub enum Status {
     Error(ErrorKind),
     /// Request timed out
     Timeout(Option<StatusCode>),
-    /// Got redirected to different resource
-    Redirected {
-        /// The initial `Url` that was given for link checking
-        original: Url,
-        /// The `Url` that was resolved by following the redirection responses
-        resolved: Url,
-        /// The last `StatusCode` that was returned after following the redirections
-        code: StatusCode,
-    },
     /// The given status code is not known by lychee
     UnknownStatusCode(StatusCode),
     /// Resource was excluded from checking
@@ -54,11 +43,6 @@ impl Display for Status {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Status::Ok(code) => write!(f, "{code}"),
-            Status::Redirected {
-                original: _,
-                resolved: _,
-                code: _,
-            } => write!(f, "Redirect"),
             Status::UnknownStatusCode(code) => write!(f, "Unknown status ({code})"),
             Status::Timeout(Some(code)) => write!(f, "Timeout ({code})"),
             Status::Timeout(None) => f.write_str("Timeout"),
@@ -147,14 +131,6 @@ impl Status {
     pub fn details(&self) -> Option<String> {
         match &self {
             Status::Ok(code) => code.canonical_reason().map(String::from),
-            Status::Redirected {
-                original,
-                resolved,
-                code,
-            } => Some(format!(
-                "Followed redirects from {} to {} resulting in {}",
-                original, resolved, code
-            )),
             Status::Error(e) => e.details(),
             Status::Timeout(_) => None,
             Status::UnknownStatusCode(_) => None,
@@ -213,11 +189,6 @@ impl Status {
     pub const fn icon(&self) -> &str {
         match self {
             Status::Ok(_) => ICON_OK,
-            Status::Redirected {
-                original: _,
-                resolved: _,
-                code: _,
-            } => ICON_REDIRECTED,
             Status::UnknownStatusCode(_) => ICON_UNKNOWN,
             Status::Excluded => ICON_EXCLUDED,
             Status::Error(_) => ICON_ERROR,
@@ -231,14 +202,9 @@ impl Status {
     /// Return the HTTP status code (if any)
     pub fn code(&self) -> Option<StatusCode> {
         match self {
-            Status::Ok(code)
-            | Status::Redirected {
-                original: _,
-                resolved: _,
-                code,
+            Status::Ok(code) | Status::UnknownStatusCode(code) | Status::Timeout(Some(code)) => {
+                Some(*code)
             }
-            | Status::UnknownStatusCode(code)
-            | Status::Timeout(Some(code)) => Some(*code),
             Status::Error(kind) | Status::Unsupported(kind) => match kind {
                 ErrorKind::RejectedStatusCode(status_code) => Some(*status_code),
                 _ => match kind.reqwest_error() {
@@ -257,13 +223,7 @@ impl Status {
     #[must_use]
     pub fn code_as_string(&self) -> String {
         match self {
-            Status::Ok(code)
-            | Status::Redirected {
-                original: _,
-                resolved: _,
-                code,
-            }
-            | Status::UnknownStatusCode(code) => code.as_str().to_string(),
+            Status::Ok(code) | Status::UnknownStatusCode(code) => code.as_str().to_string(),
             Status::Excluded => "EXCLUDED".to_string(),
             Status::Error(e) => match e {
                 ErrorKind::RejectedStatusCode(code) => code.as_str().to_string(),
@@ -313,8 +273,6 @@ impl From<reqwest::Error> for Status {
     fn from(e: reqwest::Error) -> Self {
         if e.is_timeout() {
             Self::Timeout(e.status())
-        } else if e.is_redirect() {
-            Self::Error(ErrorKind::TooManyRedirects(e))
         } else if e.is_builder() {
             Self::Unsupported(ErrorKind::BuildRequestClient(e))
         } else if e.is_body() || e.is_decode() {

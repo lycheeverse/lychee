@@ -416,14 +416,14 @@ impl ClientBuilder {
 
 fn redirect_policy(redirect_tracker: RedirectTracker, max_redirects: usize) -> redirect::Policy {
     let redirect_policy = redirect::Policy::custom(move |attempt| {
-        if let Some(first) = attempt.previous().first() {
-            redirect_tracker.record_redirect(first.clone(), attempt.url().clone());
+        if let Some(original) = attempt.previous().first() {
+            redirect_tracker.record_redirect(original.clone(), attempt.previous().into());
         }
 
         if attempt.previous().len() > max_redirects {
             attempt.stop()
         } else {
-            debug!("Redirecting to {}", attempt.url());
+            debug!("Following redirect to {}", attempt.url());
             attempt.follow()
         }
     });
@@ -574,8 +574,10 @@ mod tests {
     use http::{StatusCode, header::HeaderMap};
     use reqwest::header;
     use tempfile::tempdir;
-    use url::Url;
-    use wiremock::matchers::path;
+    use wiremock::{
+        Mock,
+        matchers::{method, path},
+    };
 
     use super::ClientBuilder;
     use crate::{
@@ -845,10 +847,46 @@ mod tests {
     async fn test_max_redirects() {
         let mock_server = wiremock::MockServer::start().await;
 
+        let redirect_uri = format!("{}/redirect", &mock_server.uri());
+        let redirect = wiremock::ResponseTemplate::new(StatusCode::PERMANENT_REDIRECT)
+            .insert_header("Location", redirect_uri.as_str());
+
+        let redirect_count = 15;
+        let initial_invocation = 1;
+
+        // Set up infinite redirect loop
+        Mock::given(method("GET"))
+            .and(path("/redirect"))
+            .respond_with(move |_: &_| redirect.clone())
+            .expect(initial_invocation + redirect_count)
+            .mount(&mock_server)
+            .await;
+
+        let res = ClientBuilder::builder()
+            .max_redirects(redirect_count as usize)
+            .build()
+            .client()
+            .unwrap()
+            .check(redirect_uri.clone())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            res.status(),
+            &Status::Error(ErrorKind::RejectedStatusCode(
+                StatusCode::PERMANENT_REDIRECT
+            ))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_redirects() {
+        let mock_server = wiremock::MockServer::start().await;
+
         let ok_uri = format!("{}/ok", &mock_server.uri());
         let redirect_uri = format!("{}/redirect", &mock_server.uri());
 
-        // Set up permanent redirect loop
+        // Set up redirect
         let redirect = wiremock::ResponseTemplate::new(StatusCode::PERMANENT_REDIRECT)
             .insert_header("Location", ok_uri.as_str());
         wiremock::Mock::given(wiremock::matchers::method("GET"))
@@ -861,25 +899,9 @@ mod tests {
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .and(path("/ok"))
             .respond_with(ok)
+            .expect(1) // expect the redirect to be followed and called once
             .mount(&mock_server)
             .await;
-
-        let res = ClientBuilder::builder()
-            .max_redirects(0_usize)
-            .build()
-            .client()
-            .unwrap()
-            .check(redirect_uri.clone())
-            .await
-            .unwrap();
-        assert_eq!(
-            res.status(),
-            &Status::Redirected {
-                code: StatusCode::PERMANENT_REDIRECT,
-                original: todo!(),
-                resolved: todo!()
-            }
-        );
 
         let res = ClientBuilder::builder()
             .max_redirects(1_usize)
@@ -889,6 +911,7 @@ mod tests {
             .check(redirect_uri)
             .await
             .unwrap();
+
         assert_eq!(res.status(), &Status::Ok(StatusCode::OK));
     }
 
