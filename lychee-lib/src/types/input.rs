@@ -90,6 +90,8 @@ impl Serialize for InputSource {
 
 impl Display for InputSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use std::path::{Component, PathBuf}; // Move to top of function
+
         match self {
             Self::RemoteUrl(url) => f.write_str(url.as_str()),
             Self::FsGlob { pattern, .. } => f.write_str(pattern),
@@ -107,8 +109,6 @@ impl Display for InputSource {
                 }
 
                 // For relative paths, do component-based normalization
-                use std::path::{Component, PathBuf};
-
                 let normalized: PathBuf = path
                     .components()
                     .filter(|comp| !matches!(comp, Component::CurDir))
@@ -122,10 +122,12 @@ impl Display for InputSource {
                 }
 
                 // Preserve trailing slash if present in original
-                if original.ends_with('/') || (cfg!(windows) && original.ends_with('\\')) {
-                    if !result.ends_with('/') && result != "." {
-                        result.push('/');
-                    }
+                // Fix collapsible_if warning
+                if (original.ends_with('/') || (cfg!(windows) && original.ends_with('\\')))
+                    && !result.ends_with('/')
+                    && result != "."
+                {
+                    result.push('/');
                 }
 
                 // Ensure forward slashes on Windows
@@ -572,12 +574,7 @@ mod tests {
 
         for (input, expected) in cases {
             let source = InputSource::FsPath(PathBuf::from(input));
-            assert_eq!(
-                source.to_string(),
-                expected,
-                "Failed for input: '{}'",
-                input
-            );
+            assert_eq!(source.to_string(), expected, "Failed for input: '{input}'");
         }
     }
 
