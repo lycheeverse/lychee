@@ -1895,6 +1895,7 @@ mod cli {
             .stderr(contains(
                 "https://github.com/lycheeverse/lychee#non-existent-anchor",
             ))
+            .stderr(contains("fixtures/fragments/empty_dir#fragment"))
             .stderr(contains("fixtures/fragments/zero.bin"))
             .stderr(contains("fixtures/fragments/zero.bin#"))
             .stderr(contains(
@@ -1908,9 +1909,9 @@ mod cli {
                 "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
             ))
             .stdout(contains("34 Total"))
-            .stdout(contains("28 OK"))
+            .stdout(contains("27 OK"))
             // Failures because of missing fragments or failed binary body scan
-            .stdout(contains("6 Errors"));
+            .stdout(contains("7 Errors"));
     }
 
     #[test]

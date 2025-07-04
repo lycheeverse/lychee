@@ -66,7 +66,7 @@ without related HTML element. Browser will scroll to the top of the page.
 
 A link to the non-existing fragment: [try](https://github.com/lycheeverse/lychee#non-existent-anchor).
 
-Skip the fragment check for directories like: [empty](empty_dir/).
+A link to a fragment in an empty directory: [empty](empty_dir/#fragment).
 
 # Binary data URLs checks
 
