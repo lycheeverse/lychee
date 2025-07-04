@@ -1915,9 +1915,9 @@ mod cli {
                 "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
             ))
             .stdout(contains("42 Total"))
-            .stdout(contains("29 OK"))
+            .stdout(contains("30 OK"))
             // Failures because of missing fragments or failed binary body scan
-            .stdout(contains("13 Errors"));
+            .stdout(contains("12 Errors"));
     }
 
     #[test]

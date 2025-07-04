@@ -1,5 +1,5 @@
 use crate::{
-    BasicAuthCredentials, ErrorKind, Status, Uri,
+    BasicAuthCredentials, ErrorKind, FileType, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
     retry::RetryExt,
@@ -9,8 +9,8 @@ use crate::{
 use async_trait::async_trait;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
-use reqwest::{Request, Response};
-use std::{collections::HashSet, time::Duration};
+use reqwest::{Request, Response, header::CONTENT_TYPE};
+use std::{collections::HashSet, path::Path, time::Duration};
 
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
@@ -108,7 +108,28 @@ impl WebsiteChecker {
                     && method == Method::GET
                     && response.url().fragment().is_some_and(|x| !x.is_empty())
                 {
-                    self.check_html_fragment(status, response).await
+                    let Some(content_type) = response
+                        .headers()
+                        .get(CONTENT_TYPE)
+                        .and_then(|header| header.to_str().ok())
+                    else {
+                        return status;
+                    };
+
+                    let file_type = match content_type {
+                        ct if ct.starts_with("text/html") => FileType::Html,
+                        ct if ct.starts_with("text/markdown") => FileType::Markdown,
+                        ct if ct.starts_with("text/plain") => {
+                            let path = Path::new(response.url().path());
+                            match path.extension() {
+                                Some(ext) if ext.eq_ignore_ascii_case("md") => FileType::Markdown,
+                                _ => return status,
+                            }
+                        }
+                        _ => return status,
+                    };
+
+                    self.check_html_fragment(status, response, file_type).await
                 } else {
                     status
                 }
@@ -117,19 +138,18 @@ impl WebsiteChecker {
         }
     }
 
-    async fn check_html_fragment(&self, status: Status, response: Response) -> Status {
+    async fn check_html_fragment(
+        &self,
+        status: Status,
+        response: Response,
+        file_type: FileType,
+    ) -> Status {
         let url = response.url().clone();
         match response.text().await {
-            Ok(text) => {
+            Ok(content) => {
                 match self
                     .fragment_checker
-                    .check(
-                        FragmentInput {
-                            content: text,
-                            file_type: crate::FileType::Html,
-                        },
-                        &url,
-                    )
+                    .check(FragmentInput { content, file_type }, &url)
                     .await
                 {
                     Ok(true) => status,
