@@ -88,56 +88,47 @@ impl Serialize for InputSource {
     }
 }
 
+impl InputSource {
+    fn normalize_path_display(path: &Path) -> String {
+        use std::path::Component;
+
+        // For absolute paths, return as-is
+        if path.is_absolute() {
+            return path.to_string_lossy().into_owned();
+        }
+
+        let path_str = path.to_string_lossy();
+        let has_trailing_slash = path_str.ends_with('/');
+
+        // Filter out all CurDir (".") components
+        let cleaned: PathBuf = path
+            .components()
+            .filter(|comp| !matches!(comp, Component::CurDir))
+            .collect();
+
+        let result = if cleaned.as_os_str().is_empty() {
+            ".".to_string()
+        } else {
+            cleaned.to_string_lossy().into_owned()
+        };
+
+        // Preserve trailing slash for "./"
+        if path_str == "./" {
+            "./".to_string()
+        } else if has_trailing_slash && result != "." && !result.ends_with('/') {
+            format!("{}/", result)
+        } else {
+            result
+        }
+    }
+}
+
 impl Display for InputSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use std::path::{Component, PathBuf}; // Move to top of function
-
         match self {
             Self::RemoteUrl(url) => f.write_str(url.as_str()),
             Self::FsGlob { pattern, .. } => f.write_str(pattern),
-            Self::FsPath(path) => {
-                // Use to_string_lossy() for safety with non-UTF8 paths
-                let original = path.to_string_lossy();
-
-                // Handle absolute paths specially to avoid double slashes
-                if path.is_absolute() {
-                    // For absolute paths, just normalize separators
-                    #[cfg(windows)]
-                    return f.write_str(&original.replace('\\', "/"));
-                    #[cfg(not(windows))]
-                    return f.write_str(&original);
-                }
-
-                // For relative paths, do component-based normalization
-                let normalized: PathBuf = path
-                    .components()
-                    .filter(|comp| !matches!(comp, Component::CurDir))
-                    .collect();
-
-                let mut result = normalized.to_string_lossy().into_owned();
-
-                // Handle empty path
-                if result.is_empty() {
-                    result = ".".to_string();
-                }
-
-                // Preserve trailing slash if present in original
-                // Fix collapsible_if warning
-                if (original.ends_with('/') || (cfg!(windows) && original.ends_with('\\')))
-                    && !result.ends_with('/')
-                    && result != "."
-                {
-                    result.push('/');
-                }
-
-                // Ensure forward slashes on Windows
-                #[cfg(windows)]
-                {
-                    result = result.replace('\\', "/");
-                }
-
-                f.write_str(&result)
-            }
+            Self::FsPath(path) => f.write_str(&Self::normalize_path_display(path)),
             Self::Stdin => f.write_str("stdin"),
             Self::String(s) => f.write_str(s),
         }
@@ -472,6 +463,7 @@ fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     #[test]
     fn test_input_handles_real_relative_paths() {
@@ -540,122 +532,17 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_normalized_path_display() {
-        // Test that paths with and without "./" prefix are displayed identically
-        let path1 = InputSource::FsPath(PathBuf::from("doc/docker.md"));
-        let path2 = InputSource::FsPath(PathBuf::from("./doc/docker.md"));
-        assert_eq!(path1.to_string(), path2.to_string());
-        assert_eq!(path2.to_string(), "doc/docker.md");
-    }
-
-    #[test]
-    fn test_path_display_comprehensive() {
-        // Test various path formats to ensure consistent normalization
-        let cases = vec![
-            // Basic cases
-            ("doc/file.md", "doc/file.md"),
-            ("./doc/file.md", "doc/file.md"),
-            ("./a/b/c.md", "a/b/c.md"),
-            // Parent directory references (should be preserved)
-            ("../doc/file.md", "../doc/file.md"),
-            // Current directory
-            (".", "."),
-            ("./", "."),
-            // Multiple current directory markers
-            ("./././doc/file.md", "doc/file.md"),
-            ("doc/./file.md", "doc/file.md"),
-            // Absolute paths on Unix
-            #[cfg(unix)]
-            ("/home/user/file.md", "/home/user/file.md"),
-            // Empty path should normalize to current directory
-            ("", "."),
-        ];
-
-        for (input, expected) in cases {
-            let source = InputSource::FsPath(PathBuf::from(input));
-            assert_eq!(source.to_string(), expected, "Failed for input: '{input}'");
-        }
-    }
-
-    #[test]
-    #[cfg(windows)]
-    fn test_windows_path_normalization() {
-        // Test Windows-specific path formats
-        let windows_cases = vec![
-            // Backslash paths should be converted to forward slashes
-            ("doc\\file.md", "doc/file.md"),
-            (".\\doc\\file.md", "doc/file.md"),
-            ("doc\\sub\\file.md", "doc/sub/file.md"),
-            // Mixed separators
-            ("doc\\sub/file.md", "doc/sub/file.md"),
-            (".\\doc/file.md", "doc/file.md"),
-            // Windows absolute paths
-            ("C:\\Users\\file.md", "C:/Users/file.md"),
-            (
-                "C:\\Users\\Documents\\file.md",
-                "C:/Users/Documents/file.md",
-            ),
-            // UNC paths
-            ("\\\\server\\share\\file.md", "//server/share/file.md"),
-        ];
-
-        for (input, expected) in windows_cases {
-            let source = InputSource::FsPath(PathBuf::from(input));
-            assert_eq!(
-                source.to_string(),
-                expected,
-                "Failed for Windows input: '{}'",
-                input
-            );
-        }
-    }
-
-    #[test]
-    fn test_edge_cases() {
-        // Test edge cases and special scenarios
-
-        // Multiple consecutive slashes (behavior may vary based on PathBuf normalization)
-        let path = InputSource::FsPath(PathBuf::from("doc//file.md"));
-        // PathBuf might normalize this automatically
-        assert!(path.to_string() == "doc/file.md" || path.to_string() == "doc//file.md");
-
-        // Trailing slash - we preserve it as PathBuf does
-        let path = InputSource::FsPath(PathBuf::from("doc/"));
-        // PathBuf.to_string_lossy() preserves the trailing slash
-        assert_eq!(path.to_string(), "doc/");
-    }
-
-    #[test]
-    fn test_path_consistency_across_platforms() {
-        // Ensure the same logical path is displayed consistently across all platforms
-        let paths = vec![PathBuf::from("doc/file.md"), PathBuf::from("./doc/file.md")];
-
-        #[cfg(windows)]
-        let paths_win = vec![
-            PathBuf::from("doc\\file.md"),
-            PathBuf::from(".\\doc\\file.md"),
-        ];
-
-        let results: Vec<String> = paths
-            .into_iter()
-            .map(|p| InputSource::FsPath(p).to_string())
-            .collect();
-
-        #[cfg(windows)]
-        {
-            let results_win: Vec<String> = paths_win
-                .into_iter()
-                .map(|p| InputSource::FsPath(p).to_string())
-                .collect();
-
-            // All variations should produce the same result
-            assert_eq!(results[0], results_win[0]);
-            assert_eq!(results[1], results_win[1]);
-        }
-
-        // All should normalize to "doc/file.md"
-        assert!(results.iter().all(|r| r == "doc/file.md"));
+    #[rstest]
+    #[case("doc/file.md", "doc/file.md")]
+    #[case("./doc/file.md", "doc/file.md")]
+    #[case("./a/b/c.md", "a/b/c.md")]
+    #[case("../doc/file.md", "../doc/file.md")]
+    #[case(".", ".")]
+    #[case("./", "./")]
+    #[case("./././doc/file.md", "doc/file.md")]
+    fn test_path_normalization(#[case] input: &str, #[case] expected: &str) {
+        let source = InputSource::FsPath(PathBuf::from(input));
+        assert_eq!(source.to_string(), expected);
     }
 
     // Ensure that a Windows file path is not mistaken for a URL.

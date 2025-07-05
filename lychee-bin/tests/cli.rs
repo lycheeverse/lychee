@@ -2222,4 +2222,26 @@ mod cli {
             .success()
             .stdout(contains("https://www.example.com/smth."));
     }
+
+    #[tokio::test]
+    async fn test_normalized_path_display() -> Result<()> {
+        // Test that paths are displayed consistently, even if processed separately
+        let dir = tempfile::tempdir()?;
+        let file_path = dir.path().join("test.md");
+        fs::write(&file_path, "[broken](https://example.invalid)")?;
+
+        let mut cmd = main_command();
+        cmd.arg("test.md")
+            .arg("./test.md")
+            .current_dir(dir.path());
+
+        let output = cmd.output()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // Both should be displayed as "test.md" (not "./test.md")
+        assert!(stdout.contains("[test.md]:"));
+        assert!(!stdout.contains("[./test.md]:"));
+
+        Ok(())
+    }
 }
