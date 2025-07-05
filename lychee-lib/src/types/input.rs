@@ -116,7 +116,7 @@ impl InputSource {
         if path_str == "./" {
             "./".to_string()
         } else if has_trailing_slash && result != "." && !result.ends_with('/') {
-            format!("{}/", result)
+            format!("{result}/") // 수정된 부분
         } else {
             result
         }
