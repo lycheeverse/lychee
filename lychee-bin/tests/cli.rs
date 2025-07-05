@@ -2231,9 +2231,7 @@ mod cli {
         fs::write(&file_path, "[broken](https://example.invalid)")?;
 
         let mut cmd = main_command();
-        cmd.arg("test.md")
-            .arg("./test.md")
-            .current_dir(dir.path());
+        cmd.arg("test.md").arg("./test.md").current_dir(dir.path());
 
         let output = cmd.output()?;
         let stdout = String::from_utf8_lossy(&output.stdout);
