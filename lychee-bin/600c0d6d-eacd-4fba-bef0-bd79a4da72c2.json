@@ -1,0 +1,27 @@
+{
+  "total": 12,
+  "successful": 9,
+  "unknown": 0,
+  "unsupported": 0,
+  "timeouts": 0,
+  "redirects": 0,
+  "excludes": 2,
+  "errors": 1,
+  "cached": 0,
+  "success_map": {},
+  "error_map": {
+    "/Users/shawn/lychee/fixtures/TEST.md": [
+      {
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "status": {
+          "text": "Rejected status code (this depends on your \"accept\" configuration)",
+          "code": 403
+        }
+      }
+    ]
+  },
+  "suggestion_map": {},
+  "excluded_map": {},
+  "duration_secs": 0,
+  "detailed_stats": false
+}
