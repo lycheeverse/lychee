@@ -1933,7 +1933,9 @@ mod cli {
             .arg(input)
             .assert()
             .success()
-            .stderr(contains("https://en.wikipedia.org/wiki/Should404#ignore-fragment"))
+            .stderr(contains(
+                "https://en.wikipedia.org/wiki/Should404#ignore-fragment",
+            ))
             .stdout(contains("0 Errors"))
             .stdout(contains("1 OK"))
             .stdout(contains("1 Total"));
