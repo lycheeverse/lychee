@@ -1921,6 +1921,24 @@ mod cli {
     }
 
     #[test]
+    fn test_fragments_when_accept_error_status_codes() {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("TEST_FRAGMENT_ERR_CODE.md");
+
+        // it's common for user to accept 429, but let's test with 404 since
+        // triggering 429 may annoy the server
+        cmd.arg("--verbose")
+            .arg("--accept=200,404")
+            .arg("--include-fragments")
+            .arg(input)
+            .assert()
+            .success()
+            .stdout(contains("0 Errors"))
+            .stdout(contains("1 OK"))
+            .stdout(contains("1 Total"));
+    }
+
+    #[test]
     fn test_fallback_extensions() {
         let mut cmd = main_command();
         let input = fixtures_path().join("fallback-extensions");

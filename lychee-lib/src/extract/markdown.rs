@@ -139,7 +139,7 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
         .collect()
 }
 
-/// Extract fragments/anchors/fragments from a Markdown string.
+/// Extract fragments/anchors from a Markdown string.
 ///
 /// Fragments are generated from headings using the same unique kebab case method as GitHub.
 /// If a [heading attribute](https://github.com/raphlinus/pulldown-cmark/blob/master/specs/heading_attrs.txt)
