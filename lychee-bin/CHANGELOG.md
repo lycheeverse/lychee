@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.19.1...lychee-v0.20.0) - 2025-07-09
+
+### Added
+
+- skip fragment checking for unsupported MIME types ([#1744](https://github.com/lycheeverse/lychee/pull/1744))
+- add 'user-content-' prefix to support github markdown fragment ([#1750](https://github.com/lycheeverse/lychee/pull/1750))
+
+### Fixed
+
+- treat a fragment in an empty directory as an error ([#1756](https://github.com/lycheeverse/lychee/pull/1756))
+- resolve index file inside a directory ([#1752](https://github.com/lycheeverse/lychee/pull/1752))
+- skip fragment check if website URL doesn't contain fragment ([#1733](https://github.com/lycheeverse/lychee/pull/1733))
+
+### Other
+
+- Replace unmaintained human-sort with numeric-sort ([#1759](https://github.com/lycheeverse/lychee/pull/1759))
+- Fix basic auth ([#1748](https://github.com/lycheeverse/lychee/pull/1748))
+- Update 'Users' section in the README
+- Add ProseKit to users
+- Migrate to Clippy 1.88 ([#1749](https://github.com/lycheeverse/lychee/pull/1749))
+- fix assertion in fragment checks
+- Replace unreliable API URL
+- display unsupported URLs ([#1727](https://github.com/lycheeverse/lychee/pull/1727))
+
 ## [0.19.1](https://github.com/lycheeverse/lychee/compare/lychee-v0.19.0...lychee-v0.19.1) - 2025-06-16
 
 ### Other
