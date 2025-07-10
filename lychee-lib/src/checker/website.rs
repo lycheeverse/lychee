@@ -103,8 +103,10 @@ impl WebsiteChecker {
         match self.reqwest_client.execute(request).await {
             Ok(response) => {
                 let status = Status::new(&response, &self.accepted);
+                // when `accept=200,429`, `status_code=429` will be treated as success
+                // but we are not able the check the fragment since it's inapplicable.
                 if self.include_fragments
-                    && status.is_success()
+                    && response.status().is_success()
                     && method == Method::GET
                     && response.url().fragment().is_some_and(|x| !x.is_empty())
                 {
