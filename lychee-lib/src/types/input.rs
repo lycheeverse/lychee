@@ -88,15 +88,50 @@ impl Serialize for InputSource {
     }
 }
 
+impl InputSource {
+    fn normalize_path_display(path: &Path) -> String {
+        use std::path::Component;
+
+        // For absolute paths, return as-is
+        if path.is_absolute() {
+            return path.to_string_lossy().into_owned();
+        }
+
+        let path_str = path.to_string_lossy();
+        let has_trailing_slash = path_str.ends_with('/');
+
+        // Filter out all CurDir (".") components
+        let cleaned: PathBuf = path
+            .components()
+            .filter(|comp| !matches!(comp, Component::CurDir))
+            .collect();
+
+        let result = if cleaned.as_os_str().is_empty() {
+            ".".to_string()
+        } else {
+            cleaned.to_string_lossy().into_owned()
+        };
+
+        // Preserve trailing slash for "./"
+        if path_str == "./" {
+            "./".to_string()
+        } else if has_trailing_slash && result != "." && !result.ends_with('/') {
+            format!("{result}/")
+        } else {
+            result
+        }
+    }
+}
+
 impl Display for InputSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::RemoteUrl(url) => url.as_str(),
-            Self::FsGlob { pattern, .. } => pattern,
-            Self::FsPath(path) => path.to_str().unwrap_or_default(),
-            Self::Stdin => "stdin",
-            Self::String(s) => s,
-        })
+        match self {
+            Self::RemoteUrl(url) => f.write_str(url.as_str()),
+            Self::FsGlob { pattern, .. } => f.write_str(pattern),
+            Self::FsPath(path) => f.write_str(&Self::normalize_path_display(path)),
+            Self::Stdin => f.write_str("stdin"),
+            Self::String(s) => f.write_str(s),
+        }
     }
 }
 
@@ -428,6 +463,7 @@ fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     #[test]
     fn test_input_handles_real_relative_paths() {
@@ -494,6 +530,19 @@ mod tests {
             input.unwrap().source.to_string(),
             String::from("http://example.com/")
         );
+    }
+
+    #[rstest]
+    #[case("doc/file.md", "doc/file.md")]
+    #[case("./doc/file.md", "doc/file.md")]
+    #[case("./a/b/c.md", "a/b/c.md")]
+    #[case("../doc/file.md", "../doc/file.md")]
+    #[case(".", ".")]
+    #[case("./", "./")]
+    #[case("./././doc/file.md", "doc/file.md")]
+    fn test_path_normalization(#[case] input: &str, #[case] expected: &str) {
+        let source = InputSource::FsPath(PathBuf::from(input));
+        assert_eq!(source.to_string(), expected);
     }
 
     // Ensure that a Windows file path is not mistaken for a URL.
