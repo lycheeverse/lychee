@@ -186,7 +186,7 @@ impl ErrorKind {
 
                 // Provide support for common error types
                 if e.is_connect() {
-                    Some(format!("{details} Maybe a certificate error?"))
+                    Some(format!("{details}. Maybe a certificate error?"))
                 } else {
                     Some(details)
                 }
