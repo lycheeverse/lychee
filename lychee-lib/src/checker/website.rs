@@ -107,7 +107,6 @@ impl WebsiteChecker {
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, request: Request) -> Status {
         let method = request.method().clone();
-        let url = request.url().clone();
         match self.reqwest_client.execute(request).await {
             Ok(response) => {
                 let mut status = Status::new(&response, &self.accepted);
@@ -169,6 +168,11 @@ impl WebsiteChecker {
             Box::new(credentials),
             Box::new(self.clone()),
         ]);
+
+        // TODO: also return redirection chain as tuple
+        //
+        // Alternative to updating the return type would be to
+        // expose the tracker and all redirection chains
 
         match self.check_website_inner(uri, &default_chain).await {
             Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
