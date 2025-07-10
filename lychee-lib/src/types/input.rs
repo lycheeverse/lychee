@@ -108,7 +108,7 @@ pub struct Input {
     /// Hint to indicate which extractor to use
     pub file_type_hint: Option<FileType>,
     /// Excluded paths that will be skipped when reading content
-    pub excluded_paths: Option<Vec<PathBuf>>,
+    pub excluded_paths: Vec<PathBuf>,
 }
 
 impl Input {
@@ -124,7 +124,7 @@ impl Input {
         value: &str,
         file_type_hint: Option<FileType>,
         glob_ignore_case: bool,
-        excluded_paths: Option<Vec<PathBuf>>,
+        excluded_paths: Vec<PathBuf>,
     ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
@@ -200,7 +200,16 @@ impl Input {
     /// Returns an error if the input does not exist (i.e. invalid path)
     /// and the input cannot be parsed as a URL.
     pub fn from_value(value: &str) -> Result<Self> {
-        Self::new(value, None, false, None)
+        Self::new(value, None, false, vec![])
+    }
+
+    /// Convenience constructor
+    pub fn from_input_source(source: InputSource) -> Self {
+        Self {
+            source,
+            file_type_hint: None,
+            excluded_paths: vec![],
+        }
     }
 
     /// Retrieve the contents from the input
@@ -360,10 +369,7 @@ impl Input {
 
     /// Check if the given path was excluded from link checking
     fn is_excluded_path(&self, path: &PathBuf) -> bool {
-        let Some(excluded_paths) = &self.excluded_paths else {
-            return false;
-        };
-        is_excluded_path(excluded_paths, path)
+        is_excluded_path(&self.excluded_paths, path)
     }
 
     /// Get the input content of a given path
@@ -437,15 +443,15 @@ mod tests {
         assert!(path.exists());
         assert!(path.is_relative());
 
-        let input = Input::new(test_file, None, false, None);
+        let input = Input::new(test_file, None, false, vec![]);
         assert!(input.is_ok());
         assert!(matches!(
             input,
             Ok(Input {
                 source: InputSource::FsPath(PathBuf { .. }),
                 file_type_hint: None,
-                excluded_paths: None,
-            })
+                excluded_paths
+            }) if excluded_paths.is_empty()
         ));
     }
 
