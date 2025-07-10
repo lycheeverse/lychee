@@ -231,7 +231,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        Result, Uri, mock_server,
+        Result, Uri,
+        filter::PathExcludes,
+        mock_server,
         test_utils::{load_fixture, mail, path, website},
         types::{FileType, Input, InputSource},
     };
@@ -278,7 +280,7 @@ mod tests {
             &file_path.as_path().display().to_string(),
             None,
             true,
-            vec![],
+            PathExcludes::empty(),
         )?;
         let contents: Vec<_> = input
             .get_contents(
@@ -298,7 +300,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
-        let input = Input::new("https://example.com/", None, true, vec![])?;
+        let input = Input::new("https://example.com/", None, true, PathExcludes::empty())?;
         let contents: Vec<_> = input
             .get_contents(
                 true,
@@ -372,7 +374,7 @@ mod tests {
         let input = Input {
             source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
             file_type_hint: Some(FileType::Markdown),
-            excluded_paths: vec![],
+            excluded_paths: PathExcludes::empty(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -398,7 +400,7 @@ mod tests {
                     .to_string(),
             ),
             file_type_hint: Some(FileType::Html),
-            excluded_paths: vec![],
+            excluded_paths: PathExcludes::empty(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -427,7 +429,7 @@ mod tests {
                 .to_string(),
             ),
             file_type_hint: Some(FileType::Html),
-            excluded_paths: vec![],
+            excluded_paths: PathExcludes::empty(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -453,7 +455,7 @@ mod tests {
                     .to_string(),
             ),
             file_type_hint: Some(FileType::Markdown),
-            excluded_paths: vec![],
+            excluded_paths: PathExcludes::empty(),
         };
 
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
@@ -476,7 +478,7 @@ mod tests {
         let input = Input {
             source: InputSource::String(input),
             file_type_hint: Some(FileType::Html),
-            excluded_paths: vec![],
+            excluded_paths: PathExcludes::empty(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -551,7 +553,7 @@ mod tests {
                     .unwrap(),
                 )),
                 file_type_hint: Some(FileType::Html),
-                excluded_paths: vec![],
+                excluded_paths: PathExcludes::empty(),
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
@@ -562,7 +564,7 @@ mod tests {
                     .unwrap(),
                 )),
                 file_type_hint: Some(FileType::Html),
-                excluded_paths: vec![],
+                excluded_paths: PathExcludes::empty(),
             },
         ];
 
@@ -597,7 +599,7 @@ mod tests {
                 .into(),
             ),
             file_type_hint: Some(FileType::Html),
-            excluded_paths: vec![],
+            excluded_paths: PathExcludes::empty(),
         };
 
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
