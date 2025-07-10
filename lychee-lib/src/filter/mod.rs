@@ -1,12 +1,19 @@
-mod excludes;
-mod includes;
+mod regex_filter;
 
 use regex::RegexSet;
 use std::collections::HashSet;
 use std::sync::LazyLock;
 
-pub use excludes::Excludes;
-pub use includes::Includes;
+/// Include configuration for the link checker.
+/// You can include links based on regex patterns.
+pub type Includes = regex_filter::RegexFilter;
+
+/// Exclude configuration for the link checker.
+/// You can ignore links based on regex patterns.
+pub type Excludes = regex_filter::RegexFilter;
+
+/// You can exclude paths and files based on regex patterns.
+pub type PathExcludes = regex_filter::RegexFilter;
 
 use crate::Uri;
 

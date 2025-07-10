@@ -70,10 +70,12 @@ use formatters::{get_stats_formatter, log::init_logging};
 use http::HeaderMap;
 use log::{error, info, warn};
 
+use lychee_lib::filter::PathExcludes;
 #[cfg(feature = "native-tls")]
 use openssl_sys as _; // required for vendored-openssl feature
 
 use options::{HeaderMapExt, LYCHEE_CONFIG_FILE};
+use regex::RegexSet;
 use ring as _; // required for apple silicon
 
 use lychee_lib::BasicAuthExtractor;
@@ -329,7 +331,9 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         let exit_code = commands::dump_inputs(
             sources,
             opts.config.output.as_ref(),
-            &opts.config.exclude_path,
+            &PathExcludes {
+                regex: RegexSet::new(&opts.config.exclude_path)?,
+            },
         )
         .await?;
 

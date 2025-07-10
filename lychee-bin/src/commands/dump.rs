@@ -1,6 +1,7 @@
 use log::error;
 use lychee_lib::Request;
 use lychee_lib::Result;
+use lychee_lib::filter::PathExcludes;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -75,7 +76,7 @@ where
 pub(crate) async fn dump_inputs<S>(
     sources: S,
     output: Option<&PathBuf>,
-    excluded_paths: &[PathBuf],
+    excluded_paths: &PathExcludes,
 ) -> Result<ExitCode>
 where
     S: futures::Stream<Item = Result<String>>,
@@ -90,9 +91,8 @@ where
     while let Some(source) = sources.next().await {
         let source = source?;
 
-        let excluded = excluded_paths
-            .iter()
-            .any(|path| source.starts_with(path.to_string_lossy().as_ref()));
+        // TODO: is this working? check for test coverage, create test if necessary
+        let excluded = excluded_paths.is_match(&source);
         if excluded {
             continue;
         }
@@ -141,6 +141,7 @@ fn write_out(writer: &mut Box<dyn Write>, out_str: &str) -> io::Result<()> {
 mod tests {
     use super::*;
     use futures::stream;
+    use regex::RegexSet;
     use tempfile::NamedTempFile;
 
     #[tokio::test]
@@ -158,7 +159,7 @@ mod tests {
         let stream = stream::iter(inputs);
 
         // Run dump_inputs
-        let result = dump_inputs(stream, Some(&output_path), &[]).await?;
+        let result = dump_inputs(stream, Some(&output_path), &PathExcludes::empty()).await?;
         assert_eq!(result, ExitCode::Success);
 
         // Verify output
@@ -179,8 +180,10 @@ mod tests {
         ];
         let stream = stream::iter(inputs);
 
-        let excluded = vec![PathBuf::from("excluded")];
-        let result = dump_inputs(stream, Some(&output_path), &excluded).await?;
+        let excluded = &PathExcludes {
+            regex: RegexSet::new(["excluded"]).unwrap(),
+        };
+        let result = dump_inputs(stream, Some(&output_path), excluded).await?;
         assert_eq!(result, ExitCode::Success);
 
         let contents = fs::read_to_string(&output_path)?;
@@ -194,7 +197,7 @@ mod tests {
         let output_path = temp_file.path().to_path_buf();
 
         let stream = stream::iter::<Vec<Result<String>>>(vec![]);
-        let result = dump_inputs(stream, Some(&output_path), &[]).await?;
+        let result = dump_inputs(stream, Some(&output_path), &PathExcludes::empty()).await?;
         assert_eq!(result, ExitCode::Success);
 
         let contents = fs::read_to_string(&output_path)?;
@@ -214,7 +217,7 @@ mod tests {
         ];
         let stream = stream::iter(inputs);
 
-        let result = dump_inputs(stream, Some(&output_path), &[]).await;
+        let result = dump_inputs(stream, Some(&output_path), &PathExcludes::empty()).await;
         assert!(result.is_err());
         Ok(())
     }
@@ -225,7 +228,7 @@ mod tests {
         let inputs = vec![Ok(String::from("test/path1"))];
         let stream = stream::iter(inputs);
 
-        let result = dump_inputs(stream, None, &[]).await?;
+        let result = dump_inputs(stream, None, &PathExcludes::empty()).await?;
         assert_eq!(result, ExitCode::Success);
         Ok(())
     }
