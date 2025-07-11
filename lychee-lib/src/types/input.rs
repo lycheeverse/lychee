@@ -206,6 +206,7 @@ impl Input {
     }
 
     /// Convenience constructor
+    #[must_use]
     pub fn from_input_source(source: InputSource) -> Self {
         Self {
             source,
@@ -262,7 +263,7 @@ impl Input {
                             .build()
                         {
                             let entry = entry?;
-                            if self.is_excluded_path(&entry.path().to_path_buf()) {
+                            if self.is_excluded_path(entry.path()) {
                                 continue;
                             }
                             match entry.file_type() {
@@ -370,7 +371,7 @@ impl Input {
     }
 
     /// Check if the given path was excluded from link checking
-    fn is_excluded_path(&self, path: &PathBuf) -> bool {
+    fn is_excluded_path(&self, path: &Path) -> bool {
         is_excluded_path(&self.excluded_paths, path)
     }
 
@@ -424,7 +425,7 @@ impl TryFrom<&str> for Input {
 /// Function for path exclusion tests
 ///
 /// This is a standalone function to allow for easier testing
-fn is_excluded_path(excluded_paths: &PathExcludes, path: &PathBuf) -> bool {
+fn is_excluded_path(excluded_paths: &PathExcludes, path: &Path) -> bool {
     excluded_paths.is_match(&path.to_string_lossy())
 }
 
@@ -468,20 +469,17 @@ mod tests {
     #[test]
     fn test_no_exclusions() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(!is_excluded_path(
-            &PathExcludes::empty(),
-            &dir.path().to_path_buf()
-        ));
+        assert!(!is_excluded_path(&PathExcludes::empty(), dir.path()));
     }
 
     #[test]
     fn test_excluded() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().to_path_buf();
+        let path = dir.path();
         let excludes = PathExcludes {
             regex: RegexSet::new([path.to_string_lossy()]).unwrap(),
         };
-        assert!(is_excluded_path(&excludes, &path));
+        assert!(is_excluded_path(&excludes, path));
     }
 
     #[test]
@@ -492,9 +490,9 @@ mod tests {
         let child = child_dir.path();
 
         let excludes = PathExcludes {
-            regex: RegexSet::new([parent.to_path_buf().to_string_lossy()]).unwrap(),
+            regex: RegexSet::new([parent.to_string_lossy()]).unwrap(),
         };
-        assert!(is_excluded_path(&excludes, &child.to_path_buf()));
+        assert!(is_excluded_path(&excludes, child));
     }
 
     #[test]
