@@ -18,7 +18,6 @@ impl RegexFilter {
     }
 
     /// Create a new empty regex set.
-    #[must_use]
     pub fn new<I, S>(exprs: I) -> Result<Self, regex::Error>
     where
         S: AsRef<str>,
