@@ -1570,9 +1570,9 @@ mod cli {
         let mut cmd = main_command();
 
         cmd.arg("--exclude-path")
-            .arg(&excluded_path1)
+            .arg(excluded_path1)
             .arg("--exclude-path")
-            .arg(&excluded_path2)
+            .arg(excluded_path2)
             .arg("--")
             .arg(&test_path)
             .assert()
@@ -1592,7 +1592,7 @@ mod cli {
         let mut cmd = main_command();
 
         cmd.arg("--exclude-path")
-            .arg(&excluded_path)
+            .arg(excluded_path)
             .arg("--")
             .arg(&test_path)
             .assert()
