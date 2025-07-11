@@ -5,10 +5,30 @@ use regex::RegexSet;
 #[derive(Clone, Debug)]
 pub struct RegexFilter {
     /// User-defined set of regex patterns
-    pub regex: RegexSet,
+    regex: RegexSet,
 }
 
 impl RegexFilter {
+    /// Create a new empty regex set.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            regex: RegexSet::empty(),
+        }
+    }
+
+    /// Create a new empty regex set.
+    #[must_use]
+    pub fn new<I, S>(exprs: I) -> Result<Self, regex::Error>
+    where
+        S: AsRef<str>,
+        I: IntoIterator<Item = S>,
+    {
+        Ok(Self {
+            regex: RegexSet::new(exprs)?,
+        })
+    }
+
     #[inline]
     #[must_use]
     /// Returns `true` if the given input string matches the regex set
@@ -22,13 +42,6 @@ impl RegexFilter {
     /// Whether there were no regular expressions defined
     pub fn is_empty(&self) -> bool {
         self.regex.is_empty()
-    }
-
-    /// Create a new empty regex set.
-    pub fn empty() -> Self {
-        Self {
-            regex: RegexSet::empty(),
-        }
     }
 }
 

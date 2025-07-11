@@ -31,7 +31,7 @@ use crate::{
     Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
-    filter::{Excludes, Filter, Includes},
+    filter::Filter,
     remap::Remaps,
     types::DEFAULT_ACCEPTED_STATUS_CODES,
 };
@@ -378,8 +378,8 @@ impl ClientBuilder {
         };
 
         let filter = Filter {
-            includes: self.includes.map(|regex| Includes { regex }),
-            excludes: self.excludes.map(|regex| Excludes { regex }),
+            includes: self.includes.map(std::convert::Into::into),
+            excludes: self.excludes.map(std::convert::Into::into),
             schemes: self.schemes,
             // exclude_all_private option turns on all "private" excludes,
             // including private IPs, link-local IPs and loopback IPs

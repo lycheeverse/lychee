@@ -75,7 +75,6 @@ use lychee_lib::filter::PathExcludes;
 use openssl_sys as _; // required for vendored-openssl feature
 
 use options::{HeaderMapExt, LYCHEE_CONFIG_FILE};
-use regex::RegexSet;
 use ring as _; // required for apple silicon
 
 use lychee_lib::BasicAuthExtractor;
@@ -331,9 +330,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         let exit_code = commands::dump_inputs(
             sources,
             opts.config.output.as_ref(),
-            &PathExcludes {
-                regex: RegexSet::new(&opts.config.exclude_path)?,
-            },
+            &PathExcludes::new(&opts.config.exclude_path)?,
         )
         .await?;
 
