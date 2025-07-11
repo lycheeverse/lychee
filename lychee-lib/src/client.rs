@@ -378,8 +378,8 @@ impl ClientBuilder {
         };
 
         let filter = Filter {
-            includes: self.includes.map(std::convert::Into::into),
-            excludes: self.excludes.map(std::convert::Into::into),
+            includes: self.includes.map(Into::into),
+            excludes: self.excludes.map(Into::into),
             schemes: self.schemes,
             // exclude_all_private option turns on all "private" excludes,
             // including private IPs, link-local IPs and loopback IPs
