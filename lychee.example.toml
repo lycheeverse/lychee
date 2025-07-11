@@ -105,10 +105,19 @@ include_verbatim = false
 glob_ignore_case = false
 
 # Exclude URLs and mail addresses from checking. The values are treated as regular expressions
-exclude = ['^https://www\.linkedin\.com', '^https://web\.archive\.org/web/']
+exclude = [
+    '^https://example\.com/home$',                    # specific URL
+    '^https?://example\.com',                         # match both HTTP and HTTPS
+    '^https://(www\.)?linkedin\.com',                 # optional subdomains
+    '^https://(.*\.)?github(usercontent)?\.(com|io)', # exclude common GitHub URLs
+]
 
 # Exclude paths from getting checked. The values are treated as regular expressions
-exclude_path = ["file/path/to/Ignore", "./other/file/path/to/Ignore"]
+exclude_path = [
+    "\\.txt$",      # skip .txt extensions
+    "(^|/)test/",   # skip directories named "test"
+    "[aeiouAEIOU]", # exclude paths containing vowels
+]
 
 # URLs to check (supports regex). Has preference over all excludes.
 include = ['gist\.github\.com.*']
