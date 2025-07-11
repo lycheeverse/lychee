@@ -139,7 +139,6 @@ fn write_out(writer: &mut Box<dyn Write>, out_str: &str) -> io::Result<()> {
 mod tests {
     use super::*;
     use futures::stream;
-    use regex::RegexSet;
     use tempfile::NamedTempFile;
 
     #[tokio::test]
@@ -178,9 +177,7 @@ mod tests {
         ];
         let stream = stream::iter(inputs);
 
-        let excluded = &PathExcludes {
-            regex: RegexSet::new(["excluded"]).unwrap(),
-        };
+        let excluded = &PathExcludes::new(["excluded"]).unwrap();
         let result = dump_inputs(stream, Some(&output_path), excluded).await?;
         assert_eq!(result, ExitCode::Success);
 

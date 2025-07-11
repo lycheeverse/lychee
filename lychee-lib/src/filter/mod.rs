@@ -261,7 +261,6 @@ impl Filter {
 
 #[cfg(test)]
 mod tests {
-    use regex::RegexSet;
     use reqwest::Url;
     use url::Host;
 
@@ -360,9 +359,7 @@ mod tests {
 
     #[test]
     fn test_overwrite_false_positives() {
-        let includes = Includes {
-            regex: RegexSet::new([r"http://www.w3.org/1999/xhtml"]).unwrap(),
-        };
+        let includes = Includes::new([r"http://www.w3.org/1999/xhtml"]).unwrap();
         let filter = Filter {
             includes: Some(includes),
             ..Filter::default()
@@ -372,9 +369,7 @@ mod tests {
 
     #[test]
     fn test_include_regex() {
-        let includes = Includes {
-            regex: RegexSet::new([r"foo.example.com"]).unwrap(),
-        };
+        let includes = Includes::new([r"foo.example.com"]).unwrap();
         let filter = Filter {
             includes: Some(includes),
             ..Filter::default()
@@ -411,9 +406,8 @@ mod tests {
 
     #[test]
     fn test_exclude_regex() {
-        let excludes = Excludes {
-            regex: RegexSet::new([r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap(),
-        };
+        let excludes =
+            Excludes::new([r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap();
         let filter = Filter {
             excludes: Some(excludes),
             ..Filter::default()
@@ -428,12 +422,8 @@ mod tests {
     }
     #[test]
     fn test_exclude_include_regex() {
-        let includes = Includes {
-            regex: RegexSet::new([r"foo.example.com"]).unwrap(),
-        };
-        let excludes = Excludes {
-            regex: RegexSet::new([r"example.com"]).unwrap(),
-        };
+        let includes = Includes::new([r"foo.example.com"]).unwrap();
+        let excludes = Excludes::new([r"example.com"]).unwrap();
         let filter = Filter {
             includes: Some(includes),
             excludes: Some(excludes),
