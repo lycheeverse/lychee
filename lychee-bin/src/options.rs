@@ -13,6 +13,7 @@ use lychee_lib::{
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
     FileType, Input, StatusCodeExcluder, StatusCodeSelector, archive::Archive,
 };
+use regex::RegexSet;
 use reqwest::tls;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer};
@@ -331,15 +332,16 @@ impl LycheeOptions {
     // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there, but
     // we wouldn't get access to `glob_ignore_case`.
     pub(crate) fn inputs(&self) -> Result<Vec<Input>> {
-        let excluded = if self.config.exclude_path.is_empty() {
-            None
-        } else {
-            Some(self.config.exclude_path.clone())
-        };
-
         self.raw_inputs
             .iter()
-            .map(|s| Input::new(s, None, self.config.glob_ignore_case, excluded.clone()))
+            .map(|s| {
+                Input::new(
+                    s,
+                    None,
+                    self.config.glob_ignore_case,
+                    RegexSet::new(&self.config.exclude_path)?.into(),
+                )
+            })
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
@@ -502,7 +504,8 @@ and 501."
     #[serde(default)]
     pub(crate) include: Vec<String>,
 
-    /// Exclude URLs and mail addresses from checking (supports regex)
+    /// Exclude URLs and mail addresses from checking.
+    /// The values are treated as regular expressions.
     #[arg(long)]
     #[serde(default)]
     pub(crate) exclude: Vec<String>,
@@ -512,10 +515,11 @@ and 501."
     #[serde(default)]
     pub(crate) exclude_file: Vec<String>,
 
-    /// Exclude file path from getting checked.
+    /// Exclude paths from getting checked.
+    /// The values are treated as regular expressions.
     #[arg(long)]
     #[serde(default)]
-    pub(crate) exclude_path: Vec<PathBuf>,
+    pub(crate) exclude_path: Vec<String>,
 
     /// Exclude all private IPs from checking.
     /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
@@ -750,7 +754,7 @@ impl Config {
             exclude_file: Vec::<String>::new(); // deprecated
             exclude_link_local: false;
             exclude_loopback: false;
-            exclude_path: Vec::<PathBuf>::new();
+            exclude_path: Vec::<String>::new();
             exclude_private: false;
             exclude: Vec::<String>::new();
             extensions: FileType::default_extensions();

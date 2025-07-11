@@ -231,7 +231,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        Result, Uri, mock_server,
+        Result, Uri,
+        filter::PathExcludes,
+        mock_server,
         test_utils::{load_fixture, mail, path, website},
         types::{FileType, Input, InputSource},
     };
@@ -274,7 +276,12 @@ mod tests {
         // Treat as plaintext file (no extension)
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path).unwrap();
-        let input = Input::new(&file_path.as_path().display().to_string(), None, true, None)?;
+        let input = Input::new(
+            &file_path.as_path().display().to_string(),
+            None,
+            true,
+            PathExcludes::empty(),
+        )?;
         let contents: Vec<_> = input
             .get_contents(
                 true,
@@ -293,7 +300,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
-        let input = Input::new("https://example.com/", None, true, None)?;
+        let input = Input::new("https://example.com/", None, true, PathExcludes::empty())?;
         let contents: Vec<_> = input
             .get_contents(
                 true,
@@ -330,33 +337,17 @@ mod tests {
         let mock_server = mock_server!(StatusCode::OK, set_body_string(TEST_URL));
 
         let inputs = vec![
-            Input {
-                source: InputSource::String(TEST_STRING.to_owned()),
-                file_type_hint: None,
-                excluded_paths: None,
-            },
-            Input {
-                source: InputSource::RemoteUrl(Box::new(
-                    Url::parse(&mock_server.uri())
-                        .map_err(|e| (mock_server.uri(), e))
-                        .unwrap(),
-                )),
-                file_type_hint: None,
-                excluded_paths: None,
-            },
-            Input {
-                source: InputSource::FsPath(file_path),
-                file_type_hint: None,
-                excluded_paths: None,
-            },
-            Input {
-                source: InputSource::FsGlob {
-                    pattern: temp_dir_path.join("glob*").to_str().unwrap().to_owned(),
-                    ignore_case: true,
-                },
-                file_type_hint: None,
-                excluded_paths: None,
-            },
+            Input::from_input_source(InputSource::String(TEST_STRING.to_owned())),
+            Input::from_input_source(InputSource::RemoteUrl(Box::new(
+                Url::parse(&mock_server.uri())
+                    .map_err(|e| (mock_server.uri(), e))
+                    .unwrap(),
+            ))),
+            Input::from_input_source(InputSource::FsPath(file_path)),
+            Input::from_input_source(InputSource::FsGlob {
+                pattern: temp_dir_path.join("glob*").to_str().unwrap().to_owned(),
+                ignore_case: true,
+            }),
         ];
 
         let links = collect_verbatim(inputs, None, None, FileType::default_extensions())
@@ -383,7 +374,7 @@ mod tests {
         let input = Input {
             source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
             file_type_hint: Some(FileType::Markdown),
-            excluded_paths: None,
+            excluded_paths: PathExcludes::empty(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -409,7 +400,7 @@ mod tests {
                     .to_string(),
             ),
             file_type_hint: Some(FileType::Html),
-            excluded_paths: None,
+            excluded_paths: PathExcludes::empty(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -438,7 +429,7 @@ mod tests {
                 .to_string(),
             ),
             file_type_hint: Some(FileType::Html),
-            excluded_paths: None,
+            excluded_paths: PathExcludes::empty(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -464,7 +455,7 @@ mod tests {
                     .to_string(),
             ),
             file_type_hint: Some(FileType::Markdown),
-            excluded_paths: None,
+            excluded_paths: PathExcludes::empty(),
         };
 
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
@@ -487,7 +478,7 @@ mod tests {
         let input = Input {
             source: InputSource::String(input),
             file_type_hint: Some(FileType::Html),
-            excluded_paths: None,
+            excluded_paths: PathExcludes::empty(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -516,11 +507,7 @@ mod tests {
 
         let server_uri = Url::parse(&mock_server.uri()).unwrap();
 
-        let input = Input {
-            source: InputSource::RemoteUrl(Box::new(server_uri.clone())),
-            file_type_hint: None,
-            excluded_paths: None,
-        };
+        let input = Input::from_input_source(InputSource::RemoteUrl(Box::new(server_uri.clone())));
 
         let links = collect(vec![input], None, None).await.ok().unwrap();
 
@@ -534,13 +521,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_email_with_query_params() {
-        let input = Input {
-            source: InputSource::String(
-                "This is a mailto:user@example.com?subject=Hello link".to_string(),
-            ),
-            file_type_hint: None,
-            excluded_paths: None,
-        };
+        let input = Input::from_input_source(InputSource::String(
+            "This is a mailto:user@example.com?subject=Hello link".to_string(),
+        ));
+
         let links = collect(vec![input], None, None).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([mail("user@example.com")]);
@@ -569,7 +553,7 @@ mod tests {
                     .unwrap(),
                 )),
                 file_type_hint: Some(FileType::Html),
-                excluded_paths: None,
+                excluded_paths: PathExcludes::empty(),
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
@@ -580,7 +564,7 @@ mod tests {
                     .unwrap(),
                 )),
                 file_type_hint: Some(FileType::Html),
-                excluded_paths: None,
+                excluded_paths: PathExcludes::empty(),
             },
         ];
 
@@ -615,7 +599,7 @@ mod tests {
                 .into(),
             ),
             file_type_hint: Some(FileType::Html),
-            excluded_paths: None,
+            excluded_paths: PathExcludes::empty(),
         };
 
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();

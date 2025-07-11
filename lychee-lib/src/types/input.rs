@@ -1,11 +1,13 @@
 use super::file::FileExtensions;
 use super::resolver::UrlContentResolver;
+use crate::filter::PathExcludes;
 use crate::types::FileType;
-use crate::{ErrorKind, Result, utils};
+use crate::{ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
 use ignore::WalkBuilder;
+use regex::RegexSet;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
@@ -101,14 +103,14 @@ impl Display for InputSource {
 }
 
 /// Lychee Input with optional file hint for parsing
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Input {
     /// Origin of input
     pub source: InputSource,
     /// Hint to indicate which extractor to use
     pub file_type_hint: Option<FileType>,
     /// Excluded paths that will be skipped when reading content
-    pub excluded_paths: Option<Vec<PathBuf>>,
+    pub excluded_paths: PathExcludes,
 }
 
 impl Input {
@@ -124,7 +126,7 @@ impl Input {
         value: &str,
         file_type_hint: Option<FileType>,
         glob_ignore_case: bool,
-        excluded_paths: Option<Vec<PathBuf>>,
+        excluded_paths: PathExcludes,
     ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
@@ -200,7 +202,17 @@ impl Input {
     /// Returns an error if the input does not exist (i.e. invalid path)
     /// and the input cannot be parsed as a URL.
     pub fn from_value(value: &str) -> Result<Self> {
-        Self::new(value, None, false, None)
+        Self::new(value, None, false, RegexSet::empty().into())
+    }
+
+    /// Convenience constructor
+    #[must_use]
+    pub fn from_input_source(source: InputSource) -> Self {
+        Self {
+            source,
+            file_type_hint: None,
+            excluded_paths: RegexSet::empty().into(),
+        }
     }
 
     /// Retrieve the contents from the input
@@ -251,7 +263,7 @@ impl Input {
                             .build()
                         {
                             let entry = entry?;
-                            if self.is_excluded_path(&entry.path().to_path_buf()) {
+                            if self.is_excluded_path(entry.path()) {
                                 continue;
                             }
                             match entry.file_type() {
@@ -359,11 +371,8 @@ impl Input {
     }
 
     /// Check if the given path was excluded from link checking
-    fn is_excluded_path(&self, path: &PathBuf) -> bool {
-        let Some(excluded_paths) = &self.excluded_paths else {
-            return false;
-        };
-        is_excluded_path(excluded_paths, path)
+    fn is_excluded_path(&self, path: &Path) -> bool {
+        is_excluded_path(&self.excluded_paths, path)
     }
 
     /// Get the input content of a given path
@@ -416,13 +425,8 @@ impl TryFrom<&str> for Input {
 /// Function for path exclusion tests
 ///
 /// This is a standalone function to allow for easier testing
-fn is_excluded_path(excluded_paths: &[PathBuf], path: &PathBuf) -> bool {
-    for excluded in excluded_paths {
-        if let Ok(true) = utils::path::contains(excluded, path) {
-            return true;
-        }
-    }
-    false
+fn is_excluded_path(excluded_paths: &PathExcludes, path: &Path) -> bool {
+    excluded_paths.is_match(&path.to_string_lossy())
 }
 
 #[cfg(test)]
@@ -437,15 +441,15 @@ mod tests {
         assert!(path.exists());
         assert!(path.is_relative());
 
-        let input = Input::new(test_file, None, false, None);
+        let input = Input::new(test_file, None, false, PathExcludes::empty());
         assert!(input.is_ok());
         assert!(matches!(
             input,
             Ok(Input {
                 source: InputSource::FsPath(PathBuf { .. }),
                 file_type_hint: None,
-                excluded_paths: None,
-            })
+                excluded_paths
+            }) if excluded_paths.is_empty()
         ));
     }
 
@@ -465,14 +469,15 @@ mod tests {
     #[test]
     fn test_no_exclusions() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(!is_excluded_path(&[], &dir.path().to_path_buf()));
+        assert!(!is_excluded_path(&PathExcludes::empty(), dir.path()));
     }
 
     #[test]
     fn test_excluded() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().to_path_buf();
-        assert!(is_excluded_path(&[path.clone()], &path));
+        let path = dir.path();
+        let excludes = PathExcludes::new([path.to_string_lossy()]).unwrap();
+        assert!(is_excluded_path(&excludes, path));
     }
 
     #[test]
@@ -481,10 +486,9 @@ mod tests {
         let parent = parent_dir.path();
         let child_dir = tempfile::tempdir_in(parent).unwrap();
         let child = child_dir.path();
-        assert!(is_excluded_path(
-            &[parent.to_path_buf()],
-            &child.to_path_buf()
-        ));
+
+        let excludes = PathExcludes::new([parent.to_string_lossy()]).unwrap();
+        assert!(is_excluded_path(&excludes, child));
     }
 
     #[test]

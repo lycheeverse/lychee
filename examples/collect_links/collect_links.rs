@@ -7,18 +7,10 @@ use tokio_stream::StreamExt;
 async fn main() -> Result<()> {
     // Collect all links from the following inputs
     let inputs = vec![
-        Input {
-            source: InputSource::RemoteUrl(Box::new(
-                Url::parse("https://github.com/lycheeverse/lychee").unwrap(),
-            )),
-            file_type_hint: None,
-            excluded_paths: None,
-        },
-        Input {
-            source: InputSource::FsPath(PathBuf::from("fixtures/TEST.md")),
-            file_type_hint: None,
-            excluded_paths: None,
-        },
+        Input::from_input_source(InputSource::RemoteUrl(Box::new(
+            Url::parse("https://github.com/lycheeverse/lychee").unwrap(),
+        ))),
+        Input::from_input_source(InputSource::FsPath(PathBuf::from("fixtures/TEST.md"))),
     ];
 
     let links = Collector::default()
