@@ -505,7 +505,7 @@ and 501."
     pub(crate) include: Vec<String>,
 
     /// Exclude URLs and mail addresses from checking.
-    /// The value is treated as regular expression.
+    /// The values are treated as regular expressions.
     #[arg(long)]
     #[serde(default)]
     pub(crate) exclude: Vec<String>,
@@ -516,7 +516,7 @@ and 501."
     pub(crate) exclude_file: Vec<String>,
 
     /// Exclude paths from getting checked.
-    /// The value is treated as regular expression.
+    /// The values are treated as regular expressions.
     #[arg(long)]
     #[serde(default)]
     pub(crate) exclude_path: Vec<String>,

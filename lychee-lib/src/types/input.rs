@@ -2,7 +2,7 @@ use super::file::FileExtensions;
 use super::resolver::UrlContentResolver;
 use crate::filter::PathExcludes;
 use crate::types::FileType;
-use crate::{ErrorKind, Result, utils};
+use crate::{ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
