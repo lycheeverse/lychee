@@ -91,9 +91,7 @@ where
     while let Some(source) = sources.next().await {
         let source = source?;
 
-        // TODO: is this working? check for test coverage, create test if necessary
-        let excluded = excluded_paths.is_match(&source);
-        if excluded {
+        if excluded_paths.is_match(&source) {
             continue;
         }
 
