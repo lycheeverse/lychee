@@ -15,6 +15,7 @@ mod cli {
     use http::{Method, StatusCode};
     use lychee_lib::{InputSource, ResponseBody};
     use predicates::{
+        ord::eq,
         prelude::{PredicateBooleanExt, predicate},
         str::{contains, is_empty},
     };
@@ -1562,45 +1563,24 @@ mod cli {
     }
 
     #[test]
-    fn test_excluded_paths() -> Result<()> {
-        let test_path = fixtures_path().join("exclude-path");
-
-        let excluded_path1 = test_path.join("exclude");
-        let excluded_path2 = test_path.join("dir").join("excluded");
-        let mut cmd = main_command();
-
-        cmd.arg("--exclude-path")
-            .arg(excluded_path1)
-            .arg("--exclude-path")
-            .arg(excluded_path2)
-            .arg("--")
-            .arg(&test_path)
-            .assert()
-            .success()
-            // Links in excluded files are not taken into account in the total
-            // number of links.
-            .stdout(contains("1 Total"))
-            .stdout(contains("1 OK"));
-
-        Ok(())
-    }
-
-    #[test]
     fn test_excluded_paths_regex() -> Result<()> {
         let test_path = fixtures_path().join("exclude-path");
-        let excluded_path = "\\/excluded?\\/"; // exclude paths containing a directory "exclude" and "excluded"
+        let excluded_path_1 = "\\/excluded?\\/"; // exclude paths containing a directory "exclude" and "excluded"
+        let excluded_path_2 = "(\\.mdx|\\.txt)$"; // exclude .mdx and .txt files
         let mut cmd = main_command();
 
         cmd.arg("--exclude-path")
-            .arg(excluded_path)
+            .arg(excluded_path_1)
+            .arg("--exclude-path")
+            .arg(excluded_path_2)
+            .arg("--dump")
             .arg("--")
             .arg(&test_path)
             .assert()
             .success()
-            // Links in excluded files are not taken into account in the total
-            // number of links.
-            .stdout(contains("1 Total"))
-            .stdout(contains("1 OK"));
+            .stdout(eq(
+                "https://test.md/to-be-included-inner\nhttps://test.md/to-be-included-outer\n",
+            ));
 
         Ok(())
     }

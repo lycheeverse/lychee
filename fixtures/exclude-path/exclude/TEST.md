@@ -1,1 +1,1 @@
-https://example.com/excluded_dir
+https://test.md/to-be-excluded
