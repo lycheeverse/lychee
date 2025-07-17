@@ -44,13 +44,6 @@ impl RegexFilter {
     }
 }
 
-impl PartialEq for RegexFilter {
-    fn eq(&self, other: &Self) -> bool {
-        // Workaround, see https://github.com/rust-lang/regex/issues/364
-        self.regex.patterns() == other.regex.patterns()
-    }
-}
-
 impl From<RegexSet> for RegexFilter {
     fn from(regex: RegexSet) -> Self {
         Self { regex }

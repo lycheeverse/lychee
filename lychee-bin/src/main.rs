@@ -322,6 +322,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         .skip_ignored(!opts.config.no_ignore)
         .include_verbatim(opts.config.include_verbatim)
         .headers(HeaderMap::from_header_pairs(&opts.config.header)?)
+        .excluded_paths(PathExcludes::new(opts.config.exclude_path.clone())?)
         // File a bug if you rely on this envvar! It's going to go away eventually.
         .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").is_ok_and(|x| x == "1"));
 
