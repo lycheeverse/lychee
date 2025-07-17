@@ -7,7 +7,6 @@ use async_stream::try_stream;
 use futures::stream::Stream;
 use glob::glob_with;
 use ignore::WalkBuilder;
-use regex::RegexSet;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
@@ -109,8 +108,6 @@ pub struct Input {
     pub source: InputSource,
     /// Hint to indicate which extractor to use
     pub file_type_hint: Option<FileType>,
-    /// Excluded paths that will be skipped when reading content
-    pub excluded_paths: PathExcludes,
 }
 
 impl Input {
@@ -126,7 +123,6 @@ impl Input {
         value: &str,
         file_type_hint: Option<FileType>,
         glob_ignore_case: bool,
-        excluded_paths: PathExcludes,
     ) -> Result<Self> {
         let source = if value == STDIN {
             InputSource::Stdin
@@ -191,7 +187,6 @@ impl Input {
         Ok(Self {
             source,
             file_type_hint,
-            excluded_paths,
         })
     }
 
@@ -202,16 +197,15 @@ impl Input {
     /// Returns an error if the input does not exist (i.e. invalid path)
     /// and the input cannot be parsed as a URL.
     pub fn from_value(value: &str) -> Result<Self> {
-        Self::new(value, None, false, RegexSet::empty().into())
+        Self::new(value, None, false)
     }
 
     /// Convenience constructor
     #[must_use]
-    pub fn from_input_source(source: InputSource) -> Self {
+    pub const fn from_input_source(source: InputSource) -> Self {
         Self {
             source,
             file_type_hint: None,
-            excluded_paths: RegexSet::empty().into(),
         }
     }
 
@@ -234,6 +228,7 @@ impl Input {
         // Stop on the first match.
         file_extensions: FileExtensions,
         resolver: UrlContentResolver,
+        excluded_paths: PathExcludes,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             match self.source {
@@ -249,7 +244,7 @@ impl Input {
                     ref pattern,
                     ignore_case,
                 } => {
-                    for await content in self.glob_contents(pattern, ignore_case) {
+                    for await content in glob_contents(pattern, ignore_case, &excluded_paths) {
                         let content = content?;
                         yield content;
                     }
@@ -263,7 +258,7 @@ impl Input {
                             .build()
                         {
                             let entry = entry?;
-                            if self.is_excluded_path(entry.path()) {
+                            if is_excluded_path(&excluded_paths, entry.path()) {
                                 continue;
                             }
                             match entry.file_type() {
@@ -278,7 +273,7 @@ impl Input {
                             yield content;
                         }
                     } else {
-                        if self.is_excluded_path(path) {
+                        if is_excluded_path(&excluded_paths, path) {
                             return;
                         }
                         let content = Self::path_content(path).await;
@@ -336,45 +331,6 @@ impl Input {
         }
     }
 
-    fn glob_contents(
-        &self,
-        pattern: &str,
-        ignore_case: bool,
-    ) -> impl Stream<Item = Result<InputContent>> + '_ + use<'_> {
-        let glob_expanded = tilde(&pattern).to_string();
-        let mut match_opts = glob::MatchOptions::new();
-
-        match_opts.case_sensitive = !ignore_case;
-
-        try_stream! {
-            for entry in glob_with(&glob_expanded, match_opts)? {
-                match entry {
-                    Ok(path) => {
-                        // Directories can have a suffix which looks like
-                        // a file extension (like `foo.html`). This can lead to
-                        // unexpected behavior with glob patterns like
-                        // `**/*.html`. Therefore filter these out.
-                        // See <https://github.com/lycheeverse/lychee/pull/262#issuecomment-913226819>
-                        if path.is_dir() {
-                            continue;
-                        }
-                        if self.is_excluded_path(&path) {
-                            continue;
-                        }
-                        let content: InputContent = Self::path_content(&path).await?;
-                        yield content;
-                    }
-                    Err(e) => eprintln!("{e:?}"),
-                }
-            }
-        }
-    }
-
-    /// Check if the given path was excluded from link checking
-    fn is_excluded_path(&self, path: &Path) -> bool {
-        is_excluded_path(&self.excluded_paths, path)
-    }
-
     /// Get the input content of a given path
     /// # Errors
     ///
@@ -422,6 +378,40 @@ impl TryFrom<&str> for Input {
     }
 }
 
+fn glob_contents(
+    pattern: &str,
+    ignore_case: bool,
+    excluded_paths: &PathExcludes,
+) -> impl Stream<Item = Result<InputContent>> {
+    let glob_expanded = tilde(&pattern).to_string();
+    let mut match_opts = glob::MatchOptions::new();
+
+    match_opts.case_sensitive = !ignore_case;
+
+    try_stream! {
+        for entry in glob_with(&glob_expanded, match_opts)? {
+            match entry {
+                Ok(path) => {
+                    // Directories can have a suffix which looks like
+                    // a file extension (like `foo.html`). This can lead to
+                    // unexpected behavior with glob patterns like
+                    // `**/*.html`. Therefore filter these out.
+                    // See <https://github.com/lycheeverse/lychee/pull/262#issuecomment-913226819>
+                    if path.is_dir() {
+                        continue;
+                    }
+                    if is_excluded_path(excluded_paths, &path) {
+                        continue;
+                    }
+                    let content: InputContent = Input::path_content(&path).await?;
+                    yield content;
+                }
+                Err(e) => eprintln!("{e:?}"),
+            }
+        }
+    }
+}
+
 /// Function for path exclusion tests
 ///
 /// This is a standalone function to allow for easier testing
@@ -441,15 +431,14 @@ mod tests {
         assert!(path.exists());
         assert!(path.is_relative());
 
-        let input = Input::new(test_file, None, false, PathExcludes::empty());
+        let input = Input::new(test_file, None, false);
         assert!(input.is_ok());
         assert!(matches!(
             input,
             Ok(Input {
                 source: InputSource::FsPath(PathBuf { .. }),
                 file_type_hint: None,
-                excluded_paths
-            }) if excluded_paths.is_empty()
+            })
         ));
     }
 

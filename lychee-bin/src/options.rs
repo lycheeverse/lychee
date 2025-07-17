@@ -13,7 +13,6 @@ use lychee_lib::{
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
     FileType, Input, StatusCodeExcluder, StatusCodeSelector, archive::Archive,
 };
-use regex::RegexSet;
 use reqwest::tls;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer};
@@ -334,14 +333,7 @@ impl LycheeOptions {
     pub(crate) fn inputs(&self) -> Result<Vec<Input>> {
         self.raw_inputs
             .iter()
-            .map(|s| {
-                Input::new(
-                    s,
-                    None,
-                    self.config.glob_ignore_case,
-                    RegexSet::new(&self.config.exclude_path)?.into(),
-                )
-            })
+            .map(|s| Input::new(s, None, self.config.glob_ignore_case))
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }

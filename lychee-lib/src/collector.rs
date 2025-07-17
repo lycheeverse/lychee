@@ -1,5 +1,6 @@
 use crate::ErrorKind;
 use crate::InputSource;
+use crate::filter::PathExcludes;
 use crate::types::resolver::UrlContentResolver;
 use crate::{
     Base, Input, Request, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
@@ -28,6 +29,7 @@ pub struct Collector {
     use_html5ever: bool,
     root_dir: Option<PathBuf>,
     base: Option<Base>,
+    excluded_paths: PathExcludes,
     headers: HeaderMap,
     client: Client,
 }
@@ -49,6 +51,7 @@ impl Default for Collector {
             base: None,
             headers: HeaderMap::new(),
             client: Client::new(),
+            excluded_paths: PathExcludes::empty(),
         }
     }
 }
@@ -59,6 +62,7 @@ impl Collector {
     /// # Errors
     ///
     /// Returns an `Err` if the `root_dir` is not an absolute path
+    /// or if the reqwest `Client` fails to build
     pub fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> Result<Self> {
         if let Some(root_dir) = &root_dir {
             if root_dir.is_relative() {
@@ -76,6 +80,7 @@ impl Collector {
             client: Client::builder()
                 .build()
                 .map_err(ErrorKind::BuildRequestClient)?,
+            excluded_paths: PathExcludes::empty(),
             root_dir,
             base,
         })
@@ -140,6 +145,13 @@ impl Collector {
         self
     }
 
+    /// Configure which paths to exclude
+    #[must_use]
+    pub fn excluded_paths(mut self, excluded_paths: PathExcludes) -> Self {
+        self.excluded_paths = excluded_paths;
+        self
+    }
+
     /// Collect all sources from a list of [`Input`]s. For further details,
     /// see also [`Input::get_sources`](crate::Input#method.get_sources).
     pub fn collect_sources(self, inputs: Vec<Input>) -> impl Stream<Item = Result<String>> {
@@ -170,6 +182,7 @@ impl Collector {
         let skip_hidden = self.skip_hidden;
         let skip_ignored = self.skip_ignored;
         let global_base = self.base;
+        let excluded_paths = self.excluded_paths;
 
         let resolver = UrlContentResolver {
             basic_auth_extractor: self.basic_auth_extractor.clone(),
@@ -182,6 +195,7 @@ impl Collector {
                 let default_base = global_base.clone();
                 let extensions = extensions.clone();
                 let resolver = resolver.clone();
+                let excluded_paths = excluded_paths.clone();
 
                 async move {
                     let base = match &input.source {
@@ -196,6 +210,7 @@ impl Collector {
                             skip_ignored,
                             extensions,
                             resolver,
+                            excluded_paths,
                         )
                         .map(move |content| (content, base.clone()))
                 }
@@ -276,12 +291,7 @@ mod tests {
         // Treat as plaintext file (no extension)
         let file_path = temp_dir.path().join("README");
         let _file = File::create(&file_path).unwrap();
-        let input = Input::new(
-            &file_path.as_path().display().to_string(),
-            None,
-            true,
-            PathExcludes::empty(),
-        )?;
+        let input = Input::new(&file_path.as_path().display().to_string(), None, true)?;
         let contents: Vec<_> = input
             .get_contents(
                 true,
@@ -289,6 +299,7 @@ mod tests {
                 true,
                 FileType::default_extensions(),
                 UrlContentResolver::default(),
+                PathExcludes::empty(),
             )
             .collect::<Vec<_>>()
             .await;
@@ -300,7 +311,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_url_without_extension_is_html() -> Result<()> {
-        let input = Input::new("https://example.com/", None, true, PathExcludes::empty())?;
+        let input = Input::new("https://example.com/", None, true)?;
         let contents: Vec<_> = input
             .get_contents(
                 true,
@@ -308,6 +319,7 @@ mod tests {
                 true,
                 FileType::default_extensions(),
                 UrlContentResolver::default(),
+                PathExcludes::empty(),
             )
             .collect::<Vec<_>>()
             .await;
@@ -374,7 +386,6 @@ mod tests {
         let input = Input {
             source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
             file_type_hint: Some(FileType::Markdown),
-            excluded_paths: PathExcludes::empty(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -400,7 +411,6 @@ mod tests {
                     .to_string(),
             ),
             file_type_hint: Some(FileType::Html),
-            excluded_paths: PathExcludes::empty(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -429,7 +439,6 @@ mod tests {
                 .to_string(),
             ),
             file_type_hint: Some(FileType::Html),
-            excluded_paths: PathExcludes::empty(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -455,7 +464,6 @@ mod tests {
                     .to_string(),
             ),
             file_type_hint: Some(FileType::Markdown),
-            excluded_paths: PathExcludes::empty(),
         };
 
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
@@ -478,7 +486,6 @@ mod tests {
         let input = Input {
             source: InputSource::String(input),
             file_type_hint: Some(FileType::Html),
-            excluded_paths: PathExcludes::empty(),
         };
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
 
@@ -553,7 +560,6 @@ mod tests {
                     .unwrap(),
                 )),
                 file_type_hint: Some(FileType::Html),
-                excluded_paths: PathExcludes::empty(),
             },
             Input {
                 source: InputSource::RemoteUrl(Box::new(
@@ -564,7 +570,6 @@ mod tests {
                     .unwrap(),
                 )),
                 file_type_hint: Some(FileType::Html),
-                excluded_paths: PathExcludes::empty(),
             },
         ];
 
@@ -599,7 +604,6 @@ mod tests {
                 .into(),
             ),
             file_type_hint: Some(FileType::Html),
-            excluded_paths: PathExcludes::empty(),
         };
 
         let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
