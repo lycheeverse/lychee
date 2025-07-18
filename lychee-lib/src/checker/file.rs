@@ -106,10 +106,16 @@ impl FileChecker {
     /// Returns a `Status` indicating the result of the check.
     async fn check_path(&self, path: &Path, uri: &Uri) -> Status {
         let file_path = self.resolve_file_path(path);
+        let has_fragment = uri.url.fragment().is_some_and(|x| !x.is_empty());
 
         // If file_path exists, check this file
         if file_path.is_some() {
             return self.check_file(&file_path.unwrap(), uri).await;
+        }
+        // If path is a directory, and we cannot find an index file inside it,
+        // and we don't have a fragment, just return success.
+        else if path.is_dir() && !has_fragment {
+            return Status::Ok(StatusCode::OK);
         }
 
         ErrorKind::InvalidFilePath(uri.clone()).into()
