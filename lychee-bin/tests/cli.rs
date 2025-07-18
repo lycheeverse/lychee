@@ -281,6 +281,18 @@ mod cli {
     }
 
     #[test]
+    fn test_local_directories() -> Result<()> {
+        test_json_output!(
+            "TEST_LOCAL_DIRECTORIES.md",
+            MockResponseStats {
+                total: 4,
+                successful: 4,
+                ..MockResponseStats::default()
+            }
+        )
+    }
+
+    #[test]
     fn test_email() -> Result<()> {
         test_json_output!(
             "TEST_EMAIL.md",
