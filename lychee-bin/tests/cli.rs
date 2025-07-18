@@ -104,7 +104,7 @@ mod cli {
             let test_path = fixtures_path().join($test_file);
             let outfile = format!("{}.json", uuid::Uuid::new_v4());
 
-            cmd$(.arg($arg))*.arg("--output").arg(&outfile).arg("--format").arg("json").arg(test_path).assert().success();
+            let result = cmd$(.arg($arg))*.arg("--output").arg(&outfile).arg("--format").arg("json").arg(test_path).assert();
 
             let output = std::fs::read_to_string(&outfile)?;
             std::fs::remove_file(outfile)?;
@@ -112,6 +112,7 @@ mod cli {
             let actual: Value = serde_json::from_str(&output)?;
             let expected: Value = serde_json::to_value(&$expected)?;
 
+            result.success();
             assert_json_include!(actual: actual, expected: expected);
             Ok(())
         }};
