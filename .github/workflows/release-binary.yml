@@ -47,6 +47,7 @@ jobs:
           - arm-unknown-linux-musleabi
           - arm-unknown-linux-musleabihf
           - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
           # See https://github.com/briansmith/ring/issues/562
           # - mips-unknown-linux-musl
           # - mipsel-unknown-linux-musl
