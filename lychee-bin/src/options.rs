@@ -557,6 +557,22 @@ Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
     )]
     pub(crate) fallback_extensions: Vec<String>,
 
+    /// Resolve local directory links to certain index files within the directory
+    #[serde(default)]
+    #[arg(
+        long,
+        default_value_t = vec!["."],
+        value_delimiter = ',',
+        long_help = "When checking locally, resolves directory links to an index file
+within the directory. Index file names are attempted in the order given. In order
+for a directory link to be considered valid, at least one of the index files must
+exist. To consider directory links valid if the directory itself exists (irrespective
+of index files), the file name `.` can be specified (this is the default behaviour).
+
+Example: --index-files index.html,readme.md"
+    )]
+    pub(crate) index_files: Vec<String>,
+
     /// Set custom header for requests
     #[arg(
         short = 'H',
