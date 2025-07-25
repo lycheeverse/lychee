@@ -14,7 +14,7 @@ use crate::ExitCode;
 pub(crate) async fn dump_inputs(
     inputs: Vec<Input>,
     output: Option<&PathBuf>,
-    excluded_paths: &[PathBuf],
+    excluded_paths: &[String],
     valid_extensions: &FileExtensions,
     skip_hidden: bool,
     skip_gitignored: bool,
@@ -26,22 +26,18 @@ pub(crate) async fn dump_inputs(
     let mut writer = super::create_writer(output.cloned())?;
 
     for input in inputs {
-        let paths_stream =
-            input.get_file_paths(valid_extensions.clone(), skip_hidden, skip_gitignored);
-        tokio::pin!(paths_stream);
+        let excluded_path_filter = lychee_lib::filter::PathExcludes::new(excluded_paths)?;
+        let sources_stream = input.get_sources(
+            valid_extensions.clone(),
+            skip_hidden,
+            skip_gitignored,
+            excluded_path_filter,
+        );
+        tokio::pin!(sources_stream);
 
-        while let Some(path_result) = paths_stream.next().await {
-            let path = path_result?;
-
-            // Skip excluded paths
-            if excluded_paths
-                .iter()
-                .any(|excluded| path.starts_with(excluded))
-            {
-                continue;
-            }
-
-            write_out(&mut writer, &path.to_string_lossy())?;
+        while let Some(source_result) = sources_stream.next().await {
+            let source = source_result?;
+            write_out(&mut writer, &source)?;
         }
     }
 

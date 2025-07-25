@@ -1,7 +1,6 @@
 use log::error;
 use lychee_lib::Request;
 use lychee_lib::Result;
-use lychee_lib::filter::PathExcludes;
 use std::fs;
 use std::io::{self, Write};
 use tokio_stream::StreamExt;

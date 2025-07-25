@@ -4,8 +4,8 @@ use crate::filter::PathExcludes;
 use crate::types::FileType;
 use crate::{ErrorKind, Result};
 use async_stream::try_stream;
-use futures::stream::Stream;
 use futures::StreamExt;
+use futures::stream::Stream;
 use glob::glob_with;
 use ignore::WalkBuilder;
 use reqwest::Url;
@@ -225,12 +225,13 @@ impl Input {
     /// # Errors
     ///
     /// Will return errors for file system operations or glob pattern issues
-    pub fn get_file_paths(
-        &self,
+    pub fn get_file_paths<'a>(
+        &'a self,
         file_extensions: FileExtensions,
         skip_hidden: bool,
         skip_gitignored: bool,
-    ) -> impl Stream<Item = Result<PathBuf>> + '_ {
+        excluded_paths: &'a PathExcludes,
+    ) -> impl Stream<Item = Result<PathBuf>> + 'a {
         try_stream! {
             match &self.source {
                 InputSource::RemoteUrl(_url) => {
@@ -251,7 +252,7 @@ impl Input {
                                 if path.is_dir() {
                                     continue;
                                 }
-                                if self.is_excluded_path(&path) {
+                                if Self::is_excluded_path(&path, excluded_paths) {
                                     continue;
                                 }
 
@@ -277,7 +278,7 @@ impl Input {
                         )?
                         {
                             let entry = entry?;
-                            if self.is_excluded_path(&entry.path().to_path_buf()) {
+                            if Self::is_excluded_path(entry.path(), excluded_paths) {
                                 continue;
                             }
                             match entry.file_type() {
@@ -293,7 +294,7 @@ impl Input {
                         }
                     } else {
                         // For individual files, yield if not excluded and matches extensions
-                        if !self.is_excluded_path(path) && file_extensions_match(path, &file_extensions) {
+                        if !Self::is_excluded_path(path, excluded_paths) && file_extensions_match(path, &file_extensions) {
                             yield path.clone();
                         }
                     }
@@ -354,7 +355,7 @@ impl Input {
             // Handle FsPath and FsGlob sources
             // We can use `get_file_paths` to get the paths, which will handle
             // filtering by file extensions and exclusions
-            let mut paths_stream = Box::pin(self.get_file_paths(file_extensions, skip_hidden, skip_gitignored));
+            let mut paths_stream = Box::pin(self.get_file_paths(file_extensions, skip_hidden, skip_gitignored, &excluded_paths));
 
             while let Some(path_result) = paths_stream.next().await {
                 match path_result {
@@ -407,12 +408,13 @@ impl Input {
         file_extensions: FileExtensions,
         skip_hidden: bool,
         skip_gitignored: bool,
+        excluded_paths: PathExcludes,
     ) -> impl Stream<Item = Result<String>> {
         try_stream! {
             match self.source {
                 InputSource::RemoteUrl(url) => yield url.to_string(),
                 InputSource::FsGlob {
-                    pattern,
+                    ref pattern,
                     ignore_case,
                 } => {
                     let glob_expanded = tilde(&pattern).to_string();
@@ -420,7 +422,11 @@ impl Input {
                     match_opts.case_sensitive = !ignore_case;
                     for entry in glob_with(&glob_expanded, match_opts)? {
                         match entry {
-                            Ok(path) => yield path.to_string_lossy().to_string(),
+                            Ok(path) => {
+                                if !Self::is_excluded_path(&path, &excluded_paths) {
+                                    yield path.to_string_lossy().to_string();
+                                }
+                            },
                             Err(e) => eprintln!("{e:?}"),
                         }
                     }
@@ -434,14 +440,14 @@ impl Input {
                             skip_gitignored,
                         )? {
                             let entry = entry?;
-                            if !self.is_excluded_path(&entry.path().to_path_buf()) {
+                            if !Self::is_excluded_path(entry.path(), &excluded_paths) {
                                 // Only yield files, not directories
                                 if entry.file_type().is_some_and(|ft| ft.is_file()) {
                                     yield entry.path().to_string_lossy().to_string();
                                 }
                             }
                         }
-                    } else if !self.is_excluded_path(path) {
+                    } else if !Self::is_excluded_path(path, &excluded_paths) {
                         yield path.to_string_lossy().to_string();
                     }
                 }
@@ -452,8 +458,8 @@ impl Input {
     }
 
     /// Check if the given path was excluded from link checking
-    fn is_excluded_path(&self, path: &PathBuf) -> bool {
-        false // Placeholder implementation
+    fn is_excluded_path(path: &Path, excluded_paths: &PathExcludes) -> bool {
+        excluded_paths.is_match(&path.to_string_lossy())
     }
     /// Get the input content of a given path
     /// # Errors
@@ -516,16 +522,17 @@ fn file_extensions_match(path: &Path, extensions: &FileExtensions) -> bool {
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| extensions.contains(ext.to_lowercase()))
 }
-/// Function for path exclusion tests
-///
-/// This is a standalone function to allow for easier testing
-fn is_excluded_path(excluded_paths: &PathExcludes, path: &Path) -> bool {
-    excluded_paths.is_match(&path.to_string_lossy())
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Function for path exclusion tests
+    ///
+    /// This is a standalone function to allow for easier testing
+    pub fn is_excluded_path(excluded_paths: &PathExcludes, path: &Path) -> bool {
+        excluded_paths.is_match(&path.to_string_lossy())
+    }
 
     #[test]
     fn test_input_handles_real_relative_paths() {
