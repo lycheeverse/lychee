@@ -1,5 +1,6 @@
 use http::StatusCode;
 use log::warn;
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 use crate::{
@@ -20,9 +21,10 @@ pub(crate) struct FileChecker {
     fallback_extensions: Vec<String>,
     /// List of index file names to search for if the path is a directory.
     ///
-    /// Index files are required to be regular files, aside from the special names `"."` and
-    /// `""` which will match the directory itself. This *should* be non-empty, otherwise
-    /// all directory links will be considered invalid.
+    /// Index files names are required to match regular files, aside from the
+    /// special `.` name which will match the directory itself. This list
+    /// *should* be non-empty, otherwise all directory links will be considered
+    /// invalid due to "cannot find index file".
     index_files: Vec<String>,
     /// Whether to check for the existence of fragments (e.g., `#section-id`) in HTML files.
     include_fragments: bool,
@@ -106,8 +108,9 @@ impl FileChecker {
 
     /// Checks if the given path exists and performs additional checks if necessary.
     ///
-    /// The given path is resolved by applying fallback extensions and resolving index
-    /// files as specified.
+    /// First, the given path is resolved to a file by applying fallback extensions
+    /// and finding index files if needed. Then, the file is checked to make sure it
+    /// exists and passes any additional checks.
     ///
     /// # Arguments
     ///
@@ -118,27 +121,29 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     async fn check_path(&self, path: &Path, uri: &Uri) -> Status {
-        let file_path = match path.metadata() {
+        let path = match path.metadata() {
             // for non-existing paths, attempt fallback extensions
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                self.apply_fallback_extensions(path, uri)
+                self.apply_fallback_extensions(path, uri).map(Cow::Owned)
             }
+
             // other IO errors are unexpected and should fail the check
             Err(e) => Err(ErrorKind::ReadFileInput(e, path.to_path_buf())),
+
             // existing directories are resolved via index files
-            Ok(meta) if meta.is_dir() => self.apply_index_files(path),
-            // otherwise (i.e., path is an existing file), just return the path
-            Ok(_) => Ok(path.to_path_buf()),
+            Ok(meta) if meta.is_dir() => self.apply_index_files(path).map(Cow::Owned),
+
+            // otherwise, path is an existing file - just return the path
+            Ok(_) => Ok(path).map(Cow::Borrowed),
         };
 
-        match file_path {
-            Ok(ref file_path) => self.check_file(file_path, uri).await,
+        match path {
+            Ok(ref path) => self.check_file(path, uri).await,
             Err(err) => err.into(),
         }
     }
 
-    /// Resolves a path to a file, applying fallback extensions
-    /// (from [`FileChecker::fallback_extensions`]) if necessary.
+    /// Resolves a path to a file, applying fallback extensions if necessary.
     ///
     /// This function will try to find a file, first by attempting the given path
     /// itself, then by attempting the path with each extension from
@@ -153,8 +158,7 @@ impl FileChecker {
     /// # Returns
     ///
     /// Returns `Ok(PathBuf)` with the resolved file path, or `Err` if no valid file is found.
-    /// If `Ok` is returned, the contained `PathBuf` is guaranteed to exist and be a regular
-    /// file.
+    /// If `Ok` is returned, the contained `PathBuf` is guaranteed to exist and be a file.
     fn apply_fallback_extensions(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
         // If it's already a file, use it directly
         if path.is_file() {
@@ -175,13 +179,10 @@ impl FileChecker {
 
     /// Tries to find an index file in the given directory, returning the first match.
     ///
-    /// Resolved index files are required to be regular files, aside from the special
-    /// name `"."` or the empty string - both of these will match the directory itself.
-    /// This permits `"."` or `""` to be specified in [`FileChecker::index_files`] to
-    /// treat a directory as its own index file, accepting the link so long as the
-    /// directory exists.
-    ///
-    /// This function does *not* consider fallback extensions.
+    /// Resolved index files are required to be files, aside from the special
+    /// name `.` - this will match the directory itself. This permits `.` to be
+    /// specified in [`FileChecker::index_files`] to treat a directory as its own
+    /// index file, accepting the link so long as the directory exists.
     ///
     /// # Arguments
     ///
@@ -192,7 +193,9 @@ impl FileChecker {
     ///
     /// Returns `Ok(PathBuf)` pointing to the first existing index file, or
     /// `Err` if no index file is found. If `Ok` is returned, the contained `PathBuf`
-    /// is guaranteed to exist. It may be a file or a directory path.
+    /// is guaranteed to exist. In most cases, the returned path will be a file path.
+    /// If `.` appears within [`FileChecker::index_files`], then the returned path
+    /// may also be a directory.
     fn apply_index_files(&self, dir_path: &Path) -> Result<PathBuf, ErrorKind> {
         self.index_files
             .iter()
@@ -200,7 +203,7 @@ impl FileChecker {
                 // for some special index file names, we accept directories as well
                 // as files.
                 let exists = match filename.as_str() {
-                    "" | "." => Path::exists,
+                    "." => Path::exists,
                     _ => Path::is_file,
                 };
 

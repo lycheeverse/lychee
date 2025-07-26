@@ -571,8 +571,12 @@ for. Index files are attempted in the order given, and at least one must exist
 in order for a directory link to be considered valid.
 
 The special name `.` can be used to resolve directory links to the directory
-itself, so directory will be accepted as long as the directory exists. This
-is the default behavior.
+itself. When `.` is specified, a directory link will be accepted as long as the
+directory exists. This is the default behavior.
+
+An empty string can be passed to reject all local directory links. This will
+require all links to explicitly name an HTML file, rather than linking to a
+directory.
 
 Example: --index-files index.html,readme.md
 
