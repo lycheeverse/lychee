@@ -66,7 +66,7 @@ pub enum ErrorKind {
     #[error("Cannot find file")]
     InvalidFilePath(Uri),
 
-    /// The given URI cannot be converted to a file path
+    /// The given URI's fragment could not be found within the page content
     #[error("Cannot find fragment")]
     InvalidFragment(Uri),
 
