@@ -19,6 +19,10 @@ pub(crate) struct FileChecker {
     /// List of file extensions to try if the original path doesn't exist.
     fallback_extensions: Vec<String>,
     /// List of index file names to search for if the path is a directory.
+    ///
+    /// Index files are required to be regular files, aside from the special names `"."` and
+    /// `""` which will match the directory itself. This *should* be non-empty, otherwise
+    /// all directory links will be considered invalid.
     index_files: Vec<String>,
     /// Whether to check for the existence of fragments (e.g., `#section-id`) in HTML files.
     include_fragments: bool,
@@ -79,7 +83,8 @@ impl FileChecker {
     ///
     /// # Returns
     ///
-    /// Returns the resolved path as a `PathBuf`.
+    /// Returns the resolved path as a `PathBuf`, or the original path
+    /// if no base path is defined.
     fn resolve_path(&self, path: &Path) -> PathBuf {
         if let Some(Base::Local(base_path)) = &self.base {
             if path.is_absolute() {
@@ -101,10 +106,13 @@ impl FileChecker {
 
     /// Checks if the given path exists and performs additional checks if necessary.
     ///
+    /// The given path is resolved by applying fallback extensions and resolving index
+    /// files as specified.
+    ///
     /// # Arguments
     ///
     /// * `path` - The path to check.
-    /// * `uri` - The original URI, used for error reporting.
+    /// * `uri` - The original URI, used for checking and error reporting.
     ///
     /// # Returns
     ///
@@ -112,13 +120,13 @@ impl FileChecker {
     async fn check_path(&self, path: &Path, uri: &Uri) -> Status {
         let file_path = match path.metadata() {
             // for non-existing paths, attempt fallback extensions
-            Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 self.apply_fallback_extensions(path, uri)
             }
-            // other io errors are unexpected and should fail the check
+            // other IO errors are unexpected and should fail the check
             Err(e) => Err(ErrorKind::ReadFileInput(e, path.to_path_buf())),
             // existing directories are resolved via index files
-            Ok(ref meta) if meta.is_dir() => self.apply_index_files(path),
+            Ok(meta) if meta.is_dir() => self.apply_index_files(path),
             // otherwise (i.e., path is an existing file), just return the path
             Ok(_) => Ok(path.to_path_buf()),
         };
@@ -129,15 +137,24 @@ impl FileChecker {
         }
     }
 
-    /// Resolves a path to an actual file, applying fallback extensions and directory index resolution.
+    /// Resolves a path to a file, applying fallback extensions
+    /// (from [`FileChecker::fallback_extensions`]) if necessary.
+    ///
+    /// This function will try to find a file, first by attempting the given path
+    /// itself, then by attempting the path with each extension from
+    /// [`FileChecker::fallback_extensions`]. The first existing file (not directory),
+    /// if any, will be returned.
     ///
     /// # Arguments
     ///
     /// * `path` - The path to resolve.
+    /// * `uri` - The original URI, used for error reporting.
     ///
     /// # Returns
     ///
-    /// Returns `Some(PathBuf)` with the resolved file path, or `None` if no valid file is found.
+    /// Returns `Ok(PathBuf)` with the resolved file path, or `Err` if no valid file is found.
+    /// If `Ok` is returned, the contained `PathBuf` is guaranteed to exist and be a regular
+    /// file.
     fn apply_fallback_extensions(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
         // If it's already a file, use it directly
         if path.is_file() {
@@ -148,7 +165,7 @@ impl FileChecker {
         let mut path_buf = path.to_path_buf();
         for ext in &self.fallback_extensions {
             path_buf.set_extension(ext);
-            if path_buf.exists() && path_buf.is_file() {
+            if path_buf.is_file() {
                 return Ok(path_buf);
             }
         }
@@ -158,27 +175,38 @@ impl FileChecker {
 
     /// Tries to find an index file in the given directory, returning the first match.
     ///
-    /// Searches for files using the specified index file names. This does *not*
-    /// consider fallback extensions.
+    /// Resolved index files are required to be regular files, aside from the special
+    /// name `"."` or the empty string - both of these will match the directory itself.
+    /// This permits `"."` or `""` to be specified in [`FileChecker::index_files`] to
+    /// treat a directory as its own index file, accepting the link so long as the
+    /// directory exists.
+    ///
+    /// This function does *not* consider fallback extensions.
     ///
     /// # Arguments
     ///
-    /// * `path` - The directory within which to search for index files
+    /// * `dir_path` - The directory within which to search for index files.
+    ///                This is assumed to be a directory.
     ///
     /// # Returns
     ///
-    /// Returns `Some(PathBuf)` pointing to the first existing index file, or `None` if no index file is found.
+    /// Returns `Ok(PathBuf)` pointing to the first existing index file, or
+    /// `Err` if no index file is found. If `Ok` is returned, the contained `PathBuf`
+    /// is guaranteed to exist. It may be a file or a directory path.
     fn apply_index_files(&self, dir_path: &Path) -> Result<PathBuf, ErrorKind> {
-        if dir_path.is_file() {
-            return Ok(dir_path.to_path_buf());
-        }
-
-        // deliberately uses `.exists()` to permit returning a directory
-        // if `.` is specified in `index_files`.
         self.index_files
             .iter()
-            .map(|ref filename| dir_path.join(filename))
-            .find(|ref p| p.exists())
+            .find_map(|filename| {
+                // for some special index file names, we accept directories as well
+                // as files.
+                let exists = match filename.as_str() {
+                    "" | "." => Path::exists,
+                    _ => Path::is_file,
+                };
+
+                let path = dir_path.join(filename);
+                exists(&path).then_some(path)
+            })
             .ok_or_else(|| ErrorKind::InvalidIndexFile(dir_path.to_path_buf()))
     }
 
@@ -186,34 +214,36 @@ impl FileChecker {
     ///
     /// # Arguments
     ///
-    /// * `file_path` - The resolved file path to check.
+    /// * `path` - The resolved path to check.
     /// * `uri` - The original URI, used for error reporting.
     ///
     /// # Returns
     ///
     /// Returns a `Status` indicating the result of the check.
-    async fn check_file(&self, file_path: &Path, uri: &Uri) -> Status {
+    async fn check_file(&self, path: &Path, uri: &Uri) -> Status {
         if self.include_fragments {
-            self.check_fragment(file_path, uri).await
+            self.check_fragment(path, uri).await
         } else {
             Status::Ok(StatusCode::OK)
         }
     }
 
-    /// Checks for the existence of a fragment in an HTML file.
+    /// Checks for the existence of a fragment in a path.
+    ///
+    /// The given path may be a file or a directory. A directory
+    /// is treated as if it was an empty file with no fragments.
     ///
     /// # Arguments
     ///
-    /// * `path` - The path to the HTML file.
+    /// * `path` - The path to the file or directory. Assumed to exist.
     /// * `uri` - The original URI, containing the fragment to check.
     ///
     /// # Returns
     ///
     /// Returns a `Status` indicating the result of the fragment check.
     async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
-
         // for absent or trivial fragments, always return success.
-        if uri.url.fragment().is_none_or(|x| x.is_empty()) {
+        if uri.url.fragment().is_none_or(str::is_empty) {
             return Status::Ok(StatusCode::OK);
         }
 

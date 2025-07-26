@@ -544,20 +544,22 @@ and 501."
     #[arg(long)]
     pub(crate) remap: Vec<String>,
 
-    /// Automatically append file extensions to `file://` URIs as needed
+    /// Automatically append file extensions to `file://` URIs for non-existing paths
     #[serde(default)]
     #[arg(
         long,
         value_delimiter = ',',
-        long_help = "Test the specified file extensions for URIs when checking files locally.
-Multiple extensions can be separated by commas. Extensions will be checked in
-order of appearance.
+        long_help = "When checking locally, attempts to locate missing files by trying the given
+fallback extensions. Multiple extensions can be separated by commas. Extensions
+will be checked in order of appearance.
 
-Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
+Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
+
+Note: This option only takes effect on `file://` URIs which do not exist."
     )]
     pub(crate) fallback_extensions: Vec<String>,
 
-    /// Resolve local directory links to certain index files within the directory
+    /// Resolve local directory links to specified index files within the directory
     #[serde(default)]
     #[arg(
         long,
@@ -568,11 +570,13 @@ directory. The argument is a comma-separated list of index file names to search
 for. Index files are attempted in the order given, and at least one must exist
 in order for a directory link to be considered valid.
 
-To accept directory links as long as the directory itself exists (i.e., disable
-special index file resolution), specify `.` as the argument - this is the
-default behavior.
+The special name `.` can be used to resolve directory links to the directory
+itself, so directory will be accepted as long as the directory exists. This
+is the default behavior.
 
-Example: --index-files index.html,readme.md"
+Example: --index-files index.html,readme.md
+
+Note: This option only takes effect on `file://` URIs which exist and point to a directory."
     )]
     pub(crate) index_files: Vec<String>,
 
