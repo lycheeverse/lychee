@@ -563,11 +563,14 @@ Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
         long,
         default_value = ".",
         value_delimiter = ',',
-        long_help = "When checking locally, resolves directory links to an index file
-within the directory. Index file names are attempted in the order given. In order
-for a directory link to be considered valid, at least one of the index files must
-exist. To consider directory links valid if the directory itself exists (irrespective
-of index files), the file name `.` can be specified (this is the default behaviour).
+        long_help = "When checking locally, resolves directory links to an index file within the
+directory. The argument is a comma-separated list of index file names to search
+for. Index files are attempted in the order given, and at least one must exist
+in order for a directory link to be considered valid.
+
+To accept directory links as long as the directory itself exists (i.e., disable
+special index file resolution), specify `.` as the argument - this is the
+default behavior.
 
 Example: --index-files index.html,readme.md"
     )]
