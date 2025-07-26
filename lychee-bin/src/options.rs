@@ -561,7 +561,7 @@ Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
     #[serde(default)]
     #[arg(
         long,
-        default_value_t = vec!["."],
+        default_value = ".",
         value_delimiter = ',',
         long_help = "When checking locally, resolves directory links to an index file
 within the directory. Index file names are attempted in the order given. In order
