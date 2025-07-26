@@ -18,6 +18,8 @@ pub(crate) struct FileChecker {
     base: Option<Base>,
     /// List of file extensions to try if the original path doesn't exist.
     fallback_extensions: Vec<String>,
+    /// List of index file names to search for if the path is a directory.
+    index_files: Vec<String>,
     /// Whether to check for the existence of fragments (e.g., `#section-id`) in HTML files.
     include_fragments: bool,
     /// Utility for performing fragment checks in HTML files.
@@ -31,15 +33,18 @@ impl FileChecker {
     ///
     /// * `base` - Optional base path or URL for resolving relative paths.
     /// * `fallback_extensions` - List of extensions to try if the original file is not found.
+    /// * `index_files` - List of index file names to search for if the path is a directory.
     /// * `include_fragments` - Whether to check for fragment existence in HTML files.
     pub(crate) fn new(
         base: Option<Base>,
         fallback_extensions: Vec<String>,
+        index_files: Vec<String>,
         include_fragments: bool,
     ) -> Self {
         Self {
             base,
             fallback_extensions,
+            index_files,
             include_fragments,
             fragment_checker: FragmentChecker::new(),
         }
@@ -105,14 +110,13 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     async fn check_path(&self, path: &Path, uri: &Uri) -> Status {
-        let file_path = self.resolve_file_path(path);
+        let file_path = self.apply_fallback_extensions(path, uri).and_then(&self.apply_index_files)
+            ;
 
-        // If file_path exists, check this file
-        if file_path.is_some() {
-            return self.check_file(&file_path.unwrap(), uri).await;
+        match file_path {
+            Ok(file_path) => self.check_file(&file_path, uri).await,
+            Err(err) => err.into(),
         }
-
-        ErrorKind::InvalidFilePath(uri.clone()).into()
     }
 
     /// Resolves a path to an actual file, applying fallback extensions and directory index resolution.
@@ -124,10 +128,10 @@ impl FileChecker {
     /// # Returns
     ///
     /// Returns `Some(PathBuf)` with the resolved file path, or `None` if no valid file is found.
-    fn resolve_file_path(&self, path: &Path) -> Option<PathBuf> {
+    fn apply_fallback_extensions(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
         // If it's already a file, use it directly
         if path.is_file() {
-            return Some(path.to_path_buf());
+            return Ok(path.to_path_buf());
         }
 
         // Try fallback extensions
@@ -135,51 +139,38 @@ impl FileChecker {
         for ext in &self.fallback_extensions {
             path_buf.set_extension(ext);
             if path_buf.exists() && path_buf.is_file() {
-                return Some(path_buf);
+                return Ok(path_buf);
             }
         }
 
-        // If it's a directory, try to find an index file
-        if path.is_dir() {
-            return self.get_index_file_path(path);
-        }
-
-        None
+        Err(ErrorKind::InvalidFilePath(uri.clone()))
     }
 
     /// Tries to find an index file in the given directory, returning the first match.
     ///
-    /// Searches for `index.{ext}` files using fallback extensions, defaulting to `index.html`
-    /// if no fallback extensions are configured. This encapsulates both the "index" filename
-    /// convention and the extension resolution logic.
+    /// Searches for files using the specified index file names. This does *not*
+    /// consider fallback extensions.
     ///
     /// # Arguments
     ///
-    /// * `dir_path` - The directory to search for index files
+    /// * `path` - The directory within which to search for index files
     ///
     /// # Returns
     ///
     /// Returns `Some(PathBuf)` pointing to the first existing index file, or `None` if no index file is found.
-    fn get_index_file_path(&self, dir_path: &Path) -> Option<PathBuf> {
-        // In this function, we hardcode the filename `index` and the extension
-        // `.html` since `index.html` is the most common scenario when serving a
-        // page from a directory. However, various servers may support other
-        // filenames and extensions, such as `README.md`. We could enhance this by
-        // giving users the option to configure the index filename and extension.
+    fn apply_index_files(&self, path: &Path) -> Result<PathBuf, ErrorKind> {
+        if path.is_file() {
+            return Ok(path.to_path_buf());
+        }
 
-        let extensions_to_try = if self.fallback_extensions.is_empty() {
-            vec!["html".to_string()]
-        } else {
-            self.fallback_extensions.clone()
-        };
-
-        for ext in &extensions_to_try {
-            let index_path = dir_path.join(format!("index.{ext}"));
-            if index_path.is_file() {
-                return Some(index_path);
+        for index_file in &self.index_files {
+            let index_path = path.join(index_file);
+            if index_path.exists() {
+                return Ok(index_path);
             }
         }
-        None
+
+        Err(ErrorKind::InvalidIndexFile(path.to_path_buf()))
     }
 
     /// Checks a resolved file, optionally verifying fragments for HTML files.
@@ -193,10 +184,6 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     async fn check_file(&self, file_path: &Path, uri: &Uri) -> Status {
-        if !file_path.is_file() {
-            return ErrorKind::InvalidFilePath(uri.clone()).into();
-        }
-
         // Check if we need to verify fragments
         if self.include_fragments && uri.url.fragment().is_some_and(|x| !x.is_empty()) {
             self.check_fragment(file_path, uri).await
@@ -216,6 +203,11 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the fragment check.
     async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
+        // directories are treated as a file with no fragments.
+        if path.is_dir() {
+            return ErrorKind::InvalidFragment(uri.clone()).into();
+        }
+
         match FragmentInput::from_path(path).await {
             Ok(input) => match self.fragment_checker.check(input, &uri.url).await {
                 Ok(true) => Status::Ok(StatusCode::OK),

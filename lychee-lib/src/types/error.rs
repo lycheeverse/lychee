@@ -70,6 +70,10 @@ pub enum ErrorKind {
     #[error("Cannot find fragment")]
     InvalidFragment(Uri),
 
+    /// The given directory is missing a required index file
+    #[error("Cannot find index file within directory")]
+    InvalidIndexFile(PathBuf),
+
     /// The given path cannot be converted to a URI
     #[error("Invalid path to URL conversion: {0}")]
     InvalidUrlFromPath(PathBuf),

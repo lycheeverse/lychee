@@ -91,6 +91,9 @@ pub struct ClientBuilder {
     /// Automatically append file extensions to `file://` URIs as needed
     fallback_extensions: Vec<String>,
 
+    /// Resolve index files for `file://` URIs which point to directories
+    index_files: Vec<String>,
+
     /// Links matching this set of regular expressions are **always** checked.
     ///
     /// This has higher precedence over [`ClientBuilder::excludes`], **but**
@@ -409,6 +412,7 @@ impl ClientBuilder {
             file_checker: FileChecker::new(
                 self.base,
                 self.fallback_extensions,
+                self.index_files,
                 self.include_fragments,
             ),
         })
