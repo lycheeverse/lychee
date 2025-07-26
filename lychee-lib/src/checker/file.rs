@@ -110,11 +110,21 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     async fn check_path(&self, path: &Path, uri: &Uri) -> Status {
-        let file_path = self.apply_fallback_extensions(path, uri).and_then(&self.apply_index_files)
-            ;
+        let file_path = match path.metadata() {
+            // for non-existing paths, attempt fallback extensions
+            Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {
+                self.apply_fallback_extensions(path, uri)
+            }
+            // other io errors are unexpected and should fail the check
+            Err(e) => Err(ErrorKind::ReadFileInput(e, path.to_path_buf())),
+            // existing directories are resolved via index files
+            Ok(ref meta) if meta.is_dir() => self.apply_index_files(path),
+            // otherwise (i.e., path is an existing file), just return the path
+            Ok(_) => Ok(path.to_path_buf()),
+        };
 
         match file_path {
-            Ok(file_path) => self.check_file(&file_path, uri).await,
+            Ok(ref file_path) => self.check_file(file_path, uri).await,
             Err(err) => err.into(),
         }
     }
@@ -158,19 +168,18 @@ impl FileChecker {
     /// # Returns
     ///
     /// Returns `Some(PathBuf)` pointing to the first existing index file, or `None` if no index file is found.
-    fn apply_index_files(&self, path: &Path) -> Result<PathBuf, ErrorKind> {
-        if path.is_file() {
-            return Ok(path.to_path_buf());
+    fn apply_index_files(&self, dir_path: &Path) -> Result<PathBuf, ErrorKind> {
+        if dir_path.is_file() {
+            return Ok(dir_path.to_path_buf());
         }
 
-        for index_file in &self.index_files {
-            let index_path = path.join(index_file);
-            if index_path.exists() {
-                return Ok(index_path);
-            }
-        }
-
-        Err(ErrorKind::InvalidIndexFile(path.to_path_buf()))
+        // deliberately uses `.exists()` to permit returning a directory
+        // if `.` is specified in `index_files`.
+        self.index_files
+            .iter()
+            .map(|ref filename| dir_path.join(filename))
+            .find(|ref p| p.exists())
+            .ok_or_else(|| ErrorKind::InvalidIndexFile(dir_path.to_path_buf()))
     }
 
     /// Checks a resolved file, optionally verifying fragments for HTML files.
@@ -184,8 +193,7 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     async fn check_file(&self, file_path: &Path, uri: &Uri) -> Status {
-        // Check if we need to verify fragments
-        if self.include_fragments && uri.url.fragment().is_some_and(|x| !x.is_empty()) {
+        if self.include_fragments {
             self.check_fragment(file_path, uri).await
         } else {
             Status::Ok(StatusCode::OK)
@@ -203,7 +211,15 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the fragment check.
     async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
-        // directories are treated as a file with no fragments.
+
+        // for absent or trivial fragments, always return success.
+        if uri.url.fragment().is_none_or(|x| x.is_empty()) {
+            return Status::Ok(StatusCode::OK);
+        }
+
+        // directories are treated as if they were a file with no fragments.
+        // reaching here means we have a non-trivial fragment on a directory,
+        // so return error.
         if path.is_dir() {
             return ErrorKind::InvalidFragment(uri.clone()).into();
         }

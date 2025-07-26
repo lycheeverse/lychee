@@ -91,7 +91,9 @@ pub struct ClientBuilder {
     /// Automatically append file extensions to `file://` URIs as needed
     fallback_extensions: Vec<String>,
 
-    /// Resolve index files for `file://` URIs which point to directories
+    /// Index file names to use when resolving `file://` URIs which point to
+    /// directories
+    #[builder(default = vec![String::new()])]
     index_files: Vec<String>,
 
     /// Links matching this set of regular expressions are **always** checked.
