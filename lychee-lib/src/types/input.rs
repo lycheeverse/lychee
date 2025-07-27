@@ -210,9 +210,9 @@ impl Input {
         }
     }
 
-    /// Get all file paths matching this input source.
+    /// Get all input sources for content processing.
     ///
-    /// This method returns a stream of paths from the input source, taking into
+    /// This method returns a stream of input sources from the input source, taking into
     /// account the matching file extensions and respecting exclusions.
     ///
     /// This can be used for retrieving all inputs which lychee would check for
@@ -220,12 +220,12 @@ impl Input {
     ///
     /// # Returns
     ///
-    /// Returns a stream of `Result<PathBuf>` for all matching file paths.
+    /// Returns a stream of `Result<InputSource>` for all matching input sources.
     ///
     /// # Errors
     ///
     /// Will return errors for file system operations or glob pattern issues
-    pub fn get_file_paths<'a>(
+    pub fn get_input_sources<'a>(
         &'a self,
         file_extensions: FileExtensions,
         skip_hidden: bool,
@@ -357,9 +357,9 @@ impl Input {
             }
 
             // Handle FsPath and FsGlob sources
-            // We can use `get_file_paths` to get the input sources, which will handle
+            // We can use `get_input_sources` to get the input sources, which will handle
             // filtering by file extensions and exclusions
-            let mut sources_stream = Box::pin(self.get_file_paths(file_extensions, skip_hidden, skip_gitignored, &excluded_paths));
+            let mut sources_stream = Box::pin(self.get_input_sources(file_extensions, skip_hidden, skip_gitignored, &excluded_paths));
 
             while let Some(source_result) = sources_stream.next().await {
                 match source_result {
