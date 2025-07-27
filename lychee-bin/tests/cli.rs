@@ -1932,14 +1932,14 @@ mod cli {
         //
         // also, a space or newline is appended to the URL to prevent
         // incorrect matches where one URL is a prefix of another.
-        for good_url in expected_successes {
+        for good_url in &expected_successes {
             // additionally checks that URL is within stderr to ensure that
             // the URL is detected by lychee.
             result = result
                 .stdout(contains(format!("{good_url} ")).not())
                 .stderr(contains(format!("{good_url}\n")));
         }
-        for bad_url in expected_failures {
+        for bad_url in &expected_failures {
             result = result.stdout(contains(format!("{bad_url} ")));
         }
 
