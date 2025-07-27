@@ -231,13 +231,12 @@ impl Input {
         skip_hidden: bool,
         skip_gitignored: bool,
         excluded_paths: &'a PathExcludes,
-    ) -> impl Stream<Item = Result<PathBuf>> + 'a {
+    ) -> impl Stream<Item = Result<InputSource>> + 'a {
         try_stream! {
             match &self.source {
-                InputSource::RemoteUrl(_url) => {
-                    // Skip remote URLs when collecting file paths.
-                    // Converting a URL to a `PathBuf` can be misleading.
-                    // This behavior may be revisited in the future if the need arises.
+                InputSource::RemoteUrl(url) => {
+                    // Yield the remote URL as an input source
+                    yield InputSource::RemoteUrl(url.clone());
                 },
                 InputSource::FsGlob { pattern, ignore_case } => {
                     // For glob patterns, we expand the pattern and yield matching paths
@@ -258,7 +257,7 @@ impl Input {
 
                                 // Check if it matches one of our file extensions
                                 if file_extensions_match(&path, &file_extensions) {
-                                    yield path;
+                                    yield InputSource::FsPath(path);
                                 }
                             }
                             Err(e) => {
@@ -290,17 +289,22 @@ impl Input {
                                 }
                             }
 
-                            yield entry.path().to_path_buf();
+                            yield InputSource::FsPath(entry.path().to_path_buf());
                         }
                     } else {
                         // For individual files, yield if not excluded and matches extensions
                         if !Self::is_excluded_path(path, excluded_paths) && file_extensions_match(path, &file_extensions) {
-                            yield path.clone();
+                            yield InputSource::FsPath(path.clone());
                         }
                     }
                 },
-                InputSource::Stdin | InputSource::String(_) => {
-                    // Skip `stdin` and strings as they are not valid file paths
+                InputSource::Stdin => {
+                    // Yield stdin as an input source
+                    yield InputSource::Stdin;
+                },
+                InputSource::String(_) => {
+                    // Yield the string source
+                    yield self.source.clone();
                 }
             }
         }
@@ -353,19 +357,43 @@ impl Input {
             }
 
             // Handle FsPath and FsGlob sources
-            // We can use `get_file_paths` to get the paths, which will handle
+            // We can use `get_file_paths` to get the input sources, which will handle
             // filtering by file extensions and exclusions
-            let mut paths_stream = Box::pin(self.get_file_paths(file_extensions, skip_hidden, skip_gitignored, &excluded_paths));
+            let mut sources_stream = Box::pin(self.get_file_paths(file_extensions, skip_hidden, skip_gitignored, &excluded_paths));
 
-            while let Some(path_result) = paths_stream.next().await {
-                match path_result {
-                    Ok(path) => {
-                        // Process the actual file path
-                        let content = Self::path_content(&path).await;
-                        match content {
-                            Err(_) if skip_missing => (),
-                            Err(e) => Err(e)?,
-                            Ok(content) => yield content,
+            while let Some(source_result) = sources_stream.next().await {
+                match source_result {
+                    Ok(source) => {
+                        match source {
+                            InputSource::FsPath(path) => {
+                                // Process the actual file path
+                                let content = Self::path_content(&path).await;
+                                match content {
+                                    Err(_) if skip_missing => (),
+                                    Err(e) => Err(e)?,
+                                    Ok(content) => yield content,
+                                }
+                            },
+                            InputSource::RemoteUrl(url) => {
+                                let content = resolver.url_contents(*url).await;
+                                match content {
+                                    Err(_) if skip_missing => (),
+                                    Err(e) => Err(e)?,
+                                    Ok(content) => yield content,
+                                }
+                            },
+                            InputSource::Stdin => {
+                                let content = Self::stdin_content(self.file_type_hint).await?;
+                                yield content;
+                            },
+                            InputSource::String(s) => {
+                                let content = Self::string_content(&s, self.file_type_hint);
+                                yield content;
+                            },
+                            InputSource::FsGlob { .. } => {
+                                // This shouldn't happen as get_file_paths expands globs
+                                continue;
+                            }
                         }
                     },
                     Err(e) => Err(e)?,
