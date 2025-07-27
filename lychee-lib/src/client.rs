@@ -89,10 +89,22 @@ pub struct ClientBuilder {
     remaps: Option<Remaps>,
 
     /// Automatically append file extensions to `file://` URIs as needed
+    ///
+    /// This option takes effect on `file://` URIs which do not exist.
     fallback_extensions: Vec<String>,
 
     /// Index file names to use when resolving `file://` URIs which point to
-    /// directories
+    /// directories.
+    ///
+    /// For local directory links, at least one index file from this list must
+    /// exist in order for the link to be considered valid.
+    ///
+    /// Index files names are required to match regular files, aside from the
+    /// special `.` name which will match the directory itself. In the
+    /// [`ClientBuilder`], this defaults to `["."]`.
+    ///
+    /// This option only takes effect on `file://` URIs which exist and
+    /// point to a directory.
     #[builder(default = vec![String::new()])]
     index_files: Vec<String>,
 

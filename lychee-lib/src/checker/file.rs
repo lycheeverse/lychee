@@ -134,7 +134,7 @@ impl FileChecker {
             Ok(meta) if meta.is_dir() => self.apply_index_files(path).map(Cow::Owned),
 
             // otherwise, path is an existing file - just return the path
-            Ok(_) => Ok(path).map(Cow::Borrowed),
+            Ok(_) => Ok(Cow::Borrowed(path)),
         };
 
         match path {
@@ -187,7 +187,7 @@ impl FileChecker {
     /// # Arguments
     ///
     /// * `dir_path` - The directory within which to search for index files.
-    ///                This is assumed to be a directory.
+    ///   This is assumed to be a directory.
     ///
     /// # Returns
     ///
@@ -271,5 +271,163 @@ impl FileChecker {
                 Status::Ok(StatusCode::OK)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::FileChecker;
+    use crate::test_utils::fixture_uri;
+    use crate::{
+        ErrorKind::{InvalidFilePath, InvalidFragment, InvalidIndexFile},
+        Status,
+    };
+
+    /// Calls [`FileChecker::check`] on the given [`FileChecker`] with given URL
+    /// path (relative to the fixtures directory).
+    ///
+    /// The result of checking the link is matched against the given pattern.
+    macro_rules! assert_filecheck {
+        ($checker:expr, $path:expr, $pattern:pat) => {
+            let uri = fixture_uri($path);
+            let result = $checker.check(&uri).await;
+            assert!(
+                matches!(result, $pattern),
+                "assertion failed: {} should be {} but was '{:?}'",
+                &uri,
+                stringify!($pattern),
+                &result
+            );
+        };
+    }
+
+    #[tokio::test]
+    async fn test_default() {
+        // default behaviour from passing "." as index_files.
+        // this accepts dir links as long as the directory exists.
+        let checker = FileChecker::new(None, vec![], vec![".".to_owned()], true);
+
+        assert_filecheck!(&checker, "filechecker/index_dir", Status::Ok(_));
+
+        // empty dir is accepted with '.' in index_files, but it contains no fragments.
+        assert_filecheck!(&checker, "filechecker/empty_dir", Status::Ok(_));
+        assert_filecheck!(&checker, "filechecker/empty_dir#", Status::Ok(_));
+        assert_filecheck!(
+            &checker,
+            "filechecker/empty_dir#fragment",
+            Status::Error(InvalidFragment(_))
+        );
+
+        // even though index.html is present, it is not used because index_files is only
+        // '.', so no fragments are found.
+        assert_filecheck!(
+            &checker,
+            "filechecker/index_dir#fragment",
+            Status::Error(InvalidFragment(_))
+        );
+        assert_filecheck!(
+            &checker,
+            "filechecker/index_dir#non-existingfragment",
+            Status::Error(InvalidFragment(_))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_index_files() {
+        let checker = FileChecker::new(
+            None,
+            vec![],
+            vec!["index.html".to_owned(), "index.md".to_owned()],
+            true,
+        );
+
+        assert_filecheck!(&checker, "filechecker/index_dir", Status::Ok(_));
+        assert_filecheck!(&checker, "filechecker/index_md", Status::Ok(_));
+        // empty is rejected because of no index.html
+        assert_filecheck!(
+            &checker,
+            "filechecker/empty_dir",
+            Status::Error(InvalidIndexFile(_))
+        );
+        assert_filecheck!(
+            &checker,
+            "filechecker/empty_dir#fragment",
+            Status::Error(InvalidIndexFile(_))
+        );
+
+        // index.html is resolved and fragments are checked.
+        assert_filecheck!(&checker, "filechecker/index_dir#fragment", Status::Ok(_));
+        assert_filecheck!(
+            &checker,
+            "filechecker/index_dir#non-existingfragment",
+            Status::Error(InvalidFragment(_))
+        );
+
+        // directories which look like files should still have index files applied
+        assert_filecheck!(
+            &checker,
+            "filechecker/dir_with_extension.html",
+            Status::Error(InvalidIndexFile(_))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_corner_cases() {
+        let checker = FileChecker::new(
+            None,
+            vec!["html".to_owned()],
+            vec!["index".to_owned()],
+            false,
+        );
+
+        // this test case has a subdir 'same_name' and a file 'same_name.html'.
+        // this shows that the index file resolving is applied in this case and
+        // fallback extensions are not applied.
+        assert_filecheck!(
+            &checker,
+            "filechecker/same_name",
+            Status::Error(InvalidIndexFile(_))
+        );
+
+        // this directory has an index.html, but the index_files argument is only "index". this
+        // shows that fallback extensions are not applied to index file names, as the index.html is
+        // not found.
+        assert_filecheck!(
+            &checker,
+            "filechecker/index_dir",
+            Status::Error(InvalidIndexFile(_))
+        );
+
+        // a directory called 'dir_with_extension.html' exists. this test shows that fallback
+        // extensions must resolve to a file not a directory.
+        assert_filecheck!(
+            &checker,
+            "filechecker/dir_with_extension",
+            Status::Error(InvalidFilePath(_))
+        );
+
+        // empty index_files list will reject all directory links
+        let checker_no_indexes = FileChecker::new(
+            None,
+            vec![],
+            vec![],
+            false,
+        );
+        assert_filecheck!(&checker_no_indexes, "filechecker/index_dir", Status::Error(InvalidIndexFile(_)));
+        assert_filecheck!(&checker_no_indexes, "filechecker/empty_dir", Status::Error(InvalidIndexFile(_)));
+
+        // the empty string index file name would resolve to the directory itself (same as "."),
+        // but there is no special handling to permit a directory in this case so no index files
+        // are found.
+        let checker_empty_string = FileChecker::new(
+            None,
+            vec![],
+            vec!["".to_owned()],
+            false,
+        );
+        assert_filecheck!(&checker_empty_string, "filechecker/index_dir", Status::Error(InvalidIndexFile(_)));
+        assert_filecheck!(&checker_empty_string, "filechecker/empty_dir", Status::Error(InvalidIndexFile(_)));
+
     }
 }

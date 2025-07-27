@@ -69,3 +69,25 @@ pub(crate) fn load_fixture(filename: &str) -> String {
         .join(filename);
     fs::read_to_string(fixture_path).unwrap()
 }
+
+/// Constructs a [`Uri`] from a given subpath within the `fixtures` directory.
+///
+/// The specified subpath may contain a fragment reference by ending with `#something`.
+/// The subpath should not begin with a slash, otherwise it will be treated as an
+/// absolute path.
+pub(crate) fn fixture_uri(subpath: &str) -> Uri {
+    let fixture_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("fixtures");
+
+    let fixture_url =
+        Url::from_directory_path(fixture_path).expect("fixture path should be a valid URL");
+
+    // joining subpath onto a Url allows the subpath to contain a fragment
+    let url = fixture_url
+        .join(subpath)
+        .expect("expected subpath to form a valid URL");
+
+    Uri::from(url)
+}
