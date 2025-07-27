@@ -1959,10 +1959,10 @@ mod cli {
         let err_num = expected_failures.len();
         let total_num = ok_num + err_num;
         result
-            .stdout(contains(format!("{total_num} Total")))
             .stdout(contains(format!("{ok_num} OK")))
             // Failures because of missing fragments or failed binary body scan
-            .stdout(contains(format!("{err_num} Errors")));
+            .stdout(contains(format!("{err_num} Errors")))
+            .stdout(contains(format!("{total_num} Total")));
     }
 
     #[test]
