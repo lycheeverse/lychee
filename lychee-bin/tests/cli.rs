@@ -1885,39 +1885,51 @@ mod cli {
             .failure();
 
         let expected_successes = vec![
+            "fixtures/fragments/empty_dir",
+            "fixtures/fragments/empty_file#fragment", // XXX: is this a bug? a fragment in an empty file is being treated as valid
+            "fixtures/fragments/file1.md#code-heading",
+            "fixtures/fragments/file1.md#explicit-fragment",
+            "fixtures/fragments/file1.md#f%C3%BCnf-s%C3%9C%C3%9Fe-%C3%84pfel",
+            "fixtures/fragments/file1.md#f%C3%BCnf-s%C3%BC%C3%9Fe-%C3%A4pfel",
             "fixtures/fragments/file1.md#fragment-1",
             "fixtures/fragments/file1.md#fragment-2",
-            "fixtures/fragments/file1.md#code-heading",
+            "fixtures/fragments/file1.md#IGNORE-CASING",
+            "fixtures/fragments/file1.md#kebab-case-fragment",
+            "fixtures/fragments/file1.md#kebab-case-fragment-1",
+            "fixtures/fragments/file1.md#lets-wear-a-hat-%C3%AAtre",
+            "fixtures/fragments/file2.md#",
             "fixtures/fragments/file2.md#custom-id",
             "fixtures/fragments/file2.md#fragment-1",
-            "fixtures/fragments/file1.md#kebab-case-fragment",
-            "fixtures/fragments/file1.md#lets-wear-a-hat-%C3%AAtre",
+            "fixtures/fragments/file2.md#top",
+            "fixtures/fragments/file.html#",
             "fixtures/fragments/file.html#a-word",
             "fixtures/fragments/file.html#in-the-beginning",
-            "fixtures/fragments/file1.md#kebab-case-fragment-1",
+            "fixtures/fragments/file.html#tangent%3A-kustomize",
             "fixtures/fragments/file.html#top",
-            "fixtures/fragments/file2.md#top",
-            "fixtures/fragments/empty_dir",
+            "fixtures/fragments/file.html#Upper-%C3%84%C3%96%C3%B6",
+            "fixtures/fragments/sub_dir",
+            "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
             "fixtures/fragments/zero.bin",
             "fixtures/fragments/zero.bin#",
+            "fixtures/fragments/zero.bin#fragment",
+            "https://github.com/lycheeverse/lychee#table-of-contents",
             "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin",
             "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#",
-            "fixtures/fragments/zero.bin#fragment",
+            // zero.bin#fragment succeeds because fragment checking is skipped for this URL
             "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
-            "https://github.com/lycheeverse/lychee#table-of-contents",
-            "fixtures/fragments/empty_file#fragment", // XXX: is this a bug? a fragment in an empty file is being treated as valid
         ];
 
         let expected_failures = vec![
-            "fixtures/fragments/file1.md#missing-fragment",
-            "fixtures/fragments/file2.md#missing-fragment",
-            "fixtures/fragments/file.html#in-the-end",
-            "fixtures/fragments/sub_dir#non-existing-fragment-1",
-            "fixtures/fragments/sub_dir#non-existing-fragment-2",
             "fixtures/fragments/sub_dir_non_existing_1",
-            "fixtures/fragments/sub_dir_non_existing_2",
+            "fixtures/fragments/sub_dir#non-existing-fragment-2",
             "fixtures/fragments/empty_dir#non-existing-fragment-3",
+            "fixtures/fragments/file2.md#missing-fragment",
+            "fixtures/fragments/sub_dir#non-existing-fragment-1",
+            "fixtures/fragments/sub_dir_non_existing_2",
+            "fixtures/fragments/file1.md#missing-fragment",
             "fixtures/fragments/empty_dir#non-existing-fragment-4",
+            "fixtures/fragments/file.html#in-the-end",
+            "fixtures/fragments/file.html#in-THE-begiNNing",
             "https://github.com/lycheeverse/lychee#non-existent-anchor",
         ];
 
@@ -1943,6 +1955,7 @@ mod cli {
             result = result.stdout(contains(format!("{bad_url} ")));
         }
 
+        assert_eq!(expected_successes.len() + expected_failures.len(), 42);
         result
             .stdout(contains("42 Total"))
             .stdout(contains("31 OK"))

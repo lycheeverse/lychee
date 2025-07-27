@@ -22,8 +22,7 @@ This is a test file for the fragment loader.
 
 ## HTML Fragments
 
-Explicit fragment links are currently not supported.
-Therefore we put the test into a code block for now to prevent false positives.
+Explicit fragment links are also supported.
 
 <a id="explicit-fragment"></a>
 
