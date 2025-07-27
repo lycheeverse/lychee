@@ -423,7 +423,7 @@ mod tests {
         // the empty string index file name would resolve to the directory itself (same as "."),
         // but there is no special handling to permit a directory in this case so no index files
         // are found.
-        let checker_empty_string = FileChecker::new(None, vec![], vec!["".to_owned()], false);
+        let checker_empty_string = FileChecker::new(None, vec![], vec![String::new()], false);
         assert_filecheck!(
             &checker_empty_string,
             "filechecker/index_dir",
