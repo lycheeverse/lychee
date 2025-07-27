@@ -1955,12 +1955,14 @@ mod cli {
             result = result.stdout(contains(format!("{bad_url} ")));
         }
 
-        assert_eq!(expected_successes.len() + expected_failures.len(), 42);
+        let ok_num = expected_successes.len();
+        let err_num = expected_failures.len();
+        let total_num = ok_num + err_num;
         result
-            .stdout(contains("42 Total"))
-            .stdout(contains("31 OK"))
+            .stdout(contains(format!("{total_num} Total")))
+            .stdout(contains(format!("{ok_num} OK")))
             // Failures because of missing fragments or failed binary body scan
-            .stdout(contains("11 Errors"));
+            .stdout(contains(format!("{err_num} Errors")));
     }
 
     #[test]
