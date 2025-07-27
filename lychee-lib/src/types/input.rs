@@ -391,8 +391,7 @@ impl Input {
                                 yield content;
                             },
                             InputSource::FsGlob { .. } => {
-                                // This shouldn't happen as get_file_paths expands globs
-                                continue;
+                                // This shouldn't happen as `get_input_sources` expands the glob patterns
                             }
                         }
                     },
