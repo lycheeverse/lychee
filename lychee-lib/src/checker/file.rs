@@ -408,26 +408,31 @@ mod tests {
         );
 
         // empty index_files list will reject all directory links
-        let checker_no_indexes = FileChecker::new(
-            None,
-            vec![],
-            vec![],
-            false,
+        let checker_no_indexes = FileChecker::new(None, vec![], vec![], false);
+        assert_filecheck!(
+            &checker_no_indexes,
+            "filechecker/index_dir",
+            Status::Error(InvalidIndexFile(_))
         );
-        assert_filecheck!(&checker_no_indexes, "filechecker/index_dir", Status::Error(InvalidIndexFile(_)));
-        assert_filecheck!(&checker_no_indexes, "filechecker/empty_dir", Status::Error(InvalidIndexFile(_)));
+        assert_filecheck!(
+            &checker_no_indexes,
+            "filechecker/empty_dir",
+            Status::Error(InvalidIndexFile(_))
+        );
 
         // the empty string index file name would resolve to the directory itself (same as "."),
         // but there is no special handling to permit a directory in this case so no index files
         // are found.
-        let checker_empty_string = FileChecker::new(
-            None,
-            vec![],
-            vec!["".to_owned()],
-            false,
+        let checker_empty_string = FileChecker::new(None, vec![], vec!["".to_owned()], false);
+        assert_filecheck!(
+            &checker_empty_string,
+            "filechecker/index_dir",
+            Status::Error(InvalidIndexFile(_))
         );
-        assert_filecheck!(&checker_empty_string, "filechecker/index_dir", Status::Error(InvalidIndexFile(_)));
-        assert_filecheck!(&checker_empty_string, "filechecker/empty_dir", Status::Error(InvalidIndexFile(_)));
-
+        assert_filecheck!(
+            &checker_empty_string,
+            "filechecker/empty_dir",
+            Status::Error(InvalidIndexFile(_))
+        );
     }
 }
