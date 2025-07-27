@@ -409,7 +409,7 @@ Options:
   -u, --user-agent <USER_AGENT>
           User agent
 
-          [default: lychee/x.y.z]
+          [default: lychee/0.19.1]
 
   -i, --insecure
           Proceed for server connections considered insecure (invalid TLS)
@@ -452,11 +452,33 @@ Options:
           Remap URI matching pattern to different URI
 
       --fallback-extensions <FALLBACK_EXTENSIONS>
-          Test the specified file extensions for URIs when checking files locally.
-          Multiple extensions can be separated by commas. Extensions will be checked in
-          order of appearance.
+          When checking locally, attempts to locate missing files by trying the given
+          fallback extensions. Multiple extensions can be separated by commas. Extensions
+          will be checked in order of appearance.
 
           Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
+
+          Note: This option only takes effect on `file://` URIs which do not exist.
+
+      --index-files <INDEX_FILES>
+          When checking locally, resolves directory links to an index file within the
+          directory. The argument is a comma-separated list of index file names to search
+          for. Index files are attempted in the order given, and at least one must exist
+          in order for a directory link to be considered valid.
+
+          The special name `.` can be used to resolve directory links to the directory
+          itself. When `.` is specified, a directory link will be accepted as long as the
+          directory exists. This is the default behavior.
+
+          An empty string can be passed to reject all local directory links. This will
+          require all links to explicitly name an HTML file, rather than linking to a
+          directory.
+
+          Example: --index-files index.html,readme.md
+
+          Note: This option only takes effect on `file://` URIs which exist and point to a directory.
+
+          [default: .]
 
   -H, --header <HEADER:VALUE>
           Set custom header for requests
