@@ -104,7 +104,7 @@ mod cli {
             let test_path = fixtures_path().join($test_file);
             let outfile = format!("{}.json", uuid::Uuid::new_v4());
 
-            cmd$(.arg($arg))*.arg("--output").arg(&outfile).arg("--format").arg("json").arg(test_path).assert().success();
+            let result = cmd$(.arg($arg))*.arg("--output").arg(&outfile).arg("--format").arg("json").arg(test_path).assert();
 
             let output = std::fs::read_to_string(&outfile)?;
             std::fs::remove_file(outfile)?;
@@ -112,6 +112,7 @@ mod cli {
             let actual: Value = serde_json::from_str(&output)?;
             let expected: Value = serde_json::to_value(&$expected)?;
 
+            result.success();
             assert_json_include!(actual: actual, expected: expected);
             Ok(())
         }};
@@ -277,6 +278,18 @@ mod cli {
                 ..MockResponseStats::default()
             },
             "--exclude-all-private"
+        )
+    }
+
+    #[test]
+    fn test_local_directories() -> Result<()> {
+        test_json_output!(
+            "TEST_LOCAL_DIRECTORIES.md",
+            MockResponseStats {
+                total: 4,
+                successful: 4,
+                ..MockResponseStats::default()
+            }
         )
     }
 
@@ -1915,9 +1928,9 @@ mod cli {
                 "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
             ))
             .stdout(contains("42 Total"))
-            .stdout(contains("30 OK"))
+            .stdout(contains("31 OK"))
             // Failures because of missing fragments or failed binary body scan
-            .stdout(contains("12 Errors"));
+            .stdout(contains("11 Errors"));
     }
 
     #[test]
