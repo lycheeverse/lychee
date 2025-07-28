@@ -373,7 +373,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_corner_cases() {
+    async fn test_both_fallback_and_index_corner() {
         let checker = FileChecker::new(
             None,
             vec!["html".to_owned()],
@@ -406,7 +406,10 @@ mod tests {
             "filechecker/dir_with_extension",
             Status::Error(InvalidFilePath(_))
         );
+    }
 
+    #[tokio::test]
+    async fn test_empty_index_list_corner() {
         // empty index_files list will reject all directory links
         let checker_no_indexes = FileChecker::new(None, vec![], vec![], false);
         assert_filecheck!(
@@ -419,7 +422,10 @@ mod tests {
             "filechecker/empty_dir",
             Status::Error(InvalidIndexFile(_))
         );
+    }
 
+    #[tokio::test]
+    async fn test_index_list_of_directories_corner() {
         // this test defines index_files to be a list of different names, all of which will
         // resolve to an existing directory. however, because they are directories and not
         // the special '.' name, these should not be accepted as valid index files.
@@ -440,10 +446,13 @@ mod tests {
             "filechecker/empty_dir",
             Status::Error(InvalidIndexFile(_))
         );
+    }
 
+    #[tokio::test]
+    async fn test_index_file_traversal_corner() {
         // index file names can contain path fragments and they will be traversed.
-        // maybe this is not desirable and should be changed - this test just serves
-        // to document the current behaviour.
+        // being able to do this is not necessarily a good thing, and maybe it should
+        // be changed. this test just records the current behaviour.
         let checker_dotdot = FileChecker::new(
             None,
             vec![],
