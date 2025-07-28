@@ -1,4 +1,4 @@
-use log::warn;
+use log::info;
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet, hash_map::Entry},
@@ -132,7 +132,7 @@ impl FragmentChecker {
             FileType::Markdown => extract_markdown_fragments,
             FileType::Html => extract_html_fragments,
             FileType::Plaintext => {
-                warn!("Skipping fragment check for {url} within a plaintext file");
+                info!("Skipping fragment check for {url} within a plaintext file");
                 return Ok(true);
             }
         };
