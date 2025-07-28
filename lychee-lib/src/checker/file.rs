@@ -420,19 +420,40 @@ mod tests {
             Status::Error(InvalidIndexFile(_))
         );
 
-        // the empty string index file name would resolve to the directory itself (same as "."),
-        // but there is no special handling to permit a directory in this case so no index files
-        // are found.
-        let checker_empty_string = FileChecker::new(None, vec![], vec![String::new()], false);
+        // this test defines index_files to be a list of different names, all of which will
+        // resolve to an existing directory. however, because they are directories and not
+        // the special '.' name, these should not be accepted as valid index files.
+        let dir_names = vec![
+            String::new(),
+            "./.".to_owned(),
+            "..".to_owned(),
+            "/".to_owned(),
+        ];
+        let checker_dir_indexes = FileChecker::new(None, vec![], dir_names, false);
         assert_filecheck!(
-            &checker_empty_string,
+            &checker_dir_indexes,
             "filechecker/index_dir",
             Status::Error(InvalidIndexFile(_))
         );
         assert_filecheck!(
-            &checker_empty_string,
+            &checker_dir_indexes,
             "filechecker/empty_dir",
             Status::Error(InvalidIndexFile(_))
+        );
+
+        // index file names can contain path fragments and they will be traversed.
+        // maybe this is not desirable and should be changed - this test just serves
+        // to document the current behaviour.
+        let checker_dotdot = FileChecker::new(
+            None,
+            vec![],
+            vec!["../index_dir/index.html".to_owned()],
+            true,
+        );
+        assert_filecheck!(
+            &checker_dotdot,
+            "filechecker/empty_dir#fragment",
+            Status::Ok(_)
         );
     }
 }
