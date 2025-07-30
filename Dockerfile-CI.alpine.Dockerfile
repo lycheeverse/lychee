@@ -5,8 +5,8 @@ ARG LYCHEE_VERSION="latest"
 
 RUN apk add --no-cache ca-certificates jq wget \
     && ARCH=$(case $(arch) in \
-        "amd64") echo "x86_64";; \
-        "arm64") echo "aarch64";; \
+        "x86_64") echo "x86_64";; \
+        "aarch64") echo "aarch64";; \
         *) echo "Unsupported architecture" && exit 1;; \
         esac) \
     && BASE_URL=$(case $LYCHEE_VERSION in \

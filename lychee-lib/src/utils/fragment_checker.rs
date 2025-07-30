@@ -1,3 +1,4 @@
+use log::info;
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet, hash_map::Entry},
@@ -130,7 +131,10 @@ impl FragmentChecker {
         let extractor = match file_type {
             FileType::Markdown => extract_markdown_fragments,
             FileType::Html => extract_html_fragments,
-            FileType::Plaintext => return Ok(true),
+            FileType::Plaintext => {
+                info!("Skipping fragment check for {url} within a plaintext file");
+                return Ok(true);
+            }
         };
 
         let fragment_candidates = FragmentBuilder::new(fragment, url, file_type)?;

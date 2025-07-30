@@ -1877,60 +1877,92 @@ mod cli {
         let mut cmd = main_command();
         let input = fixtures_path().join("fragments");
 
-        cmd.arg("--verbose")
+        let mut result = cmd
             .arg("--include-fragments")
+            .arg("--verbose")
             .arg(input)
             .assert()
-            .failure()
-            .stderr(contains("fixtures/fragments/file1.md#fragment-1"))
-            .stderr(contains("fixtures/fragments/file1.md#fragment-2"))
-            .stderr(contains("fixtures/fragments/file1.md#code-heading"))
-            .stderr(contains("fixtures/fragments/file2.md#custom-id"))
-            .stderr(contains("fixtures/fragments/file1.md#missing-fragment"))
-            .stderr(contains("fixtures/fragments/file2.md#fragment-1"))
-            .stderr(contains("fixtures/fragments/file1.md#kebab-case-fragment"))
-            .stderr(contains(
-                "fixtures/fragments/file1.md#lets-wear-a-hat-%C3%AAtre",
-            ))
-            .stderr(contains("fixtures/fragments/file2.md#missing-fragment"))
-            .stderr(contains("fixtures/fragments/empty_file#fragment"))
-            .stderr(contains("fixtures/fragments/file.html#a-word"))
-            .stderr(contains("fixtures/fragments/file.html#in-the-beginning"))
-            .stderr(contains("fixtures/fragments/file.html#in-the-end"))
-            .stderr(contains(
-                "fixtures/fragments/file1.md#kebab-case-fragment-1",
-            ))
-            .stderr(contains("fixtures/fragments/file.html#top"))
-            .stderr(contains("fixtures/fragments/file2.md#top"))
-            .stderr(contains(
-                "https://github.com/lycheeverse/lychee#table-of-contents",
-            ))
-            .stderr(contains(
-                "https://github.com/lycheeverse/lychee#non-existent-anchor",
-            ))
-            .stderr(contains("fixtures/fragments/sub_dir#non-existing-fragment-1"))
-            .stderr(contains("fixtures/fragments/sub_dir#non-existing-fragment-2"))
-            .stderr(contains("fixtures/fragments/sub_dir_non_existing_1"))
-            .stderr(contains("fixtures/fragments/sub_dir_non_existing_2"))
-            .stderr(contains("fixtures/fragments/empty_dir"))
-            .stderr(contains("fixtures/fragments/empty_dir#non-existing-fragment-3"))
-            .stderr(contains("fixtures/fragments/empty_dir#non-existing-fragment-4"))
-            .stderr(contains("fixtures/fragments/zero.bin"))
-            .stderr(contains("fixtures/fragments/zero.bin#"))
-            .stderr(contains(
-                "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin",
-            ))
-            .stderr(contains(
-                "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#",
-            ))
-            .stderr(contains("fixtures/fragments/zero.bin#fragment"))
-            .stderr(contains(
-                "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
-            ))
-            .stdout(contains("42 Total"))
-            .stdout(contains("30 OK"))
+            .failure();
+
+        let expected_successes = vec![
+            "fixtures/fragments/empty_dir",
+            "fixtures/fragments/empty_file#fragment", // XXX: is this a bug? a fragment in an empty file is being treated as valid
+            "fixtures/fragments/file1.md#code-heading",
+            "fixtures/fragments/file1.md#explicit-fragment",
+            "fixtures/fragments/file1.md#f%C3%BCnf-s%C3%9C%C3%9Fe-%C3%84pfel",
+            "fixtures/fragments/file1.md#f%C3%BCnf-s%C3%BC%C3%9Fe-%C3%A4pfel",
+            "fixtures/fragments/file1.md#fragment-1",
+            "fixtures/fragments/file1.md#fragment-2",
+            "fixtures/fragments/file1.md#IGNORE-CASING",
+            "fixtures/fragments/file1.md#kebab-case-fragment",
+            "fixtures/fragments/file1.md#kebab-case-fragment-1",
+            "fixtures/fragments/file1.md#lets-wear-a-hat-%C3%AAtre",
+            "fixtures/fragments/file2.md#",
+            "fixtures/fragments/file2.md#custom-id",
+            "fixtures/fragments/file2.md#fragment-1",
+            "fixtures/fragments/file2.md#top",
+            "fixtures/fragments/file.html#",
+            "fixtures/fragments/file.html#a-word",
+            "fixtures/fragments/file.html#in-the-beginning",
+            "fixtures/fragments/file.html#tangent%3A-kustomize",
+            "fixtures/fragments/file.html#top",
+            "fixtures/fragments/file.html#Upper-%C3%84%C3%96%C3%B6",
+            "fixtures/fragments/sub_dir",
+            "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
+            "fixtures/fragments/zero.bin",
+            "fixtures/fragments/zero.bin#",
+            "fixtures/fragments/zero.bin#fragment",
+            "https://github.com/lycheeverse/lychee#table-of-contents",
+            "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin",
+            "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#",
+            // zero.bin#fragment succeeds because fragment checking is skipped for this URL
+            "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
+        ];
+
+        let expected_failures = vec![
+            "fixtures/fragments/sub_dir_non_existing_1",
+            "fixtures/fragments/sub_dir#non-existing-fragment-2",
+            "fixtures/fragments/empty_dir#non-existing-fragment-3",
+            "fixtures/fragments/file2.md#missing-fragment",
+            "fixtures/fragments/sub_dir#non-existing-fragment-1",
+            "fixtures/fragments/sub_dir_non_existing_2",
+            "fixtures/fragments/file1.md#missing-fragment",
+            "fixtures/fragments/empty_dir#non-existing-fragment-4",
+            "fixtures/fragments/file.html#in-the-end",
+            "fixtures/fragments/file.html#in-THE-begiNNing",
+            "https://github.com/lycheeverse/lychee#non-existent-anchor",
+        ];
+
+        // the stdout/stderr format looks like this:
+        //
+        //     [ERROR] https://github.com/lycheeverse/lychee#non-existent-anchor | Cannot find fragment
+        //     [200] file:///home/rina/progs/lychee/fixtures/fragments/file.html#a-word
+        //
+        // errors are printed to both, but 200s are printed to stderr only.
+        // we take advantage of this to ensure that good URLs do not appear
+        // in stdout, and bad URLs do appear in stdout.
+        //
+        // also, a space or newline is appended to the URL to prevent
+        // incorrect matches where one URL is a prefix of another.
+        for good_url in &expected_successes {
+            // additionally checks that URL is within stderr to ensure that
+            // the URL is detected by lychee.
+            result = result
+                .stdout(contains(format!("{good_url} ")).not())
+                .stderr(contains(format!("{good_url}\n")));
+        }
+        for bad_url in &expected_failures {
+            result = result.stdout(contains(format!("{bad_url} ")));
+        }
+
+        let ok_num = expected_successes.len();
+        let err_num = expected_failures.len();
+        let total_num = ok_num + err_num;
+        result
+            .stdout(contains(format!("{ok_num} OK")))
             // Failures because of missing fragments or failed binary body scan
-            .stdout(contains("12 Errors"));
+            .stdout(contains(format!("{err_num} Errors")))
+            .stdout(contains(format!("{total_num} Total")));
     }
 
     #[test]
