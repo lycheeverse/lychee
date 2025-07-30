@@ -105,7 +105,7 @@ pub struct ClientBuilder {
     ///
     /// This option only takes effect on `file://` URIs which exist and
     /// point to a directory.
-    #[builder(default = vec![String::new()])]
+    #[builder(default = vec![".".to_owned()])]
     index_files: Vec<String>,
 
     /// Links matching this set of regular expressions are **always** checked.
