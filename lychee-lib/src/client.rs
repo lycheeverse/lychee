@@ -96,17 +96,18 @@ pub struct ClientBuilder {
     /// Index file names to use when resolving `file://` URIs which point to
     /// directories.
     ///
-    /// For local directory links, at least one index file from this list must
-    /// exist in order for the link to be considered valid.
+    /// For local directory links, if this is non-`None`, then at least one
+    /// index file from this list must exist in order for the link to be
+    /// considered valid. Index files names are required to match regular
+    /// files, aside from the special `.` name which will match the
+    /// directory itself.
     ///
-    /// Index files names are required to match regular files, aside from the
-    /// special `.` name which will match the directory itself. In the
-    /// [`ClientBuilder`], this defaults to `["."]`.
+    /// If `None`, index file checking is disabled and directory links are valid
+    /// as long as the directory exists on disk.
     ///
-    /// This option only takes effect on `file://` URIs which exist and
-    /// point to a directory.
-    #[builder(default = vec![".".to_owned()])]
-    index_files: Vec<String>,
+    /// In the [`ClientBuilder`], this defaults to `None`.
+    #[builder(default = None)]
+    index_files: Option<Vec<String>>,
 
     /// Links matching this set of regular expressions are **always** checked.
     ///

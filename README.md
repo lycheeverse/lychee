@@ -461,24 +461,19 @@ Options:
           Note: This option only takes effect on `file://` URIs which do not exist.
 
       --index-files <INDEX_FILES>
-          When checking locally, resolves directory links to an index file within the
-          directory. The argument is a comma-separated list of index file names to search
-          for. Index files are attempted in the order given, and at least one must exist
-          in order for a directory link to be considered valid.
+          When checking locally, resolves directory links to an index file
+          within the directory. The argument is a comma-separated list of index file
+          names to search for. Index files are attempted in the order given.
 
-          The special name `.` can be used to resolve directory links to the directory
-          itself. When `.` is specified, a directory link will be accepted as long as the
-          directory exists. This is the default behavior.
+          If --index-files is specified, then at least one index file must exist in
+          order for a directory link to be considered valid.
 
-          An empty string can be passed to reject all local directory links. This will
-          require all links to explicitly name an HTML file, rather than linking to a
-          directory.
+          By default, index files are disabled, and directory links are considered valid
+          as long as the directory exists on disk.
 
           Example: --index-files index.html,readme.md
 
           Note: This option only takes effect on `file://` URIs which exist and point to a directory.
-
-          [default: .]
 
   -H, --header <HEADER:VALUE>
           Set custom header for requests

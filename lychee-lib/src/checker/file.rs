@@ -19,13 +19,17 @@ pub(crate) struct FileChecker {
     base: Option<Base>,
     /// List of file extensions to try if the original path doesn't exist.
     fallback_extensions: Vec<String>,
-    /// List of index file names to search for if the path is a directory.
+    /// If specified, resolves to one of the given index files if the original path
+    /// is a directory.
     ///
-    /// Index files names are required to match regular files, aside from the
-    /// special `.` name which will match the directory itself. This list
-    /// *should* be non-empty, otherwise all directory links will be considered
-    /// invalid due to "cannot find index file".
-    index_files: Vec<String>,
+    /// If non-`None`, a directory must contain at least one of the file names
+    /// in order to be considered a valid link target. Index files names are
+    /// required to match regular files, aside from the special `.` name which
+    /// will match the directory itself.
+    ///
+    /// If `None`, index file checking is disabled and directory links are valid
+    /// as long as the directory exists on disk.
+    index_files: Option<Vec<String>>,
     /// Whether to check for the existence of fragments (e.g., `#section-id`) in HTML files.
     include_fragments: bool,
     /// Utility for performing fragment checks in HTML files.
@@ -39,12 +43,12 @@ impl FileChecker {
     ///
     /// * `base` - Optional base path or URL for resolving relative paths.
     /// * `fallback_extensions` - List of extensions to try if the original file is not found.
-    /// * `index_files` - List of index file names to search for if the path is a directory.
+    /// * `index_files` - Optional list of index file names to search for if the path is a directory.
     /// * `include_fragments` - Whether to check for fragment existence in HTML files.
     pub(crate) fn new(
         base: Option<Base>,
         fallback_extensions: Vec<String>,
-        index_files: Vec<String>,
+        index_files: Option<Vec<String>>,
         include_fragments: bool,
     ) -> Self {
         Self {
@@ -178,26 +182,36 @@ impl FileChecker {
     }
 
     /// Tries to find an index file in the given directory, returning the first match.
+    /// The index file behavior is specified by [`FileChecker::index_files`].
     ///
-    /// Resolved index files are required to be files, aside from the special
-    /// name `.` - this will match the directory itself. This permits `.` to be
-    /// specified in [`FileChecker::index_files`] to treat a directory as its own
-    /// index file, accepting the link so long as the directory exists.
+    /// If this is non-`None`, index files must exist and resolved index files are
+    /// required to be files, aside from the special name `.` - this will match the
+    /// directory itself.
+    ///
+    /// If `None`, index file resolution is disabled and this function simply
+    /// returns the given path.
     ///
     /// # Arguments
     ///
     /// * `dir_path` - The directory within which to search for index files.
-    ///   This is assumed to be a directory.
+    ///   This is assumed to be an existing directory.
     ///
     /// # Returns
     ///
     /// Returns `Ok(PathBuf)` pointing to the first existing index file, or
     /// `Err` if no index file is found. If `Ok` is returned, the contained `PathBuf`
     /// is guaranteed to exist. In most cases, the returned path will be a file path.
-    /// If `.` appears within [`FileChecker::index_files`], then the returned path
-    /// may also be a directory.
+    ///
+    /// If index files are disabled, simply returns `Ok(dir_path)`.
     fn apply_index_files(&self, dir_path: &Path) -> Result<PathBuf, ErrorKind> {
-        self.index_files
+        // this implements the "disabled" case by treating a directory as its
+        // own index file.
+        let index_names_to_try = match &self.index_files {
+            Some(names) => &names[..],
+            None => &[".".to_owned()],
+        };
+
+        index_names_to_try
             .iter()
             .find_map(|filename| {
                 // for some special index file names, we accept directories as well
@@ -304,9 +318,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_default() {
-        // default behaviour from passing "." as index_files.
-        // this accepts dir links as long as the directory exists.
-        let checker = FileChecker::new(None, vec![], vec![".".to_owned()], true);
+        // default behaviour accepts dir links as long as the directory exists.
+        let checker = FileChecker::new(None, vec![], None, true);
 
         assert_filecheck!(&checker, "filechecker/index_dir", Status::Ok(_));
 
@@ -338,7 +351,7 @@ mod tests {
         let checker = FileChecker::new(
             None,
             vec![],
-            vec!["index.html".to_owned(), "index.md".to_owned()],
+            Some(vec!["index.html".to_owned(), "index.md".to_owned()]),
             true,
         );
 
@@ -377,7 +390,7 @@ mod tests {
         let checker = FileChecker::new(
             None,
             vec!["html".to_owned()],
-            vec!["index".to_owned()],
+            Some(vec!["index".to_owned()]),
             false,
         );
 
@@ -411,7 +424,7 @@ mod tests {
     #[tokio::test]
     async fn test_empty_index_list_corner() {
         // empty index_files list will reject all directory links
-        let checker_no_indexes = FileChecker::new(None, vec![], vec![], false);
+        let checker_no_indexes = FileChecker::new(None, vec![], Some(vec![]), false);
         assert_filecheck!(
             &checker_no_indexes,
             "filechecker/index_dir",
@@ -435,7 +448,7 @@ mod tests {
             "..".to_owned(),
             "/".to_owned(),
         ];
-        let checker_dir_indexes = FileChecker::new(None, vec![], dir_names, false);
+        let checker_dir_indexes = FileChecker::new(None, vec![], Some(dir_names), false);
         assert_filecheck!(
             &checker_dir_indexes,
             "filechecker/index_dir",
@@ -456,7 +469,7 @@ mod tests {
         let checker_dotdot = FileChecker::new(
             None,
             vec![],
-            vec!["../index_dir/index.html".to_owned()],
+            Some(vec!["../index_dir/index.html".to_owned()]),
             true,
         );
         assert_filecheck!(
