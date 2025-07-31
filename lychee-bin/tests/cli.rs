@@ -1908,7 +1908,6 @@ mod cli {
             "fixtures/fragments/file.html#top",
             "fixtures/fragments/file.html#Upper-%C3%84%C3%96%C3%B6",
             "fixtures/fragments/sub_dir",
-            "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
             "fixtures/fragments/zero.bin",
             "fixtures/fragments/zero.bin#",
             "fixtures/fragments/zero.bin#fragment",
@@ -1922,6 +1921,7 @@ mod cli {
         let expected_failures = vec![
             "fixtures/fragments/sub_dir_non_existing_1",
             "fixtures/fragments/sub_dir#non-existing-fragment-2",
+            "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
             "fixtures/fragments/empty_dir#non-existing-fragment-3",
             "fixtures/fragments/file2.md#missing-fragment",
             "fixtures/fragments/sub_dir#non-existing-fragment-1",
