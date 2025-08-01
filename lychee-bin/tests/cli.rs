@@ -1784,6 +1784,22 @@ mod cli {
         assert!(all_cookies.iter().all(|c| c.domain() == Some("google.com")));
         Ok(())
     }
+
+    #[test]
+    fn test_dump_inputs_does_not_include_duplicates() -> Result<()> {
+        let pattern = fixtures_path().join("dump_inputs/markdown.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg(&pattern)
+            .arg(&pattern)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/dump_inputs/markdown.md").count(1));
+
+        Ok(())
+    }
+
     #[test]
     fn test_dump_inputs_glob_md() -> Result<()> {
         let pattern = fixtures_path().join("**/*.md");

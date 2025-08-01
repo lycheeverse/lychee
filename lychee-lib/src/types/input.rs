@@ -102,7 +102,7 @@ impl Display for InputSource {
 }
 
 /// Lychee Input with optional file hint for parsing
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Input {
     /// Origin of input
     pub source: InputSource,
