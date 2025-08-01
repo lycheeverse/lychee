@@ -568,13 +568,22 @@ Note: This option only takes effect on `file://` URIs which do not exist."
 within the directory. The argument is a comma-separated list of index file
 names to search for. Index files are attempted in the order given.
 
-If --index-files is specified, then at least one index file must exist in
-order for a directory link to be considered valid.
+If `--index-files` is specified, then at least one index file must exist in
+order for a directory link to be considered valid. Additionally, the special
+name `.` can be used in the list to refer to the directory itself.
 
-By default, index files are disabled, and directory links are considered valid
-as long as the directory exists on disk.
+If unspecified (the default behavior), index files are disabled and directory
+links are considered valid as long as the directory exists on disk.
 
-Example: --index-files index.html,readme.md
+Example 1: `--index-files index.html,readme.md` looks for index.html or readme.md
+           and requires that at least one exists.
+
+Example 2: `--index-files index.html,.` will use index.html if it exists, but
+           still accept the directory link regardless.
+
+Example 3: `--index-files ''` will reject all directory links because there are
+           no valid index files. This will require all links to explicitly name
+           a file.
 
 Note: This option only takes effect on `file://` URIs which exist and point to a directory."
     )]
