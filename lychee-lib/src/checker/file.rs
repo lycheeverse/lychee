@@ -292,7 +292,7 @@ impl FileChecker {
 mod tests {
 
     use super::FileChecker;
-    use crate::test_utils::fixture_uri;
+    use crate::test_utils::{fixture_uri, fixtures_path};
     use crate::{
         ErrorKind::{InvalidFilePath, InvalidFragment, InvalidIndexFile},
         Status,
@@ -464,8 +464,6 @@ mod tests {
     #[tokio::test]
     async fn test_index_file_traversal_corner() {
         // index file names can contain path fragments and they will be traversed.
-        // being able to do this is not necessarily a good thing, and maybe it should
-        // be changed. this test just records the current behaviour.
         let checker_dotdot = FileChecker::new(
             None,
             vec![],
@@ -474,6 +472,19 @@ mod tests {
         );
         assert_filecheck!(
             &checker_dotdot,
+            "filechecker/empty_dir#fragment",
+            Status::Ok(_)
+        );
+
+        // absolute paths to a file on disk should also work
+        let absolute_html = fixtures_path()
+            .join("filechecker/index_dir/index.html")
+            .to_str()
+            .expect("expected utf-8 fixtures path")
+            .to_owned();
+        let checker_absolute = FileChecker::new(None, vec![], Some(vec![absolute_html]), true);
+        assert_filecheck!(
+            &checker_absolute,
             "filechecker/empty_dir#fragment",
             Status::Ok(_)
         );

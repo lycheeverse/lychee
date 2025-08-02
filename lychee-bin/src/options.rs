@@ -564,9 +564,9 @@ Note: This option only takes effect on `file://` URIs which do not exist."
     #[arg(
         long,
         value_delimiter = ',',
-        long_help = "When checking locally, resolves directory links to an index file
-within the directory. The argument is a comma-separated list of index file
-names to search for. Index files are attempted in the order given.
+        long_help = "When checking locally, resolves directory links to a separate index file.
+The argument is a comma-separated list of index file names to search for. Index
+names are relative to the link's directory and attempted in the order given.
 
 If `--index-files` is specified, then at least one index file must exist in
 order for a directory link to be considered valid. Additionally, the special
@@ -582,7 +582,7 @@ Example 2: `--index-files index.html,.` will use index.html if it exists, but
            still accept the directory link regardless.
 
 Example 3: `--index-files ''` will reject all directory links because there are
-           no valid index files. This will require all links to explicitly name
+           no valid index files. This will require every link to explicitly name
            a file.
 
 Note: This option only takes effect on `file://` URIs which exist and point to a directory."
