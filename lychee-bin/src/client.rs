@@ -54,6 +54,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .min_tls_version(cfg.min_tls.clone().map(Into::into))
         .include_fragments(cfg.include_fragments)
         .fallback_extensions(cfg.fallback_extensions.clone())
+        .index_files(cfg.index_files.clone())
         .build()
         .client()
         .context("Failed to create request client")
