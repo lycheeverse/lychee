@@ -2330,7 +2330,7 @@ mod cli {
         let index_dir_links = 2;
         result
             .stdout(contains("Cannot find index file").count(empty_dir_links))
-            .stderr(contains("/empty_dir").count(empty_dir_links))
+            .stdout(contains("/empty_dir").count(empty_dir_links))
             .stdout(contains(format!("{index_dir_links} OK")));
     }
 
