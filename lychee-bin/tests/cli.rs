@@ -2349,7 +2349,7 @@ mod cli {
             .stdout(contains("4 OK"));
 
         // checking fragments will accept the index_dir#fragment link,
-        // but reject empty_dir#fragment because empty_dir dens't have
+        // but reject empty_dir#fragment because empty_dir doesn’t have
         // index.html.
         main_command()
             .arg(&input)
