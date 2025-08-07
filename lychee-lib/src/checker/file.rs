@@ -109,8 +109,8 @@ impl FileChecker {
         let has_fragment = uri.url.fragment().is_some_and(|x| !x.is_empty());
 
         // If file_path exists, check this file
-        if file_path.is_some() {
-            return self.check_file(&file_path.unwrap(), uri).await;
+        if let Some(file_path) = file_path {
+            return self.check_file(&file_path, uri).await;
         }
         // If path is a directory, and we cannot find an index file inside it,
         // and we don't have a fragment, just return success.

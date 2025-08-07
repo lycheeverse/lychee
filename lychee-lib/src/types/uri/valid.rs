@@ -62,7 +62,7 @@ impl Uri {
     /// each as a percent-encoded ASCII string.
     ///
     /// Return `None` for cannot-be-a-base URLs.
-    pub fn path_segments(&self) -> Option<std::str::Split<char>> {
+    pub fn path_segments(&self) -> Option<std::str::Split<'_, char>> {
         self.url.path_segments()
     }
 
@@ -341,7 +341,7 @@ mod tests {
     fn test_uri_host_ip_v4() {
         assert_eq!(
             website("http://127.0.0.1").host_ip(),
-            Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))
+            Some(IpAddr::V4(Ipv4Addr::LOCALHOST))
         );
     }
 
@@ -362,7 +362,7 @@ mod tests {
     fn test_localhost() {
         assert_eq!(
             website("http://127.0.0.1").host_ip(),
-            Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))
+            Some(IpAddr::V4(Ipv4Addr::LOCALHOST))
         );
     }
 
