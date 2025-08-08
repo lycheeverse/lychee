@@ -9,7 +9,7 @@ issues: https://github.com/lycheeverse/lychee/issues
 source-code: https://github.com/lycheeverse/lychee
 license: Apache-2.0 OR MIT
 
-version: "0.19.1"
+adopt-info: lychee # set version automatically from git tag
 
 grade: stable
 confinement: strict
@@ -21,6 +21,9 @@ parts:
     source: .
     build-packages:
       - libssl-dev
+    override-pull: |
+      craftctl default
+      craftctl set version=$(git describe --tags --abbrev=10)
 
 apps:
   lychee:
