@@ -12,15 +12,15 @@ static CURRENT_DIR: LazyLock<PathBuf> =
 ///
 /// The `clean` method is relatively expensive
 /// Therefore we cache this call to reduce allocs and wall time
-/// https://stackoverflow.com/a/54817755/270334
+/// <https://stackoverflow.com/a/54817755/270334>
 #[cached]
 pub(crate) fn absolute_path(path: PathBuf) -> PathBuf {
-    if path.is_absolute() {
+    let absolute = if path.is_absolute() {
         path
     } else {
         CURRENT_DIR.join(path)
-    }
-    .clean()
+    };
+    absolute.clean()
 }
 
 /// Resolve `dst` that was linked to from within `src`
