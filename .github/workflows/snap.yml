@@ -8,7 +8,8 @@ on:
       - "lychee-v*"
   pull_request:
     branches:
-      - master
+      # - master
+      - "**"  # Temporarily enable on push to PR. Remove before merging to `master`
 
 jobs:
   build:
