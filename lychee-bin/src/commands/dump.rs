@@ -1,34 +1,14 @@
 use log::error;
 use lychee_lib::Request;
 use lychee_lib::Result;
-use lychee_lib::filter::PathExcludes;
 use std::fs;
 use std::io::{self, Write};
-use std::path::PathBuf;
 use tokio_stream::StreamExt;
 
 use crate::ExitCode;
 use crate::verbosity::Verbosity;
 
 use super::CommandParams;
-
-// Helper function to create an output writer.
-//
-// If the output file is not specified, it will use `stdout`.
-//
-// # Errors
-//
-// If the output file cannot be opened, an error is returned.
-fn create_writer(output: Option<PathBuf>) -> Result<Box<dyn Write>> {
-    let out = if let Some(output) = output {
-        let out = fs::OpenOptions::new().append(true).open(output)?;
-        Box::new(out) as Box<dyn Write>
-    } else {
-        let out = io::stdout();
-        Box::new(out.lock()) as Box<dyn Write>
-    };
-    Ok(out)
-}
 
 /// Dump all detected links to stdout without checking them
 pub(crate) async fn dump<S>(params: CommandParams<S>) -> Result<ExitCode>
@@ -42,7 +22,7 @@ where
         fs::File::create(out_file)?;
     }
 
-    let mut writer = create_writer(params.cfg.output)?;
+    let mut writer = super::create_writer(params.cfg.output)?;
 
     while let Some(request) = requests.next().await {
         let mut request = request?;
@@ -66,36 +46,6 @@ where
                 return Ok(ExitCode::UnexpectedFailure);
             }
         }
-    }
-
-    Ok(ExitCode::Success)
-}
-
-/// Dump all input sources to stdout without extracting any links and checking
-/// them.
-pub(crate) async fn dump_inputs<S>(
-    sources: S,
-    output: Option<&PathBuf>,
-    excluded_paths: &PathExcludes,
-) -> Result<ExitCode>
-where
-    S: futures::Stream<Item = Result<String>>,
-{
-    if let Some(out_file) = output {
-        fs::File::create(out_file)?;
-    }
-
-    let mut writer = create_writer(output.cloned())?;
-
-    tokio::pin!(sources);
-    while let Some(source) = sources.next().await {
-        let source = source?;
-
-        if excluded_paths.is_match(&source) {
-            continue;
-        }
-
-        writeln!(writer, "{source}")?;
     }
 
     Ok(ExitCode::Success)
@@ -133,98 +83,4 @@ fn write(
 
 fn write_out(writer: &mut Box<dyn Write>, out_str: &str) -> io::Result<()> {
     writeln!(writer, "{out_str}")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use futures::stream;
-    use tempfile::NamedTempFile;
-
-    #[tokio::test]
-    async fn test_dump_inputs_basic() -> Result<()> {
-        // Create temp file for output
-        let temp_file = NamedTempFile::new()?;
-        let output_path = temp_file.path().to_path_buf();
-
-        // Create test input stream
-        let inputs = vec![
-            Ok(String::from("test/path1")),
-            Ok(String::from("test/path2")),
-            Ok(String::from("test/path3")),
-        ];
-        let stream = stream::iter(inputs);
-
-        // Run dump_inputs
-        let result = dump_inputs(stream, Some(&output_path), &PathExcludes::empty()).await?;
-        assert_eq!(result, ExitCode::Success);
-
-        // Verify output
-        let contents = fs::read_to_string(&output_path)?;
-        assert_eq!(contents, "test/path1\ntest/path2\ntest/path3\n");
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_dump_inputs_with_excluded_paths() -> Result<()> {
-        let temp_file = NamedTempFile::new()?;
-        let output_path = temp_file.path().to_path_buf();
-
-        let inputs = vec![
-            Ok(String::from("test/path1")),
-            Ok(String::from("excluded/path")),
-            Ok(String::from("test/path2")),
-        ];
-        let stream = stream::iter(inputs);
-
-        let excluded = &PathExcludes::new(["excluded"]).unwrap();
-        let result = dump_inputs(stream, Some(&output_path), excluded).await?;
-        assert_eq!(result, ExitCode::Success);
-
-        let contents = fs::read_to_string(&output_path)?;
-        assert_eq!(contents, "test/path1\ntest/path2\n");
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_dump_inputs_empty_stream() -> Result<()> {
-        let temp_file = NamedTempFile::new()?;
-        let output_path = temp_file.path().to_path_buf();
-
-        let stream = stream::iter::<Vec<Result<String>>>(vec![]);
-        let result = dump_inputs(stream, Some(&output_path), &PathExcludes::empty()).await?;
-        assert_eq!(result, ExitCode::Success);
-
-        let contents = fs::read_to_string(&output_path)?;
-        assert_eq!(contents, "");
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_dump_inputs_error_in_stream() -> Result<()> {
-        let temp_file = NamedTempFile::new()?;
-        let output_path = temp_file.path().to_path_buf();
-
-        let inputs: Vec<Result<String>> = vec![
-            Ok(String::from("test/path1")),
-            Err(io::Error::other("test error").into()),
-            Ok(String::from("test/path2")),
-        ];
-        let stream = stream::iter(inputs);
-
-        let result = dump_inputs(stream, Some(&output_path), &PathExcludes::empty()).await;
-        assert!(result.is_err());
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_dump_inputs_to_stdout() -> Result<()> {
-        // When output path is None, should write to stdout
-        let inputs = vec![Ok(String::from("test/path1"))];
-        let stream = stream::iter(inputs);
-
-        let result = dump_inputs(stream, None, &PathExcludes::empty()).await?;
-        assert_eq!(result, ExitCode::Success);
-        Ok(())
-    }
 }
