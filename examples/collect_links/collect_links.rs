@@ -1,17 +1,17 @@
 use lychee_lib::{Collector, Input, InputSource, Result};
 use reqwest::Url;
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
 use tokio_stream::StreamExt;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Collect all links from the following inputs
-    let inputs = vec![
+    let inputs = HashSet::from_iter([
         Input::from_input_source(InputSource::RemoteUrl(Box::new(
             Url::parse("https://github.com/lycheeverse/lychee").unwrap(),
         ))),
         Input::from_input_source(InputSource::FsPath(PathBuf::from("fixtures/TEST.md"))),
-    ];
+    ]);
 
     let links = Collector::default()
         .skip_missing_inputs(false) // don't skip missing inputs? (default=false)
