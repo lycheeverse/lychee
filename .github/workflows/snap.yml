@@ -16,10 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: snapcore/action-build@v1
-    #TODO set up credential for publishing (see https://github.com/snapcore/action-publish)
-    #- uses: snapcore/action-publish@v1
-    #  env:
-    #    SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.STORE_LOGIN }}
-    #  with:
-    #    snap: ${{ steps.build.outputs.snap }}
-    #    release: edge
+      - uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.STORE_LOGIN }}
+        with:
+          snap: ${{ steps.build.outputs.snap }}
+          release: edge
