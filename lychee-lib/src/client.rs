@@ -89,7 +89,25 @@ pub struct ClientBuilder {
     remaps: Option<Remaps>,
 
     /// Automatically append file extensions to `file://` URIs as needed
+    ///
+    /// This option takes effect on `file://` URIs which do not exist.
     fallback_extensions: Vec<String>,
+
+    /// Index file names to use when resolving `file://` URIs which point to
+    /// directories.
+    ///
+    /// For local directory links, if this is non-`None`, then at least one
+    /// index file from this list must exist in order for the link to be
+    /// considered valid. Index files names are required to match regular
+    /// files, aside from the special `.` name which will match the
+    /// directory itself.
+    ///
+    /// If `None`, index file checking is disabled and directory links are valid
+    /// as long as the directory exists on disk.
+    ///
+    /// In the [`ClientBuilder`], this defaults to `None`.
+    #[builder(default = None)]
+    index_files: Option<Vec<String>>,
 
     /// Links matching this set of regular expressions are **always** checked.
     ///
@@ -409,6 +427,7 @@ impl ClientBuilder {
             file_checker: FileChecker::new(
                 self.base,
                 self.fallback_extensions,
+                self.index_files,
                 self.include_fragments,
             ),
         })

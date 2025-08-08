@@ -1908,7 +1908,6 @@ mod cli {
             "fixtures/fragments/file.html#top",
             "fixtures/fragments/file.html#Upper-%C3%84%C3%96%C3%B6",
             "fixtures/fragments/sub_dir",
-            "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
             "fixtures/fragments/zero.bin",
             "fixtures/fragments/zero.bin#",
             "fixtures/fragments/zero.bin#fragment",
@@ -1922,6 +1921,7 @@ mod cli {
         let expected_failures = vec![
             "fixtures/fragments/sub_dir_non_existing_1",
             "fixtures/fragments/sub_dir#non-existing-fragment-2",
+            "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
             "fixtures/fragments/empty_dir#non-existing-fragment-3",
             "fixtures/fragments/file2.md#missing-fragment",
             "fixtures/fragments/sub_dir#non-existing-fragment-1",
@@ -2287,5 +2287,99 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("https://www.example.com/smth."));
+    }
+
+    #[test]
+    fn test_index_files_default() {
+        let input = fixtures_path().join("filechecker/dir_links.md");
+
+        // the dir links in this file all exist.
+        main_command()
+            .arg(&input)
+            .arg("--verbose")
+            .assert()
+            .success();
+
+        // ... but checking fragments will find none, because dirs
+        // have no fragments and no index file given.
+        let dir_links_with_fragment = 2;
+        main_command()
+            .arg(&input)
+            .arg("--include-fragments")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot find fragment").count(dir_links_with_fragment))
+            .stdout(contains("#").count(dir_links_with_fragment));
+    }
+
+    #[test]
+    fn test_index_files_specified() {
+        let input = fixtures_path().join("filechecker/dir_links.md");
+
+        // passing `--index-files index.html` should reject all links
+        // to /empty_dir because it doesn't have the index file
+        let result = main_command()
+            .arg(input)
+            .arg("--index-files")
+            .arg("index.html")
+            .arg("--verbose")
+            .assert()
+            .failure();
+
+        let empty_dir_links = 2;
+        let index_dir_links = 2;
+        result
+            .stdout(contains("Cannot find index file").count(empty_dir_links))
+            .stdout(contains("/empty_dir").count(empty_dir_links))
+            .stdout(contains(format!("{index_dir_links} OK")));
+    }
+
+    #[test]
+    fn test_index_files_dot_in_list() {
+        let input = fixtures_path().join("filechecker/dir_links.md");
+
+        // passing `.` in the index files list should accept a directory
+        // even if no other index file is found.
+        main_command()
+            .arg(&input)
+            .arg("--index-files")
+            .arg("index.html,.")
+            .assert()
+            .success()
+            .stdout(contains("4 OK"));
+
+        // checking fragments will accept the index_dir#fragment link,
+        // but reject empty_dir#fragment because empty_dir doesn’t have
+        // index.html.
+        main_command()
+            .arg(&input)
+            .arg("--index-files")
+            .arg("index.html,.")
+            .arg("--include-fragments")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot find fragment").count(1))
+            .stdout(contains("empty_dir#fragment").count(1))
+            .stdout(contains("index_dir#fragment").count(0))
+            .stdout(contains("3 OK"));
+    }
+
+    #[test]
+    fn test_index_files_empty_list() {
+        let input = fixtures_path().join("filechecker/dir_links.md");
+
+        // passing an empty list to --index-files should reject /all/
+        // directory links.
+        let result = main_command()
+            .arg(input)
+            .arg("--index-files")
+            .arg("")
+            .assert()
+            .failure();
+
+        let num_dir_links = 4;
+        result
+            .stdout(contains("Cannot find index file").count(num_dir_links))
+            .stdout(contains("0 OK"));
     }
 }
