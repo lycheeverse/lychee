@@ -23,7 +23,9 @@ parts:
       - libssl-dev
     override-pull: |
       craftctl default
-      craftctl set version=$(git describe --tags --abbrev=10)
+      # Try git tags first, fallback to Cargo.toml version
+      version=$(git describe --tags --abbrev=10 2>/dev/null || grep "^version =" Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/' | sed 's/$/.dev/')
+      craftctl set version="$version"
 
 apps:
   lychee:
