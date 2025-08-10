@@ -316,7 +316,9 @@ Usage: lychee [OPTIONS] <inputs>...
 
 Arguments:
   <inputs>...
-          The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`). NOTE: Use `--` to separate inputs from options that allow multiple arguments
+          The inputs (where to get links to check from).
+          These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`).
+          NOTE: Use `--` to separate inputs from options that allow multiple arguments
 
 Options:
   -a, --accept <ACCEPT>
@@ -339,17 +341,17 @@ Options:
 
       --archive <ARCHIVE>
           Specify the use of a specific web archive. Can be used in combination with `--suggest`
-
-          [possible values: wayback]
+          Possible values: `wayback`
 
       --base <BASE>
           Deprecated since v0.19.0; use `--base-url` instead
 
   -b, --base-url <BASE_URL>
-          Base URL used to resolve relative URLs during link checking Example: <https://example.com>
+          Base URL used to resolve relative URLs during link checking
+          Example: `--base-url https://example.com`
 
       --basic-auth <BASIC_AUTH>
-          Basic authentication support. E.g. `http://example.com username:password`
+          Basic authentication support, e.g. `http://example.com username:password`
 
       --cache
           Use request cache stored on disk at `.lycheecache`
@@ -357,8 +359,8 @@ Options:
       --cache-exclude-status <CACHE_EXCLUDE_STATUS>
           A list of status codes that will be ignored from the cache
 
-          The following exclude range syntax is supported: [start]..[[=]end]|code. Some valid
-          examples are:
+          The following exclude range syntax is supported: [start]..[[=]end]|code.
+          Some valid examples are:
 
           - 429 (excludes the 429 status code only)
           - 500.. (excludes any status code >= 500)
@@ -366,9 +368,9 @@ Options:
           - 500..=599 (excludes any status code from 500 to 599 inclusive)
           - 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)
 
-          Use "lychee --cache-exclude-status '429, 500..502' <inputs>..." to provide a comma- separated
-          list of excluded status codes. This example will not cache results with a status code of 429, 500
-          and 501.
+          Use `lychee --cache-exclude-status '429, 500..502' <inputs>...` to provide a comma-separated
+          list of excluded status codes.
+          This example will not cache results with a status code of 429, 500 and 501.
 
           [default: ]
 
@@ -378,7 +380,8 @@ Options:
           [default: lychee.toml]
 
       --cookie-jar <COOKIE_JAR>
-          Tell lychee to read cookies from the given file. Cookies will be stored in the cookie jar and sent with requests. New cookies will be stored in the cookie jar and existing cookies will be updated
+          Tell lychee to read cookies from the given file. Cookies will be stored in the cookie jar and sent with requests.
+          New cookies will be stored in the cookie jar and existing cookies will be updated
 
       --dump
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
@@ -391,7 +394,7 @@ Options:
 
   -E, --exclude-all-private
           Exclude all private IPs from checking.
-          Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
+          Equivalent to using `--exclude-private --exclude-link-local --exclude-loopback` combined
 
       --exclude-file <EXCLUDE_FILE>
           Deprecated; use `--exclude-path` instead
@@ -422,13 +425,13 @@ Options:
           Multiple extensions can be separated by commas. Extensions will be checked in
           order of appearance.
 
-          Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
+          Example: `--fallback-extensions html,htm,php,asp,aspx,jsp,cgi`
 
   -f, --format <FORMAT>
           Output format of final status report
+          Possible values: `compact`, `detailed`, `json`, `markdown`, `raw`
 
           [default: compact]
-          [possible values: compact, detailed, json, markdown, raw]
 
       --github-token <GITHUB_TOKEN>
           GitHub API token to use when checking github.com links, to avoid rate limiting
@@ -462,7 +465,7 @@ Options:
           Also check email addresses
 
       --include-verbatim
-          Find links in verbatim sections like `pre`- and `code` blocks
+          Find links in verbatim sections like `pre` sections and `code` blocks
 
   -i, --insecure
           Proceed for server connections considered insecure (invalid TLS)
@@ -494,14 +497,13 @@ Options:
 
       --min-tls <MIN_TLS>
           Minimum accepted TLS Version
-
-          [possible values: TLSv1_0, TLSv1_1, TLSv1_2, TLSv1_3]
+          Possible values: `TLSv1_0`, `TLSv1_1`, `TLSv1_2`, `TLSv1_3`
 
       --mode <MODE>
           Set the output display mode. Determines how results are presented in the terminal
+          Possible values: `plain`, `color`, `emoji`, `task`
 
           [default: color]
-          [possible values: plain, color, emoji, task]
 
       --no-ignore
           Do not skip files that would otherwise be ignored by '.gitignore', '.ignore', or the global ignore file
@@ -534,7 +536,8 @@ Options:
           Root path to use when checking absolute local links, must be an absolute path
 
       --scheme <SCHEME>
-          Only test links with the given schemes (e.g. https). Omit to check links with any other scheme. At the moment, we support http, https, file, and mailto
+          Only test links with the given schemes (e.g. https). Omit to check links with any other scheme.
+          At the moment, we support `http`, `https`, `file`, and `mailto`
 
       --skip-missing
           Skip missing input files (default is to error if they don't exist)
