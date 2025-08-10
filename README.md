@@ -55,6 +55,12 @@ pacman -S lychee
 zypper in lychee
 ```
 
+### Ubuntu
+
+```sh
+snap install lychee
+```
+
 ### macOS
 
 Via [Homebrew](https://brew.sh):
