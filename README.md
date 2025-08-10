@@ -541,7 +541,8 @@ Options:
           Skip missing input files (default is to error if they don't exist)
 
       --suggest
-          Suggest link replacements for broken links, using a web archive. The web archive can be specified with `--archive`.
+          Suggest link replacements for broken links, using a web archive.
+          The web archive can be specified with `--archive`.
 
   -T, --threads <THREADS>
           Number of threads to utilize. Defaults to number of cores available to the system
