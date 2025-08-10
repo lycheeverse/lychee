@@ -317,25 +317,27 @@ Usage: lychee [OPTIONS] <inputs>...
 Arguments:
   <inputs>...
           The inputs (where to get links to check from).
-          These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`).
-          NOTE: Use `--` to separate inputs from options that allow multiple arguments
+          These can be: files (e.g. `README.md`),
+                        file globs (e.g. `"~/git/*/README.md"`),
+                        remote URLs (e.g. `https://example.com/README.md`) or
+                        standard input (`-`)
+
+          NOTE: Use `--` to separate inputs from options that allow multiple arguments.
 
 Options:
   -a, --accept <ACCEPT>
-          A List of accepted status codes for valid links
+          A List of accepted status codes for valid links.
+          The following accept range syntax is supported: [start]..[[=]end]|code.
 
-          The following accept range syntax is supported: [start]..[[=]end]|code. Some valid
-          examples are:
-
+          Some valid examples are:
           - 200 (accepts the 200 status code only)
           - ..204 (accepts any status code < 204)
           - ..=204 (accepts any status code <= 204)
           - 200..=204 (accepts any status code from 200 to 204 inclusive)
           - 200..205 (accepts any status code from 200 to 205 excluding 205, same as 200..=204)
 
-          Use "lychee --accept '200..=204, 429, 500' <inputs>..." to provide a comma-
-          separated list of accepted status codes. This example will accept 200, 201,
-          202, 203, 204, 429, and 500 as valid status codes.
+          Use "lychee --accept '200..=204, 429, 500' <inputs>..." to provide a comma-separated list of accepted
+          status codes. This example will accept 200, 201, 202, 203, 204, 429, and 500 as valid status codes.
 
           [default: 100..=103,200..=299]
 
@@ -347,7 +349,7 @@ Options:
           Deprecated since v0.19.0; use `--base-url` instead
 
   -b, --base-url <BASE_URL>
-          Base URL used to resolve relative URLs during link checking
+          Base URL used to resolve relative URLs during link checking.
           Example: `--base-url https://example.com`
 
       --basic-auth <BASIC_AUTH>
@@ -357,11 +359,10 @@ Options:
           Use request cache stored on disk at `.lycheecache`
 
       --cache-exclude-status <CACHE_EXCLUDE_STATUS>
-          A list of status codes that will be ignored from the cache
-
+          A list of status codes that will be ignored from the cache.
           The following exclude range syntax is supported: [start]..[[=]end]|code.
-          Some valid examples are:
 
+          Some valid examples are:
           - 429 (excludes the 429 status code only)
           - 500.. (excludes any status code >= 500)
           - ..100 (excludes any status code < 100)
@@ -369,8 +370,7 @@ Options:
           - 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)
 
           Use `lychee --cache-exclude-status '429, 500..502' <inputs>...` to provide a comma-separated
-          list of excluded status codes.
-          This example will not cache results with a status code of 429, 500 and 501.
+          list of excluded status codes. This example will not cache results with a status code of 429, 500 and 501.
 
           [default: ]
 
@@ -381,7 +381,7 @@ Options:
 
       --cookie-jar <COOKIE_JAR>
           Tell lychee to read cookies from the given file. Cookies will be stored in the cookie jar and sent with requests.
-          New cookies will be stored in the cookie jar and existing cookies will be updated
+          New cookies will be stored in the cookie jar and existing cookies will be updated.
 
       --dump
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
@@ -394,7 +394,7 @@ Options:
 
   -E, --exclude-all-private
           Exclude all private IPs from checking.
-          Equivalent to using `--exclude-private --exclude-link-local --exclude-loopback` combined
+          Equivalent to using `--exclude-private --exclude-link-local --exclude-loopback` combined.
 
       --exclude-file <EXCLUDE_FILE>
           Deprecated; use `--exclude-path` instead
@@ -413,17 +413,16 @@ Options:
 
       --extensions <EXTENSIONS>
           Test the specified file extensions for URIs when checking files locally.
+          Multiple extensions can be separated by commas.
 
-          Multiple extensions can be separated by commas. Note that if you want to check filetypes,
-          which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
-          specify both extensions explicitly.
+          Note that if you want to check filetypes, which have multiple extensions,
+          e.g. HTML files with both .html and .htm extensions, you need to specify both extensions explicitly.
 
           [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,txt]
 
       --fallback-extensions <FALLBACK_EXTENSIONS>
           Test the specified file extensions for URIs when checking files locally.
-          Multiple extensions can be separated by commas. Extensions will be checked in
-          order of appearance.
+          Multiple extensions can be separated by commas. Extensions will be checked in order of appearance.
 
           Example: `--fallback-extensions html,htm,php,asp,aspx,jsp,cgi`
 
@@ -445,7 +444,7 @@ Options:
           Set custom header for requests
 
           Some websites require custom headers to be passed in order to return valid responses.
-          You can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.
+          You can specify custom headers in the format 'Name: Value', e.g. 'Accept: text/html'.
           This is the same format that other tools like curl or wget use.
           Multiple headers can be specified by using the flag multiple times.
 
@@ -462,10 +461,10 @@ Options:
           Enable the checking of fragments in links
 
       --include-mail
-          Also check email addresses
+          Include email addresses in the check
 
       --include-verbatim
-          Find links in verbatim sections like `pre` sections and `code` blocks
+          Find links in verbatim sections like `pre` sections and `code` blocks.
 
   -i, --insecure
           Proceed for server connections considered insecure (invalid TLS)
@@ -509,8 +508,7 @@ Options:
           Do not skip files that would otherwise be ignored by '.gitignore', '.ignore', or the global ignore file
 
   -n, --no-progress
-          Do not show progress bar.
-          This is recommended for non-interactive shells (e.g. for continuous integration)
+          Do not show progress bar. Recommended for non-interactive shells (e.g. for continuous integration).
 
       --offline
           Only check local files and block network requests
@@ -537,13 +535,13 @@ Options:
 
       --scheme <SCHEME>
           Only test links with the given schemes (e.g. https). Omit to check links with any other scheme.
-          At the moment, we support `http`, `https`, `file`, and `mailto`
+          At the moment, we support `http`, `https`, `file`, and `mailto`.
 
       --skip-missing
           Skip missing input files (default is to error if they don't exist)
 
       --suggest
-          Suggest link replacements for broken links, using a web archive. The web archive can be specified with `--archive`
+          Suggest link replacements for broken links, using a web archive. The web archive can be specified with `--archive`.
 
   -T, --threads <THREADS>
           Number of threads to utilize. Defaults to number of cores available to the system
