@@ -1,0 +1,30 @@
+name: lychee
+summary: Fast, async, stream-based link checker written in Rust
+description: |
+  Finds broken hyperlinks and mail addresses, supports Markdown, HTML
+  and more, simple and lightweight
+
+website: https://lychee.cli.rs/
+issues: https://github.com/lycheeverse/lychee/issues
+source-code: https://github.com/lycheeverse/lychee
+license: Apache-2.0 OR MIT
+
+adopt-info: lychee # set version automatically from git tag
+
+grade: stable
+confinement: strict
+base: core24
+
+parts:
+  lychee:
+    plugin: rust
+    source: .
+    build-packages:
+      - libssl-dev
+    override-pull: |
+      craftctl default
+      craftctl set version=$(git describe --tags --abbrev=10)
+
+apps:
+  lychee:
+    command: lychee
