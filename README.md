@@ -255,7 +255,7 @@ lychee ~/projects/*/README.md
 lychee "~/projects/big_project/**/README.*"
 
 # ignore case when globbing and check result for each link:
-lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
+lychee --glob-ignore-case "~/projects/**/[r]eadme.*"
 
 # check links from epub file (requires atool: https://www.nongnu.org/atool)
 acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
