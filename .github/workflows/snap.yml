@@ -9,7 +9,6 @@ on:
 
 jobs:
   build:
-    if: startsWith(github.ref, 'refs/tags/lychee-v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
