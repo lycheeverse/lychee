@@ -7,6 +7,7 @@ use crate::{
     types::FileExtensions, types::uri::raw::RawUri, utils::request,
 };
 use futures::TryStreamExt;
+use futures::lock::Mutex;
 use futures::{
     StreamExt,
     stream::{self, Stream},
@@ -16,6 +17,7 @@ use par_stream::ParStreamExt;
 use reqwest::Client;
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -156,9 +158,26 @@ impl Collector {
     /// Collect all sources from a list of [`Input`]s. For further details,
     /// see also [`Input::get_sources`](crate::Input#method.get_sources).
     pub fn collect_sources(self, inputs: HashSet<Input>) -> impl Stream<Item = Result<String>> {
+        let seen = Arc::new(Mutex::new(HashSet::new()));
+
         stream::iter(inputs)
             .par_then_unordered(None, move |input| async move { input.get_sources() })
             .flatten()
+            .filter_map({
+                move |source: Result<String>| {
+                    let seen = Arc::clone(&seen);
+
+                    async move {
+                        if let Ok(s) = &source {
+                            let mut set = seen.lock().await;
+                            if !set.insert(s.clone()) {
+                                return None;
+                            }
+                        }
+                        Some(source)
+                    }
+                }
+            })
     }
 
     /// Convenience method to fetch all unique links from inputs
@@ -328,6 +347,40 @@ mod tests {
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Html);
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_collect_sources() -> Result<()> {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir_path = temp_dir.path();
+
+        std::env::set_current_dir(temp_dir_path)?;
+
+        let file_path = temp_dir_path.join("markdown.md");
+        File::create(&file_path).unwrap();
+
+        let file_path = temp_dir_path.join("README");
+        File::create(&file_path).unwrap();
+
+        let inputs = HashSet::from_iter([
+            Input::from_input_source(InputSource::FsGlob {
+                pattern: "*.md".to_string(),
+                ignore_case: true,
+            }),
+            Input::from_input_source(InputSource::FsGlob {
+                pattern: "markdown.*".to_string(),
+                ignore_case: true,
+            }),
+        ]);
+
+        let collector = Collector::new(Some(temp_dir_path.to_path_buf()), None)?;
+
+        let sources: Vec<_> = collector.collect_sources(inputs).collect().await;
+
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0], Ok("markdown.md".to_string()));
+
+        return Ok(());
     }
 
     #[tokio::test]

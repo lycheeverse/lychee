@@ -1801,6 +1801,22 @@ mod cli {
     }
 
     #[test]
+    fn test_dump_inputs_glob_does_not_include_duplicates() -> Result<()> {
+        let pattern1 = fixtures_path().join("**/markdown.*");
+        let pattern2 = fixtures_path().join("**/*.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg(pattern1)
+            .arg(pattern2)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/dump_inputs/markdown.md").count(1));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_dump_inputs_glob_md() -> Result<()> {
         let pattern = fixtures_path().join("**/*.md");
 
