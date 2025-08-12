@@ -30,3 +30,6 @@ parts:
 apps:
   lychee:
     command: lychee
+    plugs:
+      - home
+      - network
