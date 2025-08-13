@@ -8,6 +8,7 @@ use http::{
     HeaderMap,
     header::{HeaderName, HeaderValue},
 };
+use lychee_lib::MarkdownFlavor;
 use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
@@ -702,6 +703,11 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[arg(long)]
     #[serde(default)]
     pub(crate) cookie_jar: Option<PathBuf>,
+
+    /// Choose a specific markdown flavor
+    #[arg(long, default_value = "commonmark")]
+    #[serde(default)]
+    pub(crate) md_flavor: MarkdownFlavor,
 }
 
 impl Config {
@@ -759,6 +765,7 @@ impl Config {
             include_verbatim: false;
             include: Vec::<String>::new();
             insecure: false;
+            md_flavor: MarkdownFlavor::default();
             max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
             max_concurrency: DEFAULT_MAX_CONCURRENCY;
             max_redirects: DEFAULT_MAX_REDIRECTS;
