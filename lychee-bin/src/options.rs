@@ -16,7 +16,7 @@ use lychee_lib::{
 use reqwest::tls;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use strum::{Display, EnumIter, EnumString, VariantNames};
@@ -330,7 +330,7 @@ impl LycheeOptions {
     // This depends on the config, which is why a method is required (we could
     // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there, but
     // we wouldn't get access to `glob_ignore_case`.
-    pub(crate) fn inputs(&self) -> Result<Vec<Input>> {
+    pub(crate) fn inputs(&self) -> Result<HashSet<Input>> {
         self.raw_inputs
             .iter()
             .map(|s| Input::new(s, None, self.config.glob_ignore_case))

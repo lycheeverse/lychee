@@ -6,6 +6,7 @@ use crate::{
     Base, Input, Request, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
     types::FileExtensions, types::uri::raw::RawUri, utils::request,
 };
+use dashmap::DashSet;
 use futures::TryStreamExt;
 use futures::{
     StreamExt,
@@ -14,7 +15,9 @@ use futures::{
 use http::HeaderMap;
 use par_stream::ParStreamExt;
 use reqwest::Client;
+use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -154,15 +157,30 @@ impl Collector {
 
     /// Collect all sources from a list of [`Input`]s. For further details,
     /// see also [`Input::get_sources`](crate::Input#method.get_sources).
-    pub fn collect_sources(self, inputs: Vec<Input>) -> impl Stream<Item = Result<String>> {
+    pub fn collect_sources(self, inputs: HashSet<Input>) -> impl Stream<Item = Result<String>> {
+        let seen = Arc::new(DashSet::new());
+
         stream::iter(inputs)
             .par_then_unordered(None, move |input| async move { input.get_sources() })
             .flatten()
+            .filter_map({
+                move |source: Result<String>| {
+                    let seen = Arc::clone(&seen);
+                    async move {
+                        if let Ok(s) = &source {
+                            if !seen.insert(s.clone()) {
+                                return None;
+                            }
+                        }
+                        Some(source)
+                    }
+                }
+            })
     }
 
     /// Convenience method to fetch all unique links from inputs
     /// with the default extensions.
-    pub fn collect_links(self, inputs: Vec<Input>) -> impl Stream<Item = Result<Request>> {
+    pub fn collect_links(self, inputs: HashSet<Input>) -> impl Stream<Item = Result<Request>> {
         self.collect_links_from_file_types(inputs, crate::types::FileType::default_extensions())
     }
 
@@ -175,7 +193,7 @@ impl Collector {
     /// Will return `Err` if links cannot be extracted from an input
     pub fn collect_links_from_file_types(
         self,
-        inputs: Vec<Input>,
+        inputs: HashSet<Input>,
         extensions: FileExtensions,
     ) -> impl Stream<Item = Result<Request>> {
         let skip_missing_inputs = self.skip_missing_inputs;
@@ -255,7 +273,7 @@ mod tests {
 
     // Helper function to run the collector on the given inputs
     async fn collect(
-        inputs: Vec<Input>,
+        inputs: HashSet<Input>,
         root_dir: Option<PathBuf>,
         base: Option<Base>,
     ) -> Result<HashSet<Uri>> {
@@ -268,7 +286,7 @@ mod tests {
     /// A verbatim link is a link that is not parsed by the HTML parser.
     /// For example, a link in a code block or a script tag.
     async fn collect_verbatim(
-        inputs: Vec<Input>,
+        inputs: HashSet<Input>,
         root_dir: Option<PathBuf>,
         base: Option<Base>,
         extensions: FileExtensions,
@@ -330,6 +348,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_collect_sources() -> Result<()> {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir_path = temp_dir.path();
+
+        std::env::set_current_dir(temp_dir_path)?;
+
+        let file_path = temp_dir_path.join("markdown.md");
+        File::create(&file_path).unwrap();
+
+        let file_path = temp_dir_path.join("README");
+        File::create(&file_path).unwrap();
+
+        let inputs = HashSet::from_iter([
+            Input::from_input_source(InputSource::FsGlob {
+                pattern: "*.md".to_string(),
+                ignore_case: true,
+            }),
+            Input::from_input_source(InputSource::FsGlob {
+                pattern: "markdown.*".to_string(),
+                ignore_case: true,
+            }),
+        ]);
+
+        let collector = Collector::new(Some(temp_dir_path.to_path_buf()), None)?;
+
+        let sources: Vec<_> = collector.collect_sources(inputs).collect().await;
+
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0], Ok("markdown.md".to_string()));
+
+        return Ok(());
+    }
+
+    #[tokio::test]
     async fn test_collect_links() -> Result<()> {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_dir_path = temp_dir.path();
@@ -348,7 +400,7 @@ mod tests {
 
         let mock_server = mock_server!(StatusCode::OK, set_body_string(TEST_URL));
 
-        let inputs = vec![
+        let inputs = HashSet::from_iter([
             Input::from_input_source(InputSource::String(TEST_STRING.to_owned())),
             Input::from_input_source(InputSource::RemoteUrl(Box::new(
                 Url::parse(&mock_server.uri())
@@ -360,7 +412,7 @@ mod tests {
                 pattern: temp_dir_path.join("glob*").to_str().unwrap().to_owned(),
                 ignore_case: true,
             }),
-        ];
+        ]);
 
         let links = collect_verbatim(inputs, None, None, FileType::default_extensions())
             .await
@@ -387,7 +439,9 @@ mod tests {
             source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
             file_type_hint: Some(FileType::Markdown),
         };
-        let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
+        let inputs = HashSet::from_iter([input]);
+
+        let links = collect(inputs, None, Some(base)).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             website("https://endler.dev"),
@@ -412,7 +466,9 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Html),
         };
-        let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
+        let inputs = HashSet::from_iter([input]);
+
+        let links = collect(inputs, None, Some(base)).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             website("https://github.com/lycheeverse/lychee/"),
@@ -440,7 +496,9 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Html),
         };
-        let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
+        let inputs = HashSet::from_iter([input]);
+
+        let links = collect(inputs, None, Some(base)).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             website("https://example.com/static/image.png"),
@@ -465,8 +523,9 @@ mod tests {
             ),
             file_type_hint: Some(FileType::Markdown),
         };
+        let inputs = HashSet::from_iter([input]);
 
-        let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
+        let links = collect(inputs, None, Some(base)).await.ok().unwrap();
 
         let expected = HashSet::from_iter([
             website("https://localhost.com/@/internal.md"),
@@ -487,7 +546,9 @@ mod tests {
             source: InputSource::String(input),
             file_type_hint: Some(FileType::Html),
         };
-        let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
+        let inputs = HashSet::from_iter([input]);
+
+        let links = collect(inputs, None, Some(base)).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             // the body links wouldn't be present if the file was parsed strictly as XML
@@ -516,7 +577,9 @@ mod tests {
 
         let input = Input::from_input_source(InputSource::RemoteUrl(Box::new(server_uri.clone())));
 
-        let links = collect(vec![input], None, None).await.ok().unwrap();
+        let inputs = HashSet::from_iter([input]);
+
+        let links = collect(inputs, None, None).await.ok().unwrap();
 
         let expected_urls = HashSet::from_iter([
             website("https://github.com/lycheeverse/lychee/"),
@@ -532,7 +595,9 @@ mod tests {
             "This is a mailto:user@example.com?subject=Hello link".to_string(),
         ));
 
-        let links = collect(vec![input], None, None).await.ok().unwrap();
+        let inputs = HashSet::from_iter([input]);
+
+        let links = collect(inputs, None, None).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([mail("user@example.com")]);
 
@@ -550,7 +615,7 @@ mod tests {
             set_body_string(r#"<a href="relative.html">Link</a>"#)
         );
 
-        let inputs = vec![
+        let inputs = HashSet::from_iter([
             Input {
                 source: InputSource::RemoteUrl(Box::new(
                     Url::parse(&format!(
@@ -571,7 +636,7 @@ mod tests {
                 )),
                 file_type_hint: Some(FileType::Html),
             },
-        ];
+        ]);
 
         let links = collect(inputs, None, None).await.ok().unwrap();
 
@@ -606,7 +671,9 @@ mod tests {
             file_type_hint: Some(FileType::Html),
         };
 
-        let links = collect(vec![input], None, Some(base)).await.ok().unwrap();
+        let inputs = HashSet::from_iter([input]);
+
+        let links = collect(inputs, None, Some(base)).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             path("/path/to/root/index.html"),
