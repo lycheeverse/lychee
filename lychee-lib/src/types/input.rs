@@ -450,7 +450,7 @@ impl Input {
                     for entry in glob_with(&glob_expanded, match_opts)? {
                         match entry {
                             Ok(path) => {
-                                if !Self::is_excluded_path(&path, &excluded_paths) {
+                                if !Self::is_excluded_path(&path, excluded_paths) {
                                     yield path.to_string_lossy().to_string();
                                 }
                             },
@@ -467,14 +467,14 @@ impl Input {
                             skip_gitignored,
                         )? {
                             let entry = entry?;
-                            if !Self::is_excluded_path(entry.path(), &excluded_paths) {
+                            if !Self::is_excluded_path(entry.path(), excluded_paths) {
                                 // Only yield files, not directories
                                 if entry.file_type().is_some_and(|ft| ft.is_file()) {
                                     yield entry.path().to_string_lossy().to_string();
                                 }
                             }
                         }
-                    } else if !Self::is_excluded_path(path, &excluded_paths) {
+                    } else if !Self::is_excluded_path(path, excluded_paths) {
                         yield path.to_string_lossy().to_string();
                     }
                 }

@@ -1,4 +1,5 @@
 use lychee_lib::{FileExtensions, Input, Result};
+use std::collections::HashSet;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -12,7 +13,7 @@ use crate::ExitCode;
 /// by lychee, including file paths, URLs, and special sources like stdin.
 /// It respects file extension filtering and path exclusions.
 pub(crate) async fn dump_inputs(
-    inputs: Vec<Input>,
+    inputs: HashSet<Input>,
     output: Option<&PathBuf>,
     excluded_paths: &[String],
     valid_extensions: &FileExtensions,

@@ -154,13 +154,54 @@ impl Collector {
         self.excluded_paths = excluded_paths;
         self
     }
+
     /// Collect all sources from a list of [`Input`]s. For further details,
     /// see also [`Input::get_sources`](crate::Input#method.get_sources).
     pub fn collect_sources(self, inputs: HashSet<Input>) -> impl Stream<Item = Result<String>> {
+        self.collect_sources_with_file_types(inputs, crate::types::FileType::default_extensions())
+    }
+
+    /// Collect all sources from a list of [`Input`]s with specific file extensions.
+    pub fn collect_sources_with_file_types(
+        self,
+        inputs: HashSet<Input>,
+        file_extensions: FileExtensions,
+    ) -> impl Stream<Item = Result<String>> + 'static {
         let seen = Arc::new(DashSet::new());
+        let skip_hidden = self.skip_hidden;
+        let skip_ignored = self.skip_ignored;
+        let excluded_paths = self.excluded_paths;
 
         stream::iter(inputs)
-            .par_then_unordered(None, move |input| async move { input.get_sources() })
+            .par_then_unordered(None, move |input| {
+                let excluded_paths = excluded_paths.clone();
+                let file_extensions = file_extensions.clone();
+                async move {
+                    let inputs = [input];
+                    let mut result = Vec::new();
+
+                    for inp in inputs {
+                        let sources_stream = inp.get_input_sources(
+                            file_extensions.clone(),
+                            skip_hidden,
+                            skip_ignored,
+                            &excluded_paths,
+                        );
+
+                        let sources: Vec<_> = sources_stream.collect().await;
+                        for source_result in sources {
+                            match source_result {
+                                Ok(input_source) => {
+                                    result.push(Ok(input_source.to_string()));
+                                }
+                                Err(e) => result.push(Err(e)),
+                            }
+                        }
+                    }
+
+                    futures::stream::iter(result)
+                }
+            })
             .flatten()
             .filter_map({
                 move |source: Result<String>| {
