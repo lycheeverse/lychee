@@ -70,6 +70,10 @@ pub enum ErrorKind {
     #[error("Cannot find fragment")]
     InvalidFragment(Uri),
 
+    /// The given directory is missing a required index file
+    #[error("Cannot find index file within directory")]
+    InvalidIndexFile(PathBuf),
+
     /// The given path cannot be converted to a URI
     #[error("Invalid path to URL conversion: {0}")]
     InvalidUrlFromPath(PathBuf),
@@ -277,6 +281,7 @@ impl PartialEq for ErrorKind {
             (Self::InvalidFile(p1), Self::InvalidFile(p2)) => p1 == p2,
             (Self::InvalidFilePath(u1), Self::InvalidFilePath(u2)) => u1 == u2,
             (Self::InvalidFragment(u1), Self::InvalidFragment(u2)) => u1 == u2,
+            (Self::InvalidIndexFile(p1), Self::InvalidIndexFile(p2)) => p1 == p2,
             (Self::InvalidUrlFromPath(p1), Self::InvalidUrlFromPath(p2)) => p1 == p2,
             (Self::InvalidBase(b1, e1), Self::InvalidBase(b2, e2)) => b1 == b2 && e1 == e2,
             (Self::InvalidUrlRemap(r1), Self::InvalidUrlRemap(r2)) => r1 == r2,
@@ -314,6 +319,7 @@ impl Hash for ErrorKind {
             Self::Utf8(e) => e.to_string().hash(state),
             Self::InvalidFilePath(u) => u.hash(state),
             Self::InvalidFragment(u) => u.hash(state),
+            Self::InvalidIndexFile(p) => p.hash(state),
             Self::UnreachableEmailAddress(u, ..) => u.hash(state),
             Self::InsecureURL(u, ..) => u.hash(state),
             Self::InvalidBase(base, e) => (base, e).hash(state),

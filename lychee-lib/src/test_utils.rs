@@ -1,4 +1,8 @@
-use std::{convert::TryFrom, fs, path::Path};
+use std::{
+    convert::TryFrom,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use reqwest::Url;
 
@@ -60,12 +64,37 @@ pub(crate) fn mail(address: &str) -> Uri {
     .into()
 }
 
-/// Loads a fixture from the `fixtures` directory
-pub(crate) fn load_fixture(filename: &str) -> String {
-    let fixture_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+/// Returns the path to the `fixtures` directory.
+///
+/// # Panic
+///
+/// Panics if the fixtures directory could not be determined.
+pub(crate) fn fixtures_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
         .join("fixtures")
-        .join(filename);
-    fs::read_to_string(fixture_path).unwrap()
+}
+
+/// Loads a fixture from the `fixtures` directory
+pub(crate) fn load_fixture(filename: &str) -> String {
+    let path = fixtures_path().join(filename);
+    fs::read_to_string(path).unwrap()
+}
+
+/// Constructs a [`Uri`] from a given subpath within the `fixtures` directory.
+///
+/// The specified subpath may contain a fragment reference by ending with `#something`.
+/// The subpath should not begin with a slash, otherwise it will be treated as an
+/// absolute path.
+pub(crate) fn fixture_uri(subpath: &str) -> Uri {
+    let fixture_url =
+        Url::from_directory_path(fixtures_path()).expect("fixture path should be a valid URL");
+
+    // joining subpath onto a Url allows the subpath to contain a fragment
+    let url = fixture_url
+        .join(subpath)
+        .expect("expected subpath to form a valid URL");
+
+    Uri::from(url)
 }
