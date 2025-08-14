@@ -28,7 +28,7 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
+    Base, BasicAuthCredentials, ErrorKind, MarkdownFlavor, Request, Response, Result, Status, Uri,
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
@@ -304,6 +304,10 @@ pub struct ClientBuilder {
     /// early and return a status, so that subsequent chain items are
     /// skipped and the lychee-internal request chain is not activated.
     plugin_request_chain: RequestChain,
+
+    /// Choose which flavor of markdown to use for checking markdown
+    /// This allows special parsing for wikilinks
+    markdown_flavor: MarkdownFlavor,
 }
 
 impl Default for ClientBuilder {
@@ -429,6 +433,7 @@ impl ClientBuilder {
                 self.fallback_extensions,
                 self.index_files,
                 self.include_fragments,
+                self.markdown_flavor,
             ),
         })
     }

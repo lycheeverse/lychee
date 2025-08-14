@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use crate::{
     Base, ErrorKind, Status, Uri,
+    types::markdown_flavor::MarkdownFlavor,
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 
@@ -34,6 +35,8 @@ pub(crate) struct FileChecker {
     include_fragments: bool,
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
+    /// The markdown flavor which possibly defines a normalization of links
+    markdown_flavor: MarkdownFlavor,
 }
 
 impl FileChecker {
@@ -50,6 +53,7 @@ impl FileChecker {
         fallback_extensions: Vec<String>,
         index_files: Option<Vec<String>>,
         include_fragments: bool,
+        markdown_flavor: MarkdownFlavor,
     ) -> Self {
         Self {
             base,
@@ -57,6 +61,7 @@ impl FileChecker {
             index_files,
             include_fragments,
             fragment_checker: FragmentChecker::new(),
+            markdown_flavor,
         }
     }
 
