@@ -1,3 +1,11 @@
 [[Usage]]
 [[Dash Usage]]
 [[Underscore Usage]]
+[[Different Directory Dash]]
+[[Different Directory Underscore]]
+
+[[Usage#Header|HeaderRenaming]]
+[[Dash Usage#Header|HeaderRenaming]]
+[[Underscore Usage#Header|HeaderRenaming]]
+[[Different Directory Dash#Header|HeaderRenaming]]
+[[Different Directory Underscore#Header|HeaderRenaming]]
