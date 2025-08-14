@@ -67,7 +67,7 @@ pub(crate) fn extract_markdown(
                     LinkType::Email =>
                      Some(extract_raw_uri_from_plaintext(&dest_url)),
                     // Wiki URL (`[[http://example.com]]`)
-                    LinkType::WikiLink { has_pothole: _ } => {
+                    LinkType::WikiLink { has_pothole } => {
                         // Exclude WikiLinks if not explicitly enabled
                         if !include_wikilinks {
                             return None;
@@ -77,8 +77,24 @@ pub(crate) fn extract_markdown(
                         if ["_TOC_".to_string(), "TOC".to_string()].contains(&dest_url.to_string()) {
                             return None;
                         }
+
+                        //Strip potholes (|) from wikilinks
+                        let mut stripped_dest_url = if has_pothole {
+                            pulldown_cmark::CowStr::Borrowed(&dest_url[0..dest_url.find("|").unwrap_or(dest_url.len())])
+                        }else {
+                            dest_url.clone()
+                        };
+
+                        //Strip Headings (#) from wikilinks
+                         stripped_dest_url = if let Some(first_hashtag_index) = stripped_dest_url.find("#") {
+                            pulldown_cmark::CowStr::Borrowed(&dest_url[0..first_hashtag_index])
+                        }else {
+                            dest_url
+                        };
+
+                        //TODO: Normalize if markdown flavor needs it
                         Some(vec![RawUri {
-                            text: dest_url.to_string(),
+                            text: stripped_dest_url.to_string(),
                             element: Some("a".to_string()),
                             attribute: Some("href".to_string()),
                         }])
@@ -438,5 +454,41 @@ $$
         let markdown = r"[[_TOC_]][TOC]";
         let uris = extract_markdown(markdown, true, true);
         assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_remove_wikilink_pothole() {
+        let markdown = r"[[foo|bar]]";
+        let uris = extract_markdown(markdown, true);
+        let expected = vec![RawUri {
+            text: "foo".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_remove_wikilink_title() {
+        let markdown = r"[[foo#bar]]";
+        let uris = extract_markdown(markdown, true);
+        let expected = vec![RawUri {
+            text: "foo".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_remove_wikilink_pothole_and_title() {
+        let markdown = r"[[foo#bar|baz]]";
+        let uris = extract_markdown(markdown, true);
+        let expected = vec![RawUri {
+            text: "foo".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+        assert_eq!(uris, expected);
     }
 }
