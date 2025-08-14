@@ -24,7 +24,7 @@ pub(crate) async fn dump_inputs(
     }
 
     let mut writer = super::create_writer(output.cloned())?;
-    
+
     // Create the path filter once outside the loop for better performance
     let excluded_path_filter = lychee_lib::filter::PathExcludes::new(excluded_paths)?;
 
@@ -33,7 +33,7 @@ pub(crate) async fn dump_inputs(
             valid_extensions.clone(),
             skip_hidden,
             skip_gitignored,
-            excluded_path_filter.clone(),
+            &excluded_path_filter,
         );
         tokio::pin!(sources_stream);
 

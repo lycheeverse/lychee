@@ -435,7 +435,7 @@ impl Input {
         file_extensions: FileExtensions,
         skip_hidden: bool,
         skip_gitignored: bool,
-        excluded_paths: PathExcludes,
+        excluded_paths: &PathExcludes,
     ) -> impl Stream<Item = Result<String>> {
         try_stream! {
             match self.source {
