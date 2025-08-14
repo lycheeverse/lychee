@@ -212,7 +212,7 @@ impl Input {
 
     /// Get all input sources for content processing.
     ///
-    /// This method returns a stream of input sources from the input source, taking into
+    /// This method returns a stream of input sources for the given input, taking into
     /// account the matching file extensions and respecting exclusions.
     ///
     /// This can be used for retrieving all inputs which lychee would check for
