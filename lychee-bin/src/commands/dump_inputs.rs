@@ -6,11 +6,11 @@ use tokio_stream::StreamExt;
 
 use crate::ExitCode;
 
-/// Dump all input sources to stdout without extracting any links and checking
-/// them.
+/// Print all input sources to stdout, without extracting or checking links.
 ///
-/// Uses the Input handler to properly handle different input sources and respect
-/// file extension filtering.
+/// This command outputs the resolved input sources that would be processed
+/// by lychee, including file paths, URLs, and special sources like stdin.
+/// It respects file extension filtering and path exclusions.
 pub(crate) async fn dump_inputs(
     inputs: Vec<Input>,
     output: Option<&PathBuf>,
@@ -24,14 +24,16 @@ pub(crate) async fn dump_inputs(
     }
 
     let mut writer = super::create_writer(output.cloned())?;
+    
+    // Create the path filter once outside the loop for better performance
+    let excluded_path_filter = lychee_lib::filter::PathExcludes::new(excluded_paths)?;
 
     for input in inputs {
-        let excluded_path_filter = lychee_lib::filter::PathExcludes::new(excluded_paths)?;
         let sources_stream = input.get_sources(
             valid_extensions.clone(),
             skip_hidden,
             skip_gitignored,
-            excluded_path_filter,
+            excluded_path_filter.clone(),
         );
         tokio::pin!(sources_stream);
 
