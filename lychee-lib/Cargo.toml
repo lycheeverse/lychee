@@ -15,15 +15,15 @@ rust-version = "1.85.0"
 [dependencies]
 async-stream = "0.3.6"
 async-trait = "0.1.88"
-cached = "0.55.1"
+cached = "0.56.0"
 check-if-email-exists = { version = "0.9.1", optional = true }
-cookie_store = "0.21.1"
+cookie_store = "0.22.0"
 dashmap = { version = "6.1.0", features = ["serde"] }
 email_address = "0.2.9"
 futures = "0.3.31"
-glob = "0.3.2"
-headers = "0.4.0"
-html5ever = "0.31.0"
+glob = "0.3.3"
+headers = "0.4.1"
+html5ever = "0.35.0"
 html5gum = "0.7.0"
 http = "1.3.1"
 hyper = "1.6.0"
@@ -32,20 +32,20 @@ ip_network = "0.4.1"
 linkify = "0.10.0"
 log = "0.4.27"
 octocrab = "0.44.1"
-openssl-sys = { version = "0.9.108", optional = true }
+openssl-sys = { version = "0.9.109", optional = true }
 path-clean = "1.0.1"
 percent-encoding = "2.3.1"
 pulldown-cmark = "0.13.0"
 regex = "1.11.1"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.12.15", default-features = false, features = [
+reqwest = { version = "0.12.18", default-features = false, features = [
     "gzip",
     "trust-dns",
     "cookies",
     "json"
 ] }
-reqwest_cookie_store = { version = "0.8.0", features = ["serde"] }
+reqwest_cookie_store = { version = "0.8.2", features = ["serde"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
@@ -53,13 +53,13 @@ reqwest_cookie_store = { version = "0.8.0", features = ["serde"] }
 ring = "0.17.14"
 secrecy = "0.10.3"
 serde = { version = "1.0.219", features = ["derive"] }
-serde_with = "3.12.0"
+serde_with = "3.14.0"
 shellexpand = "3.1.1"
-strum = { version = "0.27.1", features = ["derive"] }
-thiserror = "2.0.12"
-tokio = { version = "1.45.1", features = ["full"] }
-toml = "0.8.22"
-typed-builder = "0.21.0"
+strum = { version = "0.27.2", features = ["derive"] }
+thiserror = "2.0.14"
+tokio = { version = "1.47.1", features = ["full"] }
+toml = "0.9.5"
+typed-builder = "0.21.1"
 url = { version = "2.5.4", features = ["serde"] }
 
 [dependencies.par-stream]
@@ -69,10 +69,10 @@ features = ["runtime-tokio"]
 [dev-dependencies]
 doc-comment = "0.3.3"
 tempfile = "3.20.0"
-wiremock = "0.6.3"
-serde_json = "1.0.140"
-rstest = "0.25.0"
-toml = "0.8.22"
+wiremock = "0.6.4"
+serde_json = "1.0.142"
+rstest = "0.26.1"
+toml = "0.9.5"
 pretty_assertions = "1.4.1"
 
 [features]
