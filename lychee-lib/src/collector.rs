@@ -6,8 +6,8 @@ use crate::{
     Base, Input, Request, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
     types::FileExtensions, types::uri::raw::RawUri, utils::request,
 };
+use dashmap::DashSet;
 use futures::TryStreamExt;
-use futures::lock::Mutex;
 use futures::{
     StreamExt,
     stream::{self, Stream},
@@ -158,7 +158,7 @@ impl Collector {
     /// Collect all sources from a list of [`Input`]s. For further details,
     /// see also [`Input::get_sources`](crate::Input#method.get_sources).
     pub fn collect_sources(self, inputs: HashSet<Input>) -> impl Stream<Item = Result<String>> {
-        let seen = Arc::new(Mutex::new(HashSet::new()));
+        let seen = Arc::new(DashSet::new());
 
         stream::iter(inputs)
             .par_then_unordered(None, move |input| async move { input.get_sources() })
@@ -166,11 +166,9 @@ impl Collector {
             .filter_map({
                 move |source: Result<String>| {
                     let seen = Arc::clone(&seen);
-
                     async move {
                         if let Ok(s) = &source {
-                            let mut set = seen.lock().await;
-                            if !set.insert(s.clone()) {
+                            if !seen.insert(s.clone()) {
                                 return None;
                             }
                         }
