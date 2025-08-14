@@ -391,7 +391,7 @@ impl Input {
                                 yield content;
                             },
                             InputSource::FsGlob { .. } => {
-                                // This shouldn't happen as `get_input_sources` expands the glob patterns
+                                unreachable!("This shouldn't happen as `get_input_sources` expands the glob patterns");
                             }
                         }
                     },
