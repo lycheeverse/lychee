@@ -667,8 +667,9 @@ root directory to the requested absolute link. For example, with a root-dir of
 `/root/dir`, a link to `/page.html` would be resolved to `/root/dir/page.html`.
 
 This option can be specified alongside `--base-url`. If both are given, an
-absolute link is resolved as: the domain name of the base URL, then the root
-dir path, then the absolute link's path."
+absolute link is resolved by constructing a URL from three parts: the domain
+name specified in `--base-url`, followed by the `--root-dir` directory path,
+followed by the absolute link's own path."
     )]
     #[serde(default)]
     pub(crate) root_dir: Option<PathBuf>,
