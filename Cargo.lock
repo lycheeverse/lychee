@@ -3662,11 +3662,10 @@ dependencies = [
 [[package]]
 name = "reqwest_cookie_store"
 version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2314c325724fea278d44c13a525ebf60074e33c05f13b4345c076eb65b2446b3"
+source = "git+https://github.com/thomas-zahner/reqwest_cookie_store.git#6d7bf43ef5ddcabf17ce25a09055a2e93c93b11a"
 dependencies = [
  "bytes",
- "cookie_store 0.21.1",
+ "cookie_store 0.22.0",
  "reqwest 0.12.23",
  "serde",
  "serde_derive",

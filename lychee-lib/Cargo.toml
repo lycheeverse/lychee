@@ -43,9 +43,11 @@ reqwest = { version = "0.12.18", default-features = false, features = [
     "gzip",
     "trust-dns",
     "cookies",
-    "json"
+    "json",
 ] }
-reqwest_cookie_store = { version = "0.8.2", features = ["serde"] }
+reqwest_cookie_store = { git = "https://github.com/thomas-zahner/reqwest_cookie_store.git", features = [
+    "serde",
+] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
