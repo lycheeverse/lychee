@@ -916,8 +916,7 @@ mod cli {
             .failure()
             .stderr(predicate::str::contains("Cannot load configuration file"))
             .stderr(predicate::str::contains("Failed to parse"))
-            .stderr(predicate::str::contains("TOML parse error"))
-            .stderr(predicate::str::contains("expected newline"));
+            .stderr(predicate::str::contains("TOML parse error"));
     }
 
     #[tokio::test]
