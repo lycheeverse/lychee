@@ -654,11 +654,11 @@ at the given base URL address."
     #[serde(default)]
     pub(crate) base_url: Option<Base>,
 
-    /// Root path to use when checking absolute links in local files.
+    /// Root directory to use when checking absolute links in local files.
     /// Must be an absolute path.
     #[arg(
         long,
-        long_help = "Root path to use when checking absolute links in local files. This option is
+        long_help = "Root directory to use when checking absolute links in local files. This option is
 required if absolute links appear in local files, otherwise those links will be
 flagged as errors. This must be an absolute path (i.e., one beginning with `/`).
 

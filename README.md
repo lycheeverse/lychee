@@ -524,7 +524,7 @@ Options:
           at the given base URL address.
 
       --root-dir <ROOT_DIR>
-          Root path to use when checking absolute links in local files. This option is
+          Root directory to use when checking absolute links in local files. This option is
           required if absolute links appear in local files, otherwise those links will be
           flagged as errors. This must be an absolute path (i.e., one beginning with `/`).
 
