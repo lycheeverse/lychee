@@ -1,11 +1,14 @@
 //! Extract links and fragments from markdown documents
 use std::collections::{HashMap, HashSet};
 
-use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, TextMergeStream};
+use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, TextMergeWithOffset};
 
-use crate::{extract::plaintext::extract_raw_uri_from_plaintext, types::uri::raw::RawUri};
+use crate::{
+    extract::{html::html5gum::extract_html_with_span, plaintext::extract_raw_uri_from_plaintext},
+    types::uri::raw::{OffsetSpanProvider, RawUri, SourceSpanProvider, SpanProvider as _},
+};
 
-use super::html::html5gum::{extract_html, extract_html_fragments};
+use super::html::html5gum::extract_html_fragments;
 
 /// Returns the default markdown extensions used by lychee.
 /// Sadly, `|` is not const for `Options` so we can't use a const global.
@@ -29,9 +32,11 @@ pub(crate) fn extract_markdown(
     let mut inside_link_block = false;
     let mut inside_wikilink_block = false;
 
-    let parser = TextMergeStream::new(Parser::new_ext(input, md_extensions()));
+    let span_provider = SourceSpanProvider::from_input(input);
+    let parser =
+        TextMergeWithOffset::new(Parser::new_ext(input, md_extensions()).into_offset_iter());
     parser
-        .filter_map(|event| match event {
+        .filter_map(|(event, span)| match event {
             // A link.
             Event::Start(Tag::Link {
                 link_type,
@@ -53,6 +58,9 @@ pub(crate) fn extract_markdown(
                             // `LinkType` for better granularity in the future
                             element: Some("a".to_string()),
                             attribute: Some("href".to_string()),
+                            // Sadly, we don't know how long the `foo` part in `[foo](bar)` is,
+                            // so the span points to the `[` and not to the `b`.
+                            span: span_provider.span(span.start),
                         }])
                     }
                     // Reference without destination in the document, but resolved by the `broken_link_callback`
@@ -79,8 +87,19 @@ pub(crate) fn extract_markdown(
                     // Autolink like `<http://foo.bar/baz>`
                     LinkType::Autolink |
                     // Email address in autolink like `<john@example.org>`
-                    LinkType::Email =>
-                     Some(extract_raw_uri_from_plaintext(&dest_url)),
+                    LinkType::Email => {
+                        let offset = match link_type {
+                            // We don't know how the link starts, so don't offset the span.
+                            LinkType::Reference | LinkType::CollapsedUnknown | LinkType::ShortcutUnknown => 0,
+                            // These start all with `[` or `<`, so offset the span by `1`.
+                            LinkType::ReferenceUnknown | LinkType::Collapsed | LinkType::Shortcut | LinkType::Autolink | LinkType::Email => 1,
+                            _ => {
+                                debug_assert!(false, "unreachable");
+                                0
+                            }
+                        };
+                        Some(extract_raw_uri_from_plaintext(&dest_url, &OffsetSpanProvider { offset: span.start + offset, inner: &span_provider, }))
+                    }
                     // Wiki URL (`[[http://example.com]]`)
                     LinkType::WikiLink { has_pothole: _ } => {
                         // Exclude WikiLinks if not explicitly enabled
@@ -88,7 +107,7 @@ pub(crate) fn extract_markdown(
                             return None;
                         }
                         inside_wikilink_block = true;
-                        //Ignore gitlab toc notation: https://docs.gitlab.com/user/markdown/#table-of-contents
+                        // Ignore gitlab toc notation: https://docs.gitlab.com/user/markdown/#table-of-contents
                         if ["_TOC_".to_string(), "TOC".to_string()].contains(&dest_url.to_string()) {
                             return None;
                         }
@@ -96,6 +115,8 @@ pub(crate) fn extract_markdown(
                             text: dest_url.to_string(),
                             element: Some("a".to_string()),
                             attribute: Some("href".to_string()),
+                            // wiki links start with `[[`, so offset the span by `2`
+                            span: span_provider.span(span.start + 2),
                         }])
                     }
                 }
@@ -111,6 +132,7 @@ pub(crate) fn extract_markdown(
                     // `LinkType` for better granularity in the future
                     element: Some("img".to_string()),
                     attribute: Some("src".to_string()),
+                    span: span_provider.span(span.start),
                 }])
             }
 
@@ -131,7 +153,10 @@ pub(crate) fn extract_markdown(
                     || (inside_code_block && !include_verbatim) {
                     None
                 } else {
-                    Some(extract_raw_uri_from_plaintext(&txt))
+                    Some(extract_raw_uri_from_plaintext(
+                        &txt,
+                        &OffsetSpanProvider { offset: span.start, inner: &span_provider }
+                    ))
                 }
             }
 
@@ -139,13 +164,21 @@ pub(crate) fn extract_markdown(
             Event::Html(html) | Event::InlineHtml(html) => {
                 // This won't exclude verbatim links right now, because HTML gets passed in chunks
                 // by pulldown_cmark. So excluding `<pre>` and `<code>` is not handled right now.
-                Some(extract_html(&html, include_verbatim))
+                Some(extract_html_with_span(
+                    &html,
+                    include_verbatim,
+                    OffsetSpanProvider { offset: span.start, inner: &span_provider }
+                ))
             }
 
             // An inline code node.
             Event::Code(code) => {
                 if include_verbatim {
-                    Some(extract_raw_uri_from_plaintext(&code))
+                    // inline code starts with '`', so offset the span by `1`.
+                    Some(extract_raw_uri_from_plaintext(
+                        &code,
+                        &OffsetSpanProvider { offset: span.start + 1, inner: &span_provider }
+                    ))
                 } else {
                     None
                 }
@@ -263,6 +296,8 @@ impl HeadingIdGenerator {
 
 #[cfg(test)]
 mod tests {
+    use crate::types::uri::raw::span;
+
     use super::*;
 
     const MD_INPUT: &str = r#"
@@ -307,11 +342,13 @@ or inline like `https://bar.org` for instance.
                 text: "https://foo.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(4, 19),
             },
             RawUri {
                 text: "http://example.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(18, 1),
             },
         ];
 
@@ -326,21 +363,25 @@ or inline like `https://bar.org` for instance.
                 text: "https://foo.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(4, 19),
             },
             RawUri {
                 text: "https://bar.com/123".to_string(),
                 element: None,
                 attribute: None,
+                span: span(11, 1),
             },
             RawUri {
                 text: "https://bar.org".to_string(),
                 element: None,
                 attribute: None,
+                span: span(14, 17),
             },
             RawUri {
                 text: "http://example.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(18, 1),
             },
         ];
 
@@ -412,6 +453,7 @@ $$
             text: "https://example.com/_/foo".to_string(),
             element: None,
             attribute: None,
+            span: span(1, 1),
         }];
         let uris = extract_markdown(markdown, true, false);
         assert_eq!(uris, expected);
@@ -424,6 +466,7 @@ $$
             text: "https://example.com/_".to_string(),
             element: None,
             attribute: None,
+            span: span(1, 1),
         }];
         let uris = extract_markdown(markdown, true, false);
         assert_eq!(uris, expected);
@@ -436,6 +479,7 @@ $$
             text: "https://example.com/destination".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
+            span: span(1, 3),
         }];
         let uris = extract_markdown(markdown, true, true);
         assert_eq!(uris, expected);
@@ -449,11 +493,13 @@ $$
                 text: "https://example.com/destination".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(1, 3),
             },
             RawUri {
                 text: "https://example.com/source".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(1, 38),
             },
         ];
         let uris = extract_markdown(markdown, true, true);

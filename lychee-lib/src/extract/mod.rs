@@ -1,4 +1,7 @@
-use crate::types::{FileType, InputContent, uri::raw::RawUri};
+use crate::types::{
+    FileType, InputContent,
+    uri::raw::{RawUri, SourceSpanProvider},
+};
 
 pub mod html;
 pub mod markdown;
@@ -56,7 +59,10 @@ impl Extractor {
                     html::html5gum::extract_html(&input_content.content, self.include_verbatim)
                 }
             }
-            FileType::Plaintext => extract_raw_uri_from_plaintext(&input_content.content),
+            FileType::Plaintext => extract_raw_uri_from_plaintext(
+                &input_content.content,
+                &SourceSpanProvider::from_input(&input_content.content),
+            ),
         }
     }
 }
