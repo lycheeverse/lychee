@@ -9,7 +9,7 @@ publish = false
 
 [dependencies]
 lychee-lib = { path = "../lychee-lib", default-features = false }
-criterion = "0.6.0"
+criterion = "0.7.0"
 
 [features]
 email-check = ["lychee-lib/email-check"]
