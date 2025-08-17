@@ -2007,7 +2007,7 @@ mod cli {
             .arg(&test_file)
             .assert()
             .success()
-            .stdout(contains("TEST.md"));
+            .stdout(contains("fixtures/TEST.md"));
 
         Ok(())
     }
