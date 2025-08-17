@@ -4,6 +4,12 @@ use std::error::Error;
 ///
 /// This traverses the error chain to extract specific failure details and provides
 /// user-friendly explanations with actionable suggestions when possible.
+///
+/// The advantage of this approach is that we can be way more specific about the
+/// errors which can occur, rather than just returning a generic error message.
+/// The downside is that we have to maintain this code as reqwest and hyper
+/// evolve. However, this is a trade-off we are willing to make for better user
+/// experience.
 #[allow(clippy::too_many_lines)]
 pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
     // First check reqwest's built-in categorization
@@ -64,7 +70,7 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
                             if inner_msg.contains("self signed")
                                 || inner_msg.contains("UnknownIssuer")
                             {
-                                return "SSL certificate not trusted - use --accept-invalid-certs if site is trusted".to_string();
+                                return "SSL certificate not trusted - use --insecure if site is trusted".to_string();
                             }
                             if inner_msg.contains("verify failed") {
                                 return "SSL certificate verification failed - check certificate validity".to_string();
@@ -169,6 +175,40 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
                 }
                 _ => format!("Invalid URL format: {url_error}"),
             };
+        }
+
+        // Check for generic error types by examining their string representation
+        // This catches SSL/TLS errors that come through as generic Error trait objects
+        let error_msg = err.to_string();
+
+        // Certificate-related errors
+        if error_msg.contains("certificate") {
+            if error_msg.contains("expired") || error_msg.contains("not valid") {
+                return "SSL certificate expired - site needs to renew certificate".to_string();
+            }
+            if error_msg.contains("not trusted") || error_msg.contains("untrusted") {
+                return "SSL certificate not trusted - use --insecure if site is trusted"
+                    .to_string();
+            }
+            if error_msg.contains("hostname") || error_msg.contains("name mismatch") {
+                return "SSL certificate hostname mismatch - check URL spelling".to_string();
+            }
+            if error_msg.contains("self signed") || error_msg.contains("self-signed") {
+                return "SSL certificate not trusted - use --insecure if site is trusted"
+                    .to_string();
+            }
+            return "SSL certificate error - check certificate validity".to_string();
+        }
+
+        // TLS/SSL handshake errors
+        if error_msg.contains("handshake") || error_msg.contains("TLS") || error_msg.contains("SSL")
+        {
+            return "TLS handshake failed - check SSL/TLS configuration".to_string();
+        }
+
+        // DNS errors
+        if error_msg.contains("name resolution") || error_msg.contains("hostname") {
+            return "DNS resolution failed - check hostname and DNS settings".to_string();
         }
 
         source = err.source();
