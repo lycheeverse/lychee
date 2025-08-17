@@ -180,8 +180,8 @@ impl Collector {
                     let inputs = [input];
                     let mut result = Vec::new();
 
-                    for inp in inputs {
-                        let sources_stream = inp.get_input_sources(
+                    for input in inputs {
+                        let sources_stream = input.get_input_sources(
                             file_extensions.clone(),
                             skip_hidden,
                             skip_ignored,
