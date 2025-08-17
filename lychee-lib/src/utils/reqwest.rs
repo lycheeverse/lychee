@@ -40,7 +40,7 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
                     "Connection refused - server may be down or port blocked".to_string()
                 }
                 std::io::ErrorKind::TimedOut => {
-                    "Connection timed out - server may be overloaded or unreachable".to_string()
+                    "Request timed out - try increasing timeout or check server status".to_string()
                 }
                 std::io::ErrorKind::NotFound => {
                     "DNS resolution failed - check hostname spelling".to_string()
@@ -99,13 +99,47 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
                         // Return the inner error message if it's more specific
                         format!("Network error: {inner_msg}")
                     } else {
-                        "Network connection failed - check internet connectivity".to_string()
+                        "Connection failed - check network connectivity and firewall settings"
+                            .to_string()
                     }
                 }
-                _ => format!(
-                    "I/O error: {:?} - check network connectivity",
-                    io_error.kind()
-                ),
+                std::io::ErrorKind::NetworkUnreachable => {
+                    "Network unreachable - check internet connection or VPN settings".to_string()
+                }
+                std::io::ErrorKind::AddrNotAvailable => {
+                    "Address not available - check network interface configuration".to_string()
+                }
+                std::io::ErrorKind::AddrInUse => {
+                    "Address already in use - port conflict or service already running".to_string()
+                }
+                std::io::ErrorKind::BrokenPipe => {
+                    "Connection broken - server closed connection unexpectedly".to_string()
+                }
+                std::io::ErrorKind::InvalidData => {
+                    "Invalid response data - server sent malformed response".to_string()
+                }
+                std::io::ErrorKind::UnexpectedEof => {
+                    "Connection closed unexpectedly - server terminated early".to_string()
+                }
+                std::io::ErrorKind::Interrupted => {
+                    "Request interrupted - try again or check for system issues".to_string()
+                }
+                std::io::ErrorKind::Unsupported => {
+                    "Operation not supported - check protocol or server capabilities".to_string()
+                }
+                _ => {
+                    // For unknown/uncategorized errors, provide more context
+                    let kind_name = format!("{:?}", io_error.kind());
+                    match kind_name.as_str() {
+                        "Uncategorized" => {
+                            "Connection failed - check network connectivity and firewall settings"
+                                .to_string()
+                        }
+                        _ => format!(
+                            "I/O error ({kind_name}): check network connectivity and server status",
+                        ),
+                    }
+                }
             };
         }
 
@@ -118,7 +152,8 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
                 return "Invalid HTTP response format - server may be misconfigured".to_string();
             }
             if hyper_error.is_timeout() {
-                return "HTTP request timed out - increase timeout or check server".to_string();
+                return "Request timed out - try increasing timeout or check server status"
+                    .to_string();
             }
             if hyper_error.is_user() {
                 if hyper_error.is_body_write_aborted() {
@@ -139,7 +174,8 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
             // More detailed analysis of hyper error description
             let hyper_msg = hyper_error.to_string();
             if hyper_msg.contains("connection error") {
-                return "HTTP connection failed - check network and firewall settings".to_string();
+                return "Connection failed - check network connectivity and firewall settings"
+                    .to_string();
             }
             if hyper_msg.contains("http2 error") {
                 return "HTTP/2 protocol error - server may not support HTTP/2 properly"
@@ -209,6 +245,35 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
         // DNS errors
         if error_msg.contains("name resolution") || error_msg.contains("hostname") {
             return "DNS resolution failed - check hostname and DNS settings".to_string();
+        }
+
+        // Connection-specific errors
+        if error_msg.contains("Connection refused") || error_msg.contains("connection refused") {
+            return "Connection refused - server is not accepting connections (check if service is running)".to_string();
+        }
+
+        if error_msg.contains("Connection reset") || error_msg.contains("connection reset") {
+            return "Connection reset by server - server forcibly closed connection".to_string();
+        }
+
+        if error_msg.contains("No route to host") || error_msg.contains("no route") {
+            return "No route to host - check network routing or firewall configuration"
+                .to_string();
+        }
+
+        if error_msg.contains("Network is unreachable") || error_msg.contains("network unreachable")
+        {
+            return "Network unreachable - check internet connection or VPN settings".to_string();
+        }
+
+        // Timeout-related errors
+        if error_msg.contains("timed out") || error_msg.contains("timeout") {
+            return "Request timed out - try increasing timeout or check server status".to_string();
+        }
+
+        // Protocol-specific errors
+        if error_msg.contains("protocol") && error_msg.contains("not supported") {
+            return "Protocol not supported - check URL scheme (http/https)".to_string();
         }
 
         source = err.source();
