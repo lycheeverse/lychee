@@ -1870,11 +1870,23 @@ mod cli {
     #[test]
     fn test_dump_inputs_url() -> Result<()> {
         let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
+        let output = cmd
+            .arg("--dump-inputs")
             .arg("https://example.com")
             .assert()
             .success()
-            .stdout(contains("https://example.com"));
+            .get_output()
+            .stdout
+            .clone();
+
+        let actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+
+        let expected_lines = vec!["https://example.com/".to_string()];
+
+        assert_eq!(actual_lines, expected_lines);
 
         Ok(())
     }
@@ -1884,20 +1896,40 @@ mod cli {
         let mut cmd = main_command();
         let output = cmd
             .arg("--dump-inputs")
-            .arg(fixtures_path())
+            .arg(fixtures_path().join("dump_inputs"))
             .assert()
             .success()
             .get_output()
             .stdout
             .clone();
 
-        let lines: Vec<_> = output.lines().collect();
-        assert!(!lines.is_empty());
+        let mut actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+        actual_lines.sort();
 
-        for line in lines {
-            let line = line.unwrap();
-            assert!(line.contains("/fixtures/"));
-        }
+        let base_path = fixtures_path().join("dump_inputs");
+        let mut expected_lines = vec![
+            base_path
+                .join("some_file.txt")
+                .to_string_lossy()
+                .to_string(),
+            base_path
+                .join("subfolder")
+                .join("file2.md")
+                .to_string_lossy()
+                .to_string(),
+            base_path
+                .join("subfolder")
+                .join("test.html")
+                .to_string_lossy()
+                .to_string(),
+            base_path.join("markdown.md").to_string_lossy().to_string(),
+        ];
+        expected_lines.sort();
+
+        assert_eq!(actual_lines, expected_lines);
 
         Ok(())
     }
@@ -1909,16 +1941,48 @@ mod cli {
         let mut cmd = main_command();
         let test_dir = fixtures_path().join("dump_inputs");
 
-        cmd.arg("--dump-inputs")
+        let output = cmd
+            .arg("--dump-inputs")
             .arg("--extensions")
             .arg("md,txt")
             .arg(test_dir)
             .assert()
             .success()
-            .stdout(contains("markdown.md"))
-            .stdout(contains("some_file.txt"))
-            .stdout(contains("subfolder/file2.md"))
-            .stdout(contains("example.bin").not()); // Should be excluded
+            .get_output()
+            .stdout
+            .clone();
+
+        let mut actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+        actual_lines.sort();
+
+        let base_path = fixtures_path().join("dump_inputs");
+        let mut expected_lines = vec![
+            base_path
+                .join("some_file.txt")
+                .to_string_lossy()
+                .to_string(),
+            base_path
+                .join("subfolder")
+                .join("file2.md")
+                .to_string_lossy()
+                .to_string(),
+            base_path.join("markdown.md").to_string_lossy().to_string(),
+        ];
+        expected_lines.sort();
+
+        assert_eq!(actual_lines, expected_lines);
+
+        // Verify example.bin is not included
+        for line in &actual_lines {
+            assert!(
+                !line.contains("example.bin"),
+                "Should not contain example.bin: {}",
+                line
+            );
+        }
 
         Ok(())
     }

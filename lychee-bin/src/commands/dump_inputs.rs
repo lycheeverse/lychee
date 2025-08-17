@@ -29,6 +29,9 @@ pub(crate) async fn dump_inputs(
     // Create the path filter once outside the loop for better performance
     let excluded_path_filter = lychee_lib::filter::PathExcludes::new(excluded_paths)?;
 
+    // Collect all sources with deduplication
+    let mut seen_sources = HashSet::new();
+    
     for input in inputs {
         let sources_stream = input.get_sources(
             valid_extensions.clone(),
@@ -40,7 +43,10 @@ pub(crate) async fn dump_inputs(
 
         while let Some(source_result) = sources_stream.next().await {
             let source = source_result?;
-            write_out(&mut writer, &source)?;
+            // Only print if we haven't seen this source before
+            if seen_sources.insert(source.clone()) {
+                write_out(&mut writer, &source)?;
+            }
         }
     }
 
