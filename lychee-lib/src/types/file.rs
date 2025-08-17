@@ -223,24 +223,21 @@ mod tests {
 
     #[test]
     fn test_extension() {
-        assert_eq!(FileType::from(Path::new("foo.md")), FileType::Markdown);
-        assert_eq!(FileType::from(Path::new("foo.MD")), FileType::Markdown);
-        assert_eq!(FileType::from(Path::new("foo.mdx")), FileType::Markdown);
+        assert_eq!(FileType::from("foo.md"), FileType::Markdown);
+        assert_eq!(FileType::from("foo.MD"), FileType::Markdown);
+        assert_eq!(FileType::from("foo.mdx"), FileType::Markdown);
 
-        assert_eq!(
-            FileType::from(Path::new("test.unknown")),
-            FileType::Plaintext
-        );
-        assert_eq!(FileType::from(Path::new("test")), FileType::Plaintext);
-        assert_eq!(FileType::from(Path::new("test.txt")), FileType::Plaintext);
-        assert_eq!(FileType::from(Path::new("README.TXT")), FileType::Plaintext);
+        // Test that a file without an extension is considered plaintext
+        assert_eq!(FileType::from("README"), FileType::Plaintext);
+        assert_eq!(FileType::from("test"), FileType::Plaintext);
 
-        assert_eq!(FileType::from(Path::new("test.htm")), FileType::Html);
-        assert_eq!(FileType::from(Path::new("index.html")), FileType::Html);
-        assert_eq!(
-            FileType::from(Path::new("http://foo.com/index.html")),
-            FileType::Html
-        );
+        assert_eq!(FileType::from("test.unknown"), FileType::Plaintext);
+        assert_eq!(FileType::from("test.txt"), FileType::Plaintext);
+        assert_eq!(FileType::from("README.TXT"), FileType::Plaintext);
+
+        assert_eq!(FileType::from("test.htm"), FileType::Html);
+        assert_eq!(FileType::from("index.html"), FileType::Html);
+        assert_eq!(FileType::from("http://foo.com/index.html"), FileType::Html);
     }
 
     #[test]

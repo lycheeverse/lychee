@@ -158,10 +158,39 @@ impl Collector {
     /// Collect all sources from a list of [`Input`]s. For further details,
     /// see also [`Input::get_sources`](crate::Input#method.get_sources).
     pub fn collect_sources(self, inputs: HashSet<Input>) -> impl Stream<Item = Result<String>> {
+        self.collect_sources_with_file_types(inputs, crate::types::FileType::default_extensions())
+    }
+
+    /// Collect all sources from a list of [`Input`]s with specific file extensions.
+    pub fn collect_sources_with_file_types(
+        self,
+        inputs: HashSet<Input>,
+        file_extensions: FileExtensions,
+    ) -> impl Stream<Item = Result<String>> + 'static {
         let seen = Arc::new(DashSet::new());
+        let skip_hidden = self.skip_hidden;
+        let skip_ignored = self.skip_ignored;
+        let excluded_paths = self.excluded_paths;
 
         stream::iter(inputs)
-            .par_then_unordered(None, move |input| async move { input.get_sources() })
+            .par_then_unordered(None, move |input| {
+                let excluded_paths = excluded_paths.clone();
+                let file_extensions = file_extensions.clone();
+                async move {
+                    let input_sources = input.get_input_sources(
+                        file_extensions,
+                        skip_hidden,
+                        skip_ignored,
+                        &excluded_paths,
+                    );
+
+                    input_sources
+                        .map(|source| source.map(|source| source.to_string()))
+                        .collect::<Vec<_>>()
+                        .await
+                }
+            })
+            .map(stream::iter)
             .flatten()
             .filter_map({
                 move |source: Result<String>| {

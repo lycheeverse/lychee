@@ -4,7 +4,7 @@ mod cli {
         collections::{HashMap, HashSet},
         error::Error,
         fs::{self, File},
-        io::Write,
+        io::{BufRead, Write},
         path::{Path, PathBuf},
         time::Duration,
     };
@@ -77,6 +77,12 @@ mod cli {
     /// Helper function to get the path to the fixtures directory.
     fn fixtures_path() -> PathBuf {
         root_path().join("fixtures")
+    }
+
+    /// Helper function to convert a relative path to an absolute path string
+    /// starting from a base directory.
+    fn path_str(base: &Path, relative_path: &str) -> String {
+        base.join(relative_path).to_string_lossy().to_string()
     }
 
     #[derive(Default, Serialize)]
@@ -1844,7 +1850,6 @@ mod cli {
             .stdout(contains("fixtures/dump_inputs/subfolder/file2.md"))
             .stdout(contains("fixtures/dump_inputs/subfolder"))
             .stdout(contains("fixtures/dump_inputs/markdown.md"))
-            .stdout(contains("fixtures/dump_inputs/subfolder/example.bin"))
             .stdout(contains("fixtures/dump_inputs/some_file.txt"));
 
         Ok(())
@@ -1871,11 +1876,23 @@ mod cli {
     #[test]
     fn test_dump_inputs_url() -> Result<()> {
         let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
+        let output = cmd
+            .arg("--dump-inputs")
             .arg("https://example.com")
             .assert()
             .success()
-            .stdout(contains("https://example.com"));
+            .get_output()
+            .stdout
+            .clone();
+
+        let actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+
+        let expected_lines = vec!["https://example.com/".to_string()];
+
+        assert_eq!(actual_lines, expected_lines);
 
         Ok(())
     }
@@ -1883,11 +1900,114 @@ mod cli {
     #[test]
     fn test_dump_inputs_path() -> Result<()> {
         let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
-            .arg("fixtures")
+        let output = cmd
+            .arg("--dump-inputs")
+            .arg(fixtures_path().join("dump_inputs"))
             .assert()
             .success()
-            .stdout(contains("fixtures"));
+            .get_output()
+            .stdout
+            .clone();
+
+        let mut actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+        actual_lines.sort();
+
+        let base_path = fixtures_path().join("dump_inputs");
+        let mut expected_lines = vec![
+            path_str(&base_path, "some_file.txt"),
+            path_str(&base_path, "subfolder/file2.md"),
+            path_str(&base_path, "subfolder/test.html"),
+            path_str(&base_path, "markdown.md"),
+        ];
+        expected_lines.sort();
+
+        assert_eq!(actual_lines, expected_lines);
+        Ok(())
+    }
+
+    // Ensures that dumping stdin does not panic and results in an empty output
+    // as `stdin` is not a path
+    #[test]
+    fn test_dump_inputs_with_extensions() -> Result<()> {
+        let mut cmd = main_command();
+        let test_dir = fixtures_path().join("dump_inputs");
+
+        let output = cmd
+            .arg("--dump-inputs")
+            .arg("--extensions")
+            .arg("md,txt")
+            .arg(test_dir)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        let mut actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+        actual_lines.sort();
+
+        let base_path = fixtures_path().join("dump_inputs");
+        let mut expected_lines = vec![
+            path_str(&base_path, "some_file.txt"),
+            path_str(&base_path, "subfolder/file2.md"),
+            path_str(&base_path, "markdown.md"),
+        ];
+        expected_lines.sort();
+
+        assert_eq!(actual_lines, expected_lines);
+
+        // Verify example.bin is not included
+        for line in &actual_lines {
+            assert!(
+                !line.contains("example.bin"),
+                "Should not contain example.bin: {}",
+                line
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_skip_hidden() -> Result<()> {
+        let test_dir = fixtures_path().join("hidden");
+
+        // Test default behavior (skip hidden)
+        main_command()
+            .arg("--dump-inputs")
+            .arg(&test_dir)
+            .assert()
+            .success()
+            .stdout(is_empty());
+
+        // Test with --hidden flag
+        main_command()
+            .arg("--dump-inputs")
+            .arg("--hidden")
+            .arg(test_dir)
+            .assert()
+            .success()
+            .stdout(contains(".hidden/file.md"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_individual_file() -> Result<()> {
+        let mut cmd = main_command();
+        let test_file = fixtures_path().join("TEST.md");
+
+        cmd.arg("--dump-inputs")
+            .arg(&test_file)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/TEST.md"));
 
         Ok(())
     }
@@ -1895,11 +2015,12 @@ mod cli {
     #[test]
     fn test_dump_inputs_stdin() -> Result<()> {
         let mut cmd = main_command();
+
         cmd.arg("--dump-inputs")
             .arg("-")
             .assert()
             .success()
-            .stdout(contains("Stdin"));
+            .stdout(contains("<stdin>"));
 
         Ok(())
     }
