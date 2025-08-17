@@ -1993,7 +1993,7 @@ mod cli {
             .arg(test_dir)
             .assert()
             .success()
-            .stdout(contains(".hidden"));
+            .stdout(contains(".hidden/file.md"));
 
         Ok(())
     }
