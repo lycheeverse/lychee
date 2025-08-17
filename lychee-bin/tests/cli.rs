@@ -79,6 +79,12 @@ mod cli {
         root_path().join("fixtures")
     }
 
+    /// Helper function to convert a relative path to an absolute path string
+    /// starting from a base directory.
+    fn path_str(base: &Path, relative_path: &str) -> String {
+        base.join(relative_path).to_string_lossy().to_string()
+    }
+
     #[derive(Default, Serialize)]
     struct MockResponseStats {
         detailed_stats: bool,
@@ -1911,26 +1917,14 @@ mod cli {
 
         let base_path = fixtures_path().join("dump_inputs");
         let mut expected_lines = vec![
-            base_path
-                .join("some_file.txt")
-                .to_string_lossy()
-                .to_string(),
-            base_path
-                .join("subfolder")
-                .join("file2.md")
-                .to_string_lossy()
-                .to_string(),
-            base_path
-                .join("subfolder")
-                .join("test.html")
-                .to_string_lossy()
-                .to_string(),
-            base_path.join("markdown.md").to_string_lossy().to_string(),
+            path_str(&base_path, "some_file.txt"),
+            path_str(&base_path, "subfolder/file2.md"),
+            path_str(&base_path, "subfolder/test.html"),
+            path_str(&base_path, "markdown.md"),
         ];
         expected_lines.sort();
 
         assert_eq!(actual_lines, expected_lines);
-
         Ok(())
     }
 
@@ -1960,16 +1954,9 @@ mod cli {
 
         let base_path = fixtures_path().join("dump_inputs");
         let mut expected_lines = vec![
-            base_path
-                .join("some_file.txt")
-                .to_string_lossy()
-                .to_string(),
-            base_path
-                .join("subfolder")
-                .join("file2.md")
-                .to_string_lossy()
-                .to_string(),
-            base_path.join("markdown.md").to_string_lossy().to_string(),
+            path_str(&base_path, "some_file.txt"),
+            path_str(&base_path, "subfolder/file2.md"),
+            path_str(&base_path, "markdown.md"),
         ];
         expected_lines.sort();
 

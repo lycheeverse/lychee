@@ -31,7 +31,7 @@ pub(crate) async fn dump_inputs(
 
     // Collect all sources with deduplication
     let mut seen_sources = HashSet::new();
-    
+
     for input in inputs {
         let sources_stream = input.get_sources(
             valid_extensions.clone(),
