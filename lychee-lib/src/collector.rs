@@ -18,7 +18,6 @@ use reqwest::Client;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::pin;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -179,20 +178,19 @@ impl Collector {
                 let file_extensions = file_extensions.clone();
                 async move {
                     let input_sources = input.get_input_sources(
-                        file_extensions.clone(),
+                        file_extensions,
                         skip_hidden,
                         skip_ignored,
                         &excluded_paths,
                     );
-                    pin!(input_sources);
-                    let mut result = Vec::new();
-                    while let Some(input_source) = input_sources.next().await {
-                        result.push(input_source.map(|s| s.to_string()));
-                    }
 
-                    futures::stream::iter(result)
+                    input_sources
+                        .map(|source| source.map(|source| source.to_string()))
+                        .collect::<Vec<_>>()
+                        .await
                 }
             })
+            .map(stream::iter)
             .flatten()
             .filter_map({
                 move |source: Result<String>| {
@@ -208,6 +206,7 @@ impl Collector {
                 }
             })
     }
+
     /// Convenience method to fetch all unique links from inputs
     /// with the default extensions.
     pub fn collect_links(self, inputs: HashSet<Input>) -> impl Stream<Item = Result<Request>> {
