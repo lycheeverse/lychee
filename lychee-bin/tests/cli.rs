@@ -2465,6 +2465,7 @@ mod cli {
             .assert()
             .success()
             .stdout(is_empty());
+    }
 
     #[test]
     fn test_index_files_default() {
