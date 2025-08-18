@@ -702,6 +702,11 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[arg(long)]
     #[serde(default)]
     pub(crate) cookie_jar: Option<PathBuf>,
+
+    /// Check found wikilinks in markdown files
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) include_wikilinks: bool,
 }
 
 impl Config {
@@ -757,6 +762,7 @@ impl Config {
             include_fragments: false;
             include_mail: false;
             include_verbatim: false;
+            include_wikilinks: false;
             include: Vec::<String>::new();
             insecure: false;
             max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();

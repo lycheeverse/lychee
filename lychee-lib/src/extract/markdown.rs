@@ -14,7 +14,11 @@ fn md_extensions() -> Options {
 }
 
 /// Extract unparsed URL strings from a Markdown string.
-pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUri> {
+pub(crate) fn extract_markdown(
+    input: &str,
+    include_verbatim: bool,
+    include_wikilinks: bool,
+) -> Vec<RawUri> {
     // In some cases it is undesirable to extract links from within code blocks,
     // which is why we keep track of entries and exits while traversing the input.
     let mut inside_code_block = false;
@@ -64,6 +68,10 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
                      Some(extract_raw_uri_from_plaintext(&dest_url)),
                     // Wiki URL (`[[http://example.com]]`)
                     LinkType::WikiLink { has_pothole: _ } => {
+                        //Exclude wikilinks if not specifically allowed
+                        if !include_wikilinks {
+                            return None;
+                        }
                         inside_link_block = true;
                         //Ignore gitlab toc notation: https://docs.gitlab.com/user/markdown/#table-of-contents
                         if ["_TOC_".to_string(), "TOC".to_string()].contains(&dest_url.to_string()) {
@@ -280,7 +288,7 @@ or inline like `https://bar.org` for instance.
             },
         ];
 
-        let uris = extract_markdown(MD_INPUT, false);
+        let uris = extract_markdown(MD_INPUT, false, false);
         assert_eq!(uris, expected);
     }
 
@@ -309,7 +317,7 @@ or inline like `https://bar.org` for instance.
             },
         ];
 
-        let uris = extract_markdown(MD_INPUT, true);
+        let uris = extract_markdown(MD_INPUT, true, false);
         assert_eq!(uris, expected);
     }
 
@@ -325,7 +333,7 @@ Some pre-formatted http://pre.com
 
         let expected = vec![];
 
-        let uris = extract_markdown(input, false);
+        let uris = extract_markdown(input, false, false);
         assert_eq!(uris, expected);
     }
 
@@ -358,7 +366,7 @@ $$
 [\psi](\mathbf{L})
 $$
 ";
-        let uris = extract_markdown(input, true);
+        let uris = extract_markdown(input, true, false);
         assert!(uris.is_empty());
     }
 
@@ -366,7 +374,7 @@ $$
     fn test_single_word_footnote_is_not_detected_as_link() {
         let markdown = "This footnote is[^actually] a link.\n\n[^actually]: not";
         let expected = vec![];
-        let uris = extract_markdown(markdown, true);
+        let uris = extract_markdown(markdown, true, false);
         assert_eq!(uris, expected);
     }
 
@@ -378,7 +386,7 @@ $$
             element: None,
             attribute: None,
         }];
-        let uris = extract_markdown(markdown, true);
+        let uris = extract_markdown(markdown, true, false);
         assert_eq!(uris, expected);
     }
 
@@ -390,7 +398,7 @@ $$
             element: None,
             attribute: None,
         }];
-        let uris = extract_markdown(markdown, true);
+        let uris = extract_markdown(markdown, true, false);
         assert_eq!(uris, expected);
     }
 
@@ -402,7 +410,7 @@ $$
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
         }];
-        let uris = extract_markdown(markdown, true);
+        let uris = extract_markdown(markdown, true, true);
         assert_eq!(uris, expected);
     }
 
@@ -421,14 +429,14 @@ $$
                 attribute: Some("href".to_string()),
             },
         ];
-        let uris = extract_markdown(markdown, true);
+        let uris = extract_markdown(markdown, true, true);
         assert_eq!(uris, expected);
     }
 
     #[test]
     fn test_ignore_gitlab_toc() {
         let markdown = r"[[_TOC_]][TOC]";
-        let uris = extract_markdown(markdown, true);
+        let uris = extract_markdown(markdown, true, true);
         assert!(uris.is_empty());
     }
 }

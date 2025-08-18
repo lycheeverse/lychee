@@ -26,6 +26,7 @@ pub struct Collector {
     skip_ignored: bool,
     skip_hidden: bool,
     include_verbatim: bool,
+    include_wikilinks: bool,
     use_html5ever: bool,
     root_dir: Option<PathBuf>,
     base: Option<Base>,
@@ -44,6 +45,7 @@ impl Default for Collector {
             basic_auth_extractor: None,
             skip_missing_inputs: false,
             include_verbatim: false,
+            include_wikilinks: false,
             use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
@@ -73,6 +75,7 @@ impl Collector {
             basic_auth_extractor: None,
             skip_missing_inputs: false,
             include_verbatim: false,
+            include_wikilinks: false,
             use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
@@ -132,6 +135,13 @@ impl Collector {
     #[must_use]
     pub const fn include_verbatim(mut self, yes: bool) -> Self {
         self.include_verbatim = yes;
+        self
+    }
+
+    /// Check found wikilinks in markdown files
+    #[must_use]
+    pub const fn include_wikilinks(mut self, yes: bool) -> Self {
+        self.include_wikilinks = yes;
         self
     }
 
@@ -221,7 +231,11 @@ impl Collector {
                 let basic_auth_extractor = self.basic_auth_extractor.clone();
                 async move {
                     let content = content?;
-                    let extractor = Extractor::new(self.use_html5ever, self.include_verbatim);
+                    let extractor = Extractor::new(
+                        self.use_html5ever,
+                        self.include_verbatim,
+                        self.include_wikilinks,
+                    );
                     let uris: Vec<RawUri> = extractor.extract(&content);
                     let requests = request::create(
                         uris,
