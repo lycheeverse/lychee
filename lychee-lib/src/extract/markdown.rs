@@ -68,7 +68,7 @@ pub(crate) fn extract_markdown(
                      Some(extract_raw_uri_from_plaintext(&dest_url)),
                     // Wiki URL (`[[http://example.com]]`)
                     LinkType::WikiLink { has_pothole: _ } => {
-                        // Exclude WikiLinks if not specifically enabled
+                        // Exclude WikiLinks if not explicitly enabled
                         if !include_wikilinks {
                             return None;
                         }
