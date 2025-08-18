@@ -4,6 +4,7 @@ use crate::filter::PathExcludes;
 use crate::types::FileType;
 use crate::{ErrorKind, Result};
 use async_stream::try_stream;
+use futures::StreamExt;
 use futures::stream::Stream;
 use glob::glob_with;
 use ignore::WalkBuilder;
@@ -102,7 +103,7 @@ impl Display for InputSource {
 }
 
 /// Lychee Input with optional file hint for parsing
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Input {
     /// Origin of input
     pub source: InputSource,
@@ -209,6 +210,106 @@ impl Input {
         }
     }
 
+    /// Get all input sources for content processing.
+    ///
+    /// This method returns a stream of input sources for the given input, taking into
+    /// account the matching file extensions and respecting exclusions.
+    ///
+    /// This can be used for retrieving all inputs which lychee would check for
+    /// links.
+    ///
+    /// # Returns
+    ///
+    /// Returns a stream of `Result<InputSource>` for all matching input sources.
+    ///
+    /// # Errors
+    ///
+    /// Will return errors for file system operations or glob pattern issues
+    pub fn get_input_sources<'a>(
+        &'a self,
+        file_extensions: FileExtensions,
+        skip_hidden: bool,
+        skip_gitignored: bool,
+        excluded_paths: &'a PathExcludes,
+    ) -> impl Stream<Item = Result<InputSource>> + 'a {
+        try_stream! {
+            match &self.source {
+                InputSource::RemoteUrl(url) => {
+                    // Yield the remote URL as an input source
+                    yield InputSource::RemoteUrl(url.clone());
+                },
+                InputSource::FsGlob { pattern, ignore_case } => {
+                    // For glob patterns, we expand the pattern and yield matching paths
+                    let glob_expanded = tilde(pattern).to_string();
+                    let mut match_opts = glob::MatchOptions::new();
+                    match_opts.case_sensitive = !ignore_case;
+
+                    for entry in glob_with(&glob_expanded, match_opts)? {
+                        match entry {
+                            Ok(path) => {
+                                // Skip directories or files that don't match extensions
+                                if path.is_dir() {
+                                    continue;
+                                }
+                                if Self::is_excluded_path(&path, excluded_paths) {
+                                    continue;
+                                }
+
+                                // Check if it matches one of our file extensions
+                                if file_extensions_match(&path, &file_extensions) {
+                                    yield InputSource::FsPath(path);
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("Error in glob pattern: {e:?}");
+                            }
+                        }
+                    }
+                },
+                InputSource::FsPath(path) => {
+                    if path.is_dir() {
+
+                        for entry in Input::walk_entries(
+                            path,
+                            file_extensions,
+                            skip_hidden,
+                            skip_gitignored,
+                        )?
+                        {
+                            let entry = entry?;
+                            if Self::is_excluded_path(entry.path(), excluded_paths) {
+                                continue;
+                            }
+                            match entry.file_type() {
+                                None => continue,
+                                Some(file_type) => {
+                                    if !file_type.is_file() {
+                                        continue;
+                                    }
+                                }
+                            }
+
+                            yield InputSource::FsPath(entry.path().to_path_buf());
+                        }
+                    } else {
+                        // For individual files, yield if not excluded and matches extensions
+                        if !Self::is_excluded_path(path, excluded_paths) && file_extensions_match(path, &file_extensions) {
+                            yield InputSource::FsPath(path.clone());
+                        }
+                    }
+                },
+                InputSource::Stdin => {
+                    // Yield stdin as an input source
+                    yield InputSource::Stdin;
+                },
+                InputSource::String(_) => {
+                    // Yield the string source
+                    yield self.source.clone();
+                }
+            }
+        }
+    }
+
     /// Retrieve the contents from the input
     ///
     /// If the input is a path, only search through files that match the given
@@ -231,6 +332,7 @@ impl Input {
         excluded_paths: PathExcludes,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
+            // Handle special cases first
             match self.source {
                 InputSource::RemoteUrl(url) => {
                     let content = resolver.url_contents(*url).await;
@@ -239,61 +341,82 @@ impl Input {
                         Err(e) => Err(e)?,
                         Ok(content) => yield content,
                     }
-                },
-                InputSource::FsGlob {
-                    ref pattern,
-                    ignore_case,
-                } => {
-                    for await content in glob_contents(pattern, ignore_case, &excluded_paths) {
-                        let content = content?;
-                        yield content;
-                    }
-                }
-                InputSource::FsPath(ref path) => {
-                    if path.is_dir() {
-                        for entry in WalkBuilder::new(path)
-                            .standard_filters(skip_gitignored)
-                            .types(file_extensions.try_into()?)
-                            .hidden(skip_hidden)
-                            .build()
-                        {
-                            let entry = entry?;
-                            if is_excluded_path(&excluded_paths, entry.path()) {
-                                continue;
-                            }
-                            match entry.file_type() {
-                                None => continue,
-                                Some(file_type) => {
-                                    if !file_type.is_file() {
-                                        continue;
-                                    }
-                                }
-                            }
-                            let content = Self::path_content(entry.path()).await?;
-                            yield content;
-                        }
-                    } else {
-                        if is_excluded_path(&excluded_paths, path) {
-                            return;
-                        }
-                        let content = Self::path_content(path).await;
-                        match content {
-                            Err(_) if skip_missing => (),
-                            Err(e) => Err(e)?,
-                            Ok(content) => yield content,
-                        }
-                    }
+                    return;
                 },
                 InputSource::Stdin => {
                     let content = Self::stdin_content(self.file_type_hint).await?;
                     yield content;
+                    return;
                 },
                 InputSource::String(ref s) => {
                     let content = Self::string_content(s, self.file_type_hint);
                     yield content;
+                    return;
                 },
+                _ => {}
+            }
+
+            // Handle FsPath and FsGlob sources
+            // We can use `get_input_sources` to get the input sources, which will handle
+            // filtering by file extensions and exclusions
+            let mut sources_stream = Box::pin(self.get_input_sources(file_extensions, skip_hidden, skip_gitignored, &excluded_paths));
+
+            while let Some(source_result) = sources_stream.next().await {
+                match source_result {
+                    Ok(source) => {
+                        match source {
+                            InputSource::FsPath(path) => {
+                                // Process the actual file path
+                                let content = Self::path_content(&path).await;
+                                match content {
+                                    Err(_) if skip_missing => (),
+                                    Err(e) => Err(e)?,
+                                    Ok(content) => yield content,
+                                }
+                            },
+                            InputSource::RemoteUrl(url) => {
+                                let content = resolver.url_contents(*url).await;
+                                match content {
+                                    Err(_) if skip_missing => (),
+                                    Err(e) => Err(e)?,
+                                    Ok(content) => yield content,
+                                }
+                            },
+                            InputSource::Stdin => {
+                                let content = Self::stdin_content(self.file_type_hint).await?;
+                                yield content;
+                            },
+                            InputSource::String(s) => {
+                                let content = Self::string_content(&s, self.file_type_hint);
+                                yield content;
+                            },
+                            InputSource::FsGlob { .. } => {
+                                unreachable!("This shouldn't happen as `get_input_sources` expands the glob patterns");
+                            }
+                        }
+                    },
+                    Err(e) => Err(e)?,
+                }
             }
         }
+    }
+
+    /// Create a `WalkBuilder` for directory traversal with consistent settings
+    fn walk_entries(
+        path: &Path,
+        file_extensions: FileExtensions,
+        skip_hidden: bool,
+        skip_gitignored: bool,
+    ) -> Result<ignore::Walk> {
+        Ok(WalkBuilder::new(path)
+            // Enable standard filters if `skip_gitignored `is true.
+            // This will skip files ignored by `.gitignore` and other VCS ignore files.
+            .standard_filters(skip_gitignored)
+            // Override hidden file behavior to be controlled by the separate skip_hidden parameter
+            .hidden(skip_hidden)
+            // Configure the file types filter to only include files with matching extensions
+            .types(file_extensions.try_into()?)
+            .build())
     }
 
     /// Retrieve all sources from this input. The output depends on the type of
@@ -307,30 +430,64 @@ impl Input {
     /// # Errors
     ///
     /// Returns an error if the globbing fails with the expanded pattern.
-    pub fn get_sources(self) -> impl Stream<Item = Result<String>> {
+    pub fn get_sources(
+        self,
+        file_extensions: FileExtensions,
+        skip_hidden: bool,
+        skip_gitignored: bool,
+        excluded_paths: &PathExcludes,
+    ) -> impl Stream<Item = Result<String>> {
         try_stream! {
             match self.source {
                 InputSource::RemoteUrl(url) => yield url.to_string(),
-                InputSource::FsGlob { pattern, ignore_case } => {
+                InputSource::FsGlob {
+                    ref pattern,
+                    ignore_case,
+                } => {
                     let glob_expanded = tilde(&pattern).to_string();
                     let mut match_opts = glob::MatchOptions::new();
-
                     match_opts.case_sensitive = !ignore_case;
-
                     for entry in glob_with(&glob_expanded, match_opts)? {
                         match entry {
-                            Ok(path) => yield path.to_string_lossy().to_string(),
-                            Err(e) => eprintln!("{e:?}")
+                            Ok(path) => {
+                                if !Self::is_excluded_path(&path, excluded_paths) {
+                                    yield path.to_string_lossy().to_string();
+                                }
+                            },
+                            Err(e) => eprintln!("{e:?}"),
                         }
                     }
-                },
-                InputSource::FsPath(path) => yield path.to_string_lossy().to_string(),
-                InputSource::Stdin => yield "Stdin".into(),
-                InputSource::String(_) => yield "Raw String".into(),
+                }
+                InputSource::FsPath(ref path) => {
+                    if path.is_dir() {
+                        for entry in Input::walk_entries(
+                            path,
+                            file_extensions,
+                            skip_hidden,
+                            skip_gitignored,
+                        )? {
+                            let entry = entry?;
+                            if !Self::is_excluded_path(entry.path(), excluded_paths) {
+                                // Only yield files, not directories
+                                if entry.file_type().is_some_and(|ft| ft.is_file()) {
+                                    yield entry.path().to_string_lossy().to_string();
+                                }
+                            }
+                        }
+                    } else if !Self::is_excluded_path(path, excluded_paths) {
+                        yield path.to_string_lossy().to_string();
+                    }
+                }
+                InputSource::Stdin => yield "<stdin>".into(),
+                InputSource::String(_) => yield "<raw string>".into(),
             }
         }
     }
 
+    /// Check if the given path was excluded from link checking
+    fn is_excluded_path(path: &Path, excluded_paths: &PathExcludes) -> bool {
+        excluded_paths.is_match(&path.to_string_lossy())
+    }
     /// Get the input content of a given path
     /// # Errors
     ///
@@ -378,50 +535,31 @@ impl TryFrom<&str> for Input {
     }
 }
 
-fn glob_contents(
-    pattern: &str,
-    ignore_case: bool,
-    excluded_paths: &PathExcludes,
-) -> impl Stream<Item = Result<InputContent>> {
-    let glob_expanded = tilde(&pattern).to_string();
-    let mut match_opts = glob::MatchOptions::new();
-
-    match_opts.case_sensitive = !ignore_case;
-
-    try_stream! {
-        for entry in glob_with(&glob_expanded, match_opts)? {
-            match entry {
-                Ok(path) => {
-                    // Directories can have a suffix which looks like
-                    // a file extension (like `foo.html`). This can lead to
-                    // unexpected behavior with glob patterns like
-                    // `**/*.html`. Therefore filter these out.
-                    // See <https://github.com/lycheeverse/lychee/pull/262#issuecomment-913226819>
-                    if path.is_dir() {
-                        continue;
-                    }
-                    if is_excluded_path(excluded_paths, &path) {
-                        continue;
-                    }
-                    let content: InputContent = Input::path_content(&path).await?;
-                    yield content;
-                }
-                Err(e) => eprintln!("{e:?}"),
-            }
-        }
+/// Helper function to check if a file path matches any of the given extensions
+fn file_extensions_match(path: &Path, extensions: &FileExtensions) -> bool {
+    // If the path has no extension, check if we accept plaintext files
+    // NOTE: We treat files without extensions as plaintext, which might be problematic
+    // and is therefore subject to change
+    if path.extension().is_none() {
+        return extensions.contains("txt") || extensions.contains("");
     }
-}
 
-/// Function for path exclusion tests
-///
-/// This is a standalone function to allow for easier testing
-fn is_excluded_path(excluded_paths: &PathExcludes, path: &Path) -> bool {
-    excluded_paths.is_match(&path.to_string_lossy())
+    // Otherwise, check if the extension is in our allowed list
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| extensions.contains(ext.to_lowercase()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Function for path exclusion tests
+    ///
+    /// This is a standalone function to allow for easier testing
+    pub fn is_excluded_path(excluded_paths: &PathExcludes, path: &Path) -> bool {
+        excluded_paths.is_match(&path.to_string_lossy())
+    }
 
     #[test]
     fn test_input_handles_real_relative_paths() {

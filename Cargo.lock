@@ -2539,6 +2539,7 @@ dependencies = [
  "cached",
  "check-if-email-exists",
  "cookie_store",
+ "dashmap 6.1.0",
  "doc-comment",
  "email_address",
  "futures",

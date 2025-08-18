@@ -4,7 +4,7 @@ mod cli {
         collections::{HashMap, HashSet},
         error::Error,
         fs::{self, File},
-        io::Write,
+        io::{BufRead, Write},
         path::{Path, PathBuf},
         time::Duration,
     };
@@ -77,6 +77,12 @@ mod cli {
     /// Helper function to get the path to the fixtures directory.
     fn fixtures_path() -> PathBuf {
         root_path().join("fixtures")
+    }
+
+    /// Helper function to convert a relative path to an absolute path string
+    /// starting from a base directory.
+    fn path_str(base: &Path, relative_path: &str) -> String {
+        base.join(relative_path).to_string_lossy().to_string()
     }
 
     #[derive(Default, Serialize)]
@@ -1784,6 +1790,38 @@ mod cli {
         assert!(all_cookies.iter().all(|c| c.domain() == Some("google.com")));
         Ok(())
     }
+
+    #[test]
+    fn test_dump_inputs_does_not_include_duplicates() -> Result<()> {
+        let pattern = fixtures_path().join("dump_inputs/markdown.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg(&pattern)
+            .arg(&pattern)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/dump_inputs/markdown.md").count(1));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_glob_does_not_include_duplicates() -> Result<()> {
+        let pattern1 = fixtures_path().join("**/markdown.*");
+        let pattern2 = fixtures_path().join("**/*.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg(pattern1)
+            .arg(pattern2)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/dump_inputs/markdown.md").count(1));
+
+        Ok(())
+    }
+
     #[test]
     fn test_dump_inputs_glob_md() -> Result<()> {
         let pattern = fixtures_path().join("**/*.md");
@@ -1812,7 +1850,6 @@ mod cli {
             .stdout(contains("fixtures/dump_inputs/subfolder/file2.md"))
             .stdout(contains("fixtures/dump_inputs/subfolder"))
             .stdout(contains("fixtures/dump_inputs/markdown.md"))
-            .stdout(contains("fixtures/dump_inputs/subfolder/example.bin"))
             .stdout(contains("fixtures/dump_inputs/some_file.txt"));
 
         Ok(())
@@ -1839,11 +1876,23 @@ mod cli {
     #[test]
     fn test_dump_inputs_url() -> Result<()> {
         let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
+        let output = cmd
+            .arg("--dump-inputs")
             .arg("https://example.com")
             .assert()
             .success()
-            .stdout(contains("https://example.com"));
+            .get_output()
+            .stdout
+            .clone();
+
+        let actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+
+        let expected_lines = vec!["https://example.com/".to_string()];
+
+        assert_eq!(actual_lines, expected_lines);
 
         Ok(())
     }
@@ -1851,11 +1900,114 @@ mod cli {
     #[test]
     fn test_dump_inputs_path() -> Result<()> {
         let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
-            .arg("fixtures")
+        let output = cmd
+            .arg("--dump-inputs")
+            .arg(fixtures_path().join("dump_inputs"))
             .assert()
             .success()
-            .stdout(contains("fixtures"));
+            .get_output()
+            .stdout
+            .clone();
+
+        let mut actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+        actual_lines.sort();
+
+        let base_path = fixtures_path().join("dump_inputs");
+        let mut expected_lines = vec![
+            path_str(&base_path, "some_file.txt"),
+            path_str(&base_path, "subfolder/file2.md"),
+            path_str(&base_path, "subfolder/test.html"),
+            path_str(&base_path, "markdown.md"),
+        ];
+        expected_lines.sort();
+
+        assert_eq!(actual_lines, expected_lines);
+        Ok(())
+    }
+
+    // Ensures that dumping stdin does not panic and results in an empty output
+    // as `stdin` is not a path
+    #[test]
+    fn test_dump_inputs_with_extensions() -> Result<()> {
+        let mut cmd = main_command();
+        let test_dir = fixtures_path().join("dump_inputs");
+
+        let output = cmd
+            .arg("--dump-inputs")
+            .arg("--extensions")
+            .arg("md,txt")
+            .arg(test_dir)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        let mut actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+        actual_lines.sort();
+
+        let base_path = fixtures_path().join("dump_inputs");
+        let mut expected_lines = vec![
+            path_str(&base_path, "some_file.txt"),
+            path_str(&base_path, "subfolder/file2.md"),
+            path_str(&base_path, "markdown.md"),
+        ];
+        expected_lines.sort();
+
+        assert_eq!(actual_lines, expected_lines);
+
+        // Verify example.bin is not included
+        for line in &actual_lines {
+            assert!(
+                !line.contains("example.bin"),
+                "Should not contain example.bin: {}",
+                line
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_skip_hidden() -> Result<()> {
+        let test_dir = fixtures_path().join("hidden");
+
+        // Test default behavior (skip hidden)
+        main_command()
+            .arg("--dump-inputs")
+            .arg(&test_dir)
+            .assert()
+            .success()
+            .stdout(is_empty());
+
+        // Test with --hidden flag
+        main_command()
+            .arg("--dump-inputs")
+            .arg("--hidden")
+            .arg(test_dir)
+            .assert()
+            .success()
+            .stdout(contains(".hidden/file.md"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_individual_file() -> Result<()> {
+        let mut cmd = main_command();
+        let test_file = fixtures_path().join("TEST.md");
+
+        cmd.arg("--dump-inputs")
+            .arg(&test_file)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/TEST.md"));
 
         Ok(())
     }
@@ -1863,11 +2015,12 @@ mod cli {
     #[test]
     fn test_dump_inputs_stdin() -> Result<()> {
         let mut cmd = main_command();
+
         cmd.arg("--dump-inputs")
             .arg("-")
             .assert()
             .success()
-            .stdout(contains("Stdin"));
+            .stdout(contains("<stdin>"));
 
         Ok(())
     }
@@ -1908,7 +2061,6 @@ mod cli {
             "fixtures/fragments/file.html#top",
             "fixtures/fragments/file.html#Upper-%C3%84%C3%96%C3%B6",
             "fixtures/fragments/sub_dir",
-            "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
             "fixtures/fragments/zero.bin",
             "fixtures/fragments/zero.bin#",
             "fixtures/fragments/zero.bin#fragment",
@@ -1922,6 +2074,7 @@ mod cli {
         let expected_failures = vec![
             "fixtures/fragments/sub_dir_non_existing_1",
             "fixtures/fragments/sub_dir#non-existing-fragment-2",
+            "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
             "fixtures/fragments/empty_dir#non-existing-fragment-3",
             "fixtures/fragments/file2.md#missing-fragment",
             "fixtures/fragments/sub_dir#non-existing-fragment-1",
@@ -2312,5 +2465,98 @@ mod cli {
             .assert()
             .success()
             .stdout(is_empty());
+
+    #[test]
+    fn test_index_files_default() {
+        let input = fixtures_path().join("filechecker/dir_links.md");
+
+        // the dir links in this file all exist.
+        main_command()
+            .arg(&input)
+            .arg("--verbose")
+            .assert()
+            .success();
+
+        // ... but checking fragments will find none, because dirs
+        // have no fragments and no index file given.
+        let dir_links_with_fragment = 2;
+        main_command()
+            .arg(&input)
+            .arg("--include-fragments")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot find fragment").count(dir_links_with_fragment))
+            .stdout(contains("#").count(dir_links_with_fragment));
+    }
+
+    #[test]
+    fn test_index_files_specified() {
+        let input = fixtures_path().join("filechecker/dir_links.md");
+
+        // passing `--index-files index.html` should reject all links
+        // to /empty_dir because it doesn't have the index file
+        let result = main_command()
+            .arg(input)
+            .arg("--index-files")
+            .arg("index.html")
+            .arg("--verbose")
+            .assert()
+            .failure();
+
+        let empty_dir_links = 2;
+        let index_dir_links = 2;
+        result
+            .stdout(contains("Cannot find index file").count(empty_dir_links))
+            .stdout(contains("/empty_dir").count(empty_dir_links))
+            .stdout(contains(format!("{index_dir_links} OK")));
+    }
+
+    #[test]
+    fn test_index_files_dot_in_list() {
+        let input = fixtures_path().join("filechecker/dir_links.md");
+
+        // passing `.` in the index files list should accept a directory
+        // even if no other index file is found.
+        main_command()
+            .arg(&input)
+            .arg("--index-files")
+            .arg("index.html,.")
+            .assert()
+            .success()
+            .stdout(contains("4 OK"));
+
+        // checking fragments will accept the index_dir#fragment link,
+        // but reject empty_dir#fragment because empty_dir doesn’t have
+        // index.html.
+        main_command()
+            .arg(&input)
+            .arg("--index-files")
+            .arg("index.html,.")
+            .arg("--include-fragments")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot find fragment").count(1))
+            .stdout(contains("empty_dir#fragment").count(1))
+            .stdout(contains("index_dir#fragment").count(0))
+            .stdout(contains("3 OK"));
+    }
+
+    #[test]
+    fn test_index_files_empty_list() {
+        let input = fixtures_path().join("filechecker/dir_links.md");
+
+        // passing an empty list to --index-files should reject /all/
+        // directory links.
+        let result = main_command()
+            .arg(input)
+            .arg("--index-files")
+            .arg("")
+            .assert()
+            .failure();
+
+        let num_dir_links = 4;
+        result
+            .stdout(contains("Cannot find index file").count(num_dir_links))
+            .stdout(contains("0 OK"));
     }
 }
