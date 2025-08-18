@@ -209,139 +209,131 @@ impl ErrorKind {
                             Some(e.to_string())
                         }
                     }
-            ErrorKind::InvalidFilePath(uri) => Some(format!(
-                        "File not found: '{uri}' - check if file path is correct",
-                    )),
+            ErrorKind::InvalidFilePath(_uri) => None,
             ErrorKind::ReadFileInput(e, path) => match e.kind() {
-                        std::io::ErrorKind::NotFound => Some(format!(
-                            "File not found: '{}' - check if file path is correct",
-                            path.display()
-                        )),
+                        std::io::ErrorKind::NotFound => Some(
+                            "Check if file path is correct".to_string()
+                        ),
                         std::io::ErrorKind::PermissionDenied => Some(format!(
-                            "Permission denied: '{}' - check file permissions",
+                            "Permission denied: '{}'. Check file permissions",
                             path.display()
                         )),
                         std::io::ErrorKind::IsADirectory => Some(format!(
-                            "Path is a directory, not a file: '{}' - check file path",
+                            "Path is a directory, not a file: '{}'. Check file path",
                             path.display()
                         )),
                         _ => Some(format!("File read error for '{}': {}", path.display(), e)),
                     },
             ErrorKind::ReadStdinInput(e) => match e.kind() {
                         std::io::ErrorKind::UnexpectedEof => {
-                            Some("Stdin input ended unexpectedly - check input data".to_string())
+                            Some("Stdin input ended unexpectedly. Check input data".to_string())
                         }
                         std::io::ErrorKind::InvalidData => {
-                            Some("Invalid data from stdin - check input format".to_string())
+                            Some("Invalid data from stdin. Check input format".to_string())
                         }
                         _ => Some(format!("Stdin read error: {e}")),
                     },
             ErrorKind::ParseUrl(_, url) => {
-                        Some(format!("Invalid URL format: '{url}' - check URL syntax"))
+                        Some(format!("Invalid URL format: '{url}'. Check URL syntax"))
                     }
             ErrorKind::EmptyUrl => {
-                        Some("Empty URL found - check for missing links or malformed markdown".to_string())
+                        Some("Empty URL found. Check for missing links or malformed markdown".to_string())
                     }
             #[cfg(any(test, debug_assertions))]
             ErrorKind::TestError => Some("Test error for formatter testing".to_string()),
             ErrorKind::InvalidFile(path) => Some(format!(
-                        "Invalid file path: '{}' - check if file exists and is readable",
+                        "Invalid file path: '{}'. Check if file exists and is readable",
                         path.display()
                     )),
             ErrorKind::ReadResponseBody(error) => Some(format!(
-                "Failed to read response body: {error} - server may have sent invalid data",
+                "Failed to read response body: {error}. Server may have sent invalid data",
             )),
             ErrorKind::BuildRequestClient(error) => Some(format!(
-                "Failed to create HTTP client: {error} - check system configuration",
+                "Failed to create HTTP client: {error}. Check system configuration",
             )),
             ErrorKind::RuntimeJoin(join_error) => Some(format!(
-                "Task execution failed: {join_error} - internal processing error"
+                "Task execution failed: {join_error}. Internal processing error"
             )),
             ErrorKind::Utf8(_utf8_error) => Some(
-                "Invalid UTF-8 sequence found - file contains non-UTF-8 characters".to_string()
+                "Invalid UTF-8 sequence found. File contains non-UTF-8 characters".to_string()
             ),
             ErrorKind::BuildGithubClient(error) => Some(format!(
-                "Failed to create GitHub client: {error} - check token and network connectivity",
+                "Failed to create GitHub client: {error}. Check token and network connectivity",
             )),
             ErrorKind::InvalidGithubUrl(url) => Some(format!(
-                "Invalid GitHub URL format: '{url}' - check URL syntax",
+                "Invalid GitHub URL format: '{url}'. Check URL syntax",
             )),
-            ErrorKind::InvalidFragment(uri) => Some(format!(
-                "Fragment not found: '{uri}' - check if anchor exists in document",
-            )),
+            ErrorKind::InvalidFragment(_uri) => None,
             ErrorKind::InvalidUrlFromPath(path_buf) => Some(format!(
-                "Cannot convert path to URL: '{}' - check path format",
+                "Cannot convert path to URL: '{}'. Check path format",
                 path_buf.display()
             )),
             ErrorKind::UnreachableEmailAddress(uri, reason) => Some(format!(
-                "Email address unreachable: '{uri}' - {reason}",
+                "Email address unreachable: '{uri}'. {reason}",
             )),
             ErrorKind::InvalidHeader(invalid_header_value) => Some(format!(
-                "Invalid HTTP header: {invalid_header_value} - check header format",
+                "Invalid HTTP header: {invalid_header_value}. Check header format",
             )),
             ErrorKind::InvalidBase(base, reason) => Some(format!(
-                "Invalid base URL or directory: '{base}' - {reason}",
+                "Invalid base URL or directory: '{base}'. {reason}",
             )),
             ErrorKind::InvalidBaseJoin(text) => Some(format!(
-                "Cannot join '{text}' with base URL - check relative path format",
+                "Cannot join '{text}' with base URL. Check relative path format",
             )),
             ErrorKind::InvalidPathToUri(path) => Some(format!(
-                "Cannot convert path to URI: '{path}' - check path format",
+                "Cannot convert path to URI: '{path}'. Check path format",
             )),
             ErrorKind::RootDirMustBeAbsolute(path_buf) => Some(format!(
-                "Root directory must be absolute: '{}' - use full path",
+                "Root directory must be absolute: '{}'. Use full path",
                 path_buf.display()
             )),
             ErrorKind::UnsupportedUriType(uri_type) => Some(format!(
-                "Unsupported URI type: '{uri_type}' - only http, https, file, and mailto are supported",
+                "Unsupported URI type: '{uri_type}'. Only http, https, file, and mailto are supported",
             )),
             ErrorKind::InvalidUrlRemap(remap) => Some(format!(
-                "Invalid URL remapping: '{remap}' - check remapping syntax",
+                "Invalid URL remapping: '{remap}'. Check remapping syntax",
             )),
             ErrorKind::DirTraversal(error) => Some(format!(
-                "Directory traversal failed: {error} - check directory permissions",
+                "Directory traversal failed: {error}. Check directory permissions",
             )),
             ErrorKind::InvalidGlobPattern(pattern_error) => Some(format!(
-                "Invalid glob pattern: {pattern_error} - check pattern syntax",
+                "Invalid glob pattern: {pattern_error}. Check pattern syntax",
             )),
             ErrorKind::MissingGitHubToken => Some(
-                "GitHub token required - use --github-token flag or GITHUB_TOKEN environment variable".to_string()
+                "GitHub token required. Use --github-token flag or GITHUB_TOKEN environment variable".to_string()
             ),
             ErrorKind::InsecureURL(uri) => Some(format!(
                 "Insecure HTTP URL detected: use '{}' instead of HTTP",
                 uri.as_str().replace("http://", "https://")
             )),
             ErrorKind::Channel(_send_error) => Some(
-                "Internal communication error - processing thread failed".to_string()
+                "Internal communication error. Processing thread failed".to_string()
             ),
             ErrorKind::InvalidUrlHost => Some(
-                "URL missing hostname - check URL format".to_string()
+                "URL missing hostname. Check URL format".to_string()
             ),
             ErrorKind::InvalidURI(uri) => Some(format!(
-                "Invalid URI format: '{uri}' - check URI syntax",
+                "Invalid URI format: '{uri}'. Check URI syntax",
             )),
             ErrorKind::InvalidStatusCode(code) => Some(format!(
-                "Invalid HTTP status code: {code} - must be between 100-999",
+                "Invalid HTTP status code: {code}. Must be between 100-999",
             )),
             ErrorKind::Regex(error) => Some(format!(
-                "Regular expression error: {error} - check regex syntax",
+                "Regular expression error: {error}. Check regex syntax",
             )),
             ErrorKind::TooManyRedirects(_error) => Some(
-                "Too many redirects - check for redirect loops or increase redirect limit".to_string()
+                "Too many redirects. Check for redirect loops or increase redirect limit".to_string()
             ),
             ErrorKind::BasicAuthExtractorError(basic_auth_extractor_error) => Some(format!(
-                "Basic authentication error: {basic_auth_extractor_error} - check credentials format",
+                "Basic authentication error: {basic_auth_extractor_error}. Check credentials format",
             )),
             ErrorKind::Cookies(reason) => Some(format!(
-                "Cookie handling error: {reason} - check cookie file format",
+                "Cookie handling error: {reason}. Check cookie file format",
             )),
             ErrorKind::StatusCodeSelectorError(status_code_selector_error) => Some(format!(
-                "Status code selector error: {status_code_selector_error} - check accept configuration",
+                "Status code selector error: {status_code_selector_error}. Check accept configuration",
             )),
-            ErrorKind::InvalidIndexFile(path) => Some(format!(
-                "Directory missing index file: '{}' - check if index.html, index.htm, or README.md exists",
-                path.display()
-            )),
+            ErrorKind::InvalidIndexFile(_path) => None,
         }
     }
 

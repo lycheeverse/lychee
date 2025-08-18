@@ -268,7 +268,7 @@ mod cli {
             &output_json["error_map"][&test_path.to_str().unwrap()][0]["status"];
 
         assert_eq!(
-            "SSL certificate not trusted - use --insecure if site is trusted",
+            "SSL certificate not trusted. Use --insecure if site is trusted",
             site_error_status["details"]
         );
         Ok(())
