@@ -295,7 +295,7 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
 mod tests {
     use crate::ErrorKind;
 
-    /// Test that ErrorKind::details() properly uses the new analysis
+    /// Test that `ErrorKind::details()` properly uses the new analysis
     #[test]
     fn test_error_kind_details_integration() {
         // Test rejected status code

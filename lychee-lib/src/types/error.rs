@@ -188,6 +188,7 @@ impl ErrorKind {
     /// request type. The output is purely meant for humans (e.g. for status
     /// messages) and future changes are expected.
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn details(&self) -> Option<String> {
         match self {
             ErrorKind::NetworkRequest(e) => {
@@ -233,7 +234,7 @@ impl ErrorKind {
                         std::io::ErrorKind::InvalidData => {
                             Some("Invalid data from stdin - check input format".to_string())
                         }
-                        _ => Some(format!("Stdin read error: {}", e)),
+                        _ => Some(format!("Stdin read error: {e}")),
                     },
             ErrorKind::ParseUrl(_, url) => {
                         Some(format!("Invalid URL format: '{url}' - check URL syntax"))
@@ -254,8 +255,7 @@ impl ErrorKind {
                 "Failed to create HTTP client: {error} - check system configuration",
             )),
             ErrorKind::RuntimeJoin(join_error) => Some(format!(
-                "Task execution failed: {} - internal processing error",
-                join_error
+                "Task execution failed: {join_error} - internal processing error"
             )),
             ErrorKind::Utf8(_utf8_error) => Some(
                 "Invalid UTF-8 sequence found - file contains non-UTF-8 characters".to_string()
@@ -337,6 +337,10 @@ impl ErrorKind {
             )),
             ErrorKind::StatusCodeSelectorError(status_code_selector_error) => Some(format!(
                 "Status code selector error: {status_code_selector_error} - check accept configuration",
+            )),
+            ErrorKind::InvalidIndexFile(path) => Some(format!(
+                "Directory missing index file: '{}' - check if index.html, index.htm, or README.md exists",
+                path.display()
             )),
         }
     }
