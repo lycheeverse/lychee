@@ -173,6 +173,12 @@ pub enum ErrorKind {
     /// Status code selector parse error
     #[error("Status code range error")]
     StatusCodeSelectorError(#[from] StatusCodeSelectorError),
+
+    /// Test-only error variant for formatter tests
+    /// Available in both test and debug builds to support cross-crate testing
+    #[cfg(any(test, debug_assertions))]
+    #[error("Generic test error")]
+    TestError,
 }
 
 impl ErrorKind {
@@ -235,6 +241,8 @@ impl ErrorKind {
             ErrorKind::EmptyUrl => {
                         Some("Empty URL found - check for missing links or malformed markdown".to_string())
                     }
+            #[cfg(any(test, debug_assertions))]
+            ErrorKind::TestError => Some("Test error for formatter testing".to_string()),
             ErrorKind::InvalidFile(path) => Some(format!(
                         "Invalid file path: '{}' - check if file exists and is readable",
                         path.display()
@@ -407,6 +415,8 @@ impl PartialEq for ErrorKind {
             (Self::InvalidBase(b1, e1), Self::InvalidBase(b2, e2)) => b1 == b2 && e1 == e2,
             (Self::InvalidUrlRemap(r1), Self::InvalidUrlRemap(r2)) => r1 == r2,
             (Self::EmptyUrl, Self::EmptyUrl) => true,
+            #[cfg(any(test, debug_assertions))]
+            (Self::TestError, Self::TestError) => true,
 
             _ => false,
         }
@@ -455,6 +465,10 @@ impl Hash for ErrorKind {
             Self::RejectedStatusCode(c) => c.hash(state),
             Self::Channel(e) => e.to_string().hash(state),
             Self::MissingGitHubToken | Self::InvalidUrlHost => {
+                std::mem::discriminant(self).hash(state);
+            }
+            #[cfg(any(test, debug_assertions))]
+            Self::TestError => {
                 std::mem::discriminant(self).hash(state);
             }
             Self::Regex(e) => e.to_string().hash(state),

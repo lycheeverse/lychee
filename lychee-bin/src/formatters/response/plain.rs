@@ -46,12 +46,12 @@ mod plain_tests {
     fn test_format_response_with_error_status() {
         let formatter = PlainFormatter;
         let body = mock_response_body(
-            Status::Error(ErrorKind::InvalidUrlHost),
+            Status::Error(ErrorKind::TestError),
             "https://example.com/404",
         );
         assert_eq!(
             formatter.format_response(&body),
-            "[ERROR] https://example.com/404 | URL is missing a host"
+            "[ERROR] https://example.com/404 | Generic test error: Test error for formatter testing"
         );
     }
 

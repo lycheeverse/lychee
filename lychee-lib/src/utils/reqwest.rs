@@ -295,10 +295,9 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
 mod tests {
     use crate::ErrorKind;
 
+    /// Test that ErrorKind::details() properly uses the new analysis
     #[test]
     fn test_error_kind_details_integration() {
-        // Test that ErrorKind::details() properly uses the new analysis
-
         // Test rejected status code
         let status_error = ErrorKind::RejectedStatusCode(http::StatusCode::NOT_FOUND);
         assert_eq!(status_error.details(), Some("Not Found".to_string()));
@@ -307,7 +306,10 @@ mod tests {
         // (actual reqwest::Error creation is complex, so we test the integration point)
 
         // For other error types, ensure they still work
-        let empty_url_error = ErrorKind::EmptyUrl;
-        assert_eq!(empty_url_error.details(), None);
+        let test_error = ErrorKind::TestError;
+        assert_eq!(
+            test_error.details(),
+            Some("Test error for formatter testing".to_string())
+        );
     }
 }
