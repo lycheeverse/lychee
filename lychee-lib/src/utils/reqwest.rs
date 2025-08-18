@@ -75,8 +75,7 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
                             if inner_msg.contains("verify failed") {
                                 return "SSL certificate verification failed. Check certificate validity".to_string();
                             }
-                            return "SSL certificate error. Check certificate validity"
-                                .to_string();
+                            return "SSL certificate error. Check certificate validity".to_string();
                         }
 
                         // DNS errors
@@ -92,8 +91,7 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
 
                         // TLS/SSL handshake errors
                         if inner_msg.contains("handshake") {
-                            return "TLS handshake failed. Check SSL/TLS configuration"
-                                .to_string();
+                            return "TLS handshake failed. Check SSL/TLS configuration".to_string();
                         }
 
                         // Return the inner error message if it's more specific
@@ -178,8 +176,7 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
                     .to_string();
             }
             if hyper_msg.contains("http2 error") {
-                return "HTTP/2 protocol error. Server may not support HTTP/2 properly"
-                    .to_string();
+                return "HTTP/2 protocol error. Server may not support HTTP/2 properly".to_string();
             }
             if hyper_msg.contains("channel closed") {
                 return "HTTP connection channel closed unexpectedly".to_string();
@@ -188,8 +185,7 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
                 return "HTTP operation was canceled before completion".to_string();
             }
             if hyper_msg.contains("message head is too large") {
-                return "HTTP headers too large. Server response headers exceed limits"
-                    .to_string();
+                return "HTTP headers too large. Server response headers exceed limits".to_string();
             }
             if hyper_msg.contains("invalid content-length") {
                 return "Invalid Content-Length header from server".to_string();
@@ -257,8 +253,7 @@ pub(crate) fn analyze_error_chain(error: &reqwest::Error) -> String {
         }
 
         if error_msg.contains("No route to host") || error_msg.contains("no route") {
-            return "No route to host. Check network routing or firewall configuration"
-                .to_string();
+            return "No route to host. Check network routing or firewall configuration".to_string();
         }
 
         if error_msg.contains("Network is unreachable") || error_msg.contains("network unreachable")
