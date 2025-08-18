@@ -735,7 +735,8 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[serde(default)]
     pub(crate) cookie_jar: Option<PathBuf>,
 
-    /// Check found wikilinks in markdown files
+    #[allow(clippy::doc_markdown)]
+    /// Check WikiLinks in Markdown files
     #[arg(long)]
     #[serde(default)]
     pub(crate) include_wikilinks: bool,

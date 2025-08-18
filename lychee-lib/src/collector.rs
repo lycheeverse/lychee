@@ -141,7 +141,8 @@ impl Collector {
         self
     }
 
-    /// Check found wikilinks in markdown files
+    #[allow(clippy::doc_markdown)]
+    /// Check WikiLinks in Markdown files
     #[must_use]
     pub const fn include_wikilinks(mut self, yes: bool) -> Self {
         self.include_wikilinks = yes;

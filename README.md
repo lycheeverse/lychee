@@ -589,7 +589,7 @@ Options:
           Tell lychee to read cookies from the given file. Cookies will be stored in the cookie jar and sent with requests. New cookies will be stored in the cookie jar and existing cookies will be updated
 
       --include-wikilinks
-          Check found wikilinks in markdown files
+          Check WikiLinks in Markdown files
 
   -h, --help
           Print help (see a summary with '-h')
