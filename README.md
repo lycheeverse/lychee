@@ -421,10 +421,13 @@ Options:
           [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,txt]
 
       --fallback-extensions <FALLBACK_EXTENSIONS>
-          Test the specified file extensions for URIs when checking files locally.
-          Multiple extensions can be separated by commas. Extensions will be checked in order of appearance.
+          When checking locally, attempts to locate missing files by trying the given
+          fallback extensions. Multiple extensions can be separated by commas. Extensions
+          will be checked in order of appearance.
 
           Example: `--fallback-extensions html,htm,php,asp,aspx,jsp,cgi`
+
+          Note: This option only takes effect on `file://` URIs which do not exist.
 
   -f, --format <FORMAT>
           Output format of final status report
@@ -454,6 +457,30 @@ Options:
       --hidden
           Do not skip hidden directories and files
 
+      --index-files <INDEX_FILES>
+          When checking locally, resolves directory links to a separate index file.
+          The argument is a comma-separated list of index file names to search for. Index
+          names are relative to the link's directory and attempted in the order given.
+
+          If `--index-files` is specified, then at least one index file must exist in
+          order for a directory link to be considered valid. Additionally, the special
+          name `.` can be used in the list to refer to the directory itself.
+
+          If unspecified (the default behavior), index files are disabled and directory
+          links are considered valid as long as the directory exists on disk.
+
+          Example 1: `--index-files index.html,readme.md` looks for index.html or readme.md
+                     and requires that at least one exists.
+
+          Example 2: `--index-files index.html,.` will use index.html if it exists, but
+                     still accept the directory link regardless.
+
+          Example 3: `--index-files ''` will reject all directory links because there are
+                     no valid index files. This will require every link to explicitly name
+                     a file.
+
+          Note: This option only takes effect on `file://` URIs which exist and point to a directory.
+
       --include <INCLUDE>
           URLs to check (supports regex). Has preference over all excludes
 
@@ -465,6 +492,9 @@ Options:
 
       --include-verbatim
           Find links in verbatim sections like `pre` sections and `code` blocks.
+
+      --include-wikilinks
+          Check WikiLinks in Markdown files
 
   -i, --insecure
           Proceed for server connections considered insecure (invalid TLS)
