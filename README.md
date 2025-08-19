@@ -18,6 +18,7 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
 ## Table of Contents
 
 - [Development](#development)
@@ -171,7 +172,7 @@ outdated information.
 | Language             | Rust    | Ruby          | Go       | JS                    | TypeScript   | Python               | JS                    | PHP    |
 | Async/Parallel       | ![yes]  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | JSON output          | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![maybe]<sup>1</sup> | ![yes]                | ![yes] |
-| Static binary        | ![yes]  | ![no]         | ![yes]   | ![no]                 | ![no]        | ️![no]                | ![no]                 | ![no]  |
+| Static binary        | ![yes]  | ![no]         | ![yes]   | ![no]                 | ![no]        | ️![no]               | ![no]                 | ![no]  |
 | Markdown files       | ![yes]  | ![yes]        | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![no]  |
 | HTML files           | ![yes]  | ![no]         | ![no]    | ![yes]                | ![yes]       | ![no]                | ![yes]                | ![no]  |
 | Text files           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
@@ -183,7 +184,7 @@ outdated information.
 | Relative URLs        | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | Anchors/Fragments    | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![no]  |
 | Skip relative URLs   | ![yes]  | ![no]         | ![no]    | ![maybe]              | ![no]        | ![no]                | ![no]                 | ![no]  |
-| Include patterns     | ![yes]️  | ![yes]        | ![no]    | ![yes]                | ![no]        | ![no]                | ![no]                 | ![no]  |
+| Include patterns     | ![yes]️ | ![yes]        | ![no]    | ![yes]                | ![no]        | ![no]                | ![no]                 | ![no]  |
 | Exclude patterns     | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | Handle redirects     | ![yes]  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | Ignore insecure SSL  | ![yes]  | ![yes]        | ![yes]   | ![no]                 | ![no]        | ![yes]               | ![no]                 | ![yes] |
@@ -587,6 +588,9 @@ Options:
       --cookie-jar <COOKIE_JAR>
           Tell lychee to read cookies from the given file. Cookies will be stored in the cookie jar and sent with requests. New cookies will be stored in the cookie jar and existing cookies will be updated
 
+      --include-wikilinks
+          Check WikiLinks in Markdown files
+
   -h, --help
           Print help (see a summary with '-h')
 
@@ -710,6 +714,7 @@ which includes usage instructions.
 ## Pre-commit Usage
 
 Lychee can also be used as a [pre-commit](https://pre-commit.com/) hook.
+
 ```yaml
 # .pre-commit-config.yaml
 repos:
@@ -722,6 +727,7 @@ repos:
 ```
 
 Rather than running on staged-files only, Lychee can be run against an entire repository.
+
 ```yaml
 - id: lychee
   args: ["--no-progress", "."]

@@ -2443,6 +2443,31 @@ mod cli {
     }
 
     #[test]
+    fn test_wikilink_extract_when_specified() {
+        let test_path = fixtures_path().join("TEST_WIKI.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump")
+            .arg("--include-wikilinks")
+            .arg(test_path)
+            .assert()
+            .success()
+            .stdout(contains("LycheeWikilink"));
+    }
+
+    #[test]
+    fn test_wikilink_dont_extract_when_not_specified() {
+        let test_path = fixtures_path().join("TEST_WIKI.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump")
+            .arg(test_path)
+            .assert()
+            .success()
+            .stdout(is_empty());
+    }
+
+    #[test]
     fn test_index_files_default() {
         let input = fixtures_path().join("filechecker/dir_links.md");
 
