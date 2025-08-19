@@ -397,7 +397,7 @@ Options:
           Equivalent to using `--exclude-private --exclude-link-local --exclude-loopback` combined.
 
       --exclude-file <EXCLUDE_FILE>
-          Deprecated; use `--exclude-path` instead
+          Deprecated since v0.15.1; use `--exclude-path` instead
 
       --exclude-link-local
           Exclude link-local IP address range from checking
