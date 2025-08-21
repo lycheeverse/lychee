@@ -1920,7 +1920,7 @@ mod cli {
             .success();
 
         let base_path = fixtures_path().join("dump_inputs");
-        let expected_lines = vec![
+        let expected_lines = [
             "some_file.txt",
             "subfolder/file2.md",
             "subfolder/test.html",
@@ -1972,8 +1972,7 @@ mod cli {
         for line in &actual_lines {
             assert!(
                 !line.contains("example.bin"),
-                "Should not contain example.bin: {}",
-                line
+                "Should not contain example.bin: {line}"
             );
         }
 
