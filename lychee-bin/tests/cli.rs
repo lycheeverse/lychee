@@ -268,7 +268,7 @@ mod cli {
             &output_json["error_map"][&test_path.to_str().unwrap()][0]["status"];
 
         assert_eq!(
-            "error sending request for url (https://expired.badssl.com/) Maybe a certificate error?",
+            "error sending request. Maybe a certificate error?",
             site_error_status["details"]
         );
         Ok(())
@@ -917,7 +917,7 @@ mod cli {
             .stderr(predicate::str::contains("Cannot load configuration file"))
             .stderr(predicate::str::contains("Failed to parse"))
             .stderr(predicate::str::contains("TOML parse error"))
-            .stderr(predicate::str::contains("expected newline"));
+            .stderr(predicate::str::contains("expected literal string"));
     }
 
     #[tokio::test]
