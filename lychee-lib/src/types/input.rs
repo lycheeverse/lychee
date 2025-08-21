@@ -46,8 +46,17 @@ impl TryFrom<&PathBuf> for InputContent {
     type Error = crate::ErrorKind;
 
     fn try_from(path: &PathBuf) -> std::result::Result<Self, Self::Error> {
-        let input =
-            fs::read_to_string(path).map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))?;
+        let input = match fs::read_to_string(path) {
+            Ok(content) => content,
+            Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
+                log::warn!(
+                    "Skipping file with invalid UTF-8 content: {}",
+                    path.display()
+                );
+                return Err(ErrorKind::ReadFileInput(e, path.clone()));
+            }
+            Err(e) => return Err(ErrorKind::ReadFileInput(e, path.clone())),
+        };
 
         Ok(Self {
             source: InputSource::String(input.clone()),
@@ -121,35 +130,35 @@ impl Input {
     /// Returns an error if the input does not exist (i.e. invalid path)
     /// and the input cannot be parsed as a URL.
     pub fn new(
-        value: &str,
+        input: &str,
         file_type_hint: Option<FileType>,
         glob_ignore_case: bool,
     ) -> Result<Self> {
-        let source = if value == STDIN {
+        let source = if input == STDIN {
             InputSource::Stdin
         } else {
             // We use [`reqwest::Url::parse`] because it catches some other edge cases that [`http::Request:builder`] does not
             // This could be improved with further refinement.
-            match Url::parse(value) {
+            match Url::parse(input) {
                 // Weed out non-http schemes, including Windows drive specifiers, which will be successfully parsed by the Url crate
                 Ok(url) if url.scheme() == "http" || url.scheme() == "https" => {
                     InputSource::RemoteUrl(Box::new(url))
                 }
                 Ok(_) => {
                     // URL parsed successfully, but it's not http or https
-                    return Err(ErrorKind::InvalidFile(PathBuf::from(value)));
+                    return Err(ErrorKind::InvalidFile(PathBuf::from(input)));
                 }
                 _ => {
                     // this seems to be the only way to determine if this is a glob pattern
-                    let is_glob = glob::Pattern::escape(value) != value;
+                    let is_glob = glob::Pattern::escape(input) != input;
 
                     if is_glob {
                         InputSource::FsGlob {
-                            pattern: value.to_owned(),
+                            pattern: input.to_owned(),
                             ignore_case: glob_ignore_case,
                         }
                     } else {
-                        let path = PathBuf::from(value);
+                        let path = PathBuf::from(input);
 
                         // On Windows, a filepath can never be mistaken for a url because Windows filepaths use \ and urls use /
                         #[cfg(windows)]
@@ -164,7 +173,7 @@ impl Input {
                         #[cfg(unix)]
                         if path.exists() {
                             InputSource::FsPath(path)
-                        } else if value.starts_with('~') || value.starts_with('.') {
+                        } else if input.starts_with('~') || input.starts_with('.') {
                             // The path is not valid, but it might be a valid URL
                             // Check if the path starts with a tilde or a dot
                             // and exit early if it does
@@ -176,7 +185,7 @@ impl Input {
                             // by prefixing it with a `http://` scheme.
                             // Curl also uses http (i.e. not https), see
                             // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
-                            let url = Url::parse(&format!("http://{value}")).map_err(|e| {
+                            let url = Url::parse(&format!("http://{input}")).map_err(|e| {
                                 ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string())
                             })?;
                             InputSource::RemoteUrl(Box::new(url))
@@ -370,6 +379,10 @@ impl Input {
                                 let content = Self::path_content(&path).await;
                                 match content {
                                     Err(_) if skip_missing => (),
+                                    Err(e) if matches!(&e, ErrorKind::ReadFileInput(io_err, _) if io_err.kind() == std::io::ErrorKind::InvalidData) => {
+                                        // If the file contains invalid UTF-8 (e.g. binary), we skip it
+                                        log::warn!("Skipping file with invalid UTF-8 content: {}", path.display());
+                                    },
                                     Err(e) => Err(e)?,
                                     Ok(content) => yield content,
                                 }
@@ -488,6 +501,7 @@ impl Input {
     fn is_excluded_path(path: &Path, excluded_paths: &PathExcludes) -> bool {
         excluded_paths.is_match(&path.to_string_lossy())
     }
+
     /// Get the input content of a given path
     /// # Errors
     ///

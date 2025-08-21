@@ -333,7 +333,7 @@ impl LycheeOptions {
     pub(crate) fn inputs(&self) -> Result<HashSet<Input>> {
         self.raw_inputs
             .iter()
-            .map(|s| Input::new(s, None, self.config.glob_ignore_case))
+            .map(|raw_input| Input::new(raw_input, None, self.config.glob_ignore_case))
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }

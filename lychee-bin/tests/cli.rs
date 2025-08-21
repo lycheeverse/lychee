@@ -2560,4 +2560,49 @@ mod cli {
             .stdout(contains("Cannot find index file").count(num_dir_links))
             .stdout(contains("0 OK"));
     }
+
+    #[test]
+    fn test_skip_binary_input() {
+        // A path containing a binary file
+        let inputs = fixtures_path().join("invalid_utf8");
+
+        // Run the command with the binary input
+        let mut cmd = main_command();
+        let result = cmd
+            .arg("--verbose")
+            .arg(&inputs)
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 OK"))
+            .stdout(contains("0 Errors"));
+
+        result
+            .stderr(contains(format!(
+                "Skipping file with invalid UTF-8 content: {}",
+                inputs.join("invalid_utf8.txt").display()
+            )))
+            .stderr(contains("https://example.com/"));
+    }
+
+    /// Checks that the `--dump-inputs` command does not panic
+    /// when given a path that contains invalid UTF-8 characters.
+    ///
+    /// The command should still succeed and output the paths of the files it
+    /// found, including those with invalid UTF-8, which will be skipped during
+    /// processing.
+    #[test]
+    fn test_dump_invalid_utf8_inputs() {
+        // A path containing a binary file
+        let inputs = fixtures_path().join("invalid_utf8");
+
+        // Run the command with the binary input
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg(inputs)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/invalid_utf8/index.html"))
+            .stdout(contains("fixtures/invalid_utf8/invalid_utf8.txt"));
+    }
 }
