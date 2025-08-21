@@ -80,19 +80,18 @@ pub(crate) fn extract_markdown(
 
                         //Strip potholes (|) from wikilinks
                         let mut stripped_dest_url = if has_pothole {
-                            pulldown_cmark::CowStr::Borrowed(&dest_url[0..dest_url.find("|").unwrap_or(dest_url.len())])
+                            pulldown_cmark::CowStr::Borrowed(&dest_url[0..dest_url.find('|').unwrap_or(dest_url.len())])
                         }else {
                             dest_url.clone()
                         };
 
                         //Strip Headings (#) from wikilinks
-                         stripped_dest_url = if let Some(first_hashtag_index) = stripped_dest_url.find("#") {
+                         stripped_dest_url = if let Some(first_hashtag_index) = stripped_dest_url.find('#') {
                             pulldown_cmark::CowStr::Borrowed(&dest_url[0..first_hashtag_index])
                         }else {
                             dest_url
                         };
 
-                        //TODO: Normalize if markdown flavor needs it
                         Some(vec![RawUri {
                             text: stripped_dest_url.to_string(),
                             element: Some("a".to_string()),
@@ -459,7 +458,7 @@ $$
     #[test]
     fn test_remove_wikilink_pothole() {
         let markdown = r"[[foo|bar]]";
-        let uris = extract_markdown(markdown, true);
+        let uris = extract_markdown(markdown, true, true);
         let expected = vec![RawUri {
             text: "foo".to_string(),
             element: Some("a".to_string()),
@@ -471,7 +470,7 @@ $$
     #[test]
     fn test_remove_wikilink_title() {
         let markdown = r"[[foo#bar]]";
-        let uris = extract_markdown(markdown, true);
+        let uris = extract_markdown(markdown, true, true);
         let expected = vec![RawUri {
             text: "foo".to_string(),
             element: Some("a".to_string()),
@@ -483,7 +482,7 @@ $$
     #[test]
     fn test_remove_wikilink_pothole_and_title() {
         let markdown = r"[[foo#bar|baz]]";
-        let uris = extract_markdown(markdown, true);
+        let uris = extract_markdown(markdown, true, true);
         let expected = vec![RawUri {
             text: "foo".to_string(),
             element: Some("a".to_string()),
