@@ -2025,6 +2025,18 @@ mod cli {
     }
 
     #[test]
+    fn test_fragments_regression() {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("FRAGMENT_REGRESSION.md");
+
+        cmd.arg("--include-fragments")
+            .arg("--verbose")
+            .arg(input)
+            .assert()
+            .failure();
+    }
+
+    #[test]
     fn test_fragments() {
         let mut cmd = main_command();
         let input = fixtures_path().join("fragments");

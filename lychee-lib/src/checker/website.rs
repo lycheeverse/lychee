@@ -11,6 +11,7 @@ use http::{Method, StatusCode};
 use octocrab::Octocrab;
 use reqwest::{Request, Response, header::CONTENT_TYPE};
 use std::{collections::HashSet, path::Path, time::Duration};
+use url::Url;
 
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
@@ -100,6 +101,8 @@ impl WebsiteChecker {
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
     async fn check_default(&self, request: Request) -> Status {
         let method = request.method().clone();
+        let request_url = request.url().clone();
+
         match self.reqwest_client.execute(request).await {
             Ok(response) => {
                 let status = Status::new(&response, &self.accepted);
@@ -108,7 +111,7 @@ impl WebsiteChecker {
                 if self.include_fragments
                     && response.status().is_success()
                     && method == Method::GET
-                    && response.url().fragment().is_some_and(|x| !x.is_empty())
+                    && request_url.fragment().is_some_and(|x| !x.is_empty())
                 {
                     let Some(content_type) = response
                         .headers()
@@ -131,7 +134,8 @@ impl WebsiteChecker {
                         _ => return status,
                     };
 
-                    self.check_html_fragment(status, response, file_type).await
+                    self.check_html_fragment(request_url, status, response, file_type)
+                        .await
                 } else {
                     status
                 }
@@ -142,11 +146,11 @@ impl WebsiteChecker {
 
     async fn check_html_fragment(
         &self,
+        url: Url,
         status: Status,
         response: Response,
         file_type: FileType,
     ) -> Status {
-        let url = response.url().clone();
         match response.text().await {
             Ok(content) => {
                 match self
