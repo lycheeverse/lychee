@@ -2562,8 +2562,8 @@ mod cli {
     }
 
     #[test]
-    fn test_wikilink_fixture() {
-        let input = fixtures_path().join("wiki/index.md");
+    fn test_wikilink_fixture_obsidian_style() {
+        let input = fixtures_path().join("wiki/obsidian-style.md");
 
         // testing without fragments should not yield failures
         main_command()
@@ -2576,8 +2576,40 @@ mod cli {
     }
 
     #[test]
-    fn test_wikilink_fixture_with_fragments() {
-        let input = fixtures_path().join("wiki/index.md");
+    fn test_wikilink_fixture_with_fragments_obsidian_style() {
+        let input = fixtures_path().join("wiki/obsidian-style.md");
+
+        //fragments should resolve all headers
+        let dir_links_with_fragment = 2;
+        main_command()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--include-fragments")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot find fragment").count(dir_links_with_fragment))
+            .stdout(contains("#").count(dir_links_with_fragment));
+    }
+
+    #[test]
+    fn test_wikilink_fixture_wikilink_style() {
+        let input = fixtures_path().join("wiki/wikilink-style.md");
+
+        // testing without fragments should not yield failures
+        main_command()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .assert()
+            .success();
+    }
+
+    #[test]
+    fn test_wikilink_fixture_with_fragments_wikilink_style() {
+        let input = fixtures_path().join("wiki/wikilink-style.md");
 
         //fragments should resolve all headers
         let dir_links_with_fragment = 2;

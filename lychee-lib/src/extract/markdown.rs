@@ -79,17 +79,10 @@ pub(crate) fn extract_markdown(
                         }
 
                         //Strip potholes (|) from wikilinks
-                        let mut stripped_dest_url = if has_pothole {
+                        let stripped_dest_url = if has_pothole {
                             pulldown_cmark::CowStr::Borrowed(&dest_url[0..dest_url.find('|').unwrap_or(dest_url.len())])
                         }else {
                             dest_url.clone()
-                        };
-
-                        //Strip Headings (#) from wikilinks
-                         stripped_dest_url = if let Some(first_hashtag_index) = stripped_dest_url.find('#') {
-                            pulldown_cmark::CowStr::Borrowed(&dest_url[0..first_hashtag_index])
-                        }else {
-                            dest_url
                         };
 
                         Some(vec![RawUri {
