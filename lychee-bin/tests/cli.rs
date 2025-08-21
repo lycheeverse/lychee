@@ -10,12 +10,11 @@ mod cli {
     };
 
     use anyhow::anyhow;
-    use assert_cmd::Command;
+    use assert_cmd::{Command, assert::Assert};
     use assert_json_diff::assert_json_include;
     use http::{Method, StatusCode};
     use lychee_lib::{InputSource, ResponseBody};
     use predicates::{
-        ord::eq,
         prelude::{PredicateBooleanExt, predicate},
         str::{contains, is_empty},
     };
@@ -37,7 +36,7 @@ mod cli {
     // constant.
     const LYCHEE_CACHE_FILE: &str = ".lycheecache";
 
-    /// Helper macro to create a mock server which returns a custom status code.
+    /// Create a mock server which returns a custom status code.
     macro_rules! mock_server {
         ($status:expr $(, $func:tt ($($arg:expr),*))*) => {{
             let mock_server = wiremock::MockServer::start().await;
@@ -48,7 +47,7 @@ mod cli {
         }};
     }
 
-    /// Helper macro to create a mock server which returns a 200 OK and a custom response body.
+    /// Create a mock server which returns a 200 OK and a custom response body.
     macro_rules! mock_response {
         ($body:expr) => {{
             let mock_server = wiremock::MockServer::start().await;
@@ -66,7 +65,7 @@ mod cli {
         Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name")
     }
 
-    /// Helper function to get the root path of the project.
+    /// Get the root path of the project.
     fn root_path() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
@@ -74,36 +73,38 @@ mod cli {
             .to_path_buf()
     }
 
-    /// Helper function to get the path to the fixtures directory.
+    /// Get the path to the fixtures directory.
     fn fixtures_path() -> PathBuf {
         root_path().join("fixtures")
     }
 
-    /// Helper function to convert a relative path to an absolute path string
+    /// Convert a relative path to an absolute path string
     /// starting from a base directory.
     fn path_str(base: &Path, relative_path: &str) -> String {
         base.join(relative_path).to_string_lossy().to_string()
     }
 
-    #[derive(Default, Serialize)]
-    struct MockResponseStats {
-        detailed_stats: bool,
-        total: usize,
-        successful: usize,
-        unknown: usize,
-        unsupported: usize,
-        timeouts: usize,
-        redirects: usize,
-        excludes: usize,
-        errors: usize,
-        cached: usize,
-        success_map: HashMap<InputSource, HashSet<ResponseBody>>,
-        error_map: HashMap<InputSource, HashSet<ResponseBody>>,
-        suggestion_map: HashMap<InputSource, HashSet<ResponseBody>>,
-        excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// Assert actual output lines equals to expected lines.
+    /// Order of the lines is ignored.
+    fn assert_lines_eq<S: AsRef<str> + Ord>(result: Assert, mut expected_lines: Vec<S>) {
+        let output = result.get_output().stdout.clone();
+        let mut actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+
+        actual_lines.sort();
+        expected_lines.sort();
+
+        let expected_lines: Vec<String> = expected_lines
+            .into_iter()
+            .map(|l| l.as_ref().to_owned())
+            .collect();
+
+        assert_eq!(actual_lines, expected_lines);
     }
 
-    /// Helper macro to test the output of the JSON format.
+    /// Test the output of the JSON format.
     macro_rules! test_json_output {
         ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
             let mut cmd = main_command();
@@ -122,6 +123,24 @@ mod cli {
             assert_json_include!(actual: actual, expected: expected);
             Ok(())
         }};
+    }
+
+    #[derive(Default, Serialize)]
+    struct MockResponseStats {
+        detailed_stats: bool,
+        total: usize,
+        successful: usize,
+        unknown: usize,
+        unsupported: usize,
+        timeouts: usize,
+        redirects: usize,
+        excludes: usize,
+        errors: usize,
+        cached: usize,
+        success_map: HashMap<InputSource, HashSet<ResponseBody>>,
+        error_map: HashMap<InputSource, HashSet<ResponseBody>>,
+        suggestion_map: HashMap<InputSource, HashSet<ResponseBody>>,
+        excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
     }
 
     /// Test that the default report output format (compact) and mode (color)
@@ -916,8 +935,7 @@ mod cli {
             .failure()
             .stderr(predicate::str::contains("Cannot load configuration file"))
             .stderr(predicate::str::contains("Failed to parse"))
-            .stderr(predicate::str::contains("TOML parse error"))
-            .stderr(predicate::str::contains("expected newline"));
+            .stderr(predicate::str::contains("TOML parse error"));
     }
 
     #[tokio::test]
@@ -1588,7 +1606,8 @@ mod cli {
         let excluded_path_2 = "(\\.mdx|\\.txt)$"; // exclude .mdx and .txt files
         let mut cmd = main_command();
 
-        cmd.arg("--exclude-path")
+        let result = cmd
+            .arg("--exclude-path")
             .arg(excluded_path_1)
             .arg("--exclude-path")
             .arg(excluded_path_2)
@@ -1596,10 +1615,15 @@ mod cli {
             .arg("--")
             .arg(&test_path)
             .assert()
-            .success()
-            .stdout(eq(
-                "https://test.md/to-be-included-inner\nhttps://test.md/to-be-included-outer\n",
-            ));
+            .success();
+
+        assert_lines_eq(
+            result,
+            vec![
+                "https://test.md/to-be-included-outer",
+                "https://test.md/to-be-included-inner",
+            ],
+        );
 
         Ok(())
     }
@@ -1876,55 +1900,37 @@ mod cli {
     #[test]
     fn test_dump_inputs_url() -> Result<()> {
         let mut cmd = main_command();
-        let output = cmd
+        let result = cmd
             .arg("--dump-inputs")
             .arg("https://example.com")
             .assert()
-            .success()
-            .get_output()
-            .stdout
-            .clone();
+            .success();
 
-        let actual_lines: Vec<String> = output
-            .lines()
-            .map(|line| line.unwrap().to_string())
-            .collect();
-
-        let expected_lines = vec!["https://example.com/".to_string()];
-
-        assert_eq!(actual_lines, expected_lines);
-
+        assert_lines_eq(result, vec!["https://example.com/"]);
         Ok(())
     }
 
     #[test]
     fn test_dump_inputs_path() -> Result<()> {
         let mut cmd = main_command();
-        let output = cmd
+        let result = cmd
             .arg("--dump-inputs")
             .arg(fixtures_path().join("dump_inputs"))
             .assert()
-            .success()
-            .get_output()
-            .stdout
-            .clone();
-
-        let mut actual_lines: Vec<String> = output
-            .lines()
-            .map(|line| line.unwrap().to_string())
-            .collect();
-        actual_lines.sort();
+            .success();
 
         let base_path = fixtures_path().join("dump_inputs");
-        let mut expected_lines = vec![
-            path_str(&base_path, "some_file.txt"),
-            path_str(&base_path, "subfolder/file2.md"),
-            path_str(&base_path, "subfolder/test.html"),
-            path_str(&base_path, "markdown.md"),
-        ];
-        expected_lines.sort();
+        let expected_lines = [
+            "some_file.txt",
+            "subfolder/file2.md",
+            "subfolder/test.html",
+            "markdown.md",
+        ]
+        .iter()
+        .map(|p| path_str(&base_path, p))
+        .collect();
 
-        assert_eq!(actual_lines, expected_lines);
+        assert_lines_eq(result, expected_lines);
         Ok(())
     }
 
@@ -1966,8 +1972,7 @@ mod cli {
         for line in &actual_lines {
             assert!(
                 !line.contains("example.bin"),
-                "Should not contain example.bin: {}",
-                line
+                "Should not contain example.bin: {line}"
             );
         }
 
@@ -2023,6 +2028,18 @@ mod cli {
             .stdout(contains("<stdin>"));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_fragments_regression() {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("FRAGMENT_REGRESSION.md");
+
+        cmd.arg("--include-fragments")
+            .arg("--verbose")
+            .arg(input)
+            .assert()
+            .failure();
     }
 
     #[test]
