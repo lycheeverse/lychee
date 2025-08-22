@@ -34,14 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FIx missing identifier in snap build action; add snap install to readme ([#1793](https://github.com/lycheeverse/lychee/pull/1793))
 - Fix clippy lints; refactor code slightly
 - refactor `test_fragments` to clarify expected successes/fails ([#1776](https://github.com/lycheeverse/lychee/pull/1776))
-- Revert to previous behaviour: linking to directories results in Status::Ok(StatusCode::OK)
-- Make excluded_paths part of Collector instead of Input
-- Minor improvements
-- Make regex field in RegexFilter private
-- Apply clippy suggestions
-- Update flag description & clean up
-- Replace Vec<PathBuf> with dedicated PathExcludes type
-- Unwrap option type
+- Regular expressions for exclude_path ([#1766](https://github.com/lycheeverse/lychee/pull/1766))
 - Fix basic auth ([#1748](https://github.com/lycheeverse/lychee/pull/1748))
 - Update 'Users' section in the README
 - Add ProseKit to users

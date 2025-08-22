@@ -30,19 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use a HashSet to store inputs and avoid duplicates ([#1781](https://github.com/lycheeverse/lychee/pull/1781))
 - add `--index-files` flag, and turn off index file checking by default ([#1777](https://github.com/lycheeverse/lychee/pull/1777))
 - Cleanup input example ([#1792](https://github.com/lycheeverse/lychee/pull/1792))
-- FIx missing identifier in snap build action; add snap install to readme ([#1793](https://github.com/lycheeverse/lychee/pull/1793))
+- Fix missing identifier in snap build action; add snap install to readme ([#1793](https://github.com/lycheeverse/lychee/pull/1793))
 - refactor `test_fragments` to clarify expected successes/fails ([#1776](https://github.com/lycheeverse/lychee/pull/1776))
-- Fix test
-- Remove JSON output files even on test failures
-- Add regression test
-- Improve test
-- Make excluded_paths part of Collector instead of Input
-- Make regex field in RegexFilter private
-- Apply clippy suggestions
-- Test regex functionality in --exclude-path flag
-- Update flag description & clean up
-- Replace Vec<PathBuf> with dedicated PathExcludes type
-- Unwrap option type
+- Regular expressions for exclude_path ([#1766](https://github.com/lycheeverse/lychee/pull/1766))
 - Replace unmaintained human-sort with numeric-sort ([#1759](https://github.com/lycheeverse/lychee/pull/1759))
 - Fix basic auth ([#1748](https://github.com/lycheeverse/lychee/pull/1748))
 - Update 'Users' section in the README
