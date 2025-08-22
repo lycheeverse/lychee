@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.19.1...lychee-v0.20.0) - 2025-08-21
+
+### Added
+
+- make wikilink extraction and checking opt-in ([#1803](https://github.com/lycheeverse/lychee/pull/1803))
+- skip fragment checking for unsupported MIME types ([#1744](https://github.com/lycheeverse/lychee/pull/1744))
+- add 'user-content-' prefix to support github markdown fragment ([#1750](https://github.com/lycheeverse/lychee/pull/1750))
+
+### Fixed
+
+- do not check the fragment when http response err but accepted ([#1763](https://github.com/lycheeverse/lychee/pull/1763))
+- treat a fragment in an empty directory as an error ([#1756](https://github.com/lycheeverse/lychee/pull/1756))
+- resolve index file inside a directory ([#1752](https://github.com/lycheeverse/lychee/pull/1752))
+- skip fragment check if website URL doesn't contain fragment ([#1733](https://github.com/lycheeverse/lychee/pull/1733))
+
+### Other
+
+- Bump dependencies ([#1811](https://github.com/lycheeverse/lychee/pull/1811))
+- Skip binary and invalid UTF-8 inputs ([#1810](https://github.com/lycheeverse/lychee/pull/1810))
+- Refactor input dumping and path retrieval with extension filtering ([#1648](https://github.com/lycheeverse/lychee/pull/1648))
+- Use a HashSet to store inputs and avoid duplicates ([#1781](https://github.com/lycheeverse/lychee/pull/1781))
+- add `--index-files` flag, and turn off index file checking by default ([#1777](https://github.com/lycheeverse/lychee/pull/1777))
+- Cleanup input example ([#1792](https://github.com/lycheeverse/lychee/pull/1792))
+- FIx missing identifier in snap build action; add snap install to readme ([#1793](https://github.com/lycheeverse/lychee/pull/1793))
+- refactor `test_fragments` to clarify expected successes/fails ([#1776](https://github.com/lycheeverse/lychee/pull/1776))
+- Fix test
+- Remove JSON output files even on test failures
+- Add regression test
+- Improve test
+- Make excluded_paths part of Collector instead of Input
+- Make regex field in RegexFilter private
+- Apply clippy suggestions
+- Test regex functionality in --exclude-path flag
+- Update flag description & clean up
+- Replace Vec<PathBuf> with dedicated PathExcludes type
+- Unwrap option type
+- Replace unmaintained human-sort with numeric-sort ([#1759](https://github.com/lycheeverse/lychee/pull/1759))
+- Fix basic auth ([#1748](https://github.com/lycheeverse/lychee/pull/1748))
+- Update 'Users' section in the README
+- Add ProseKit to users
+- Migrate to Clippy 1.88 ([#1749](https://github.com/lycheeverse/lychee/pull/1749))
+- fix assertion in fragment checks
+- Replace unreliable API URL
+- display unsupported URLs ([#1727](https://github.com/lycheeverse/lychee/pull/1727))
+
 ## [0.19.1](https://github.com/lycheeverse/lychee/compare/lychee-v0.19.0...lychee-v0.19.1) - 2025-06-16
 
 ### Other
