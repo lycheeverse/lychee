@@ -2622,4 +2622,83 @@ mod cli {
             .stdout(contains("fixtures/invalid_utf8/index.html"))
             .stdout(contains("fixtures/invalid_utf8/invalid_utf8.txt"));
     }
+
+    /// Check that files specified via glob patterns are always checked
+    /// no matter their extension. I.e. extensions are ignored for files
+    /// explicitly specified by the user.
+    ///
+    /// See https://github.com/lycheeverse/lychee-action/issues/305
+    #[test]
+    fn test_globbed_files_are_always_checked() {
+        let input = fixtures_path().join("glob_dir/**/*.tsx");
+
+        // The directory contains:
+        // - example.ts
+        // - example.tsx
+        // - example.md
+        // - example.html
+        // But the user only specified the .tsx file via the glob pattern.
+        main_command()
+            .arg("--verbose")
+            // Only check ts, js, and html files by default.
+            // However, all files explicitly specified by the user
+            // should always be checked so this should be ignored.
+            .arg("--extensions=ts,js,html")
+            .arg(input)
+            .assert()
+            .failure()
+            .stdout(contains("1 Total"))
+            .stderr(contains("https://example.com/glob_dir/tsx"));
+    }
+
+    #[test]
+    fn test_extensions_work_on_glob_files_directory() {
+        let input = fixtures_path().join("glob_dir");
+
+        // Make sure all files matching the given extensions are checked
+        // if we specify a directory (and not a glob pattern).
+        main_command()
+            .arg("--verbose")
+            .arg("--extensions=ts,html")
+            .arg(input)
+            .assert()
+            .failure()
+            .stdout(contains("2 Total"))
+            .stderr(contains("https://example.com/glob_dir/ts "))
+            // TSX files are ignored because we did not specify
+            // that extension. So `https://example.com/tsx"` should be missing from the output.
+            .stderr(contains("https://example.com/glob_dir/tsx").not())
+            // Markdown is also ignored because we did not specify that extension.
+            .stderr(contains("https://example.com/glob_dir/md").not())
+            .stderr(contains("https://example.com/glob_dir/html"));
+    }
+
+    /// We define two inputs, one being a glob pattern, the other a directory path.
+    /// The extensions should only apply to the directory path, not the glob pattern.
+    #[test]
+    fn test_extensions_apply_to_files_not_globs() {
+        let glob_input = fixtures_path().join("glob_dir/**/*.tsx");
+        let dir_input = fixtures_path().join("example_dir");
+
+        main_command()
+            .arg("--verbose")
+            .arg("--extensions=html,md")
+            .arg(glob_input)
+            .arg(dir_input)
+            .assert()
+            .failure()
+            .stdout(contains("3 Total"))
+            // Only TSX files are matched by the glob pattern.
+            .stderr(contains("https://example.com/glob_dir/tsx"))
+            .stderr(contains("https://example.com/glob_dir/ts ").not())
+            .stderr(contains("https://example.com/glob_dir/md").not())
+            .stderr(contains("https://example.com/glob_dir/html").not())
+            // For the example_dir, the extensions should apply.
+            .stderr(contains("https://example.com/example_dir/html"))
+            .stderr(contains("https://example.com/example_dir/md"))
+            // TS files in example_dir are ignored because we did not specify that extension.
+            .stderr(contains("https://example.com/example_dir/ts ").not())
+            // TSX files in examle_dir are ignored because we did not specify that extension.
+            .stderr(contains("https://example.com/example_dir/tsx").not());
+    }
 }

@@ -264,10 +264,10 @@ impl Input {
                                     continue;
                                 }
 
-                                // Check if it matches one of our file extensions
-                                if file_extensions_match(&path, &file_extensions) {
-                                    yield InputSource::FsPath(path);
-                                }
+                                // Ignore extensions here. Instead, always check
+                                // files captured by the glob pattern, as the
+                                // user explicitly specified them.
+                                yield InputSource::FsPath(path);
                             }
                             Err(e) => {
                                 eprintln!("Error in glob pattern: {e:?}");
