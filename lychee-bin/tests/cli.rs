@@ -2664,6 +2664,7 @@ mod cli {
             .assert()
             .failure()
             .stdout(contains("2 Total"))
+            // Note: The space is intentional to avoid matching tsx.
             .stderr(contains("https://example.com/glob_dir/ts "))
             // TSX files are ignored because we did not specify
             // that extension. So `https://example.com/tsx"` should be missing from the output.
@@ -2700,5 +2701,25 @@ mod cli {
             .stderr(contains("https://example.com/example_dir/ts ").not())
             // TSX files in examle_dir are ignored because we did not specify that extension.
             .stderr(contains("https://example.com/example_dir/tsx").not());
+    }
+
+    /// Individual files should always be checked, even if their
+    /// extension does not match the given extensions.
+    #[test]
+    fn test_file_inputs_always_get_checked_no_matter_their_extension() {
+        let ts_input_file = fixtures_path().join("glob_dir/example.ts");
+        let md_input_file = fixtures_path().join("glob_dir/example.md");
+
+        main_command()
+            .arg("--verbose")
+            .arg("--dump")
+            .arg("--extensions=html,md")
+            .arg(ts_input_file)
+            .arg(md_input_file)
+            .assert()
+            .success()
+            .stderr("") // Ensure stderr is empty
+            .stdout(contains("https://example.com/glob_dir/ts"))
+            .stdout(contains("https://example.com/glob_dir/md"));
     }
 }

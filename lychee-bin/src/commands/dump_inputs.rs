@@ -16,7 +16,7 @@ pub(crate) async fn dump_inputs(
     inputs: HashSet<Input>,
     output: Option<&PathBuf>,
     excluded_paths: &[String],
-    valid_extensions: &FileExtensions,
+    file_extensions: &FileExtensions,
     skip_hidden: bool,
     skip_gitignored: bool,
 ) -> Result<ExitCode> {
@@ -34,7 +34,7 @@ pub(crate) async fn dump_inputs(
 
     for input in inputs {
         let sources_stream = input.get_sources(
-            valid_extensions.clone(),
+            file_extensions.clone(),
             skip_hidden,
             skip_gitignored,
             &excluded_path_filter,

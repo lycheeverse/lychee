@@ -301,8 +301,12 @@ impl Input {
                             yield InputSource::FsPath(entry.path().to_path_buf());
                         }
                     } else {
-                        // For individual files, yield if not excluded and matches extensions
-                        if !Self::is_excluded_path(path, excluded_paths) && file_extensions_match(path, &file_extensions) {
+                        // For individual files, yield if not excluded.
+                        // We do not filter by extension here, as individual files
+                        // should always be checked, no matter if their extension matches or not.
+                        // This follows the principle of least surprise because the user
+                        // explicitly specified the file.
+                        if !Self::is_excluded_path(path, excluded_paths) {
                             yield InputSource::FsPath(path.clone());
                         }
                     }
@@ -547,21 +551,6 @@ impl TryFrom<&str> for Input {
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
         Self::from_value(value)
     }
-}
-
-/// Helper function to check if a file path matches any of the given extensions
-fn file_extensions_match(path: &Path, extensions: &FileExtensions) -> bool {
-    // If the path has no extension, check if we accept plaintext files
-    // NOTE: We treat files without extensions as plaintext, which might be problematic
-    // and is therefore subject to change
-    if path.extension().is_none() {
-        return extensions.contains("txt") || extensions.contains("");
-    }
-
-    // Otherwise, check if the extension is in our allowed list
-    path.extension()
-        .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| extensions.contains(ext.to_lowercase()))
 }
 
 #[cfg(test)]
