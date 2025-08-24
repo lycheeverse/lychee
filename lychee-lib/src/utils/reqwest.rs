@@ -1,5 +1,69 @@
 use std::error::Error;
 
+/// A rule for matching error message patterns to human-readable messages
+struct ErrorRule {
+    patterns: &'static [&'static str],
+    message: &'static str,
+}
+
+impl ErrorRule {
+    /// Create a new error rule
+    const fn new(patterns: &'static [&'static str], message: &'static str) -> Self {
+        Self { patterns, message }
+    }
+
+    /// Check if any of the patterns match the given text
+    fn matches(&self, text: &str) -> bool {
+        self.patterns.iter().any(|pattern| text.contains(pattern))
+    }
+
+    /// Get the message for this rule
+    const fn message(&self) -> &'static str {
+        self.message
+    }
+}
+
+/// A builder for creating and matching against multiple error rules
+struct ErrorRules {
+    rules: Vec<ErrorRule>,
+    fallback: Option<String>,
+}
+
+impl ErrorRules {
+    /// Create a new `ErrorRules` builder
+    const fn new() -> Self {
+        Self {
+            rules: Vec::new(),
+            fallback: None,
+        }
+    }
+
+    /// Add a rule to the matcher
+    fn rule(mut self, patterns: &'static [&'static str], message: &'static str) -> Self {
+        self.rules.push(ErrorRule::new(patterns, message));
+        self
+    }
+
+    /// Set a fallback message if no rules match
+    fn fallback(mut self, message: impl Into<String>) -> Self {
+        self.fallback = Some(message.into());
+        self
+    }
+
+    /// Match against the error message and return the appropriate response
+    fn match_error(&self, error_msg: &str) -> String {
+        for rule in &self.rules {
+            if rule.matches(error_msg) {
+                return rule.message().to_string();
+            }
+        }
+
+        self.fallback
+            .clone()
+            .unwrap_or_else(|| format!("Unhandled error: {error_msg}"))
+    }
+}
+
 /// Analyze the error chain of a reqwest error and return a concise, actionable message.
 ///
 /// This traverses the error chain to extract specific failure details and provides
@@ -135,51 +199,58 @@ fn analyze_io_error(io_error: &std::io::Error) -> String {
     }
 }
 
-/// Analyze I/O errors with kind "Other" - typically inner SSL/TLS and DNS errors
+/// Analyze I/O errors with kind "Other" using rule-based pattern matching
 fn analyze_io_other_error(io_error: &std::io::Error) -> String {
     if let Some(inner) = io_error.get_ref() {
         let inner_msg = inner.to_string();
 
-        // Certificate errors
+        // Special case: certificate errors need deeper analysis
         if inner_msg.contains("certificate") {
             return analyze_certificate_error(&inner_msg);
         }
 
-        // DNS errors
-        if inner_msg.contains("failed to lookup address")
-            || inner_msg.contains("nodename nor servname")
-        {
-            return "DNS resolution failed. Check hostname and DNS settings".to_string();
-        }
-        if inner_msg.contains("Temporary failure in name resolution") {
-            return "DNS temporarily unavailable. Try again later".to_string();
-        }
-
-        // TLS/SSL handshake errors
-        if inner_msg.contains("handshake") {
-            return "TLS handshake failed. Check SSL/TLS configuration".to_string();
-        }
-
-        // Return the inner error message if it's more specific
-        format!("Network error: {inner_msg}")
+        // Rule-based pattern matching for other inner error types
+        ErrorRules::new()
+            .rule(
+                &["failed to lookup address", "nodename nor servname"],
+                "DNS resolution failed. Check hostname and DNS settings",
+            )
+            .rule(
+                &["Temporary failure in name resolution"],
+                "DNS temporarily unavailable. Try again later",
+            )
+            .rule(
+                &["handshake"],
+                "TLS handshake failed. Check SSL/TLS configuration",
+            )
+            .fallback(format!("Network error: {inner_msg}"))
+            .match_error(&inner_msg)
     } else {
         "Connection failed. Check network connectivity and firewall settings".to_string()
     }
 }
 
-/// Analyze certificate-related errors
+/// Analyze certificate-related errors using pattern matching rules
 fn analyze_certificate_error(error_msg: &str) -> String {
-    if error_msg.contains("expired") || error_msg.contains("NotValidAtThisTime") {
-        "SSL certificate expired. Site needs to renew certificate".to_string()
-    } else if error_msg.contains("hostname") || error_msg.contains("NotValidForName") {
-        "SSL certificate hostname mismatch. Check URL spelling".to_string()
-    } else if error_msg.contains("self signed") || error_msg.contains("UnknownIssuer") {
-        "SSL certificate not trusted. Use --insecure if site is trusted".to_string()
-    } else if error_msg.contains("verify failed") {
-        "SSL certificate verification failed. Check certificate validity".to_string()
-    } else {
-        "SSL certificate error. Check certificate validity".to_string()
-    }
+    ErrorRules::new()
+        .rule(
+            &["expired", "NotValidAtThisTime"],
+            "SSL certificate expired. Site needs to renew certificate",
+        )
+        .rule(
+            &["hostname", "NotValidForName"],
+            "SSL certificate hostname mismatch. Check URL spelling",
+        )
+        .rule(
+            &["self signed", "UnknownIssuer"],
+            "SSL certificate not trusted. Use --insecure if site is trusted",
+        )
+        .rule(
+            &["verify failed"],
+            "SSL certificate verification failed. Check certificate validity",
+        )
+        .fallback("SSL certificate error. Check certificate validity")
+        .match_error(error_msg)
 }
 
 /// Analyze hyper-specific errors
@@ -209,23 +280,36 @@ fn analyze_hyper_error(hyper_error: &hyper::Error) -> String {
         return "Connection closed before response completed".to_string();
     }
 
-    // More detailed analysis of hyper error description
     let hyper_msg = hyper_error.to_string();
-    if hyper_msg.contains("connection error") {
-        "Connection failed. Check network connectivity and firewall settings".to_string()
-    } else if hyper_msg.contains("http2 error") {
-        "HTTP/2 protocol error. Server may not support HTTP/2 properly".to_string()
-    } else if hyper_msg.contains("channel closed") {
-        "HTTP connection channel closed unexpectedly".to_string()
-    } else if hyper_msg.contains("operation was canceled") {
-        "HTTP operation was canceled before completion".to_string()
-    } else if hyper_msg.contains("message head is too large") {
-        "HTTP headers too large. Server response headers exceed limits".to_string()
-    } else if hyper_msg.contains("invalid content-length") {
-        "Invalid Content-Length header from server".to_string()
-    } else {
-        format!("HTTP protocol error: {hyper_error}")
-    }
+
+    // Rule-based analysis of hyper error descriptions
+    ErrorRules::new()
+        .rule(
+            &["connection error"],
+            "Connection failed. Check network connectivity and firewall settings",
+        )
+        .rule(
+            &["http2 error"],
+            "HTTP/2 protocol error. Server may not support HTTP/2 properly",
+        )
+        .rule(
+            &["channel closed"],
+            "HTTP connection channel closed unexpectedly",
+        )
+        .rule(
+            &["operation was canceled"],
+            "HTTP operation was canceled before completion",
+        )
+        .rule(
+            &["message head is too large"],
+            "HTTP headers too large. Server response headers exceed limits",
+        )
+        .rule(
+            &["invalid content-length"],
+            "Invalid Content-Length header from server",
+        )
+        .fallback(format!("HTTP protocol error: {hyper_error}"))
+        .match_error(&hyper_msg)
 }
 
 /// Analyze URL parsing errors
@@ -243,58 +327,56 @@ fn analyze_url_parse_error(url_error: url::ParseError) -> String {
     }
 }
 
-/// Analyze generic error strings for common patterns
+/// Analyze generic error strings using a rule-based pattern matching system
 fn analyze_generic_error_string(error_msg: &str) -> Option<String> {
-    // Certificate-related errors
+    // Special case: certificate errors need deeper analysis
     if error_msg.contains("certificate") {
         return Some(analyze_certificate_error(error_msg));
     }
 
-    // TLS/SSL handshake errors
-    if error_msg.contains("handshake") || error_msg.contains("TLS") || error_msg.contains("SSL") {
-        return Some("TLS handshake failed. Check SSL/TLS configuration".to_string());
-    }
-
-    // DNS errors
-    if error_msg.contains("name resolution") || error_msg.contains("hostname") {
-        return Some("DNS resolution failed. Check hostname and DNS settings".to_string());
-    }
-
-    // Connection-specific errors
-    if error_msg.contains("Connection refused") || error_msg.contains("connection refused") {
-        return Some(
-            "Connection refused. Server is not accepting connections (check if service is running)"
-                .to_string(),
-        );
-    }
-
-    if error_msg.contains("Connection reset") || error_msg.contains("connection reset") {
-        return Some("Connection reset by server. Server forcibly closed connection".to_string());
-    }
-
-    if error_msg.contains("No route to host") || error_msg.contains("no route") {
-        return Some(
-            "No route to host. Check network routing or firewall configuration".to_string(),
-        );
-    }
-
-    if error_msg.contains("Network is unreachable") || error_msg.contains("network unreachable") {
-        return Some("Network unreachable. Check internet connection or VPN settings".to_string());
-    }
-
-    // Timeout-related errors
-    if error_msg.contains("timed out") || error_msg.contains("timeout") {
-        return Some(
-            "Request timed out. Try increasing timeout or check server status".to_string(),
-        );
-    }
-
-    // Protocol-specific errors
+    // Special case: protocol errors need compound condition check
     if error_msg.contains("protocol") && error_msg.contains("not supported") {
         return Some("Protocol not supported. Check URL scheme (http/https)".to_string());
     }
 
-    None
+    // Try to match using our rule-based system
+    let result = ErrorRules::new()
+        .rule(
+            &["handshake", "TLS", "SSL"],
+            "TLS handshake failed. Check SSL/TLS configuration",
+        )
+        .rule(
+            &["name resolution", "hostname"],
+            "DNS resolution failed. Check hostname and DNS settings",
+        )
+        .rule(
+            &["Connection refused", "connection refused"],
+            "Connection refused. Server is not accepting connections (check if service is running)",
+        )
+        .rule(
+            &["Connection reset", "connection reset"],
+            "Connection reset by server. Server forcibly closed connection",
+        )
+        .rule(
+            &["No route to host", "no route"],
+            "No route to host. Check network routing or firewall configuration",
+        )
+        .rule(
+            &["Network is unreachable", "network unreachable"],
+            "Network unreachable. Check internet connection or VPN settings",
+        )
+        .rule(
+            &["timed out", "timeout"],
+            "Request timed out. Try increasing timeout or check server status",
+        )
+        .match_error(error_msg);
+
+    // Only return Some if we actually matched a rule (not the fallback)
+    if result.starts_with("Unhandled error:") {
+        None
+    } else {
+        Some(result)
+    }
 }
 
 /// Fallback analysis using basic reqwest error categorization
