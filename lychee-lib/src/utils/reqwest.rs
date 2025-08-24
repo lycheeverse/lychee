@@ -31,7 +31,7 @@ struct ErrorRules {
 
 impl ErrorRules {
     /// Create a new `ErrorRules` builder
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             rules: Vec::new(),
             fallback: None,
