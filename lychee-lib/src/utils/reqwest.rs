@@ -234,7 +234,12 @@ fn analyze_io_other_error(io_error: &std::io::Error) -> String {
 fn analyze_certificate_error(error_msg: &str) -> String {
     ErrorRules::new()
         .rule(
-            &["expired", "NotValidAtThisTime", "certificate has expired", "certificate is not valid on"],
+            &[
+                "expired",
+                "NotValidAtThisTime",
+                "certificate has expired",
+                "certificate is not valid on",
+            ],
             "SSL certificate expired. Site needs to renew certificate",
         )
         .rule(
