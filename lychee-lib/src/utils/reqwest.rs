@@ -31,7 +31,7 @@ struct ErrorRules {
 
 impl ErrorRules {
     /// Create a new `ErrorRules` builder
-    const fn new() -> Self {
+    fn new() -> Self {
         Self {
             rules: Vec::new(),
             fallback: None,
@@ -234,7 +234,7 @@ fn analyze_io_other_error(io_error: &std::io::Error) -> String {
 fn analyze_certificate_error(error_msg: &str) -> String {
     ErrorRules::new()
         .rule(
-            &["expired", "NotValidAtThisTime"],
+            &["expired", "NotValidAtThisTime", "certificate has expired", "certificate is not valid on"],
             "SSL certificate expired. Site needs to renew certificate",
         )
         .rule(
@@ -242,7 +242,7 @@ fn analyze_certificate_error(error_msg: &str) -> String {
             "SSL certificate hostname mismatch. Check URL spelling",
         )
         .rule(
-            &["self signed", "UnknownIssuer"],
+            &["self signed", "UnknownIssuer", "not trusted"],
             "SSL certificate not trusted. Use --insecure if site is trusted",
         )
         .rule(

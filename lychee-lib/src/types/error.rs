@@ -209,9 +209,9 @@ impl ErrorKind {
                             Some(e.to_string())
                         }
                     }
-            ErrorKind::InvalidFilePath(uri) => Some(format!(
-                "File not found at path: '{uri}'. Check if file exists and path is correct"
-            )),
+            ErrorKind::InvalidFilePath(_uri) => Some(
+                "File not found. Check if file exists and path is correct".to_string()
+            ),
             ErrorKind::ReadFileInput(e, path) => match e.kind() {
                         std::io::ErrorKind::NotFound => Some(
                             "Check if file path is correct".to_string()
@@ -265,9 +265,9 @@ impl ErrorKind {
             ErrorKind::InvalidGithubUrl(url) => Some(format!(
                 "Invalid GitHub URL format: '{url}'. Check URL syntax",
             )),
-            ErrorKind::InvalidFragment(uri) => Some(format!(
-                "Fragment not found in document: '{uri}'. Check if fragment exists or page structure"
-            )),
+            ErrorKind::InvalidFragment(_uri) => Some(
+                "Fragment not found in document. Check if fragment exists or page structure".to_string()
+            ),
             ErrorKind::InvalidUrlFromPath(path_buf) => Some(format!(
                 "Cannot convert path to URL: '{}'. Check path format",
                 path_buf.display()
@@ -337,10 +337,9 @@ impl ErrorKind {
             ErrorKind::StatusCodeSelectorError(status_code_selector_error) => Some(format!(
                 "Status code selector error: {status_code_selector_error}. Check accept configuration",
             )),
-            ErrorKind::InvalidIndexFile(path) => Some(format!(
-                "Index file not found in directory: '{}'. Check if index.html or other index files exist",
-                path.display()
-            )),
+            ErrorKind::InvalidIndexFile(_path) => Some(
+                "Index file not found in directory. Check if index.html or other index files exist".to_string()
+            ),
         }
     }
 
