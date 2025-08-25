@@ -9,6 +9,7 @@ pub(crate) struct LycheeProgressBar {
 impl LycheeProgressBar {
     const TEMPLATE: &str = "{spinner:.162} {pos}/{len:.238} {bar:.162/238} {wide_msg}";
     const DEFAULT_INCREMENT: u64 = 1;
+    const TICK_INTERVAL: Duration = Duration::from_millis(500);
 
     pub(crate) fn new(initial_message: &'static str) -> Self {
         let bar = ProgressBar::new_spinner().with_style(
@@ -18,8 +19,7 @@ impl LycheeProgressBar {
         );
         bar.set_length(0);
         bar.set_message(initial_message);
-        // report status _at least_ every 500ms
-        bar.enable_steady_tick(Duration::from_millis(500));
+        bar.enable_steady_tick(Self::TICK_INTERVAL);
         LycheeProgressBar { bar }
     }
 
