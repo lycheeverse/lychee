@@ -173,6 +173,12 @@ pub enum ErrorKind {
     /// Status code selector parse error
     #[error("Status code range error")]
     StatusCodeSelectorError(#[from] StatusCodeSelectorError),
+
+    /// Test-only error variant for formatter tests
+    /// Available in both test and debug builds to support cross-crate testing
+    #[cfg(any(test, debug_assertions))]
+    #[error("Generic test error")]
+    TestError,
 }
 
 impl ErrorKind {
@@ -182,33 +188,158 @@ impl ErrorKind {
     /// request type. The output is purely meant for humans (e.g. for status
     /// messages) and future changes are expected.
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn details(&self) -> Option<String> {
         match self {
             ErrorKind::NetworkRequest(e) => {
-                // Get the relevant details from the specific reqwest error
-                let details = utils::reqwest::trim_error_output(e);
-
-                // Provide support for common error types
-                if e.is_connect() {
-                    Some(format!("{details} Maybe a certificate error?"))
-                } else {
-                    Some(details)
-                }
-            }
+                        // Get detailed, actionable error analysis
+                        Some(utils::reqwest::analyze_error_chain(e))
+                    }
             ErrorKind::RejectedStatusCode(status) => Some(
-                status
-                    .canonical_reason()
-                    .unwrap_or("Unknown status code")
-                    .to_string(),
-            ),
+                        status
+                            .canonical_reason()
+                            .unwrap_or("Unknown status code")
+                            .to_string(),
+                    ),
             ErrorKind::GithubRequest(e) => {
-                if let octocrab::Error::GitHub { source, .. } = &**e {
-                    Some(source.message.clone())
-                } else {
-                    None
-                }
-            }
-            _ => self.source().map(ToString::to_string),
+                        if let octocrab::Error::GitHub { source, .. } = &**e {
+                            Some(source.message.clone())
+                        } else {
+                            // Fall back to generic error analysis
+                            Some(e.to_string())
+                        }
+                    }
+            ErrorKind::InvalidFilePath(_uri) => Some(
+                "File not found. Check if file exists and path is correct".to_string()
+            ),
+            ErrorKind::ReadFileInput(e, path) => match e.kind() {
+                        std::io::ErrorKind::NotFound => Some(
+                            "Check if file path is correct".to_string()
+                        ),
+                        std::io::ErrorKind::PermissionDenied => Some(format!(
+                            "Permission denied: '{}'. Check file permissions",
+                            path.display()
+                        )),
+                        std::io::ErrorKind::IsADirectory => Some(format!(
+                            "Path is a directory, not a file: '{}'. Check file path",
+                            path.display()
+                        )),
+                        _ => Some(format!("File read error for '{}': {}", path.display(), e)),
+                    },
+            ErrorKind::ReadStdinInput(e) => match e.kind() {
+                        std::io::ErrorKind::UnexpectedEof => {
+                            Some("Stdin input ended unexpectedly. Check input data".to_string())
+                        }
+                        std::io::ErrorKind::InvalidData => {
+                            Some("Invalid data from stdin. Check input format".to_string())
+                        }
+                        _ => Some(format!("Stdin read error: {e}")),
+                    },
+            ErrorKind::ParseUrl(_, url) => {
+                        Some(format!("Invalid URL format: '{url}'. Check URL syntax"))
+                    }
+            ErrorKind::EmptyUrl => {
+                        Some("Empty URL found. Check for missing links or malformed markdown".to_string())
+                    }
+            #[cfg(any(test, debug_assertions))]
+            ErrorKind::TestError => Some("Test error for formatter testing".to_string()),
+            ErrorKind::InvalidFile(path) => Some(format!(
+                        "Invalid file path: '{}'. Check if file exists and is readable",
+                        path.display()
+                    )),
+            ErrorKind::ReadResponseBody(error) => Some(format!(
+                "Failed to read response body: {error}. Server may have sent invalid data",
+            )),
+            ErrorKind::BuildRequestClient(error) => Some(format!(
+                "Failed to create HTTP client: {error}. Check system configuration",
+            )),
+            ErrorKind::RuntimeJoin(join_error) => Some(format!(
+                "Task execution failed: {join_error}. Internal processing error"
+            )),
+            ErrorKind::Utf8(_utf8_error) => Some(
+                "Invalid UTF-8 sequence found. File contains non-UTF-8 characters".to_string()
+            ),
+            ErrorKind::BuildGithubClient(error) => Some(format!(
+                "Failed to create GitHub client: {error}. Check token and network connectivity",
+            )),
+            ErrorKind::InvalidGithubUrl(url) => Some(format!(
+                "Invalid GitHub URL format: '{url}'. Check URL syntax",
+            )),
+            ErrorKind::InvalidFragment(_uri) => Some(
+                "Fragment not found in document. Check if fragment exists or page structure".to_string()
+            ),
+            ErrorKind::InvalidUrlFromPath(path_buf) => Some(format!(
+                "Cannot convert path to URL: '{}'. Check path format",
+                path_buf.display()
+            )),
+            ErrorKind::UnreachableEmailAddress(uri, reason) => Some(format!(
+                "Email address unreachable: '{uri}'. {reason}",
+            )),
+            ErrorKind::InvalidHeader(invalid_header_value) => Some(format!(
+                "Invalid HTTP header: {invalid_header_value}. Check header format",
+            )),
+            ErrorKind::InvalidBase(base, reason) => Some(format!(
+                "Invalid base URL or directory: '{base}'. {reason}",
+            )),
+            ErrorKind::InvalidBaseJoin(text) => Some(format!(
+                "Cannot join '{text}' with base URL. Check relative path format",
+            )),
+            ErrorKind::InvalidPathToUri(path) => Some(format!(
+                "Cannot convert path to URI: '{path}'. Check path format",
+            )),
+            ErrorKind::RootDirMustBeAbsolute(path_buf) => Some(format!(
+                "Root directory must be absolute: '{}'. Use full path",
+                path_buf.display()
+            )),
+            ErrorKind::UnsupportedUriType(uri_type) => Some(format!(
+                "Unsupported URI type: '{uri_type}'. Only http, https, file, and mailto are supported",
+            )),
+            ErrorKind::InvalidUrlRemap(remap) => Some(format!(
+                "Invalid URL remapping: '{remap}'. Check remapping syntax",
+            )),
+            ErrorKind::DirTraversal(error) => Some(format!(
+                "Directory traversal failed: {error}. Check directory permissions",
+            )),
+            ErrorKind::InvalidGlobPattern(pattern_error) => Some(format!(
+                "Invalid glob pattern: {pattern_error}. Check pattern syntax",
+            )),
+            ErrorKind::MissingGitHubToken => Some(
+                "GitHub token required. Use --github-token flag or GITHUB_TOKEN environment variable".to_string()
+            ),
+            ErrorKind::InsecureURL(uri) => Some(format!(
+                "Insecure HTTP URL detected: use '{}' instead of HTTP",
+                uri.as_str().replace("http://", "https://")
+            )),
+            ErrorKind::Channel(_send_error) => Some(
+                "Internal communication error. Processing thread failed".to_string()
+            ),
+            ErrorKind::InvalidUrlHost => Some(
+                "URL missing hostname. Check URL format".to_string()
+            ),
+            ErrorKind::InvalidURI(uri) => Some(format!(
+                "Invalid URI format: '{uri}'. Check URI syntax",
+            )),
+            ErrorKind::InvalidStatusCode(code) => Some(format!(
+                "Invalid HTTP status code: {code}. Must be between 100-999",
+            )),
+            ErrorKind::Regex(error) => Some(format!(
+                "Regular expression error: {error}. Check regex syntax",
+            )),
+            ErrorKind::TooManyRedirects(_error) => Some(
+                "Too many redirects. Check for redirect loops or increase redirect limit".to_string()
+            ),
+            ErrorKind::BasicAuthExtractorError(basic_auth_extractor_error) => Some(format!(
+                "Basic authentication error: {basic_auth_extractor_error}. Check credentials format",
+            )),
+            ErrorKind::Cookies(reason) => Some(format!(
+                "Cookie handling error: {reason}. Check cookie file format",
+            )),
+            ErrorKind::StatusCodeSelectorError(status_code_selector_error) => Some(format!(
+                "Status code selector error: {status_code_selector_error}. Check accept configuration",
+            )),
+            ErrorKind::InvalidIndexFile(_path) => Some(
+                "Index file not found in directory. Check if index.html or other index files exist".to_string()
+            ),
         }
     }
 
@@ -286,6 +417,8 @@ impl PartialEq for ErrorKind {
             (Self::InvalidBase(b1, e1), Self::InvalidBase(b2, e2)) => b1 == b2 && e1 == e2,
             (Self::InvalidUrlRemap(r1), Self::InvalidUrlRemap(r2)) => r1 == r2,
             (Self::EmptyUrl, Self::EmptyUrl) => true,
+            #[cfg(any(test, debug_assertions))]
+            (Self::TestError, Self::TestError) => true,
 
             _ => false,
         }
@@ -334,6 +467,10 @@ impl Hash for ErrorKind {
             Self::RejectedStatusCode(c) => c.hash(state),
             Self::Channel(e) => e.to_string().hash(state),
             Self::MissingGitHubToken | Self::InvalidUrlHost => {
+                std::mem::discriminant(self).hash(state);
+            }
+            #[cfg(any(test, debug_assertions))]
+            Self::TestError => {
                 std::mem::discriminant(self).hash(state);
             }
             Self::Regex(e) => e.to_string().hash(state),

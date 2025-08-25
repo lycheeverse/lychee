@@ -105,7 +105,7 @@ mod tests {
     fn test_format_response_with_error_status() {
         let formatter = ColorFormatter;
         let body = mock_response_body(
-            Status::Error(ErrorKind::InvalidUrlHost),
+            Status::Error(ErrorKind::TestError),
             "https://example.com/404",
         );
         let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
@@ -126,14 +126,14 @@ mod tests {
     fn test_detailed_response_output() {
         let formatter = ColorFormatter;
         let body = mock_response_body(
-            Status::Error(ErrorKind::InvalidUrlHost),
+            Status::Error(ErrorKind::TestError),
             "https://example.com/404",
         );
 
         let response = strip_ansi_codes(&formatter.format_detailed_response(&body));
         assert_eq!(
             response,
-            "   [ERROR] https://example.com/404 | URL is missing a host"
+            "   [ERROR] https://example.com/404 | Generic test error: Test error for formatter testing"
         );
     }
 }
