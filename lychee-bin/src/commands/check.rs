@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures::StreamExt;
-use indicatif::ProgressBar;
 use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -17,7 +16,7 @@ use lychee_lib::{ResponseBody, Status};
 use crate::formatters::get_response_formatter;
 use crate::formatters::response::ResponseFormatter;
 use crate::formatters::suggestion::Suggestion;
-use crate::lychee_progress_bar;
+use crate::lychee_progress_bar::LycheeProgressBar;
 use crate::options::OutputMode;
 use crate::parse::parse_duration_secs;
 use crate::verbosity::Verbosity;
@@ -54,7 +53,7 @@ where
     let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {
         None
     } else {
-        Some(lychee_progress_bar::init_progress_bar("Extracting links"))
+        Some(LycheeProgressBar::init_progress_bar("Extracting links"))
     };
 
     // Start receiving requests
@@ -101,7 +100,7 @@ where
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
     if let Some(pb) = &pb {
-        lychee_progress_bar::finish_progress_bar(pb, "Finished extracting links");
+        pb.finish_progress_bar("Finished extracting links");
     }
 
     if params.cfg.suggest {
@@ -132,7 +131,7 @@ async fn suggest_archived_links(
 ) {
     let failed_urls = &get_failed_urls(stats);
     let bar = if show_progress {
-        let bar = lychee_progress_bar::init_progress_bar("Searching for alternatives");
+        let bar = LycheeProgressBar::init_progress_bar("Searching for alternatives");
         bar.set_length(failed_urls.len() as u64);
         Some(bar)
     } else {
@@ -157,13 +156,13 @@ async fn suggest_archived_links(
             }
 
             if let Some(bar) = &bar {
-                bar.inc(1);
+                bar.inc();
             }
         })
         .await;
 
     if let Some(bar) = &bar {
-        bar.finish_with_message("Finished searching for alternatives");
+        bar.finish_progress_bar("Finished searching for alternatives");
     }
 }
 
@@ -173,7 +172,7 @@ async fn suggest_archived_links(
 async fn send_inputs_loop<S>(
     requests: S,
     send_req: mpsc::Sender<Result<Request>>,
-    bar: Option<ProgressBar>,
+    bar: Option<LycheeProgressBar>,
 ) -> Result<()>
 where
     S: futures::Stream<Item = Result<Request>>,
@@ -182,7 +181,7 @@ where
     while let Some(request) = requests.next().await {
         let request = request?;
         if let Some(pb) = &bar {
-            lychee_progress_bar::increase_progress_bar_length(pb, request.to_string());
+            pb.increase_progress_bar_length(request.to_string());
         }
         send_req
             .send(Ok(request))
@@ -196,10 +195,10 @@ where
 async fn progress_bar_task(
     mut recv_resp: mpsc::Receiver<Response>,
     verbose: Verbosity,
-    pb: Option<ProgressBar>,
+    pb: Option<LycheeProgressBar>,
     formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
-) -> Result<(Option<ProgressBar>, ResponseStats)> {
+) -> Result<(Option<LycheeProgressBar>, ResponseStats)> {
     while let Some(response) = recv_resp.recv().await {
         show_progress(
             &mut io::stderr(),
@@ -329,7 +328,7 @@ fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<u16>)
 
 fn show_progress(
     output: &mut dyn Write,
-    progress_bar: Option<&ProgressBar>,
+    progress_bar: Option<&LycheeProgressBar>,
     response: &Response,
     formatter: &dyn ResponseFormatter,
     verbose: &Verbosity,
@@ -345,7 +344,7 @@ fn show_progress(
     };
 
     if let Some(pb) = progress_bar {
-        lychee_progress_bar::update_progress_bar(pb, out, &verbose);
+        pb.update_progress_bar(out, &verbose);
     } else if verbose.log_level() >= log::Level::Info
         || (!response.status().is_success() && !response.status().is_excluded())
     {
