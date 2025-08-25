@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.2](https://github.com/lycheeverse/lychee/compare/lychee-v0.20.1...lychee-v0.20.2) - 2025-08-25
+
+### Other
+
+- Refactor error reporting ([#1731](https://github.com/lycheeverse/lychee/pull/1731))
+
 ## [0.20.1](https://github.com/lycheeverse/lychee/compare/lychee-v0.20.0...lychee-v0.20.1) - 2025-08-25
 
 ### Other
