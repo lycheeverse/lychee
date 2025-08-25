@@ -24,7 +24,7 @@ impl LycheeProgressBar {
         LycheeProgressBar { bar }
     }
 
-    pub(crate) fn update_progress_bar(&self, out: String, verbose: &Verbosity) {
+    pub(crate) fn update(&self, out: String, verbose: &Verbosity) {
         self.inc();
         self.bar.set_message(out.clone());
         if verbose.log_level() >= log::Level::Info {
