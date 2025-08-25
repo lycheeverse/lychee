@@ -181,7 +181,7 @@ where
     while let Some(request) = requests.next().await {
         let request = request?;
         if let Some(pb) = &bar {
-            pb.increase_progress_bar_length(request.to_string());
+            pb.increase_length(request.to_string());
         }
         send_req
             .send(Ok(request))

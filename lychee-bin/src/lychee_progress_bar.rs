@@ -40,7 +40,7 @@ impl LycheeProgressBar {
         self.bar.set_length(n);
     }
 
-    pub(crate) fn increase_progress_bar_length(&self, out: String) {
+    pub(crate) fn increase_length(&self, out: String) {
         self.bar.inc_length(1);
         self.bar.set_message(out.clone());
     }
