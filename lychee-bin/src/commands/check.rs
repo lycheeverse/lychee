@@ -101,7 +101,7 @@ where
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
     if let Some(pb) = &pb {
-        pb.finish_with_message("Finished extracting links");
+        finish_progress_bar(pb, "Finished extracting links");
     }
 
     if params.cfg.suggest {
@@ -121,6 +121,10 @@ where
         ExitCode::LinkCheckFailure
     };
     Ok((stats, cache_ref, code))
+}
+
+fn finish_progress_bar(pb: &ProgressBar, message: &'static str) {
+    pb.finish_with_message(message);
 }
 
 async fn suggest_archived_links(
