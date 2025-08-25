@@ -359,17 +359,21 @@ fn show_progress(
     };
 
     if let Some(pb) = progress_bar {
-        pb.inc(1);
-        pb.set_message(out.clone());
-        if verbose.log_level() >= log::Level::Info {
-            pb.println(out);
-        }
+        update_progress_bar(pb, out, &verbose);
     } else if verbose.log_level() >= log::Level::Info
         || (!response.status().is_success() && !response.status().is_excluded())
     {
         writeln!(output, "{out}")?;
     }
     Ok(())
+}
+
+fn update_progress_bar(pb: &ProgressBar, out: String, verbose: &Verbosity) {
+    pb.inc(1);
+    pb.set_message(out.clone());
+    if verbose.log_level() >= log::Level::Info {
+        pb.println(out);
+    }
 }
 
 fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
