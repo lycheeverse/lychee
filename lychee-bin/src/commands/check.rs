@@ -5,7 +5,6 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use indicatif::ProgressBar;
-use indicatif::ProgressStyle;
 use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -18,6 +17,7 @@ use lychee_lib::{ResponseBody, Status};
 use crate::formatters::get_response_formatter;
 use crate::formatters::response::ResponseFormatter;
 use crate::formatters::suggestion::Suggestion;
+use crate::lychee_progress_bar;
 use crate::options::OutputMode;
 use crate::parse::parse_duration_secs;
 use crate::verbosity::Verbosity;
@@ -54,7 +54,7 @@ where
     let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {
         None
     } else {
-        Some(init_progress_bar("Extracting links"))
+        Some(lychee_progress_bar::init_progress_bar("Extracting links"))
     };
 
     // Start receiving requests
@@ -101,7 +101,7 @@ where
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
     if let Some(pb) = &pb {
-        finish_progress_bar(pb, "Finished extracting links");
+        lychee_progress_bar::finish_progress_bar(pb, "Finished extracting links");
     }
 
     if params.cfg.suggest {
@@ -123,10 +123,6 @@ where
     Ok((stats, cache_ref, code))
 }
 
-fn finish_progress_bar(pb: &ProgressBar, message: &'static str) {
-    pb.finish_with_message(message);
-}
-
 async fn suggest_archived_links(
     archive: Archive,
     stats: &mut ResponseStats,
@@ -136,7 +132,7 @@ async fn suggest_archived_links(
 ) {
     let failed_urls = &get_failed_urls(stats);
     let bar = if show_progress {
-        let bar = init_progress_bar("Searching for alternatives");
+        let bar = lychee_progress_bar::init_progress_bar("Searching for alternatives");
         bar.set_length(failed_urls.len() as u64);
         Some(bar)
     } else {
@@ -186,7 +182,7 @@ where
     while let Some(request) = requests.next().await {
         let request = request?;
         if let Some(pb) = &bar {
-            increase_progress_bar_length(pb, request.to_string());
+            lychee_progress_bar::increase_progress_bar_length(pb, request.to_string());
         }
         send_req
             .send(Ok(request))
@@ -194,11 +190,6 @@ where
             .expect("Cannot send request");
     }
     Ok(())
-}
-
-fn increase_progress_bar_length(pb: &ProgressBar, out: String) {
-    pb.inc_length(1);
-    pb.set_message(out.clone());
 }
 
 /// Reads from the request channel and updates the progress bar status
@@ -220,19 +211,6 @@ async fn progress_bar_task(
         stats.add(response);
     }
     Ok((pb, stats))
-}
-
-fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
-    let bar = ProgressBar::new_spinner().with_style(
-        ProgressStyle::with_template("{spinner:.162} {pos}/{len:.238} {bar:.162/238} {wide_msg}")
-            .expect("Valid progress bar")
-            .progress_chars("━ ━"),
-    );
-    bar.set_length(0);
-    bar.set_message(initial_message);
-    // report status _at least_ every 500ms
-    bar.enable_steady_tick(Duration::from_millis(500));
-    bar
 }
 
 async fn request_channel_task(
@@ -367,21 +345,13 @@ fn show_progress(
     };
 
     if let Some(pb) = progress_bar {
-        update_progress_bar(pb, out, &verbose);
+        lychee_progress_bar::update_progress_bar(pb, out, &verbose);
     } else if verbose.log_level() >= log::Level::Info
         || (!response.status().is_success() && !response.status().is_excluded())
     {
         writeln!(output, "{out}")?;
     }
     Ok(())
-}
-
-fn update_progress_bar(pb: &ProgressBar, out: String, verbose: &Verbosity) {
-    pb.inc(1);
-    pb.set_message(out.clone());
-    if verbose.log_level() >= log::Level::Info {
-        pb.println(out);
-    }
 }
 
 fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {

@@ -85,6 +85,7 @@ mod cache;
 mod client;
 mod commands;
 mod formatters;
+mod lychee_progress_bar;
 mod options;
 mod parse;
 mod stats;
