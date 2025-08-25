@@ -59,7 +59,6 @@ impl ErrorRules {
         }
 
         self.fallback
-            .clone()
             .unwrap_or_else(|| format!("Unhandled error: {error_msg}"))
     }
 }
