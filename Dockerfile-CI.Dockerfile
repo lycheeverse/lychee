@@ -15,7 +15,7 @@ RUN apt-get update \
         *) echo "Unsupported architecture" && exit 1;; \
         esac) \
     && BASE_URL=$(case $LYCHEE_VERSION in \
-        "latest" | "nightly") echo "https://github.com/lycheeverse/lychee/releases/latest/download";; \
+        "latest") echo "https://github.com/lycheeverse/lychee/releases/latest/download";; \
         *) echo "https://github.com/lycheeverse/lychee/releases/download/$LYCHEE_VERSION";; \
         esac) \
     && wget -q -O - "$BASE_URL/lychee-$ARCH-unknown-linux-gnu.tar.gz" | tar -xz lychee \
