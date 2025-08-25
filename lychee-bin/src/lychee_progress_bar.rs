@@ -8,6 +8,7 @@ pub(crate) struct LycheeProgressBar {
 
 impl LycheeProgressBar {
     const TEMPLATE: &str = "{spinner:.162} {pos}/{len:.238} {bar:.162/238} {wide_msg}";
+    const DEFAULT_INCREMENT: u64 = 1;
 
     pub(crate) fn new(initial_message: &'static str) -> Self {
         let bar = ProgressBar::new_spinner().with_style(
@@ -31,7 +32,7 @@ impl LycheeProgressBar {
     }
 
     pub(crate) fn inc(&self) {
-        self.bar.inc(1);
+        self.bar.inc(Self::DEFAULT_INCREMENT);
     }
 
     pub(crate) fn set_length(&self, n: u64) {
@@ -39,7 +40,7 @@ impl LycheeProgressBar {
     }
 
     pub(crate) fn increase_length(&self, out: String) {
-        self.bar.inc_length(1);
+        self.bar.inc_length(Self::DEFAULT_INCREMENT);
         self.bar.set_message(out.clone());
     }
 
