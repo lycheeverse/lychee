@@ -9,7 +9,7 @@ pub(crate) struct LycheeProgressBar {
 }
 
 impl LycheeProgressBar {
-    pub(crate) fn init_progress_bar(initial_message: &'static str) -> LycheeProgressBar {
+    pub(crate) fn new(initial_message: &'static str) -> Self {
         let bar = ProgressBar::new_spinner().with_style(
             ProgressStyle::with_template(
                 "{spinner:.162} {pos}/{len:.238} {bar:.162/238} {wide_msg}",

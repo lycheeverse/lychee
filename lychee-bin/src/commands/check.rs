@@ -53,7 +53,7 @@ where
     let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {
         None
     } else {
-        Some(LycheeProgressBar::init_progress_bar("Extracting links"))
+        Some(LycheeProgressBar::new("Extracting links"))
     };
 
     // Start receiving requests
@@ -131,7 +131,7 @@ async fn suggest_archived_links(
 ) {
     let failed_urls = &get_failed_urls(stats);
     let bar = if show_progress {
-        let bar = LycheeProgressBar::init_progress_bar("Searching for alternatives");
+        let bar = LycheeProgressBar::new("Searching for alternatives");
         bar.set_length(failed_urls.len() as u64);
         Some(bar)
     } else {
