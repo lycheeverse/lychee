@@ -1,8 +1,6 @@
 use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Duration;
 
-use crate::verbosity::Verbosity;
-
 #[derive(Clone)]
 pub(crate) struct LycheeProgressBar {
     bar: ProgressBar,
@@ -24,10 +22,10 @@ impl LycheeProgressBar {
         LycheeProgressBar { bar }
     }
 
-    pub(crate) fn update(&self, out: String, verbose: &Verbosity) {
+    pub(crate) fn update(&self, out: String, print: bool) {
         self.inc();
         self.bar.set_message(out.clone());
-        if verbose.log_level() >= log::Level::Info {
+        if print {
             self.bar.println(out);
         }
     }
