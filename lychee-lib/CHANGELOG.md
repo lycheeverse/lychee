@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.20.0...lychee-lib-v0.20.1) - 2025-08-25
+
+### Other
+
+- Always check files explicitly if specified by user or matched by user glob ([#1816](https://github.com/lycheeverse/lychee/pull/1816))
+- *(docs)* update TOC
+- Bump the dependencies group across 1 directory with 3 updates ([#1812](https://github.com/lycheeverse/lychee/pull/1812))
+- Update changelog
+
 ## [0.20.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.19.1...lychee-lib-v0.20.0) - 2025-08-21
 
 ### Added
