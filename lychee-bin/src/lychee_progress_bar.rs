@@ -45,7 +45,7 @@ impl LycheeProgressBar {
         self.bar.set_message(out.clone());
     }
 
-    pub(crate) fn finish_progress_bar(&self, message: &'static str) {
+    pub(crate) fn finish(&self, message: &'static str) {
         self.bar.finish_with_message(message);
     }
 }

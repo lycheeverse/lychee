@@ -100,7 +100,7 @@ where
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
     if let Some(pb) = &pb {
-        pb.finish_progress_bar("Finished extracting links");
+        pb.finish("Finished extracting links");
     }
 
     if params.cfg.suggest {
@@ -162,7 +162,7 @@ async fn suggest_archived_links(
         .await;
 
     if let Some(bar) = &bar {
-        bar.finish_progress_bar("Finished searching for alternatives");
+        bar.finish("Finished searching for alternatives");
     }
 }
 
