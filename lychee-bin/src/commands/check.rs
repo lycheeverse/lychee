@@ -182,8 +182,7 @@ where
     while let Some(request) = requests.next().await {
         let request = request?;
         if let Some(pb) = &bar {
-            pb.inc_length(1);
-            pb.set_message(request.to_string());
+            increase_progress_bar_length(pb, request.to_string());
         }
         send_req
             .send(Ok(request))
@@ -191,6 +190,11 @@ where
             .expect("Cannot send request");
     }
     Ok(())
+}
+
+fn increase_progress_bar_length(pb: &ProgressBar, out: String) {
+    pb.inc_length(1);
+    pb.set_message(out.clone());
 }
 
 /// Reads from the request channel and updates the progress bar status
