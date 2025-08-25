@@ -51,7 +51,7 @@ impl ErrorRules {
     }
 
     /// Match against the error message and return the appropriate response
-    fn match_error(&self, error_msg: &str) -> String {
+    fn match_error(self, error_msg: &str) -> String {
         for rule in &self.rules {
             if rule.matches(error_msg) {
                 return rule.message().to_string();
