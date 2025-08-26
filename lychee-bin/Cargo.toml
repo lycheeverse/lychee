@@ -36,7 +36,7 @@ indicatif = "0.18.0"
 log = "0.4.27"
 openssl-sys = { version = "0.9.109", optional = true }
 pad = "0.1.6"
-regex = "1.11.1"
+regex = "1.11.2"
 reqwest = { version = "0.12.18", default-features = false, features = [
     "gzip",
     "json",
@@ -57,7 +57,7 @@ tabled = "0.20.0"
 tokio = { version = "1.47.1", features = ["full"] }
 tokio-stream = "0.1.17"
 toml = "0.9.5"
-url = "2.5.4"
+url = "2.5.7"
 
 
 [dev-dependencies]
@@ -72,7 +72,7 @@ tracing-subscriber = { version = "0.3.19", default-features = false, features = 
     "env-filter",
 ] }
 uuid = { version = "1.18.0", features = ["v4"] }
-wiremock = "0.6.4"
+wiremock = "0.6.5"
 
 [features]
 
