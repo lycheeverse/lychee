@@ -125,6 +125,12 @@ apk add lychee
 choco install lychee
 ```
 
+### Conda
+
+```sh
+conda install lychee -c conda-forge
+```
+
 ### Pre-built binaries
 
 We provide binaries for Linux, macOS, and Windows for every release. \
