@@ -60,6 +60,7 @@ tokio = { version = "1.48.0", features = ["full"] }
 toml = "0.9.8"
 typed-builder = "0.23.0"
 url = { version = "2.5.7", features = ["serde"] }
+walkdir = "2.5.0"
 
 [dependencies.par-stream]
 version = "0.10.2"
