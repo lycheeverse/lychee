@@ -141,6 +141,21 @@ impl FileChecker {
             Ok(_) => Ok(Cow::Borrowed(path)),
         };
 
+        // if initial resolution results in a directory, also attempts to apply
+        // fallback extensions. probably, this always makes sense because
+        // directories are treated as having no fragments, so a real file with
+        // a fallback extension (if it exists) will potentially contain more
+        // fragments and thus be "more useful".
+        //
+        // (currently, this case is only reachable if `.` is in the index_files list.)
+        let path = match path {
+            Ok(dir_path) if dir_path.is_dir() => self
+                .apply_fallback_extensions(&dir_path, uri)
+                .map(Cow::Owned)
+                .or(Ok(dir_path)),
+            Ok(_) | Err(_) => path,
+        };
+
         match path {
             Ok(ref path) => self.check_file(path, uri).await,
             Err(err) => err.into(),
@@ -351,7 +366,7 @@ mod tests {
             Status::Ok(_)
         );
 
-        // because no fallback extensions
+        // because no fallback extensions are configured
         assert_filecheck!(
             &checker,
             "filechecker/same_name#a",
