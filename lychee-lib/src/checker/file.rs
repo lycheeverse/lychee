@@ -360,11 +360,7 @@ mod tests {
             Status::Error(InvalidFragment(_))
         );
 
-        assert_filecheck!(
-            &checker,
-            "filechecker/same_name",
-            Status::Ok(_)
-        );
+        assert_filecheck!(&checker, "filechecker/same_name", Status::Ok(_));
 
         // because no fallback extensions are configured
         assert_filecheck!(
@@ -520,20 +516,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_fallback_extensions_on_directories() {
-        let checker = FileChecker::new(
-            None,
-            vec!["html".to_owned()],
-            None,
-            true,
-        );
+        let checker = FileChecker::new(None, vec!["html".to_owned()], None, true);
 
         // fallback extensions should be applied when directory links are resolved
         // to directories (i.e., the default index_files behavior or if `.`
         // appears in index_files).
-        assert_filecheck!(
-            &checker,
-            "filechecker/same_name#a",
-            Status::Ok(_)
-        );
+        assert_filecheck!(&checker, "filechecker/same_name#a", Status::Ok(_));
     }
 }
