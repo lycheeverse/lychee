@@ -54,6 +54,7 @@ pub(crate) struct WebsiteChecker {
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
 
+    /// Keep track of HTTP redirections for reporting
     redirect_tracker: RedirectTracker,
 }
 
@@ -199,10 +200,20 @@ impl WebsiteChecker {
         // Alternative to updating the return type would be to
         // expose the tracker and all redirection chains
 
-        match self.check_website_inner(uri, &default_chain).await {
+        let status = self.check_website_inner(uri, &default_chain).await;
+        self.handle_insecure_url(uri, &default_chain, status).await
+    }
+
+    async fn handle_insecure_url(
+        &self,
+        uri: &Uri,
+        default_chain: &Chain<Request, Status>,
+        status: Status,
+    ) -> Result<Status, ErrorKind> {
+        match status {
             Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
                 if self
-                    .check_website_inner(&uri.to_https()?, &default_chain)
+                    .check_website_inner(&uri.to_https()?, default_chain)
                     .await
                     .is_success()
                 {

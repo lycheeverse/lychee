@@ -1455,7 +1455,11 @@ mod cli {
         cmd.arg(&test_path).assert().success();
 
         let mut cmd = main_command();
-        cmd.arg("--require-https").arg(test_path).assert().failure();
+        cmd.arg("--require-https")
+            .arg(test_path)
+            .assert()
+            .failure()
+            .stdout(contains("This URI is available in HTTPS protocol, but HTTP is provided. Use 'https://example.com/' instead"));
 
         Ok(())
     }
