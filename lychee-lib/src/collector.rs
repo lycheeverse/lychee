@@ -248,6 +248,12 @@ impl Collector {
             client: self.client,
         };
 
+        let extractor = Extractor::new(
+            self.use_html5ever,
+            self.include_verbatim,
+            self.include_wikilinks,
+        );
+
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {
                 let default_base = global_base.clone();
@@ -279,11 +285,6 @@ impl Collector {
                 let basic_auth_extractor = self.basic_auth_extractor.clone();
                 async move {
                     let content = content?;
-                    let extractor = Extractor::new(
-                        self.use_html5ever,
-                        self.include_verbatim,
-                        self.include_wikilinks,
-                    );
                     let uris: Vec<RawUri> = extractor.extract(&content);
                     let requests = request::create(
                         uris,
