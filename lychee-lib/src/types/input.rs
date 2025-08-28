@@ -330,9 +330,9 @@ impl Input {
     ///
     /// # Errors
     ///
-    /// Returns an error if the contents can not be retrieved
-    /// because of an underlying I/O error (e.g. an error while making a
-    /// network request or retrieving the contents from the file system)
+    /// Returns an error if the contents can not be retrieved because of an
+    /// underlying I/O error (e.g. an error while making a network request or
+    /// retrieving the contents from the file system)
     pub fn get_contents(
         self,
         skip_missing: bool,
@@ -345,11 +345,9 @@ impl Input {
         excluded_paths: PathExcludes,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
-            // Handle special cases first
             match self.source {
                 InputSource::RemoteUrl(url) => {
-                    let content = resolver.url_contents(*url).await;
-                    match content {
+                    match resolver.url_contents(*url).await {
                         Err(_) if skip_missing => (),
                         Err(e) => Err(e)?,
                         Ok(content) => yield content,
@@ -357,63 +355,61 @@ impl Input {
                     return;
                 },
                 InputSource::Stdin => {
-                    let content = Self::stdin_content(self.file_type_hint).await?;
-                    yield content;
+                    yield Self::stdin_content(self.file_type_hint).await?;
                     return;
                 },
                 InputSource::String(ref s) => {
-                    let content = Self::string_content(s, self.file_type_hint);
-                    yield content;
+                    yield Self::string_content(s, self.file_type_hint);
                     return;
                 },
-                _ => {}
-            }
+                InputSource::FsGlob { .. } | InputSource::FsPath(..) => {
+                    // Handle FsPath and FsGlob sources
+                    // We can use `get_input_sources` to get the input sources, which will handle
+                    // filtering by file extensions and exclusions
+                    let mut sources_stream = Box::pin(self.get_input_sources(file_extensions, skip_hidden, skip_gitignored, &excluded_paths));
 
-            // Handle FsPath and FsGlob sources
-            // We can use `get_input_sources` to get the input sources, which will handle
-            // filtering by file extensions and exclusions
-            let mut sources_stream = Box::pin(self.get_input_sources(file_extensions, skip_hidden, skip_gitignored, &excluded_paths));
-
-            while let Some(source_result) = sources_stream.next().await {
-                match source_result {
-                    Ok(source) => {
-                        match source {
-                            InputSource::FsPath(path) => {
-                                // Process the actual file path
-                                let content = Self::path_content(&path).await;
-                                match content {
-                                    Err(_) if skip_missing => (),
-                                    Err(e) if matches!(&e, ErrorKind::ReadFileInput(io_err, _) if io_err.kind() == std::io::ErrorKind::InvalidData) => {
-                                        // If the file contains invalid UTF-8 (e.g. binary), we skip it
-                                        log::warn!("Skipping file with invalid UTF-8 content: {}", path.display());
+                    while let Some(source_result) = sources_stream.next().await {
+                        match source_result {
+                            Ok(source) => {
+                                match source {
+                                    InputSource::RemoteUrl(url) => {
+                                        let content = resolver.url_contents(*url).await;
+                                        match content {
+                                            Err(_) if skip_missing => (),
+                                            Err(e) => Err(e)?,
+                                            Ok(content) => yield content,
+                                        }
                                     },
-                                    Err(e) => Err(e)?,
-                                    Ok(content) => yield content,
+                                    InputSource::Stdin => {
+                                        let content = Self::stdin_content(self.file_type_hint).await?;
+                                        yield content;
+                                    },
+                                    InputSource::String(s) => {
+                                        let content = Self::string_content(&s, self.file_type_hint);
+                                        yield content;
+                                    },
+                                    InputSource::FsPath(path) => {
+                                        // Process the actual file path
+                                        let content = Self::path_content(&path).await;
+                                        match content {
+                                            Err(_) if skip_missing => (),
+                                            Err(e) if matches!(&e, ErrorKind::ReadFileInput(io_err, _) if io_err.kind() == std::io::ErrorKind::InvalidData) => {
+                                                // If the file contains invalid UTF-8 (e.g. binary), we skip it
+                                                log::warn!("Skipping file with invalid UTF-8 content: {}", path.display());
+                                            },
+                                            Err(e) => Err(e)?,
+                                            Ok(content) => yield content,
+                                        }
+                                    },
+                                    InputSource::FsGlob { .. } => {
+                                        unreachable!("This shouldn't happen as `get_input_sources` expands the glob patterns");
+                                    }
                                 }
                             },
-                            InputSource::RemoteUrl(url) => {
-                                let content = resolver.url_contents(*url).await;
-                                match content {
-                                    Err(_) if skip_missing => (),
-                                    Err(e) => Err(e)?,
-                                    Ok(content) => yield content,
-                                }
-                            },
-                            InputSource::Stdin => {
-                                let content = Self::stdin_content(self.file_type_hint).await?;
-                                yield content;
-                            },
-                            InputSource::String(s) => {
-                                let content = Self::string_content(&s, self.file_type_hint);
-                                yield content;
-                            },
-                            InputSource::FsGlob { .. } => {
-                                unreachable!("This shouldn't happen as `get_input_sources` expands the glob patterns");
-                            }
+                            Err(e) => Err(e)?,
                         }
-                    },
-                    Err(e) => Err(e)?,
-                }
+                    }
+                },
             }
         }
     }
