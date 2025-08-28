@@ -434,7 +434,7 @@ impl ClientBuilder {
 }
 
 fn redirect_policy(redirect_tracker: RedirectTracker, max_redirects: usize) -> redirect::Policy {
-    let redirect_policy = redirect::Policy::custom(move |attempt| {
+    redirect::Policy::custom(move |attempt| {
         if let Some(original) = attempt.previous().first() {
             redirect_tracker.record_redirect(original.clone(), attempt.previous().into());
         }
@@ -445,8 +445,7 @@ fn redirect_policy(redirect_tracker: RedirectTracker, max_redirects: usize) -> r
             debug!("Following redirect to {}", attempt.url());
             attempt.follow()
         }
-    });
-    redirect_policy
+    })
 }
 
 /// Handles incoming requests and returns responses.
@@ -870,19 +869,19 @@ mod tests {
         let redirect = wiremock::ResponseTemplate::new(StatusCode::PERMANENT_REDIRECT)
             .insert_header("Location", redirect_uri.as_str());
 
-        let redirect_count = 15;
+        let redirect_count = 15usize;
         let initial_invocation = 1;
 
         // Set up infinite redirect loop
         Mock::given(method("GET"))
             .and(path("/redirect"))
             .respond_with(move |_: &_| redirect.clone())
-            .expect(initial_invocation + redirect_count)
+            .expect(initial_invocation + redirect_count as u64)
             .mount(&mock_server)
             .await;
 
         let res = ClientBuilder::builder()
-            .max_redirects(redirect_count as usize)
+            .max_redirects(redirect_count)
             .build()
             .client()
             .unwrap()
