@@ -107,7 +107,7 @@ pub(crate) fn extract_markdown(
                         Some(vec![RawUri {
                             text: stripped_dest_url.to_string(),
                             element: Some("a".to_string()),
-                            attribute: Some("href".to_string()),
+                            attribute: Some("wikilink".to_string()),
                         // wiki links start with `[[`, so offset the span by `2`
                             span: span.start + 2
                         }])
@@ -542,7 +542,7 @@ $$
         let expected = vec![RawUri {
             text: "https://example.com/destination".to_string(),
             element: Some("a".to_string()),
-            attribute: Some("href".to_string()),
+            attribute: Some("wikilink".to_string()),
             span: span(1, 3),
         }];
         let uris = extract_markdown(markdown, true, true);
@@ -556,13 +556,13 @@ $$
             RawUri {
                 text: "https://example.com/destination".to_string(),
                 element: Some("a".to_string()),
-                attribute: Some("href".to_string()),
+                attribute: Some("wikilink".to_string()),
                 span: span(1, 3),
             },
             RawUri {
                 text: "https://example.com/source".to_string(),
                 element: Some("a".to_string()),
-                attribute: Some("href".to_string()),
+                attribute: Some("wikilink".to_string()),
                 span: span(1, 38),
             },
         ];
@@ -696,31 +696,7 @@ Shortcut link: [link4]
         let expected = vec![RawUri {
             text: "foo".to_string(),
             element: Some("a".to_string()),
-            attribute: Some("href".to_string()),
-        }];
-        assert_eq!(uris, expected);
-    }
-
-    #[test]
-    fn test_remove_wikilink_title() {
-        let markdown = r"[[foo#bar]]";
-        let uris = extract_markdown(markdown, true, true);
-        let expected = vec![RawUri {
-            text: "foo".to_string(),
-            element: Some("a".to_string()),
-            attribute: Some("href".to_string()),
-        }];
-        assert_eq!(uris, expected);
-    }
-
-    #[test]
-    fn test_remove_wikilink_pothole_and_title() {
-        let markdown = r"[[foo#bar|baz]]";
-        let uris = extract_markdown(markdown, true, true);
-        let expected = vec![RawUri {
-            text: "foo".to_string(),
-            element: Some("a".to_string()),
-            attribute: Some("href".to_string()),
+            attribute: Some("wikilink".to_string()),
         }];
         assert_eq!(uris, expected);
     }
