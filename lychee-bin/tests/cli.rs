@@ -2722,4 +2722,21 @@ mod cli {
             .stdout(contains("https://example.com/glob_dir/ts"))
             .stdout(contains("https://example.com/glob_dir/md"));
     }
+
+    /// URLs specified on the command line should also always be checked.
+    /// For example, sitemap URLs often end with `.xml` which is not
+    /// a file extension we would check by default.
+    #[test]
+    fn test_url_inputs_always_get_checked_no_matter_their_extension() {
+        let url_input = "https://example.com/sitemap.xml";
+
+        main_command()
+            .arg("--verbose")
+            .arg("--dump")
+            .arg(url_input)
+            .assert()
+            .success()
+            .stderr("") // Ensure stderr is empty
+            .stdout(contains("https://example.com/sitemap.xml"));
+    }
 }
