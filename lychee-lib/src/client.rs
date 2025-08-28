@@ -420,7 +420,6 @@ impl ClientBuilder {
         Ok(Client {
             remaps: self.remaps,
             filter,
-            redirect_tracker,
             email_checker: MailChecker::new(),
             website_checker,
             file_checker: FileChecker::new(
@@ -435,13 +434,11 @@ impl ClientBuilder {
 
 fn redirect_policy(redirect_tracker: RedirectTracker, max_redirects: usize) -> redirect::Policy {
     redirect::Policy::custom(move |attempt| {
-        if let Some(original) = attempt.previous().first() {
-            redirect_tracker.record_redirect(original.clone(), attempt.previous().into());
-        }
-
         if attempt.previous().len() > max_redirects {
             attempt.stop()
         } else {
+            let redirect_chain = &[attempt.previous(), &[attempt.url().clone()]].concat();
+            redirect_tracker.record_redirect(redirect_chain);
             debug!("Following redirect to {}", attempt.url());
             attempt.follow()
         }
@@ -468,8 +465,6 @@ pub struct Client {
 
     /// A checker for email URLs.
     email_checker: MailChecker,
-
-    redirect_tracker: RedirectTracker,
 }
 
 impl Client {

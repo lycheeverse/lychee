@@ -195,13 +195,11 @@ impl WebsiteChecker {
             Box::new(self.clone()),
         ]);
 
-        // TODO: also return redirection chain as tuple
-        //
-        // Alternative to updating the return type would be to
-        // expose the tracker and all redirection chains
-
         let status = self.check_website_inner(uri, &default_chain).await;
-        self.handle_insecure_url(uri, &default_chain, status).await
+        let status = self
+            .handle_insecure_url(uri, &default_chain, status)
+            .await?;
+        Ok(self.redirect_tracker.handle_redirected(&uri.url, status))
     }
 
     async fn handle_insecure_url(
