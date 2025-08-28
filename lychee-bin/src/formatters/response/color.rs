@@ -1,6 +1,6 @@
 use lychee_lib::{CacheStatus, ResponseBody, Status};
 
-use crate::formatters::color::{DIM, GREEN, PINK, YELLOW};
+use crate::formatters::color::{DIM, GREEN, NORMAL, PINK, YELLOW};
 
 use super::{MAX_RESPONSE_OUTPUT_WIDTH, ResponseFormatter};
 
@@ -19,6 +19,7 @@ impl ColorFormatter {
             Status::Excluded
             | Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => &DIM,
+            Status::Redirected(_) => &NORMAL,
             Status::UnknownStatusCode(_) | Status::Timeout(_) => &YELLOW,
             Status::Error(_) | Status::Cached(CacheStatus::Error(_)) => &PINK,
         }

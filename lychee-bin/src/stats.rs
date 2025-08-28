@@ -29,6 +29,8 @@ pub(crate) struct ResponseStats {
     pub(crate) unsupported: usize,
     /// Number of timeouts
     pub(crate) timeouts: usize,
+    /// Redirects encountered while checking links
+    pub(crate) redirects: usize,
     /// Number of links excluded from the run (e.g. due to the `--exclude` flag)
     pub(crate) excludes: usize,
     /// Number of responses with an error status
@@ -70,6 +72,7 @@ impl ResponseStats {
             Status::Error(_) => self.errors += 1,
             Status::UnknownStatusCode(_) => self.unknown += 1,
             Status::Timeout(_) => self.timeouts += 1,
+            Status::Redirected(_) => self.redirects += 1,
             Status::Excluded => self.excludes += 1,
             Status::Unsupported(_) => self.unsupported += 1,
             Status::Cached(cache_status) => {
@@ -86,7 +89,6 @@ impl ResponseStats {
 
     /// Add a response status to the appropriate map (success, fail, excluded)
     fn add_response_status(&mut self, response: Response) {
-        // TODO: redirect map?
         let status = response.status();
         let source = response.source().clone();
         let status_map_entry = match status {
