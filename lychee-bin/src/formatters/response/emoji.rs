@@ -60,7 +60,7 @@ mod emoji_tests {
     fn test_format_response_with_error_status() {
         let formatter = EmojiFormatter;
         let body = mock_response_body(
-            Status::Error(ErrorKind::InvalidUrlHost),
+            Status::Error(ErrorKind::TestError),
             "https://example.com/404",
         );
         assert_eq!(
@@ -96,15 +96,15 @@ mod emoji_tests {
     fn test_detailed_response_output() {
         let formatter = EmojiFormatter;
         let body = mock_response_body(
-            Status::Error(ErrorKind::InvalidUrlHost),
+            Status::Error(ErrorKind::TestError),
             "https://example.com/404",
         );
 
-        // Just assert the output contains the string
+        // Just assert the output contains the expected error message
         assert!(
             formatter
                 .format_detailed_response(&body)
-                .ends_with("| URL is missing a host")
+                .contains("Test error for formatter testing")
         );
     }
 }

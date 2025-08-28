@@ -46,7 +46,7 @@ impl Remaps {
 
     /// Returns an iterator over the rules.
     // `iter_mut` is deliberately avoided.
-    pub fn iter(&self) -> std::slice::Iter<(Regex, String)> {
+    pub fn iter(&self) -> std::slice::Iter<'_, (Regex, String)> {
         self.0.iter()
     }
 

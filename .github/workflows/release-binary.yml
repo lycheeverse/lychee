@@ -25,7 +25,7 @@ jobs:
       upload_url: ${{ steps.get_release.outputs.upload_url }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Get release
         id: get_release
@@ -47,6 +47,7 @@ jobs:
           - arm-unknown-linux-musleabi
           - arm-unknown-linux-musleabihf
           - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
           # See https://github.com/briansmith/ring/issues/562
           # - mips-unknown-linux-musl
           # - mipsel-unknown-linux-musl
@@ -68,7 +69,7 @@ jobs:
           echo "GNU_PREFIX=aarch64-linux-gnu-" >> $GITHUB_ENV
           sudo apt-get install -y binutils-aarch64-linux-gnu
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -102,7 +103,7 @@ jobs:
     runs-on: macos-latest
     needs: prepare
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -158,7 +159,7 @@ jobs:
           vcpkg install openssl:x64-windows-static
           vcpkg integrate install
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
 

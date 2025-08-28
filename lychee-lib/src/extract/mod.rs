@@ -14,6 +14,7 @@ use plaintext::extract_raw_uri_from_plaintext;
 pub struct Extractor {
     use_html5ever: bool,
     include_verbatim: bool,
+    include_wikilinks: bool,
 }
 
 impl Extractor {
@@ -30,10 +31,11 @@ impl Extractor {
     ///   For more information, consult the `pulldown_cmark` documentation about code blocks
     ///   [here](https://docs.rs/pulldown-cmark/latest/pulldown_cmark/enum.CodeBlockKind.html)
     #[must_use]
-    pub const fn new(use_html5ever: bool, include_verbatim: bool) -> Self {
+    pub const fn new(use_html5ever: bool, include_verbatim: bool, include_wikilinks: bool) -> Self {
         Self {
             use_html5ever,
             include_verbatim,
+            include_wikilinks,
         }
     }
 
@@ -42,7 +44,11 @@ impl Extractor {
     #[must_use]
     pub fn extract(&self, input_content: &InputContent) -> Vec<RawUri> {
         match input_content.file_type {
-            FileType::Markdown => extract_markdown(&input_content.content, self.include_verbatim),
+            FileType::Markdown => extract_markdown(
+                &input_content.content,
+                self.include_verbatim,
+                self.include_wikilinks,
+            ),
             FileType::Html => {
                 if self.use_html5ever {
                     html::html5ever::extract_html(&input_content.content, self.include_verbatim)
@@ -72,7 +78,7 @@ mod tests {
     fn extract_uris(input: &str, file_type: FileType) -> HashSet<Uri> {
         let input_content = InputContent::from_string(input, file_type);
 
-        let extractor = Extractor::new(false, false);
+        let extractor = Extractor::new(false, false, false);
         let uris_html5gum: HashSet<Uri> = extractor
             .extract(&input_content)
             .into_iter()
@@ -84,7 +90,7 @@ mod tests {
             uris
         };
 
-        let extractor = Extractor::new(true, false);
+        let extractor = Extractor::new(true, false, false);
         let uris_html5ever: HashSet<Uri> = extractor
             .extract(&input_content)
             .into_iter()
@@ -216,7 +222,7 @@ mod tests {
         };
 
         for use_html5ever in [true, false] {
-            let extractor = Extractor::new(use_html5ever, false);
+            let extractor = Extractor::new(use_html5ever, false, false);
             let links = extractor.extract(input_content);
 
             let urls = links

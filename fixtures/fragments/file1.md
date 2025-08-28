@@ -22,8 +22,7 @@ This is a test file for the fragment loader.
 
 ## HTML Fragments
 
-Explicit fragment links are currently not supported.
-Therefore we put the test into a code block for now to prevent false positives.
+Explicit fragment links are also supported.
 
 <a id="explicit-fragment"></a>
 
@@ -83,8 +82,8 @@ A link to the non-existing fragment: [try](https://github.com/lycheeverse/lychee
   - Bad: [With trailing slash](sub_dir_non_existing_1/)
   - Bad: [Without trailing slash](sub_dir_non_existing_2)
 - Link to a empty directory
-  - Bad: [With trailing slash](empty_dir/)
-  - Bad: [Without trailing slash](empty_dir)
+  - Good: [With trailing slash](empty_dir/)
+  - Good: [Without trailing slash](empty_dir)
 - Link to a fragment in a non-existing sub directory
   - Bad: [With trailing slash](empty_dir/#non-existing-fragment-3)
   - Bad: [Without trailing slash](empty_dir#non-existing-fragment-4)
@@ -104,17 +103,10 @@ Even with fragment checking enabled, the following links must hence succeed:
 [Link to remote binary file without fragment](https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin)
 [Link to remote binary file with empty fragment](https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#)
 
-## Local file with fragment
+## With fragment
 
-For local files URIs with fragment, the fragment checker is invoked and fails to read the content,
-but the file checker emits a warning only. The following link hence must succeed as well:
+Fragment checking is skipped if the Content-Type header is not "text/html", "text/markdown", or "text/plain" with ".md" URL path ending.
+Hence, despite containing fragments which cannot be checked in binary files, the following links are expected to succeed with a HTTP 200 status:
 
 [Link to local binary file with fragment](zero.bin#fragment)
-
-## Remote URL with fragment
-
-Right now, there is not MIME/content type based exclusion for fragment checks in the website checker.
-Also, other than the file checker, the website checker throws an error if reading the response body fails.
-The following link hence must fail:
-
 [Link to remote binary file with fragment](https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment)

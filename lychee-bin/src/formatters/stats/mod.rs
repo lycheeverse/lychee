@@ -36,7 +36,7 @@ where
             let mut sorted_responses: Vec<&T> = responses.iter().collect();
             sorted_responses.sort_by(|a, b| {
                 let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-                human_sort::compare(&a, &b)
+                numeric_sort::cmp(&a, &b)
             });
 
             (source, sorted_responses)
@@ -45,7 +45,7 @@ where
 
     entries.sort_by(|(a, _), (b, _)| {
         let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-        human_sort::compare(&a, &b)
+        numeric_sort::cmp(&a, &b)
     });
 
     entries
@@ -65,7 +65,7 @@ mod tests {
     fn make_test_response(url_str: &str, source: InputSource) -> Response {
         let uri = Uri::from(make_test_url(url_str));
 
-        Response::new(uri, Status::Error(ErrorKind::InvalidUrlHost), source)
+        Response::new(uri, Status::Error(ErrorKind::TestError), source)
     }
 
     #[test]

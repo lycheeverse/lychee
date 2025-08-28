@@ -4,13 +4,13 @@ mod cli {
         collections::{HashMap, HashSet},
         error::Error,
         fs::{self, File},
-        io::Write,
+        io::{BufRead, Write},
         path::{Path, PathBuf},
         time::Duration,
     };
 
     use anyhow::anyhow;
-    use assert_cmd::Command;
+    use assert_cmd::{Command, assert::Assert};
     use assert_json_diff::assert_json_include;
     use http::{Method, StatusCode};
     use lychee_lib::{InputSource, ResponseBody};
@@ -36,7 +36,7 @@ mod cli {
     // constant.
     const LYCHEE_CACHE_FILE: &str = ".lycheecache";
 
-    /// Helper macro to create a mock server which returns a custom status code.
+    /// Create a mock server which returns a custom status code.
     macro_rules! mock_server {
         ($status:expr $(, $func:tt ($($arg:expr),*))*) => {{
             let mock_server = wiremock::MockServer::start().await;
@@ -47,7 +47,7 @@ mod cli {
         }};
     }
 
-    /// Helper macro to create a mock server which returns a 200 OK and a custom response body.
+    /// Create a mock server which returns a 200 OK and a custom response body.
     macro_rules! mock_response {
         ($body:expr) => {{
             let mock_server = wiremock::MockServer::start().await;
@@ -65,7 +65,7 @@ mod cli {
         Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name")
     }
 
-    /// Helper function to get the root path of the project.
+    /// Get the root path of the project.
     fn root_path() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
@@ -73,9 +73,56 @@ mod cli {
             .to_path_buf()
     }
 
-    /// Helper function to get the path to the fixtures directory.
+    /// Get the path to the fixtures directory.
     fn fixtures_path() -> PathBuf {
         root_path().join("fixtures")
+    }
+
+    /// Convert a relative path to an absolute path string
+    /// starting from a base directory.
+    fn path_str(base: &Path, relative_path: &str) -> String {
+        base.join(relative_path).to_string_lossy().to_string()
+    }
+
+    /// Assert actual output lines equals to expected lines.
+    /// Order of the lines is ignored.
+    fn assert_lines_eq<S: AsRef<str> + Ord>(result: Assert, mut expected_lines: Vec<S>) {
+        let output = result.get_output().stdout.clone();
+        let mut actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+
+        actual_lines.sort();
+        expected_lines.sort();
+
+        let expected_lines: Vec<String> = expected_lines
+            .into_iter()
+            .map(|l| l.as_ref().to_owned())
+            .collect();
+
+        assert_eq!(actual_lines, expected_lines);
+    }
+
+    /// Test the output of the JSON format.
+    macro_rules! test_json_output {
+        ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
+            let mut cmd = main_command();
+            let test_path = fixtures_path().join($test_file);
+            let outfile = format!("{}.json", uuid::Uuid::new_v4());
+
+            let result = cmd$(.arg($arg))*.arg("--output").arg(&outfile).arg("--format").arg("json").arg(test_path).assert();
+
+            let output = std::fs::read_to_string(&outfile)?;
+            std::fs::remove_file(outfile)?;
+
+            let actual: Value = serde_json::from_str(&output)?;
+            let expected: Value = serde_json::to_value(&$expected)?;
+
+            result.success();
+            assert_json_include!(actual: actual, expected: expected);
+            Ok(())
+        }};
     }
 
     #[derive(Default, Serialize)]
@@ -93,26 +140,6 @@ mod cli {
         error_map: HashMap<InputSource, HashSet<ResponseBody>>,
         suggestion_map: HashMap<InputSource, HashSet<ResponseBody>>,
         excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    }
-
-    /// Helper macro to test the output of the JSON format.
-    macro_rules! test_json_output {
-        ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
-            let mut cmd = main_command();
-            let test_path = fixtures_path().join($test_file);
-            let outfile = format!("{}.json", uuid::Uuid::new_v4());
-
-            cmd$(.arg($arg))*.arg("--output").arg(&outfile).arg("--format").arg("json").arg(test_path).assert().success();
-
-            let output = std::fs::read_to_string(&outfile)?;
-            std::fs::remove_file(outfile)?;
-
-            let actual: Value = serde_json::from_str(&output)?;
-            let expected: Value = serde_json::to_value(&$expected)?;
-
-            assert_json_include!(actual: actual, expected: expected);
-            Ok(())
-        }};
     }
 
     /// Test that the default report output format (compact) and mode (color)
@@ -259,7 +286,7 @@ mod cli {
             &output_json["error_map"][&test_path.to_str().unwrap()][0]["status"];
 
         assert_eq!(
-            "error sending request for url (https://expired.badssl.com/) Maybe a certificate error?",
+            "SSL certificate expired. Site needs to renew certificate",
             site_error_status["details"]
         );
         Ok(())
@@ -275,6 +302,18 @@ mod cli {
                 ..MockResponseStats::default()
             },
             "--exclude-all-private"
+        )
+    }
+
+    #[test]
+    fn test_local_directories() -> Result<()> {
+        test_json_output!(
+            "TEST_LOCAL_DIRECTORIES.md",
+            MockResponseStats {
+                total: 4,
+                successful: 4,
+                ..MockResponseStats::default()
+            }
         )
     }
 
@@ -895,8 +934,7 @@ mod cli {
             .failure()
             .stderr(predicate::str::contains("Cannot load configuration file"))
             .stderr(predicate::str::contains("Failed to parse"))
-            .stderr(predicate::str::contains("TOML parse error"))
-            .stderr(predicate::str::contains("expected newline"));
+            .stderr(predicate::str::contains("TOML parse error"));
     }
 
     #[tokio::test]
@@ -1561,25 +1599,30 @@ mod cli {
     }
 
     #[test]
-    fn test_excluded_paths() -> Result<()> {
+    fn test_excluded_paths_regex() -> Result<()> {
         let test_path = fixtures_path().join("exclude-path");
-
-        let excluded_path1 = test_path.join("dir1");
-        let excluded_path2 = test_path.join("dir2").join("subdir");
+        let excluded_path_1 = "\\/excluded?\\/"; // exclude paths containing a directory "exclude" and "excluded"
+        let excluded_path_2 = "(\\.mdx|\\.txt)$"; // exclude .mdx and .txt files
         let mut cmd = main_command();
 
-        cmd.arg("--exclude-path")
-            .arg(&excluded_path1)
+        let result = cmd
             .arg("--exclude-path")
-            .arg(&excluded_path2)
+            .arg(excluded_path_1)
+            .arg("--exclude-path")
+            .arg(excluded_path_2)
+            .arg("--dump")
             .arg("--")
             .arg(&test_path)
             .assert()
-            .success()
-            // Links in excluded files are not taken into account in the total
-            // number of links.
-            .stdout(contains("1 Total"))
-            .stdout(contains("1 OK"));
+            .success();
+
+        assert_lines_eq(
+            result,
+            vec![
+                "https://test.md/to-be-included-outer",
+                "https://test.md/to-be-included-inner",
+            ],
+        );
 
         Ok(())
     }
@@ -1770,6 +1813,38 @@ mod cli {
         assert!(all_cookies.iter().all(|c| c.domain() == Some("google.com")));
         Ok(())
     }
+
+    #[test]
+    fn test_dump_inputs_does_not_include_duplicates() -> Result<()> {
+        let pattern = fixtures_path().join("dump_inputs/markdown.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg(&pattern)
+            .arg(&pattern)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/dump_inputs/markdown.md").count(1));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_glob_does_not_include_duplicates() -> Result<()> {
+        let pattern1 = fixtures_path().join("**/markdown.*");
+        let pattern2 = fixtures_path().join("**/*.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg(pattern1)
+            .arg(pattern2)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/dump_inputs/markdown.md").count(1));
+
+        Ok(())
+    }
+
     #[test]
     fn test_dump_inputs_glob_md() -> Result<()> {
         let pattern = fixtures_path().join("**/*.md");
@@ -1798,7 +1873,6 @@ mod cli {
             .stdout(contains("fixtures/dump_inputs/subfolder/file2.md"))
             .stdout(contains("fixtures/dump_inputs/subfolder"))
             .stdout(contains("fixtures/dump_inputs/markdown.md"))
-            .stdout(contains("fixtures/dump_inputs/subfolder/example.bin"))
             .stdout(contains("fixtures/dump_inputs/some_file.txt"));
 
         Ok(())
@@ -1825,23 +1899,119 @@ mod cli {
     #[test]
     fn test_dump_inputs_url() -> Result<()> {
         let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
+        let result = cmd
+            .arg("--dump-inputs")
             .arg("https://example.com")
             .assert()
-            .success()
-            .stdout(contains("https://example.com"));
+            .success();
 
+        assert_lines_eq(result, vec!["https://example.com/"]);
         Ok(())
     }
 
     #[test]
     fn test_dump_inputs_path() -> Result<()> {
         let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
-            .arg("fixtures")
+        let result = cmd
+            .arg("--dump-inputs")
+            .arg(fixtures_path().join("dump_inputs"))
+            .assert()
+            .success();
+
+        let base_path = fixtures_path().join("dump_inputs");
+        let expected_lines = [
+            "some_file.txt",
+            "subfolder/file2.md",
+            "subfolder/test.html",
+            "markdown.md",
+        ]
+        .iter()
+        .map(|p| path_str(&base_path, p))
+        .collect();
+
+        assert_lines_eq(result, expected_lines);
+        Ok(())
+    }
+
+    // Ensures that dumping stdin does not panic and results in an empty output
+    // as `stdin` is not a path
+    #[test]
+    fn test_dump_inputs_with_extensions() -> Result<()> {
+        let mut cmd = main_command();
+        let test_dir = fixtures_path().join("dump_inputs");
+
+        let output = cmd
+            .arg("--dump-inputs")
+            .arg("--extensions")
+            .arg("md,txt")
+            .arg(test_dir)
             .assert()
             .success()
-            .stdout(contains("fixtures"));
+            .get_output()
+            .stdout
+            .clone();
+
+        let mut actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+        actual_lines.sort();
+
+        let base_path = fixtures_path().join("dump_inputs");
+        let mut expected_lines = vec![
+            path_str(&base_path, "some_file.txt"),
+            path_str(&base_path, "subfolder/file2.md"),
+            path_str(&base_path, "markdown.md"),
+        ];
+        expected_lines.sort();
+
+        assert_eq!(actual_lines, expected_lines);
+
+        // Verify example.bin is not included
+        for line in &actual_lines {
+            assert!(
+                !line.contains("example.bin"),
+                "Should not contain example.bin: {line}"
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_skip_hidden() -> Result<()> {
+        let test_dir = fixtures_path().join("hidden");
+
+        // Test default behavior (skip hidden)
+        main_command()
+            .arg("--dump-inputs")
+            .arg(&test_dir)
+            .assert()
+            .success()
+            .stdout(is_empty());
+
+        // Test with --hidden flag
+        main_command()
+            .arg("--dump-inputs")
+            .arg("--hidden")
+            .arg(test_dir)
+            .assert()
+            .success()
+            .stdout(contains(".hidden/file.md"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_dump_inputs_individual_file() -> Result<()> {
+        let mut cmd = main_command();
+        let test_file = fixtures_path().join("TEST.md");
+
+        cmd.arg("--dump-inputs")
+            .arg(&test_file)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/TEST.md"));
 
         Ok(())
     }
@@ -1849,13 +2019,26 @@ mod cli {
     #[test]
     fn test_dump_inputs_stdin() -> Result<()> {
         let mut cmd = main_command();
+
         cmd.arg("--dump-inputs")
             .arg("-")
             .assert()
             .success()
-            .stdout(contains("Stdin"));
+            .stdout(contains("<stdin>"));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_fragments_regression() {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("FRAGMENT_REGRESSION.md");
+
+        cmd.arg("--include-fragments")
+            .arg("--verbose")
+            .arg(input)
+            .assert()
+            .failure();
     }
 
     #[test]
@@ -1863,60 +2046,113 @@ mod cli {
         let mut cmd = main_command();
         let input = fixtures_path().join("fragments");
 
+        let mut result = cmd
+            .arg("--include-fragments")
+            .arg("--verbose")
+            .arg(input)
+            .assert()
+            .failure();
+
+        let expected_successes = vec![
+            "fixtures/fragments/empty_dir",
+            "fixtures/fragments/empty_file#fragment", // XXX: is this a bug? a fragment in an empty file is being treated as valid
+            "fixtures/fragments/file1.md#code-heading",
+            "fixtures/fragments/file1.md#explicit-fragment",
+            "fixtures/fragments/file1.md#f%C3%BCnf-s%C3%9C%C3%9Fe-%C3%84pfel",
+            "fixtures/fragments/file1.md#f%C3%BCnf-s%C3%BC%C3%9Fe-%C3%A4pfel",
+            "fixtures/fragments/file1.md#fragment-1",
+            "fixtures/fragments/file1.md#fragment-2",
+            "fixtures/fragments/file1.md#IGNORE-CASING",
+            "fixtures/fragments/file1.md#kebab-case-fragment",
+            "fixtures/fragments/file1.md#kebab-case-fragment-1",
+            "fixtures/fragments/file1.md#lets-wear-a-hat-%C3%AAtre",
+            "fixtures/fragments/file2.md#",
+            "fixtures/fragments/file2.md#custom-id",
+            "fixtures/fragments/file2.md#fragment-1",
+            "fixtures/fragments/file2.md#top",
+            "fixtures/fragments/file.html#",
+            "fixtures/fragments/file.html#a-word",
+            "fixtures/fragments/file.html#in-the-beginning",
+            "fixtures/fragments/file.html#tangent%3A-kustomize",
+            "fixtures/fragments/file.html#top",
+            "fixtures/fragments/file.html#Upper-%C3%84%C3%96%C3%B6",
+            "fixtures/fragments/sub_dir",
+            "fixtures/fragments/zero.bin",
+            "fixtures/fragments/zero.bin#",
+            "fixtures/fragments/zero.bin#fragment",
+            "https://github.com/lycheeverse/lychee#table-of-contents",
+            "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin",
+            "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#",
+            // zero.bin#fragment succeeds because fragment checking is skipped for this URL
+            "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
+        ];
+
+        let expected_failures = vec![
+            "fixtures/fragments/sub_dir_non_existing_1",
+            "fixtures/fragments/sub_dir#non-existing-fragment-2",
+            "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
+            "fixtures/fragments/empty_dir#non-existing-fragment-3",
+            "fixtures/fragments/file2.md#missing-fragment",
+            "fixtures/fragments/sub_dir#non-existing-fragment-1",
+            "fixtures/fragments/sub_dir_non_existing_2",
+            "fixtures/fragments/file1.md#missing-fragment",
+            "fixtures/fragments/empty_dir#non-existing-fragment-4",
+            "fixtures/fragments/file.html#in-the-end",
+            "fixtures/fragments/file.html#in-THE-begiNNing",
+            "https://github.com/lycheeverse/lychee#non-existent-anchor",
+        ];
+
+        // the stdout/stderr format looks like this:
+        //
+        //     [ERROR] https://github.com/lycheeverse/lychee#non-existent-anchor | Cannot find fragment
+        //     [200] file:///home/rina/progs/lychee/fixtures/fragments/file.html#a-word
+        //
+        // errors are printed to both, but 200s are printed to stderr only.
+        // we take advantage of this to ensure that good URLs do not appear
+        // in stdout, and bad URLs do appear in stdout.
+        //
+        // also, a space or newline is appended to the URL to prevent
+        // incorrect matches where one URL is a prefix of another.
+        for good_url in &expected_successes {
+            // additionally checks that URL is within stderr to ensure that
+            // the URL is detected by lychee.
+            result = result
+                .stdout(contains(format!("{good_url} ")).not())
+                .stderr(contains(format!("{good_url}\n")));
+        }
+        for bad_url in &expected_failures {
+            result = result.stdout(contains(format!("{bad_url} ")));
+        }
+
+        let ok_num = expected_successes.len();
+        let err_num = expected_failures.len();
+        let total_num = ok_num + err_num;
+        result
+            .stdout(contains(format!("{ok_num} OK")))
+            // Failures because of missing fragments or failed binary body scan
+            .stdout(contains(format!("{err_num} Errors")))
+            .stdout(contains(format!("{total_num} Total")));
+    }
+
+    #[test]
+    fn test_fragments_when_accept_error_status_codes() {
+        let mut cmd = main_command();
+        let input = fixtures_path().join("TEST_FRAGMENT_ERR_CODE.md");
+
+        // it's common for user to accept 429, but let's test with 404 since
+        // triggering 429 may annoy the server
         cmd.arg("--verbose")
+            .arg("--accept=200,404")
             .arg("--include-fragments")
             .arg(input)
             .assert()
-            .failure()
-            .stderr(contains("fixtures/fragments/file1.md#fragment-1"))
-            .stderr(contains("fixtures/fragments/file1.md#fragment-2"))
-            .stderr(contains("fixtures/fragments/file1.md#code-heading"))
-            .stderr(contains("fixtures/fragments/file2.md#custom-id"))
-            .stderr(contains("fixtures/fragments/file1.md#missing-fragment"))
-            .stderr(contains("fixtures/fragments/file2.md#fragment-1"))
-            .stderr(contains("fixtures/fragments/file1.md#kebab-case-fragment"))
+            .success()
             .stderr(contains(
-                "fixtures/fragments/file1.md#lets-wear-a-hat-%C3%AAtre",
+                "https://en.wikipedia.org/wiki/Should404#ignore-fragment",
             ))
-            .stderr(contains("fixtures/fragments/file2.md#missing-fragment"))
-            .stderr(contains("fixtures/fragments/empty_file#fragment"))
-            .stderr(contains("fixtures/fragments/file.html#a-word"))
-            .stderr(contains("fixtures/fragments/file.html#in-the-beginning"))
-            .stderr(contains("fixtures/fragments/file.html#in-the-end"))
-            .stderr(contains(
-                "fixtures/fragments/file1.md#kebab-case-fragment-1",
-            ))
-            .stderr(contains("fixtures/fragments/file.html#top"))
-            .stderr(contains("fixtures/fragments/file2.md#top"))
-            .stderr(contains(
-                "https://github.com/lycheeverse/lychee#user-content-table-of-contents",
-            ))
-            .stderr(contains(
-                "https://github.com/lycheeverse/lychee#non-existent-anchor",
-            ))
-            .stderr(contains("fixtures/fragments/sub_dir#non-existing-fragment-1"))
-            .stderr(contains("fixtures/fragments/sub_dir#non-existing-fragment-2"))
-            .stderr(contains("fixtures/fragments/sub_dir_non_existing_1"))
-            .stderr(contains("fixtures/fragments/sub_dir_non_existing_2"))
-            .stderr(contains("fixtures/fragments/empty_dir"))
-            .stderr(contains("fixtures/fragments/empty_dir#non-existing-fragment-3"))
-            .stderr(contains("fixtures/fragments/empty_dir#non-existing-fragment-4"))
-            .stderr(contains("fixtures/fragments/zero.bin"))
-            .stderr(contains("fixtures/fragments/zero.bin#"))
-            .stderr(contains(
-                "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin",
-            ))
-            .stderr(contains(
-                "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#",
-            ))
-            .stderr(contains("fixtures/fragments/zero.bin#fragment"))
-            .stderr(contains(
-                "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
-            ))
-            .stdout(contains("42 Total"))
-            .stdout(contains("29 OK"))
-            // Failures because of missing fragments or failed binary body scan
-            .stdout(contains("13 Errors"));
+            .stdout(contains("0 Errors"))
+            .stdout(contains("1 OK"))
+            .stdout(contains("1 Total"));
     }
 
     #[test]
@@ -2220,5 +2456,269 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("https://www.example.com/smth."));
+    }
+
+    #[test]
+    fn test_wikilink_extract_when_specified() {
+        let test_path = fixtures_path().join("TEST_WIKI.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump")
+            .arg("--include-wikilinks")
+            .arg(test_path)
+            .assert()
+            .success()
+            .stdout(contains("LycheeWikilink"));
+    }
+
+    #[test]
+    fn test_wikilink_dont_extract_when_not_specified() {
+        let test_path = fixtures_path().join("TEST_WIKI.md");
+
+        let mut cmd = main_command();
+        cmd.arg("--dump")
+            .arg(test_path)
+            .assert()
+            .success()
+            .stdout(is_empty());
+    }
+
+    #[test]
+    fn test_index_files_default() {
+        let input = fixtures_path().join("filechecker/dir_links.md");
+
+        // the dir links in this file all exist.
+        main_command()
+            .arg(&input)
+            .arg("--verbose")
+            .assert()
+            .success();
+
+        // ... but checking fragments will find none, because dirs
+        // have no fragments and no index file given.
+        let dir_links_with_fragment = 2;
+        main_command()
+            .arg(&input)
+            .arg("--include-fragments")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot find fragment").count(dir_links_with_fragment))
+            .stdout(contains("#").count(dir_links_with_fragment));
+    }
+
+    #[test]
+    fn test_index_files_specified() {
+        let input = fixtures_path().join("filechecker/dir_links.md");
+
+        // passing `--index-files index.html` should reject all links
+        // to /empty_dir because it doesn't have the index file
+        let result = main_command()
+            .arg(input)
+            .arg("--index-files")
+            .arg("index.html")
+            .arg("--verbose")
+            .assert()
+            .failure();
+
+        let empty_dir_links = 2;
+        let index_dir_links = 2;
+        result
+            .stdout(contains("Cannot find index file").count(empty_dir_links))
+            .stdout(contains("/empty_dir").count(empty_dir_links))
+            .stdout(contains(format!("{index_dir_links} OK")));
+    }
+
+    #[test]
+    fn test_index_files_dot_in_list() {
+        let input = fixtures_path().join("filechecker/dir_links.md");
+
+        // passing `.` in the index files list should accept a directory
+        // even if no other index file is found.
+        main_command()
+            .arg(&input)
+            .arg("--index-files")
+            .arg("index.html,.")
+            .assert()
+            .success()
+            .stdout(contains("4 OK"));
+
+        // checking fragments will accept the index_dir#fragment link,
+        // but reject empty_dir#fragment because empty_dir doesn’t have
+        // index.html.
+        main_command()
+            .arg(&input)
+            .arg("--index-files")
+            .arg("index.html,.")
+            .arg("--include-fragments")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot find fragment").count(1))
+            .stdout(contains("empty_dir#fragment").count(1))
+            .stdout(contains("index_dir#fragment").count(0))
+            .stdout(contains("3 OK"));
+    }
+
+    #[test]
+    fn test_index_files_empty_list() {
+        let input = fixtures_path().join("filechecker/dir_links.md");
+
+        // passing an empty list to --index-files should reject /all/
+        // directory links.
+        let result = main_command()
+            .arg(input)
+            .arg("--index-files")
+            .arg("")
+            .assert()
+            .failure();
+
+        let num_dir_links = 4;
+        result
+            .stdout(contains("Cannot find index file").count(num_dir_links))
+            .stdout(contains("0 OK"));
+    }
+
+    #[test]
+    fn test_skip_binary_input() {
+        // A path containing a binary file
+        let inputs = fixtures_path().join("invalid_utf8");
+
+        // Run the command with the binary input
+        let mut cmd = main_command();
+        let result = cmd
+            .arg("--verbose")
+            .arg(&inputs)
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 OK"))
+            .stdout(contains("0 Errors"));
+
+        result
+            .stderr(contains(format!(
+                "Skipping file with invalid UTF-8 content: {}",
+                inputs.join("invalid_utf8.txt").display()
+            )))
+            .stderr(contains("https://example.com/"));
+    }
+
+    /// Checks that the `--dump-inputs` command does not panic
+    /// when given a path that contains invalid UTF-8 characters.
+    ///
+    /// The command should still succeed and output the paths of the files it
+    /// found, including those with invalid UTF-8, which will be skipped during
+    /// processing.
+    #[test]
+    fn test_dump_invalid_utf8_inputs() {
+        // A path containing a binary file
+        let inputs = fixtures_path().join("invalid_utf8");
+
+        // Run the command with the binary input
+        let mut cmd = main_command();
+        cmd.arg("--dump-inputs")
+            .arg(inputs)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/invalid_utf8/index.html"))
+            .stdout(contains("fixtures/invalid_utf8/invalid_utf8.txt"));
+    }
+
+    /// Check that files specified via glob patterns are always checked
+    /// no matter their extension. I.e. extensions are ignored for files
+    /// explicitly specified by the user.
+    ///
+    /// See https://github.com/lycheeverse/lychee-action/issues/305
+    #[test]
+    fn test_globbed_files_are_always_checked() {
+        let input = fixtures_path().join("glob_dir/**/*.tsx");
+
+        // The directory contains:
+        // - example.ts
+        // - example.tsx
+        // - example.md
+        // - example.html
+        // But the user only specified the .tsx file via the glob pattern.
+        main_command()
+            .arg("--verbose")
+            // Only check ts, js, and html files by default.
+            // However, all files explicitly specified by the user
+            // should always be checked so this should be ignored.
+            .arg("--extensions=ts,js,html")
+            .arg(input)
+            .assert()
+            .failure()
+            .stdout(contains("1 Total"))
+            .stderr(contains("https://example.com/glob_dir/tsx"));
+    }
+
+    #[test]
+    fn test_extensions_work_on_glob_files_directory() {
+        let input = fixtures_path().join("glob_dir");
+
+        // Make sure all files matching the given extensions are checked
+        // if we specify a directory (and not a glob pattern).
+        main_command()
+            .arg("--verbose")
+            .arg("--extensions=ts,html")
+            .arg(input)
+            .assert()
+            .failure()
+            .stdout(contains("2 Total"))
+            // Note: The space is intentional to avoid matching tsx.
+            .stderr(contains("https://example.com/glob_dir/ts "))
+            // TSX files are ignored because we did not specify
+            // that extension. So `https://example.com/tsx"` should be missing from the output.
+            .stderr(contains("https://example.com/glob_dir/tsx").not())
+            // Markdown is also ignored because we did not specify that extension.
+            .stderr(contains("https://example.com/glob_dir/md").not())
+            .stderr(contains("https://example.com/glob_dir/html"));
+    }
+
+    /// We define two inputs, one being a glob pattern, the other a directory path.
+    /// The extensions should only apply to the directory path, not the glob pattern.
+    #[test]
+    fn test_extensions_apply_to_files_not_globs() {
+        let glob_input = fixtures_path().join("glob_dir/**/*.tsx");
+        let dir_input = fixtures_path().join("example_dir");
+
+        main_command()
+            .arg("--verbose")
+            .arg("--extensions=html,md")
+            .arg(glob_input)
+            .arg(dir_input)
+            .assert()
+            .failure()
+            .stdout(contains("3 Total"))
+            // Only TSX files are matched by the glob pattern.
+            .stderr(contains("https://example.com/glob_dir/tsx"))
+            .stderr(contains("https://example.com/glob_dir/ts ").not())
+            .stderr(contains("https://example.com/glob_dir/md").not())
+            .stderr(contains("https://example.com/glob_dir/html").not())
+            // For the example_dir, the extensions should apply.
+            .stderr(contains("https://example.com/example_dir/html"))
+            .stderr(contains("https://example.com/example_dir/md"))
+            // TS files in example_dir are ignored because we did not specify that extension.
+            .stderr(contains("https://example.com/example_dir/ts ").not())
+            // TSX files in examle_dir are ignored because we did not specify that extension.
+            .stderr(contains("https://example.com/example_dir/tsx").not());
+    }
+
+    /// Individual files should always be checked, even if their
+    /// extension does not match the given extensions.
+    #[test]
+    fn test_file_inputs_always_get_checked_no_matter_their_extension() {
+        let ts_input_file = fixtures_path().join("glob_dir/example.ts");
+        let md_input_file = fixtures_path().join("glob_dir/example.md");
+
+        main_command()
+            .arg("--verbose")
+            .arg("--dump")
+            .arg("--extensions=html,md")
+            .arg(ts_input_file)
+            .arg(md_input_file)
+            .assert()
+            .success()
+            .stderr("") // Ensure stderr is empty
+            .stdout(contains("https://example.com/glob_dir/ts"))
+            .stdout(contains("https://example.com/glob_dir/md"));
     }
 }

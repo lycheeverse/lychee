@@ -55,6 +55,12 @@ pacman -S lychee
 zypper in lychee
 ```
 
+### Ubuntu
+
+```sh
+snap install lychee
+```
+
 ### macOS
 
 Via [Homebrew](https://brew.sh):
@@ -119,6 +125,12 @@ apk add lychee
 choco install lychee
 ```
 
+### Conda
+
+```sh
+conda install lychee -c conda-forge
+```
+
 ### Pre-built binaries
 
 We provide binaries for Linux, macOS, and Windows for every release. \
@@ -165,7 +177,7 @@ outdated information.
 | Language             | Rust    | Ruby          | Go       | JS                    | TypeScript   | Python               | JS                    | PHP    |
 | Async/Parallel       | ![yes]  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | JSON output          | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![maybe]<sup>1</sup> | ![yes]                | ![yes] |
-| Static binary        | ![yes]  | ![no]         | ![yes]   | ![no]                 | ![no]        | ️![no]                | ![no]                 | ![no]  |
+| Static binary        | ![yes]  | ![no]         | ![yes]   | ![no]                 | ![no]        | ️![no]               | ![no]                 | ![no]  |
 | Markdown files       | ![yes]  | ![yes]        | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![no]  |
 | HTML files           | ![yes]  | ![no]         | ![no]    | ![yes]                | ![yes]       | ![no]                | ![yes]                | ![no]  |
 | Text files           | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![no]                | ![no]                 | ![no]  |
@@ -177,7 +189,7 @@ outdated information.
 | Relative URLs        | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | Anchors/Fragments    | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![no]  |
 | Skip relative URLs   | ![yes]  | ![no]         | ![no]    | ![maybe]              | ![no]        | ![no]                | ![no]                 | ![no]  |
-| Include patterns     | ![yes]️  | ![yes]        | ![no]    | ![yes]                | ![no]        | ![no]                | ![no]                 | ![no]  |
+| Include patterns     | ![yes]️ | ![yes]        | ![no]    | ![yes]                | ![no]        | ![no]                | ![no]                 | ![no]  |
 | Exclude patterns     | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | Handle redirects     | ![yes]  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | Ignore insecure SSL  | ![yes]  | ![yes]        | ![yes]   | ![no]                 | ![no]        | ![yes]               | ![no]                 | ![yes] |
@@ -249,7 +261,7 @@ lychee ~/projects/*/README.md
 lychee "~/projects/big_project/**/README.*"
 
 # ignore case when globbing and check result for each link:
-lychee --glob-ignore-case --verbose "~/projects/**/[r]eadme.*"
+lychee --glob-ignore-case "~/projects/**/[r]eadme.*"
 
 # check links from epub file (requires atool: https://www.nongnu.org/atool)
 acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
@@ -424,13 +436,13 @@ Options:
           URLs to check (supports regex). Has preference over all excludes
 
       --exclude <EXCLUDE>
-          Exclude URLs and mail addresses from checking (supports regex)
+          Exclude URLs and mail addresses from checking. The values are treated as regular expressions
 
       --exclude-file <EXCLUDE_FILE>
           Deprecated; use `--exclude-path` instead
 
       --exclude-path <EXCLUDE_PATH>
-          Exclude file path from getting checked
+          Exclude paths from getting checked. The values are treated as regular expressions
 
   -E, --exclude-all-private
           Exclude all private IPs from checking.
@@ -452,11 +464,37 @@ Options:
           Remap URI matching pattern to different URI
 
       --fallback-extensions <FALLBACK_EXTENSIONS>
-          Test the specified file extensions for URIs when checking files locally.
-          Multiple extensions can be separated by commas. Extensions will be checked in
-          order of appearance.
+          When checking locally, attempts to locate missing files by trying the given
+          fallback extensions. Multiple extensions can be separated by commas. Extensions
+          will be checked in order of appearance.
 
           Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
+
+          Note: This option only takes effect on `file://` URIs which do not exist.
+
+      --index-files <INDEX_FILES>
+          When checking locally, resolves directory links to a separate index file.
+          The argument is a comma-separated list of index file names to search for. Index
+          names are relative to the link's directory and attempted in the order given.
+
+          If `--index-files` is specified, then at least one index file must exist in
+          order for a directory link to be considered valid. Additionally, the special
+          name `.` can be used in the list to refer to the directory itself.
+
+          If unspecified (the default behavior), index files are disabled and directory
+          links are considered valid as long as the directory exists on disk.
+
+          Example 1: `--index-files index.html,readme.md` looks for index.html or readme.md
+                     and requires that at least one exists.
+
+          Example 2: `--index-files index.html,.` will use index.html if it exists, but
+                     still accept the directory link regardless.
+
+          Example 3: `--index-files ''` will reject all directory links because there are
+                     no valid index files. This will require every link to explicitly name
+                     a file.
+
+          Note: This option only takes effect on `file://` URIs which exist and point to a directory.
 
   -H, --header <HEADER:VALUE>
           Set custom header for requests
@@ -554,6 +592,9 @@ Options:
 
       --cookie-jar <COOKIE_JAR>
           Tell lychee to read cookies from the given file. Cookies will be stored in the cookie jar and sent with requests. New cookies will be stored in the cookie jar and existing cookies will be updated
+
+      --include-wikilinks
+          Check WikiLinks in Markdown files
 
   -h, --help
           Print help (see a summary with '-h')
@@ -678,6 +719,7 @@ which includes usage instructions.
 ## Pre-commit Usage
 
 Lychee can also be used as a [pre-commit](https://pre-commit.com/) hook.
+
 ```yaml
 # .pre-commit-config.yaml
 repos:
@@ -690,6 +732,7 @@ repos:
 ```
 
 Rather than running on staged-files only, Lychee can be run against an entire repository.
+
 ```yaml
 - id: lychee
   args: ["--no-progress", "."]

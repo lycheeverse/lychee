@@ -9,8 +9,8 @@ path = "archive.rs"
 
 [dependencies]
 lychee-lib = { path = "../../lychee-lib", default-features = false }
-tokio = { version = "1.45.1", features = ["full"] }
-url = "2.5.4"
+tokio = { version = "1.47.1", features = ["full"] }
+url = "2.5.7"
 
 [features]
 email-check = ["lychee-lib/email-check"]

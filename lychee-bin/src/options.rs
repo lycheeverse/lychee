@@ -16,7 +16,7 @@ use lychee_lib::{
 use reqwest::tls;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Deserializer};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::{fs, path::PathBuf, str::FromStr, time::Duration};
 use strum::{Display, EnumIter, EnumString, VariantNames};
@@ -330,16 +330,10 @@ impl LycheeOptions {
     // This depends on the config, which is why a method is required (we could
     // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there, but
     // we wouldn't get access to `glob_ignore_case`.
-    pub(crate) fn inputs(&self) -> Result<Vec<Input>> {
-        let excluded = if self.config.exclude_path.is_empty() {
-            None
-        } else {
-            Some(self.config.exclude_path.clone())
-        };
-
+    pub(crate) fn inputs(&self) -> Result<HashSet<Input>> {
         self.raw_inputs
             .iter()
-            .map(|s| Input::new(s, None, self.config.glob_ignore_case, excluded.clone()))
+            .map(|raw_input| Input::new(raw_input, None, self.config.glob_ignore_case))
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
@@ -502,7 +496,8 @@ and 501."
     #[serde(default)]
     pub(crate) include: Vec<String>,
 
-    /// Exclude URLs and mail addresses from checking (supports regex)
+    /// Exclude URLs and mail addresses from checking.
+    /// The values are treated as regular expressions.
     #[arg(long)]
     #[serde(default)]
     pub(crate) exclude: Vec<String>,
@@ -512,10 +507,11 @@ and 501."
     #[serde(default)]
     pub(crate) exclude_file: Vec<String>,
 
-    /// Exclude file path from getting checked.
+    /// Exclude paths from getting checked.
+    /// The values are treated as regular expressions.
     #[arg(long)]
     #[serde(default)]
-    pub(crate) exclude_path: Vec<PathBuf>,
+    pub(crate) exclude_path: Vec<String>,
 
     /// Exclude all private IPs from checking.
     /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
@@ -548,18 +544,50 @@ and 501."
     #[arg(long)]
     pub(crate) remap: Vec<String>,
 
-    /// Automatically append file extensions to `file://` URIs as needed
+    /// Automatically append file extensions to `file://` URIs for non-existing paths
     #[serde(default)]
     #[arg(
         long,
         value_delimiter = ',',
-        long_help = "Test the specified file extensions for URIs when checking files locally.
-Multiple extensions can be separated by commas. Extensions will be checked in
-order of appearance.
+        long_help = "When checking locally, attempts to locate missing files by trying the given
+fallback extensions. Multiple extensions can be separated by commas. Extensions
+will be checked in order of appearance.
 
-Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi"
+Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
+
+Note: This option only takes effect on `file://` URIs which do not exist."
     )]
     pub(crate) fallback_extensions: Vec<String>,
+
+    /// Resolve local directory links to specified index files within the directory
+    #[serde(default)]
+    #[arg(
+        long,
+        value_delimiter = ',',
+        long_help = "When checking locally, resolves directory links to a separate index file.
+The argument is a comma-separated list of index file names to search for. Index
+names are relative to the link's directory and attempted in the order given.
+
+If `--index-files` is specified, then at least one index file must exist in
+order for a directory link to be considered valid. Additionally, the special
+name `.` can be used in the list to refer to the directory itself.
+
+If unspecified (the default behavior), index files are disabled and directory
+links are considered valid as long as the directory exists on disk.
+
+Example 1: `--index-files index.html,readme.md` looks for index.html or readme.md
+           and requires that at least one exists.
+
+Example 2: `--index-files index.html,.` will use index.html if it exists, but
+           still accept the directory link regardless.
+
+Example 3: `--index-files ''` will reject all directory links because there are
+           no valid index files. This will require every link to explicitly name
+           a file.
+
+Note: This option only takes effect on `file://` URIs which exist and point to a directory."
+    )]
+    pub(crate) index_files: Option<Vec<String>>,
 
     /// Set custom header for requests
     #[arg(
@@ -706,6 +734,12 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[arg(long)]
     #[serde(default)]
     pub(crate) cookie_jar: Option<PathBuf>,
+
+    #[allow(clippy::doc_markdown)]
+    /// Check WikiLinks in Markdown files
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) include_wikilinks: bool,
 }
 
 impl Config {
@@ -750,7 +784,7 @@ impl Config {
             exclude_file: Vec::<String>::new(); // deprecated
             exclude_link_local: false;
             exclude_loopback: false;
-            exclude_path: Vec::<PathBuf>::new();
+            exclude_path: Vec::<String>::new();
             exclude_private: false;
             exclude: Vec::<String>::new();
             extensions: FileType::default_extensions();
@@ -761,6 +795,7 @@ impl Config {
             include_fragments: false;
             include_mail: false;
             include_verbatim: false;
+            include_wikilinks: false;
             include: Vec::<String>::new();
             insecure: false;
             max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();

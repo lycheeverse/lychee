@@ -43,6 +43,11 @@ lint: ## Run linter
 	cargo fmt --all -- --check
 	cargo clippy --all-targets --all-features -- -D warnings
 
+.PHONY: lint-fix
+lint-fix: ## Fix linter issues
+	cargo fmt --all
+	cargo clippy --all-targets --all-features --fix --allow-dirty --allow-staged
+
 .PHONY: test
 test: ## Run tests
 	cargo nextest run --all-targets --all-features

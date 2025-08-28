@@ -19,7 +19,7 @@ pub(crate) fn remove_get_params_and_separate_fragment(url: &str) -> (&str, Optio
 }
 
 // Use `LinkFinder` to offload the raw link searching in plaintext
-pub(crate) fn find_links(input: &str) -> impl Iterator<Item = linkify::Link> {
+pub(crate) fn find_links(input: &str) -> impl Iterator<Item = linkify::Link<'_>> {
     LINK_FINDER.links(input)
 }
 

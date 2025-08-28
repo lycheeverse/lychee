@@ -5,15 +5,15 @@ ARG LYCHEE_VERSION="latest"
 
 RUN apk add --no-cache ca-certificates jq wget \
     && ARCH=$(case $(arch) in \
-        "x86_64") echo "x86_64-unknown-linux-musl";; \
-        "aarch64") echo "arm-unknown-linux-musleabihf";; \
+        "x86_64") echo "x86_64";; \
+        "aarch64") echo "aarch64";; \
         *) echo "Unsupported architecture" && exit 1;; \
         esac) \
     && BASE_URL=$(case $LYCHEE_VERSION in \
-        "latest" | "nightly") echo "https://github.com/lycheeverse/lychee/releases/latest/download";; \
+        "latest") echo "https://github.com/lycheeverse/lychee/releases/latest/download";; \
         *) echo "https://github.com/lycheeverse/lychee/releases/download/$LYCHEE_VERSION";; \
         esac) \
-    && wget -4 -q -O - "$BASE_URL/lychee-$ARCH.tar.gz" | tar -xz lychee \
+    && wget -O - "$BASE_URL/lychee-$ARCH-unknown-linux-musl.tar.gz" | tar -xz lychee \
     && chmod +x lychee
 
 FROM alpine:latest
