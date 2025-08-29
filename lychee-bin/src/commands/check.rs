@@ -344,7 +344,7 @@ fn show_progress(
     };
 
     if let Some(pb) = progress_bar {
-        pb.update(out, verbose.log_level() >= log::Level::Info);
+        pb.update(out);
     } else if verbose.log_level() >= log::Level::Info
         || (!response.status().is_success() && !response.status().is_excluded())
     {

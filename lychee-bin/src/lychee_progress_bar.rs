@@ -23,12 +23,9 @@ impl LycheeProgressBar {
         LycheeProgressBar { bar }
     }
 
-    pub(crate) fn update(&self, out: String, print: bool) {
+    pub(crate) fn update(&self, message: String) {
         self.inc();
-        self.bar.set_message(out.clone());
-        if print {
-            self.bar.println(out);
-        }
+        self.bar.set_message(message.clone());
     }
 
     pub(crate) fn inc(&self) {
