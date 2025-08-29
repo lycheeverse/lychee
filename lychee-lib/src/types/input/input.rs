@@ -152,110 +152,6 @@ impl Input {
         }
     }
 
-    /// Get all input sources for content processing.
-    ///
-    /// This method returns a stream of input sources for the given input, taking into
-    /// account the matching file extensions and respecting exclusions.
-    ///
-    /// This can be used for retrieving all inputs which lychee would check for
-    /// links.
-    ///
-    /// # Returns
-    ///
-    /// Returns a stream of `Result<InputSource>` for all matching input sources.
-    ///
-    /// # Errors
-    ///
-    /// Will return errors for file system operations or glob pattern issues
-    pub fn get_input_sources<'a>(
-        &'a self,
-        file_extensions: FileExtensions,
-        skip_hidden: bool,
-        skip_gitignored: bool,
-        excluded_paths: &'a PathExcludes,
-    ) -> impl Stream<Item = Result<InputSource>> + 'a {
-        try_stream! {
-            match &self.source {
-                InputSource::RemoteUrl(url) => {
-                    // Yield the remote URL as an input source
-                    yield InputSource::RemoteUrl(url.clone());
-                },
-                InputSource::FsGlob { pattern, ignore_case } => {
-                    // For glob patterns, we expand the pattern and yield matching paths
-                    let glob_expanded = tilde(pattern).to_string();
-                    let mut match_opts = glob::MatchOptions::new();
-                    match_opts.case_sensitive = !ignore_case;
-
-                    for entry in glob_with(&glob_expanded, match_opts)? {
-                        match entry {
-                            Ok(path) => {
-                                // Skip directories or files that don't match extensions
-                                if path.is_dir() {
-                                    continue;
-                                }
-                                if Self::is_excluded_path(&path, excluded_paths) {
-                                    continue;
-                                }
-
-                                // Ignore extensions here. Instead, always check
-                                // files captured by the glob pattern, as the
-                                // user explicitly specified them.
-                                yield InputSource::FsPath(path);
-                            }
-                            Err(e) => {
-                                eprintln!("Error in glob pattern: {e:?}");
-                            }
-                        }
-                    }
-                },
-                InputSource::FsPath(path) => {
-                    if path.is_dir() {
-
-                        for entry in Input::walk_entries(
-                            path,
-                            file_extensions,
-                            skip_hidden,
-                            skip_gitignored,
-                        )?
-                        {
-                            let entry = entry?;
-                            if Self::is_excluded_path(entry.path(), excluded_paths) {
-                                continue;
-                            }
-                            match entry.file_type() {
-                                None => continue,
-                                Some(file_type) => {
-                                    if !file_type.is_file() {
-                                        continue;
-                                    }
-                                }
-                            }
-
-                            yield InputSource::FsPath(entry.path().to_path_buf());
-                        }
-                    } else {
-                        // For individual files, yield if not excluded.
-                        // We do not filter by extension here, as individual files
-                        // should always be checked, no matter if their extension matches or not.
-                        // This follows the principle of least surprise because the user
-                        // explicitly specified the file.
-                        if !Self::is_excluded_path(path, excluded_paths) {
-                            yield InputSource::FsPath(path.clone());
-                        }
-                    }
-                },
-                InputSource::Stdin => {
-                    // Yield stdin as an input source
-                    yield InputSource::Stdin;
-                },
-                InputSource::String(_) => {
-                    // Yield the string source
-                    yield self.source.clone();
-                }
-            }
-        }
-    }
-
     /// Retrieve the contents from the input
     ///
     /// If the input is a path, only search through files that match the given
@@ -377,10 +273,7 @@ impl Input {
     ///   - I/O errors while reading directory contents
     ///   - Filesystem errors (disk errors, network filesystem issues, etc.)
     ///   - Invalid file paths or symbolic link resolution failures
-    /// - `.gitignore` processing fails:
-    ///   - Reading or parsing `.gitignore` files
-    ///   - Processing ignore patterns for parent directories
-    ///   - Evaluating ignore rules against file paths
+    /// - Errors when reading or evaluating `.gitignore` or `.ignore` files
     /// - Errors occur during file extension or path exclusion evaluation
     ///
     /// Note: Individual glob match failures are logged to stderr but don't terminate the stream.
