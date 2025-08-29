@@ -23,6 +23,7 @@ pub(crate) fn extract_markdown(
     // which is why we keep track of entries and exits while traversing the input.
     let mut inside_code_block = false;
     let mut inside_link_block = false;
+    let mut inside_wikilink_block = false;
 
     let parser = TextMergeStream::new(Parser::new_ext(input, md_extensions()));
     parser
@@ -76,7 +77,7 @@ pub(crate) fn extract_markdown(
                         if !include_wikilinks {
                             return None;
                         }
-                        inside_link_block = true;
+                        inside_wikilink_block = true;
                         //Ignore gitlab toc notation: https://docs.gitlab.com/user/markdown/#table-of-contents
                         if ["_TOC_".to_string(), "TOC".to_string()].contains(&dest_url.to_string()) {
                             return None;
@@ -115,7 +116,9 @@ pub(crate) fn extract_markdown(
 
             // A text node.
             Event::Text(txt) => {
-                if inside_link_block || (inside_code_block && !include_verbatim) {
+                if inside_wikilink_block
+                    || (inside_link_block && !include_verbatim)
+                    || (inside_code_block && !include_verbatim) {
                     None
                 } else {
                     Some(extract_raw_uri_from_plaintext(&txt))
@@ -141,6 +144,7 @@ pub(crate) fn extract_markdown(
             // A detected link block.
             Event::End(TagEnd::Link) => {
                 inside_link_block = false;
+                inside_wikilink_block = false;
                 None
             }
 
@@ -444,10 +448,9 @@ $$
         assert!(uris.is_empty());
     }
 
-    // Test that link text is not extracted as a separate link
-    // Only the destination URL should be checked
     #[test]
     fn test_link_text_not_checked() {
+        // Test that link text is not extracted as a separate link by default
         let markdown =
             r"[https://lycheerepublic.gov/notexist (archive.org link)](https://example.com)";
         let uris = extract_markdown(markdown, false, false);
@@ -465,5 +468,40 @@ $$
             1,
             "Should only find destination URL, not link text"
         );
+    }
+
+    #[test]
+    fn test_link_text_checked_with_include_verbatim() {
+        // Test that link text IS extracted when include_verbatim is true
+        let markdown =
+            r"[https://lycheerepublic.gov/notexist (archive.org link)](https://example.com)";
+        let uris = extract_markdown(markdown, true, false);
+
+        // Should extract both the link text AND the destination URL
+        let expected = vec![
+            RawUri {
+                text: "https://example.com".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+            },
+            RawUri {
+                text: "https://lycheerepublic.gov/notexist".to_string(),
+                element: None,
+                attribute: None,
+            },
+        ];
+
+        assert_eq!(
+            uris.len(),
+            2,
+            "Should find both destination URL and link text"
+        );
+        // Check that both expected URLs are present (order might vary)
+        for expected_uri in expected {
+            assert!(
+                uris.contains(&expected_uri),
+                "Missing expected URI: {expected_uri:?}"
+            );
+        }
     }
 }
