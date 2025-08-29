@@ -2,25 +2,45 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Duration;
 
 #[derive(Clone)]
+struct LycheeProgressBarConfig {
+    pub template: &'static str,
+    pub increment: u64,
+    pub tick_interval: Duration,
+    pub progress_chars: &'static str,
+}
+
+impl Default for LycheeProgressBarConfig {
+    fn default() -> Self {
+        Self {
+            template: "{spinner:.162} {pos}/{len:.238} {bar:.162/238} {wide_msg}",
+            increment: 1,
+            tick_interval: Duration::from_millis(500),
+            progress_chars: "━ ━",
+        }
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct LycheeProgressBar {
     bar: ProgressBar,
+    config: LycheeProgressBarConfig,
 }
 
 impl LycheeProgressBar {
-    const TEMPLATE: &str = "{spinner:.162} {pos}/{len:.238} {bar:.162/238} {wide_msg}";
-    const DEFAULT_INCREMENT: u64 = 1;
-    const TICK_INTERVAL: Duration = Duration::from_millis(500);
-
     pub(crate) fn new(initial_message: &'static str) -> Self {
-        let bar = ProgressBar::new_spinner().with_style(
-            ProgressStyle::with_template(Self::TEMPLATE)
-                .expect("Valid progress bar")
-                .progress_chars("━ ━"),
-        );
+        let config = LycheeProgressBarConfig::default();
+
+        let style = ProgressStyle::with_template(config.template)
+            .expect("Valid progress bar")
+            .progress_chars(config.progress_chars);
+
+        let bar = ProgressBar::new_spinner().with_style(style);
+
         bar.set_length(0);
         bar.set_message(initial_message);
-        bar.enable_steady_tick(Self::TICK_INTERVAL);
-        LycheeProgressBar { bar }
+        bar.enable_steady_tick(config.tick_interval);
+
+        LycheeProgressBar { bar, config }
     }
 
     pub(crate) fn update(&self, message: String) {
@@ -29,7 +49,7 @@ impl LycheeProgressBar {
     }
 
     pub(crate) fn inc(&self) {
-        self.bar.inc(Self::DEFAULT_INCREMENT);
+        self.bar.inc(self.config.increment);
     }
 
     pub(crate) fn set_length(&self, n: u64) {
@@ -37,7 +57,7 @@ impl LycheeProgressBar {
     }
 
     pub(crate) fn increase_length(&self, out: String) {
-        self.bar.inc_length(Self::DEFAULT_INCREMENT);
+        self.bar.inc_length(self.config.increment);
         self.bar.set_message(out.clone());
     }
 
