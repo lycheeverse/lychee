@@ -1,13 +1,12 @@
 use std::{collections::HashSet, fmt::Display};
 
+use super::CacheStatus;
+use super::redirect_tracker::RedirectChain;
+use crate::ErrorKind;
 use http::StatusCode;
 use reqwest::Response;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
-
-use crate::ErrorKind;
-
-use super::CacheStatus;
 
 const ICON_OK: &str = "\u{2714}"; // ✔
 const ICON_REDIRECTED: &str = "\u{21c4}"; // ⇄
@@ -29,7 +28,7 @@ pub enum Status {
     /// Request timed out
     Timeout(Option<StatusCode>),
     /// Got redirected to different resource
-    Redirected(StatusCode),
+    Redirected(StatusCode, RedirectChain),
     /// The given status code is not known by lychee
     UnknownStatusCode(StatusCode),
     /// Resource was excluded from checking
@@ -46,7 +45,7 @@ impl Display for Status {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Status::Ok(code) => write!(f, "{code}"),
-            Status::Redirected(code) => write!(f, "Redirect ({code})"),
+            Status::Redirected(_, _) => write!(f, "Redirect"),
             Status::UnknownStatusCode(code) => write!(f, "Unknown status ({code})"),
             Status::Timeout(Some(code)) => write!(f, "Timeout ({code})"),
             Status::Timeout(None) => f.write_str("Timeout"),
@@ -135,7 +134,18 @@ impl Status {
     pub fn details(&self) -> Option<String> {
         match &self {
             Status::Ok(code) => code.canonical_reason().map(String::from),
-            Status::Redirected(code) => code.canonical_reason().map(String::from),
+            Status::Redirected(code, chain) => {
+                let count = chain.redirect_count();
+                let redirects = if count == 1 { "redirect" } else { "redirects" };
+
+                let result = code
+                    .canonical_reason()
+                    .map(String::from)
+                    .unwrap_or(code.as_str().to_owned());
+                Some(format!(
+                    "Followed {count} {redirects} resulting in {result}."
+                ))
+            }
             Status::Error(e) => e.details(),
             Status::Timeout(_) => None,
             Status::UnknownStatusCode(_) => None,
@@ -194,7 +204,7 @@ impl Status {
     pub const fn icon(&self) -> &str {
         match self {
             Status::Ok(_) => ICON_OK,
-            Status::Redirected(_) => ICON_REDIRECTED,
+            Status::Redirected(_, _) => ICON_REDIRECTED,
             Status::UnknownStatusCode(_) => ICON_UNKNOWN,
             Status::Excluded => ICON_EXCLUDED,
             Status::Error(_) => ICON_ERROR,
@@ -209,7 +219,7 @@ impl Status {
     pub fn code(&self) -> Option<StatusCode> {
         match self {
             Status::Ok(code)
-            | Status::Redirected(code)
+            | Status::Redirected(code, _)
             | Status::UnknownStatusCode(code)
             | Status::Timeout(Some(code)) => Some(*code),
             Status::Error(kind) | Status::Unsupported(kind) => match kind {
@@ -230,7 +240,7 @@ impl Status {
     #[must_use]
     pub fn code_as_string(&self) -> String {
         match self {
-            Status::Ok(code) | Status::Redirected(code) | Status::UnknownStatusCode(code) => {
+            Status::Ok(code) | Status::Redirected(code, _) | Status::UnknownStatusCode(code) => {
                 code.as_str().to_string()
             }
             Status::Excluded => "EXCLUDED".to_string(),
@@ -294,7 +304,7 @@ impl From<reqwest::Error> for Status {
 
 #[cfg(test)]
 mod tests {
-    use crate::{CacheStatus, ErrorKind, Status};
+    use crate::{CacheStatus, ErrorKind, Status, types::redirect_tracker::RedirectChain};
     use http::StatusCode;
 
     #[test]
@@ -329,7 +339,7 @@ mod tests {
             999
         );
         assert_eq!(
-            Status::Redirected(StatusCode::from_u16(300).unwrap())
+            Status::Redirected(StatusCode::from_u16(300).unwrap(), RedirectChain::default())
                 .code()
                 .unwrap(),
             300

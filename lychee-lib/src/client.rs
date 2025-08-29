@@ -30,13 +30,10 @@ use typed_builder::TypedBuilder;
 use crate::{
     Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
     chain::RequestChain,
-    checker::{
-        file::FileChecker, mail::MailChecker, redirect_tracker::RedirectTracker,
-        website::WebsiteChecker,
-    },
+    checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
     remap::Remaps,
-    types::DEFAULT_ACCEPTED_STATUS_CODES,
+    types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_tracker::RedirectTracker},
 };
 
 /// Default number of redirects before a request is deemed as failed, 5.

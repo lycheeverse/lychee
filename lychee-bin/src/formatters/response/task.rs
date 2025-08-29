@@ -13,7 +13,7 @@ impl ResponseFormatter for TaskFormatter {
 mod task_tests {
     use super::*;
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, Status, Uri};
+    use lychee_lib::{ErrorKind, RedirectChain, Status, Uri};
 
     // Helper function to create a ResponseBody with a given status and URI
     fn mock_response_body(status: Status, uri: &str) -> ResponseBody {
@@ -60,7 +60,7 @@ mod task_tests {
     fn test_format_response_with_redirect_status() {
         let formatter = TaskFormatter;
         let body = mock_response_body(
-            Status::Redirected(StatusCode::MOVED_PERMANENTLY),
+            Status::Redirected(StatusCode::MOVED_PERMANENTLY, RedirectChain::default()),
             "https://example.com/redirect",
         );
         assert_eq!(

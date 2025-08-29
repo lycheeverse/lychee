@@ -3,7 +3,7 @@ use crate::{
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
     retry::RetryExt,
-    types::uri::github::GithubUri,
+    types::{redirect_tracker::RedirectTracker, uri::github::GithubUri},
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 use async_trait::async_trait;
@@ -12,8 +12,6 @@ use octocrab::Octocrab;
 use reqwest::{Request, Response, header::CONTENT_TYPE};
 use std::{collections::HashSet, path::Path, time::Duration};
 use url::Url;
-
-use super::redirect_tracker::RedirectTracker;
 
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
