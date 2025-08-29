@@ -40,6 +40,7 @@ pub(crate) fn extract_markdown(
                     // Inline link like `[foo](bar)`
                     // This is the most common link type
                     LinkType::Inline => {
+                        inside_link_block = true;
                         Some(vec![RawUri {
                             text: dest_url.to_string(),
                             // Emulate `<a href="...">` tag here to be compatible with
@@ -60,7 +61,10 @@ pub(crate) fn extract_markdown(
                     // Shortcut link like `[foo]`
                     LinkType::Shortcut |
                     // Shortcut without destination in the document, but resolved by the `broken_link_callback`
-                    LinkType::ShortcutUnknown |
+                    LinkType::ShortcutUnknown => {
+                        inside_link_block = true;
+                        Some(extract_raw_uri_from_plaintext(&dest_url))
+                    },
                     // Autolink like `<http://foo.bar/baz>`
                     LinkType::Autolink |
                     // Email address in autolink like `<john@example.org>`
@@ -111,7 +115,7 @@ pub(crate) fn extract_markdown(
 
             // A text node.
             Event::Text(txt) => {
-                if (inside_code_block && !include_verbatim) || inside_link_block {
+                if inside_link_block || (inside_code_block && !include_verbatim) {
                     None
                 } else {
                     Some(extract_raw_uri_from_plaintext(&txt))
@@ -438,5 +442,28 @@ $$
         let markdown = r"[[_TOC_]][TOC]";
         let uris = extract_markdown(markdown, true, true);
         assert!(uris.is_empty());
+    }
+
+    // Test that link text is not extracted as a separate link
+    // Only the destination URL should be checked
+    #[test]
+    fn test_link_text_not_checked() {
+        let markdown =
+            r"[https://lycheerepublic.gov/notexist (archive.org link)](https://example.com)";
+        let uris = extract_markdown(markdown, false, false);
+
+        // Should only extract the destination URL, not the link text
+        let expected = vec![RawUri {
+            text: "https://example.com".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+        }];
+
+        assert_eq!(uris, expected);
+        assert_eq!(
+            uris.len(),
+            1,
+            "Should only find destination URL, not link text"
+        );
     }
 }
