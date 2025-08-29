@@ -14,7 +14,7 @@
 //! ```
 //!
 //! For more specific use-cases you can build a lychee client yourself,
-//! using the `ClientBuilder` which can be used to
+//! using the [`ClientBuilder`] which can be used to
 //! configure and run your own link checker and grants full flexibility:
 //!
 //! ```

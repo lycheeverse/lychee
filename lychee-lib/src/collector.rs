@@ -41,8 +41,10 @@ pub struct Collector {
 impl Default for Collector {
     /// # Panics
     ///
-    /// We call `Client::new()` which can panic in certain scenarios.
-    /// Use `Collector::new()` to handle `ClientBuilder` errors gracefully.
+    /// We call [`Collector::new()`] which can panic in certain scenarios.
+    ///
+    /// Use `Collector::new()` instead if you need to handle
+    /// [`ClientBuilder`](crate::ClientBuilder) errors gracefully.
     fn default() -> Self {
         Collector {
             basic_auth_extractor: None,
