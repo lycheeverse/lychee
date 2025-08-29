@@ -150,14 +150,12 @@ impl FileChecker {
         // fragments and thus be "more useful".
         //
         // (currently, this case is only reachable if `.` is in the index_files list.)
-        let path = match path {
+        match path {
             Ok(dir_path) if dir_path.is_dir() => self
                 .apply_fallback_extensions(&dir_path, uri)
                 .or(Ok(dir_path)),
             Ok(_) | Err(_) => path,
-        };
-
-        path
+        }
     }
 
     /// Resolves a path to a file, applying fallback extensions if necessary.
