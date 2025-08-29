@@ -1,5 +1,6 @@
 use http::StatusCode;
 use log::warn;
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 use crate::{
@@ -79,7 +80,7 @@ impl FileChecker {
         let path = self.resolve_base(&path);
         let path = self.resolve_local_path(&path, uri);
         match path {
-            Ok(ref path) => self.check_file(path, uri).await,
+            Ok(path) => self.check_file(path.as_ref(), uri).await,
             Err(err) => err.into(),
         }
     }
@@ -126,21 +127,25 @@ impl FileChecker {
     /// Returns `Ok` with the resolved path if it is valid, otherwise returns
     /// `Err` with an appropriate error. The returned path, if any, is guaranteed
     /// to exist and may be a file or a directory.
-    fn resolve_local_path(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
+    fn resolve_local_path<'a>(
+        &self,
+        path: &'a Path,
+        uri: &Uri,
+    ) -> Result<Cow<'a, Path>, ErrorKind> {
         let path = match path.metadata() {
             // for non-existing paths, attempt fallback extensions
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                self.apply_fallback_extensions(path, uri)
+                self.apply_fallback_extensions(path, uri).map(Cow::Owned)
             }
 
             // other IO errors are unexpected and should fail the check
             Err(e) => Err(ErrorKind::ReadFileInput(e, path.to_path_buf())),
 
             // existing directories are resolved via index files
-            Ok(meta) if meta.is_dir() => self.apply_index_files(path),
+            Ok(meta) if meta.is_dir() => self.apply_index_files(path).map(Cow::Owned),
 
             // otherwise, path is an existing file - just return the path
-            Ok(_) => Ok(path.to_owned()), // perf bug: this is a copy on the most common code path
+            Ok(_) => Ok(Cow::Borrowed(path)),
         };
 
         // if initial resolution results in a directory, also attempts to apply
@@ -151,10 +156,14 @@ impl FileChecker {
         //
         // (currently, this case is only reachable if `.` is in the index_files list.)
         match path {
-            Ok(dir_path) if dir_path.is_dir() => self
-                .apply_fallback_extensions(&dir_path, uri)
-                .or(Ok(dir_path)),
-            Ok(_) | Err(_) => path,
+            Ok(dir_path) if dir_path.is_dir() => {
+                match self.apply_fallback_extensions(&dir_path, uri) {
+                    Ok(fallback_path) => Ok(Cow::Owned(fallback_path)),
+                    Err(_) => Ok(dir_path),
+                }
+            }
+            Ok(path) => Ok(path),
+            Err(err) => Err(err),
         }
     }
 
