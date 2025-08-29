@@ -1,6 +1,5 @@
 use http::StatusCode;
 use log::warn;
-use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 use crate::{
@@ -77,8 +76,12 @@ impl FileChecker {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         };
 
-        let resolved_path = self.resolve_path(&path);
-        self.check_path(&resolved_path, uri).await
+        let path = self.resolve_base(&path);
+        let path = self.resolve_local_path(&path, uri);
+        match path {
+            Ok(ref path) => self.check_file(path, uri).await,
+            Err(err) => err.into(),
+        }
     }
 
     /// Resolves the given path using the base path, if one is set.
@@ -91,7 +94,7 @@ impl FileChecker {
     ///
     /// Returns the resolved path as a `PathBuf`, or the original path
     /// if no base path is defined.
-    fn resolve_path(&self, path: &Path) -> PathBuf {
+    fn resolve_base(&self, path: &Path) -> PathBuf {
         if let Some(Base::Local(base_path)) = &self.base {
             if path.is_absolute() {
                 let absolute_base_path = if base_path.is_relative() {
@@ -110,35 +113,34 @@ impl FileChecker {
         }
     }
 
-    /// Checks if the given path exists and performs additional checks if necessary.
-    ///
-    /// First, the given path is resolved to a file by applying fallback extensions
-    /// and finding index files if needed. Then, the file is checked to make sure it
-    /// exists and passes any additional checks.
+    /// Resolves the given local path by applying logic which is specific to local file
+    /// checking - currently, this includes fallback extensions and index files.
     ///
     /// # Arguments
     ///
-    /// * `path` - The path to check.
-    /// * `uri` - The original URI, used for checking and error reporting.
+    /// * `path` - The path to check. Need not exist.
+    /// * `uri` - The original URI, used for error reporting.
     ///
     /// # Returns
     ///
-    /// Returns a `Status` indicating the result of the check.
-    async fn check_path(&self, path: &Path, uri: &Uri) -> Status {
+    /// Returns `Ok` with the resolved path if it is valid, otherwise returns
+    /// `Err` with an appropriate error. The returned path, if any, is guaranteed
+    /// to exist and may be a file or a directory.
+    fn resolve_local_path(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
         let path = match path.metadata() {
             // for non-existing paths, attempt fallback extensions
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                self.apply_fallback_extensions(path, uri).map(Cow::Owned)
+                self.apply_fallback_extensions(path, uri)
             }
 
             // other IO errors are unexpected and should fail the check
             Err(e) => Err(ErrorKind::ReadFileInput(e, path.to_path_buf())),
 
             // existing directories are resolved via index files
-            Ok(meta) if meta.is_dir() => self.apply_index_files(path).map(Cow::Owned),
+            Ok(meta) if meta.is_dir() => self.apply_index_files(path),
 
             // otherwise, path is an existing file - just return the path
-            Ok(_) => Ok(Cow::Borrowed(path)),
+            Ok(_) => Ok(path.to_owned()), // perf bug: this is a copy on the most common code path
         };
 
         // if initial resolution results in a directory, also attempts to apply
@@ -151,15 +153,11 @@ impl FileChecker {
         let path = match path {
             Ok(dir_path) if dir_path.is_dir() => self
                 .apply_fallback_extensions(&dir_path, uri)
-                .map(Cow::Owned)
                 .or(Ok(dir_path)),
             Ok(_) | Err(_) => path,
         };
 
-        match path {
-            Ok(ref path) => self.check_file(path, uri).await,
-            Err(err) => err.into(),
-        }
+        path
     }
 
     /// Resolves a path to a file, applying fallback extensions if necessary.
