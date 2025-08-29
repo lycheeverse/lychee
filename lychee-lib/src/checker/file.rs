@@ -141,6 +141,21 @@ impl FileChecker {
             Ok(_) => Ok(Cow::Borrowed(path)),
         };
 
+        // if initial resolution results in a directory, also attempts to apply
+        // fallback extensions. probably, this always makes sense because
+        // directories are treated as having no fragments, so a real file with
+        // a fallback extension (if it exists) will potentially contain more
+        // fragments and thus be "more useful".
+        //
+        // (currently, this case is only reachable if `.` is in the index_files list.)
+        let path = match path {
+            Ok(dir_path) if dir_path.is_dir() => self
+                .apply_fallback_extensions(&dir_path, uri)
+                .map(Cow::Owned)
+                .or(Ok(dir_path)),
+            Ok(_) | Err(_) => path,
+        };
+
         match path {
             Ok(ref path) => self.check_file(path, uri).await,
             Err(err) => err.into(),
@@ -344,6 +359,15 @@ mod tests {
             "filechecker/index_dir#non-existingfragment",
             Status::Error(InvalidFragment(_))
         );
+
+        assert_filecheck!(&checker, "filechecker/same_name", Status::Ok(_));
+
+        // because no fallback extensions are configured
+        assert_filecheck!(
+            &checker,
+            "filechecker/same_name#a",
+            Status::Error(InvalidFragment(_))
+        );
     }
 
     #[tokio::test]
@@ -488,5 +512,15 @@ mod tests {
             "filechecker/empty_dir#fragment",
             Status::Ok(_)
         );
+    }
+
+    #[tokio::test]
+    async fn test_fallback_extensions_on_directories() {
+        let checker = FileChecker::new(None, vec!["html".to_owned()], None, true);
+
+        // fallback extensions should be applied when directory links are resolved
+        // to directories (i.e., the default index_files behavior or if `.`
+        // appears in index_files).
+        assert_filecheck!(&checker, "filechecker/same_name#a", Status::Ok(_));
     }
 }

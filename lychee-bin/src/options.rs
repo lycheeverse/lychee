@@ -555,7 +555,9 @@ will be checked in order of appearance.
 
 Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
 
-Note: This option only takes effect on `file://` URIs which do not exist."
+Note: This option takes effect on `file://` URIs which do not exist and on
+      `file://` URIs pointing to directories which resolve to themself (by the
+      --index-files logic)."
     )]
     pub(crate) fallback_extensions: Vec<String>,
 
