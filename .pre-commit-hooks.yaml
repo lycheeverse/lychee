@@ -1,18 +1,30 @@
 - id: lychee
   name: lychee
-  description: "Run 'lychee' for fast, async, stream-based link checking"
+  description: "Run 'lychee' for fast, async, stream-based link checking (auto-installs)"
+  entry: scripts/lychee_pre_commit.sh
+  language: script
+  args: ["--no-progress"]
+  types: [text]
+  pass_filenames: true
+  require_serial: true
+  minimum_pre_commit_version: "2.9.2"
+- id: lychee-system
+  name: lychee-system
+  description: "Run 'lychee' using system installation (requires: cargo install lychee)"
   entry: lychee
   language: system
   args: ["--no-progress"]
   types: [text]
   pass_filenames: true
   require_serial: true
+  minimum_pre_commit_version: "2.9.2"
 - id: lychee-docker
-  name: lychee
-  description: "Run 'lychee' docker image for fast, async, stream-based link checking"
-  entry: lycheeverse/lychee:0.14
+  name: lychee-docker  
+  description: "Run 'lychee' docker image for fast, async, stream-based link checking (auto-installs)"
+  entry: lycheeverse/lychee:0.20.1
   language: docker_image
   args: ["--no-progress"]
   types: [text]
   pass_filenames: true
   require_serial: true
+  minimum_pre_commit_version: "2.9.2"
