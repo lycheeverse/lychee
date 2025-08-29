@@ -329,6 +329,33 @@ mod tests {
         };
     }
 
+    /// Calls [`FileChecker::resolve_local_path`] on the given [`FileChecker`]
+    /// with given URL path (relative to the fixtures directory).
+    ///
+    /// The result of resolving the link is matched against the given pattern.
+    /// The pattern should match values of type `Result<&str, ErrorKind>`.
+    macro_rules! assert_resolves {
+        ($checker:expr, $subpath:expr, $expected:pat) => {
+            let uri = fixture_uri($subpath);
+            let path = uri
+                .url
+                .to_file_path()
+                .expect("fixture uri should be a valid path");
+            let result = $checker.resolve_local_path(&path, &uri);
+            let result_subpath = result
+                .as_deref()
+                .map(|p| p.strip_prefix(fixtures_path()).unwrap())
+                .map(|p| p.to_string_lossy());
+            assert!(
+                matches!(result_subpath.as_deref(), $expected),
+                "{:?} resolved to {:?} but should be {}",
+                $subpath,
+                result_subpath,
+                stringify!($expected)
+            );
+        };
+    }
+
     #[tokio::test]
     async fn test_default() {
         // default behaviour accepts dir links as long as the directory exists.
@@ -337,6 +364,11 @@ mod tests {
         assert_filecheck!(&checker, "filechecker/index_dir", Status::Ok(_));
 
         // empty dir is accepted with '.' in index_files, but it contains no fragments.
+        assert_resolves!(
+            &checker,
+            "filechecker/empty_dir",
+            Ok("filechecker/empty_dir")
+        );
         assert_filecheck!(&checker, "filechecker/empty_dir", Status::Ok(_));
         assert_filecheck!(&checker, "filechecker/empty_dir#", Status::Ok(_));
         assert_filecheck!(
@@ -347,6 +379,11 @@ mod tests {
 
         // even though index.html is present, it is not used because index_files is only
         // '.', so no fragments are found.
+        assert_resolves!(
+            &checker,
+            "filechecker/index_dir",
+            Ok("filechecker/index_dir")
+        );
         assert_filecheck!(
             &checker,
             "filechecker/index_dir#fragment",
@@ -361,6 +398,11 @@ mod tests {
         assert_filecheck!(&checker, "filechecker/same_name", Status::Ok(_));
 
         // because no fallback extensions are configured
+        assert_resolves!(
+            &checker,
+            "filechecker/same_name",
+            Ok("filechecker/same_name")
+        );
         assert_filecheck!(
             &checker,
             "filechecker/same_name#a",
@@ -377,19 +419,18 @@ mod tests {
             true,
         );
 
-        assert_filecheck!(&checker, "filechecker/index_dir", Status::Ok(_));
-        assert_filecheck!(&checker, "filechecker/index_md", Status::Ok(_));
+        assert_resolves!(
+            &checker,
+            "filechecker/index_dir",
+            Ok("filechecker/index_dir/index.html")
+        );
+        assert_resolves!(
+            &checker,
+            "filechecker/index_md",
+            Ok("filechecker/index_md/index.md")
+        );
         // empty is rejected because of no index.html
-        assert_filecheck!(
-            &checker,
-            "filechecker/empty_dir",
-            Status::Error(InvalidIndexFile(_))
-        );
-        assert_filecheck!(
-            &checker,
-            "filechecker/empty_dir#fragment",
-            Status::Error(InvalidIndexFile(_))
-        );
+        assert_resolves!(&checker, "filechecker/empty_dir", Err(InvalidIndexFile(_)));
 
         // index.html is resolved and fragments are checked.
         assert_filecheck!(&checker, "filechecker/index_dir#fragment", Status::Ok(_));
@@ -400,10 +441,10 @@ mod tests {
         );
 
         // directories which look like files should still have index files applied
-        assert_filecheck!(
+        assert_resolves!(
             &checker,
             "filechecker/dir_with_extension.html",
-            Status::Error(InvalidIndexFile(_))
+            Err(InvalidIndexFile(_))
         );
     }
 
@@ -419,27 +460,19 @@ mod tests {
         // this test case has a subdir 'same_name' and a file 'same_name.html'.
         // this shows that the index file resolving is applied in this case and
         // fallback extensions are not applied.
-        assert_filecheck!(
-            &checker,
-            "filechecker/same_name",
-            Status::Error(InvalidIndexFile(_))
-        );
+        assert_resolves!(&checker, "filechecker/same_name", Err(InvalidIndexFile(_)));
 
         // this directory has an index.html, but the index_files argument is only "index". this
         // shows that fallback extensions are not applied to index file names, as the index.html is
         // not found.
-        assert_filecheck!(
-            &checker,
-            "filechecker/index_dir",
-            Status::Error(InvalidIndexFile(_))
-        );
+        assert_resolves!(&checker, "filechecker/index_dir", Err(InvalidIndexFile(_)));
 
         // a directory called 'dir_with_extension.html' exists. this test shows that fallback
         // extensions must resolve to a file not a directory.
-        assert_filecheck!(
+        assert_resolves!(
             &checker,
             "filechecker/dir_with_extension",
-            Status::Error(InvalidFilePath(_))
+            Err(InvalidFilePath(_))
         );
     }
 
@@ -447,15 +480,15 @@ mod tests {
     async fn test_empty_index_list_corner() {
         // empty index_files list will reject all directory links
         let checker_no_indexes = FileChecker::new(None, vec![], Some(vec![]), false);
-        assert_filecheck!(
+        assert_resolves!(
             &checker_no_indexes,
             "filechecker/index_dir",
-            Status::Error(InvalidIndexFile(_))
+            Err(InvalidIndexFile(_))
         );
-        assert_filecheck!(
+        assert_resolves!(
             &checker_no_indexes,
             "filechecker/empty_dir",
-            Status::Error(InvalidIndexFile(_))
+            Err(InvalidIndexFile(_))
         );
     }
 
@@ -471,15 +504,15 @@ mod tests {
             "/".to_owned(),
         ];
         let checker_dir_indexes = FileChecker::new(None, vec![], Some(dir_names), false);
-        assert_filecheck!(
+        assert_resolves!(
             &checker_dir_indexes,
             "filechecker/index_dir",
-            Status::Error(InvalidIndexFile(_))
+            Err(InvalidIndexFile(_))
         );
-        assert_filecheck!(
+        assert_resolves!(
             &checker_dir_indexes,
             "filechecker/empty_dir",
-            Status::Error(InvalidIndexFile(_))
+            Err(InvalidIndexFile(_))
         );
     }
 
@@ -492,10 +525,10 @@ mod tests {
             Some(vec!["../index_dir/index.html".to_owned()]),
             true,
         );
-        assert_filecheck!(
+        assert_resolves!(
             &checker_dotdot,
             "filechecker/empty_dir#fragment",
-            Status::Ok(_)
+            Ok("filechecker/empty_dir/../index_dir/index.html")
         );
 
         // absolute paths to a file on disk should also work
@@ -505,10 +538,10 @@ mod tests {
             .expect("expected utf-8 fixtures path")
             .to_owned();
         let checker_absolute = FileChecker::new(None, vec![], Some(vec![absolute_html]), true);
-        assert_filecheck!(
+        assert_resolves!(
             &checker_absolute,
             "filechecker/empty_dir#fragment",
-            Status::Ok(_)
+            Ok("filechecker/index_dir/index.html")
         );
     }
 
@@ -519,6 +552,19 @@ mod tests {
         // fallback extensions should be applied when directory links are resolved
         // to directories (i.e., the default index_files behavior or if `.`
         // appears in index_files).
-        assert_filecheck!(&checker, "filechecker/same_name#a", Status::Ok(_));
+        assert_resolves!(
+            &checker,
+            "filechecker/same_name#a",
+            Ok("filechecker/same_name.html")
+        );
+
+        // currently, trailing slashes are ignored and fallback extensions are
+        // applied regardless. maybe links with trailing slash should be prevented
+        // from resolving to files.
+        assert_resolves!(
+            &checker,
+            "filechecker/same_name/",
+            Ok("filechecker/same_name.html")
+        );
     }
 }
