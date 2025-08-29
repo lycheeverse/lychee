@@ -2,7 +2,6 @@ use log::warn;
 use percent_encoding::percent_decode_str;
 use reqwest::Url;
 use std::{
-    borrow::Cow,
     collections::HashSet,
     path::{Path, PathBuf},
 };
@@ -207,6 +206,8 @@ fn prepend_root_dir_if_absolute_local_link(text: &str, root_dir: Option<&PathBuf
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
+
     use super::*;
 
     #[test]

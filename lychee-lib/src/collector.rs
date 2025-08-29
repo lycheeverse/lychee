@@ -15,7 +15,6 @@ use futures::{
 use http::HeaderMap;
 use par_stream::ParStreamExt;
 use reqwest::Client;
-use std::borrow::Cow;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -306,6 +305,7 @@ impl Collector {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
     use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
 
     use http::StatusCode;
