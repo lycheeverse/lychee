@@ -3,8 +3,8 @@ use crate::InputSource;
 use crate::filter::PathExcludes;
 use crate::types::resolver::UrlContentResolver;
 use crate::{
-    Base, Input, Request, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
-    types::FileExtensions, types::uri::raw::RawUri, utils::request,
+    Base, Input, InputResolver, Request, Result, basic_auth::BasicAuthExtractor,
+    extract::Extractor, types::FileExtensions, types::uri::raw::RawUri, utils::request,
 };
 use dashmap::DashSet;
 use futures::TryStreamExt;
@@ -190,7 +190,8 @@ impl Collector {
                 let excluded_paths = excluded_paths.clone();
                 let file_extensions = file_extensions.clone();
                 async move {
-                    let input_sources = input.get_input_sources(
+                    let input_sources = InputResolver::resolve(
+                        &input,
                         file_extensions,
                         skip_hidden,
                         skip_ignored,
