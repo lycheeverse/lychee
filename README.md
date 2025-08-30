@@ -850,3 +850,10 @@ at your option.
 
 <br><hr>
 [🔼 Back to top](#back-to-top)
+
+
+
+# TODO: redirections
+
+- Record full redirection chain
+- Print redirection chain in the end, depending on verbosity or mode
