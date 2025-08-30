@@ -156,12 +156,10 @@ impl FileChecker {
         //
         // (currently, this case is only reachable if `.` is in the index_files list.)
         match path {
-            Ok(dir_path) if dir_path.is_dir() => {
-                match self.apply_fallback_extensions(&dir_path, uri) {
-                    Ok(fallback_path) => Ok(Cow::Owned(fallback_path)),
-                    Err(_) => Ok(dir_path),
-                }
-            }
+            Ok(dir_path) if dir_path.is_dir() => self
+                .apply_fallback_extensions(&dir_path, uri)
+                .map(Cow::Owned)
+                .or(Ok(dir_path)),
             Ok(path) => Ok(path),
             Err(err) => Err(err),
         }
