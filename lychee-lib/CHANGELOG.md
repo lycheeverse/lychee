@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.20.1...lychee-lib-v0.21.0) - 2025-08-30
+
+### Other
+
+- *(file checker)* separate resolving and checking for easier testing ([#1830](https://github.com/lycheeverse/lychee/pull/1830))
+- Refactor Input Handling ([#1827](https://github.com/lycheeverse/lychee/pull/1827))
+- Fix links in doc comments ([#1828](https://github.com/lycheeverse/lychee/pull/1828))
+- apply fallback extensions if directory links resolve to a dir ([#1826](https://github.com/lycheeverse/lychee/pull/1826))
+- clarify `--base-url` and `--root-dir` and their interactions ([#1787](https://github.com/lycheeverse/lychee/pull/1787))
+- Refactor collector and input ([#1823](https://github.com/lycheeverse/lychee/pull/1823))
+- add conda install to readme ([#1822](https://github.com/lycheeverse/lychee/pull/1822))
+- Bump the dependencies group with 3 updates ([#1821](https://github.com/lycheeverse/lychee/pull/1821))
+- Refactor error reporting ([#1731](https://github.com/lycheeverse/lychee/pull/1731))
+
 ## [0.20.1](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.20.0...lychee-lib-v0.20.1) - 2025-08-25
 
 ### Other
