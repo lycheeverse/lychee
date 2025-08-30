@@ -54,6 +54,10 @@ test: ## Run tests
 	cargo nextest run
 	cargo test --doc
 
+.PHONY: bench
+bench: ## Run benchmarks
+	cargo bench
+
 .PHONY: doc
 doc: ## Open documentation
 	cargo doc --open
