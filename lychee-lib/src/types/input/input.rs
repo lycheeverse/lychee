@@ -206,7 +206,7 @@ impl Input {
                 match source_result {
                     Ok(source) => {
                         let content_result = match source {
-                            ResolvedInputSource::FsPath(path) => {
+                            ResolvedInputSource::FsPath(path, _) => {
                                 Self::path_content(&path).await
                             },
                             ResolvedInputSource::RemoteUrl(url) => {
@@ -353,7 +353,7 @@ impl Input {
 
         let input_content = InputContent {
             file_type: FileType::from(&path),
-            source: InputSource::FsPath(path),
+            source: ResolvedInputSource::FsPath(path, None),
             content,
         };
 
@@ -371,7 +371,7 @@ impl Input {
         stdin.read_to_string(&mut content).await?;
 
         let input_content = InputContent {
-            source: InputSource::Stdin,
+            source: ResolvedInputSource::Stdin,
             file_type: file_type_hint.unwrap_or_default(),
             content,
         };
@@ -417,7 +417,7 @@ mod tests {
         assert!(matches!(
             input,
             Ok(Input {
-                source: InputSource::FsPath(PathBuf { .. }),
+                source: ResolvedInputSource::FsPath(PathBuf { .. }),
                 file_type_hint: None,
             })
         ));

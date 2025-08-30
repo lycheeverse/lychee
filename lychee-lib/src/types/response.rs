@@ -4,6 +4,7 @@ use http::StatusCode;
 use serde::Serialize;
 
 use crate::{InputSource, Status, Uri};
+use crate::types::ResolvedInputSource;
 
 /// Response type returned by lychee after checking a URI
 //
@@ -14,13 +15,13 @@ use crate::{InputSource, Status, Uri};
 // `pub(crate)` is insufficient, because the `stats` module is in the `bin`
 // crate crate.
 #[derive(Debug)]
-pub struct Response(InputSource, pub ResponseBody);
+pub struct Response(ResolvedInputSource, pub ResponseBody);
 
 impl Response {
     #[inline]
     #[must_use]
     /// Create new response
-    pub const fn new(uri: Uri, status: Status, source: InputSource) -> Self {
+    pub const fn new(uri: Uri, status: Status, source: ResolvedInputSource) -> Self {
         Response(source, ResponseBody { uri, status })
     }
 
@@ -35,7 +36,7 @@ impl Response {
     #[must_use]
     /// Retrieve the underlying source of the response
     /// (e.g. the input file or the URL)
-    pub const fn source(&self) -> &InputSource {
+    pub const fn source(&self) -> &ResolvedInputSource {
         &self.0
     }
 

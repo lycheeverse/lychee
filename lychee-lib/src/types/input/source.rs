@@ -53,7 +53,7 @@ pub enum ResolvedInputSource {
     /// URL (of HTTP/HTTPS scheme).
     RemoteUrl(Box<Url>),
     /// File path.
-    FsPath(PathBuf),
+    FsPath(PathBuf, Option<(String, bool)>),
     /// Standard Input.
     Stdin,
     /// Raw string input.
@@ -64,7 +64,8 @@ impl From<ResolvedInputSource> for InputSource {
     fn from(resolved: ResolvedInputSource) -> Self {
         match resolved {
             ResolvedInputSource::RemoteUrl(url) => InputSource::RemoteUrl(url),
-            ResolvedInputSource::FsPath(path) => InputSource::FsPath(path),
+            ResolvedInputSource::FsPath(path, None) => InputSource::FsPath(path),
+            ResolvedInputSource::FsPath(path, Some((pattern, ignore_case))) => InputSource::FsGlob {pattern, ignore_case},
             ResolvedInputSource::Stdin => InputSource::Stdin,
             ResolvedInputSource::String(s) => InputSource::String(s),
         }
@@ -75,7 +76,7 @@ impl Display for ResolvedInputSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::RemoteUrl(url) => url.as_str(),
-            Self::FsPath(path) => path.to_str().unwrap_or_default(),
+            Self::FsPath(path, _) => path.to_str().unwrap_or_default(),
             Self::Stdin => "stdin",
             Self::String(s) => s,
         })

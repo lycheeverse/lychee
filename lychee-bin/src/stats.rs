@@ -90,7 +90,7 @@ impl ResponseStats {
     /// Add a response status to the appropriate map (success, fail, excluded)
     fn add_response_status(&mut self, response: Response) {
         let status = response.status();
-        let source = response.source().clone();
+        let source: InputSource = response.source().clone().into();
         let status_map_entry = match status {
             _ if status.is_error() => self.error_map.entry(source).or_default(),
             Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),

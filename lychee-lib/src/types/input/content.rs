@@ -4,6 +4,7 @@
 //! input sources, along with metadata about the source and file type.
 
 use super::source::InputSource;
+use super::source::ResolvedInputSource;
 use crate::ErrorKind;
 use crate::types::FileType;
 use std::fs;
@@ -13,7 +14,7 @@ use std::path::PathBuf;
 #[derive(Debug)]
 pub struct InputContent {
     /// Input source
-    pub source: InputSource,
+    pub source: ResolvedInputSource,
     /// File type of given input
     pub file_type: FileType,
     /// Raw UTF-8 string content
@@ -26,7 +27,7 @@ impl InputContent {
     pub fn from_string(s: &str, file_type: FileType) -> Self {
         // TODO: consider using Cow (to avoid one .clone() for String types)
         Self {
-            source: InputSource::String(s.to_owned()),
+            source: ResolvedInputSource::String(s.to_owned()),
             file_type,
             content: s.to_owned(),
         }
@@ -50,7 +51,7 @@ impl TryFrom<&PathBuf> for InputContent {
         };
 
         Ok(Self {
-            source: InputSource::String(input.clone()),
+            source: ResolvedInputSource::String(input.clone()),
             file_type: FileType::from(path),
             content: input,
         })
