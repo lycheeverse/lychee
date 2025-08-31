@@ -6,11 +6,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::types::ResolvedInputSource;
 use crate::{
     Base, BasicAuthCredentials, ErrorKind, Request, Result, Uri,
     basic_auth::BasicAuthExtractor,
-    types::{InputSource, uri::raw::RawUri},
+    types::{InputSource, ResolvedInputSource, uri::raw::RawUri},
     utils::{path, url},
 };
 
@@ -141,8 +140,8 @@ pub(crate) fn create(
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
 ) -> HashSet<Request> {
-    let x: InputSource = source.clone().into();
-    let base = base.cloned().or_else(|| Base::from_source(&x));
+    let input_source: InputSource = source.clone().into();
+    let base = base.cloned().or_else(|| Base::from_source(&input_source));
 
     uris.into_iter()
         .filter_map(|raw_uri| {

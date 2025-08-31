@@ -1,5 +1,4 @@
-use super::{FileType, InputContent};
-use crate::types::input::source::ResolvedInputSource;
+use super::{FileType, InputContent, ResolvedInputSource};
 use crate::utils::request;
 use crate::{BasicAuthExtractor, ErrorKind, Result, Uri};
 use http::HeaderMap;

@@ -3,8 +3,7 @@ use std::fmt::Display;
 use http::StatusCode;
 use serde::Serialize;
 
-use crate::types::ResolvedInputSource;
-use crate::{Status, Uri};
+use crate::{ResolvedInputSource, Status, Uri};
 
 /// Response type returned by lychee after checking a URI
 //
