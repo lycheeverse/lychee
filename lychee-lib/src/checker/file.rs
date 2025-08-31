@@ -81,6 +81,9 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     pub(crate) async fn check(&self, uri: &Uri) -> Status {
+        if self.include_wikilinks {
+            self.setup_wikilinks();
+        }
         let Ok(path) = uri.url.to_file_path() else {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         };
@@ -293,6 +296,16 @@ impl FileChecker {
                 Status::Ok(StatusCode::OK)
             }
         }
+    }
+
+    // Initializes the Index of the wikilink checker
+    fn setup_wikilinks(&self) {
+        self.wikilink_checker.index_files();
+    }
+    // Tries to resolve a link by looking up the filename in the wikilink index
+    // The
+    fn check_wikilink(&self, path: &Path, uri: &Uri) -> Status {
+        self.wikilink_checker.check(path, uri)
     }
 }
 
