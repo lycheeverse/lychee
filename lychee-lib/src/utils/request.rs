@@ -140,7 +140,7 @@ pub(crate) fn create(
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
 ) -> HashSet<Request> {
-    let base = base.cloned().or_else(|| Base::from_source(&source));
+    let base = base.cloned().or_else(|| Base::from_source(source));
 
     uris.into_iter()
         .filter_map(|raw_uri| {

@@ -71,7 +71,7 @@ mod tests {
     use crate::{
         Uri,
         test_utils::{load_fixture, mail, website},
-        types::{FileType, InputContent, InputSource, ResolvedInputSource},
+        types::{FileType, InputContent, ResolvedInputSource},
         utils::url::find_links,
     };
 
