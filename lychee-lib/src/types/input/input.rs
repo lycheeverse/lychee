@@ -417,7 +417,7 @@ mod tests {
         assert!(matches!(
             input,
             Ok(Input {
-                source: ResolvedInputSource::FsPath(PathBuf { .. }),
+                source: InputSource::FsPath(PathBuf { .. }),
                 file_type_hint: None,
             })
         ));
