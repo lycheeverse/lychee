@@ -12,7 +12,7 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use lychee_lib::archive::Archive;
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
-use lychee_lib::{InputSource, Result};
+use lychee_lib::{InputSource, ResolvedInputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
 use crate::formatters::get_response_formatter;
@@ -372,7 +372,7 @@ fn show_progress(
     Ok(())
 }
 
-fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
+fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(ResolvedInputSource, Url)> {
     stats
         .error_map
         .iter()

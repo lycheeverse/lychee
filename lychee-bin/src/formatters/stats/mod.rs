@@ -18,6 +18,7 @@ use std::{
 use crate::stats::ResponseStats;
 use anyhow::Result;
 use lychee_lib::InputSource;
+use lychee_lib::ResolvedInputSource;
 
 pub(crate) trait StatsFormatter {
     /// Format the stats of all responses and write them to stdout
@@ -26,7 +27,7 @@ pub(crate) trait StatsFormatter {
 
 /// Convert a `ResponseStats` `HashMap` to a sorted Vec of key-value pairs
 /// The returned keys and values are both sorted in natural, case-insensitive order
-fn sort_stat_map<T>(stat_map: &HashMap<InputSource, HashSet<T>>) -> Vec<(&InputSource, Vec<&T>)>
+fn sort_stat_map<T>(stat_map: &HashMap<ResolvedInputSource, HashSet<T>>) -> Vec<(&ResolvedInputSource, Vec<&T>)>
 where
     T: Display,
 {
