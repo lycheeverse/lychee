@@ -54,9 +54,10 @@ pub enum ResolvedInputSource {
     RemoteUrl(Box<Url>),
     /// File path, possibly resolved from a [`InputSource::FsGlob`].
     ///
-    /// The [`Option`] field, if specified, records the `pattern`
-    /// and `ignore_case` of the [`InputSource::FsGlob`] which resolved
-    /// to this [`ResolvedInputSource::FsPath`].
+    /// The [`Option`] field, if specified, records the `pattern` and
+    /// `ignore_case` of the [`InputSource::FsGlob`] which resolved
+    /// to this `FsPath`. If not specified, this `FsPath` was previously
+    /// a [`InputSource::FsPath`].
     FsPath(PathBuf, Option<(String, bool)>),
     /// Standard Input.
     Stdin,
