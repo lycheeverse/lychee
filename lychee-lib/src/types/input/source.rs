@@ -52,13 +52,8 @@ pub enum InputSource {
 pub enum ResolvedInputSource {
     /// URL (of HTTP/HTTPS scheme).
     RemoteUrl(Box<Url>),
-    /// File path, possibly resolved from a [`InputSource::FsGlob`].
-    ///
-    /// The [`Option`] field, if specified, records the `pattern` and
-    /// `ignore_case` of the [`InputSource::FsGlob`] which resolved
-    /// to this `FsPath`. If not specified, this `FsPath` was previously
-    /// a [`InputSource::FsPath`].
-    FsPath(PathBuf, Option<(String, bool)>),
+    /// File path.
+    FsPath(PathBuf),
     /// Standard Input.
     Stdin,
     /// Raw string input.
@@ -69,13 +64,7 @@ impl From<ResolvedInputSource> for InputSource {
     fn from(resolved: ResolvedInputSource) -> Self {
         match resolved {
             ResolvedInputSource::RemoteUrl(url) => InputSource::RemoteUrl(url),
-            ResolvedInputSource::FsPath(path, None) => InputSource::FsPath(path),
-            ResolvedInputSource::FsPath(_path, Some((pattern, ignore_case))) => {
-                InputSource::FsGlob {
-                    pattern,
-                    ignore_case,
-                }
-            }
+            ResolvedInputSource::FsPath(path) => InputSource::FsPath(path),
             ResolvedInputSource::Stdin => InputSource::Stdin,
             ResolvedInputSource::String(s) => InputSource::String(s),
         }
@@ -86,7 +75,7 @@ impl Display for ResolvedInputSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::RemoteUrl(url) => url.as_str(),
-            Self::FsPath(path, _) => path.to_str().unwrap_or_default(),
+            Self::FsPath(path) => path.to_str().unwrap_or_default(),
             Self::Stdin => "stdin",
             Self::String(s) => s,
         })

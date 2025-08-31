@@ -206,7 +206,7 @@ impl Input {
                 match source_result {
                     Ok(source) => {
                         let content_result = match source {
-                            ResolvedInputSource::FsPath(path, _) => {
+                            ResolvedInputSource::FsPath(path) => {
                                 Self::path_content(&path).await
                             },
                             ResolvedInputSource::RemoteUrl(url) => {
@@ -353,7 +353,7 @@ impl Input {
 
         let input_content = InputContent {
             file_type: FileType::from(&path),
-            source: ResolvedInputSource::FsPath(path, None),
+            source: ResolvedInputSource::FsPath(path),
             content,
         };
 

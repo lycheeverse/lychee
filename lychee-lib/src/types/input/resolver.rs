@@ -93,7 +93,7 @@ impl InputResolver {
                                 // Instead, we always check files captured by
                                 // the glob pattern, as the user explicitly
                                 // specified them.
-                                yield ResolvedInputSource::FsPath(path, Some((pattern.clone(), *ignore_case)));
+                                yield ResolvedInputSource::FsPath(path);
                             }
                             Err(e) => {
                                 eprintln!("Error in glob pattern: {e:?}");
@@ -131,7 +131,7 @@ impl InputResolver {
                                 }
                             }
 
-                            yield ResolvedInputSource::FsPath(entry.path().to_path_buf(), None);
+                            yield ResolvedInputSource::FsPath(entry.path().to_path_buf());
                         }
                     } else {
                         // For individual files, yield if not excluded.
@@ -144,7 +144,7 @@ impl InputResolver {
                         // the user explicitly specified the file, so they
                         // expect it to be checked.
                         if !excluded_paths.is_match(&path.to_string_lossy()) {
-                            yield ResolvedInputSource::FsPath(path.clone(), None);
+                            yield ResolvedInputSource::FsPath(path.clone());
                         }
                     }
                 },

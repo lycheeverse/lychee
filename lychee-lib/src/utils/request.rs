@@ -64,7 +64,7 @@ fn try_parse_into_uri(
                 None => return Err(ErrorKind::InvalidBaseJoin(text.clone())),
             },
             None => match source {
-                ResolvedInputSource::FsPath(root, _) => {
+                ResolvedInputSource::FsPath(root) => {
                     create_uri_from_file_path(root, &text, root_dir.is_none())?
                 }
                 _ => return Err(ErrorKind::UnsupportedUriType(text)),
@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn test_relative_url_resolution_from_root_dir() {
         let root_dir = PathBuf::from("/tmp/lychee");
-        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"), None);
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("relative.html")];
         let requests = create(uris, &source, Some(&root_dir), None, None);
@@ -320,7 +320,7 @@ mod tests {
     #[test]
     fn test_absolute_url_resolution_from_root_dir() {
         let root_dir = PathBuf::from("/tmp/lychee");
-        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"), None);
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("https://another.com/page")];
         let requests = create(uris, &source, Some(&root_dir), None, None);
@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn test_root_relative_url_resolution_from_root_dir() {
         let root_dir = PathBuf::from("/tmp/lychee");
-        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"), None);
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("/root-relative")];
         let requests = create(uris, &source, Some(&root_dir), None, None);
@@ -352,7 +352,7 @@ mod tests {
     #[test]
     fn test_parent_directory_url_resolution_from_root_dir() {
         let root_dir = PathBuf::from("/tmp/lychee");
-        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"), None);
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("../parent")];
         let requests = create(uris, &source, Some(&root_dir), None, None);
@@ -368,7 +368,7 @@ mod tests {
     #[test]
     fn test_fragment_url_resolution_from_root_dir() {
         let root_dir = PathBuf::from("/tmp/lychee");
-        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"), None);
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("#fragment")];
         let requests = create(uris, &source, Some(&root_dir), None, None);
@@ -385,7 +385,7 @@ mod tests {
     fn test_relative_url_resolution_from_root_dir_and_base_url() {
         let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"), None);
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("relative.html")];
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
@@ -402,7 +402,7 @@ mod tests {
     fn test_absolute_url_resolution_from_root_dir_and_base_url() {
         let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"), None);
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("https://another.com/page")];
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
@@ -419,7 +419,7 @@ mod tests {
     fn test_root_relative_url_resolution_from_root_dir_and_base_url() {
         let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"), None);
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("/root-relative")];
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
@@ -436,7 +436,7 @@ mod tests {
     fn test_parent_directory_url_resolution_from_root_dir_and_base_url() {
         let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"), None);
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("../parent")];
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
@@ -453,7 +453,7 @@ mod tests {
     fn test_fragment_url_resolution_from_root_dir_and_base_url() {
         let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"), None);
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("#fragment")];
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
@@ -484,7 +484,7 @@ mod tests {
     #[test]
     fn test_create_request_from_relative_file_path() {
         let base = Base::Local(PathBuf::from("/tmp/lychee"));
-        let input_source = ResolvedInputSource::FsPath(PathBuf::from("page.html"), None);
+        let input_source = ResolvedInputSource::FsPath(PathBuf::from("page.html"));
 
         let actual = create_request(
             &RawUri::from("file.html"),
@@ -513,7 +513,7 @@ mod tests {
     fn test_create_request_from_absolute_file_path() {
         let base = Base::Local(PathBuf::from("/tmp/lychee"));
         let input_source =
-            ResolvedInputSource::FsPath(PathBuf::from("/tmp/lychee/page.html"), None);
+            ResolvedInputSource::FsPath(PathBuf::from("/tmp/lychee/page.html"));
 
         // Use an absolute path that's outside the base directory
         let actual = create_request(
