@@ -6,7 +6,7 @@ use std::{
 use super::StatsFormatter;
 use anyhow::Result;
 use http::StatusCode;
-use lychee_lib::{InputSource, ResolvedInputSource, ResponseBody, Status};
+use lychee_lib::{InputSource, ResponseBody, Status};
 use std::fmt::Write;
 use tabled::{
     Table, Tabled,
@@ -121,7 +121,7 @@ impl Display for MarkdownResponseStats {
 fn write_stats_per_input<T, F>(
     f: &mut fmt::Formatter<'_>,
     name: &'static str,
-    map: &HashMap<ResolvedInputSource, HashSet<T>>,
+    map: &HashMap<InputSource, HashSet<T>>,
     write_stat: F,
 ) -> fmt::Result
 where

@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use lychee_lib::{CacheStatus, InputSource, ResolvedInputSource, Response, ResponseBody, Status};
+use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status};
 use serde::Serialize;
 
 use crate::formatters::suggestion::Suggestion;
@@ -38,13 +38,13 @@ pub(crate) struct ResponseStats {
     /// Number of responses that were cached from a previous run
     pub(crate) cached: usize,
     /// Map to store successful responses (if `detailed_stats` is enabled)
-    pub(crate) success_map: HashMap<ResolvedInputSource, HashSet<ResponseBody>>,
+    pub(crate) success_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Map to store failed responses (if `detailed_stats` is enabled)
-    pub(crate) error_map: HashMap<ResolvedInputSource, HashSet<ResponseBody>>,
+    pub(crate) error_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Replacement suggestions for failed responses (if `--suggest` is enabled)
-    pub(crate) suggestion_map: HashMap<ResolvedInputSource, HashSet<Suggestion>>,
+    pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
     /// Map to store excluded responses (if `detailed_stats` is enabled)
-    pub(crate) excluded_map: HashMap<ResolvedInputSource, HashSet<ResponseBody>>,
+    pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Used to store the duration of the run in seconds.
     pub(crate) duration_secs: u64,
     /// Also track successful and excluded responses
@@ -90,7 +90,7 @@ impl ResponseStats {
     /// Add a response status to the appropriate map (success, fail, excluded)
     fn add_response_status(&mut self, response: Response) {
         let status = response.status();
-        let source = response.source().clone();
+        let source: InputSource = response.source().clone().into();
         let status_map_entry = match status {
             _ if status.is_error() => self.error_map.entry(source).or_default(),
             Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),
@@ -177,9 +177,9 @@ mod tests {
         stats.add(dummy_ok());
 
         let response = dummy_error();
-        let expected_error_map: HashMap<ResolvedInputSource, HashSet<ResponseBody>> =
+        let expected_error_map: HashMap<InputSource, HashSet<ResponseBody>> =
             HashMap::from_iter([(
-                response.source().clone(),
+                response.source().clone().into(),
                 HashSet::from_iter([response.1]),
             )]);
         assert_eq!(stats.error_map, expected_error_map);
@@ -198,26 +198,26 @@ mod tests {
         stats.add(dummy_excluded());
         stats.add(dummy_ok());
 
-        let mut expected_error_map: HashMap<ResolvedInputSource, HashSet<ResponseBody>> = HashMap::new();
+        let mut expected_error_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         let response = dummy_error();
         let entry = expected_error_map
-            .entry(response.source().clone())
+            .entry(response.source().clone().into())
             .or_default();
         entry.insert(response.1);
         assert_eq!(stats.error_map, expected_error_map);
 
-        let mut expected_success_map: HashMap<ResolvedInputSource, HashSet<ResponseBody>> = HashMap::new();
+        let mut expected_success_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         let response = dummy_ok();
         let entry = expected_success_map
-            .entry(response.source().clone())
+            .entry(response.source().clone().into())
             .or_default();
         entry.insert(response.1);
         assert_eq!(stats.success_map, expected_success_map);
 
-        let mut expected_excluded_map: HashMap<ResolvedInputSource, HashSet<ResponseBody>> = HashMap::new();
+        let mut expected_excluded_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         let response = dummy_excluded();
         let entry = expected_excluded_map
-            .entry(response.source().clone())
+            .entry(response.source().clone().into())
             .or_default();
         entry.insert(response.1);
         assert_eq!(stats.excluded_map, expected_excluded_map);

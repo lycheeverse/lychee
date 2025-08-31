@@ -124,7 +124,7 @@ mod tests {
     use crate::formatters::stats::StatsFormatter;
     use crate::{options::OutputMode, stats::ResponseStats};
     use http::StatusCode;
-    use lychee_lib::{InputSource, ResolvedInputSource, ResponseBody, Status, Uri};
+    use lychee_lib::{InputSource, ResponseBody, Status, Uri};
     use std::collections::{HashMap, HashSet};
     use url::Url;
 
@@ -133,10 +133,10 @@ mod tests {
     #[test]
     fn test_formatter() {
         // A couple of dummy successes
-        let mut success_map: HashMap<ResolvedInputSource, HashSet<ResponseBody>> = HashMap::new();
+        let mut success_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
 
         success_map.insert(
-            ResolvedInputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap())),
+            InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap())),
             HashSet::from_iter(vec![ResponseBody {
                 uri: Uri::from(Url::parse("https://example.com").unwrap()),
                 status: Status::Ok(StatusCode::OK),
@@ -153,8 +153,8 @@ mod tests {
             status: Status::Ok(StatusCode::INTERNAL_SERVER_ERROR),
         };
 
-        let mut error_map: HashMap<ResolvedInputSource, HashSet<ResponseBody>> = HashMap::new();
-        let source = ResolvedInputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
+        let mut error_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
+        let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
         error_map.insert(source, HashSet::from_iter(vec![err1, err2]));
 
         let stats = ResponseStats {
