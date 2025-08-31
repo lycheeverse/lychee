@@ -2,7 +2,6 @@ use std::{convert::TryFrom, fmt::Display};
 
 use crate::{BasicAuthCredentials, ErrorKind, Uri};
 
-use super::InputSource;
 use super::ResolvedInputSource;
 
 /// A request type that can be handle by lychee
@@ -73,7 +72,13 @@ impl TryFrom<String> for Request {
 
     fn try_from(s: String) -> Result<Self, Self::Error> {
         let uri = Uri::try_from(s.as_str())?;
-        Ok(Request::new(uri, ResolvedInputSource::String(s), None, None, None))
+        Ok(Request::new(
+            uri,
+            ResolvedInputSource::String(s),
+            None,
+            None,
+            None,
+        ))
     }
 }
 

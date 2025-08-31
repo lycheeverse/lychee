@@ -6,13 +6,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::types::ResolvedInputSource;
 use crate::{
     Base, BasicAuthCredentials, ErrorKind, Request, Result, Uri,
     basic_auth::BasicAuthExtractor,
     types::{InputSource, uri::raw::RawUri},
     utils::{path, url},
 };
-use crate::types::ResolvedInputSource;
 
 /// Extract basic auth credentials for a given URL.
 pub(crate) fn extract_credentials(

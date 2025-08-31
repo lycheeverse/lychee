@@ -52,7 +52,11 @@ pub enum InputSource {
 pub enum ResolvedInputSource {
     /// URL (of HTTP/HTTPS scheme).
     RemoteUrl(Box<Url>),
-    /// File path.
+    /// File path, possibly resolved from a [`InputSource::FsGlob`].
+    ///
+    /// The [`Option`] field, if specified, records the `pattern`
+    /// and `ignore_case` of the [`InputSource::FsGlob`] which resolved
+    /// to this [`ResolvedInputSource::FsPath`].
     FsPath(PathBuf, Option<(String, bool)>),
     /// Standard Input.
     Stdin,
@@ -65,7 +69,12 @@ impl From<ResolvedInputSource> for InputSource {
         match resolved {
             ResolvedInputSource::RemoteUrl(url) => InputSource::RemoteUrl(url),
             ResolvedInputSource::FsPath(path, None) => InputSource::FsPath(path),
-            ResolvedInputSource::FsPath(path, Some((pattern, ignore_case))) => InputSource::FsGlob {pattern, ignore_case},
+            ResolvedInputSource::FsPath(_path, Some((pattern, ignore_case))) => {
+                InputSource::FsGlob {
+                    pattern,
+                    ignore_case,
+                }
+            }
             ResolvedInputSource::Stdin => InputSource::Stdin,
             ResolvedInputSource::String(s) => InputSource::String(s),
         }

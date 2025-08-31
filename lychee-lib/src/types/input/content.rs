@@ -3,7 +3,6 @@
 //! The `InputContent` type represents the actual content extracted from various
 //! input sources, along with metadata about the source and file type.
 
-use super::source::InputSource;
 use super::source::ResolvedInputSource;
 use crate::ErrorKind;
 use crate::types::FileType;
