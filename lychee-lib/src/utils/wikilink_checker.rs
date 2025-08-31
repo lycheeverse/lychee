@@ -1,33 +1,44 @@
+use crate::{Base, Status, Uri};
+use http::StatusCode;
+use log::info;
+use std::path::Path;
 use std::{collections::HashSet, path::PathBuf, sync::Arc};
-
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 use walkdir::WalkDir;
-
-use crate::Base;
 
 #[derive(Clone, Debug, Default)]
 /// Indexes a given directory for filenames
 pub(crate) struct WikilinkChecker {
-    filesnames: Arc<Mutex<HashSet<String>>>,
+    filenames: Arc<Mutex<HashSet<String>>>,
     basedir: Option<Base>,
 }
 
 impl WikilinkChecker {
     pub(crate) fn new(base: Option<Base>) -> Self {
         Self {
-            filesnames: Arc::new(Mutex::new(HashSet::with_capacity(100000000))),
+            filenames: Arc::new(Mutex::new(HashSet::new())),
             basedir: base,
         }
     }
 
-    pub(crate) fn index_files(&self) {
+    pub(crate) async fn index_files(&self) {
+        //Skip the indexing step in case the filenames are already populated
+        if !self.filenames.lock().await.is_empty() {
+            return;
+        }
         match self.basedir {
-            None => {}
+            None => {
+                info!("File indexing for Wikilinks aborted as no base directory is specified");
+            }
             Some(ref basetype) => match basetype {
                 Base::Local(localbasename) => {
                     //Start file indexing only if the Base is valid and local
+                    info!(
+                        "Starting file indexing for wikilinks in {}",
+                        localbasename.display()
+                    );
 
-                    let mut filenameslock = self.filesnames.lock().unwrap();
+                    let mut filenameslock = self.filenames.lock().await;
                     for entry in WalkDir::new::<PathBuf>(localbasename.into())
                         //actively ignore symlinks
                         .follow_links(false)
@@ -42,9 +53,28 @@ impl WikilinkChecker {
                         }
                     }
                 }
-                // A remote base is of no use for the wikilink checker
+                // A remote base is of no use for the wikilink checker, silently skip over it
                 Base::Remote(_remotebasename) => {}
             },
+        }
+    }
+
+    pub(crate) async fn check(&self, path: &Path, uri: &Uri) -> Status {
+        match path.file_name() {
+            None => Status::Error(crate::ErrorKind::InvalidFilePath(uri.clone())),
+            Some(filename) => {
+                if self
+                    .filenames
+                    .lock()
+                    .await
+                    .get(filename.to_str().unwrap())
+                    .is_some()
+                {
+                    Status::Ok(StatusCode::OK)
+                } else {
+                    Status::Error(crate::ErrorKind::InvalidFilePath(uri.clone()))
+                }
+            }
         }
     }
 }
