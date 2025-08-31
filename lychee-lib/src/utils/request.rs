@@ -512,8 +512,7 @@ mod tests {
     #[test]
     fn test_create_request_from_absolute_file_path() {
         let base = Base::Local(PathBuf::from("/tmp/lychee"));
-        let input_source =
-            ResolvedInputSource::FsPath(PathBuf::from("/tmp/lychee/page.html"));
+        let input_source = ResolvedInputSource::FsPath(PathBuf::from("/tmp/lychee/page.html"));
 
         // Use an absolute path that's outside the base directory
         let actual = create_request(
