@@ -2,8 +2,8 @@ use crate::{Base, Status, Uri};
 use http::StatusCode;
 use log::info;
 use std::path::Path;
-use std::sync::Mutex;
 use std::{collections::HashSet, path::PathBuf, sync::Arc};
+use tokio::sync::Mutex;
 use walkdir::WalkDir;
 
 #[derive(Clone, Debug, Default)]
@@ -21,9 +21,9 @@ impl WikilinkChecker {
         }
     }
 
-    pub(crate) fn index_files(&self) {
+    pub(crate) async fn index_files(&self) {
         //Skip the indexing step in case the filenames are already populated
-        if !self.filenames.lock().unwrap().is_empty() {
+        if !self.filenames.lock().await.is_empty() {
             return;
         }
         match self.basedir {
@@ -38,7 +38,7 @@ impl WikilinkChecker {
                         localbasename.display()
                     );
 
-                    let mut filenameslock = self.filenames.lock().unwrap();
+                    let mut filenameslock = self.filenames.lock().await;
                     for entry in WalkDir::new::<PathBuf>(localbasename.into())
                         //actively ignore symlinks
                         .follow_links(false)
@@ -59,14 +59,14 @@ impl WikilinkChecker {
         }
     }
 
-    pub(crate) fn check(&self, path: &Path, uri: &Uri) -> Status {
+    pub(crate) async fn check(&self, path: &Path, uri: &Uri) -> Status {
         match path.file_name() {
             None => Status::Error(crate::ErrorKind::InvalidFilePath(uri.clone())),
             Some(filename) => {
                 if self
                     .filenames
                     .lock()
-                    .unwrap()
+                    .await
                     .get(filename.to_str().unwrap())
                     .is_some()
                 {

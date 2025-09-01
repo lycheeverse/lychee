@@ -81,8 +81,9 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     pub(crate) async fn check(&self, uri: &Uri) -> Status {
+        dbg!(uri);
         if self.include_wikilinks {
-            self.setup_wikilinks();
+            self.setup_wikilinks().await;
         }
         let Ok(path) = uri.url.to_file_path() else {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
@@ -103,6 +104,7 @@ impl FileChecker {
     /// Returns the resolved path as a `PathBuf`, or the original path
     /// if no base path is defined.
     fn resolve_path(&self, path: &Path) -> PathBuf {
+        dbg!(path);
         if let Some(Base::Local(base_path)) = &self.base {
             if path.is_absolute() {
                 let absolute_base_path = if base_path.is_relative() {
@@ -299,13 +301,13 @@ impl FileChecker {
     }
 
     // Initializes the Index of the wikilink checker
-    fn setup_wikilinks(&self) {
-        self.wikilink_checker.index_files();
+    async fn setup_wikilinks(&self) {
+        self.wikilink_checker.index_files().await;
     }
     // Tries to resolve a link by looking up the filename in the wikilink index
     // The
-    fn check_wikilink(&self, path: &Path, uri: &Uri) -> Status {
-        self.wikilink_checker.check(path, uri)
+    async fn check_wikilink(&self, path: &Path, uri: &Uri) -> Status {
+        self.wikilink_checker.check(path, uri).await
     }
 }
 
