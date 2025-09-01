@@ -156,7 +156,7 @@ async fn suggest_archived_links(
             }
 
             if let Some(bar) = &bar {
-                bar.inc();
+                bar.update(None);
             }
         })
         .await;
@@ -344,7 +344,7 @@ fn show_progress(
     };
 
     if let Some(pb) = progress_bar {
-        pb.update(out);
+        pb.update(Some(out));
     } else if verbose.log_level() >= log::Level::Info
         || (!response.status().is_success() && !response.status().is_excluded())
     {

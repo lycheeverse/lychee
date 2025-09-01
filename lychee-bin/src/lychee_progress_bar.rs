@@ -43,13 +43,11 @@ impl LycheeProgressBar {
         LycheeProgressBar { bar, config }
     }
 
-    pub(crate) fn update(&self, message: String) {
-        self.inc();
-        self.bar.set_message(message.clone());
-    }
-
-    pub(crate) fn inc(&self) {
+    pub(crate) fn update(&self, message: Option<String>) {
         self.bar.inc(self.config.increment);
+        if let Some(msg) = message {
+            self.bar.set_message(msg.clone());
+        }
     }
 
     pub(crate) fn set_length(&self, n: u64) {
