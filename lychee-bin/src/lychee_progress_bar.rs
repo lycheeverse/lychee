@@ -58,3 +58,39 @@ impl LycheeProgressBar {
         self.bar.finish_with_message(message);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_initializes_correctly() {
+        let pb = LycheeProgressBar::new("Start");
+        assert_eq!(pb.bar.length(), Some(0));
+        assert_eq!(pb.bar.message(), "Start");
+    }
+
+    #[test]
+    fn test_update_increments_and_changes_message() {
+        let pb = LycheeProgressBar::new("First message");
+
+        pb.update(None); // update without message
+        assert_eq!(pb.bar.position(), 1);
+        assert_eq!(pb.bar.message(), "First message");
+
+        pb.update(Some("Second message".to_string()));
+        assert_eq!(pb.bar.position(), 2);
+        assert_eq!(pb.bar.message(), "Second message");
+    }
+
+    #[test]
+    fn test_finish_closes_bar_and_sets_final_message() {
+        let pb = LycheeProgressBar::new("Running");
+        pb.set_length(5);
+        pb.update(None);
+        pb.finish("Done");
+
+        assert!(pb.bar.is_finished());
+        assert_eq!(pb.bar.message(), "Done");
+    }
+}
