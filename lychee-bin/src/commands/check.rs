@@ -178,15 +178,17 @@ where
     S: futures::Stream<Item = Result<Request>>,
 {
     tokio::pin!(requests);
+    let mut request_count = 0;
     while let Some(request) = requests.next().await {
         let request = request?;
-        if let Some(pb) = &bar {
-            pb.increase_length(request.to_string());
-        }
+        request_count += 1;
         send_req
             .send(Ok(request))
             .await
             .expect("Cannot send request");
+    }
+    if let Some(pb) = &bar {
+        pb.set_length(request_count);
     }
     Ok(())
 }

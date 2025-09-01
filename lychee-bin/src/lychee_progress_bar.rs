@@ -54,11 +54,6 @@ impl LycheeProgressBar {
         self.bar.set_length(n);
     }
 
-    pub(crate) fn increase_length(&self, out: String) {
-        self.bar.inc_length(self.config.increment);
-        self.bar.set_message(out.clone());
-    }
-
     pub(crate) fn finish(&self, message: &'static str) {
         self.bar.finish_with_message(message);
     }
