@@ -331,7 +331,7 @@ impl FileChecker {
     }
     // Tries to resolve a link by looking up the filename in the wikilink index
     // The
-    async fn check_wikilink(&self, path: &Path, uri: &Uri) -> Status {
+    async fn apply_wikilink_check(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
         self.wikilink_checker.check(path, uri).await
     }
 }
