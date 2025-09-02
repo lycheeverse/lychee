@@ -1,22 +1,23 @@
-use crate::{Base, Status, Uri};
-use http::StatusCode;
+use crate::{Base, ErrorKind, Uri};
 use log::info;
+use std::collections::HashMap;
+use std::ffi::OsString;
 use std::path::Path;
-use std::{collections::HashSet, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
 use walkdir::WalkDir;
 
 #[derive(Clone, Debug, Default)]
-/// Indexes a given directory for filenames
+// Indexes a given directory for filenames and the corresponding path
 pub(crate) struct WikilinkChecker {
-    filenames: Arc<Mutex<HashSet<String>>>,
+    filenames: Arc<Mutex<HashMap<OsString, PathBuf>>>,
     basedir: Option<Base>,
 }
 
 impl WikilinkChecker {
     pub(crate) fn new(base: Option<Base>) -> Self {
         Self {
-            filenames: Arc::new(Mutex::new(HashSet::new())),
+            filenames: Arc::new(Mutex::new(HashMap::new())),
             basedir: base,
         }
     }
@@ -47,7 +48,7 @@ impl WikilinkChecker {
                     {
                         match entry.path().file_name() {
                             Some(filename) => {
-                                filenameslock.insert(filename.to_string_lossy().to_string());
+                                filenameslock.insert(filename.into(), entry.path().to_path_buf());
                             }
                             None => {}
                         }
@@ -59,20 +60,18 @@ impl WikilinkChecker {
         }
     }
 
-    pub(crate) async fn check(&self, path: &Path, uri: &Uri) -> Status {
+    pub(crate) async fn check(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
         match path.file_name() {
-            None => Status::Error(crate::ErrorKind::InvalidFilePath(uri.clone())),
+            None => Err(ErrorKind::InvalidFilePath(uri.clone())),
             Some(filename) => {
-                if self
-                    .filenames
-                    .lock()
-                    .await
-                    .get(filename.to_str().unwrap())
-                    .is_some()
-                {
-                    Status::Ok(StatusCode::OK)
+                let filenamelock = self.filenames.lock().await;
+                if filenamelock.contains_key(filename.into()) {
+                    Ok(filenamelock
+                        .get(filename.into())
+                        .expect("Could not retrieve inserted Path for discovered Wikilink-Path"))
+                    .cloned()
                 } else {
-                    Status::Error(crate::ErrorKind::InvalidFilePath(uri.clone()))
+                    Err(ErrorKind::InvalidFilePath(uri.clone()))
                 }
             }
         }
