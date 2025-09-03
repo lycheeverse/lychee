@@ -503,7 +503,6 @@ mod tests {
         ));
     }
 
-
     #[test]
     fn test_windows_absolute_path_parsing() {
         use std::env::temp_dir;
@@ -525,7 +524,7 @@ mod tests {
     #[test]
     fn test_no_http_assumption() {
         // These should now fail instead of being converted to http://
-        
+        // https://github.com/lycheeverse/lychee/issues/1595
         assert!(matches!(
             Input::from_value("example.com"),
             Err(ErrorKind::InvalidInput(_))
