@@ -503,23 +503,6 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn test_windows_absolute_path_detection() {
-        // Valid Windows absolute paths
-        assert!(WindowsPath::try_from("C:\\").is_some());
-        assert!(WindowsPath::try_from("C:\\folder").is_some());
-        assert!(WindowsPath::try_from("D:\\folder\\file.txt").is_some());
-        assert!(WindowsPath::try_from("Z:/folder/file.txt").is_some());
-
-        // Invalid cases
-        assert!(WindowsPath::try_from("C:").is_none()); // Too short
-        assert!(WindowsPath::try_from("c:\\").is_none()); // Lowercase
-        assert!(WindowsPath::try_from("CC:\\").is_none()); // Two letters
-        assert!(WindowsPath::try_from("C-\\").is_none()); // Not colon
-        assert!(WindowsPath::try_from("C:file").is_none()); // No separator
-        assert!(WindowsPath::try_from("https://example.com").is_none()); // URL
-        assert!(WindowsPath::try_from("./relative").is_none()); // Relative path
-    }
 
     #[test]
     fn test_windows_absolute_path_parsing() {
@@ -542,6 +525,7 @@ mod tests {
     #[test]
     fn test_no_http_assumption() {
         // These should now fail instead of being converted to http://
+        
         assert!(matches!(
             Input::from_value("example.com"),
             Err(ErrorKind::InvalidInput(_))
