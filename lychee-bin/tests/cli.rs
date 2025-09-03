@@ -1653,14 +1653,14 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_inputs_without_scheme() {
-        let test_path = fixtures_path!().join("TEST_HTTP.html");
         cargo_bin_cmd!()
             .arg("--dump")
             .arg("example.com")
-            .arg(&test_path)
-            .arg("https://example.org")
             .assert()
-            .success();
+            .failure()
+            .stderr(contains(
+                "Input 'example.com' not found as file and not a valid URL",
+            ));
     }
 
     #[test]
