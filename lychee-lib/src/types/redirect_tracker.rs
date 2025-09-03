@@ -13,7 +13,7 @@ pub struct RedirectChain(Vec<Url>);
 
 impl RedirectChain {
     pub(crate) fn redirect_count(&self) -> usize {
-        self.0.len().checked_sub(1).unwrap_or(0)
+        self.0.len().saturating_sub(1)
     }
 }
 
