@@ -16,6 +16,7 @@
 
 use crate::ErrorKind;
 
+use super::windows_path::WindowsPath;
 use glob::Pattern;
 use reqwest::Url;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -62,11 +63,19 @@ impl InputSource {
             return Ok(InputSource::Stdin);
         }
 
+        // Handle Windows absolute paths (e.g., C:\path) before URL parsing
+        if let Ok(windows_path) = WindowsPath::try_from(input) {
+            let path = windows_path.as_path();
+            return if path.exists() {
+                Ok(InputSource::FsPath(path.to_path_buf()))
+            } else {
+                Err(ErrorKind::InvalidFile(path.to_path_buf()))
+            };
+        }
+
         // We use [`reqwest::Url::parse`] because it catches some other edge cases that [`http::Request:builder`] does not
         if let Ok(url) = Url::parse(input) {
-            // Weed out non-HTTP schemes, including Windows drive
-            // specifiers, which can be parsed by the
-            // [url](https://crates.io/crates/url) crate
+            // Only accept HTTP and HTTPS URLs
             return match url.scheme() {
                 "http" | "https" => Ok(InputSource::RemoteUrl(Box::new(url))),
                 _ => Err(ErrorKind::InvalidFile(PathBuf::from(input))),
@@ -102,29 +111,22 @@ impl InputSource {
         #[cfg(unix)]
         if path.exists() {
             Ok(InputSource::FsPath(path))
-        } else if input.starts_with('~') || input.starts_with('.') {
-            // The path is not valid, but it might still be a
-            // valid URL.
-            //
-            // Check if the path starts with a tilde (`~`) or a
-            // dot and exit early if it does.
-            //
-            // This check might not be sufficient to cover all cases
-            // but it catches the most common ones
-            Err(ErrorKind::InvalidFile(path))
+        } else if input.starts_with('~')
+            || input.starts_with('.')
+            || input.contains('/')
+            || input.contains('-')
+        {
+            // These look like file paths, parse as path and let skip_missing handle them later
+            Ok(InputSource::FsPath(path))
+        } else if input.contains('.') || input.chars().all(|c| c.is_ascii_alphabetic()) {
+            // Looks like it could be a domain name or simple word without scheme
+            Err(ErrorKind::InvalidInput(format!(
+                "Input '{input}' not found as file and not a valid URL. \
+                     Use full URL (e.g., https://example.com) or check file path."
+            )))
         } else {
-            // Invalid path; check if a valid URL can be constructed from the input
-            // by prefixing it with a `http://` scheme.
-            //
-            // Curl also uses http (i.e. not https), see
-            // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
-            //
-            // TODO: We should get rid of this heuristic and
-            // require users to provide a full URL with scheme.
-            // This is a big source of confusion to users.
-            let url = Url::parse(&format!("http://{input}"))
-                .map_err(|e| ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string()))?;
-            Ok(InputSource::RemoteUrl(Box::new(url)))
+            // Treat as potential file path, parse as path and let skip_missing handle it later
+            Ok(InputSource::FsPath(path))
         }
     }
 
