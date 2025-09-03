@@ -36,16 +36,16 @@ impl Display for DetailedResponseStats {
         let stats = &self.stats;
         let separator = "-".repeat(MAX_PADDING + 1);
 
-        writeln!(f, "\u{1f4dd} Summary")?; // 📝
+        writeln!(f, "📝 Summary")?;
         writeln!(f, "{separator}")?;
-        write_stat(f, "\u{1f50d} Total", stats.total, true)?; // 🔍
-        write_stat(f, "\u{2705} Successful", stats.successful, true)?; // ✅
-        write_stat(f, "\u{23f3} Timeouts", stats.timeouts, true)?; // ⏳
-        write_stat(f, "\u{1f500} Redirected", stats.redirects, true)?; // 🔀
-        write_stat(f, "\u{1f47b} Excluded", stats.excludes, true)?; // 👻
-        write_stat(f, "\u{2753} Unknown", stats.unknown, true)?; //❓
-        write_stat(f, "\u{1f6ab} Errors", stats.errors, true)?; // 🚫
-        write_stat(f, "\u{26d4} Unsupported", stats.errors, false)?; // ⛔
+        write_stat(f, "🔍 Total", stats.total, true)?;
+        write_stat(f, "✅ Successful", stats.successful, true)?;
+        write_stat(f, "⏳ Timeouts", stats.timeouts, true)?;
+        write_stat(f, "🔀 Redirected", stats.redirects, true)?;
+        write_stat(f, "👻 Excluded", stats.excludes, true)?;
+        write_stat(f, "❓ Unknown", stats.unknown, true)?;
+        write_stat(f, "🚫 Errors", stats.errors, true)?;
+        write_stat(f, "⛔ Unsupported", stats.errors, false)?;
 
         let response_formatter = get_response_formatter(&self.mode);
 

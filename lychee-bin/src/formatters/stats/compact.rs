@@ -55,7 +55,7 @@ impl Display for CompactResponseStats {
                     numeric_sort::cmp(&a, &b)
                 });
 
-                writeln!(f, "\n\u{2139} Suggestions")?;
+                writeln!(f, "\nℹ Suggestions")?;
                 for suggestion in sorted_suggestions {
                     writeln!(f, "{suggestion}")?;
                 }

@@ -8,14 +8,14 @@ use reqwest::Response;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 
-const ICON_OK: &str = "\u{2714}"; // ✔
-const ICON_REDIRECTED: &str = "\u{21c4}"; // ⇄
-const ICON_EXCLUDED: &str = "\u{003f}"; // ?
+const ICON_OK: &str = "✔";
+const ICON_REDIRECTED: &str = "⇄";
+const ICON_EXCLUDED: &str = "?";
 const ICON_UNSUPPORTED: &str = "\u{003f}"; // ? (using same icon, but under different name for explicitness)
-const ICON_UNKNOWN: &str = "\u{003f}"; // ?
-const ICON_ERROR: &str = "\u{2717}"; // ✗
-const ICON_TIMEOUT: &str = "\u{29d6}"; // ⧖
-const ICON_CACHED: &str = "\u{21bb}"; // ↻
+const ICON_UNKNOWN: &str = "?";
+const ICON_ERROR: &str = "✗";
+const ICON_TIMEOUT: &str = "⧖";
+const ICON_CACHED: &str = "↻";
 
 /// Response status of the request.
 #[allow(variant_size_differences)]
