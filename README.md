@@ -324,13 +324,29 @@ A fast, async link checker
 
 Finds broken URLs and mail addresses inside Markdown, HTML, `reStructuredText`, websites and more!
 
-Usage: lychee [OPTIONS] <inputs>...
+Usage: lychee [OPTIONS] [inputs]...
 
 Arguments:
-  <inputs>...
-          The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`). NOTE: Use `--` to separate inputs from options that allow multiple arguments
+  [inputs]...
+          The inputs (where to get links to check from). These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`), remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`). Alternatively, use `--files-from` to read inputs from a file. NOTE: Use `--` to separate inputs from options that allow multiple arguments
 
 Options:
+      --files-from <PATH>
+          Read input filenames from the given file or stdin (if path is '-').
+
+          This is useful when you have a large number of inputs that would be
+          cumbersome to specify on the command line directly.
+
+          Examples:
+            lychee --files-from list.txt
+            find . -name '*.md' | lychee --files-from -
+            echo 'README.md' | lychee --files-from -
+
+          File Format:
+            Each line should contain one input (file path, URL, or glob pattern).
+            Lines starting with '#' are treated as comments and ignored.
+            Empty lines are also ignored.
+
   -c, --config <CONFIG_FILE>
           Configuration file to use
 

@@ -5,7 +5,7 @@ mod readme {
     use assert_cmd::Command;
     use pretty_assertions::assert_eq;
 
-    const USAGE_STRING: &str = "Usage: lychee [OPTIONS] <inputs>...\n";
+    const USAGE_STRING: &str = "Usage: lychee [OPTIONS] [inputs]...\n";
 
     fn main_command() -> Command {
         // this gets the "main" binary name (e.g. `lychee`)
