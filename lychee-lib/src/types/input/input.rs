@@ -102,22 +102,24 @@ impl Input {
                         #[cfg(unix)]
                         if path.exists() {
                             InputSource::FsPath(path)
-                        } else if input.starts_with('~') || input.starts_with('.') {
-                            // The path is not valid, but it might still be a
-                            // valid URL.
-                            //
-                            // Check if the path starts with a tilde (`~`) or a
-                            // dot and exit early if it does.
-                            //
-                            // This check might not be sufficient to cover all cases
-                            // but it catches the most common ones
-                            return Err(ErrorKind::InvalidFile(path));
-                        } else {
-                            // Input is neither a valid file path nor a URL
+                        } else if input.starts_with('~')
+                            || input.starts_with('.')
+                            || input.contains('/')
+                            || input.contains('-')
+                        {
+                            // These look like file paths, parse as path and let skip_missing handle them later
+                            InputSource::FsPath(path)
+                        } else if input.contains('.')
+                            || input.chars().all(|c| c.is_ascii_alphabetic())
+                        {
+                            // Looks like it could be a domain name or simple word without scheme
                             return Err(ErrorKind::InvalidInput(format!(
                                 "Input '{input}' not found as file and not a valid URL. \
                                      Use full URL (e.g., https://example.com) or check file path."
                             )));
+                        } else {
+                            // Treat as potential file path, parse as path and let skip_missing handle it later
+                            InputSource::FsPath(path)
                         }
                     }
                 }
