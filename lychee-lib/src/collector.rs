@@ -3,8 +3,8 @@ use crate::InputSource;
 use crate::filter::PathExcludes;
 use crate::types::resolver::UrlContentResolver;
 use crate::{
-    Base, Input, Request, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
-    types::FileExtensions, types::uri::raw::RawUri, utils::request,
+    Base, Input, InputResolver, Request, Result, basic_auth::BasicAuthExtractor,
+    extract::Extractor, types::FileExtensions, types::uri::raw::RawUri, utils::request,
 };
 use dashmap::DashSet;
 use futures::TryStreamExt;
@@ -41,8 +41,10 @@ pub struct Collector {
 impl Default for Collector {
     /// # Panics
     ///
-    /// We call `Client::new()` which can panic in certain scenarios.
-    /// Use `Collector::new()` to handle `ClientBuilder` errors gracefully.
+    /// We call [`Collector::new()`] which can panic in certain scenarios.
+    ///
+    /// Use `Collector::new()` instead if you need to handle
+    /// [`ClientBuilder`](crate::ClientBuilder) errors gracefully.
     fn default() -> Self {
         Collector {
             basic_auth_extractor: None,
@@ -188,7 +190,8 @@ impl Collector {
                 let excluded_paths = excluded_paths.clone();
                 let file_extensions = file_extensions.clone();
                 async move {
-                    let input_sources = input.get_input_sources(
+                    let input_sources = InputResolver::resolve(
+                        &input,
                         file_extensions,
                         skip_hidden,
                         skip_ignored,
@@ -248,6 +251,12 @@ impl Collector {
             client: self.client,
         };
 
+        let extractor = Extractor::new(
+            self.use_html5ever,
+            self.include_verbatim,
+            self.include_wikilinks,
+        );
+
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {
                 let default_base = global_base.clone();
@@ -279,11 +288,6 @@ impl Collector {
                 let basic_auth_extractor = self.basic_auth_extractor.clone();
                 async move {
                     let content = content?;
-                    let extractor = Extractor::new(
-                        self.use_html5ever,
-                        self.include_verbatim,
-                        self.include_wikilinks,
-                    );
                     let uris: Vec<RawUri> = extractor.extract(&content);
                     let requests = request::create(
                         uris,

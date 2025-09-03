@@ -555,7 +555,9 @@ will be checked in order of appearance.
 
 Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
 
-Note: This option only takes effect on `file://` URIs which do not exist."
+Note: This option takes effect on `file://` URIs which do not exist and on
+      `file://` URIs pointing to directories which resolve to themself (by the
+      --index-files logic)."
     )]
     pub(crate) fallback_extensions: Vec<String>,
 
@@ -660,15 +662,49 @@ separated list of accepted status codes. This example will accept 200, 201,
     #[serde(skip)]
     pub(crate) base: Option<Base>,
 
-    /// Base URL used to resolve relative URLs during link checking
+    /// Base URL used to resolve relative URLs in local files.
     /// Example: <https://example.com>
-    #[arg(short, long, value_parser= parse_base)]
+    #[arg(
+        short,
+        long,
+        value_parser = parse_base,
+        long_help = "Base URL to use when resolving relative URLs in local files. If specified,
+relative links in local files are interpreted as being relative to the given
+base URL.
+
+For example, given a base URL of `https://example.com/dir/page`, the link `a`
+would resolve to `https://example.com/dir/a` and the link `/b` would resolve
+to `https://example.com/b`. This behavior is not affected by the filesystem
+path of the file containing these links.
+
+Note that relative URLs without a leading slash become siblings of the base
+URL. If, instead, the base URL ended in a slash, the link would become a child
+of the base URL. For example, a base URL of `https://example.com/dir/page/` and
+a link of `a` would resolve to `https://example.com/dir/page/a`.
+
+Basically, the base URL option resolves links as if the local files were hosted
+at the given base URL address."
+    )]
     #[serde(default)]
     pub(crate) base_url: Option<Base>,
 
-    /// Root path to use when checking absolute local links,
-    /// must be an absolute path
-    #[arg(long)]
+    /// Root directory to use when checking absolute links in local files.
+    /// Must be an absolute path.
+    #[arg(
+        long,
+        long_help = "Root directory to use when checking absolute links in local files. This option is
+required if absolute links appear in local files, otherwise those links will be
+flagged as errors. This must be an absolute path (i.e., one beginning with `/`).
+
+If specified, absolute links in local files are resolved by prefixing the given
+root directory to the requested absolute link. For example, with a root-dir of
+`/root/dir`, a link to `/page.html` would be resolved to `/root/dir/page.html`.
+
+This option can be specified alongside `--base-url`. If both are given, an
+absolute link is resolved by constructing a URL from three parts: the domain
+name specified in `--base-url`, followed by the `--root-dir` directory path,
+followed by the absolute link's own path."
+    )]
     #[serde(default)]
     pub(crate) root_dir: Option<PathBuf>,
 

@@ -14,7 +14,7 @@
 //! ```
 //!
 //! For more specific use-cases you can build a lychee client yourself,
-//! using the `ClientBuilder` which can be used to
+//! using the [`ClientBuilder`] which can be used to
 //! configure and run your own link checker and grants full flexibility:
 //!
 //! ```
@@ -99,8 +99,8 @@ pub use crate::{
     filter::{Excludes, Filter, Includes},
     types::{
         AcceptRange, AcceptRangeError, Base, BasicAuthCredentials, BasicAuthSelector, CacheStatus,
-        CookieJar, ErrorKind, FileExtensions, FileType, Input, InputContent, InputSource,
-        RedirectChain, Request, Response, ResponseBody, Result, Status, StatusCodeExcluder,
-        StatusCodeSelector, uri::valid::Uri,
+        CookieJar, ErrorKind, FileExtensions, FileType, Input, InputContent, InputResolver,
+        InputSource, RedirectChain, Request, Response, ResponseBody, Result, Status,
+        StatusCodeExcluder, StatusCodeSelector, uri::valid::Uri,
     },
 };

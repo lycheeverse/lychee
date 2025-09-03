@@ -1,122 +1,38 @@
-use super::file::FileExtensions;
-use super::resolver::UrlContentResolver;
+//! Core input types and construction logic.
+//!
+//! The `Input` type handles the construction and validation of various input
+//! sources including URLs, file paths, glob patterns, and stdin.
+
+use super::InputResolver;
+use super::content::InputContent;
+use super::source::InputSource;
+use super::source::ResolvedInputSource;
 use crate::filter::PathExcludes;
 use crate::types::FileType;
+use crate::types::file::FileExtensions;
+use crate::types::resolver::UrlContentResolver;
 use crate::{ErrorKind, Result};
 use async_stream::try_stream;
-use futures::StreamExt;
-use futures::stream::Stream;
+use futures::stream::{Stream, StreamExt};
 use glob::glob_with;
 use ignore::WalkBuilder;
 use reqwest::Url;
-use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
-use std::fmt::Display;
-use std::fs;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
 
 const STDIN: &str = "-";
-
-#[derive(Debug)]
-/// Encapsulates the content for a given input
-pub struct InputContent {
-    /// Input source
-    pub source: InputSource,
-    /// File type of given input
-    pub file_type: FileType,
-    /// Raw UTF-8 string content
-    pub content: String,
-}
-
-impl InputContent {
-    #[must_use]
-    /// Create an instance of `InputContent` from an input string
-    pub fn from_string(s: &str, file_type: FileType) -> Self {
-        // TODO: consider using Cow (to avoid one .clone() for String types)
-        Self {
-            source: InputSource::String(s.to_owned()),
-            file_type,
-            content: s.to_owned(),
-        }
-    }
-}
-
-impl TryFrom<&PathBuf> for InputContent {
-    type Error = crate::ErrorKind;
-
-    fn try_from(path: &PathBuf) -> std::result::Result<Self, Self::Error> {
-        let input = match fs::read_to_string(path) {
-            Ok(content) => content,
-            Err(e) if e.kind() == std::io::ErrorKind::InvalidData => {
-                log::warn!(
-                    "Skipping file with invalid UTF-8 content: {}",
-                    path.display()
-                );
-                return Err(ErrorKind::ReadFileInput(e, path.clone()));
-            }
-            Err(e) => return Err(ErrorKind::ReadFileInput(e, path.clone())),
-        };
-
-        Ok(Self {
-            source: InputSource::String(input.clone()),
-            file_type: FileType::from(path),
-            content: input,
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
-#[non_exhaustive]
-/// Input types which lychee supports
-pub enum InputSource {
-    /// URL (of HTTP/HTTPS scheme).
-    RemoteUrl(Box<Url>),
-    /// Unix shell-style glob pattern.
-    FsGlob {
-        /// The glob pattern matching all input files
-        pattern: String,
-        /// Don't be case sensitive when matching files against a glob
-        ignore_case: bool,
-    },
-    /// File path.
-    FsPath(PathBuf),
-    /// Standard Input.
-    Stdin,
-    /// Raw string input.
-    String(String),
-}
-
-// Custom serialization for enum is needed
-// Otherwise we get "key must be a string" when using the JSON writer
-// Related: https://github.com/serde-rs/json/issues/45
-impl Serialize for InputSource {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.collect_str(self)
-    }
-}
-
-impl Display for InputSource {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::RemoteUrl(url) => url.as_str(),
-            Self::FsGlob { pattern, .. } => pattern,
-            Self::FsPath(path) => path.to_str().unwrap_or_default(),
-            Self::Stdin => "stdin",
-            Self::String(s) => s,
-        })
-    }
-}
 
 /// Lychee Input with optional file hint for parsing
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Input {
     /// Origin of input
     pub source: InputSource,
+
     /// Hint to indicate which extractor to use
+    ///
+    /// If this is not provided, the extractor will be guessed from the input
+    /// (e.g. file extension or URL path)
     pub file_type_hint: Option<FileType>,
 }
 
@@ -127,8 +43,9 @@ impl Input {
     ///
     /// # Errors
     ///
-    /// Returns an error if the input does not exist (i.e. invalid path)
-    /// and the input cannot be parsed as a URL.
+    /// Returns an error if:
+    /// - the input does not exist (i.e. the path is invalid)
+    /// - the input cannot be parsed as a URL
     pub fn new(
         input: &str,
         file_type_hint: Option<FileType>,
@@ -138,18 +55,19 @@ impl Input {
             InputSource::Stdin
         } else {
             // We use [`reqwest::Url::parse`] because it catches some other edge cases that [`http::Request:builder`] does not
-            // This could be improved with further refinement.
             match Url::parse(input) {
-                // Weed out non-http schemes, including Windows drive specifiers, which will be successfully parsed by the Url crate
+                // Weed out non-HTTP schemes, including Windows drive
+                // specifiers, which can be parsed by the
+                // [url](https://crates.io/crates/url) crate
                 Ok(url) if url.scheme() == "http" || url.scheme() == "https" => {
                     InputSource::RemoteUrl(Box::new(url))
                 }
                 Ok(_) => {
-                    // URL parsed successfully, but it's not http or https
+                    // URL parsed successfully, but it's not HTTP or HTTPS
                     return Err(ErrorKind::InvalidFile(PathBuf::from(input)));
                 }
                 _ => {
-                    // this seems to be the only way to determine if this is a glob pattern
+                    // This seems to be the only way to determine if this is a glob pattern
                     let is_glob = glob::Pattern::escape(input) != input;
 
                     if is_glob {
@@ -158,15 +76,19 @@ impl Input {
                             ignore_case: glob_ignore_case,
                         }
                     } else {
+                        // It might be a file path; check if it exists
                         let path = PathBuf::from(input);
 
-                        // On Windows, a filepath can never be mistaken for a url because Windows filepaths use \ and urls use /
+                        // On Windows, a filepath can never be mistaken for a
+                        // URL, because Windows filepaths use `\` and URLs use
+                        // `/`
                         #[cfg(windows)]
                         if path.exists() {
                             // The file exists, so we return the path
                             InputSource::FsPath(path)
                         } else {
-                            // We had a valid filepath, but the file didn't exist so we return an error
+                            // We have a valid filepath, but the file does not
+                            // exist so we return an error
                             return Err(ErrorKind::InvalidFile(path));
                         }
 
@@ -174,17 +96,25 @@ impl Input {
                         if path.exists() {
                             InputSource::FsPath(path)
                         } else if input.starts_with('~') || input.starts_with('.') {
-                            // The path is not valid, but it might be a valid URL
-                            // Check if the path starts with a tilde or a dot
-                            // and exit early if it does
+                            // The path is not valid, but it might still be a
+                            // valid URL.
+                            //
+                            // Check if the path starts with a tilde (`~`) or a
+                            // dot and exit early if it does.
+                            //
                             // This check might not be sufficient to cover all cases
                             // but it catches the most common ones
                             return Err(ErrorKind::InvalidFile(path));
                         } else {
                             // Invalid path; check if a valid URL can be constructed from the input
                             // by prefixing it with a `http://` scheme.
+                            //
                             // Curl also uses http (i.e. not https), see
                             // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
+                            //
+                            // TODO: We should get rid of this heuristic and
+                            // require users to provide a full URL with scheme.
+                            // This is a big source of confusion to users.
                             let url = Url::parse(&format!("http://{input}")).map_err(|e| {
                                 ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string())
                             })?;
@@ -200,126 +130,25 @@ impl Input {
         })
     }
 
-    /// Convenience constructor with sane defaults
+    /// Convenience constructor with default settings
     ///
     /// # Errors
     ///
-    /// Returns an error if the input does not exist (i.e. invalid path)
-    /// and the input cannot be parsed as a URL.
+    /// Returns an error if:
+    /// - the input does not exist (i.e. the path is invalid)
+    /// - the input cannot be parsed as a URL
     pub fn from_value(value: &str) -> Result<Self> {
         Self::new(value, None, false)
     }
 
-    /// Convenience constructor
+    /// Create an `Input` from an existing `InputSource`
+    ///
+    /// The file type will be determined later when processing the input.
     #[must_use]
     pub const fn from_input_source(source: InputSource) -> Self {
         Self {
             source,
             file_type_hint: None,
-        }
-    }
-
-    /// Get all input sources for content processing.
-    ///
-    /// This method returns a stream of input sources for the given input, taking into
-    /// account the matching file extensions and respecting exclusions.
-    ///
-    /// This can be used for retrieving all inputs which lychee would check for
-    /// links.
-    ///
-    /// # Returns
-    ///
-    /// Returns a stream of `Result<InputSource>` for all matching input sources.
-    ///
-    /// # Errors
-    ///
-    /// Will return errors for file system operations or glob pattern issues
-    pub fn get_input_sources<'a>(
-        &'a self,
-        file_extensions: FileExtensions,
-        skip_hidden: bool,
-        skip_gitignored: bool,
-        excluded_paths: &'a PathExcludes,
-    ) -> impl Stream<Item = Result<InputSource>> + 'a {
-        try_stream! {
-            match &self.source {
-                InputSource::RemoteUrl(url) => {
-                    // Yield the remote URL as an input source
-                    yield InputSource::RemoteUrl(url.clone());
-                },
-                InputSource::FsGlob { pattern, ignore_case } => {
-                    // For glob patterns, we expand the pattern and yield matching paths
-                    let glob_expanded = tilde(pattern).to_string();
-                    let mut match_opts = glob::MatchOptions::new();
-                    match_opts.case_sensitive = !ignore_case;
-
-                    for entry in glob_with(&glob_expanded, match_opts)? {
-                        match entry {
-                            Ok(path) => {
-                                // Skip directories or files that don't match extensions
-                                if path.is_dir() {
-                                    continue;
-                                }
-                                if Self::is_excluded_path(&path, excluded_paths) {
-                                    continue;
-                                }
-
-                                // Ignore extensions here. Instead, always check
-                                // files captured by the glob pattern, as the
-                                // user explicitly specified them.
-                                yield InputSource::FsPath(path);
-                            }
-                            Err(e) => {
-                                eprintln!("Error in glob pattern: {e:?}");
-                            }
-                        }
-                    }
-                },
-                InputSource::FsPath(path) => {
-                    if path.is_dir() {
-
-                        for entry in Input::walk_entries(
-                            path,
-                            file_extensions,
-                            skip_hidden,
-                            skip_gitignored,
-                        )?
-                        {
-                            let entry = entry?;
-                            if Self::is_excluded_path(entry.path(), excluded_paths) {
-                                continue;
-                            }
-                            match entry.file_type() {
-                                None => continue,
-                                Some(file_type) => {
-                                    if !file_type.is_file() {
-                                        continue;
-                                    }
-                                }
-                            }
-
-                            yield InputSource::FsPath(entry.path().to_path_buf());
-                        }
-                    } else {
-                        // For individual files, yield if not excluded.
-                        // We do not filter by extension here, as individual files
-                        // should always be checked, no matter if their extension matches or not.
-                        // This follows the principle of least surprise because the user
-                        // explicitly specified the file.
-                        if !Self::is_excluded_path(path, excluded_paths) {
-                            yield InputSource::FsPath(path.clone());
-                        }
-                    }
-                },
-                InputSource::Stdin => {
-                    // Yield stdin as an input source
-                    yield InputSource::Stdin;
-                },
-                InputSource::String(_) => {
-                    // Yield the string source
-                    yield self.source.clone();
-                }
-            }
         }
     }
 
@@ -330,86 +159,77 @@ impl Input {
     ///
     /// # Errors
     ///
-    /// Returns an error if the contents can not be retrieved
-    /// because of an underlying I/O error (e.g. an error while making a
-    /// network request or retrieving the contents from the file system)
+    /// Returns an error if the contents can not be retrieved because of an
+    /// underlying I/O error (e.g. an error while making a network request or
+    /// retrieving the contents from the file system)
     pub fn get_contents(
         self,
         skip_missing: bool,
         skip_hidden: bool,
         skip_gitignored: bool,
-        // If `Input` is a file path, try the given file extensions in order.
-        // Stop on the first match.
         file_extensions: FileExtensions,
         resolver: UrlContentResolver,
         excluded_paths: PathExcludes,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
-            // Handle special cases first
+            // Handle simple cases that don't need resolution
             match self.source {
                 InputSource::RemoteUrl(url) => {
-                    let content = resolver.url_contents(*url).await;
-                    match content {
+                    match resolver.url_contents(*url).await {
                         Err(_) if skip_missing => (),
                         Err(e) => Err(e)?,
                         Ok(content) => yield content,
                     }
                     return;
-                },
+                }
                 InputSource::Stdin => {
-                    let content = Self::stdin_content(self.file_type_hint).await?;
-                    yield content;
+                    yield Self::stdin_content(self.file_type_hint).await?;
                     return;
-                },
+                }
                 InputSource::String(ref s) => {
-                    let content = Self::string_content(s, self.file_type_hint);
-                    yield content;
+                    yield Self::string_content(s, self.file_type_hint);
                     return;
-                },
+                }
                 _ => {}
             }
 
-            // Handle FsPath and FsGlob sources
-            // We can use `get_input_sources` to get the input sources, which will handle
-            // filtering by file extensions and exclusions
-            let mut sources_stream = Box::pin(self.get_input_sources(file_extensions, skip_hidden, skip_gitignored, &excluded_paths));
+            // Handle complex cases that need resolution (FsPath, FsGlob)
+            let mut sources_stream = Box::pin(InputResolver::resolve(
+                &self,
+                file_extensions,
+                skip_hidden,
+                skip_gitignored,
+                &excluded_paths,
+            ));
 
             while let Some(source_result) = sources_stream.next().await {
                 match source_result {
                     Ok(source) => {
-                        match source {
-                            InputSource::FsPath(path) => {
-                                // Process the actual file path
-                                let content = Self::path_content(&path).await;
-                                match content {
-                                    Err(_) if skip_missing => (),
-                                    Err(e) if matches!(&e, ErrorKind::ReadFileInput(io_err, _) if io_err.kind() == std::io::ErrorKind::InvalidData) => {
-                                        // If the file contains invalid UTF-8 (e.g. binary), we skip it
-                                        log::warn!("Skipping file with invalid UTF-8 content: {}", path.display());
-                                    },
-                                    Err(e) => Err(e)?,
-                                    Ok(content) => yield content,
+                        let content_result = match source {
+                            ResolvedInputSource::FsPath(path) => {
+                                Self::path_content(&path).await
+                            },
+                            ResolvedInputSource::RemoteUrl(url) => {
+                                resolver.url_contents(*url).await
+                            },
+                            ResolvedInputSource::Stdin => {
+                                Self::stdin_content(self.file_type_hint).await
+                            },
+                            ResolvedInputSource::String(s) => {
+                                Ok(Self::string_content(&s, self.file_type_hint))
+                            },
+                        };
+
+                        match content_result {
+                            Err(_) if skip_missing => (),
+                            Err(e) if matches!(&e, ErrorKind::ReadFileInput(io_err, _) if io_err.kind() == std::io::ErrorKind::InvalidData) => {
+                                // If the file contains invalid UTF-8 (e.g. binary), we skip it
+                                if let ErrorKind::ReadFileInput(_, path) = &e {
+                                    log::warn!("Skipping file with invalid UTF-8 content: {}", path.display());
                                 }
                             },
-                            InputSource::RemoteUrl(url) => {
-                                let content = resolver.url_contents(*url).await;
-                                match content {
-                                    Err(_) if skip_missing => (),
-                                    Err(e) => Err(e)?,
-                                    Ok(content) => yield content,
-                                }
-                            },
-                            InputSource::Stdin => {
-                                let content = Self::stdin_content(self.file_type_hint).await?;
-                                yield content;
-                            },
-                            InputSource::String(s) => {
-                                let content = Self::string_content(&s, self.file_type_hint);
-                                yield content;
-                            },
-                            InputSource::FsGlob { .. } => {
-                                unreachable!("This shouldn't happen as `get_input_sources` expands the glob patterns");
-                            }
+                            Err(e) => Err(e)?,
+                            Ok(content) => yield content,
                         }
                     },
                     Err(e) => Err(e)?,
@@ -418,7 +238,7 @@ impl Input {
         }
     }
 
-    /// Create a `WalkBuilder` for directory traversal with consistent settings
+    /// Create a `WalkBuilder` for directory traversal
     fn walk_entries(
         path: &Path,
         file_extensions: FileExtensions,
@@ -446,7 +266,18 @@ impl Input {
     ///
     /// # Errors
     ///
-    /// Returns an error if the globbing fails with the expanded pattern.
+    /// Returns an error if:
+    /// - The glob pattern is invalid or expansion encounters I/O errors
+    /// - Directory traversal fails, including:
+    ///   - Permission denied when accessing directories or files
+    ///   - I/O errors while reading directory contents
+    ///   - Filesystem errors (disk errors, network filesystem issues, etc.)
+    ///   - Invalid file paths or symbolic link resolution failures
+    /// - Errors when reading or evaluating `.gitignore` or `.ignore` files
+    /// - Errors occur during file extension or path exclusion evaluation
+    ///
+    /// Note: Individual glob match failures are logged to stderr but don't terminate the stream.
+    /// However, directory traversal errors will stop processing and return the error immediately.
     pub fn get_sources(
         self,
         file_extensions: FileExtensions,
@@ -506,17 +337,20 @@ impl Input {
         excluded_paths.is_match(&path.to_string_lossy())
     }
 
-    /// Get the input content of a given path
+    /// Get the content for a given path.
+    ///
     /// # Errors
     ///
-    /// Will return `Err` if file contents can't be read
+    /// Returns an error if the file cannot be read
     pub async fn path_content<P: Into<PathBuf> + AsRef<Path> + Clone>(
         path: P,
     ) -> Result<InputContent> {
         let path = path.into();
+
         let content = tokio::fs::read_to_string(&path)
             .await
             .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))?;
+
         let input_content = InputContent {
             file_type: FileType::from(&path),
             source: InputSource::FsPath(path),
@@ -526,7 +360,12 @@ impl Input {
         Ok(input_content)
     }
 
-    async fn stdin_content(file_type_hint: Option<FileType>) -> Result<InputContent> {
+    /// Create `InputContent` from stdin.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if stdin cannot be read
+    pub async fn stdin_content(file_type_hint: Option<FileType>) -> Result<InputContent> {
         let mut content = String::new();
         let mut stdin = stdin();
         stdin.read_to_string(&mut content).await?;
@@ -540,7 +379,9 @@ impl Input {
         Ok(input_content)
     }
 
-    fn string_content(s: &str, file_type_hint: Option<FileType>) -> InputContent {
+    /// Create `InputContent` from a string.
+    #[must_use]
+    pub fn string_content(s: &str, file_type_hint: Option<FileType>) -> InputContent {
         InputContent::from_string(s, file_type_hint.unwrap_or_default())
     }
 }
@@ -556,10 +397,9 @@ impl TryFrom<&str> for Input {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::filter::PathExcludes;
 
-    /// Function for path exclusion tests
-    ///
-    /// This is a standalone function to allow for easier testing
+    /// A standalone function to allow for easier testing of path exclusion logic
     pub fn is_excluded_path(excluded_paths: &PathExcludes, path: &Path) -> bool {
         excluded_paths.is_match(&path.to_string_lossy())
     }
