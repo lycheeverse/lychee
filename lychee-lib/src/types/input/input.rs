@@ -54,7 +54,7 @@ impl Input {
     ) -> Result<Self> {
         let source = if input == STDIN {
             InputSource::Stdin
-        } else if let Some(windows_path) = WindowsPath::try_from(input) {
+        } else if let Ok(windows_path) = WindowsPath::try_from(input) {
             // Handle Windows absolute paths (e.g., C:\path) before URL parsing
             let path = windows_path.as_path();
             if path.exists() {
@@ -582,7 +582,6 @@ mod tests {
         ));
     }
 
-
     #[test]
     fn test_windows_absolute_path_parsing() {
         use std::env::temp_dir;
@@ -604,7 +603,7 @@ mod tests {
     #[test]
     fn test_no_http_assumption() {
         // These should now fail instead of being converted to http://
-        
+        // https://github.com/lycheeverse/lychee/issues/1595
         assert!(matches!(
             Input::from_value("example.com"),
             Err(ErrorKind::InvalidInput(_))
