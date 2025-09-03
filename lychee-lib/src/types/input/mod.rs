@@ -28,6 +28,7 @@ pub mod input;
 pub mod content;
 pub mod resolver;
 pub mod source;
+pub mod windows_path;
 
 pub use content::InputContent;
 pub use input::Input;

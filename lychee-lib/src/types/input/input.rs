@@ -7,6 +7,7 @@ use super::InputResolver;
 use super::content::InputContent;
 use super::source::InputSource;
 use super::source::ResolvedInputSource;
+use super::windows_path::WindowsPath;
 use crate::filter::PathExcludes;
 use crate::types::FileType;
 use crate::types::file::FileExtensions;
@@ -53,12 +54,18 @@ impl Input {
     ) -> Result<Self> {
         let source = if input == STDIN {
             InputSource::Stdin
+        } else if let Some(windows_path) = WindowsPath::try_from(input) {
+            // Handle Windows absolute paths (e.g., C:\path) before URL parsing
+            let path = windows_path.as_path();
+            if path.exists() {
+                InputSource::FsPath(path.to_path_buf())
+            } else {
+                return Err(ErrorKind::InvalidFile(path.to_path_buf()));
+            }
         } else {
             // We use [`reqwest::Url::parse`] because it catches some other edge cases that [`http::Request:builder`] does not
             match Url::parse(input) {
-                // Weed out non-HTTP schemes, including Windows drive
-                // specifiers, which can be parsed by the
-                // [url](https://crates.io/crates/url) crate
+                // Only accept HTTP and HTTPS URLs
                 Ok(url) if url.scheme() == "http" || url.scheme() == "https" => {
                     InputSource::RemoteUrl(Box::new(url))
                 }
@@ -106,19 +113,11 @@ impl Input {
                             // but it catches the most common ones
                             return Err(ErrorKind::InvalidFile(path));
                         } else {
-                            // Invalid path; check if a valid URL can be constructed from the input
-                            // by prefixing it with a `http://` scheme.
-                            //
-                            // Curl also uses http (i.e. not https), see
-                            // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
-                            //
-                            // TODO: We should get rid of this heuristic and
-                            // require users to provide a full URL with scheme.
-                            // This is a big source of confusion to users.
-                            let url = Url::parse(&format!("http://{input}")).map_err(|e| {
-                                ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string())
-                            })?;
-                            InputSource::RemoteUrl(Box::new(url))
+                            // Input is neither a valid file path nor a URL
+                            return Err(ErrorKind::InvalidInput(format!(
+                                "Input '{input}' not found as file and not a valid URL. \
+                                     Use full URL (e.g., https://example.com) or check file path."
+                            )));
                         }
                     }
                 }
@@ -406,7 +405,8 @@ mod tests {
 
     #[test]
     fn test_input_handles_real_relative_paths() {
-        let test_file = "./Cargo.toml";
+        // Use current directory which should always exist
+        let test_file = ".";
         let path = Path::new(test_file);
 
         assert!(path.exists());
@@ -463,11 +463,13 @@ mod tests {
 
     #[test]
     fn test_url_without_scheme() {
+        // URLs without scheme should fail with a helpful error message
         let input = Input::from_value("example.com");
-        assert_eq!(
-            input.unwrap().source.to_string(),
-            String::from("http://example.com/")
-        );
+        assert!(matches!(input, Err(ErrorKind::InvalidInput(_))));
+
+        if let Err(ErrorKind::InvalidInput(msg)) = input {
+            assert!(msg.contains("Use full URL"));
+        }
     }
 
     // Ensure that a Windows file path is not mistaken for a URL.
@@ -578,5 +580,67 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn test_windows_absolute_path_detection() {
+        // Valid Windows absolute paths
+        assert!(WindowsPath::try_from("C:\\").is_some());
+        assert!(WindowsPath::try_from("C:\\folder").is_some());
+        assert!(WindowsPath::try_from("D:\\folder\\file.txt").is_some());
+        assert!(WindowsPath::try_from("Z:/folder/file.txt").is_some());
+
+        // Invalid cases
+        assert!(WindowsPath::try_from("C:").is_none()); // Too short
+        assert!(WindowsPath::try_from("c:\\").is_none()); // Lowercase
+        assert!(WindowsPath::try_from("CC:\\").is_none()); // Two letters
+        assert!(WindowsPath::try_from("C-\\").is_none()); // Not colon
+        assert!(WindowsPath::try_from("C:file").is_none()); // No separator
+        assert!(WindowsPath::try_from("https://example.com").is_none()); // URL
+        assert!(WindowsPath::try_from("./relative").is_none()); // Relative path
+    }
+
+    #[test]
+    fn test_windows_absolute_path_parsing() {
+        use std::env::temp_dir;
+        use tempfile::NamedTempFile;
+
+        // Test with existing file (simulated Windows path)
+        if cfg!(windows) {
+            let dir = temp_dir();
+            let file = NamedTempFile::new_in(dir).unwrap();
+            let path = file.path();
+            let path_str = path.to_str().unwrap();
+
+            // Should parse as FsPath if file exists
+            let input = Input::from_value(path_str).unwrap();
+            assert!(matches!(input.source, InputSource::FsPath(_)));
+        }
+    }
+
+    #[test]
+    fn test_no_http_assumption() {
+        // These should now fail instead of being converted to http://
+        assert!(matches!(
+            Input::from_value("example.com"),
+            Err(ErrorKind::InvalidInput(_))
+        ));
+        assert!(matches!(
+            Input::from_value("foo"),
+            Err(ErrorKind::InvalidInput(_))
+        ));
+        assert!(matches!(
+            Input::from_value("subdomain.example.com"),
+            Err(ErrorKind::InvalidInput(_))
+        ));
+
+        // Error message should be helpful
+        if let Err(ErrorKind::InvalidInput(msg)) = Input::from_value("example.com") {
+            assert!(msg.contains("not found as file"));
+            assert!(msg.contains("not a valid URL"));
+            assert!(msg.contains("https://example.com"));
+        } else {
+            panic!("Expected InvalidInput error with helpful message");
+        }
     }
 }
