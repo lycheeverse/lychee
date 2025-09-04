@@ -855,5 +855,4 @@ at your option.
 
 # TODO: redirections
 
-- Record full redirection chain
-- Print redirection chain in the end, depending on verbosity or mode
+- Add redirect_map to JSON
