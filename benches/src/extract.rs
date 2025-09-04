@@ -23,9 +23,7 @@ fn benchmark_input_content_creation(c: &mut Criterion) {
     });
 
     c.bench_function("InputContent::from_owned_string (optimized)", |b| {
-        b.iter(|| {
-            InputContent::from_owned_string(black_box(owned_string.clone()), FileType::Markdown)
-        })
+        b.iter(|| InputContent::from_str(black_box(owned_string.clone()), FileType::Markdown))
     });
 
     c.bench_function("InputContent::from_string with owned (baseline)", |b| {

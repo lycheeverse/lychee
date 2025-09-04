@@ -32,23 +32,14 @@ impl InputContent {
         }
     }
 
+    /// Create an instance of `InputContent` from an input string
     #[must_use]
-    /// Create an instance of `InputContent` from an owned String
-    pub fn from_owned_string(s: String, file_type: FileType) -> Self {
+    pub fn from_str<S: Into<Cow<'static, str>>>(s: S, file_type: FileType) -> Self {
+        let cow = s.into();
         Self {
-            source: InputSource::String(Cow::Owned(s.clone())),
+            source: InputSource::String(cow.clone()),
             file_type,
-            content: s,
-        }
-    }
-
-    #[must_use]
-    /// Create an instance of `InputContent` from a string literal
-    pub fn from_static_str(s: &'static str, file_type: FileType) -> Self {
-        Self {
-            source: InputSource::String(Cow::Borrowed(s)),
-            file_type,
-            content: s.to_owned(),
+            content: cow.into_owned(),
         }
     }
 }
