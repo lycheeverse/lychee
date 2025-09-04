@@ -1,11 +1,12 @@
 use crate::Status;
+use serde::Serialize;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
 use url::Url;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default, Serialize)]
 /// A list of URLs that were followed through HTTP redirects,
 /// starting from the original URL and ending at the final destination.
 /// Each entry in the chain represents a step in the redirect sequence.

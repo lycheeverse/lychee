@@ -37,13 +37,15 @@ pub(crate) struct ResponseStats {
     pub(crate) errors: usize,
     /// Number of responses that were cached from a previous run
     pub(crate) cached: usize,
-    /// Map to store successful responses (if `detailed_stats` is enabled)
+    /// Store successful responses (if `detailed_stats` is enabled)
     pub(crate) success_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// Map to store failed responses (if `detailed_stats` is enabled)
+    /// Store failed responses (if `detailed_stats` is enabled)
     pub(crate) error_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Replacement suggestions for failed responses (if `--suggest` is enabled)
     pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
-    /// Map to store excluded responses (if `detailed_stats` is enabled)
+    /// Store redirected responses with their redirection chain (if `detailed_stats` is enabled)
+    pub(crate) redirect_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// Store excluded responses (if `detailed_stats` is enabled)
     pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Used to store the duration of the run in seconds.
     pub(crate) duration_secs: u64,
@@ -95,6 +97,9 @@ impl ResponseStats {
             _ if status.is_error() => self.error_map.entry(source).or_default(),
             Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),
             Status::Excluded if self.detailed_stats => self.excluded_map.entry(source).or_default(),
+            Status::Redirected(_, _) if self.detailed_stats => {
+                self.redirect_map.entry(source).or_default()
+            }
             _ => return,
         };
         status_map_entry.insert(response.1);

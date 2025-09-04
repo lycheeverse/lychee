@@ -63,6 +63,7 @@ impl Serialize for Status {
         S: Serializer,
     {
         let mut s;
+
         if let Some(code) = self.code() {
             s = serializer.serialize_struct("Status", 2)?;
             s.serialize_field("text", &self.to_string())?;
@@ -75,6 +76,11 @@ impl Serialize for Status {
             s = serializer.serialize_struct("Status", 1)?;
             s.serialize_field("text", &self.to_string())?;
         }
+
+        if let Status::Redirected(_, chain) = self {
+            s.serialize_field("chain", chain)?;
+        }
+
         s.end()
     }
 }

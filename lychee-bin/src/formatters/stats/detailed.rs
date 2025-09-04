@@ -138,6 +138,7 @@ mod tests {
             redirects: 0,
             cached: 0,
             suggestion_map: HashMap::default(),
+            redirect_map: HashMap::default(),
             success_map: HashMap::default(),
             error_map,
             excluded_map: HashMap::default(),

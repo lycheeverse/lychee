@@ -168,6 +168,7 @@ mod tests {
             duration_secs: 0,
             error_map,
             suggestion_map: HashMap::default(),
+            redirect_map: HashMap::default(),
             unsupported: 0,
             redirects: 0,
             cached: 0,
