@@ -577,6 +577,7 @@ where
 mod tests {
     use std::{
         fs::File,
+        str::FromStr,
         time::{Duration, Instant},
     };
 
@@ -584,6 +585,7 @@ mod tests {
     use http::{StatusCode, header::HeaderMap};
     use reqwest::header;
     use tempfile::tempdir;
+    use url::Url;
     use wiremock::{
         Mock,
         matchers::{method, path},
@@ -657,7 +659,10 @@ mod tests {
         });
 
         let res = get_mock_client_response(r).await;
-        assert!(res.status().is_success());
+        assert!(matches!(
+            res.status(),
+            Status::Redirected(StatusCode::OK, _)
+        ));
     }
 
     #[tokio::test]
@@ -893,8 +898,8 @@ mod tests {
     async fn test_redirects() {
         let mock_server = wiremock::MockServer::start().await;
 
-        let ok_uri = format!("{}/ok", &mock_server.uri());
-        let redirect_uri = format!("{}/redirect", &mock_server.uri());
+        let ok_uri = Url::from_str(&format!("{}/ok", mock_server.uri())).unwrap();
+        let redirect_uri = Url::from_str(&format!("{}/redirect", mock_server.uri())).unwrap();
 
         // Set up redirect
         let redirect = wiremock::ResponseTemplate::new(StatusCode::PERMANENT_REDIRECT)
@@ -918,11 +923,14 @@ mod tests {
             .build()
             .client()
             .unwrap()
-            .check(redirect_uri)
+            .check(Uri::from(redirect_uri.clone()))
             .await
             .unwrap();
 
-        assert_eq!(res.status(), &Status::Ok(StatusCode::OK));
+        assert_eq!(
+            res.status(),
+            &Status::Redirected(StatusCode::OK, vec![redirect_uri, ok_uri].into())
+        );
     }
 
     #[tokio::test]

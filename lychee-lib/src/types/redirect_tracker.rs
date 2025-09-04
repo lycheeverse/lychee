@@ -11,7 +11,15 @@ use url::Url;
 /// Each entry in the chain represents a step in the redirect sequence.
 pub struct RedirectChain(Vec<Url>);
 
+impl From<Vec<Url>> for RedirectChain {
+    fn from(value: Vec<Url>) -> Self {
+        Self(value)
+    }
+}
+
 impl RedirectChain {
+    /// Count how many times a redirect was followed.
+    /// This is the lenght of the chain minus one
     pub(crate) fn redirect_count(&self) -> usize {
         self.0.len().saturating_sub(1)
     }

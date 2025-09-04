@@ -75,7 +75,7 @@ mod plain_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "[301] https://example.com/redirect | Redirect (301 Moved Permanently): Moved Permanently"
+            "[301] https://example.com/redirect | Redirect: Followed 0 redirects resulting in Moved Permanently."
         );
     }
 
