@@ -6,11 +6,12 @@ mod cli {
         fs::{self, File},
         io::{BufRead, Write},
         path::{Path, PathBuf},
+        str::FromStr,
         time::Duration,
     };
 
     use anyhow::anyhow;
-    use assert_cmd::{Command, assert::Assert};
+    use assert_cmd::{Command, assert::Assert, output::OutputOkExt};
     use assert_json_diff::assert_json_include;
     use http::{Method, StatusCode};
     use lychee_lib::{InputSource, ResponseBody};
@@ -23,6 +24,7 @@ mod cli {
     use serde::Serialize;
     use serde_json::Value;
     use tempfile::NamedTempFile;
+    use url::Url;
     use uuid::Uuid;
     use wiremock::{
         Mock, ResponseTemplate,
@@ -2238,21 +2240,95 @@ mod cli {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path().join("configs").join("format.toml");
         let mut cmd = main_command();
-        cmd.arg("--config")
+        let output = cmd
+            .arg("--config")
             .arg(config)
             .arg("-")
             .write_stdin(mock_server.uri())
             .env_clear()
             .assert()
-            .success();
+            .success()
+            .get_output()
+            .clone()
+            .unwrap();
 
         // Check that the output is in JSON format
-        let output = cmd.output().unwrap();
         let output = std::str::from_utf8(&output.stdout).unwrap();
         let json: serde_json::Value = serde_json::from_str(output)?;
         assert_eq!(json["total"], 1);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_redirect_json() {
+        use serde_json::json;
+        redirecting_mock_server(async |redirect_url, ok_url| {
+            let mut cmd = main_command();
+            let output = cmd
+                .arg("-")
+                .arg("--format")
+                .arg("json")
+                .arg("--verbose") // required to make redirect_map visible
+                .write_stdin(redirect_url.as_str())
+                .env_clear()
+                .assert()
+                .success()
+                .get_output()
+                .clone()
+                .unwrap();
+
+            // Check that the output is in JSON format
+            let output = std::str::from_utf8(&output.stdout).unwrap();
+            let json: serde_json::Value = serde_json::from_str(output).unwrap();
+            assert_eq!(json["total"], 1);
+            assert_eq!(json["redirects"], 1);
+            assert_eq!(
+                json["redirect_map"],
+                json!({
+                "stdin":[{
+                    "status": {
+                        "code": 200,
+                        "text": "Redirect",
+                        "chain": [ redirect_url, ok_url ]
+                    },
+                    "url": redirect_url
+                }]})
+            );
+        })
+        .await;
+    }
+
+    /// Set up a mock server which has two routes: `/ok` and `/redirect`.
+    /// Calling `/redirect` returns a HTTP Location header redirecting to `/ok`
+    pub async fn redirecting_mock_server<F, R>(f: F)
+    where
+        F: FnOnce(Url, Url) -> R,
+        R: Future<Output = ()>,
+    {
+        let mock_server = wiremock::MockServer::start().await;
+        let ok_url = Url::from_str(&format!("{}/ok", mock_server.uri())).unwrap();
+        let redirect_url = Url::from_str(&format!("{}/redirect", mock_server.uri())).unwrap();
+
+        // Set up redirect
+        let redirect = wiremock::ResponseTemplate::new(StatusCode::PERMANENT_REDIRECT)
+            .insert_header("Location", ok_url.as_str());
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/redirect"))
+            .respond_with(redirect)
+            .expect(1) // expect the redirect to be followed and called once
+            .mount(&mock_server)
+            .await;
+
+        let ok = wiremock::ResponseTemplate::new(StatusCode::OK);
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/ok"))
+            .respond_with(ok)
+            .expect(1) // expect the redirect to be followed and called once
+            .mount(&mock_server)
+            .await;
+
+        f(redirect_url, ok_url).await;
     }
 
     #[tokio::test]

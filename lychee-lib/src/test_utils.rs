@@ -1,12 +1,12 @@
+use crate::{ClientBuilder, ErrorKind, Request, Uri};
+use http::StatusCode;
+use reqwest::Url;
 use std::{
     convert::TryFrom,
     fs,
     path::{Path, PathBuf},
+    str::FromStr,
 };
-
-use reqwest::Url;
-
-use crate::{ClientBuilder, ErrorKind, Request, Uri};
 
 #[macro_export]
 /// Creates a mock web server, which responds with a predefined status when
@@ -32,6 +32,38 @@ where
         .check(request)
         .await
         .unwrap()
+}
+
+/// Set up a mock server which has two routes: `/ok` and `/redirect`.
+/// Calling `/redirect` returns a HTTP Location header redirecting to `/ok`
+pub async fn redirecting_mock_server<F, R>(f: F)
+where
+    F: FnOnce(Url, Url) -> R,
+    R: Future<Output = ()>,
+{
+    let mock_server = wiremock::MockServer::start().await;
+    let ok_url = Url::from_str(&format!("{}/ok", mock_server.uri())).unwrap();
+    let redirect_url = Url::from_str(&format!("{}/redirect", mock_server.uri())).unwrap();
+
+    // Set up redirect
+    let redirect = wiremock::ResponseTemplate::new(StatusCode::PERMANENT_REDIRECT)
+        .insert_header("Location", ok_url.as_str());
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/redirect"))
+        .respond_with(redirect)
+        .expect(1) // expect the redirect to be followed and called once
+        .mount(&mock_server)
+        .await;
+
+    let ok = wiremock::ResponseTemplate::new(StatusCode::OK);
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/ok"))
+        .respond_with(ok)
+        .expect(1) // expect the redirect to be followed and called once
+        .mount(&mock_server)
+        .await;
+
+    f(redirect_url, ok_url).await;
 }
 
 /// Helper method to convert a string into a URI

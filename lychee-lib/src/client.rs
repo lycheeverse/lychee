@@ -577,7 +577,6 @@ where
 mod tests {
     use std::{
         fs::File,
-        str::FromStr,
         time::{Duration, Instant},
     };
 
@@ -585,7 +584,6 @@ mod tests {
     use http::{StatusCode, header::HeaderMap};
     use reqwest::header;
     use tempfile::tempdir;
-    use url::Url;
     use wiremock::{
         Mock,
         matchers::{method, path},
@@ -596,7 +594,7 @@ mod tests {
         ErrorKind, Request, Status, Uri,
         chain::{ChainResult, Handler, RequestChain},
         mock_server,
-        test_utils::get_mock_client_response,
+        test_utils::{get_mock_client_response, redirecting_mock_server},
     };
 
     #[tokio::test]
@@ -896,41 +894,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_redirects() {
-        let mock_server = wiremock::MockServer::start().await;
+        redirecting_mock_server(async |redirect_url, ok_ur| {
+            let res = ClientBuilder::builder()
+                .max_redirects(1_usize)
+                .build()
+                .client()
+                .unwrap()
+                .check(Uri::from(redirect_url.clone()))
+                .await
+                .unwrap();
 
-        let ok_uri = Url::from_str(&format!("{}/ok", mock_server.uri())).unwrap();
-        let redirect_uri = Url::from_str(&format!("{}/redirect", mock_server.uri())).unwrap();
-
-        // Set up redirect
-        let redirect = wiremock::ResponseTemplate::new(StatusCode::PERMANENT_REDIRECT)
-            .insert_header("Location", ok_uri.as_str());
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(path("/redirect"))
-            .respond_with(redirect)
-            .mount(&mock_server)
-            .await;
-
-        let ok = wiremock::ResponseTemplate::new(StatusCode::OK);
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(path("/ok"))
-            .respond_with(ok)
-            .expect(1) // expect the redirect to be followed and called once
-            .mount(&mock_server)
-            .await;
-
-        let res = ClientBuilder::builder()
-            .max_redirects(1_usize)
-            .build()
-            .client()
-            .unwrap()
-            .check(Uri::from(redirect_uri.clone()))
-            .await
-            .unwrap();
-
-        assert_eq!(
-            res.status(),
-            &Status::Redirected(StatusCode::OK, vec![redirect_uri, ok_uri].into())
-        );
+            assert_eq!(
+                res.status(),
+                &Status::Redirected(StatusCode::OK, vec![redirect_url, ok_ur].into())
+            );
+        })
+        .await;
     }
 
     #[tokio::test]
