@@ -1660,7 +1660,9 @@ mod cli {
             .arg("./NOT-A-REAL-TEST-FIXTURE.md")
             .assert()
             .failure()
-            .stderr(contains("Invalid file path: ./NOT-A-REAL-TEST-FIXTURE.md"));
+            .stderr(contains(
+                "Cannot read input content from file `./NOT-A-REAL-TEST-FIXTURE.md`",
+            ));
 
         Ok(())
     }
