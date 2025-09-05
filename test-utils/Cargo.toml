@@ -1,0 +1,12 @@
+[package]
+name = "test-utils"
+edition = "2024"
+description = "Common test utilities for the lychee project, intended for internal use only"
+homepage = "https://github.com/lycheeverse/lychee"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/lycheeverse/lychee"
+version.workspace = true
+readme = "../README.md"
+rust-version = "1.85.0"
+
+[dependencies]

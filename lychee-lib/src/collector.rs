@@ -309,12 +309,12 @@ mod tests {
 
     use http::StatusCode;
     use reqwest::Url;
+    use test_utils::mock_server;
 
     use super::*;
     use crate::{
         Result, Uri,
         filter::PathExcludes,
-        mock_server,
         test_utils::{load_fixture, mail, path, website},
         types::{FileType, Input, InputSource},
     };

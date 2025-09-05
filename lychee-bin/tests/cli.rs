@@ -1,15 +1,5 @@
 #[cfg(test)]
 mod cli {
-    use std::{
-        collections::{HashMap, HashSet},
-        error::Error,
-        fs::{self, File},
-        io::{BufRead, Write},
-        path::{Path, PathBuf},
-        str::FromStr,
-        time::Duration,
-    };
-
     use anyhow::anyhow;
     use assert_cmd::{Command, assert::Assert, output::OutputOkExt};
     use assert_json_diff::assert_json_include;
@@ -23,8 +13,17 @@ mod cli {
     use regex::Regex;
     use serde::Serialize;
     use serde_json::Value;
+    use std::{
+        collections::{HashMap, HashSet},
+        error::Error,
+        fs::{self, File},
+        io::{BufRead, Write},
+        path::{Path, PathBuf},
+        time::Duration,
+    };
     use tempfile::NamedTempFile;
-    use url::Url;
+    use test_utils::{mock_server, redirecting_mock_server};
+
     use uuid::Uuid;
     use wiremock::{
         Mock, ResponseTemplate,
@@ -37,17 +36,6 @@ mod cli {
     // Since it is currently static and can't be overwritten, declare it as a
     // constant.
     const LYCHEE_CACHE_FILE: &str = ".lycheecache";
-
-    /// Create a mock server which returns a custom status code.
-    macro_rules! mock_server {
-        ($status:expr $(, $func:tt ($($arg:expr),*))*) => {{
-            let mock_server = wiremock::MockServer::start().await;
-            let response_template = wiremock::ResponseTemplate::new(http::StatusCode::from($status));
-            let template = response_template$(.$func($($arg),*))*;
-            wiremock::Mock::given(wiremock::matchers::method("GET")).respond_with(template).mount(&mock_server).await;
-            mock_server
-        }};
-    }
 
     /// Create a mock server which returns a 200 OK and a custom response body.
     macro_rules! mock_response {
@@ -2263,7 +2251,7 @@ mod cli {
     #[tokio::test]
     async fn test_redirect_json() {
         use serde_json::json;
-        redirecting_mock_server(async |redirect_url, ok_url| {
+        redirecting_mock_server!(async |redirect_url: Url, ok_url| {
             let mut cmd = main_command();
             let output = cmd
                 .arg("-")
@@ -2297,38 +2285,6 @@ mod cli {
             );
         })
         .await;
-    }
-
-    /// Set up a mock server which has two routes: `/ok` and `/redirect`.
-    /// Calling `/redirect` returns a HTTP Location header redirecting to `/ok`
-    pub async fn redirecting_mock_server<F, R>(f: F)
-    where
-        F: FnOnce(Url, Url) -> R,
-        R: Future<Output = ()>,
-    {
-        let mock_server = wiremock::MockServer::start().await;
-        let ok_url = Url::from_str(&format!("{}/ok", mock_server.uri())).unwrap();
-        let redirect_url = Url::from_str(&format!("{}/redirect", mock_server.uri())).unwrap();
-
-        // Set up redirect
-        let redirect = wiremock::ResponseTemplate::new(StatusCode::PERMANENT_REDIRECT)
-            .insert_header("Location", ok_url.as_str());
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(wiremock::matchers::path("/redirect"))
-            .respond_with(redirect)
-            .expect(1) // expect the redirect to be followed and called once
-            .mount(&mock_server)
-            .await;
-
-        let ok = wiremock::ResponseTemplate::new(StatusCode::OK);
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(wiremock::matchers::path("/ok"))
-            .respond_with(ok)
-            .expect(1) // expect the redirect to be followed and called once
-            .mount(&mock_server)
-            .await;
-
-        f(redirect_url, ok_url).await;
     }
 
     #[tokio::test]

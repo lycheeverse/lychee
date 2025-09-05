@@ -584,6 +584,8 @@ mod tests {
     use http::{StatusCode, header::HeaderMap};
     use reqwest::header;
     use tempfile::tempdir;
+    use test_utils::mock_server;
+    use test_utils::redirecting_mock_server;
     use wiremock::{
         Mock,
         matchers::{method, path},
@@ -593,8 +595,7 @@ mod tests {
     use crate::{
         ErrorKind, Request, Status, Uri,
         chain::{ChainResult, Handler, RequestChain},
-        mock_server,
-        test_utils::{get_mock_client_response, redirecting_mock_server},
+        test_utils::get_mock_client_response,
     };
 
     #[tokio::test]
@@ -894,13 +895,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_redirects() {
-        redirecting_mock_server(async |redirect_url, ok_ur| {
+        redirecting_mock_server!(async |redirect_url: Url, ok_ur| {
             let res = ClientBuilder::builder()
                 .max_redirects(1_usize)
                 .build()
                 .client()
                 .unwrap()
-                .check(Uri::from(redirect_url.clone()))
+                .check(Uri::from((redirect_url).clone()))
                 .await
                 .unwrap();
 

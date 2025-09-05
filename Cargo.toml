@@ -1,5 +1,5 @@
 [workspace]
-members = ["lychee-bin", "lychee-lib", "examples/*", "benches"]
+members = ["lychee-bin", "lychee-lib", "examples/*", "benches", "test-utils"]
 resolver = "2"
 
 [workspace.package]
