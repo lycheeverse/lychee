@@ -132,39 +132,39 @@ impl TryFrom<&Uri> for GithubUri {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::website;
 
     use super::*;
+    use test_utils::website;
 
     #[test]
     fn test_github() {
         assert_eq!(
-            GithubUri::try_from(website("http://github.com/lycheeverse/lychee")).unwrap(),
+            GithubUri::try_from(website!("http://github.com/lycheeverse/lychee")).unwrap(),
             GithubUri::new("lycheeverse", "lychee")
         );
 
         assert_eq!(
-            GithubUri::try_from(website("http://www.github.com/lycheeverse/lychee")).unwrap(),
+            GithubUri::try_from(website!("http://www.github.com/lycheeverse/lychee")).unwrap(),
             GithubUri::new("lycheeverse", "lychee")
         );
 
         assert_eq!(
-            GithubUri::try_from(website("https://github.com/lycheeverse/lychee")).unwrap(),
+            GithubUri::try_from(website!("https://github.com/lycheeverse/lychee")).unwrap(),
             GithubUri::new("lycheeverse", "lychee")
         );
 
         assert_eq!(
-            GithubUri::try_from(website("https://github.com/lycheeverse/lychee/")).unwrap(),
+            GithubUri::try_from(website!("https://github.com/lycheeverse/lychee/")).unwrap(),
             GithubUri::new("lycheeverse", "lychee")
         );
 
         assert_eq!(
-            GithubUri::try_from(website("https://github.com/lycheeverse/lychee/foo/bar")).unwrap(),
+            GithubUri::try_from(website!("https://github.com/lycheeverse/lychee/foo/bar")).unwrap(),
             GithubUri::with_endpoint("lycheeverse", "lychee", "foo/bar")
         );
 
         assert_eq!(
-            GithubUri::try_from(website(
+            GithubUri::try_from(website!(
                 "https://github.com/Microsoft/python-language-server.git"
             ))
             .unwrap(),
@@ -172,7 +172,7 @@ mod tests {
         );
 
         assert_eq!(
-            GithubUri::try_from(website(
+            GithubUri::try_from(website!(
                 "https://github.com/lycheeverse/lychee/blob/master/NON_EXISTENT_FILE.md"
             ))
             .unwrap(),
@@ -183,21 +183,21 @@ mod tests {
     #[test]
     fn test_github_false_positives() {
         assert!(
-            GithubUri::try_from(website("https://github.com/sponsors/analysis-tools-dev "))
+            GithubUri::try_from(website!("https://github.com/sponsors/analysis-tools-dev "))
                 .is_err()
         );
 
         assert!(
-            GithubUri::try_from(website(
+            GithubUri::try_from(website!(
                 "https://github.com/marketplace/actions/lychee-broken-link-checker"
             ))
             .is_err()
         );
 
-        assert!(GithubUri::try_from(website("https://github.com/features/actions")).is_err());
+        assert!(GithubUri::try_from(website!("https://github.com/features/actions")).is_err());
 
         assert!(
-            GithubUri::try_from(website(
+            GithubUri::try_from(website!(
                 "https://pkg.go.dev/github.com/Debian/pkg-go-tools/cmd/pgt-gopath"
             ))
             .is_err()

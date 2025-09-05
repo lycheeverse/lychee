@@ -262,13 +262,11 @@ impl Filter {
 #[cfg(test)]
 mod tests {
     use reqwest::Url;
+    use test_utils::{mail, website};
     use url::Host;
 
     use super::{Excludes, Filter, Includes};
-    use crate::{
-        Uri,
-        test_utils::{mail, website},
-    };
+    use crate::Uri;
 
     // Note: the standard library, as of Rust stable 1.47.0, does not expose
     // "link-local" or "private" IPv6 checks. However, one might argue
@@ -343,18 +341,18 @@ mod tests {
         // In this case, only the requests matching the include set will be checked
         let filter = Filter::default();
 
-        assert!(!filter.is_excluded(&website("https://example.com")));
+        assert!(!filter.is_excluded(&website!("https://example.com")));
     }
 
     #[test]
     fn test_false_positives() {
         let filter = Filter::default();
 
-        assert!(filter.is_excluded(&website("http://www.w3.org/1999/xhtml")));
-        assert!(filter.is_excluded(&website(
+        assert!(filter.is_excluded(&website!("http://www.w3.org/1999/xhtml")));
+        assert!(filter.is_excluded(&website!(
             "http://schemas.openxmlformats.org/markup-compatibility/2006"
         )));
-        assert!(!filter.is_excluded(&website("https://example.com")));
+        assert!(!filter.is_excluded(&website!("https://example.com")));
     }
 
     #[test]
@@ -364,7 +362,7 @@ mod tests {
             includes: Some(includes),
             ..Filter::default()
         };
-        assert!(!filter.is_excluded(&website("http://www.w3.org/1999/xhtml")));
+        assert!(!filter.is_excluded(&website!("http://www.w3.org/1999/xhtml")));
     }
 
     #[test]
@@ -376,9 +374,9 @@ mod tests {
         };
 
         // Only the requests matching the include set will be checked
-        assert!(!filter.is_excluded(&website("https://foo.example.com")));
-        assert!(filter.is_excluded(&website("https://bar.example.com")));
-        assert!(filter.is_excluded(&website("https://example.com")));
+        assert!(!filter.is_excluded(&website!("https://foo.example.com")));
+        assert!(filter.is_excluded(&website!("https://bar.example.com")));
+        assert!(filter.is_excluded(&website!("https://example.com")));
     }
 
     #[test]
@@ -387,9 +385,9 @@ mod tests {
             ..Filter::default()
         };
 
-        assert!(filter.is_excluded(&mail("mail@example.com")));
-        assert!(filter.is_excluded(&mail("foo@bar.dev")));
-        assert!(!filter.is_excluded(&website("http://bar.dev")));
+        assert!(filter.is_excluded(&mail!("mail@example.com")));
+        assert!(filter.is_excluded(&mail!("foo@bar.dev")));
+        assert!(!filter.is_excluded(&website!("http://bar.dev")));
     }
 
     #[test]
@@ -399,9 +397,9 @@ mod tests {
             ..Filter::default()
         };
 
-        assert!(!filter.is_excluded(&mail("mail@example.com")));
-        assert!(!filter.is_excluded(&mail("foo@bar.dev")));
-        assert!(!filter.is_excluded(&website("http://bar.dev")));
+        assert!(!filter.is_excluded(&mail!("mail@example.com")));
+        assert!(!filter.is_excluded(&mail!("foo@bar.dev")));
+        assert!(!filter.is_excluded(&website!("http://bar.dev")));
     }
 
     #[test]
@@ -413,12 +411,12 @@ mod tests {
             ..Filter::default()
         };
 
-        assert!(filter.is_excluded(&website("https://github.com")));
-        assert!(filter.is_excluded(&website("http://exclude.org")));
-        assert!(filter.is_excluded(&mail("mail@example.com")));
+        assert!(filter.is_excluded(&website!("https://github.com")));
+        assert!(filter.is_excluded(&website!("http://exclude.org")));
+        assert!(filter.is_excluded(&mail!("mail@example.com")));
 
-        assert!(!filter.is_excluded(&website("http://bar.dev")));
-        assert!(filter.is_excluded(&mail("foo@bar.dev")));
+        assert!(!filter.is_excluded(&website!("http://bar.dev")));
+        assert!(filter.is_excluded(&mail!("foo@bar.dev")));
     }
     #[test]
     fn test_exclude_include_regex() {
@@ -431,24 +429,24 @@ mod tests {
         };
 
         // Includes take preference over excludes
-        assert!(!filter.is_excluded(&website("https://foo.example.com")),);
+        assert!(!filter.is_excluded(&website!("https://foo.example.com")),);
 
-        assert!(filter.is_excluded(&website("https://example.com")));
-        assert!(filter.is_excluded(&website("https://bar.example.com")));
+        assert!(filter.is_excluded(&website!("https://example.com")));
+        assert!(filter.is_excluded(&website!("https://bar.example.com")));
     }
 
     #[test]
     fn test_excludes_no_private_ips_by_default() {
         let filter = Filter::default();
 
-        assert!(!filter.is_excluded(&website(V4_PRIVATE_CLASS_A)));
-        assert!(!filter.is_excluded(&website(V4_PRIVATE_CLASS_B)));
-        assert!(!filter.is_excluded(&website(V4_PRIVATE_CLASS_C)));
-        assert!(!filter.is_excluded(&website(V4_LINK_LOCAL_1)));
-        assert!(!filter.is_excluded(&website(V4_LINK_LOCAL_2)));
-        assert!(!filter.is_excluded(&website(V4_LOOPBACK)));
-        assert!(!filter.is_excluded(&website(V6_LOOPBACK)));
-        assert!(!filter.is_excluded(&website("http://localhost")));
+        assert!(!filter.is_excluded(&website!(V4_PRIVATE_CLASS_A)));
+        assert!(!filter.is_excluded(&website!(V4_PRIVATE_CLASS_B)));
+        assert!(!filter.is_excluded(&website!(V4_PRIVATE_CLASS_C)));
+        assert!(!filter.is_excluded(&website!(V4_LINK_LOCAL_1)));
+        assert!(!filter.is_excluded(&website!(V4_LINK_LOCAL_2)));
+        assert!(!filter.is_excluded(&website!(V4_LOOPBACK)));
+        assert!(!filter.is_excluded(&website!(V6_LOOPBACK)));
+        assert!(!filter.is_excluded(&website!("http://localhost")));
     }
 
     #[test]
@@ -458,9 +456,9 @@ mod tests {
             ..Filter::default()
         };
 
-        assert!(filter.is_excluded(&website(V4_PRIVATE_CLASS_A)));
-        assert!(filter.is_excluded(&website(V4_PRIVATE_CLASS_B)));
-        assert!(filter.is_excluded(&website(V4_PRIVATE_CLASS_C)));
+        assert!(filter.is_excluded(&website!(V4_PRIVATE_CLASS_A)));
+        assert!(filter.is_excluded(&website!(V4_PRIVATE_CLASS_B)));
+        assert!(filter.is_excluded(&website!(V4_PRIVATE_CLASS_C)));
     }
 
     #[test]
@@ -470,8 +468,8 @@ mod tests {
             ..Filter::default()
         };
 
-        assert!(filter.is_excluded(&website(V4_LINK_LOCAL_1)));
-        assert!(filter.is_excluded(&website(V4_LINK_LOCAL_2)));
+        assert!(filter.is_excluded(&website!(V4_LINK_LOCAL_1)));
+        assert!(filter.is_excluded(&website!(V4_LINK_LOCAL_2)));
     }
 
     #[test]
@@ -481,9 +479,9 @@ mod tests {
             ..Filter::default()
         };
 
-        assert!(filter.is_excluded(&website(V4_LOOPBACK)));
-        assert!(filter.is_excluded(&website(V6_LOOPBACK)));
-        assert!(filter.is_excluded(&website("http://localhost")));
+        assert!(filter.is_excluded(&website!(V4_LOOPBACK)));
+        assert!(filter.is_excluded(&website!(V6_LOOPBACK)));
+        assert!(filter.is_excluded(&website!("http://localhost")));
     }
 
     #[test]
@@ -495,7 +493,7 @@ mod tests {
         };
 
         // if these were pure IPv4, we would exclude
-        assert!(!filter.is_excluded(&website(V6_MAPPED_V4_PRIVATE_CLASS_A)));
-        assert!(!filter.is_excluded(&website(V6_MAPPED_V4_LINK_LOCAL)));
+        assert!(!filter.is_excluded(&website!(V6_MAPPED_V4_PRIVATE_CLASS_A)));
+        assert!(!filter.is_excluded(&website!(V6_MAPPED_V4_LINK_LOCAL)));
     }
 }

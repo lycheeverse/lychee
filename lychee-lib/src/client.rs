@@ -584,6 +584,7 @@ mod tests {
     use http::{StatusCode, header::HeaderMap};
     use reqwest::header;
     use tempfile::tempdir;
+    use test_utils::get_mock_client_response;
     use test_utils::mock_server;
     use test_utils::redirecting_mock_server;
     use wiremock::{
@@ -595,38 +596,37 @@ mod tests {
     use crate::{
         ErrorKind, Request, Status, Uri,
         chain::{ChainResult, Handler, RequestChain},
-        test_utils::get_mock_client_response,
     };
 
     #[tokio::test]
     async fn test_nonexistent() {
         let mock_server = mock_server!(StatusCode::NOT_FOUND);
-        let res = get_mock_client_response(mock_server.uri()).await;
+        let res = get_mock_client_response!(mock_server.uri()).await;
 
         assert!(res.status().is_error());
     }
 
     #[tokio::test]
     async fn test_nonexistent_with_path() {
-        let res = get_mock_client_response("http://127.0.0.1/invalid").await;
+        let res = get_mock_client_response!("http://127.0.0.1/invalid").await;
         assert!(res.status().is_error());
     }
 
     #[tokio::test]
     async fn test_github() {
-        let res = get_mock_client_response("https://github.com/lycheeverse/lychee").await;
+        let res = get_mock_client_response!("https://github.com/lycheeverse/lychee").await;
         assert!(res.status().is_success());
     }
 
     #[tokio::test]
     async fn test_github_nonexistent_repo() {
-        let res = get_mock_client_response("https://github.com/lycheeverse/not-lychee").await;
+        let res = get_mock_client_response!("https://github.com/lycheeverse/not-lychee").await;
         assert!(res.status().is_error());
     }
 
     #[tokio::test]
     async fn test_github_nonexistent_file() {
-        let res = get_mock_client_response(
+        let res = get_mock_client_response!(
             "https://github.com/lycheeverse/lychee/blob/master/NON_EXISTENT_FILE.md",
         )
         .await;
@@ -636,10 +636,10 @@ mod tests {
     #[tokio::test]
     async fn test_youtube() {
         // This is applying a quirk. See the quirks module.
-        let res = get_mock_client_response("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
+        let res = get_mock_client_response!("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
         assert!(res.status().is_success());
 
-        let res = get_mock_client_response("https://www.youtube.com/watch?v=invalidNlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
+        let res = get_mock_client_response!("https://www.youtube.com/watch?v=invalidNlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
         assert!(res.status().is_error());
     }
 
@@ -649,7 +649,7 @@ mod tests {
             .try_into()
             .unwrap();
 
-        let res = get_mock_client_response(r.clone()).await;
+        let res = get_mock_client_response!(r.clone()).await;
         assert_eq!(res.status().code(), Some(401.try_into().unwrap()));
 
         r.credentials = Some(crate::BasicAuthCredentials {
@@ -657,7 +657,7 @@ mod tests {
             password: "pass".into(),
         });
 
-        let res = get_mock_client_response(r).await;
+        let res = get_mock_client_response!(r).await;
         assert!(matches!(
             res.status(),
             Status::Redirected(StatusCode::OK, _)
@@ -667,14 +667,14 @@ mod tests {
     #[tokio::test]
     async fn test_non_github() {
         let mock_server = mock_server!(StatusCode::OK);
-        let res = get_mock_client_response(mock_server.uri()).await;
+        let res = get_mock_client_response!(mock_server.uri()).await;
 
         assert!(res.status().is_success());
     }
 
     #[tokio::test]
     async fn test_invalid_ssl() {
-        let res = get_mock_client_response("https://expired.badssl.com/").await;
+        let res = get_mock_client_response!("https://expired.badssl.com/").await;
 
         assert!(res.status().is_error());
 
@@ -697,7 +697,7 @@ mod tests {
         File::create(file).unwrap();
         let uri = format!("file://{}", dir.path().join("temp").to_str().unwrap());
 
-        let res = get_mock_client_response(uri).await;
+        let res = get_mock_client_response!(uri).await;
         assert!(res.status().is_success());
     }
 
