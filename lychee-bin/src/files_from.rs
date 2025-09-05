@@ -35,7 +35,8 @@ impl FilesFrom {
         lines
             .into_iter()
             .filter(|line| {
-                !line.trim().is_empty() && !line.trim_start().starts_with(COMMENT_MARKER)
+                let line = line.trim();
+                !line.is_empty() && !line.starts_with(COMMENT_MARKER)
             })
             .collect()
     }
