@@ -152,7 +152,7 @@ impl InputResolver {
                     yield ResolvedInputSource::Stdin;
                 },
                 InputSource::String(s) => {
-                    yield ResolvedInputSource::String(s.clone());
+                    yield ResolvedInputSource::String(s.clone().into_owned());
                 }
             }
         }

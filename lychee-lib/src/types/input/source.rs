@@ -16,6 +16,7 @@
 
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::fmt::Display;
 use std::path::PathBuf;
 
@@ -37,7 +38,7 @@ pub enum InputSource {
     /// Standard Input.
     Stdin,
     /// Raw string input.
-    String(String),
+    String(Cow<'static, str>),
 }
 
 /// Resolved input sources that can be processed for content.
@@ -66,7 +67,7 @@ impl From<ResolvedInputSource> for InputSource {
             ResolvedInputSource::RemoteUrl(url) => InputSource::RemoteUrl(url),
             ResolvedInputSource::FsPath(path) => InputSource::FsPath(path),
             ResolvedInputSource::Stdin => InputSource::Stdin,
-            ResolvedInputSource::String(s) => InputSource::String(s),
+            ResolvedInputSource::String(s) => InputSource::String(Cow::Owned(s)),
         }
     }
 }
@@ -77,7 +78,7 @@ impl Display for ResolvedInputSource {
             Self::RemoteUrl(url) => url.as_str(),
             Self::FsPath(path) => path.to_str().unwrap_or_default(),
             Self::Stdin => "stdin",
-            Self::String(s) => s,
+            Self::String(s) => s.as_ref(),
         })
     }
 }
@@ -107,7 +108,7 @@ impl Display for InputSource {
             Self::FsGlob { pattern, .. } => pattern,
             Self::FsPath(path) => path.to_str().unwrap_or_default(),
             Self::Stdin => "stdin",
-            Self::String(s) => s,
+            Self::String(s) => s.as_ref(),
         })
     }
 }
