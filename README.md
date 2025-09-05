@@ -850,9 +850,3 @@ at your option.
 
 <br><hr>
 [🔼 Back to top](#back-to-top)
-
-
-
-# TODO: redirections
-
-- Add redirect_map to JSON
