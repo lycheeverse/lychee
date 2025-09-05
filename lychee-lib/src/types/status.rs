@@ -1,7 +1,7 @@
 use std::{collections::HashSet, fmt::Display};
 
 use super::CacheStatus;
-use super::redirect_tracker::RedirectChain;
+use super::redirect_tracker::Redirects;
 use crate::ErrorKind;
 use http::StatusCode;
 use reqwest::Response;
@@ -28,7 +28,7 @@ pub enum Status {
     /// Request timed out
     Timeout(Option<StatusCode>),
     /// Got redirected to different resource
-    Redirected(StatusCode, RedirectChain),
+    Redirected(StatusCode, Redirects),
     /// The given status code is not known by lychee
     UnknownStatusCode(StatusCode),
     /// Resource was excluded from checking
@@ -77,8 +77,8 @@ impl Serialize for Status {
             s.serialize_field("text", &self.to_string())?;
         }
 
-        if let Status::Redirected(_, chain) = self {
-            s.serialize_field("chain", chain)?;
+        if let Status::Redirected(_, redirects) = self {
+            s.serialize_field("redirects", redirects)?;
         }
 
         s.end()
@@ -140,8 +140,8 @@ impl Status {
     pub fn details(&self) -> Option<String> {
         match &self {
             Status::Ok(code) => code.canonical_reason().map(String::from),
-            Status::Redirected(code, chain) => {
-                let count = chain.redirect_count();
+            Status::Redirected(code, redirects) => {
+                let count = redirects.count();
                 let redirects = if count == 1 { "redirect" } else { "redirects" };
 
                 let result = code
@@ -310,7 +310,7 @@ impl From<reqwest::Error> for Status {
 
 #[cfg(test)]
 mod tests {
-    use crate::{CacheStatus, ErrorKind, Status, types::redirect_tracker::RedirectChain};
+    use crate::{CacheStatus, ErrorKind, Status, types::redirect_tracker::Redirects};
     use http::StatusCode;
 
     #[test]
@@ -345,7 +345,7 @@ mod tests {
             999
         );
         assert_eq!(
-            Status::Redirected(StatusCode::from_u16(300).unwrap(), RedirectChain::default())
+            Status::Redirected(StatusCode::from_u16(300).unwrap(), Redirects::default())
                 .code()
                 .unwrap(),
             300

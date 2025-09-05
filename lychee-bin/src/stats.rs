@@ -43,7 +43,7 @@ pub(crate) struct ResponseStats {
     pub(crate) error_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Replacement suggestions for failed responses (if `--suggest` is enabled)
     pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
-    /// Store redirected responses with their redirection chain (if `detailed_stats` is enabled)
+    /// Store redirected responses with their redirection list (if `detailed_stats` is enabled)
     pub(crate) redirect_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Store excluded responses (if `detailed_stats` is enabled)
     pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,

@@ -25,7 +25,7 @@ pub use cookies::CookieJar;
 pub use error::ErrorKind;
 pub use file::{FileExtensions, FileType};
 pub use input::{Input, InputContent, InputResolver, InputSource};
-pub use redirect_tracker::RedirectChain;
+pub use redirect_tracker::Redirects;
 pub use request::Request;
 pub use response::{Response, ResponseBody};
 pub use status::Status;

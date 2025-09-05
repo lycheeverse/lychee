@@ -2290,7 +2290,7 @@ mod cli {
                     "status": {
                         "code": 200,
                         "text": "Redirect",
-                        "chain": [ redirect_url, ok_url ]
+                        "redirects": [ redirect_url, ok_url ]
                     },
                     "url": redirect_url
                 }]})

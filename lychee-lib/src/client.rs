@@ -434,8 +434,8 @@ fn redirect_policy(redirect_tracker: RedirectTracker, max_redirects: usize) -> r
         if attempt.previous().len() > max_redirects {
             attempt.stop()
         } else {
-            let redirect_chain = &[attempt.previous(), &[attempt.url().clone()]].concat();
-            redirect_tracker.record_redirect(redirect_chain);
+            let redirects = &[attempt.previous(), &[attempt.url().clone()]].concat();
+            redirect_tracker.record_redirects(redirects);
             debug!("Following redirect to {}", attempt.url());
             attempt.follow()
         }

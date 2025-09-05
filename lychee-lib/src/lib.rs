@@ -100,7 +100,7 @@ pub use crate::{
     types::{
         AcceptRange, AcceptRangeError, Base, BasicAuthCredentials, BasicAuthSelector, CacheStatus,
         CookieJar, ErrorKind, FileExtensions, FileType, Input, InputContent, InputResolver,
-        InputSource, RedirectChain, Request, Response, ResponseBody, Result, Status,
+        InputSource, Redirects, Request, Response, ResponseBody, Result, Status,
         StatusCodeExcluder, StatusCodeSelector, uri::valid::Uri,
     },
 };
