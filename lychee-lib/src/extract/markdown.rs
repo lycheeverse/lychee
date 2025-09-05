@@ -17,6 +17,7 @@ fn md_extensions() -> Options {
 }
 
 /// Extract unparsed URL strings from a Markdown string.
+#[allow(clippy::too_many_lines)]
 pub(crate) fn extract_markdown(
     input: &str,
     include_verbatim: bool,
@@ -158,8 +159,12 @@ pub(crate) fn extract_markdown(
             }
 
             // Skip footnote references and definitions - they're not links to check
+            // Note: These are kept explicit (rather than relying on the wildcard) for clarity
+            #[allow(clippy::match_same_arms)]
             Event::FootnoteReference(_) => None,
+            #[allow(clippy::match_same_arms)]
             Event::Start(Tag::FootnoteDefinition(_)) => None,
+            #[allow(clippy::match_same_arms)]
             Event::End(TagEnd::FootnoteDefinition) => None,
 
             // Silently skip over other events
@@ -522,7 +527,7 @@ $$
     #[test]
     fn test_reference_links_extraction() {
         // Test that all types of reference links are extracted correctly
-        let markdown = r#"
+        let markdown = r"
 Inline link: [link1](target1.md)
 
 Reference link: [link2][ref2]
@@ -532,7 +537,7 @@ Shortcut link: [link4]
 [ref2]: target2.md
 [link3]: target3.md
 [link4]: target4.md
-"#;
+";
         let uris = extract_markdown(markdown, false, false);
 
         let expected = vec![
