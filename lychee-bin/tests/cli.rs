@@ -277,7 +277,7 @@ mod cli {
             &output_json["error_map"][&test_path.to_str().unwrap()][0]["status"];
 
         assert_eq!(
-            "SSL certificate expired. Site needs to renew certificate",
+            "SSL certificate not trusted. Use --insecure if site is trusted",
             site_error_status["details"]
         );
         Ok(())
