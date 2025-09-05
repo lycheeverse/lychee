@@ -84,6 +84,7 @@ use lychee_lib::CookieJar;
 mod cache;
 mod client;
 mod commands;
+mod files_from;
 mod formatters;
 mod options;
 mod parse;
