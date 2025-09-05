@@ -33,7 +33,7 @@ use crate::{
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
     remap::Remaps,
-    types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_tracker::RedirectTracker},
+    types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory},
 };
 
 /// Default number of redirects before a request is deemed as failed, 5.
@@ -349,7 +349,7 @@ impl ClientBuilder {
             HeaderValue::from_static("chunked"),
         );
 
-        let redirect_tracker = RedirectTracker::new();
+        let redirect_history = RedirectHistory::new();
 
         let mut builder = reqwest::ClientBuilder::new()
             .gzip(true)
@@ -358,7 +358,7 @@ impl ClientBuilder {
             .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
             .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
             .redirect(redirect_policy(
-                redirect_tracker.clone(),
+                redirect_history.clone(),
                 self.max_redirects,
             ));
 
@@ -404,7 +404,7 @@ impl ClientBuilder {
         let website_checker = WebsiteChecker::new(
             self.method,
             self.retry_wait_time,
-            redirect_tracker.clone(),
+            redirect_history.clone(),
             self.max_retries,
             reqwest_client,
             self.accepted,
@@ -429,13 +429,13 @@ impl ClientBuilder {
     }
 }
 
-fn redirect_policy(redirect_tracker: RedirectTracker, max_redirects: usize) -> redirect::Policy {
+fn redirect_policy(redirect_history: RedirectHistory, max_redirects: usize) -> redirect::Policy {
     redirect::Policy::custom(move |attempt| {
         if attempt.previous().len() > max_redirects {
             attempt.stop()
         } else {
             let redirects = &[attempt.previous(), &[attempt.url().clone()]].concat();
-            redirect_tracker.record_redirects(redirects);
+            redirect_history.record_redirects(redirects);
             debug!("Following redirect to {}", attempt.url());
             attempt.follow()
         }

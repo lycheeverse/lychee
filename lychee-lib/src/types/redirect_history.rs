@@ -28,9 +28,9 @@ impl Redirects {
 
 #[derive(Debug, Clone)]
 /// Keep track of HTTP redirections for reporting
-pub(crate) struct RedirectTracker(Arc<Mutex<HashMap<Url, Redirects>>>);
+pub(crate) struct RedirectHistory(Arc<Mutex<HashMap<Url, Redirects>>>);
 
-impl RedirectTracker {
+impl RedirectHistory {
     pub(crate) fn new() -> Self {
         Self(Arc::new(Mutex::new(HashMap::new())))
     }
@@ -61,7 +61,7 @@ impl RedirectTracker {
     }
 }
 
-impl Default for RedirectTracker {
+impl Default for RedirectHistory {
     fn default() -> Self {
         Self::new()
     }

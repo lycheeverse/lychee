@@ -3,7 +3,7 @@ use crate::{
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
     retry::RetryExt,
-    types::{redirect_tracker::RedirectTracker, uri::github::GithubUri},
+    types::{redirect_history::RedirectHistory, uri::github::GithubUri},
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 use async_trait::async_trait;
@@ -53,7 +53,7 @@ pub(crate) struct WebsiteChecker {
     fragment_checker: FragmentChecker,
 
     /// Keep track of HTTP redirections for reporting
-    redirect_tracker: RedirectTracker,
+    redirect_history: RedirectHistory,
 }
 
 impl WebsiteChecker {
@@ -61,7 +61,7 @@ impl WebsiteChecker {
     pub(crate) fn new(
         method: reqwest::Method,
         retry_wait_time: Duration,
-        redirect_tracker: RedirectTracker,
+        redirect_history: RedirectHistory,
         max_retries: u64,
         reqwest_client: reqwest::Client,
         accepted: HashSet<StatusCode>,
@@ -75,7 +75,7 @@ impl WebsiteChecker {
             reqwest_client,
             github_client,
             plugin_request_chain,
-            redirect_tracker,
+            redirect_history,
             max_retries,
             retry_wait_time,
             accepted,
@@ -197,7 +197,7 @@ impl WebsiteChecker {
         let status = self
             .handle_insecure_url(uri, &default_chain, status)
             .await?;
-        Ok(self.redirect_tracker.handle_redirected(&uri.url, status))
+        Ok(self.redirect_history.handle_redirected(&uri.url, status))
     }
 
     async fn handle_insecure_url(

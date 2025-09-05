@@ -1,7 +1,7 @@
 use std::{collections::HashSet, fmt::Display};
 
 use super::CacheStatus;
-use super::redirect_tracker::Redirects;
+use super::redirect_history::Redirects;
 use crate::ErrorKind;
 use http::StatusCode;
 use reqwest::Response;
@@ -310,7 +310,7 @@ impl From<reqwest::Error> for Status {
 
 #[cfg(test)]
 mod tests {
-    use crate::{CacheStatus, ErrorKind, Status, types::redirect_tracker::Redirects};
+    use crate::{CacheStatus, ErrorKind, Status, types::redirect_history::Redirects};
     use http::StatusCode;
 
     #[test]
