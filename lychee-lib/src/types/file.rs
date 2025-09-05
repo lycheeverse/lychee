@@ -171,7 +171,8 @@ impl FileType {
     }
 
     /// Get the [`FileType`] from an extension string
-    fn from_extension(ext: &str) -> Option<Self> {
+    #[must_use]
+    pub fn from_extension(ext: &str) -> Option<Self> {
         let ext = ext.to_lowercase();
         if Self::MARKDOWN_EXTENSIONS.contains(&ext.as_str()) {
             Some(Self::Markdown)
@@ -280,5 +281,25 @@ mod tests {
         assert!(!is_url(Path::new("foo/bar/baz")));
         assert!(!is_url(Path::new("file:///foo/bar.txt")));
         assert!(!is_url(Path::new("ftp://foo.com")));
+    }
+
+    #[test]
+    fn test_from_extension() {
+        // Valid extensions
+        assert_eq!(FileType::from_extension("html"), Some(FileType::Html));
+        assert_eq!(FileType::from_extension("HTML"), Some(FileType::Html));
+        assert_eq!(FileType::from_extension("htm"), Some(FileType::Html));
+        assert_eq!(
+            FileType::from_extension("markdown"),
+            Some(FileType::Markdown)
+        );
+        assert_eq!(FileType::from_extension("md"), Some(FileType::Markdown));
+        assert_eq!(FileType::from_extension("MD"), Some(FileType::Markdown));
+        assert_eq!(FileType::from_extension("txt"), Some(FileType::Plaintext));
+        assert_eq!(FileType::from_extension("TXT"), Some(FileType::Plaintext));
+
+        // Invalid extension
+        assert_eq!(FileType::from_extension("invalid"), None);
+        assert_eq!(FileType::from_extension("xyz"), None);
     }
 }
