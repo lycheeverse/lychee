@@ -35,28 +35,28 @@ impl RedirectHistory {
         Self(Arc::new(Mutex::new(HashMap::new())))
     }
 
+    /// Records a redirect chain, using the original URL as the key.
+    ///
+    /// The first URL in the chain is treated as the original request URL,
+    /// and the entire chain (including the original) is stored as the value.
+    /// This allows later lookups of redirect paths by the initial URL.
     pub(crate) fn record_redirects(&self, redirects: &[Url]) {
-        if let Ok(mut map) = self.0.lock() {
-            if let Some(first) = redirects.first() {
-                map.insert(first.clone(), Redirects(redirects.to_vec()));
-            }
+        if let (Ok(mut map), Some(first)) = (self.0.lock(), redirects.first()) {
+            map.insert(first.clone(), Redirects(redirects.to_vec()));
         }
     }
 
     pub(crate) fn handle_redirected(&self, url: &Url, status: Status) -> Status {
         match status {
-            Status::Ok(code) => {
-                if let Some(redirects) = self.get_resolved(url) {
-                    Status::Redirected(code, redirects)
-                } else {
-                    Status::Ok(code)
-                }
-            }
-            s => s,
+            Status::Ok(code) => self
+                .get_resolved(url)
+                .map(|redirects| Status::Redirected(code, redirects))
+                .unwrap_or(Status::Ok(code)),
+            other => other,
         }
     }
 
-    pub(crate) fn get_resolved(&self, original: &Url) -> Option<Redirects> {
+    fn get_resolved(&self, original: &Url) -> Option<Redirects> {
         self.0.lock().ok()?.get(original).cloned()
     }
 }

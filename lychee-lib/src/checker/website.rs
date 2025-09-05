@@ -206,20 +206,21 @@ impl WebsiteChecker {
         default_chain: &Chain<Request, Status>,
         status: Status,
     ) -> Result<Status, ErrorKind> {
-        match status {
-            Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
-                if self
-                    .check_website_inner(&uri.to_https()?, default_chain)
+        if self.require_https && uri.scheme() == "http" {
+            if let Status::Ok(_) = status {
+                let https_uri = uri.to_https()?;
+                let is_https_available = self
+                    .check_website_inner(&https_uri, default_chain)
                     .await
-                    .is_success()
-                {
-                    Ok(Status::Error(ErrorKind::InsecureURL(uri.to_https()?)))
-                } else {
-                    Ok(Status::Ok(code))
+                    .is_success();
+
+                if is_https_available {
+                    return Ok(Status::Error(ErrorKind::InsecureURL(https_uri)));
                 }
             }
-            s => Ok(s),
         }
+
+        Ok(status)
     }
 
     /// Checks the given URI of a website.
