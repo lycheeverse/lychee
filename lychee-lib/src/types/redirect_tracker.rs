@@ -20,7 +20,7 @@ impl From<Vec<Url>> for RedirectChain {
 
 impl RedirectChain {
     /// Count how many times a redirect was followed.
-    /// This is the lenght of the chain minus one
+    /// This is the length of the chain minus one
     pub(crate) fn redirect_count(&self) -> usize {
         self.0.len().saturating_sub(1)
     }
