@@ -55,7 +55,7 @@ impl Display for CompactResponseStats {
                     numeric_sort::cmp(&a, &b)
                 });
 
-                writeln!(f, "\n\u{2139} Suggestions")?;
+                writeln!(f, "\nℹ Suggestions")?;
                 for suggestion in sorted_suggestions {
                     writeln!(f, "{suggestion}")?;
                 }
@@ -81,6 +81,7 @@ impl Display for CompactResponseStats {
         write_if_any(stats.excludes, "👻", "Excluded", &BOLD_YELLOW, f)?;
         write_if_any(stats.timeouts, "⏳", "Timeouts", &BOLD_YELLOW, f)?;
         write_if_any(stats.unsupported, "⛔", "Unsupported", &BOLD_YELLOW, f)?;
+        write_if_any(stats.redirects, "🔀", "Redirects", &BOLD_YELLOW, f)?;
 
         Ok(())
     }
@@ -167,6 +168,7 @@ mod tests {
             duration_secs: 0,
             error_map,
             suggestion_map: HashMap::default(),
+            redirect_map: HashMap::default(),
             unsupported: 0,
             redirects: 0,
             cached: 0,

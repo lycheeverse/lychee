@@ -1,6 +1,6 @@
 use lychee_lib::{CacheStatus, ResponseBody, Status};
 
-use crate::formatters::color::{DIM, GREEN, NORMAL, PINK, YELLOW};
+use crate::formatters::color::{DIM, GREEN, PINK, YELLOW};
 
 use super::{MAX_RESPONSE_OUTPUT_WIDTH, ResponseFormatter};
 
@@ -15,11 +15,10 @@ impl ColorFormatter {
     /// response.
     fn status_color(status: &Status) -> &'static std::sync::LazyLock<console::Style> {
         match status {
-            Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => &GREEN,
+            Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) | Status::Redirected(_, _) => &GREEN,
             Status::Excluded
             | Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => &DIM,
-            Status::Redirected(_) => &NORMAL,
             Status::UnknownStatusCode(_) | Status::Timeout(_) => &YELLOW,
             Status::Error(_) | Status::Cached(CacheStatus::Error(_)) => &PINK,
         }
