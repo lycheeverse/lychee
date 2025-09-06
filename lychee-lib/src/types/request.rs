@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, fmt::Display};
+use std::{borrow::Cow, convert::TryFrom, fmt::Display};
 
 use crate::{BasicAuthCredentials, ErrorKind, Uri};
 
@@ -74,7 +74,7 @@ impl TryFrom<String> for Request {
         let uri = Uri::try_from(s.as_str())?;
         Ok(Request::new(
             uri,
-            ResolvedInputSource::String(s),
+            ResolvedInputSource::String(Cow::Owned(s)),
             None,
             None,
             None,
@@ -89,7 +89,7 @@ impl TryFrom<&str> for Request {
         let uri = Uri::try_from(s)?;
         Ok(Request::new(
             uri,
-            ResolvedInputSource::String(s.to_owned()),
+            ResolvedInputSource::String(Cow::Owned(s.to_owned())),
             None,
             None,
             None,

@@ -6,6 +6,7 @@
 use super::source::ResolvedInputSource;
 use crate::ErrorKind;
 use crate::types::FileType;
+use std::borrow::Cow;
 use std::fs;
 use std::path::PathBuf;
 
@@ -24,11 +25,21 @@ impl InputContent {
     #[must_use]
     /// Create an instance of `InputContent` from an input string
     pub fn from_string(s: &str, file_type: FileType) -> Self {
-        // TODO: consider using Cow (to avoid one .clone() for String types)
         Self {
-            source: ResolvedInputSource::String(s.to_owned()),
+            source: ResolvedInputSource::String(Cow::Owned(s.to_owned())),
             file_type,
             content: s.to_owned(),
+        }
+    }
+
+    /// Create an instance of `InputContent` from an input string
+    #[must_use]
+    pub fn from_str<S: Into<Cow<'static, str>>>(s: S, file_type: FileType) -> Self {
+        let cow = s.into();
+        Self {
+            source: ResolvedInputSource::String(cow.clone()),
+            file_type,
+            content: cow.into_owned(),
         }
     }
 }
@@ -50,7 +61,7 @@ impl TryFrom<&PathBuf> for InputContent {
         };
 
         Ok(Self {
-            source: ResolvedInputSource::String(input.clone()),
+            source: ResolvedInputSource::String(Cow::Owned(input.clone())),
             file_type: FileType::from(path),
             content: input,
         })
