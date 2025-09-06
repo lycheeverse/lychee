@@ -236,7 +236,16 @@ impl LinkExtractor {
         }
 
         // Also check for 'name' attributes for backward compatibility with older HTML
-        // standards and JavaDoc-generated HTML which uses <a name="anchor"> instead of id
+        // standards. In HTML 4.01, both id and name could be used. This is not valid HTML 5,
+        // but it's still used by some widely deployed tools, for example:
+        //
+        // - JavaDoc - Oracle's tool generates <a name="anchor"> for method signatures and classes
+        //   (see https://docs.oracle.com/javase/8/docs/technotes/tools/windows/javadoc.html)
+        // - Doxygen - C++ documentation generator supports <A NAME="..."> in HTML commands
+        //   (see https://www.doxygen.nl/manual/htmlcmds.html)
+        //
+        // See https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/a#name
+        // See https://stackoverflow.com/a/484781
         if let Some(name) = self.current_attributes.get("name") {
             self.fragments.insert(name.to_string());
         }
