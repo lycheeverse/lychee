@@ -353,7 +353,7 @@ impl Input {
 
         let input_content = InputContent {
             file_type: FileType::from(&path),
-            source: InputSource::FsPath(path),
+            source: ResolvedInputSource::FsPath(path),
             content,
         };
 
@@ -371,7 +371,7 @@ impl Input {
         stdin.read_to_string(&mut content).await?;
 
         let input_content = InputContent {
-            source: InputSource::Stdin,
+            source: ResolvedInputSource::Stdin,
             file_type: file_type_hint.unwrap_or_default(),
             content,
         };

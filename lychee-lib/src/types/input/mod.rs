@@ -33,3 +33,4 @@ pub use content::InputContent;
 pub use input::Input;
 pub use resolver::InputResolver;
 pub use source::InputSource;
+pub use source::ResolvedInputSource;

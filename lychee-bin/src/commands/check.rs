@@ -398,7 +398,7 @@ mod tests {
     use crate::{formatters::get_response_formatter, options};
     use http::StatusCode;
     use log::info;
-    use lychee_lib::{CacheStatus, ClientBuilder, ErrorKind, InputSource, Uri};
+    use lychee_lib::{CacheStatus, ClientBuilder, ErrorKind, ResolvedInputSource, Uri};
 
     use super::*;
 
@@ -408,7 +408,7 @@ mod tests {
         let response = Response::new(
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Ok(200)),
-            InputSource::Stdin,
+            ResolvedInputSource::Stdin,
         );
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(
@@ -430,7 +430,7 @@ mod tests {
         let response = Response::new(
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Ok(200)),
-            InputSource::Stdin,
+            ResolvedInputSource::Stdin,
         );
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(

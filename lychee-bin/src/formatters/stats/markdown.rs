@@ -159,7 +159,9 @@ impl StatsFormatter for Markdown {
 #[cfg(test)]
 mod tests {
     use http::StatusCode;
-    use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status, Uri};
+    use lychee_lib::{
+        CacheStatus, InputSource, ResolvedInputSource, Response, ResponseBody, Status, Uri,
+    };
     use reqwest::Url;
 
     use crate::formatters::suggestion::Suggestion;
@@ -219,7 +221,7 @@ mod tests {
         let response = Response::new(
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Error(Some(404))),
-            InputSource::Stdin,
+            ResolvedInputSource::Stdin,
         );
         stats.add(response);
         stats

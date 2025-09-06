@@ -58,7 +58,7 @@ pub enum ResolvedInputSource {
     /// Standard Input.
     Stdin,
     /// Raw string input.
-    String(String),
+    String(Cow<'static, str>),
 }
 
 impl From<ResolvedInputSource> for InputSource {
@@ -67,7 +67,7 @@ impl From<ResolvedInputSource> for InputSource {
             ResolvedInputSource::RemoteUrl(url) => InputSource::RemoteUrl(url),
             ResolvedInputSource::FsPath(path) => InputSource::FsPath(path),
             ResolvedInputSource::Stdin => InputSource::Stdin,
-            ResolvedInputSource::String(s) => InputSource::String(Cow::Owned(s)),
+            ResolvedInputSource::String(s) => InputSource::String(s),
         }
     }
 }
