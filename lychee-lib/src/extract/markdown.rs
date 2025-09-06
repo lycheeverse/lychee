@@ -10,10 +10,14 @@ use super::html::html5gum::{extract_html, extract_html_fragments};
 /// Returns the default markdown extensions used by lychee.
 /// Sadly, `|` is not const for `Options` so we can't use a const global.
 fn md_extensions() -> Options {
-    Options::ENABLE_HEADING_ATTRIBUTES | Options::ENABLE_MATH | Options::ENABLE_WIKILINKS
+    Options::ENABLE_HEADING_ATTRIBUTES
+        | Options::ENABLE_MATH
+        | Options::ENABLE_WIKILINKS
+        | Options::ENABLE_FOOTNOTES
 }
 
 /// Extract unparsed URL strings from a Markdown string.
+#[allow(clippy::too_many_lines)]
 pub(crate) fn extract_markdown(
     input: &str,
     include_verbatim: bool,
@@ -64,7 +68,13 @@ pub(crate) fn extract_markdown(
                     // Shortcut without destination in the document, but resolved by the `broken_link_callback`
                     LinkType::ShortcutUnknown => {
                         inside_link_block = true;
-                        Some(extract_raw_uri_from_plaintext(&dest_url))
+                        // For reference links, create RawUri directly to handle relative file paths
+                        // that linkify doesn't recognize as URLs
+                        Some(vec![RawUri {
+                            text: dest_url.to_string(),
+                            element: Some("a".to_string()),
+                            attribute: Some("href".to_string()),
+                        }])
                     },
                     // Autolink like `<http://foo.bar/baz>`
                     LinkType::Autolink |
@@ -147,6 +157,15 @@ pub(crate) fn extract_markdown(
                 inside_wikilink_block = false;
                 None
             }
+
+            // Skip footnote references and definitions - they're not links to check
+            // Note: These are kept explicit (rather than relying on the wildcard) for clarity
+            #[allow(clippy::match_same_arms)]
+            Event::FootnoteReference(_) => None,
+            #[allow(clippy::match_same_arms)]
+            Event::Start(Tag::FootnoteDefinition(_)) => None,
+            #[allow(clippy::match_same_arms)]
+            Event::End(TagEnd::FootnoteDefinition) => None,
 
             // Silently skip over other events
             _ => None,
@@ -501,6 +520,56 @@ $$
             assert!(
                 uris.contains(&expected_uri),
                 "Missing expected URI: {expected_uri:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_reference_links_extraction() {
+        // Test that all types of reference links are extracted correctly
+        let markdown = r"
+Inline link: [link1](target1.md)
+
+Reference link: [link2][ref2]
+Collapsed link: [link3][]
+Shortcut link: [link4]
+
+[ref2]: target2.md
+[link3]: target3.md
+[link4]: target4.md
+";
+        let uris = extract_markdown(markdown, false, false);
+
+        let expected = vec![
+            RawUri {
+                text: "target1.md".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+            },
+            RawUri {
+                text: "target2.md".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+            },
+            RawUri {
+                text: "target3.md".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+            },
+            RawUri {
+                text: "target4.md".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+            },
+        ];
+
+        assert_eq!(uris.len(), 4, "Should extract all four link types");
+
+        // Check that all expected URIs are present (order might vary)
+        for expected_uri in expected {
+            assert!(
+                uris.contains(&expected_uri),
+                "Missing expected URI: {expected_uri:?}. Found: {uris:?}"
             );
         }
     }
