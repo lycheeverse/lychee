@@ -2,7 +2,10 @@ use crate::options::{Config, HeaderMapExt};
 use crate::parse::{parse_duration_secs, parse_remaps};
 use anyhow::{Context, Result};
 use http::{HeaderMap, StatusCode};
-use lychee_lib::{Client, ClientBuilder};
+use lychee_lib::{
+    Client, ClientBuilder,
+    ratelimit::{HostPool, RateLimitConfig},
+};
 use regex::RegexSet;
 use reqwest_cookie_store::CookieStoreMutex;
 use std::sync::Arc;
@@ -27,6 +30,17 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     };
 
     let headers = HeaderMap::from_header_pairs(&cfg.header)?;
+
+    // Create HostPool for rate limiting - always enabled for HTTP requests
+    let rate_limit_config =
+        RateLimitConfig::from_options(cfg.default_host_concurrency, cfg.default_request_interval);
+    let cache_max_age = if cfg.cache { 3600 } else { 0 }; // 1 hour if caching enabled, disabled otherwise
+    let host_pool = HostPool::new(
+        rate_limit_config,
+        cfg.hosts.clone(),
+        cfg.max_concurrency,
+        cache_max_age,
+    );
 
     ClientBuilder::builder()
         .remaps(remaps)
@@ -55,6 +69,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .include_fragments(cfg.include_fragments)
         .fallback_extensions(cfg.fallback_extensions.clone())
         .index_files(cfg.index_files.clone())
+        .host_pool(Some(host_pool))
         .build()
         .client()
         .context("Failed to create request client")

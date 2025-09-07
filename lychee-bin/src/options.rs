@@ -12,6 +12,7 @@ use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
     FileType, Input, StatusCodeExcluder, StatusCodeSelector, archive::Archive,
+    ratelimit::HostConfig,
 };
 use reqwest::tls;
 use secrecy::{ExposeSecret, SecretString};
@@ -363,6 +364,11 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) no_progress: bool,
 
+    /// Show per-host statistics at the end of the run
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) host_stats: bool,
+
     /// A list of file extensions. Files not matching the specified extensions are skipped.
     ///
     /// E.g. a user can specify `--extensions html,htm,php,asp,aspx,jsp,cgi`
@@ -462,6 +468,32 @@ and 501."
     #[arg(long, default_value = &MAX_CONCURRENCY_STR)]
     #[serde(default = "max_concurrency")]
     pub(crate) max_concurrency: usize,
+
+    /// Default maximum concurrent requests per host (default: 10)
+    ///
+    /// This limits how many requests can be sent simultaneously to the same
+    /// host (domain/subdomain). This helps prevent overwhelming servers and
+    /// getting rate-limited. Each host is handled independently.
+    ///
+    /// Examples:
+    ///   --default-host-concurrency 5   # Conservative for slow APIs
+    ///   --default-host-concurrency 20  # Aggressive for fast APIs
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) default_host_concurrency: Option<usize>,
+
+    /// Minimum interval between requests to the same host (default: 100ms)
+    ///
+    /// Sets a baseline delay between consecutive requests to prevent
+    /// hammering servers. The adaptive algorithm may increase this based
+    /// on server responses (rate limits, errors).
+    ///
+    /// Examples:
+    ///   --default-request-interval 50ms   # Fast for robust APIs\
+    ///   --default-request-interval 1s     # Conservative for rate-limited APIs
+    #[arg(long, value_parser = humantime::parse_duration)]
+    #[serde(default)]
+    pub(crate) default_request_interval: Option<Duration>,
 
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
@@ -776,6 +808,11 @@ followed by the absolute link's own path."
     #[arg(long)]
     #[serde(default)]
     pub(crate) include_wikilinks: bool,
+
+    /// Host-specific configurations from config file
+    #[arg(skip)]
+    #[serde(default)]
+    pub(crate) hosts: HashMap<String, HostConfig>,
 }
 
 impl Config {
@@ -836,10 +873,13 @@ impl Config {
             insecure: false;
             max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
             max_concurrency: DEFAULT_MAX_CONCURRENCY;
+            default_host_concurrency: None;
+            default_request_interval: None;
             max_redirects: DEFAULT_MAX_REDIRECTS;
             max_retries: DEFAULT_MAX_RETRIES;
             method: DEFAULT_METHOD;
             no_progress: false;
+            host_stats: false;
             output: None;
             remap: Vec::<String>::new();
             require_https: false;
@@ -850,6 +890,11 @@ impl Config {
             timeout: DEFAULT_TIMEOUT_SECS;
             user_agent: DEFAULT_USER_AGENT;
             verbose: Verbosity::default();
+        }
+
+        // Handle hosts configuration from TOML (not available in CLI)
+        if self.hosts.is_empty() && !toml.hosts.is_empty() {
+            self.hosts = toml.hosts;
         }
 
         // If the config file has a value for the GitHub token, but the CLI
