@@ -68,6 +68,9 @@ pub mod extract;
 
 pub mod remap;
 
+/// Per-host rate limiting and concurrency control
+pub mod ratelimit;
+
 /// Filters are a way to define behavior when encountering
 /// URIs that need to be treated differently, such as
 /// local IPs or e-mail addresses
