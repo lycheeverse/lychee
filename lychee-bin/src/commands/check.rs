@@ -24,7 +24,7 @@ use super::CommandParams;
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
-) -> Result<(ResponseStats, Arc<Cache>, ExitCode), ErrorKind>
+) -> Result<(ResponseStats, Arc<Cache>, ExitCode, Client), ErrorKind>
 where
     S: futures::Stream<Item = Result<Request, RequestError>>,
 {
@@ -44,6 +44,7 @@ where
     let cache_ref = params.cache.clone();
 
     let client = params.client;
+    let client_for_return = client.clone();
     let cache = params.cache;
     let cache_exclude_status = params
         .cfg
@@ -103,7 +104,7 @@ where
     } else {
         ExitCode::LinkCheckFailure
     };
-    Ok((stats, cache_ref, code))
+    Ok((stats, cache_ref, code, client_for_return))
 }
 
 async fn suggest_archived_links(
@@ -247,6 +248,8 @@ async fn handle(
     };
 
     let uri = request.uri.clone();
+
+    // First check the persistent disk-based cache
     if let Some(v) = cache.get(&uri) {
         // Found a cached request
         // Overwrite cache status in case the URI is excluded in the
@@ -260,18 +263,23 @@ async fn handle(
             // code.
             Status::from_cache_status(v.value().status, &accept)
         };
+
+        // Track cache hit in the per-host stats
+        if let Err(e) = client.record_cache_hit(&uri) {
+            log::debug!("Failed to record cache hit for {uri}: {e}");
+        }
+
         return Ok(Response::new(uri.clone(), status, request.source.into()));
     }
 
-    // Request was not cached; run a normal check
+    // Cache miss - track it and run a normal check
+    if let Err(e) = client.record_cache_miss(&uri) {
+        log::debug!("Failed to record cache miss for {uri}: {e}");
+    }
+
     let response = check_url(client, request).await;
 
-    // - Never cache filesystem access as it is fast already so caching has no
-    //   benefit.
-    // - Skip caching unsupported URLs as they might be supported in a
-    //   future run.
-    // - Skip caching excluded links; they might not be excluded in the next run.
-    // - Skip caching links for which the status code has been explicitly excluded from the cache.
+    // Apply the same caching rules as before
     let status = response.status();
     if ignore_cache(&uri, status, &cache_exclude_status) {
         return Ok(response);
