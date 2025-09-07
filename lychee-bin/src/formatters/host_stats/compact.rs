@@ -47,7 +47,7 @@ impl Display for CompactHostStats {
             color!(
                 f,
                 NORMAL,
-                "{:<width$} │ {:>6} reqs │ {:>6.1}% success │ {:>8} median │ {:>6.1}% cache",
+                "{:<width$} │ {:>6} reqs │ {:>6.1}% success │ {:>8} median │ {:>6.1}% cached",
                 hostname,
                 stats.total_requests,
                 stats.success_rate() * 100.0,
