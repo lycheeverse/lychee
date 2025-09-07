@@ -52,7 +52,9 @@ const HELP_MSG_CONFIG_FILE: &str = formatcp!(
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
-#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq, Eq)]
+#[derive(
+    Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq, Eq,
+)]
 #[non_exhaustive]
 pub(crate) enum TlsVersion {
     #[serde(rename = "TLSv1_0")]
