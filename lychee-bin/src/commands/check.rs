@@ -304,17 +304,21 @@ async fn handle(
             Status::from_cache_status(v.value().status, &accept)
         };
 
-        // Track cache hit in the per-host stats
-        if let Err(e) = client.record_cache_hit(&uri) {
-            log::debug!("Failed to record cache hit for {uri}: {e}");
+        // Track cache hit in the per-host stats (only for network URIs)
+        if !uri.is_file() {
+            if let Err(e) = client.record_cache_hit(&uri) {
+                log::debug!("Failed to record cache hit for {uri}: {e}");
+            }
         }
 
         return Response::new(uri.clone(), status, request.source);
     }
 
-    // Cache miss - track it and run a normal check
-    if let Err(e) = client.record_cache_miss(&uri) {
-        log::debug!("Failed to record cache miss for {uri}: {e}");
+    // Cache miss - track it and run a normal check (only for network URIs)
+    if !uri.is_file() {
+        if let Err(e) = client.record_cache_miss(&uri) {
+            log::debug!("Failed to record cache miss for {uri}: {e}");
+        }
     }
 
     let response = check_url(client, request).await;
