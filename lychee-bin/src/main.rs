@@ -66,7 +66,7 @@ use std::sync::Arc;
 use anyhow::{Context, Error, Result, bail};
 use clap::Parser;
 use commands::CommandParams;
-use formatters::{get_stats_formatter, log::init_logging};
+use formatters::{get_host_stats_formatter, get_stats_formatter, log::init_logging};
 use http::HeaderMap;
 use log::{error, info, warn};
 
@@ -304,6 +304,7 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 }
 
 /// Run lychee on the given inputs
+#[allow(clippy::too_many_lines)]
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
 
@@ -378,7 +379,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let exit_code = if opts.config.dump {
         commands::dump(params).await?
     } else {
-        let (stats, cache, exit_code) = commands::check(params).await?;
+        let (stats, cache, exit_code, client) = commands::check(params).await?;
 
         let github_issues = stats
             .error_map
@@ -403,6 +404,25 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
                 }
                 // we assume that the formatted stats don't have a final newline
                 writeln!(io::stdout(), "{formatted_stats}")?;
+            }
+        }
+
+        // Display per-host statistics if requested
+        if opts.config.host_stats {
+            let host_stats = client.host_stats();
+            let host_stats_formatter =
+                get_host_stats_formatter(&opts.config.format, &opts.config.mode);
+
+            if let Some(formatted_host_stats) = host_stats_formatter.format(host_stats)? {
+                if let Some(output) = &opts.config.output {
+                    // For file output, append to the existing output
+                    let mut file_content = std::fs::read_to_string(output).unwrap_or_default();
+                    file_content.push_str(&formatted_host_stats);
+                    std::fs::write(output, file_content)
+                        .context("Cannot write host stats to output file")?;
+                } else {
+                    print!("{formatted_host_stats}");
+                }
             }
         }
 

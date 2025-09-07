@@ -2,6 +2,7 @@ use crate::{
     BasicAuthCredentials, ErrorKind, FileType, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
+    ratelimit::HostPool,
     retry::RetryExt,
     types::{redirect_history::RedirectHistory, uri::github::GithubUri},
     utils::fragment_checker::{FragmentChecker, FragmentInput},
@@ -54,9 +55,67 @@ pub(crate) struct WebsiteChecker {
 
     /// Keep track of HTTP redirections for reporting
     redirect_history: RedirectHistory,
+
+    /// Optional host pool for per-host rate limiting.
+    ///
+    /// When present, HTTP requests will be routed through this pool for
+    /// rate limiting. When None, requests go directly through `reqwest_client`.
+    host_pool: Option<HostPool>,
 }
 
 impl WebsiteChecker {
+    /// Get per-host statistics from the rate limiting system
+    ///
+    /// Returns a map of hostnames to their statistics, or an empty map
+    /// if host-based rate limiting is not enabled.
+    #[must_use]
+    pub(crate) fn host_stats(
+        &self,
+    ) -> std::collections::HashMap<String, crate::ratelimit::HostStats> {
+        if let Some(host_pool) = &self.host_pool {
+            host_pool.all_host_stats()
+        } else {
+            std::collections::HashMap::new()
+        }
+    }
+
+    /// Get cache statistics for all hosts
+    ///
+    /// Returns a map of hostnames to (`cache_size`, `hit_rate`), or an empty map
+    /// if host-based rate limiting is not enabled.
+    #[must_use]
+    pub(crate) fn cache_stats(&self) -> std::collections::HashMap<String, (usize, f64)> {
+        if let Some(host_pool) = &self.host_pool {
+            host_pool.cache_stats()
+        } else {
+            std::collections::HashMap::new()
+        }
+    }
+
+    /// Record a cache hit for the given URI in the host statistics
+    ///
+    /// This tracks that a request was served from the persistent cache
+    /// rather than making a network request.
+    pub(crate) fn record_cache_hit(&self, uri: &crate::Uri) -> crate::Result<()> {
+        if let Some(host_pool) = &self.host_pool {
+            host_pool.record_cache_hit(uri).map_err(Into::into)
+        } else {
+            Ok(()) // No host pool, nothing to track
+        }
+    }
+
+    /// Record a cache miss for the given URI in the host statistics
+    ///
+    /// This tracks that a request could not be served from the persistent cache
+    /// and will require a network request (which may then use the in-memory cache).
+    pub(crate) fn record_cache_miss(&self, uri: &crate::Uri) -> crate::Result<()> {
+        if let Some(host_pool) = &self.host_pool {
+            host_pool.record_cache_miss(uri).map_err(Into::into)
+        } else {
+            Ok(()) // No host pool, nothing to track
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         method: reqwest::Method,
@@ -69,6 +128,7 @@ impl WebsiteChecker {
         require_https: bool,
         plugin_request_chain: RequestChain,
         include_fragments: bool,
+        host_pool: Option<HostPool>,
     ) -> Self {
         Self {
             method,
@@ -82,6 +142,7 @@ impl WebsiteChecker {
             require_https,
             include_fragments,
             fragment_checker: FragmentChecker::new(),
+            host_pool,
         }
     }
 
@@ -109,7 +170,25 @@ impl WebsiteChecker {
         let method = request.method().clone();
         let request_url = request.url().clone();
 
-        match self.reqwest_client.execute(request).await {
+        // Use HostPool for rate limiting - always enabled for HTTP requests
+        let response_result = if let Some(host_pool) = &self.host_pool {
+            match host_pool.execute_request(request).await {
+                Ok(response) => Ok(response),
+                Err(crate::ratelimit::RateLimitError::NetworkError { source, .. }) => {
+                    // Network errors should be handled the same as direct client errors
+                    Err(source)
+                }
+                Err(e) => {
+                    // Rate limiting specific errors
+                    return Status::Error(ErrorKind::RateLimit(e));
+                }
+            }
+        } else {
+            // Fallback to direct client if no host pool configured (shouldn't happen normally)
+            self.reqwest_client.execute(request).await
+        };
+
+        match response_result {
             Ok(response) => {
                 let status = Status::new(&response, &self.accepted);
                 // when `accept=200,429`, `status_code=429` will be treated as success
