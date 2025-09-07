@@ -219,6 +219,11 @@ impl Host {
             *backoff
         };
         if !backoff_duration.is_zero() {
+            log::debug!(
+                "Host {} applying backoff delay of {}ms due to previous rate limiting or errors", 
+                self.key, 
+                backoff_duration.as_millis()
+            );
             tokio::time::sleep(backoff_duration).await;
         }
 
@@ -271,7 +276,7 @@ impl Host {
                 }
                 429 => {
                     // Exponential backoff on rate limit, capped at 30 seconds
-                    *backoff = std::cmp::min(
+                    let new_backoff = std::cmp::min(
                         if backoff.is_zero() {
                             Duration::from_millis(500)
                         } else {
@@ -279,6 +284,13 @@ impl Host {
                         },
                         Duration::from_secs(30),
                     );
+                    log::debug!(
+                        "Host {} hit rate limit (429), increasing backoff from {}ms to {}ms", 
+                        self.key, 
+                        backoff.as_millis(),
+                        new_backoff.as_millis()
+                    );
+                    *backoff = new_backoff;
                 }
                 500..=599 => {
                     // Moderate backoff increase on server errors, capped at 10 seconds
