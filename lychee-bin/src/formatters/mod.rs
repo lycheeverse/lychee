@@ -1,11 +1,12 @@
 pub(crate) mod color;
 pub(crate) mod duration;
+pub(crate) mod host_stats;
 pub(crate) mod log;
 pub(crate) mod response;
 pub(crate) mod stats;
 pub(crate) mod suggestion;
 
-use self::{response::ResponseFormatter, stats::StatsFormatter};
+use self::{host_stats::HostStatsFormatter, response::ResponseFormatter, stats::StatsFormatter};
 use crate::options::{OutputMode, StatsFormat};
 use supports_color::Stream;
 
@@ -26,6 +27,19 @@ pub(crate) fn get_stats_formatter(
         StatsFormat::Json => Box::new(stats::Json::new()),
         StatsFormat::Markdown => Box::new(stats::Markdown::new()),
         StatsFormat::Raw => Box::new(stats::Raw::new()),
+    }
+}
+
+/// Create a host stats formatter based on the given format and mode options
+pub(crate) fn get_host_stats_formatter(
+    format: &StatsFormat,
+    mode: &OutputMode,
+) -> Box<dyn HostStatsFormatter> {
+    match format {
+        StatsFormat::Compact | StatsFormat::Raw => Box::new(host_stats::Compact::new(mode.clone())), // Use compact for raw
+        StatsFormat::Detailed => Box::new(host_stats::Detailed::new(mode.clone())),
+        StatsFormat::Json => Box::new(host_stats::Json::new()),
+        StatsFormat::Markdown => Box::new(host_stats::Markdown::new()),
     }
 }
 

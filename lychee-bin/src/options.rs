@@ -15,6 +15,7 @@ use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
     FileType, Input, StatusCodeExcluder, StatusCodeSelector, archive::Archive,
+    ratelimit::HostConfig,
 };
 use reqwest::tls;
 use secrecy::SecretString;
@@ -421,6 +422,11 @@ File Format:
     #[serde(default)]
     pub(crate) no_progress: bool,
 
+    /// Show per-host statistics at the end of the run
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) host_stats: bool,
+
     /// A list of file extensions. Files not matching the specified extensions are skipped.
     ///
     /// E.g. a user can specify `--extensions html,htm,php,asp,aspx,jsp,cgi`
@@ -527,6 +533,32 @@ with a status code of 429, 500 and 501."
     #[arg(long, default_value = &MAX_CONCURRENCY_STR)]
     #[serde(default = "max_concurrency")]
     pub(crate) max_concurrency: usize,
+
+    /// Default maximum concurrent requests per host (default: 10)
+    ///
+    /// This limits how many requests can be sent simultaneously to the same
+    /// host (domain/subdomain). This helps prevent overwhelming servers and
+    /// getting rate-limited. Each host is handled independently.
+    ///
+    /// Examples:
+    ///   --default-host-concurrency 5   # Conservative for slow APIs
+    ///   --default-host-concurrency 20  # Aggressive for fast APIs
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) default_host_concurrency: Option<usize>,
+
+    /// Minimum interval between requests to the same host (default: 100ms)
+    ///
+    /// Sets a baseline delay between consecutive requests to prevent
+    /// hammering servers. The adaptive algorithm may increase this based
+    /// on server responses (rate limits, errors).
+    ///
+    /// Examples:
+    ///   --default-request-interval 50ms   # Fast for robust APIs\
+    ///   --default-request-interval 1s     # Conservative for rate-limited APIs
+    #[arg(long, value_parser = humantime::parse_duration)]
+    #[serde(default)]
+    pub(crate) default_request_interval: Option<Duration>,
 
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
@@ -887,6 +919,11 @@ esac"#
     )]
     #[serde(default)]
     pub(crate) preprocess: Option<Preprocessor>,
+
+    /// Host-specific configurations from config file
+    #[arg(skip)]
+    #[serde(default)]
+    pub(crate) hosts: HashMap<String, HostConfig>,
 }
 
 impl Config {
@@ -944,6 +981,8 @@ impl Config {
                 cache_exclude_status: None,
                 cookie_jar: None,
                 default_extension: None,
+                default_host_concurrency: None,
+                default_request_interval: None,
                 dump: false,
                 dump_inputs: false,
                 exclude: Vec::<String>::new(),
@@ -960,6 +999,8 @@ impl Config {
                 generate: None,
                 glob_ignore_case: false,
                 hidden: false,
+                host_stats: false,
+                hosts: HashMap::new(),
                 include: Vec::<String>::new(),
                 include_fragments: false,
                 include_mail: false,
