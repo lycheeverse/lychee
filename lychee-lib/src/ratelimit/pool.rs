@@ -4,6 +4,7 @@ use reqwest::{Request, Response};
 use reqwest_cookie_store::CookieStoreMutex;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Semaphore;
 
 use crate::ratelimit::{Host, HostConfig, HostKey, HostStats, RateLimitConfig, RateLimitError};
@@ -44,6 +45,15 @@ pub struct HostPool {
 
     /// Global headers to be applied to all requests (includes User-Agent, etc.)
     global_headers: HeaderMap,
+
+    /// Maximum number of redirects to follow
+    max_redirects: usize,
+
+    /// Request timeout
+    timeout: Option<Duration>,
+
+    /// Whether to allow insecure certificates
+    allow_insecure: bool,
 }
 
 impl HostPool {
@@ -56,6 +66,9 @@ impl HostPool {
     /// * `max_total_concurrency` - Global limit on concurrent requests across all hosts
     /// * `cache_max_age` - Maximum age for cached entries in seconds (0 to disable caching)
     /// * `global_headers` - Headers to be applied to all requests (User-Agent, custom headers, etc.)
+    /// * `max_redirects` - Maximum number of redirects to follow
+    /// * `timeout` - Request timeout
+    /// * `allow_insecure` - Whether to allow insecure certificates
     ///
     /// # Examples
     ///
@@ -63,19 +76,24 @@ impl HostPool {
     /// use lychee_lib::ratelimit::{HostPool, RateLimitConfig};
     /// use std::collections::HashMap;
     /// use http::HeaderMap;
+    /// use std::time::Duration;
     ///
     /// let global_config = RateLimitConfig::default();
     /// let host_configs = HashMap::new();
     /// let global_headers = HeaderMap::new();
-    /// let pool = HostPool::new(global_config, host_configs, 128, 3600, global_headers);
+    /// let pool = HostPool::new(global_config, host_configs, 128, 3600, global_headers, 5, Some(Duration::from_secs(20)), false);
     /// ```
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         global_config: RateLimitConfig,
         host_configs: HashMap<String, HostConfig>,
         max_total_concurrency: usize,
         cache_max_age: u64,
         global_headers: HeaderMap,
+        max_redirects: usize,
+        timeout: Option<Duration>,
+        allow_insecure: bool,
     ) -> Self {
         Self {
             hosts: Arc::new(DashMap::new()),
@@ -85,17 +103,24 @@ impl HostPool {
             cache_max_age,
             cookie_jar: None,
             global_headers,
+            max_redirects,
+            timeout,
+            allow_insecure,
         }
     }
 
     /// Create a new `HostPool` with a shared cookie jar
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn with_cookie_jar(
         global_config: RateLimitConfig,
         host_configs: HashMap<String, HostConfig>,
         max_total_concurrency: usize,
         cache_max_age: u64,
         global_headers: HeaderMap,
+        max_redirects: usize,
+        timeout: Option<Duration>,
+        allow_insecure: bool,
         cookie_jar: Arc<CookieStoreMutex>,
     ) -> Self {
         Self {
@@ -106,6 +131,9 @@ impl HostPool {
             cache_max_age,
             cookie_jar: Some(cookie_jar),
             global_headers,
+            max_redirects,
+            timeout,
+            allow_insecure,
         }
     }
 
@@ -133,10 +161,20 @@ impl HostPool {
     /// ```no_run
     /// # use lychee_lib::ratelimit::{HostPool, RateLimitConfig};
     /// # use std::collections::HashMap;
-    /// # use reqwest::Request;
+    /// # use reqwest::{Request, header::HeaderMap};
+    /// # use std::time::Duration;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let pool = HostPool::new(RateLimitConfig::default(), HashMap::new(), 128, 3600);
+    /// let pool = HostPool::new(
+    ///     RateLimitConfig::default(),
+    ///     HashMap::new(),
+    ///     128,
+    ///     3600,
+    ///     HeaderMap::new(),
+    ///     5,
+    ///     Some(Duration::from_secs(20)),
+    ///     false
+    /// );
     /// let request = reqwest::Request::new(reqwest::Method::GET, "https://example.com".parse()?);
     /// let response = pool.execute_request(request).await?;
     /// # Ok(())
@@ -183,6 +221,9 @@ impl HostPool {
             self.cache_max_age,
             self.cookie_jar.clone(),
             &self.global_headers,
+            self.max_redirects,
+            self.timeout,
+            self.allow_insecure,
         )?);
 
         // Store in map (handle race condition where another thread created it)
@@ -383,9 +424,12 @@ impl Default for HostPool {
         Self::new(
             RateLimitConfig::default(),
             HashMap::new(),
-            128,  // Default global concurrency limit
-            3600, // Default cache age of 1 hour
-            HeaderMap::new(), // Default empty headers
+            128,                           // Default global concurrency limit
+            3600,                          // Default cache age of 1 hour
+            HeaderMap::new(),              // Default empty headers
+            5,                             // Default max redirects
+            Some(Duration::from_secs(20)), // Default timeout
+            false,                         // Default secure certificates
         )
     }
 }
@@ -401,7 +445,16 @@ mod tests {
     fn test_host_pool_creation() {
         let global_config = RateLimitConfig::default();
         let host_configs = HashMap::new();
-        let pool = HostPool::new(global_config, host_configs, 100, 3600, HeaderMap::new());
+        let pool = HostPool::new(
+            global_config,
+            host_configs,
+            100,
+            3600,
+            HeaderMap::new(),
+            5,
+            Some(Duration::from_secs(20)),
+            false,
+        );
 
         assert_eq!(pool.active_host_count(), 0);
         assert_eq!(pool.available_global_permits(), 100);
