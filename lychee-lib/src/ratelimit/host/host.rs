@@ -4,7 +4,7 @@ use governor::{
     clock::DefaultClock,
     state::{InMemoryState, NotKeyed},
 };
-use reqwest::{Client as ReqwestClient, Request, Response};
+use reqwest::{Client as ReqwestClient, Request, Response, redirect};
 use reqwest_cookie_store::CookieStoreMutex;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -85,6 +85,9 @@ impl Host {
     /// * `cache_max_age` - Maximum age for cached entries in seconds (0 to disable caching)
     /// * `shared_cookie_jar` - Optional shared cookie jar to use instead of creating per-host jar
     /// * `global_headers` - Global headers to be applied to all requests (User-Agent, custom headers, etc.)
+    /// * `max_redirects` - Maximum number of redirects to follow
+    /// * `timeout` - Request timeout
+    /// * `allow_insecure` - Whether to allow insecure certificates
     ///
     /// # Errors
     ///
@@ -93,6 +96,7 @@ impl Host {
     /// # Panics
     ///
     /// Panics if the burst size cannot be set to 1 (should never happen)
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         key: HostKey,
         host_config: &HostConfig,
@@ -100,6 +104,9 @@ impl Host {
         cache_max_age: u64,
         shared_cookie_jar: Option<Arc<CookieStoreMutex>>,
         global_headers: &http::HeaderMap,
+        max_redirects: usize,
+        timeout: Option<Duration>,
+        allow_insecure: bool,
     ) -> Result<Self, RateLimitError> {
         // Configure rate limiter with effective request interval
         let interval = host_config.effective_request_interval(global_config);
@@ -125,10 +132,31 @@ impl Host {
             combined_headers.insert(name, value.clone());
         }
 
-        // Build HTTP client with combined headers
-        let client = ReqwestClient::builder()
+        // Create custom redirect policy matching main client behavior
+        let redirect_policy = redirect::Policy::custom(move |attempt| {
+            if attempt.previous().len() > max_redirects {
+                attempt.error("too many redirects")
+            } else {
+                log::debug!("Redirecting to {}", attempt.url());
+                attempt.follow()
+            }
+        });
+
+        // Build HTTP client with proper configuration
+        let mut builder = ReqwestClient::builder()
             .cookie_provider(cookie_jar.clone())
             .default_headers(combined_headers)
+            .gzip(true)
+            .danger_accept_invalid_certs(allow_insecure)
+            .connect_timeout(Duration::from_secs(10)) // CONNECT_TIMEOUT constant
+            .tcp_keepalive(Duration::from_secs(60)) // TCP_KEEPALIVE constant
+            .redirect(redirect_policy);
+
+        if let Some(timeout) = timeout {
+            builder = builder.timeout(timeout);
+        }
+
+        let client = builder
             .build()
             .map_err(|e| RateLimitError::ClientConfigError {
                 host: key.to_string(),
@@ -442,7 +470,18 @@ mod tests {
         let host_config = HostConfig::default();
         let global_config = RateLimitConfig::default();
 
-        let host = Host::new(key.clone(), &host_config, &global_config, 3600, None, &http::HeaderMap::new()).unwrap();
+        let host = Host::new(
+            key.clone(),
+            &host_config,
+            &global_config,
+            3600,
+            None,
+            &http::HeaderMap::new(),
+            5,
+            Some(std::time::Duration::from_secs(20)),
+            false,
+        )
+        .unwrap();
 
         assert_eq!(host.key, key);
         assert_eq!(host.available_permits(), 10); // Default concurrency
@@ -456,7 +495,18 @@ mod tests {
         let host_config = HostConfig::default();
         let global_config = RateLimitConfig::default();
 
-        let host = Host::new(key, &host_config, &global_config, 1, None, &http::HeaderMap::new()).unwrap(); // 1 second cache
+        let host = Host::new(
+            key,
+            &host_config,
+            &global_config,
+            1,
+            None,
+            &http::HeaderMap::new(),
+            5,
+            Some(std::time::Duration::from_secs(20)),
+            false,
+        )
+        .unwrap(); // 1 second cache
 
         let uri = Uri::from("https://example.com/test".parse::<reqwest::Url>().unwrap());
         let status = Status::Ok(http::StatusCode::OK);
