@@ -49,6 +49,9 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
             cfg.max_concurrency,
             cache_max_age,
             combined_headers,
+            cfg.max_redirects,
+            Some(timeout),
+            cfg.insecure,
             cookie_jar.clone(),
         ),
         None => HostPool::new(
@@ -57,6 +60,9 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
             cfg.max_concurrency,
             cache_max_age,
             combined_headers,
+            cfg.max_redirects,
+            Some(timeout),
+            cfg.insecure,
         ),
     };
 
