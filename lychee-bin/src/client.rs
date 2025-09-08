@@ -35,7 +35,9 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     let mut combined_headers = headers.clone();
     combined_headers.insert(
         http::header::USER_AGENT,
-        cfg.user_agent.parse().context("Invalid User-Agent header")?,
+        cfg.user_agent
+            .parse()
+            .context("Invalid User-Agent header")?,
     );
 
     // Create HostPool for rate limiting - always enabled for HTTP requests
