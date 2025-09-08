@@ -220,8 +220,8 @@ impl Host {
         };
         if !backoff_duration.is_zero() {
             log::debug!(
-                "Host {} applying backoff delay of {}ms due to previous rate limiting or errors", 
-                self.key, 
+                "Host {} applying backoff delay of {}ms due to previous rate limiting or errors",
+                self.key,
                 backoff_duration.as_millis()
             );
             tokio::time::sleep(backoff_duration).await;
@@ -285,8 +285,8 @@ impl Host {
                         Duration::from_secs(30),
                     );
                     log::debug!(
-                        "Host {} hit rate limit (429), increasing backoff from {}ms to {}ms", 
-                        self.key, 
+                        "Host {} hit rate limit (429), increasing backoff from {}ms to {}ms",
+                        self.key,
                         backoff.as_millis(),
                         new_backoff.as_millis()
                     );
