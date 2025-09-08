@@ -83,6 +83,7 @@ impl Host {
     /// * `host_config` - Host-specific configuration
     /// * `global_config` - Global defaults to fall back to
     /// * `cache_max_age` - Maximum age for cached entries in seconds (0 to disable caching)
+    /// * `shared_cookie_jar` - Optional shared cookie jar to use instead of creating per-host jar
     ///
     /// # Errors
     ///
@@ -96,6 +97,7 @@ impl Host {
         host_config: &HostConfig,
         global_config: &RateLimitConfig,
         cache_max_age: u64,
+        shared_cookie_jar: Option<Arc<CookieStoreMutex>>,
     ) -> Result<Self, RateLimitError> {
         // Configure rate limiter with effective request interval
         let interval = host_config.effective_request_interval(global_config);
@@ -112,8 +114,8 @@ impl Host {
         let max_concurrent = host_config.effective_max_concurrent(global_config);
         let semaphore = Arc::new(Semaphore::new(max_concurrent));
 
-        // Create per-host cookie jar
-        let cookie_jar = Arc::new(CookieStoreMutex::default());
+        // Use shared cookie jar if provided, otherwise create per-host one
+        let cookie_jar = shared_cookie_jar.unwrap_or_else(|| Arc::new(CookieStoreMutex::default()));
 
         // Build HTTP client with host-specific configuration
         let client = ReqwestClient::builder()
@@ -432,7 +434,7 @@ mod tests {
         let host_config = HostConfig::default();
         let global_config = RateLimitConfig::default();
 
-        let host = Host::new(key.clone(), &host_config, &global_config, 3600).unwrap();
+        let host = Host::new(key.clone(), &host_config, &global_config, 3600, None).unwrap();
 
         assert_eq!(host.key, key);
         assert_eq!(host.available_permits(), 10); // Default concurrency
@@ -446,7 +448,7 @@ mod tests {
         let host_config = HostConfig::default();
         let global_config = RateLimitConfig::default();
 
-        let host = Host::new(key, &host_config, &global_config, 1).unwrap(); // 1 second cache
+        let host = Host::new(key, &host_config, &global_config, 1, None).unwrap(); // 1 second cache
 
         let uri = Uri::from("https://example.com/test".parse::<reqwest::Url>().unwrap());
         let status = Status::Ok(http::StatusCode::OK);
