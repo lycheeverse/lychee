@@ -1,5 +1,6 @@
 use dashmap::DashMap;
 use reqwest::{Request, Response};
+use reqwest_cookie_store::CookieStoreMutex;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
@@ -36,6 +37,9 @@ pub struct HostPool {
 
     /// Maximum age for cached entries in seconds (0 to disable caching)
     cache_max_age: u64,
+
+    /// Shared cookie jar used across all hosts
+    cookie_jar: Option<Arc<CookieStoreMutex>>,
 }
 
 impl HostPool {
@@ -71,6 +75,26 @@ impl HostPool {
             host_configs: Arc::new(host_configs),
             global_semaphore: Arc::new(Semaphore::new(max_total_concurrency)),
             cache_max_age,
+            cookie_jar: None,
+        }
+    }
+
+    /// Create a new `HostPool` with a shared cookie jar
+    #[must_use]
+    pub fn with_cookie_jar(
+        global_config: RateLimitConfig,
+        host_configs: HashMap<String, HostConfig>,
+        max_total_concurrency: usize,
+        cache_max_age: u64,
+        cookie_jar: Arc<CookieStoreMutex>,
+    ) -> Self {
+        Self {
+            hosts: Arc::new(DashMap::new()),
+            global_config: Arc::new(global_config),
+            host_configs: Arc::new(host_configs),
+            global_semaphore: Arc::new(Semaphore::new(max_total_concurrency)),
+            cache_max_age,
+            cookie_jar: Some(cookie_jar),
         }
     }
 
@@ -146,6 +170,7 @@ impl HostPool {
             &host_config,
             &self.global_config,
             self.cache_max_age,
+            self.cookie_jar.clone(),
         )?);
 
         // Store in map (handle race condition where another thread created it)
