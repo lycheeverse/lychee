@@ -1,4 +1,5 @@
 use dashmap::DashMap;
+use http::HeaderMap;
 use reqwest::{Request, Response};
 use reqwest_cookie_store::CookieStoreMutex;
 use std::collections::HashMap;
@@ -40,6 +41,9 @@ pub struct HostPool {
 
     /// Shared cookie jar used across all hosts
     cookie_jar: Option<Arc<CookieStoreMutex>>,
+
+    /// Global headers to be applied to all requests (includes User-Agent, etc.)
+    global_headers: HeaderMap,
 }
 
 impl HostPool {
@@ -51,16 +55,19 @@ impl HostPool {
     /// * `host_configs` - Host-specific configuration overrides
     /// * `max_total_concurrency` - Global limit on concurrent requests across all hosts
     /// * `cache_max_age` - Maximum age for cached entries in seconds (0 to disable caching)
+    /// * `global_headers` - Headers to be applied to all requests (User-Agent, custom headers, etc.)
     ///
     /// # Examples
     ///
     /// ```
     /// use lychee_lib::ratelimit::{HostPool, RateLimitConfig};
     /// use std::collections::HashMap;
+    /// use http::HeaderMap;
     ///
     /// let global_config = RateLimitConfig::default();
     /// let host_configs = HashMap::new();
-    /// let pool = HostPool::new(global_config, host_configs, 128, 3600);
+    /// let global_headers = HeaderMap::new();
+    /// let pool = HostPool::new(global_config, host_configs, 128, 3600, global_headers);
     /// ```
     #[must_use]
     pub fn new(
@@ -68,6 +75,7 @@ impl HostPool {
         host_configs: HashMap<String, HostConfig>,
         max_total_concurrency: usize,
         cache_max_age: u64,
+        global_headers: HeaderMap,
     ) -> Self {
         Self {
             hosts: Arc::new(DashMap::new()),
@@ -76,6 +84,7 @@ impl HostPool {
             global_semaphore: Arc::new(Semaphore::new(max_total_concurrency)),
             cache_max_age,
             cookie_jar: None,
+            global_headers,
         }
     }
 
@@ -86,6 +95,7 @@ impl HostPool {
         host_configs: HashMap<String, HostConfig>,
         max_total_concurrency: usize,
         cache_max_age: u64,
+        global_headers: HeaderMap,
         cookie_jar: Arc<CookieStoreMutex>,
     ) -> Self {
         Self {
@@ -95,6 +105,7 @@ impl HostPool {
             global_semaphore: Arc::new(Semaphore::new(max_total_concurrency)),
             cache_max_age,
             cookie_jar: Some(cookie_jar),
+            global_headers,
         }
     }
 
@@ -171,6 +182,7 @@ impl HostPool {
             &self.global_config,
             self.cache_max_age,
             self.cookie_jar.clone(),
+            &self.global_headers,
         )?);
 
         // Store in map (handle race condition where another thread created it)
@@ -373,6 +385,7 @@ impl Default for HostPool {
             HashMap::new(),
             128,  // Default global concurrency limit
             3600, // Default cache age of 1 hour
+            HeaderMap::new(), // Default empty headers
         )
     }
 }
@@ -388,7 +401,7 @@ mod tests {
     fn test_host_pool_creation() {
         let global_config = RateLimitConfig::default();
         let host_configs = HashMap::new();
-        let pool = HostPool::new(global_config, host_configs, 100, 3600);
+        let pool = HostPool::new(global_config, host_configs, 100, 3600, HeaderMap::new());
 
         assert_eq!(pool.active_host_count(), 0);
         assert_eq!(pool.available_global_permits(), 100);
