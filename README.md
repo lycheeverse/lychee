@@ -373,6 +373,9 @@ Options:
           Do not show progress bar.
           This is recommended for non-interactive shells (e.g. for continuous integration)
 
+      --host-stats
+          Show per-host statistics at the end of the run
+
       --extensions <EXTENSIONS>
           Test the specified file extensions for URIs when checking files locally.
 
@@ -446,6 +449,20 @@ Options:
           Maximum number of concurrent network requests
 
           [default: 128]
+
+      --default-host-concurrency <DEFAULT_HOST_CONCURRENCY>
+          Default maximum concurrent requests per host (default: 10)
+
+          This limits how many requests can be sent simultaneously to the same host (domain/subdomain). This helps prevent overwhelming servers and getting rate-limited. Each host is handled independently.
+
+          Examples: --default-host-concurrency 5   # Conservative for slow APIs --default-host-concurrency 20  # Aggressive for fast APIs
+
+      --default-request-interval <DEFAULT_REQUEST_INTERVAL>
+          Minimum interval between requests to the same host (default: 100ms)
+
+          Sets a baseline delay between consecutive requests to prevent hammering servers. The adaptive algorithm may increase this based on server responses (rate limits, errors).
+
+          Examples: --default-request-interval 50ms   # Fast for robust APIs\ --default-request-interval 1s     # Conservative for rate-limited APIs
 
   -T, --threads <THREADS>
           Number of threads to utilize. Defaults to number of cores available to the system
