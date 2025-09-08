@@ -84,6 +84,7 @@ impl Host {
     /// * `global_config` - Global defaults to fall back to
     /// * `cache_max_age` - Maximum age for cached entries in seconds (0 to disable caching)
     /// * `shared_cookie_jar` - Optional shared cookie jar to use instead of creating per-host jar
+    /// * `global_headers` - Global headers to be applied to all requests (User-Agent, custom headers, etc.)
     ///
     /// # Errors
     ///
@@ -98,6 +99,7 @@ impl Host {
         global_config: &RateLimitConfig,
         cache_max_age: u64,
         shared_cookie_jar: Option<Arc<CookieStoreMutex>>,
+        global_headers: &http::HeaderMap,
     ) -> Result<Self, RateLimitError> {
         // Configure rate limiter with effective request interval
         let interval = host_config.effective_request_interval(global_config);
@@ -117,10 +119,16 @@ impl Host {
         // Use shared cookie jar if provided, otherwise create per-host one
         let cookie_jar = shared_cookie_jar.unwrap_or_else(|| Arc::new(CookieStoreMutex::default()));
 
-        // Build HTTP client with host-specific configuration
+        // Combine global headers with host-specific headers
+        let mut combined_headers = global_headers.clone();
+        for (name, value) in &host_config.headers {
+            combined_headers.insert(name, value.clone());
+        }
+
+        // Build HTTP client with combined headers
         let client = ReqwestClient::builder()
             .cookie_provider(cookie_jar.clone())
-            .default_headers(host_config.headers.clone())
+            .default_headers(combined_headers)
             .build()
             .map_err(|e| RateLimitError::ClientConfigError {
                 host: key.to_string(),
@@ -434,7 +442,7 @@ mod tests {
         let host_config = HostConfig::default();
         let global_config = RateLimitConfig::default();
 
-        let host = Host::new(key.clone(), &host_config, &global_config, 3600, None).unwrap();
+        let host = Host::new(key.clone(), &host_config, &global_config, 3600, None, &http::HeaderMap::new()).unwrap();
 
         assert_eq!(host.key, key);
         assert_eq!(host.available_permits(), 10); // Default concurrency
@@ -448,7 +456,7 @@ mod tests {
         let host_config = HostConfig::default();
         let global_config = RateLimitConfig::default();
 
-        let host = Host::new(key, &host_config, &global_config, 1, None).unwrap(); // 1 second cache
+        let host = Host::new(key, &host_config, &global_config, 1, None, &http::HeaderMap::new()).unwrap(); // 1 second cache
 
         let uri = Uri::from("https://example.com/test".parse::<reqwest::Url>().unwrap());
         let status = Status::Ok(http::StatusCode::OK);
