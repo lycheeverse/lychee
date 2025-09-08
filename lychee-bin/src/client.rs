@@ -31,6 +31,13 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
 
     let headers = HeaderMap::from_header_pairs(&cfg.header)?;
 
+    // Create combined headers for HostPool (includes User-Agent + custom headers)
+    let mut combined_headers = headers.clone();
+    combined_headers.insert(
+        http::header::USER_AGENT,
+        cfg.user_agent.parse().context("Invalid User-Agent header")?,
+    );
+
     // Create HostPool for rate limiting - always enabled for HTTP requests
     let rate_limit_config =
         RateLimitConfig::from_options(cfg.default_host_concurrency, cfg.default_request_interval);
@@ -41,6 +48,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
             cfg.hosts.clone(),
             cfg.max_concurrency,
             cache_max_age,
+            combined_headers,
             cookie_jar.clone(),
         ),
         None => HostPool::new(
@@ -48,6 +56,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
             cfg.hosts.clone(),
             cfg.max_concurrency,
             cache_max_age,
+            combined_headers,
         ),
     };
 
