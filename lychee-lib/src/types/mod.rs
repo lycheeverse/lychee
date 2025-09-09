@@ -23,7 +23,7 @@ pub use cache::CacheStatus;
 pub use cookies::CookieJar;
 pub use error::ErrorKind;
 pub use file::{FileExtensions, FileType};
-pub use input::{Input, InputContent, InputResolver, InputSource};
+pub use input::{Input, InputContent, InputResolver, InputSource, ResolvedInputSource};
 pub use request::Request;
 pub use response::{Response, ResponseBody};
 pub use status::Status;

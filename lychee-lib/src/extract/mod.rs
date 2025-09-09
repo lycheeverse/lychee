@@ -71,7 +71,7 @@ mod tests {
     use crate::{
         Uri,
         test_utils::{load_fixture, mail, website},
-        types::{FileType, InputContent, InputSource},
+        types::{FileType, InputContent, ResolvedInputSource},
         utils::url::find_links,
     };
 
@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_extract_relative_url() {
-        let source = InputSource::RemoteUrl(Box::new(
+        let source = ResolvedInputSource::RemoteUrl(Box::new(
             Url::parse("https://example.com/some-post").unwrap(),
         ));
 
