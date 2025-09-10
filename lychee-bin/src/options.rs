@@ -15,7 +15,7 @@ use lychee_lib::{
     FileType, Input, StatusCodeExcluder, StatusCodeSelector, archive::Archive,
 };
 use reqwest::tls;
-use secrecy::{ExposeSecret, SecretString};
+use secrecy::SecretString;
 use serde::{Deserialize, Deserializer};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -199,7 +199,14 @@ default_function! {
 
 // Macro for merging configuration values
 macro_rules! fold_in {
-    ( $cli:ident , $toml:ident ; $( $key:ident : $default:expr; )* ) => {
+    ($cli:ident , $toml:ident ; skip: [ $( $ignore:ident),* ] ; $ty:ident { $( $key:ident : $default:expr, )* } ) => {
+        if (false) {
+            #[allow(dead_code, unused)]
+            let _check_fold_in_exhaustivity = $ty {
+                $($key: $toml.$key, )*
+                $($ignore: panic!("for type-checking only"), )*
+            };
+        };
         $(
             if $cli.$key == $default && $toml.$key != $default {
                 $cli.$key = $toml.$key;
@@ -839,79 +846,74 @@ impl Config {
         // Special handling for headers before fold_in!
         self.merge_headers(&toml.header);
 
+        // If the config file has a value for the GitHub token, but the CLI
+        // doesn't, use the token from the config file.
+        // This is outside of fold_in! because SecretBox doesn't implement Eq.
+        if self.github_token.is_none() && toml.github_token.is_some() {
+            self.github_token = toml.github_token;
+        }
+
         fold_in! {
             // Destination and source configs
             self, toml;
 
-            // Keys with defaults to assign
-            accept: StatusCodeSelector::default();
-            archive: None;
-            base: None;
-            base_url: None;
-            basic_auth: None;
-            cache: false;
-            cache_exclude_status: StatusCodeExcluder::default();
-            cookie_jar: None;
-            dump: false;
-            dump_inputs: false;
-            exclude: Vec::<String>::new();
-            exclude_all_private: false;
-            exclude_file: Vec::<String>::new(); // deprecated
-            exclude_link_local: false;
-            exclude_loopback: false;
-            exclude_path: Vec::<String>::new();
-            exclude_private: false;
-            extensions: FileType::default_extensions();
-            fallback_extensions: Vec::<String>::new();
-            format: StatsFormat::default();
-            glob_ignore_case: false;
-            header: Vec::<(String, String)>::new();
-            hidden: false;
-            include: Vec::<String>::new();
-            include_fragments: false;
-            include_mail: false;
-            include_verbatim: false;
-            include_wikilinks: false;
-            index_files: None;
-            insecure: false;
-            max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
-            max_concurrency: DEFAULT_MAX_CONCURRENCY;
-            max_redirects: DEFAULT_MAX_REDIRECTS;
-            max_retries: DEFAULT_MAX_RETRIES;
-            method: DEFAULT_METHOD;
-            min_tls: None;
-            mode: OutputMode::Color;
-            no_ignore: false;
-            no_progress: false;
-            offline: false;
-            output: None;
-            remap: Vec::<String>::new();
-            require_https: false;
-            retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
-            root_dir: None;
-            scheme: Vec::<String>::new();
-            skip_missing: false;
-            suggest: false;
-            threads: None;
-            timeout: DEFAULT_TIMEOUT_SECS;
-            user_agent: DEFAULT_USER_AGENT;
-            verbose: Verbosity::default();
-        }
+            // Keys which are handled outside of fold_in
+            skip: [header, github_token];
 
-        // If the config file has a value for the GitHub token, but the CLI
-        // doesn't, use the token from the config file.
-        if self
-            .github_token
-            .as_ref()
-            .map(ExposeSecret::expose_secret)
-            .is_none()
-            && toml
-                .github_token
-                .as_ref()
-                .map(ExposeSecret::expose_secret)
-                .is_some()
-        {
-            self.github_token = toml.github_token;
+            // Keys with defaults to assign
+            Config {
+                accept: StatusCodeSelector::default(),
+                archive: None,
+                base: None,
+                base_url: None,
+                basic_auth: None,
+                cache: false,
+                cache_exclude_status: StatusCodeExcluder::default(),
+                cookie_jar: None,
+                dump: false,
+                dump_inputs: false,
+                exclude: Vec::<String>::new(),
+                exclude_all_private: false,
+                exclude_file: Vec::<String>::new(), // deprecated
+                exclude_link_local: false,
+                exclude_loopback: false,
+                exclude_path: Vec::<String>::new(),
+                exclude_private: false,
+                extensions: FileType::default_extensions(),
+                fallback_extensions: Vec::<String>::new(),
+                format: StatsFormat::default(),
+                glob_ignore_case: false,
+                hidden: false,
+                include: Vec::<String>::new(),
+                include_fragments: false,
+                include_mail: false,
+                include_verbatim: false,
+                include_wikilinks: false,
+                index_files: None,
+                insecure: false,
+                max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap(),
+                max_concurrency: DEFAULT_MAX_CONCURRENCY,
+                max_redirects: DEFAULT_MAX_REDIRECTS,
+                max_retries: DEFAULT_MAX_RETRIES,
+                method: DEFAULT_METHOD,
+                min_tls: None,
+                mode: OutputMode::Color,
+                no_ignore: false,
+                no_progress: false,
+                offline: false,
+                output: None,
+                remap: Vec::<String>::new(),
+                require_https: false,
+                retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS,
+                root_dir: None,
+                scheme: Vec::<String>::new(),
+                skip_missing: false,
+                suggest: false,
+                threads: None,
+                timeout: DEFAULT_TIMEOUT_SECS,
+                user_agent: DEFAULT_USER_AGENT,
+                verbose: Verbosity::default(),
+            }
         }
     }
 }
