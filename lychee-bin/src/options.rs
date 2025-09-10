@@ -199,12 +199,12 @@ default_function! {
 
 // Macro for merging configuration values
 macro_rules! fold_in {
-    ($cli:ident , $toml:ident ; skip: [ $( $ignore:ident),* ] ; $ty:ident { $( $key:ident : $default:expr, )* } ) => {
+    ($cli:ident , $toml:ident ; $ty:ident { $(..$ignore:ident,)* $( $key:ident : $default:expr, )* } ) => {
         if (false) {
             #[allow(dead_code, unused)]
             let _check_fold_in_exhaustivity = $ty {
-                $($key: $toml.$key, )*
-                $($ignore: panic!("for type-checking only"), )*
+                $($key: unreachable!(), )*
+                $($ignore: unreachable!(), )*
             };
         };
         $(
@@ -853,15 +853,18 @@ impl Config {
             self.github_token = toml.github_token;
         }
 
+        // NOTE: if you see an error within this macro call, check to make sure that
+        // that the fields provided to fold_in! match all the fields of the Config struct.
         fold_in! {
             // Destination and source configs
             self, toml;
 
-            // Keys which are handled outside of fold_in
-            skip: [header, github_token];
-
-            // Keys with defaults to assign
             Config {
+                // Keys which are handled outside of fold_in
+                ..header,
+                ..github_token,
+
+                // Keys with defaults to assign
                 accept: StatusCodeSelector::default(),
                 archive: None,
                 base: None,
