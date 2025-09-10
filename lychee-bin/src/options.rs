@@ -201,7 +201,7 @@ default_function! {
 macro_rules! fold_in {
     ($cli:ident , $toml:ident ; $ty:ident { $(..$ignore:ident,)* $( $key:ident : $default:expr, )* } ) => {
         if (false) {
-            #[allow(dead_code, unused)]
+            #[allow(dead_code, unused, clippy::diverging_sub_expression)]
             let _check_fold_in_exhaustivity = $ty {
                 $($key: unreachable!(), )*
                 $($ignore: unreachable!(), )*
