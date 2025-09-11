@@ -5,9 +5,9 @@ use strum::{Display, EnumIter, EnumString, VariantNames};
 
 mod wayback;
 
+/// The different supported online archive sites for restoring broken links.
 #[non_exhaustive]
 #[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames)]
-/// The different supported online archive sites for restoring broken links.
 pub enum Archive {
     #[serde(rename = "wayback")]
     #[strum(serialize = "wayback", ascii_case_insensitive)]

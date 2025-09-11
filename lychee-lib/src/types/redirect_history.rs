@@ -6,10 +6,10 @@ use std::{
 };
 use url::Url;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 /// A list of URLs that were followed through HTTP redirects,
 /// starting from the original URL and ending at the final destination.
 /// Each entry in the list represents a step in the redirect sequence.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct Redirects(Vec<Url>);
 
 impl From<Vec<Url>> for Redirects {
@@ -32,8 +32,8 @@ impl Redirects {
     }
 }
 
-#[derive(Debug, Clone)]
 /// Keep track of HTTP redirections for reporting
+#[derive(Debug, Clone)]
 pub(crate) struct RedirectHistory(Arc<Mutex<HashMap<Url, Redirects>>>);
 
 impl RedirectHistory {

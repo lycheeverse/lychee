@@ -62,9 +62,9 @@ impl Serialize for Response {
     }
 }
 
+/// Encapsulates the state of a URI check
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Serialize, Hash, PartialEq, Eq)]
-/// Encapsulates the state of a URI check
 pub struct ResponseBody {
     #[serde(flatten)]
     /// The URI which was checked

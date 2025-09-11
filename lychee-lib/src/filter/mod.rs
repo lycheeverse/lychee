@@ -17,17 +17,17 @@ pub type PathExcludes = regex_filter::RegexFilter;
 
 use crate::Uri;
 
-#[cfg(all(not(test), not(feature = "check_example_domains")))]
 /// These domains are explicitly defined by RFC 2606, section 3 Reserved Example
 /// Second Level Domain Names for describing example cases and should not be
 /// dereferenced as they should not have content.
+#[cfg(all(not(test), not(feature = "check_example_domains")))]
 static EXAMPLE_DOMAINS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     HashSet::from_iter(["example.com", "example.org", "example.net", "example.edu"])
 });
 
-#[cfg(all(not(test), not(feature = "check_example_domains")))]
 /// We also exclude the example TLDs in section 2 of the same RFC.
 /// This exclusion gets subsumed by the `check_example_domains` feature.
+#[cfg(all(not(test), not(feature = "check_example_domains")))]
 static EXAMPLE_TLDS: LazyLock<HashSet<&'static str>> =
     LazyLock::new(|| HashSet::from_iter([".test", ".example", ".invalid", ".localhost"]));
 
@@ -62,19 +62,19 @@ const FALSE_POSITIVE_PAT: &[&str] = &[
 static FALSE_POSITIVE_SET: LazyLock<RegexSet> =
     LazyLock::new(|| regex::RegexSet::new(FALSE_POSITIVE_PAT).expect("Failed to create RegexSet"));
 
-#[inline]
-#[must_use]
 /// The given input is a well-known false-positive, which won't be checked by
 /// default. This behavior can be explicitly overwritten by defining an
 /// `Include` pattern, which will match on a false positive
+#[inline]
+#[must_use]
 pub fn is_false_positive(input: &str) -> bool {
     FALSE_POSITIVE_SET.is_match(input)
 }
 
-#[inline]
-#[must_use]
 /// Check if the host belongs to a known example domain as defined in
 /// [RFC 2606](https://datatracker.ietf.org/doc/html/rfc2606)
+#[inline]
+#[must_use]
 pub fn is_example_domain(uri: &Uri) -> bool {
     match uri.domain() {
         Some(domain) => {
@@ -101,9 +101,9 @@ pub fn is_example_domain(uri: &Uri) -> bool {
     }
 }
 
+/// Check if the host belongs to a known unsupported domain
 #[inline]
 #[must_use]
-/// Check if the host belongs to a known unsupported domain
 pub fn is_unsupported_domain(uri: &Uri) -> bool {
     if let Some(domain) = uri.domain() {
         // It is not enough to use `UNSUPPORTED_DOMAINS.contains(domain)` here

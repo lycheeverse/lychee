@@ -429,7 +429,7 @@ impl ClientBuilder {
     }
 }
 
-/// Create our custom [redirect::Policy] in order to stop following redirects
+/// Create our custom [`redirect::Policy`] in order to stop following redirects
 /// once `max_redirects` is reached and to record redirections for reporting.
 fn redirect_policy(redirect_history: RedirectHistory, max_redirects: usize) -> redirect::Policy {
     redirect::Policy::custom(move |attempt| {
