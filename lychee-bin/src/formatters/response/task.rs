@@ -65,7 +65,7 @@ mod task_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "- [ ] [301] https://example.com/redirect | Redirect: Followed 0 redirects resulting in Moved Permanently."
+            "- [ ] [301] https://example.com/redirect | Redirect: Followed 0 redirects resolving to the final status of: Moved Permanently"
         );
     }
 
