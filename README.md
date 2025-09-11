@@ -119,6 +119,12 @@ pkg install lychee
 apk add lychee
 ```
 
+### WinGet (Windows)
+
+```sh
+winget install --id lycheeverse.lychee
+```
+
 ### Chocolatey (Windows)
 
 ```sh
