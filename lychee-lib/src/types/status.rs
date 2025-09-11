@@ -345,7 +345,7 @@ mod tests {
             999
         );
         assert_eq!(
-            Status::Redirected(StatusCode::from_u16(300).unwrap(), Redirects::default())
+            Status::Redirected(StatusCode::from_u16(300).unwrap(), Redirects::none())
                 .code()
                 .unwrap(),
             300

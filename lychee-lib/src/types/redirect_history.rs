@@ -6,7 +6,7 @@ use std::{
 };
 use url::Url;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Default, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 /// A list of URLs that were followed through HTTP redirects,
 /// starting from the original URL and ending at the final destination.
 /// Each entry in the list represents a step in the redirect sequence.
@@ -23,6 +23,12 @@ impl Redirects {
     /// This is the length of the list minus one.
     pub(crate) fn count(&self) -> usize {
         self.0.len().saturating_sub(1)
+    }
+
+    /// Represents zero redirects
+    #[must_use]
+    pub const fn none() -> Self {
+        Redirects(vec![])
     }
 }
 

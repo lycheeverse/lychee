@@ -200,6 +200,8 @@ impl WebsiteChecker {
         Ok(self.redirect_history.handle_redirected(&uri.url, status))
     }
 
+    /// Mark HTTP URLs as insecure, if the user required HTTPS
+    /// and the URL is available under HTTPS.
     async fn handle_insecure_url(
         &self,
         uri: &Uri,

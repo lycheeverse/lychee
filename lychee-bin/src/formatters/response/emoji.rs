@@ -84,7 +84,7 @@ mod emoji_tests {
     fn test_format_response_with_redirect_status() {
         let formatter = EmojiFormatter;
         let body = mock_response_body(
-            Status::Redirected(StatusCode::MOVED_PERMANENTLY, Redirects::default()),
+            Status::Redirected(StatusCode::MOVED_PERMANENTLY, Redirects::none()),
             "https://example.com/redirect",
         );
         assert_eq!(

@@ -132,7 +132,7 @@ macro_rules! load_fixture {
 }
 
 #[macro_export]
-/// Constructs a [`Uri`] from a given subpath within the `fixtures` directory.
+/// Constructs a `Uri` from a given subpath within the `fixtures` directory.
 ///
 /// The specified subpath may contain a fragment reference by ending with `#something`.
 /// The subpath should not begin with a slash, otherwise it will be treated as an
