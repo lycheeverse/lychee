@@ -1,5 +1,5 @@
 //! `test-utils` is used for testing in both `lychee-lib` and `lychee-bin`.
-//! This crate does not depend on any other crates.
+//! This crate does not depend on `lychee-lib` or `lychee-bin`, else we would get dependency cycles.
 //! Macros are used instead, so that the importer is responsible for providing the dependencies.
 
 #[macro_export]
