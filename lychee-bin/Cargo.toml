@@ -66,6 +66,7 @@ cookie_store = "0.22.0"
 predicates = "3.1.3"
 pretty_assertions = "1.4.1"
 tempfile = "3.20.0"
+test-utils = { path = "../test-utils" }
 tracing-subscriber = { version = "0.3.20", default-features = false, features = [
     "fmt",
     "registry",

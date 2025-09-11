@@ -4,8 +4,8 @@ use crate::color::{GREEN, PINK, color};
 use serde::Serialize;
 use url::Url;
 
-#[derive(Debug, Serialize, Eq, Hash, PartialEq)]
 /// A suggestion on how to replace a broken link with a link hosted by a web archive service.
+#[derive(Debug, Serialize, Eq, Hash, PartialEq)]
 pub(crate) struct Suggestion {
     /// The original `Url` that was identified to be broken
     pub(crate) original: Url,

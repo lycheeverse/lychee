@@ -3,7 +3,7 @@ use crate::{
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
     retry::RetryExt,
-    types::uri::github::GithubUri,
+    types::{redirect_history::RedirectHistory, uri::github::GithubUri},
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 use async_trait::async_trait;
@@ -51,6 +51,9 @@ pub(crate) struct WebsiteChecker {
 
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
+
+    /// Keep track of HTTP redirections for reporting
+    redirect_history: RedirectHistory,
 }
 
 impl WebsiteChecker {
@@ -58,6 +61,7 @@ impl WebsiteChecker {
     pub(crate) fn new(
         method: reqwest::Method,
         retry_wait_time: Duration,
+        redirect_history: RedirectHistory,
         max_retries: u64,
         reqwest_client: reqwest::Client,
         accepted: HashSet<StatusCode>,
@@ -71,6 +75,7 @@ impl WebsiteChecker {
             reqwest_client,
             github_client,
             plugin_request_chain,
+            redirect_history,
             max_retries,
             retry_wait_time,
             accepted,
@@ -95,6 +100,7 @@ impl WebsiteChecker {
             wait_time = wait_time.saturating_mul(2);
             status = self.check_default(clone_unwrap(&request)).await;
         }
+
         status
     }
 
@@ -187,20 +193,36 @@ impl WebsiteChecker {
             Box::new(self.clone()),
         ]);
 
-        match self.check_website_inner(uri, &default_chain).await {
-            Status::Ok(code) if self.require_https && uri.scheme() == "http" => {
-                if self
-                    .check_website_inner(&uri.to_https()?, &default_chain)
+        let status = self.check_website_inner(uri, &default_chain).await;
+        let status = self
+            .handle_insecure_url(uri, &default_chain, status)
+            .await?;
+        Ok(self.redirect_history.handle_redirected(&uri.url, status))
+    }
+
+    /// Mark HTTP URLs as insecure, if the user required HTTPS
+    /// and the URL is available under HTTPS.
+    async fn handle_insecure_url(
+        &self,
+        uri: &Uri,
+        default_chain: &Chain<Request, Status>,
+        status: Status,
+    ) -> Result<Status, ErrorKind> {
+        if self.require_https && uri.scheme() == "http" {
+            if let Status::Ok(_) = status {
+                let https_uri = uri.to_https()?;
+                let is_https_available = self
+                    .check_website_inner(&https_uri, default_chain)
                     .await
-                    .is_success()
-                {
-                    Ok(Status::Error(ErrorKind::InsecureURL(uri.to_https()?)))
-                } else {
-                    Ok(Status::Ok(code))
+                    .is_success();
+
+                if is_https_available {
+                    return Ok(Status::Error(ErrorKind::InsecureURL(https_uri)));
                 }
             }
-            s => Ok(s),
         }
+
+        Ok(status)
     }
 
     /// Checks the given URI of a website.

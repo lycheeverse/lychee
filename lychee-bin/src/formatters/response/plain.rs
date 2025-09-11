@@ -22,6 +22,7 @@ impl ResponseFormatter for PlainFormatter {
 mod plain_tests {
     use super::*;
     use http::StatusCode;
+    use lychee_lib::Redirects;
     use lychee_lib::{ErrorKind, Status, Uri};
 
     // Helper function to create a ResponseBody with a given status and URI
@@ -69,12 +70,12 @@ mod plain_tests {
     fn test_format_response_with_redirect_status() {
         let formatter = PlainFormatter;
         let body = mock_response_body(
-            Status::Redirected(StatusCode::MOVED_PERMANENTLY),
+            Status::Redirected(StatusCode::MOVED_PERMANENTLY, Redirects::none()),
             "https://example.com/redirect",
         );
         assert_eq!(
             formatter.format_response(&body),
-            "[301] https://example.com/redirect | Redirect (301 Moved Permanently): Moved Permanently"
+            "[301] https://example.com/redirect | Redirect: Followed 0 redirects resolving to the final status of: Moved Permanently"
         );
     }
 

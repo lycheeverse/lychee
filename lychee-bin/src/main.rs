@@ -210,10 +210,10 @@ fn load_cookie_jar(cfg: &Config) -> Result<Option<CookieJar>> {
     }
 }
 
-#[must_use]
 /// Load cache (if exists and is still valid)
 /// This returns an `Option` as starting without a cache is a common scenario
 /// and we silently discard errors on purpose
+#[must_use]
 fn load_cache(cfg: &Config) -> Option<Cache> {
     if !cfg.cache {
         return None;

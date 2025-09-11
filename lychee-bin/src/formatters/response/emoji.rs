@@ -17,7 +17,7 @@ impl EmojiFormatter {
             Status::Excluded
             | Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => "🚫",
-            Status::Redirected(_) => "↪️",
+            Status::Redirected(_, _) => "↪️",
             Status::UnknownStatusCode(_) | Status::Timeout(_) => "⚠️",
             Status::Error(_) | Status::Cached(CacheStatus::Error(_)) => "❌",
         }
@@ -40,7 +40,7 @@ impl ResponseFormatter for EmojiFormatter {
 mod emoji_tests {
     use super::*;
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, Status, Uri};
+    use lychee_lib::{ErrorKind, Redirects, Status, Uri};
 
     // Helper function to create a ResponseBody with a given status and URI
     fn mock_response_body(status: Status, uri: &str) -> ResponseBody {
@@ -84,7 +84,7 @@ mod emoji_tests {
     fn test_format_response_with_redirect_status() {
         let formatter = EmojiFormatter;
         let body = mock_response_body(
-            Status::Redirected(StatusCode::MOVED_PERMANENTLY),
+            Status::Redirected(StatusCode::MOVED_PERMANENTLY, Redirects::none()),
             "https://example.com/redirect",
         );
         assert_eq!(

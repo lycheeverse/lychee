@@ -73,11 +73,6 @@ pub mod remap;
 /// local IPs or e-mail addresses
 pub mod filter;
 
-/// Test utilities
-#[cfg(test)]
-#[macro_use]
-pub mod test_utils;
-
 #[cfg(test)]
 use doc_comment as _; // required for doctest
 use ring as _; // required for apple silicon
@@ -100,7 +95,7 @@ pub use crate::{
     types::{
         AcceptRange, AcceptRangeError, Base, BasicAuthCredentials, BasicAuthSelector, CacheStatus,
         CookieJar, ErrorKind, FileExtensions, FileType, Input, InputContent, InputResolver,
-        InputSource, Request, ResolvedInputSource, Response, ResponseBody, Result, Status,
-        StatusCodeExcluder, StatusCodeSelector, uri::valid::Uri,
+        InputSource, Redirects, Request, ResolvedInputSource, Response, ResponseBody, Result,
+        Status, StatusCodeExcluder, StatusCodeSelector, uri::valid::Uri,
     },
 };

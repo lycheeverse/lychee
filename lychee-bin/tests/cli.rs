@@ -1,16 +1,7 @@
 #[cfg(test)]
 mod cli {
-    use std::{
-        collections::{HashMap, HashSet},
-        error::Error,
-        fs::{self, File},
-        io::{BufRead, Write},
-        path::{Path, PathBuf},
-        time::Duration,
-    };
-
     use anyhow::anyhow;
-    use assert_cmd::{Command, assert::Assert};
+    use assert_cmd::{Command, assert::Assert, output::OutputOkExt};
     use assert_json_diff::assert_json_include;
     use http::{Method, StatusCode};
     use lychee_lib::{InputSource, ResponseBody};
@@ -22,7 +13,17 @@ mod cli {
     use regex::Regex;
     use serde::Serialize;
     use serde_json::Value;
+    use std::{
+        collections::{HashMap, HashSet},
+        error::Error,
+        fs::{self, File},
+        io::{BufRead, Write},
+        path::{Path, PathBuf},
+        time::Duration,
+    };
     use tempfile::NamedTempFile;
+    use test_utils::{mock_server, redirecting_mock_server};
+
     use uuid::Uuid;
     use wiremock::{
         Mock, ResponseTemplate,
@@ -35,17 +36,6 @@ mod cli {
     // Since it is currently static and can't be overwritten, declare it as a
     // constant.
     const LYCHEE_CACHE_FILE: &str = ".lycheecache";
-
-    /// Create a mock server which returns a custom status code.
-    macro_rules! mock_server {
-        ($status:expr $(, $func:tt ($($arg:expr),*))*) => {{
-            let mock_server = wiremock::MockServer::start().await;
-            let response_template = wiremock::ResponseTemplate::new(http::StatusCode::from($status));
-            let template = response_template$(.$func($($arg),*))*;
-            wiremock::Mock::given(wiremock::matchers::method("GET")).respond_with(template).mount(&mock_server).await;
-            mock_server
-        }};
-    }
 
     /// Create a mock server which returns a 200 OK and a custom response body.
     macro_rules! mock_response {
@@ -1456,7 +1446,11 @@ mod cli {
         cmd.arg(&test_path).assert().success();
 
         let mut cmd = main_command();
-        cmd.arg("--require-https").arg(test_path).assert().failure();
+        cmd.arg("--require-https")
+            .arg(test_path)
+            .assert()
+            .failure()
+            .stdout(contains("This URI is available in HTTPS protocol, but HTTP is provided. Use 'https://example.com/' instead"));
 
         Ok(())
     }
@@ -2234,21 +2228,63 @@ mod cli {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path().join("configs").join("format.toml");
         let mut cmd = main_command();
-        cmd.arg("--config")
+        let output = cmd
+            .arg("--config")
             .arg(config)
             .arg("-")
             .write_stdin(mock_server.uri())
             .env_clear()
             .assert()
-            .success();
+            .success()
+            .get_output()
+            .clone()
+            .unwrap();
 
         // Check that the output is in JSON format
-        let output = cmd.output().unwrap();
         let output = std::str::from_utf8(&output.stdout).unwrap();
         let json: serde_json::Value = serde_json::from_str(output)?;
         assert_eq!(json["total"], 1);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_redirect_json() {
+        use serde_json::json;
+        redirecting_mock_server!(async |redirect_url: Url, ok_url| {
+            let mut cmd = main_command();
+            let output = cmd
+                .arg("-")
+                .arg("--format")
+                .arg("json")
+                .arg("--verbose") // required to make redirect_map visible
+                .write_stdin(redirect_url.as_str())
+                .env_clear()
+                .assert()
+                .success()
+                .get_output()
+                .clone()
+                .unwrap();
+
+            // Check that the output is in JSON format
+            let output = std::str::from_utf8(&output.stdout).unwrap();
+            let json: serde_json::Value = serde_json::from_str(output).unwrap();
+            assert_eq!(json["total"], 1);
+            assert_eq!(json["redirects"], 1);
+            assert_eq!(
+                json["redirect_map"],
+                json!({
+                "stdin":[{
+                    "status": {
+                        "code": 200,
+                        "text": "Redirect",
+                        "redirects": [ redirect_url, ok_url ]
+                    },
+                    "url": redirect_url
+                }]})
+            );
+        })
+        .await;
     }
 
     #[tokio::test]

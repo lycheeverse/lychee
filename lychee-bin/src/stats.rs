@@ -37,13 +37,15 @@ pub(crate) struct ResponseStats {
     pub(crate) errors: usize,
     /// Number of responses that were cached from a previous run
     pub(crate) cached: usize,
-    /// Map to store successful responses (if `detailed_stats` is enabled)
+    /// Store successful responses (if `detailed_stats` is enabled)
     pub(crate) success_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// Map to store failed responses (if `detailed_stats` is enabled)
+    /// Store failed responses (if `detailed_stats` is enabled)
     pub(crate) error_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Replacement suggestions for failed responses (if `--suggest` is enabled)
     pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
-    /// Map to store excluded responses (if `detailed_stats` is enabled)
+    /// Store redirected responses (if `detailed_stats` is enabled)
+    pub(crate) redirect_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// Store excluded responses (if `detailed_stats` is enabled)
     pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Used to store the duration of the run in seconds.
     pub(crate) duration_secs: u64,
@@ -72,7 +74,7 @@ impl ResponseStats {
             Status::Error(_) => self.errors += 1,
             Status::UnknownStatusCode(_) => self.unknown += 1,
             Status::Timeout(_) => self.timeouts += 1,
-            Status::Redirected(_) => self.redirects += 1,
+            Status::Redirected(_, _) => self.redirects += 1,
             Status::Excluded => self.excludes += 1,
             Status::Unsupported(_) => self.unsupported += 1,
             Status::Cached(cache_status) => {
@@ -95,6 +97,9 @@ impl ResponseStats {
             _ if status.is_error() => self.error_map.entry(source).or_default(),
             Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),
             Status::Excluded if self.detailed_stats => self.excluded_map.entry(source).or_default(),
+            Status::Redirected(_, _) if self.detailed_stats => {
+                self.redirect_map.entry(source).or_default()
+            }
             _ => return,
         };
         status_map_entry.insert(response.1);
@@ -110,7 +115,7 @@ impl ResponseStats {
     #[inline]
     /// Check if the entire run was successful
     pub(crate) const fn is_success(&self) -> bool {
-        self.total == self.successful + self.excludes + self.unsupported
+        self.total == self.successful + self.excludes + self.unsupported + self.redirects
     }
 
     #[inline]

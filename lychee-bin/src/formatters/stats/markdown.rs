@@ -26,35 +26,35 @@ struct StatsTableEntry {
 fn stats_table(stats: &ResponseStats) -> String {
     let stats = vec![
         StatsTableEntry {
-            status: "\u{1f50d} Total",
+            status: "🔍 Total",
             count: stats.total,
         },
         StatsTableEntry {
-            status: "\u{2705} Successful",
+            status: "✅ Successful",
             count: stats.successful,
         },
         StatsTableEntry {
-            status: "\u{23f3} Timeouts",
+            status: "⏳ Timeouts",
             count: stats.timeouts,
         },
         StatsTableEntry {
-            status: "\u{1f500} Redirected",
+            status: "🔀 Redirected",
             count: stats.redirects,
         },
         StatsTableEntry {
-            status: "\u{1f47b} Excluded",
+            status: "👻 Excluded",
             count: stats.excludes,
         },
         StatsTableEntry {
-            status: "\u{2753} Unknown",
+            status: "❓ Unknown",
             count: stats.unknown,
         },
         StatsTableEntry {
-            status: "\u{1f6ab} Errors",
+            status: "🚫 Errors",
             count: stats.errors,
         },
         StatsTableEntry {
-            status: "\u{26d4} Unsupported",
+            status: "⛔ Unsupported",
             count: stats.unsupported,
         },
     ];

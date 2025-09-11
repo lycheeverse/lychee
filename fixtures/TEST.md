@@ -13,7 +13,8 @@ Test GZIP compression. (See https://github.com/analysis-tools-dev/static-analysi
 [LDRA](https://ldra.com)
 
 Some more complex formatting to test that Markdown parsing works.
-[![CC0](https://i.creativecommons.org/p/zero/1.0/88x31.png)](https://creativecommons.org/publicdomain/zero/1.0/)
+[![CC0](https://licensebuttons.net/p/zero/1.0/88x31.png)](https://creativecommons.org/publicdomain/zero/1.0/)
+
 
 Test HTTP and HTTPS for the same site.
 http://example.com
