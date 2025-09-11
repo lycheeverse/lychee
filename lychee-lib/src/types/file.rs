@@ -299,7 +299,7 @@ mod tests {
         assert_eq!(FileType::from_extension("TXT"), Some(FileType::Plaintext));
 
         // Invalid extension
-        assert_eq!(FileType::from_extension("invalid"), None);
+        assert_eq!(FileType::from_extension("unknown"), None);
         assert_eq!(FileType::from_extension("xyz"), None);
     }
 }
