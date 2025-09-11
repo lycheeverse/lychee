@@ -55,14 +55,14 @@ where
 mod tests {
     use super::*;
 
-    use lychee_lib::{ErrorKind, Response, Status, Uri};
+    use lychee_lib::{ErrorKind, ResolvedInputSource, Response, Status, Uri};
     use url::Url;
 
     fn make_test_url(url: &str) -> Url {
         Url::parse(url).expect("Expected valid Website URI")
     }
 
-    fn make_test_response(url_str: &str, source: InputSource) -> Response {
+    fn make_test_response(url_str: &str, source: ResolvedInputSource) -> Response {
         let uri = Uri::from(make_test_url(url_str));
 
         Response::new(uri, Status::Error(ErrorKind::TestError), source)
@@ -74,11 +74,17 @@ mod tests {
 
         // Sorted list of test sources
         let test_sources = vec![
-            InputSource::RemoteUrl(Box::new(make_test_url("https://example.com/404"))),
-            InputSource::RemoteUrl(Box::new(make_test_url("https://example.com/home"))),
-            InputSource::RemoteUrl(Box::new(make_test_url("https://example.com/page/1"))),
-            InputSource::RemoteUrl(Box::new(make_test_url("https://example.com/page/10"))),
+            ResolvedInputSource::RemoteUrl(Box::new(make_test_url("https://example.com/404"))),
+            ResolvedInputSource::RemoteUrl(Box::new(make_test_url("https://example.com/home"))),
+            ResolvedInputSource::RemoteUrl(Box::new(make_test_url("https://example.com/page/1"))),
+            ResolvedInputSource::RemoteUrl(Box::new(make_test_url("https://example.com/page/10"))),
         ];
+
+        let unresolved_test_sources: Vec<InputSource> = test_sources
+            .iter()
+            .map(Clone::clone)
+            .map(Into::<InputSource>::into)
+            .collect();
 
         // Sorted list of test responses
         let test_response_urls = vec![
@@ -104,7 +110,7 @@ mod tests {
             .collect();
 
         // Check that the input sources are sorted
-        assert_eq!(test_sources, sorted_sources);
+        assert_eq!(unresolved_test_sources, sorted_sources);
 
         // Check that the responses are sorted
         for (_, response_bodies) in sorted_errors {

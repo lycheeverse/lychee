@@ -9,7 +9,7 @@ use std::{
 use crate::{
     Base, BasicAuthCredentials, ErrorKind, Request, Result, Uri,
     basic_auth::BasicAuthExtractor,
-    types::{InputSource, uri::raw::RawUri},
+    types::{ResolvedInputSource, uri::raw::RawUri},
     utils::{path, url},
 };
 
@@ -24,7 +24,7 @@ pub(crate) fn extract_credentials(
 /// Create a request from a raw URI.
 fn create_request(
     raw_uri: &RawUri,
-    source: &InputSource,
+    source: &ResolvedInputSource,
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
@@ -51,7 +51,7 @@ fn create_request(
 /// - If the source is not a file path (i.e. the URI type is not supported).
 fn try_parse_into_uri(
     raw_uri: &RawUri,
-    source: &InputSource,
+    source: &ResolvedInputSource,
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
 ) -> Result<Uri> {
@@ -64,7 +64,7 @@ fn try_parse_into_uri(
                 None => return Err(ErrorKind::InvalidBaseJoin(text.clone())),
             },
             None => match source {
-                InputSource::FsPath(root) => {
+                ResolvedInputSource::FsPath(root) => {
                     create_uri_from_file_path(root, &text, root_dir.is_none())?
                 }
                 _ => return Err(ErrorKind::UnsupportedUriType(text)),
@@ -117,12 +117,12 @@ fn create_uri_from_file_path(
 /// This is only needed for string inputs.
 /// For other inputs, the source is simply a "label" (an enum variant).
 // TODO: This would not be necessary if we used `Cow` for the source.
-fn truncate_source(source: &InputSource) -> InputSource {
+fn truncate_source(source: &ResolvedInputSource) -> ResolvedInputSource {
     const MAX_TRUNCATED_STR_LEN: usize = 100;
 
     match source {
-        InputSource::String(s) => {
-            InputSource::String(s.chars().take(MAX_TRUNCATED_STR_LEN).collect())
+        ResolvedInputSource::String(s) => {
+            ResolvedInputSource::String(s.chars().take(MAX_TRUNCATED_STR_LEN).collect())
         }
         other => other.clone(),
     }
@@ -135,7 +135,7 @@ fn truncate_source(source: &InputSource) -> InputSource {
 /// it will not be added to the `HashSet`.
 pub(crate) fn create(
     uris: Vec<RawUri>,
-    source: &InputSource,
+    source: &ResolvedInputSource,
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
@@ -206,6 +206,8 @@ fn prepend_root_dir_if_absolute_local_link(text: &str, root_dir: Option<&PathBuf
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
+
     use super::*;
 
     #[test]
@@ -224,7 +226,7 @@ mod tests {
     #[test]
     fn test_relative_url_resolution() {
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = InputSource::String(String::new());
+        let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![RawUri::from("relative.html")];
         let requests = create(uris, &source, None, Some(&base), None);
@@ -240,7 +242,7 @@ mod tests {
     #[test]
     fn test_absolute_url_resolution() {
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = InputSource::String(String::new());
+        let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![RawUri::from("https://another.com/page")];
         let requests = create(uris, &source, None, Some(&base), None);
@@ -256,7 +258,7 @@ mod tests {
     #[test]
     fn test_root_relative_url_resolution() {
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = InputSource::String(String::new());
+        let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![RawUri::from("/root-relative")];
         let requests = create(uris, &source, None, Some(&base), None);
@@ -272,7 +274,7 @@ mod tests {
     #[test]
     fn test_parent_directory_url_resolution() {
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = InputSource::String(String::new());
+        let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![RawUri::from("../parent")];
         let requests = create(uris, &source, None, Some(&base), None);
@@ -288,7 +290,7 @@ mod tests {
     #[test]
     fn test_fragment_url_resolution() {
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = InputSource::String(String::new());
+        let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![RawUri::from("#fragment")];
         let requests = create(uris, &source, None, Some(&base), None);
@@ -304,7 +306,7 @@ mod tests {
     #[test]
     fn test_relative_url_resolution_from_root_dir() {
         let root_dir = PathBuf::from("/tmp/lychee");
-        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("relative.html")];
         let requests = create(uris, &source, Some(&root_dir), None, None);
@@ -320,7 +322,7 @@ mod tests {
     #[test]
     fn test_absolute_url_resolution_from_root_dir() {
         let root_dir = PathBuf::from("/tmp/lychee");
-        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("https://another.com/page")];
         let requests = create(uris, &source, Some(&root_dir), None, None);
@@ -336,7 +338,7 @@ mod tests {
     #[test]
     fn test_root_relative_url_resolution_from_root_dir() {
         let root_dir = PathBuf::from("/tmp/lychee");
-        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("/root-relative")];
         let requests = create(uris, &source, Some(&root_dir), None, None);
@@ -352,7 +354,7 @@ mod tests {
     #[test]
     fn test_parent_directory_url_resolution_from_root_dir() {
         let root_dir = PathBuf::from("/tmp/lychee");
-        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("../parent")];
         let requests = create(uris, &source, Some(&root_dir), None, None);
@@ -368,7 +370,7 @@ mod tests {
     #[test]
     fn test_fragment_url_resolution_from_root_dir() {
         let root_dir = PathBuf::from("/tmp/lychee");
-        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("#fragment")];
         let requests = create(uris, &source, Some(&root_dir), None, None);
@@ -385,7 +387,7 @@ mod tests {
     fn test_relative_url_resolution_from_root_dir_and_base_url() {
         let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("relative.html")];
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
@@ -402,7 +404,7 @@ mod tests {
     fn test_absolute_url_resolution_from_root_dir_and_base_url() {
         let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("https://another.com/page")];
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
@@ -419,7 +421,7 @@ mod tests {
     fn test_root_relative_url_resolution_from_root_dir_and_base_url() {
         let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("/root-relative")];
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
@@ -436,7 +438,7 @@ mod tests {
     fn test_parent_directory_url_resolution_from_root_dir_and_base_url() {
         let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("../parent")];
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
@@ -453,7 +455,7 @@ mod tests {
     fn test_fragment_url_resolution_from_root_dir_and_base_url() {
         let root_dir = PathBuf::from("/tmp/lychee");
         let base = Base::try_from("https://example.com/path/page.html").unwrap();
-        let source = InputSource::FsPath(PathBuf::from("/some/page.html"));
+        let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("#fragment")];
         let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
@@ -468,7 +470,7 @@ mod tests {
 
     #[test]
     fn test_no_base_url_resolution() {
-        let source = InputSource::String(String::new());
+        let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![RawUri::from("https://example.com/page")];
         let requests = create(uris, &source, None, None, None);
@@ -484,7 +486,7 @@ mod tests {
     #[test]
     fn test_create_request_from_relative_file_path() {
         let base = Base::Local(PathBuf::from("/tmp/lychee"));
-        let input_source = InputSource::FsPath(PathBuf::from("page.html"));
+        let input_source = ResolvedInputSource::FsPath(PathBuf::from("page.html"));
 
         let actual = create_request(
             &RawUri::from("file.html"),
@@ -512,7 +514,7 @@ mod tests {
     #[test]
     fn test_create_request_from_absolute_file_path() {
         let base = Base::Local(PathBuf::from("/tmp/lychee"));
-        let input_source = InputSource::FsPath(PathBuf::from("/tmp/lychee/page.html"));
+        let input_source = ResolvedInputSource::FsPath(PathBuf::from("/tmp/lychee/page.html"));
 
         // Use an absolute path that's outside the base directory
         let actual = create_request(
@@ -541,7 +543,7 @@ mod tests {
     #[test]
     fn test_parse_relative_path_into_uri() {
         let base = Base::Local(PathBuf::from("/tmp/lychee"));
-        let source = InputSource::String(String::new());
+        let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let raw_uri = RawUri::from("relative.html");
         let uri = try_parse_into_uri(&raw_uri, &source, None, Some(&base)).unwrap();
@@ -552,7 +554,7 @@ mod tests {
     #[test]
     fn test_parse_absolute_path_into_uri() {
         let base = Base::Local(PathBuf::from("/tmp/lychee"));
-        let source = InputSource::String(String::new());
+        let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let raw_uri = RawUri::from("absolute.html");
         let uri = try_parse_into_uri(&raw_uri, &source, None, Some(&base)).unwrap();

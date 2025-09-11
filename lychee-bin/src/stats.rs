@@ -92,7 +92,7 @@ impl ResponseStats {
     /// Add a response status to the appropriate map (success, fail, excluded)
     fn add_response_status(&mut self, response: Response) {
         let status = response.status();
-        let source = response.source().clone();
+        let source: InputSource = response.source().clone().into();
         let status_map_entry = match status {
             _ if status.is_error() => self.error_map.entry(source).or_default(),
             Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),
@@ -131,7 +131,9 @@ mod tests {
     use std::collections::{HashMap, HashSet};
 
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, InputSource, Response, ResponseBody, Status, Uri};
+    use lychee_lib::{
+        ErrorKind, InputSource, ResolvedInputSource, Response, ResponseBody, Status, Uri,
+    };
     use reqwest::Url;
 
     use super::ResponseStats;
@@ -145,7 +147,7 @@ mod tests {
     // and it's a lot faster to just generate a fake response
     fn mock_response(status: Status) -> Response {
         let uri = website("https://some-url.com/ok");
-        Response::new(uri, status, InputSource::Stdin)
+        Response::new(uri, status, ResolvedInputSource::Stdin)
     }
 
     fn dummy_ok() -> Response {
@@ -181,7 +183,10 @@ mod tests {
 
         let response = dummy_error();
         let expected_error_map: HashMap<InputSource, HashSet<ResponseBody>> =
-            HashMap::from_iter([(response.source().clone(), HashSet::from_iter([response.1]))]);
+            HashMap::from_iter([(
+                response.source().clone().into(),
+                HashSet::from_iter([response.1]),
+            )]);
         assert_eq!(stats.error_map, expected_error_map);
 
         assert!(stats.success_map.is_empty());
@@ -201,7 +206,7 @@ mod tests {
         let mut expected_error_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         let response = dummy_error();
         let entry = expected_error_map
-            .entry(response.source().clone())
+            .entry(response.source().clone().into())
             .or_default();
         entry.insert(response.1);
         assert_eq!(stats.error_map, expected_error_map);
@@ -209,7 +214,7 @@ mod tests {
         let mut expected_success_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         let response = dummy_ok();
         let entry = expected_success_map
-            .entry(response.source().clone())
+            .entry(response.source().clone().into())
             .or_default();
         entry.insert(response.1);
         assert_eq!(stats.success_map, expected_success_map);
@@ -217,7 +222,7 @@ mod tests {
         let mut expected_excluded_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
         let response = dummy_excluded();
         let entry = expected_excluded_map
-            .entry(response.source().clone())
+            .entry(response.source().clone().into())
             .or_default();
         entry.insert(response.1);
         assert_eq!(stats.excluded_map, expected_excluded_map);

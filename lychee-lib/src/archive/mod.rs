@@ -7,7 +7,9 @@ mod wayback;
 
 /// The different supported online archive sites for restoring broken links.
 #[non_exhaustive]
-#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames)]
+#[derive(
+    Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq, Eq,
+)]
 pub enum Archive {
     #[serde(rename = "wayback")]
     #[strum(serialize = "wayback", ascii_case_insensitive)]

@@ -2775,4 +2775,110 @@ mod cli {
             .stderr("") // Ensure stderr is empty
             .stdout(contains("https://example.com/sitemap.xml"));
     }
+
+    #[test]
+    fn test_files_from_file() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let files_list_path = temp_dir.path().join("files.txt");
+        let test_md = temp_dir.path().join("test.md");
+
+        // Create test files
+        fs::write(&test_md, "# Test\n[link](https://example.com)")?;
+        fs::write(&files_list_path, test_md.to_string_lossy().as_ref())?;
+
+        let mut cmd = main_command();
+        cmd.arg("--files-from")
+            .arg(&files_list_path)
+            .arg("--dump-inputs")
+            .assert()
+            .success()
+            .stdout(contains(test_md.to_string_lossy().as_ref()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_files_from_stdin() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let test_md = temp_dir.path().join("test.md");
+
+        // Create test file
+        fs::write(&test_md, "# Test\n[link](https://example.com)")?;
+
+        let mut cmd = main_command();
+        cmd.arg("--files-from")
+            .arg("-")
+            .arg("--dump-inputs")
+            .write_stdin(test_md.to_string_lossy().as_ref())
+            .assert()
+            .success()
+            .stdout(contains(test_md.to_string_lossy().as_ref()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_files_from_with_comments_and_empty_lines() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let files_list_path = temp_dir.path().join("files.txt");
+        let test_md = temp_dir.path().join("test.md");
+
+        // Create test files
+        fs::write(&test_md, "# Test\n[link](https://example.com)")?;
+        fs::write(
+            &files_list_path,
+            format!(
+                "# Comment line\n\n{}\n# Another comment\n",
+                test_md.display()
+            ),
+        )?;
+
+        let mut cmd = main_command();
+        cmd.arg("--files-from")
+            .arg(&files_list_path)
+            .arg("--dump-inputs")
+            .assert()
+            .success()
+            .stdout(contains(test_md.to_string_lossy().as_ref()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_files_from_combined_with_regular_inputs() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let files_list_path = temp_dir.path().join("files.txt");
+        let test_md1 = temp_dir.path().join("test1.md");
+        let test_md2 = temp_dir.path().join("test2.md");
+
+        // Create test files
+        fs::write(&test_md1, "# Test 1")?;
+        fs::write(&test_md2, "# Test 2")?;
+        fs::write(&files_list_path, test_md1.to_string_lossy().as_ref())?;
+
+        let mut cmd = main_command();
+        cmd.arg("--files-from")
+            .arg(&files_list_path)
+            .arg(&test_md2) // Regular input argument
+            .arg("--dump-inputs")
+            .assert()
+            .success()
+            .stdout(contains(test_md1.to_string_lossy().as_ref()))
+            .stdout(contains(test_md2.to_string_lossy().as_ref()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_files_from_nonexistent_file_error() -> Result<()> {
+        let mut cmd = main_command();
+        cmd.arg("--files-from")
+            .arg("/nonexistent/file.txt")
+            .arg("--dump-inputs")
+            .assert()
+            .failure()
+            .stderr(contains("Cannot open --files-from file"));
+
+        Ok(())
+    }
 }

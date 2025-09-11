@@ -1,4 +1,4 @@
-use super::{FileType, InputContent, InputSource};
+use super::{FileType, InputContent, ResolvedInputSource};
 use crate::utils::request;
 use crate::{BasicAuthExtractor, ErrorKind, Result, Uri};
 use http::HeaderMap;
@@ -33,7 +33,7 @@ impl UrlContentResolver {
         let content = get_request_body_text(&self.client, request).await?;
 
         let input_content = InputContent {
-            source: InputSource::RemoteUrl(Box::new(url.clone())),
+            source: ResolvedInputSource::RemoteUrl(Box::new(url.clone())),
             file_type,
             content,
         };

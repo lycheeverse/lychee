@@ -30,7 +30,7 @@ hyper = "1.6.0"
 ignore = "0.4.23"
 ip_network = "0.4.1"
 linkify = "0.10.0"
-log = "0.4.27"
+log = "0.4.28"
 octocrab = "0.44.1"
 openssl-sys = { version = "0.9.109", optional = true }
 path-clean = "1.0.1"

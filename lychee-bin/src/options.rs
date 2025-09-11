@@ -1,3 +1,4 @@
+use crate::files_from::FilesFrom;
 use crate::parse::parse_base;
 use crate::verbosity::Verbosity;
 use anyhow::{Context, Error, Result, anyhow};
@@ -51,7 +52,9 @@ const HELP_MSG_CONFIG_FILE: &str = formatcp!(
 const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
 
-#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames)]
+#[derive(
+    Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq, Eq,
+)]
 #[non_exhaustive]
 pub(crate) enum TlsVersion {
     #[serde(rename = "TLSv1_0")]
@@ -312,9 +315,31 @@ pub(crate) struct LycheeOptions {
     /// The inputs (where to get links to check from).
     /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
     /// remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`).
+    /// Alternatively, use `--files-from` to read inputs from a file.
     /// NOTE: Use `--` to separate inputs from options that allow multiple arguments.
-    #[arg(name = "inputs", required = true)]
+    #[arg(name = "inputs", required_unless_present = "files_from")]
     raw_inputs: Vec<String>,
+
+    /// Read input filenames from the given file or stdin (if path is '-').
+    #[arg(
+        long = "files-from",
+        value_name = "PATH",
+        long_help = "Read input filenames from the given file or stdin (if path is '-').
+
+This is useful when you have a large number of inputs that would be
+cumbersome to specify on the command line directly.
+
+Examples:
+  lychee --files-from list.txt
+  find . -name '*.md' | lychee --files-from -
+  echo 'README.md' | lychee --files-from -
+
+File Format:
+  Each line should contain one input (file path, URL, or glob pattern).
+  Lines starting with '#' are treated as comments and ignored.
+  Empty lines are also ignored."
+    )]
+    files_from: Option<PathBuf>,
 
     /// Configuration file to use
     #[arg(short, long = "config")]
@@ -331,7 +356,16 @@ impl LycheeOptions {
     // accept a `Vec<Input>` in `LycheeOptions` and do the conversion there, but
     // we wouldn't get access to `glob_ignore_case`.
     pub(crate) fn inputs(&self) -> Result<HashSet<Input>> {
-        self.raw_inputs
+        let mut all_inputs = self.raw_inputs.clone();
+
+        // If --files-from is specified, read inputs from the file
+        if let Some(files_from_path) = &self.files_from {
+            let files_from = FilesFrom::try_from(files_from_path.as_path())
+                .context("Cannot read inputs from --files-from")?;
+            all_inputs.extend(files_from.inputs);
+        }
+
+        all_inputs
             .iter()
             .map(|raw_input| Input::new(raw_input, None, self.config.glob_ignore_case))
             .collect::<Result<_, _>>()
@@ -811,41 +845,53 @@ impl Config {
 
             // Keys with defaults to assign
             accept: StatusCodeSelector::default();
+            archive: None;
+            base: None;
             base_url: None;
             basic_auth: None;
-            cache_exclude_status: StatusCodeExcluder::default();
             cache: false;
+            cache_exclude_status: StatusCodeExcluder::default();
             cookie_jar: None;
+            dump: false;
+            dump_inputs: false;
+            exclude: Vec::<String>::new();
             exclude_all_private: false;
             exclude_file: Vec::<String>::new(); // deprecated
             exclude_link_local: false;
             exclude_loopback: false;
             exclude_path: Vec::<String>::new();
             exclude_private: false;
-            exclude: Vec::<String>::new();
             extensions: FileType::default_extensions();
             fallback_extensions: Vec::<String>::new();
             format: StatsFormat::default();
             glob_ignore_case: false;
             header: Vec::<(String, String)>::new();
+            hidden: false;
+            include: Vec::<String>::new();
             include_fragments: false;
             include_mail: false;
             include_verbatim: false;
             include_wikilinks: false;
-            include: Vec::<String>::new();
+            index_files: None;
             insecure: false;
             max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
             max_concurrency: DEFAULT_MAX_CONCURRENCY;
             max_redirects: DEFAULT_MAX_REDIRECTS;
             max_retries: DEFAULT_MAX_RETRIES;
             method: DEFAULT_METHOD;
+            min_tls: None;
+            mode: OutputMode::Color;
+            no_ignore: false;
             no_progress: false;
+            offline: false;
             output: None;
             remap: Vec::<String>::new();
             require_https: false;
             retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS;
+            root_dir: None;
             scheme: Vec::<String>::new();
             skip_missing: false;
+            suggest: false;
             threads: None;
             timeout: DEFAULT_TIMEOUT_SECS;
             user_agent: DEFAULT_USER_AGENT;

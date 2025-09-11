@@ -305,6 +305,7 @@ impl Collector {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
     use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
     use test_utils::{fixtures_path, load_fixture, mail, mock_server, path, website};
 
@@ -448,7 +449,7 @@ mod tests {
         let mock_server = mock_server!(StatusCode::OK, set_body_string(TEST_URL));
 
         let inputs = HashSet::from_iter([
-            Input::from_input_source(InputSource::String(TEST_STRING.to_owned())),
+            Input::from_input_source(InputSource::String(Cow::Borrowed(TEST_STRING))),
             Input::from_input_source(InputSource::RemoteUrl(Box::new(
                 Url::parse(&mock_server.uri())
                     .map_err(|e| (mock_server.uri(), e))
@@ -483,7 +484,9 @@ mod tests {
     async fn test_collect_markdown_links() {
         let base = Base::try_from("https://github.com/hello-rust/lychee/").unwrap();
         let input = Input {
-            source: InputSource::String("This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)".to_string()),
+            source: InputSource::String(Cow::Borrowed(
+                "This is [a test](https://endler.dev). This is a relative link test [Relative Link Test](relative_link)",
+            )),
             file_type_hint: Some(FileType::Markdown),
         };
         let inputs = HashSet::from_iter([input]);
@@ -502,15 +505,14 @@ mod tests {
     async fn test_collect_html_links() {
         let base = Base::try_from("https://github.com/lycheeverse/").unwrap();
         let input = Input {
-            source: InputSource::String(
+            source: InputSource::String(Cow::Borrowed(
                 r#"<html>
                 <div class="row">
                     <a href="https://github.com/lycheeverse/lychee/">
                     <a href="blob/master/README.md">README</a>
                 </div>
-            </html>"#
-                    .to_string(),
-            ),
+            </html>"#,
+            )),
             file_type_hint: Some(FileType::Html),
         };
         let inputs = HashSet::from_iter([input]);
@@ -529,7 +531,7 @@ mod tests {
     async fn test_collect_html_srcset() {
         let base = Base::try_from("https://example.com/").unwrap();
         let input = Input {
-            source: InputSource::String(
+            source: InputSource::String(Cow::Borrowed(
                 r#"
             <img
                 src="/static/image.png"
@@ -538,9 +540,8 @@ mod tests {
                 /static/image600.png  600w,
                 "
             />
-          "#
-                .to_string(),
-            ),
+          "#,
+            )),
             file_type_hint: Some(FileType::Html),
         };
         let inputs = HashSet::from_iter([input]);
@@ -561,13 +562,12 @@ mod tests {
         let base = Base::try_from("https://localhost.com/").unwrap();
 
         let input = Input {
-            source: InputSource::String(
+            source: InputSource::String(Cow::Borrowed(
                 "This is [an internal url](@/internal.md)
         This is [an internal url](@/internal.markdown)
         This is [an internal url](@/internal.markdown#example)
-        This is [an internal url](@/internal.md#example)"
-                    .to_string(),
-            ),
+        This is [an internal url](@/internal.md#example)",
+            )),
             file_type_hint: Some(FileType::Markdown),
         };
         let inputs = HashSet::from_iter([input]);
@@ -590,7 +590,7 @@ mod tests {
         let input = load_fixture!("TEST_HTML5.html");
 
         let input = Input {
-            source: InputSource::String(input),
+            source: InputSource::String(Cow::Owned(input)),
             file_type_hint: Some(FileType::Html),
         };
         let inputs = HashSet::from_iter([input]);
@@ -638,9 +638,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_email_with_query_params() {
-        let input = Input::from_input_source(InputSource::String(
-            "This is a mailto:user@example.com?subject=Hello link".to_string(),
-        ));
+        let input = Input::from_input_source(InputSource::String(Cow::Borrowed(
+            "This is a mailto:user@example.com?subject=Hello link",
+        )));
 
         let inputs = HashSet::from_iter([input]);
 
@@ -707,14 +707,13 @@ mod tests {
         assert_eq!(base, Base::Local("/path/to/root".into()));
 
         let input = Input {
-            source: InputSource::String(
+            source: InputSource::String(Cow::Borrowed(
                 r#"
                 <a href="index.html">Index</a>
                 <a href="about.html">About</a>
                 <a href="/another.html">Another</a>
-            "#
-                .into(),
-            ),
+            "#,
+            )),
             file_type_hint: Some(FileType::Html),
         };
 

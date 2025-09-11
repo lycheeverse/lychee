@@ -235,6 +235,21 @@ impl LinkExtractor {
             self.fragments.insert(id.to_string());
         }
 
+        // Also check for 'name' attributes for backward compatibility with older HTML
+        // standards. In HTML 4.01, both id and name could be used. This is not valid HTML 5,
+        // but it's still used by some widely deployed tools, for example:
+        //
+        // - JavaDoc - Oracle's tool generates <a name="anchor"> for method signatures and classes
+        //   (see https://docs.oracle.com/javase/8/docs/technotes/tools/windows/javadoc.html)
+        // - Doxygen - C++ documentation generator supports <A NAME="..."> in HTML commands
+        //   (see https://www.doxygen.nl/manual/htmlcmds.html)
+        //
+        // See https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/a#name
+        // See https://stackoverflow.com/a/484781
+        if let Some(name) = self.current_attributes.get("name") {
+            self.fragments.insert(name.to_string());
+        }
+
         self.current_attributes.clear();
     }
 }
@@ -704,5 +719,37 @@ mod tests {
 
         let uris = extract_html(input, false);
         assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_extract_fragments_with_name_attributes() {
+        // Test for JavaDoc-style name attributes used for anchors
+        let input = r#"
+        <html>
+        <body>
+            <h1 id="title">Title</h1>
+            <a name="skip.navbar.top"></a>
+            <a name="method.summary"></a>
+            <div>
+                <a name="clear--"></a>
+                <h2 id="section">Section</h2>
+                <a name="method.detail"></a>
+            </div>
+            <a name="skip.navbar.bottom"></a>
+        </body>
+        </html>
+        "#;
+
+        let expected = HashSet::from([
+            "title".to_string(),
+            "section".to_string(),
+            "skip.navbar.top".to_string(),
+            "method.summary".to_string(),
+            "clear--".to_string(),
+            "method.detail".to_string(),
+            "skip.navbar.bottom".to_string(),
+        ]);
+        let actual = extract_html_fragments(input);
+        assert_eq!(actual, expected);
     }
 }
