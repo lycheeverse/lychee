@@ -108,14 +108,9 @@ impl Display for MarkdownResponseStats {
         })?;
 
         write_stats_per_input(f, "Redirects", &stats.redirect_map, |response| {
-            if let Status::Redirected(_, redirects) = &response.status {
-                markdown_response(response)
-                    .map(|s| format!("{s}. Redirect history: {redirects}"))
-                    .map_err(|_| fmt::Error)
-            } else {
-                log::warn!("Expected response to be Status::Redirected but instead got {response}");
-                Err(fmt::Error)
-            }
+            markdown_response(response)
+                .map(|s| format!("{s}"))
+                .map_err(|_| fmt::Error)
         })?;
 
         write_stats_per_input(f, "Suggestions", &stats.suggestion_map, |suggestion| {
@@ -286,7 +281,7 @@ mod tests {
 
 ### Redirects in stdin
 
-* [200] <http://redirected.dev/> | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirect history: https://1.dev/ --> https://2.dev/ --> http://redirected.dev/
+* [200] <http://redirected.dev/> | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --> https://2.dev/ --> http://redirected.dev/
 
 ## Suggestions per input
 

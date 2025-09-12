@@ -149,7 +149,7 @@ impl Status {
                     .map(String::from)
                     .unwrap_or(code.as_str().to_owned());
                 Some(format!(
-                    "Followed {count} {noun} resolving to the final status of: {result}"
+                    "Followed {count} {noun} resolving to the final status of: {result}. Redirects: {redirects}"
                 ))
             }
             Status::Error(e) => e.details(),
