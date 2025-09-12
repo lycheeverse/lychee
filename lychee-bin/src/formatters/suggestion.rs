@@ -1,7 +1,5 @@
-use std::fmt::Display;
-
-use crate::color::{GREEN, PINK, color};
 use serde::Serialize;
+use std::fmt::Display;
 use url::Url;
 
 /// A suggestion on how to replace a broken link with a link hosted by a web archive service.
@@ -15,9 +13,7 @@ pub(crate) struct Suggestion {
 
 impl Display for Suggestion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        color!(f, PINK, "{}", self.original)?;
-        write!(f, " ")?;
-        color!(f, GREEN, "{}", self.suggestion)?;
+        write!(f, "{} --> {}", self.original, self.suggestion)?;
         Ok(())
     }
 }
