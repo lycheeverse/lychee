@@ -80,7 +80,7 @@ fn write_stats<T: Display>(
     source: &InputSource,
     set: Option<&HashSet<T>>,
 ) -> Result<(), fmt::Error> {
-    Ok(if let Some(items) = set {
+    if let Some(items) = set {
         let mut sorted: Vec<_> = items.iter().collect();
         sorted.sort_by(|a, b| {
             let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
@@ -91,7 +91,8 @@ fn write_stats<T: Display>(
         for item in sorted {
             writeln!(f, "{item}")?;
         }
-    })
+    }
+    Ok(())
 }
 
 pub(crate) struct Detailed {
