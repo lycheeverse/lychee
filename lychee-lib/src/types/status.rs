@@ -142,14 +142,14 @@ impl Status {
             Status::Ok(code) => code.canonical_reason().map(String::from),
             Status::Redirected(code, redirects) => {
                 let count = redirects.count();
-                let redirects = if count == 1 { "redirect" } else { "redirects" };
+                let noun = if count == 1 { "redirect" } else { "redirects" };
 
                 let result = code
                     .canonical_reason()
                     .map(String::from)
                     .unwrap_or(code.as_str().to_owned());
                 Some(format!(
-                    "Followed {count} {redirects} resolving to the final status of: {result}"
+                    "Followed {count} {noun} resolving to the final status of: {result}"
                 ))
             }
             Status::Error(e) => e.details(),

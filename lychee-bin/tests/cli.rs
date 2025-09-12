@@ -2257,7 +2257,6 @@ mod cli {
                 .arg("-")
                 .arg("--format")
                 .arg("json")
-                .arg("--verbose") // required to make redirect_map visible
                 .write_stdin(redirect_url.as_str())
                 .env_clear()
                 .assert()

@@ -104,7 +104,18 @@ impl Display for MarkdownResponseStats {
         writeln!(f, "{}", stats_table(&self.0))?;
 
         write_stats_per_input(f, "Errors", &stats.error_map, |response| {
-            markdown_response(response).map_err(|_e| fmt::Error)
+            markdown_response(response).map_err(|_| fmt::Error)
+        })?;
+
+        write_stats_per_input(f, "Redirects", &stats.redirect_map, |response| {
+            if let Status::Redirected(_, redirects) = &response.status {
+                markdown_response(response)
+                    .map(|s| format!("{s}. Redirect history: {redirects}"))
+                    .map_err(|_| fmt::Error)
+            } else {
+                log::warn!("Expected response to be Status::Redirected but instead got {response}");
+                Err(fmt::Error)
+            }
         })?;
 
         write_stats_per_input(f, "Suggestions", &stats.suggestion_map, |suggestion| {
@@ -160,7 +171,8 @@ impl StatsFormatter for Markdown {
 mod tests {
     use http::StatusCode;
     use lychee_lib::{
-        CacheStatus, InputSource, ResolvedInputSource, Response, ResponseBody, Status, Uri,
+        CacheStatus, InputSource, Redirects, ResolvedInputSource, Response, ResponseBody, Status,
+        Uri,
     };
     use reqwest::Url;
 
@@ -218,12 +230,15 @@ mod tests {
     #[test]
     fn test_render_summary() {
         let mut stats = ResponseStats::default();
-        let response = Response::new(
+
+        // Add cached error
+        stats.add(Response::new(
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Error(Some(404))),
             ResolvedInputSource::Stdin,
-        );
-        stats.add(response);
+        ));
+
+        // Add suggestion
         stats
             .suggestion_map
             .entry((InputSource::Stdin).clone())
@@ -232,15 +247,30 @@ mod tests {
                 suggestion: Url::parse("https://example.com/suggestion").unwrap(),
                 original: Url::parse("https://example.com/original").unwrap(),
             });
+
+        // Add redirect
+        stats.add(Response::new(
+            Uri::try_from("http://redirected.dev").unwrap(),
+            Status::Redirected(
+                StatusCode::OK,
+                Redirects::from(vec![
+                    Url::parse("https://1.dev").unwrap(),
+                    Url::parse("https://2.dev").unwrap(),
+                    Url::parse("http://redirected.dev").unwrap(),
+                ]),
+            ),
+            ResolvedInputSource::Stdin,
+        ));
+
         let summary = MarkdownResponseStats(stats);
         let expected = "# Summary
 
 | Status         | Count |
 |----------------|-------|
-| 🔍 Total       | 1     |
+| 🔍 Total       | 2     |
 | ✅ Successful  | 0     |
 | ⏳ Timeouts    | 0     |
-| 🔀 Redirected  | 0     |
+| 🔀 Redirected  | 1     |
 | 👻 Excluded    | 0     |
 | ❓ Unknown     | 0     |
 | 🚫 Errors      | 1     |
@@ -251,6 +281,12 @@ mod tests {
 ### Errors in stdin
 
 * [404] <http://127.0.0.1/> | Error (cached)
+
+## Redirects per input
+
+### Redirects in stdin
+
+* [200] <http://redirected.dev/> | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirect history: https://1.dev/ --> https://2.dev/ --> http://redirected.dev/
 
 ## Suggestions per input
 
