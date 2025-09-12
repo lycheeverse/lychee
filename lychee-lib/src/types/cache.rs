@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::{ErrorKind, Status};
+use crate::{ErrorKind, Status, StatusCodeExcluder};
 
 /// Representation of the status of a cached request. This is kept simple on
 /// purpose because the type gets serialized to a cache file and might need to
@@ -85,6 +85,27 @@ impl From<&Status> for CacheStatus {
                 }
                 _ => Self::Error(None),
             },
+        }
+    }
+}
+
+impl From<CacheStatus> for Option<u16> {
+    fn from(val: CacheStatus) -> Self {
+        match val {
+            CacheStatus::Ok(status) => Some(status),
+            CacheStatus::Error(status) => status,
+            _ => None,
+        }
+    }
+}
+
+impl CacheStatus {
+    /// Returns `true` if the cache status is excluded by the given [`StatusCodeExcluder`].
+    #[must_use]
+    pub fn is_excluded(&self, excluder: &StatusCodeExcluder) -> bool {
+        match Option::<u16>::from(*self) {
+            Some(status) => excluder.contains(status),
+            _ => false,
         }
     }
 }
