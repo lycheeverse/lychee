@@ -44,6 +44,7 @@
               pkgs.openssl
               rust
               pkgs.cargo-nextest
+              pkgs.cargo-msrv
             ];
           };
         }
