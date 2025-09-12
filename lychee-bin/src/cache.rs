@@ -1,7 +1,7 @@
 use crate::time::{self, Timestamp, timestamp};
 use anyhow::Result;
 use dashmap::DashMap;
-use lychee_lib::{CacheStatus, Status, Uri};
+use lychee_lib::{CacheStatus, Status, StatusCodeExcluder, Uri};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -33,7 +33,11 @@ pub(crate) trait StoreExt {
     fn store<T: AsRef<Path>>(&self, path: T) -> Result<()>;
 
     /// Load cache from path. Discard entries older than `max_age_secs`
-    fn load<T: AsRef<Path>>(path: T, max_age_secs: u64) -> Result<Cache>;
+    fn load<T: AsRef<Path>>(
+        path: T,
+        max_age_secs: u64,
+        excluder: &StatusCodeExcluder,
+    ) -> Result<Cache>;
 }
 
 impl StoreExt for Cache {
@@ -47,7 +51,11 @@ impl StoreExt for Cache {
         Ok(())
     }
 
-    fn load<T: AsRef<Path>>(path: T, max_age_secs: u64) -> Result<Cache> {
+    fn load<T: AsRef<Path>>(
+        path: T,
+        max_age_secs: u64,
+        excluder: &StatusCodeExcluder,
+    ) -> Result<Cache> {
         let mut rdr = csv::ReaderBuilder::new()
             .has_headers(false)
             .from_path(path)?;
@@ -58,10 +66,53 @@ impl StoreExt for Cache {
             let (uri, value): (Uri, CacheValue) = result?;
             // Discard entries older than `max_age_secs`.
             // This allows gradually updating the cache over multiple runs.
-            if current_ts - value.timestamp < max_age_secs {
-                map.insert(uri, value);
+            if current_ts - value.timestamp >= max_age_secs {
+                continue;
             }
+
+            // Discard entries for status codes which have been excluded.
+            // Without this check, an entry might be cached, then its status code is configured as
+            // excluded, and in subsequent runs the cached value is still reused.
+            if value.status.is_excluded(excluder) {
+                continue;
+            }
+
+            map.insert(uri, value);
         }
         Ok(map)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use dashmap::DashMap;
+    use lychee_lib::{AcceptRange, CacheStatus, StatusCodeExcluder, Uri};
+
+    use crate::{
+        cache::{Cache, CacheValue, StoreExt},
+        time::timestamp,
+    };
+
+    #[test]
+    fn test_excluded_status_not_reused_from_cache() {
+        let uri: Uri = "https://example.com".try_into().unwrap();
+
+        let cache: Cache = DashMap::<Uri, CacheValue>::new();
+        cache.insert(
+            uri.clone(),
+            CacheValue {
+                status: CacheStatus::Ok(429),
+                timestamp: timestamp(),
+            },
+        );
+
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        cache.store(tmp.path()).unwrap();
+
+        let mut excluder = StatusCodeExcluder::new();
+        excluder.add_range(AcceptRange::new_from(400, 500).unwrap());
+
+        let cache = Cache::load(tmp.path(), u64::MAX, &excluder).unwrap();
+        assert!(cache.get(&uri).is_none());
     }
 }

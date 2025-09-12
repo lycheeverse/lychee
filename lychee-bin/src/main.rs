@@ -246,7 +246,11 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
         }
     }
 
-    let cache = Cache::load(LYCHEE_CACHE_FILE, cfg.max_cache_age.as_secs());
+    let cache = Cache::load(
+        LYCHEE_CACHE_FILE,
+        cfg.max_cache_age.as_secs(),
+        &cfg.cache_exclude_status,
+    );
     match cache {
         Ok(cache) => Some(cache),
         Err(e) => {
