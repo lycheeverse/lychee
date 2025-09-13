@@ -377,6 +377,11 @@ Options:
 
           [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,txt]
 
+      --default-extension <EXTENSION>
+          This is the default file extension that is applied to files without an extension.
+
+          This is useful for files without extensions or with unknown extensions. The extension will be used to determine the file type for processing. Examples: --default-extension md, --default-extension html
+
       --cache
           Use request cache stored on disk at `.lycheecache`
 
