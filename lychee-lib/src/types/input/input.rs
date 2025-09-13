@@ -7,6 +7,7 @@ use super::InputResolver;
 use super::content::InputContent;
 use super::source::InputSource;
 use super::source::ResolvedInputSource;
+use super::windows_path::WindowsPath;
 use crate::filter::PathExcludes;
 use crate::types::FileType;
 use crate::types::file::FileExtensions;
@@ -53,12 +54,18 @@ impl Input {
     ) -> Result<Self> {
         let source = if input == STDIN {
             InputSource::Stdin
+        } else if let Ok(windows_path) = WindowsPath::try_from(input) {
+            // Handle Windows absolute paths (e.g., C:\path) before URL parsing
+            let path = windows_path.as_path();
+            if path.exists() {
+                InputSource::FsPath(path.to_path_buf())
+            } else {
+                return Err(ErrorKind::InvalidFile(path.to_path_buf()));
+            }
         } else {
             // We use [`reqwest::Url::parse`] because it catches some other edge cases that [`http::Request:builder`] does not
             match Url::parse(input) {
-                // Weed out non-HTTP schemes, including Windows drive
-                // specifiers, which can be parsed by the
-                // [url](https://crates.io/crates/url) crate
+                // Only accept HTTP and HTTPS URLs
                 Ok(url) if url.scheme() == "http" || url.scheme() == "https" => {
                     InputSource::RemoteUrl(Box::new(url))
                 }
@@ -95,30 +102,24 @@ impl Input {
                         #[cfg(unix)]
                         if path.exists() {
                             InputSource::FsPath(path)
-                        } else if input.starts_with('~') || input.starts_with('.') {
-                            // The path is not valid, but it might still be a
-                            // valid URL.
-                            //
-                            // Check if the path starts with a tilde (`~`) or a
-                            // dot and exit early if it does.
-                            //
-                            // This check might not be sufficient to cover all cases
-                            // but it catches the most common ones
-                            return Err(ErrorKind::InvalidFile(path));
+                        } else if input.starts_with('~')
+                            || input.starts_with('.')
+                            || input.contains('/')
+                            || input.contains('-')
+                        {
+                            // These look like file paths, parse as path and let skip_missing handle them later
+                            InputSource::FsPath(path)
+                        } else if input.contains('.')
+                            || input.chars().all(|c| c.is_ascii_alphabetic())
+                        {
+                            // Looks like it could be a domain name or simple word without scheme
+                            return Err(ErrorKind::InvalidInput(format!(
+                                "Input '{input}' not found as file and not a valid URL. \
+                                     Use full URL (e.g., https://example.com) or check file path."
+                            )));
                         } else {
-                            // Invalid path; check if a valid URL can be constructed from the input
-                            // by prefixing it with a `http://` scheme.
-                            //
-                            // Curl also uses http (i.e. not https), see
-                            // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
-                            //
-                            // TODO: We should get rid of this heuristic and
-                            // require users to provide a full URL with scheme.
-                            // This is a big source of confusion to users.
-                            let url = Url::parse(&format!("http://{input}")).map_err(|e| {
-                                ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string())
-                            })?;
-                            InputSource::RemoteUrl(Box::new(url))
+                            // Treat as potential file path, parse as path and let skip_missing handle it later
+                            InputSource::FsPath(path)
                         }
                     }
                 }
@@ -406,7 +407,8 @@ mod tests {
 
     #[test]
     fn test_input_handles_real_relative_paths() {
-        let test_file = "./Cargo.toml";
+        // Use current directory which should always exist
+        let test_file = ".";
         let path = Path::new(test_file);
 
         assert!(path.exists());
@@ -463,11 +465,13 @@ mod tests {
 
     #[test]
     fn test_url_without_scheme() {
+        // URLs without scheme should fail with a helpful error message
         let input = Input::from_value("example.com");
-        assert_eq!(
-            input.unwrap().source.to_string(),
-            String::from("http://example.com/")
-        );
+        assert!(matches!(input, Err(ErrorKind::InvalidInput(_))));
+
+        if let Err(ErrorKind::InvalidInput(msg)) = input {
+            assert!(msg.contains("Use full URL"));
+        }
     }
 
     // Ensure that a Windows file path is not mistaken for a URL.
@@ -578,5 +582,50 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn test_windows_absolute_path_parsing() {
+        use std::env::temp_dir;
+        use tempfile::NamedTempFile;
+
+        // Test with existing file (simulated Windows path)
+        if cfg!(windows) {
+            let dir = temp_dir();
+            let file = NamedTempFile::new_in(dir).unwrap();
+            let path = file.path();
+            let path_str = path.to_str().unwrap();
+
+            // Should parse as FsPath if file exists
+            let input = Input::from_value(path_str).unwrap();
+            assert!(matches!(input.source, InputSource::FsPath(_)));
+        }
+    }
+
+    #[test]
+    fn test_no_http_assumption() {
+        // These should now fail instead of being converted to http://
+        // https://github.com/lycheeverse/lychee/issues/1595
+        assert!(matches!(
+            Input::from_value("example.com"),
+            Err(ErrorKind::InvalidInput(_))
+        ));
+        assert!(matches!(
+            Input::from_value("foo"),
+            Err(ErrorKind::InvalidInput(_))
+        ));
+        assert!(matches!(
+            Input::from_value("subdomain.example.com"),
+            Err(ErrorKind::InvalidInput(_))
+        ));
+
+        // Error message should be helpful
+        if let Err(ErrorKind::InvalidInput(msg)) = Input::from_value("example.com") {
+            assert!(msg.contains("not found as file"));
+            assert!(msg.contains("not a valid URL"));
+            assert!(msg.contains("https://example.com"));
+        } else {
+            panic!("Expected InvalidInput error with helpful message");
+        }
     }
 }
