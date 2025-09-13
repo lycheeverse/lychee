@@ -2,8 +2,12 @@ use super::StatsFormatter;
 use crate::{formatters::get_response_formatter, options, stats::ResponseStats};
 
 use anyhow::Result;
+use lychee_lib::InputSource;
 use pad::{Alignment, PadStr};
-use std::fmt::{self, Display};
+use std::{
+    collections::HashSet,
+    fmt::{self, Display},
+};
 // Maximum padding for each entry in the final statistics output
 const MAX_PADDING: usize = 20;
 
@@ -62,23 +66,33 @@ impl Display for DetailedResponseStats {
                 )?;
             }
 
-            if let Some(suggestions) = stats.suggestion_map.get(source) {
-                // Sort suggestions
-                let mut sorted_suggestions: Vec<_> = suggestions.iter().collect();
-                sorted_suggestions.sort_by(|a, b| {
-                    let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-                    numeric_sort::cmp(&a, &b)
-                });
-
-                writeln!(f, "\nSuggestions in {source}")?;
-                for suggestion in sorted_suggestions {
-                    writeln!(f, "{suggestion}")?;
-                }
-            }
+            write_stats(f, "Suggestions", source, stats.suggestion_map.get(source))?;
+            write_stats(f, "Redirects", source, stats.redirect_map.get(source))?;
         }
 
         Ok(())
     }
+}
+
+fn write_stats<T: Display>(
+    f: &mut fmt::Formatter<'_>,
+    title: &str,
+    source: &InputSource,
+    set: Option<&HashSet<T>>,
+) -> Result<(), fmt::Error> {
+    if let Some(items) = set {
+        let mut sorted: Vec<_> = items.iter().collect();
+        sorted.sort_by(|a, b| {
+            let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
+            numeric_sort::cmp(&a, &b)
+        });
+
+        writeln!(f, "\n\n{title} in {source}")?;
+        for item in sorted {
+            writeln!(f, "{item}")?;
+        }
+    }
+    Ok(())
 }
 
 pub(crate) struct Detailed {
@@ -104,27 +118,53 @@ impl StatsFormatter for Detailed {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::options::OutputMode;
+    use crate::{formatters::suggestion::Suggestion, options::OutputMode};
     use http::StatusCode;
-    use lychee_lib::{InputSource, ResponseBody, Status, Uri};
+    use lychee_lib::{InputSource, Redirects, ResponseBody, Status};
     use std::collections::{HashMap, HashSet};
     use url::Url;
 
     #[test]
-    fn test_detailed_formatter_github_404() {
-        let err1 = ResponseBody {
-            uri: Uri::try_from("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap(),
-            status: Status::Ok(StatusCode::NOT_FOUND),
-        };
-
-        let err2 = ResponseBody {
-            uri: Uri::try_from("https://github.com/mre/boom").unwrap(),
-            status: Status::Ok(StatusCode::INTERNAL_SERVER_ERROR),
-        };
-
-        let mut error_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
+    fn test_detailed_formatter() {
         let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
-        error_map.insert(source, HashSet::from_iter(vec![err1, err2]));
+        let error_map = HashMap::from([(
+            source.clone(),
+            HashSet::from([
+                ResponseBody {
+                    uri: "https://github.com/mre/idiomatic-rust-doesnt-exist-man"
+                        .try_into()
+                        .unwrap(),
+                    status: Status::Ok(StatusCode::NOT_FOUND),
+                },
+                ResponseBody {
+                    uri: "https://github.com/mre/boom".try_into().unwrap(),
+                    status: Status::Ok(StatusCode::INTERNAL_SERVER_ERROR),
+                },
+            ]),
+        )]);
+
+        let suggestion_map = HashMap::from([(
+            source.clone(),
+            HashSet::from([Suggestion {
+                original: "https://original.dev".try_into().unwrap(),
+                suggestion: "https://suggestion.dev".try_into().unwrap(),
+            }]),
+        )]);
+
+        let redirect_map = HashMap::from([(
+            source,
+            HashSet::from([ResponseBody {
+                uri: "https://redirected.dev".try_into().unwrap(),
+                status: Status::Redirected(
+                    StatusCode::OK,
+                    Redirects::from(vec![
+                        Url::parse("https://1.dev").unwrap(),
+                        Url::parse("https://2.dev").unwrap(),
+                        Url::parse("http://redirected.dev").unwrap(),
+                    ]),
+                ),
+            }]),
+        )]);
 
         let stats = ResponseStats {
             total: 2,
@@ -137,8 +177,8 @@ mod tests {
             unsupported: 0,
             redirects: 0,
             cached: 0,
-            suggestion_map: HashMap::default(),
-            redirect_map: HashMap::default(),
+            suggestion_map,
+            redirect_map,
             success_map: HashMap::default(),
             error_map,
             excluded_map: HashMap::default(),
@@ -148,20 +188,30 @@ mod tests {
         let formatter = Detailed::new(OutputMode::Plain);
         let result = formatter.format(stats).unwrap().unwrap();
 
-        // Check for the presence of expected content
-        assert!(result.contains("📝 Summary"));
-        assert!(result.contains("🔍 Total............2"));
-        assert!(result.contains("✅ Successful.......0"));
-        assert!(result.contains("⏳ Timeouts.........0"));
-        assert!(result.contains("🔀 Redirected.......0"));
-        assert!(result.contains("👻 Excluded.........0"));
-        assert!(result.contains("❓ Unknown..........0"));
-        assert!(result.contains("🚫 Errors...........2"));
-        assert!(result.contains("Errors in https://example.com/"));
-        assert!(
-            result
-                .contains("https://github.com/mre/idiomatic-rust-doesnt-exist-man | 404 Not Found")
+        assert_eq!(
+            result,
+            "📝 Summary
+---------------------
+🔍 Total............2
+✅ Successful.......0
+⏳ Timeouts.........0
+🔀 Redirected.......0
+👻 Excluded.........0
+❓ Unknown..........0
+🚫 Errors...........2
+⛔ Unsupported......2
+
+Errors in https://example.com/
+[500] https://github.com/mre/boom | 500 Internal Server Error: Internal Server Error
+[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | 404 Not Found: Not Found
+
+Suggestions in https://example.com/
+https://original.dev/ --> https://suggestion.dev/
+
+
+Redirects in https://example.com/
+https://redirected.dev/ | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --> https://2.dev/ --> http://redirected.dev/
+"
         );
-        assert!(result.contains("https://github.com/mre/boom | 500 Internal Server Error"));
     }
 }

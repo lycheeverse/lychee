@@ -1,5 +1,6 @@
 use crate::Status;
 use serde::Serialize;
+use std::fmt::Display;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -18,10 +19,23 @@ impl From<Vec<Url>> for Redirects {
     }
 }
 
+impl Display for Redirects {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let list = self
+            .0
+            .iter()
+            .map(Url::as_str)
+            .collect::<Vec<_>>()
+            .join(" --> ");
+        write!(f, "{list}")
+    }
+}
+
 impl Redirects {
     /// Count how many times a redirect was followed.
     /// This is the length of the list minus one.
-    pub(crate) fn count(&self) -> usize {
+    #[must_use]
+    pub fn count(&self) -> usize {
         self.0.len().saturating_sub(1)
     }
 

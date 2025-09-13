@@ -92,7 +92,6 @@ mod stats;
 mod time;
 mod verbosity;
 
-use crate::formatters::color;
 use crate::formatters::duration::Duration;
 use crate::{
     cache::{Cache, StoreExt},
