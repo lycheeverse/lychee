@@ -312,12 +312,17 @@ impl HeaderMapExt for HeaderMap {
 #[derive(Parser, Debug)]
 #[command(version, about)]
 pub(crate) struct LycheeOptions {
-    /// The inputs (where to get links to check from).
-    /// These can be: files (e.g. `README.md`), file globs (e.g. `"~/git/*/README.md"`),
-    /// remote URLs (e.g. `https://example.com/README.md`) or standard input (`-`).
-    /// Alternatively, use `--files-from` to read inputs from a file.
-    /// NOTE: Use `--` to separate inputs from options that allow multiple arguments.
-    #[arg(name = "inputs", required_unless_present = "files_from")]
+    /// Inputs for link checking (where to get links to check from).
+    #[arg(
+        name = "inputs",
+        required_unless_present = "files_from",
+        long_help = "Inputs for link checking (where to get links to check from). These can be:
+files (e.g. `README.md`), file globs (e.g. `'~/git/*/README.md'`), remote URLs
+(e.g. `https://example.com/README.md`), or standard input (`-`). Alternatively,
+use `--files-from` to read inputs from a file.
+
+NOTE: Use `--` to separate inputs from options that allow multiple arguments."
+    )]
     raw_inputs: Vec<String>,
 
     /// Read input filenames from the given file or stdin (if path is '-').
@@ -446,9 +451,9 @@ examples are:
 - 500..=599 (excludes any status code from 500 to 599 inclusive)
 - 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)
 
-Use \"lychee --cache-exclude-status '429, 500..502' <inputs>...\" to provide a comma- separated
-list of excluded status codes. This example will not cache results with a status code of 429, 500
-and 501."
+Use \"lychee --cache-exclude-status '429, 500..502' <inputs>...\" to provide a
+comma-separated list of excluded status codes. This example will not cache results
+with a status code of 429, 500 and 501."
     )]
     #[serde(default = "cache_exclude_selector")]
     pub(crate) cache_exclude_status: StatusCodeExcluder,
@@ -516,7 +521,12 @@ and 501."
     /// Only test links with the given schemes (e.g. https).
     /// Omit to check links with any other scheme.
     /// At the moment, we support http, https, file, and mailto.
-    #[arg(short, long)]
+    #[arg(
+        short,
+        long,
+        long_help = "Only test links with the given schemes (e.g. https). Omit to check links with
+any other scheme. At the moment, we support http, https, file, and mailto."
+    )]
     #[serde(default)]
     pub(crate) scheme: Vec<String>,
 
@@ -798,10 +808,13 @@ followed by the absolute link's own path."
     #[serde(default)]
     pub(crate) require_https: bool,
 
-    /// Tell lychee to read cookies from the given file.
-    /// Cookies will be stored in the cookie jar and sent with requests.
-    /// New cookies will be stored in the cookie jar and existing cookies will be updated.
-    #[arg(long)]
+    /// Read and write cookies using the given file
+    #[arg(
+        long,
+        long_help = "Tell lychee to read cookies from the given file. Cookies will be stored in the
+cookie jar and sent with requests. New cookies will be stored in the cookie jar
+and existing cookies will be updated."
+    )]
     #[serde(default)]
     pub(crate) cookie_jar: Option<PathBuf>,
 
