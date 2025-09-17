@@ -81,7 +81,7 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     pub(crate) async fn check(&self, uri: &Uri) -> Status {
-        dbg!(&self.base);
+        //only populate the wikilink filenames if it is enabled
         if self.include_wikilinks {
             self.setup_wikilinks().await;
         }
@@ -139,8 +139,12 @@ impl FileChecker {
     async fn check_path(&self, path: &Path, uri: &Uri) -> Status {
         let path = match path.metadata() {
             // for non-existing paths, attempt fallback extensions
+            // if fallback extensions don't help, try wikilinks
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                self.apply_fallback_extensions(path, uri).map(Cow::Owned)
+                match self.apply_fallback_extensions(path, uri).map(Cow::Owned) {
+                    Ok(val) => Ok(val),
+                    Err(_) => self.apply_wikilink_check(path, uri).await.map(Cow::Owned),
+                }
             }
 
             // other IO errors are unexpected and should fail the check
@@ -240,7 +244,7 @@ impl FileChecker {
     }
 
     /// Checks a resolved file, optionally verifying fragments for HTML files.
-    ///
+    ///u
     /// # Arguments
     ///
     /// * `path` - The resolved path to check.
@@ -306,7 +310,16 @@ impl FileChecker {
     // Tries to resolve a link by looking up the filename in the wikilink index
     // The
     async fn apply_wikilink_check(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
-        self.wikilink_checker.check(path, uri).await
+        let mut path_buf = path.to_path_buf();
+        for ext in &self.fallback_extensions {
+            path_buf.set_extension(ext);
+            match self.wikilink_checker.check(&path_buf, uri).await {
+                Err(_) => {}
+                Ok(resolved_path) => return Ok(resolved_path),
+            }
+        }
+
+        Err(ErrorKind::InvalidFilePath(uri.clone()))
     }
 }
 
