@@ -44,13 +44,11 @@ impl WikilinkChecker {
                         //actively ignore symlinks
                         .follow_links(false)
                         .into_iter()
-                        .filter_map(|e| e.ok())
+                        .filter_map(std::result::Result::ok)
                     {
-                        match entry.path().file_name() {
-                            Some(filename) => {
-                                filenameslock.insert(filename.into(), entry.path().to_path_buf());
-                            }
-                            None => {}
+                        if let Some(filename) = entry.path().file_name() {
+                            filenameslock
+                                .insert(filename.to_ascii_lowercase(), entry.path().to_path_buf());
                         }
                     }
                 }
@@ -65,9 +63,9 @@ impl WikilinkChecker {
             None => Err(ErrorKind::InvalidFilePath(uri.clone())),
             Some(filename) => {
                 let filenamelock = self.filenames.lock().await;
-                if filenamelock.contains_key(filename.into()) {
+                if filenamelock.contains_key(&filename.to_ascii_lowercase()) {
                     Ok(filenamelock
-                        .get(filename.into())
+                        .get(&filename.to_ascii_lowercase())
                         .expect("Could not retrieve inserted Path for discovered Wikilink-Path"))
                     .cloned()
                 } else {
