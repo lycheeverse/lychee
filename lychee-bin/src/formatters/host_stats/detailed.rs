@@ -4,7 +4,6 @@ use std::{
     fmt::{self, Display},
 };
 
-use crate::options;
 use lychee_lib::ratelimit::HostStats;
 
 use super::HostStatsFormatter;
@@ -35,7 +34,11 @@ impl Display for DetailedHostStats {
             )?;
 
             if stats.rate_limited > 0 {
-                writeln!(f, "  Rate limited: {}", stats.rate_limited)?;
+                writeln!(
+                    f,
+                    "  Rate limited: {} (429 Too Many Requests)",
+                    stats.rate_limited
+                )?;
             }
             if stats.client_errors > 0 {
                 writeln!(f, "  Client errors (4xx): {}", stats.client_errors)?;
@@ -70,7 +73,7 @@ impl Display for DetailedHostStats {
 pub(crate) struct Detailed;
 
 impl Detailed {
-    pub(crate) const fn new(_mode: options::OutputMode) -> Self {
+    pub(crate) const fn new() -> Self {
         Self
     }
 }
