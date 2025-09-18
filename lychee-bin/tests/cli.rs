@@ -2926,15 +2926,19 @@ mod cli {
     #[test]
     fn test_default_extension_unknown_value() {
         let mut file_without_ext = NamedTempFile::new().unwrap();
+        // Create file content with a link that should be extracted as plaintext
         writeln!(file_without_ext, "# Test").unwrap();
+        writeln!(file_without_ext, "Visit https://example.org for more info").unwrap();
 
         // Unknown extensions should fall back to default behavior (plaintext)
+        // and still extract links from the content
         main_command()
             .arg("--default-extension")
             .arg("unknown")
             .arg("--dump")
             .arg(file_without_ext.path())
             .assert()
-            .success(); // Should not fail, just fall back to plaintext
+            .success()
+            .stdout(contains("https://example.org")); // Should extract the link as plaintext
     }
 }

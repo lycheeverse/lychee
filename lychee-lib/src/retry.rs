@@ -87,7 +87,7 @@ impl RetryExt for http::Error {
         let inner = self.get_ref();
         inner
             .source()
-            .and_then(<(dyn std::error::Error + 'static)>::downcast_ref)
+            .and_then(<dyn std::error::Error + 'static>::downcast_ref)
             .is_some_and(should_retry_io)
     }
 }
