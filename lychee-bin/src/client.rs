@@ -44,19 +44,20 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     let rate_limit_config =
         RateLimitConfig::from_options(cfg.default_host_concurrency, cfg.default_request_interval);
     let cache_max_age = if cfg.cache { 3600 } else { 0 }; // 1 hour if caching enabled, disabled otherwise
-    let host_pool = match cookie_jar {
-        Some(cookie_jar) => HostPool::with_cookie_jar(
+    let host_pool = if let Some(cookie_jar) = cookie_jar {
+        HostPool::with_cookie_jar(
             rate_limit_config,
             cfg.hosts.clone(),
             cfg.max_concurrency,
             cache_max_age,
-            combined_headers,
+            combined_headers.clone(),
             cfg.max_redirects,
             Some(timeout),
             cfg.insecure,
             cookie_jar.clone(),
-        ),
-        None => HostPool::new(
+        )
+    } else {
+        HostPool::new(
             rate_limit_config,
             cfg.hosts.clone(),
             cfg.max_concurrency,
@@ -65,7 +66,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
             cfg.max_redirects,
             Some(timeout),
             cfg.insecure,
-        ),
+        )
     };
 
     ClientBuilder::builder()

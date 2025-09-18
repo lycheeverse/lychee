@@ -5,7 +5,6 @@ use std::{
 };
 
 use crate::formatters::color::{DIM, NORMAL, color};
-use crate::options;
 use lychee_lib::ratelimit::HostStats;
 
 use super::HostStatsFormatter;
@@ -65,7 +64,7 @@ impl Display for CompactHostStats {
 pub(crate) struct Compact;
 
 impl Compact {
-    pub(crate) const fn new(_mode: options::OutputMode) -> Self {
+    pub(crate) const fn new() -> Self {
         Self
     }
 }

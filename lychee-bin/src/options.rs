@@ -970,6 +970,7 @@ impl Config {
                 // Keys which are handled outside of fold_in
                 ..header,
                 ..github_token,
+                ..hosts,
 
                 // Keys with defaults to assign
                 accept: StatusCodeSelector::default(),
@@ -1000,7 +1001,6 @@ impl Config {
                 glob_ignore_case: false,
                 hidden: false,
                 host_stats: false,
-                hosts: HashMap::new(),
                 include: Vec::<String>::new(),
                 include_fragments: false,
                 include_mail: false,
