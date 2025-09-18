@@ -66,7 +66,7 @@ use std::sync::Arc;
 use anyhow::{Context, Error, Result, bail};
 use clap::Parser;
 use commands::CommandParams;
-use formatters::{get_host_stats_formatter, get_stats_formatter, log::init_logging};
+use formatters::{get_stats_formatter, log::init_logging};
 use http::HeaderMap;
 use log::{error, info, warn};
 
@@ -86,6 +86,7 @@ mod client;
 mod commands;
 mod files_from;
 mod formatters;
+mod host_stats;
 mod options;
 mod parse;
 mod stats;
@@ -96,6 +97,7 @@ use crate::formatters::duration::Duration;
 use crate::{
     cache::{Cache, StoreExt},
     formatters::stats::StatsFormatter,
+    host_stats::display_per_host_statistics,
     options::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
 };
 
@@ -304,7 +306,6 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 }
 
 /// Run lychee on the given inputs
-#[allow(clippy::too_many_lines)]
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
 
@@ -408,23 +409,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         }
 
         // Display per-host statistics if requested
-        if opts.config.host_stats {
-            let host_stats = client.host_stats();
-            let host_stats_formatter =
-                get_host_stats_formatter(&opts.config.format, &opts.config.mode);
-
-            if let Some(formatted_host_stats) = host_stats_formatter.format(host_stats)? {
-                if let Some(output) = &opts.config.output {
-                    // For file output, append to the existing output
-                    let mut file_content = std::fs::read_to_string(output).unwrap_or_default();
-                    file_content.push_str(&formatted_host_stats);
-                    std::fs::write(output, file_content)
-                        .context("Cannot write host stats to output file")?;
-                } else {
-                    print!("{formatted_host_stats}");
-                }
-            }
-        }
+        display_per_host_statistics(&client, &opts.config)?;
 
         if github_issues && opts.config.github_token.is_none() {
             warn!(
