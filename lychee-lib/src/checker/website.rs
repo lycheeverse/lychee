@@ -184,7 +184,6 @@ impl WebsiteChecker {
                 }
             }
         } else {
-            // Fallback to direct client if no host pool configured (shouldn't happen normally)
             self.reqwest_client.execute(request).await
         };
 
