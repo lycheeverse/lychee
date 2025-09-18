@@ -902,6 +902,7 @@ impl Config {
                 cache: false,
                 cache_exclude_status: StatusCodeExcluder::default(),
                 cookie_jar: None,
+                default_extension: None,
                 dump: false,
                 dump_inputs: false,
                 exclude: Vec::<String>::new(),
