@@ -33,11 +33,11 @@ pub(crate) fn get_stats_formatter(
 /// Create a host stats formatter based on the given format and mode options
 pub(crate) fn get_host_stats_formatter(
     format: &StatsFormat,
-    mode: &OutputMode,
+    _mode: &OutputMode,
 ) -> Box<dyn HostStatsFormatter> {
     match format {
-        StatsFormat::Compact | StatsFormat::Raw => Box::new(host_stats::Compact::new(mode.clone())), // Use compact for raw
-        StatsFormat::Detailed => Box::new(host_stats::Detailed::new(mode.clone())),
+        StatsFormat::Compact | StatsFormat::Raw => Box::new(host_stats::Compact::new()), // Use compact for raw
+        StatsFormat::Detailed => Box::new(host_stats::Detailed::new()),
         StatsFormat::Json => Box::new(host_stats::Json::new()),
         StatsFormat::Markdown => Box::new(host_stats::Markdown::new()),
     }
