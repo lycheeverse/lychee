@@ -377,9 +377,16 @@ impl LycheeOptions {
             all_inputs.extend(files_from.inputs);
         }
 
+        // Convert default extension to FileType if provided
+        let default_file_type = self
+            .config
+            .default_extension
+            .as_deref()
+            .and_then(FileType::from_extension);
+
         all_inputs
             .iter()
-            .map(|raw_input| Input::new(raw_input, None, self.config.glob_ignore_case))
+            .map(|raw_input| Input::new(raw_input, default_file_type, self.config.glob_ignore_case))
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
@@ -427,6 +434,15 @@ specify both extensions explicitly."
     )]
     #[serde(default = "FileExtensions::default")]
     pub(crate) extensions: FileExtensions,
+
+    /// Default file extension to treat files without extensions as having.
+    ///
+    /// This is useful for files without extensions or with unknown extensions.
+    /// The extension will be used to determine the file type for processing.
+    /// Examples: --default-extension md, --default-extension html
+    #[arg(long, value_name = "EXTENSION")]
+    #[serde(default)]
+    pub(crate) default_extension: Option<String>,
 
     #[arg(help = HELP_MSG_CACHE)]
     #[arg(long)]
@@ -886,6 +902,7 @@ impl Config {
                 cache: false,
                 cache_exclude_status: StatusCodeExcluder::default(),
                 cookie_jar: None,
+                default_extension: None,
                 dump: false,
                 dump_inputs: false,
                 exclude: Vec::<String>::new(),

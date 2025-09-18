@@ -2880,4 +2880,65 @@ mod cli {
 
         Ok(())
     }
+
+    /// Test the --default-extension option for files without extensions
+    #[test]
+    fn test_default_extension_option() -> Result<()> {
+        let mut file_without_ext = NamedTempFile::new()?;
+        // Create markdown content but with no file extension
+        writeln!(file_without_ext, "# Test File")?;
+        writeln!(file_without_ext, "[Example](https://example.com)")?;
+        writeln!(file_without_ext, "[Local](local.md)")?;
+
+        // Test with --default-extension md
+        main_command()
+            .arg("--default-extension")
+            .arg("md")
+            .arg("--dump")
+            .arg(file_without_ext.path())
+            .assert()
+            .success()
+            .stdout(contains("https://example.com"));
+
+        let mut html_file_without_ext = NamedTempFile::new()?;
+        // Create HTML content but with no file extension
+        writeln!(html_file_without_ext, "<html><body>")?;
+        writeln!(
+            html_file_without_ext,
+            "<a href=\"https://html-example.com\">HTML Link</a>"
+        )?;
+        writeln!(html_file_without_ext, "</body></html>")?;
+
+        // Test with --default-extension html
+        main_command()
+            .arg("--default-extension")
+            .arg("html")
+            .arg("--dump")
+            .arg(html_file_without_ext.path())
+            .assert()
+            .success()
+            .stdout(contains("https://html-example.com"));
+
+        Ok(())
+    }
+
+    /// Test that unknown --default-extension values are handled gracefully
+    #[test]
+    fn test_default_extension_unknown_value() {
+        let mut file_without_ext = NamedTempFile::new().unwrap();
+        // Create file content with a link that should be extracted as plaintext
+        writeln!(file_without_ext, "# Test").unwrap();
+        writeln!(file_without_ext, "Visit https://example.org for more info").unwrap();
+
+        // Unknown extensions should fall back to default behavior (plaintext)
+        // and still extract links from the content
+        main_command()
+            .arg("--default-extension")
+            .arg("unknown")
+            .arg("--dump")
+            .arg(file_without_ext.path())
+            .assert()
+            .success()
+            .stdout(contains("https://example.org")); // Should extract the link as plaintext
+    }
 }
