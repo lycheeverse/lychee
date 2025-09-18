@@ -2,6 +2,7 @@ use log::warn;
 use percent_encoding::percent_decode_str;
 use reqwest::Url;
 use std::{
+    borrow::Cow,
     collections::HashSet,
     path::{Path, PathBuf},
 };
@@ -29,8 +30,23 @@ fn create_request(
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
 ) -> Result<Request> {
+    const MAX_TRUNCATED_STR_LEN: usize = 100;
     let uri = try_parse_into_uri(raw_uri, source, root_dir, base)?;
-    let source = truncate_source(source);
+    let source = match source {
+        ResolvedInputSource::String(s) => {
+            if s.len() <= MAX_TRUNCATED_STR_LEN {
+                match s {
+                    Cow::Borrowed(s_ref) => ResolvedInputSource::String(Cow::Borrowed(s_ref)),
+                    Cow::Owned(s_owned) => ResolvedInputSource::String(Cow::Owned(s_owned.clone())),
+                }
+            } else {
+                ResolvedInputSource::String(Cow::Owned(
+                    s.chars().take(MAX_TRUNCATED_STR_LEN).collect(),
+                ))
+            }
+        }
+        other => other.clone(),
+    };
     let element = raw_uri.element.clone();
     let attribute = raw_uri.attribute.clone();
     let credentials = extract_credentials(extractor, &uri);
@@ -110,22 +126,6 @@ fn create_uri_from_file_path(
     Ok(Uri {
         url: constructed_url,
     })
-}
-
-/// Truncate the source in case it gets too long
-///
-/// This is only needed for string inputs.
-/// For other inputs, the source is simply a "label" (an enum variant).
-// TODO: This would not be necessary if we used `Cow` for the source.
-fn truncate_source(source: &ResolvedInputSource) -> ResolvedInputSource {
-    const MAX_TRUNCATED_STR_LEN: usize = 100;
-
-    match source {
-        ResolvedInputSource::String(s) => {
-            ResolvedInputSource::String(s.chars().take(MAX_TRUNCATED_STR_LEN).collect())
-        }
-        other => other.clone(),
-    }
 }
 
 /// Create requests out of the collected URLs.
