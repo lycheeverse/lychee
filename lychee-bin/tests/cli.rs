@@ -2922,16 +2922,16 @@ mod cli {
         Ok(())
     }
 
-    /// Test that invalid --default-extension values are handled gracefully
+    /// Test that unknown --default-extension values are handled gracefully
     #[test]
-    fn test_default_extension_invalid_value() {
+    fn test_default_extension_unknown_value() {
         let mut file_without_ext = NamedTempFile::new().unwrap();
         writeln!(file_without_ext, "# Test").unwrap();
 
-        // Invalid extensions should fall back to default behavior (plaintext)
+        // Unknown extensions should fall back to default behavior (plaintext)
         main_command()
             .arg("--default-extension")
-            .arg("invalid")
+            .arg("unknown")
             .arg("--dump")
             .arg(file_without_ext.path())
             .assert()
