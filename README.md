@@ -328,7 +328,7 @@ See below for a full list.
 ```text
 A fast, async link checker
 
-Finds broken URLs and mail addresses inside Markdown, HTML, `reStructuredText`, websites and more!
+Finds broken URLs and mail addresses inside Markdown, HTML, reStructuredText, websites and more!
 
 Usage: lychee [OPTIONS] [inputs]...
 
