@@ -311,10 +311,11 @@ impl HeaderMapExt for HeaderMap {
     }
 }
 
-/// A fast, async link checker
+/// lychee is a tool to detect broken URLs and mail addresses in
+/// local files and websites. It supports Markdown and HTML explicitly
+/// and works well with many plain text file formats.
 ///
-/// Finds broken URLs and mail addresses inside Markdown, HTML,
-/// `reStructuredText`, websites and more!
+/// lychee is powered by lychee-lib, the Rust library to for link checking.
 #[derive(Parser, Debug)]
 #[command(version, about)]
 pub(crate) struct LycheeOptions {
