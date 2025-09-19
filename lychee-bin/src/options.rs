@@ -958,6 +958,8 @@ impl Config {
 mod tests {
     use std::collections::HashMap;
 
+    use clap::CommandFactory;
+
     use super::*;
 
     #[test]
@@ -1087,5 +1089,26 @@ mod tests {
                 ("X-Test".to_string(), "check=this".to_string()),
             ]
         );
+    }
+
+    #[test]
+    fn man_pages() -> std::io::Result<()> {
+        let out_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        // let out_dir = std::path::PathBuf::from(
+        //     std::env::var_os("OUT_DIR").ok_or(std::io::ErrorKind::NotFound)?,
+        // );
+
+        let date = chrono::offset::Local::now().format("%Y-%m-%d");
+        let man = clap_mangen::Man::new(LycheeOptions::command()).date(format!("{}", date));
+
+        let mut buffer: Vec<u8> = Default::default();
+        man.render(&mut buffer)?;
+
+        std::fs::write(out_dir.join("lychee.1"), buffer)?;
+
+        Ok(())
     }
 }
