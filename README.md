@@ -411,8 +411,6 @@ Options:
           comma-separated list of excluded status codes. This example will not cache results
           with a status code of 429, 500 and 501.
 
-          [default: ]
-
       --dump
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
 

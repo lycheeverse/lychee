@@ -193,7 +193,6 @@ default_function! {
     retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
     verbosity: Verbosity = Verbosity::default();
-    cache_exclude_selector: StatusCodeExcluder = StatusCodeExcluder::new();
     accept_selector: StatusCodeSelector = StatusCodeSelector::default();
 }
 
@@ -462,7 +461,6 @@ specify both extensions explicitly."
     /// A list of status codes that will be excluded from the cache
     #[arg(
         long,
-        default_value_t,
         long_help = "A list of status codes that will be ignored from the cache
 
 The following exclude range syntax is supported: [start]..[[=]end]|code. Some valid
@@ -478,8 +476,7 @@ Use \"lychee --cache-exclude-status '429, 500..502' <inputs>...\" to provide a
 comma-separated list of excluded status codes. This example will not cache results
 with a status code of 429, 500 and 501."
     )]
-    #[serde(default = "cache_exclude_selector")]
-    pub(crate) cache_exclude_status: StatusCodeExcluder,
+    pub(crate) cache_exclude_status: Option<StatusCodeExcluder>,
 
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
@@ -903,7 +900,7 @@ impl Config {
                 base_url: None,
                 basic_auth: None,
                 cache: false,
-                cache_exclude_status: StatusCodeExcluder::default(),
+                cache_exclude_status: None,
                 cookie_jar: None,
                 default_extension: None,
                 dump: false,
@@ -987,7 +984,6 @@ mod tests {
             cli.accept,
             StatusCodeSelector::from_str("100..=103,200..=299").expect("no error")
         );
-        assert_eq!(cli.cache_exclude_status, StatusCodeExcluder::new());
     }
 
     #[test]
@@ -1102,9 +1098,9 @@ mod tests {
         // );
 
         let date = chrono::offset::Local::now().format("%Y-%m-%d");
-        let man = clap_mangen::Man::new(LycheeOptions::command()).date(format!("{}", date));
+        let man = clap_mangen::Man::new(LycheeOptions::command()).date(format!("{date}"));
 
-        let mut buffer: Vec<u8> = Default::default();
+        let mut buffer: Vec<u8> = Vec::default();
         man.render(&mut buffer)?;
 
         std::fs::write(out_dir.join("lychee.1"), buffer)?;

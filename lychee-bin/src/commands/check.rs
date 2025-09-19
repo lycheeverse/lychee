@@ -48,7 +48,11 @@ where
 
     let client = params.client;
     let cache = params.cache;
-    let cache_exclude_status = params.cfg.cache_exclude_status.into_set();
+    let cache_exclude_status = params
+        .cfg
+        .cache_exclude_status
+        .unwrap_or_default()
+        .into_set();
     let accept = params.cfg.accept.into();
 
     let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {

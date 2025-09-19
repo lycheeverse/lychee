@@ -248,7 +248,7 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
     let cache = Cache::load(
         LYCHEE_CACHE_FILE,
         cfg.max_cache_age.as_secs(),
-        &cfg.cache_exclude_status,
+        &cfg.cache_exclude_status.clone().unwrap_or_default(),
     );
     match cache {
         Ok(cache) => Some(cache),
