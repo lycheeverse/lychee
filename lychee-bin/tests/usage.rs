@@ -67,4 +67,39 @@ mod readme {
         assert_eq!(usage_in_readme, usage_in_help);
         Ok(())
     }
+
+    /// Test that all the arguments yielded by `lychee --help`
+    /// are ordered alphabetically for better usability.
+    /// This behaviour aligns with cURL. (see `man curl`)
+    #[test]
+    #[cfg(unix)]
+    fn test_arguments_ordered_alphabetically() -> Result<(), Box<dyn std::error::Error>> {
+        use regex::Regex;
+
+        let mut cmd = main_command();
+
+        let help_cmd = cmd.env_clear().arg("--help").assert().success();
+        let help_text = std::str::from_utf8(&help_cmd.get_output().stdout)?;
+
+        let regex = Regex::new(r"^\s*(-[a-zA-Z],)?\s*--(?<arg>[a-zA-Z-]*)").unwrap();
+
+        let arguments: Vec<&str> = help_text
+            .lines()
+            .filter_map(|line| {
+                let captures = regex.captures(line)?;
+                Some(captures.name("arg").unwrap().as_str())
+            })
+            .collect();
+
+        let mut sorted = arguments.clone();
+        sorted.sort();
+
+        assert_eq!(
+            arguments, sorted,
+            "Arguments are not sorted alphabetically: {:?}",
+            arguments
+        );
+
+        Ok(())
+    }
 }
