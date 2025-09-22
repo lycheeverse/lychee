@@ -388,7 +388,12 @@ Options:
       --default-extension <EXTENSION>
           Default file extension to treat files without extensions as having.
 
-          This is useful for files without extensions or with unknown extensions. The extension will be used to determine the file type for processing. Examples: --default-extension md, --default-extension html
+          This is useful for files without extensions or with unknown extensions.
+          The extension will be used to determine the file type for processing.
+
+          Examples:
+            --default-extension md
+            --default-extension html
 
       --cache
           Use request cache stored on disk at `.lycheecache`
@@ -453,20 +458,24 @@ Options:
       --host-concurrency <HOST_CONCURRENCY>
           Default maximum concurrent requests per host (default: 10)
 
-          This limits how many requests can be sent simultaneously to the same host (domain/subdomain). This helps prevent overwhelming servers and getting rate-limited. Each host is handled independently.
+          This limits how many requests can be sent simultaneously to the same
+          host (domain/subdomain). This helps prevent overwhelming servers and
+          getting rate-limited. Each host is handled independently.
 
           Examples:
-          • --host-concurrency 5   # Conservative for slow APIs
-          • --host-concurrency 20  # Aggressive for fast APIs
+            --host-concurrency 5   # Conservative for slow APIs
+            --host-concurrency 20  # Aggressive for fast APIs
 
       --request-interval <REQUEST_INTERVAL>
           Minimum interval between requests to the same host (default: 100ms)
 
-          Sets a baseline delay between consecutive requests to prevent hammering servers. The adaptive algorithm may increase this based on server responses (rate limits, errors).
+          Sets a baseline delay between consecutive requests to prevent
+          hammering servers. The adaptive algorithm may increase this based
+          on server responses (rate limits, errors).
 
           Examples:
-          • --request-interval 50ms   # Fast for robust APIs
-          • --request-interval 1s     # Conservative for rate-limited APIs
+            --request-interval 50ms   # Fast for robust APIs
+            --request-interval 1s     # Conservative for rate-limited APIs
 
   -T, --threads <THREADS>
           Number of threads to utilize. Defaults to number of cores available to the system

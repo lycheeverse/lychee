@@ -445,8 +445,11 @@ specify both extensions explicitly."
     ///
     /// This is useful for files without extensions or with unknown extensions.
     /// The extension will be used to determine the file type for processing.
-    /// Examples: --default-extension md, --default-extension html
-    #[arg(long, value_name = "EXTENSION")]
+    ///
+    /// Examples:
+    ///   --default-extension md
+    ///   --default-extension html
+    #[arg(long, value_name = "EXTENSION", verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) default_extension: Option<String>,
 
@@ -540,7 +543,7 @@ with a status code of 429, 500 and 501."
     /// Examples:
     ///   --host-concurrency 5   # Conservative for slow APIs
     ///   --host-concurrency 20  # Aggressive for fast APIs
-    #[arg(long = "host-concurrency")]
+    #[arg(long = "host-concurrency", verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) host_concurrency: Option<usize>,
 
@@ -553,7 +556,7 @@ with a status code of 429, 500 and 501."
     /// Examples:
     ///   --request-interval 50ms   # Fast for robust APIs
     ///   --request-interval 1s     # Conservative for rate-limited APIs
-    #[arg(long = "request-interval", value_parser = humantime::parse_duration)]
+    #[arg(long = "request-interval", value_parser = humantime::parse_duration, verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) request_interval: Option<Duration>,
 
