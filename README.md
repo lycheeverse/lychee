@@ -425,23 +425,23 @@ Options:
 
           This is useful for files without extensions or with unknown extensions. The extension will be used to determine the file type for processing. Examples: --default-extension md, --default-extension html
 
-      --default-host-concurrency <DEFAULT_HOST_CONCURRENCY>
+      --host-concurrency <HOST_CONCURRENCY>
           Default maximum concurrent requests per host (default: 10)
 
           This limits how many requests can be sent simultaneously to the same host (domain/subdomain). This helps prevent overwhelming servers and getting rate-limited. Each host is handled independently.
 
           Examples:
-          • --default-host-concurrency 5   # Conservative for slow APIs
-          • --default-host-concurrency 20  # Aggressive for fast APIs
+          • --host-concurrency 5   # Conservative for slow APIs
+          • --host-concurrency 20  # Aggressive for fast APIs
 
-      --default-request-interval <DEFAULT_REQUEST_INTERVAL>
+      --request-interval <REQUEST_INTERVAL>
           Minimum interval between requests to the same host (default: 100ms)
 
           Sets a baseline delay between consecutive requests to prevent hammering servers. The adaptive algorithm may increase this based on server responses (rate limits, errors).
 
           Examples:
-          • --default-request-interval 50ms   # Fast for robust APIs
-          • --default-request-interval 1s     # Conservative for rate-limited APIs
+          • --request-interval 50ms   # Fast for robust APIs
+          • --request-interval 1s     # Conservative for rate-limited APIs
 
       --dump
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
