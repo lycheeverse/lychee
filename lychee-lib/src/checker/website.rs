@@ -74,11 +74,9 @@ impl WebsiteChecker {
     /// if host-based rate limiting is not enabled.
     #[must_use]
     pub(crate) fn host_stats(&self) -> HashMap<String, crate::ratelimit::HostStats> {
-        if let Some(host_pool) = &self.host_pool {
-            host_pool.all_host_stats()
-        } else {
-            HashMap::default()
-        }
+        self.host_pool
+            .as_ref()
+            .map_or_else(HashMap::default, HostPool::all_host_stats)
     }
 
     /// Get cache statistics for all hosts
@@ -87,11 +85,9 @@ impl WebsiteChecker {
     /// if host-based rate limiting is not enabled.
     #[must_use]
     pub(crate) fn cache_stats(&self) -> HashMap<String, (usize, f64)> {
-        if let Some(host_pool) = &self.host_pool {
-            host_pool.cache_stats()
-        } else {
-            HashMap::default()
-        }
+        self.host_pool
+            .as_ref()
+            .map_or_else(HashMap::default, HostPool::cache_stats)
     }
 
     /// Record a cache hit for the given URI in the host statistics
