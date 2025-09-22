@@ -538,11 +538,11 @@ with a status code of 429, 500 and 501."
     /// getting rate-limited. Each host is handled independently.
     ///
     /// Examples:
-    ///   --default-host-concurrency 5   # Conservative for slow APIs
-    ///   --default-host-concurrency 20  # Aggressive for fast APIs
-    #[arg(long)]
+    ///   --host-concurrency 5   # Conservative for slow APIs
+    ///   --host-concurrency 20  # Aggressive for fast APIs
+    #[arg(long = "host-concurrency")]
     #[serde(default)]
-    pub(crate) default_host_concurrency: Option<usize>,
+    pub(crate) host_concurrency: Option<usize>,
 
     /// Minimum interval between requests to the same host (default: 100ms)
     ///
@@ -551,11 +551,11 @@ with a status code of 429, 500 and 501."
     /// on server responses (rate limits, errors).
     ///
     /// Examples:
-    ///   --default-request-interval 50ms   # Fast for robust APIs\
-    ///   --default-request-interval 1s     # Conservative for rate-limited APIs
-    #[arg(long, value_parser = humantime::parse_duration)]
+    ///   --request-interval 50ms   # Fast for robust APIs
+    ///   --request-interval 1s     # Conservative for rate-limited APIs
+    #[arg(long = "request-interval", value_parser = humantime::parse_duration)]
     #[serde(default)]
-    pub(crate) default_request_interval: Option<Duration>,
+    pub(crate) request_interval: Option<Duration>,
 
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
@@ -946,8 +946,8 @@ impl Config {
                 cache_exclude_status: StatusCodeExcluder::default(),
                 cookie_jar: None,
                 default_extension: None,
-                default_host_concurrency: None,
-                default_request_interval: None,
+                host_concurrency: None,
+                request_interval: None,
                 dump: false,
                 dump_inputs: false,
                 exclude: Vec::<String>::new(),

@@ -42,7 +42,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
 
     // Create HostPool for rate limiting - always enabled for HTTP requests
     let rate_limit_config =
-        RateLimitConfig::from_options(cfg.default_host_concurrency, cfg.default_request_interval);
+        RateLimitConfig::from_options(cfg.host_concurrency, cfg.request_interval);
     let cache_max_age = if cfg.cache { 3600 } else { 0 }; // 1 hour if caching enabled, disabled otherwise
     let host_pool = if let Some(cookie_jar) = cookie_jar {
         HostPool::with_cookie_jar(
