@@ -423,25 +423,12 @@ Options:
       --default-extension <EXTENSION>
           This is the default file extension that is applied to files without an extension.
 
-          This is useful for files without extensions or with unknown extensions. The extension will be used to determine the file type for processing. Examples: --default-extension md, --default-extension html
-
-      --host-concurrency <HOST_CONCURRENCY>
-          Default maximum concurrent requests per host (default: 10)
-
-          This limits how many requests can be sent simultaneously to the same host (domain/subdomain). This helps prevent overwhelming servers and getting rate-limited. Each host is handled independently.
+          This is useful for files without extensions or with unknown extensions.
+          The extension will be used to determine the file type for processing.
 
           Examples:
-          • --host-concurrency 5   # Conservative for slow APIs
-          • --host-concurrency 20  # Aggressive for fast APIs
-
-      --request-interval <REQUEST_INTERVAL>
-          Minimum interval between requests to the same host (default: 100ms)
-
-          Sets a baseline delay between consecutive requests to prevent hammering servers. The adaptive algorithm may increase this based on server responses (rate limits, errors).
-
-          Examples:
-          • --request-interval 50ms   # Fast for robust APIs
-          • --request-interval 1s     # Conservative for rate-limited APIs
+            --default-extension md
+            --default-extension html
 
       --dump
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
@@ -540,6 +527,17 @@ Options:
 
       --hidden
           Do not skip hidden directories and files
+
+      --host-concurrency <HOST_CONCURRENCY>
+          Default maximum concurrent requests per host (default: 10)
+
+          This limits how many requests can be sent simultaneously to the same
+          host (domain/subdomain). This helps prevent overwhelming servers and
+          getting rate-limited. Each host is handled independently.
+
+          Examples:
+            --host-concurrency 5   # Conservative for slow APIs
+            --host-concurrency 20  # Aggressive for fast APIs
 
       --host-stats
           Show per-host statistics at the end of the run
@@ -664,6 +662,17 @@ Options:
 
       --remap <REMAP>
           Remap URI matching pattern to different URI
+
+      --request-interval <REQUEST_INTERVAL>
+          Minimum interval between requests to the same host (default: 100ms)
+
+          Sets a baseline delay between consecutive requests to prevent
+          hammering servers. The adaptive algorithm may increase this based
+          on server responses (rate limits, errors).
+
+          Examples:
+            --request-interval 50ms   # Fast for robust APIs
+            --request-interval 1s     # Conservative for rate-limited APIs
 
       --require-https
           When HTTPS is available, treat HTTP links as errors
