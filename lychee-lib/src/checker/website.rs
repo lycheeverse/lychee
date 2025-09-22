@@ -11,7 +11,11 @@ use async_trait::async_trait;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
 use reqwest::{Request, Response, header::CONTENT_TYPE};
-use std::{collections::HashSet, path::Path, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+    time::Duration,
+};
 use url::Url;
 
 #[derive(Debug, Clone)]
@@ -69,13 +73,11 @@ impl WebsiteChecker {
     /// Returns a map of hostnames to their statistics, or an empty map
     /// if host-based rate limiting is not enabled.
     #[must_use]
-    pub(crate) fn host_stats(
-        &self,
-    ) -> std::collections::HashMap<String, crate::ratelimit::HostStats> {
+    pub(crate) fn host_stats(&self) -> HashMap<String, crate::ratelimit::HostStats> {
         if let Some(host_pool) = &self.host_pool {
             host_pool.all_host_stats()
         } else {
-            std::collections::HashMap::new()
+            HashMap::default()
         }
     }
 
@@ -84,11 +86,11 @@ impl WebsiteChecker {
     /// Returns a map of hostnames to (`cache_size`, `hit_rate`), or an empty map
     /// if host-based rate limiting is not enabled.
     #[must_use]
-    pub(crate) fn cache_stats(&self) -> std::collections::HashMap<String, (usize, f64)> {
+    pub(crate) fn cache_stats(&self) -> HashMap<String, (usize, f64)> {
         if let Some(host_pool) = &self.host_pool {
             host_pool.cache_stats()
         } else {
-            std::collections::HashMap::new()
+            HashMap::default()
         }
     }
 
