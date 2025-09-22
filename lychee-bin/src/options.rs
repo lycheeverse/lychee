@@ -960,6 +960,11 @@ impl Config {
             self.github_token = toml.github_token;
         }
 
+        // Hosts configuration is only available in TOML for now (not in the CLI)
+        // That's because it's a bit complex to specify on the command line and
+        // we didn't come up with a good syntax for it yet.
+        self.hosts = toml.hosts;
+
         // NOTE: if you see an error within this macro call, check to make sure that
         // that the fields provided to fold_in! match all the fields of the Config struct.
         fold_in! {
