@@ -8,19 +8,19 @@ use std::time::Duration;
 pub struct RateLimitConfig {
     /// Default maximum concurrent requests per host
     #[serde(default = "default_host_concurrency")]
-    pub default_host_concurrency: usize,
+    pub host_concurrency: usize,
 
     /// Default minimum interval between requests to the same host
     #[serde(default = "default_request_interval")]
     #[serde(with = "humantime_serde")]
-    pub default_request_interval: Duration,
+    pub request_interval: Duration,
 }
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
-            default_host_concurrency: default_host_concurrency(),
-            default_request_interval: default_request_interval(),
+            host_concurrency: default_host_concurrency(),
+            request_interval: default_request_interval(),
         }
     }
 }
@@ -29,12 +29,12 @@ impl RateLimitConfig {
     /// Create a `RateLimitConfig` from CLI options, using defaults for missing values
     #[must_use]
     pub fn from_options(
-        default_host_concurrency: Option<usize>,
-        default_request_interval: Option<Duration>,
+        host_concurrency: Option<usize>,
+        request_interval: Option<Duration>,
     ) -> Self {
         Self {
-            default_host_concurrency: default_host_concurrency.unwrap_or(DEFAULT_HOST_CONCURRENCY),
-            default_request_interval: default_request_interval.unwrap_or(DEFAULT_REQUEST_INTERVAL),
+            host_concurrency: host_concurrency.unwrap_or(DEFAULT_HOST_CONCURRENCY),
+            request_interval: request_interval.unwrap_or(DEFAULT_REQUEST_INTERVAL),
         }
     }
 }
@@ -71,14 +71,14 @@ impl HostConfig {
     #[must_use]
     pub fn effective_max_concurrent(&self, global_config: &RateLimitConfig) -> usize {
         self.max_concurrent
-            .unwrap_or(global_config.default_host_concurrency)
+            .unwrap_or(global_config.host_concurrency)
     }
 
     /// Get the effective request interval, falling back to the global default
     #[must_use]
     pub fn effective_request_interval(&self, global_config: &RateLimitConfig) -> Duration {
         self.request_interval
-            .unwrap_or(global_config.default_request_interval)
+            .unwrap_or(global_config.request_interval)
     }
 }
 
@@ -137,8 +137,8 @@ mod tests {
     #[test]
     fn test_default_rate_limit_config() {
         let config = RateLimitConfig::default();
-        assert_eq!(config.default_host_concurrency, 10);
-        assert_eq!(config.default_request_interval, Duration::from_millis(100));
+        assert_eq!(config.host_concurrency, 10);
+        assert_eq!(config.request_interval, Duration::from_millis(100));
     }
 
     #[test]
@@ -169,21 +169,15 @@ mod tests {
     #[test]
     fn test_config_serialization() {
         let config = RateLimitConfig {
-            default_host_concurrency: 15,
-            default_request_interval: Duration::from_millis(200),
+            host_concurrency: 15,
+            request_interval: Duration::from_millis(200),
         };
 
         let toml = toml::to_string(&config).unwrap();
         let deserialized: RateLimitConfig = toml::from_str(&toml).unwrap();
 
-        assert_eq!(
-            config.default_host_concurrency,
-            deserialized.default_host_concurrency
-        );
-        assert_eq!(
-            config.default_request_interval,
-            deserialized.default_request_interval
-        );
+        assert_eq!(config.host_concurrency, deserialized.host_concurrency);
+        assert_eq!(config.request_interval, deserialized.request_interval);
     }
 
     #[test]
