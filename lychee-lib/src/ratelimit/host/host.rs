@@ -108,7 +108,6 @@ impl Host {
         timeout: Option<Duration>,
         allow_insecure: bool,
     ) -> Result<Self, RateLimitError> {
-        // Configure rate limiter with effective request interval
         let interval = host_config.effective_request_interval(global_config);
         let quota = Quota::with_period(interval)
             .ok_or_else(|| RateLimitError::HeaderParseError {
