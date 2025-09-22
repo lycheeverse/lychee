@@ -153,7 +153,7 @@ impl HostPool {
     ///
     /// Returns a `RateLimitError` if:
     /// - The request URL has no valid hostname
-    /// - Global or host-specific rate limits are exceeded  
+    /// - Global or host-specific rate limits are exceeded
     /// - The underlying HTTP request fails
     ///
     /// # Examples
@@ -380,7 +380,7 @@ impl HostPool {
     ///
     /// This tracks that a request was served from the persistent disk cache
     /// rather than going through the rate-limited HTTP request flow.
-    /// This method will create a Host instance if one doesn't exist yet.
+    /// This method will create a [Host] instance if one doesn't exist yet.
     ///
     /// # Errors
     ///
@@ -397,7 +397,7 @@ impl HostPool {
         Ok(())
     }
 
-    /// Record a cache miss for the given URI in host statistics  
+    /// Record a cache miss for the given URI in host statistics
     ///
     /// This tracks that a request could not be served from the persistent disk cache
     /// and will need to go through the rate-limited HTTP request flow.
