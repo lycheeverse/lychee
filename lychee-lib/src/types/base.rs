@@ -71,7 +71,7 @@ impl TryFrom<&str> for Base {
         } else {
             Err(ErrorKind::InvalidBase(
                 value.to_string(),
-                vec![
+                [
                     "Base must either be a URL (with scheme) or an absolute path.",
                     "Alternatively, if you want to resolve root-relative links in",
                     "local files, see `--root-dir`.",
@@ -122,13 +122,12 @@ mod test_base {
     }
 
     #[test]
-    fn test_invalid_local_path_string_as_base() -> Result<()> {
+    fn test_invalid_local_path_string_as_base() -> () {
         let cases = vec!["a", "tmp/lychee/", "example.com", "../nonlocal"];
 
         for case in cases {
-            assert!(Base::try_from(case).is_err())
+            assert!(Base::try_from(case).is_err());
         }
-        Ok(())
     }
 
     #[test]
