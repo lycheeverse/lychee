@@ -122,7 +122,7 @@ mod test_base {
     }
 
     #[test]
-    fn test_invalid_local_path_string_as_base() -> () {
+    fn test_invalid_local_path_string_as_base() {
         let cases = vec!["a", "tmp/lychee/", "example.com", "../nonlocal"];
 
         for case in cases {
