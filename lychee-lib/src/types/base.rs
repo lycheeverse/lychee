@@ -61,7 +61,24 @@ impl TryFrom<&str> for Base {
             }
             return Ok(Self::Remote(url));
         }
-        Ok(Self::Local(PathBuf::from(value)))
+
+        // require absolute paths in `Base::Local`. a local non-relative base is
+        // basically useless because it cannot be used to join URLs and will
+        // cause InvalidBaseJoin.
+        let path = PathBuf::from(value);
+        if path.is_absolute() {
+            Ok(Self::Local(path))
+        } else {
+            Err(ErrorKind::InvalidBase(
+                value.to_string(),
+                vec![
+                    "Base must either be a URL (with scheme) or an absolute path.",
+                    "Alternatively, if you want to resolve root-relative links in",
+                    "local files, see `--root-dir`.",
+                ]
+                .join(" "),
+            ))
+        }
     }
 }
 
@@ -96,10 +113,20 @@ mod test_base {
 
     #[test]
     fn test_valid_local_path_string_as_base() -> Result<()> {
-        let cases = vec!["/tmp/lychee", "/tmp/lychee/", "tmp/lychee/"];
+        let cases = vec!["/tmp/lychee", "/tmp/lychee/"];
 
         for case in cases {
             assert_eq!(Base::try_from(case)?, Base::Local(PathBuf::from(case)));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_invalid_local_path_string_as_base() -> Result<()> {
+        let cases = vec!["a", "tmp/lychee/", "example.com", "../nonlocal"];
+
+        for case in cases {
+            assert!(Base::try_from(case).is_err())
         }
         Ok(())
     }
