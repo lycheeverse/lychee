@@ -30,7 +30,7 @@ fn create_request(
     extractor: Option<&BasicAuthExtractor>,
 ) -> Result<Request> {
     let uri = try_parse_into_uri(raw_uri, source, root_dir, base)?;
-    let source = truncate_source(source);
+    let source = source.clone();
     let element = raw_uri.element.clone();
     let attribute = raw_uri.attribute.clone();
     let credentials = extract_credentials(extractor, &uri);
@@ -110,22 +110,6 @@ fn create_uri_from_file_path(
     Ok(Uri {
         url: constructed_url,
     })
-}
-
-/// Truncate the source in case it gets too long
-///
-/// This is only needed for string inputs.
-/// For other inputs, the source is simply a "label" (an enum variant).
-// TODO: This would not be necessary if we used `Cow` for the source.
-fn truncate_source(source: &ResolvedInputSource) -> ResolvedInputSource {
-    const MAX_TRUNCATED_STR_LEN: usize = 100;
-
-    match source {
-        ResolvedInputSource::String(s) => {
-            ResolvedInputSource::String(s.chars().take(MAX_TRUNCATED_STR_LEN).collect())
-        }
-        other => other.clone(),
-    }
 }
 
 /// Create requests out of the collected URLs.
