@@ -317,7 +317,7 @@ impl HeaderMapExt for HeaderMap {
 ///
 /// lychee is powered by lychee-lib, the Rust library to for link checking.
 #[derive(Parser, Debug)]
-#[command(version, about)]
+#[command(version, about, next_display_order = None)]
 pub(crate) struct LycheeOptions {
     /// Inputs for link checking (where to get links to check from).
     #[arg(

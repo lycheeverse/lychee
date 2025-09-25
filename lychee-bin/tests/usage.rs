@@ -81,23 +81,28 @@ mod readme {
         let help_cmd = cmd.env_clear().arg("--help").assert().success();
         let help_text = std::str::from_utf8(&help_cmd.get_output().stdout)?;
 
-        let regex = Regex::new(r"^\s*(-[a-zA-Z],)?\s*--(?<arg>[a-zA-Z-]*)").unwrap();
+        let regex = Regex::new(r"^\s{2,6}(-(?<short>[a-zA-Z]),)? --(?<long>[a-zA-Z-]*)").unwrap();
 
         let arguments: Vec<&str> = help_text
             .lines()
             .filter_map(|line| {
                 let captures = regex.captures(line)?;
-                Some(captures.name("arg").unwrap().as_str())
+                Some(
+                    // Short flags (-a) take precedence over the long flags (--a)
+                    captures
+                        .name("short")
+                        .unwrap_or_else(|| captures.name("long").unwrap())
+                        .as_str(),
+                )
             })
             .collect();
 
         let mut sorted = arguments.clone();
-        sorted.sort();
+        sorted.sort_by(|l, r| l.to_lowercase().cmp(&r.to_lowercase()));
 
         assert_eq!(
             arguments, sorted,
-            "Arguments are not sorted alphabetically: {:?}",
-            arguments
+            "Arguments are not sorted alphabetically: {arguments:?}",
         );
 
         Ok(())
