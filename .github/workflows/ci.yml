@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Run cargo fmt (check if all code is rustfmt-ed)
         uses: actions-rs/cargo@v1
