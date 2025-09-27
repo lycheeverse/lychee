@@ -96,6 +96,16 @@ pub(crate) enum StatsFormat {
     Raw,
 }
 
+/// What to generate with the --generate flag
+#[derive(Debug, Deserialize, Clone, Display, EnumIter, VariantNames, PartialEq)]
+#[non_exhaustive]
+#[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum GenerateMode {
+    /// Generate roff used for the man page
+    Man,
+}
+
 impl FromStr for StatsFormat {
     type Err = Error;
 
@@ -808,6 +818,10 @@ followed by the absolute link's own path."
     #[serde(default)]
     pub(crate) format: StatsFormat,
 
+    #[arg(long, value_parser = PossibleValuesParser::new(GenerateMode::VARIANTS).map(|s| s.parse::<GenerateMode>().unwrap()))]
+    #[serde(default)]
+    pub(crate) generate: Option<GenerateMode>,
+
     /// When HTTPS is available, treat HTTP links as errors
     #[arg(long)]
     #[serde(default)]
@@ -896,6 +910,7 @@ impl Config {
                 extensions: FileType::default_extensions(),
                 fallback_extensions: Vec::<String>::new(),
                 format: StatsFormat::default(),
+                generate: None,
                 glob_ignore_case: false,
                 hidden: false,
                 include: Vec::<String>::new(),

@@ -271,6 +271,10 @@ fn run_main() -> Result<i32> {
         }
     };
 
+    if let Some(mode) = opts.config.generate {
+        todo!("{mode}")
+    }
+
     let runtime = match opts.config.threads {
         Some(threads) => {
             // We define our own runtime instead of the `tokio::main` attribute
