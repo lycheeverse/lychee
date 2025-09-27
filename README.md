@@ -328,7 +328,7 @@ See below for a full list.
 ```text
 A fast, async link checker
 
-Finds broken URLs and mail addresses inside Markdown, HTML, `reStructuredText`, websites and more!
+Finds broken URLs and mail addresses inside Markdown, HTML, reStructuredText, websites and more!
 
 Usage: lychee [OPTIONS] [inputs]...
 
@@ -410,8 +410,6 @@ Options:
           Use "lychee --cache-exclude-status '429, 500..502' <inputs>..." to provide a
           comma-separated list of excluded status codes. This example will not cache results
           with a status code of 429, 500 and 501.
-
-          [default: ]
 
       --dump
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked

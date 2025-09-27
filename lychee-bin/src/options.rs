@@ -96,6 +96,16 @@ pub(crate) enum StatsFormat {
     Raw,
 }
 
+/// What to generate with the --generate flag
+#[derive(Debug, Deserialize, Clone, Display, EnumIter, VariantNames, PartialEq)]
+#[non_exhaustive]
+#[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum GenerateMode {
+    /// Generate roff used for the man page
+    Man,
+}
+
 impl FromStr for StatsFormat {
     type Err = Error;
 
@@ -193,7 +203,6 @@ default_function! {
     retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
     verbosity: Verbosity = Verbosity::default();
-    cache_exclude_selector: StatusCodeExcluder = StatusCodeExcluder::new();
     accept_selector: StatusCodeSelector = StatusCodeSelector::default();
 }
 
@@ -312,12 +321,13 @@ impl HeaderMapExt for HeaderMap {
     }
 }
 
-/// A fast, async link checker
+/// lychee is a tool to detect broken URLs and mail addresses in
+/// local files and websites. It supports Markdown and HTML explicitly
+/// and works well with many plain text file formats.
 ///
-/// Finds broken URLs and mail addresses inside Markdown, HTML,
-/// `reStructuredText`, websites and more!
+/// lychee is powered by lychee-lib, the Rust library to for link checking.
 #[derive(Parser, Debug)]
-#[command(version, about)]
+#[command(version, about, next_display_order = None)]
 pub(crate) struct LycheeOptions {
     /// Inputs for link checking (where to get links to check from).
     #[arg(
@@ -462,7 +472,6 @@ specify both extensions explicitly."
     /// A list of status codes that will be excluded from the cache
     #[arg(
         long,
-        default_value_t,
         long_help = "A list of status codes that will be ignored from the cache
 
 The following exclude range syntax is supported: [start]..[[=]end]|code. Some valid
@@ -478,8 +487,7 @@ Use \"lychee --cache-exclude-status '429, 500..502' <inputs>...\" to provide a
 comma-separated list of excluded status codes. This example will not cache results
 with a status code of 429, 500 and 501."
     )]
-    #[serde(default = "cache_exclude_selector")]
-    pub(crate) cache_exclude_status: StatusCodeExcluder,
+    pub(crate) cache_exclude_status: Option<StatusCodeExcluder>,
 
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
@@ -826,6 +834,10 @@ followed by the absolute link's own path."
     #[serde(default)]
     pub(crate) format: StatsFormat,
 
+    #[arg(long, value_parser = PossibleValuesParser::new(GenerateMode::VARIANTS).map(|s| s.parse::<GenerateMode>().unwrap()))]
+    #[serde(default)]
+    pub(crate) generate: Option<GenerateMode>,
+
     /// When HTTPS is available, treat HTTP links as errors
     #[arg(long)]
     #[serde(default)]
@@ -900,7 +912,7 @@ impl Config {
                 base_url: None,
                 basic_auth: None,
                 cache: false,
-                cache_exclude_status: StatusCodeExcluder::default(),
+                cache_exclude_status: None,
                 cookie_jar: None,
                 default_extension: None,
                 dump: false,
@@ -915,6 +927,7 @@ impl Config {
                 extensions: FileType::default_extensions(),
                 fallback_extensions: Vec::<String>::new(),
                 format: StatsFormat::default(),
+                generate: None,
                 glob_ignore_case: false,
                 hidden: false,
                 include: Vec::<String>::new(),
@@ -955,6 +968,8 @@ impl Config {
 mod tests {
     use std::collections::HashMap;
 
+    use clap::CommandFactory;
+
     use super::*;
 
     #[test]
@@ -982,7 +997,6 @@ mod tests {
             cli.accept,
             StatusCodeSelector::from_str("100..=103,200..=299").expect("no error")
         );
-        assert_eq!(cli.cache_exclude_status, StatusCodeExcluder::new());
     }
 
     #[test]
@@ -1084,5 +1098,26 @@ mod tests {
                 ("X-Test".to_string(), "check=this".to_string()),
             ]
         );
+    }
+
+    #[test]
+    fn man_pages() -> std::io::Result<()> {
+        let out_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        // let out_dir = std::path::PathBuf::from(
+        //     std::env::var_os("OUT_DIR").ok_or(std::io::ErrorKind::NotFound)?,
+        // );
+
+        let date = chrono::offset::Local::now().format("%Y-%m-%d");
+        let man = clap_mangen::Man::new(LycheeOptions::command()).date(format!("{date}"));
+
+        let mut buffer: Vec<u8> = Vec::default();
+        man.render(&mut buffer)?;
+
+        std::fs::write(out_dir.join("lychee.1"), buffer)?;
+
+        Ok(())
     }
 }

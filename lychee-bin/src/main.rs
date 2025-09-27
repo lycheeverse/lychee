@@ -1,6 +1,6 @@
 //! `lychee` is a fast, asynchronous, resource-friendly link checker.
 //! It is able to find broken hyperlinks and mail addresses inside Markdown,
-//! HTML, `reStructuredText`, and any other format.
+//! HTML, reStructuredText, and any other format.
 //!
 //! The lychee binary is a wrapper around lychee-lib, which provides
 //! convenience functions for calling lychee from the command-line.
@@ -248,7 +248,7 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
     let cache = Cache::load(
         LYCHEE_CACHE_FILE,
         cfg.max_cache_age.as_secs(),
-        &cfg.cache_exclude_status,
+        &cfg.cache_exclude_status.clone().unwrap_or_default(),
     );
     match cache {
         Ok(cache) => Some(cache),
@@ -270,6 +270,10 @@ fn run_main() -> Result<i32> {
             exit(ExitCode::ConfigFile as i32);
         }
     };
+
+    if let Some(mode) = opts.config.generate {
+        todo!("{mode}")
+    }
 
     let runtime = match opts.config.threads {
         Some(threads) => {
