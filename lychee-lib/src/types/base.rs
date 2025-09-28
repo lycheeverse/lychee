@@ -73,8 +73,8 @@ impl TryFrom<&str> for Base {
                 value.to_string(),
                 [
                     "Base must either be a URL (with scheme) or an absolute path.",
-                    "Alternatively, if you want to resolve root-relative links in",
-                    "local files, see `--root-dir`.",
+                    "See `--help` for more information. If you want to resolve",
+                    "root-relative links in local files, also see `--root-dir`.",
                 ]
                 .join(" "),
             ))
