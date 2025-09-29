@@ -581,7 +581,7 @@ Options:
   -b, --base-url <BASE_URL>
           Base URL to use when resolving relative URLs in local files. If specified,
           relative links in local files are interpreted as being relative to the given
-          base URL.
+          base URL. A base URL must either be a URL (with scheme) or an absolute path.
 
           For example, given a base URL of `https://example.com/dir/page`, the link `a`
           would resolve to `https://example.com/dir/a` and the link `/b` would resolve
