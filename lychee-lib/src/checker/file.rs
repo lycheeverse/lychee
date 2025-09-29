@@ -242,7 +242,7 @@ impl FileChecker {
                 let path = dir_path.join(filename);
                 exists(&path).then_some(path)
             })
-            .ok_or_else(|| ErrorKind::InvalidIndexFile(dir_path.to_path_buf()))
+            .ok_or_else(|| ErrorKind::InvalidIndexFile(index_names_to_try.to_vec()))
     }
 
     /// Checks a resolved file, optionally verifying fragments for HTML files.
