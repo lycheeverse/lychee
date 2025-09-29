@@ -2546,12 +2546,12 @@ mod cli {
     fn test_index_files_specified() {
         let input = fixtures_path().join("filechecker/dir_links.md");
 
-        // passing `--index-files index.html` should reject all links
+        // passing `--index-files index.html,index.htm` should reject all links
         // to /empty_dir because it doesn't have the index file
         let result = main_command()
-            .arg(input)
+            .arg(&input)
             .arg("--index-files")
-            .arg("index.html")
+            .arg("index.html,index.htm")
             .arg("--verbose")
             .assert()
             .failure();
@@ -2561,7 +2561,18 @@ mod cli {
         result
             .stdout(contains("Cannot find index file").count(empty_dir_links))
             .stdout(contains("/empty_dir").count(empty_dir_links))
+            .stdout(contains("(index.html, or index.htm)").count(empty_dir_links))
             .stdout(contains(format!("{index_dir_links} OK")));
+
+        // within the error message, formatting of the index file name list should
+        // omit empty names.
+        main_command()
+            .arg(&input)
+            .arg("--index-files")
+            .arg(",index.html,,,index.htm,")
+            .assert()
+            .failure()
+            .stdout(contains("(index.html, or index.htm)").count(empty_dir_links));
     }
 
     #[test]
@@ -2601,7 +2612,7 @@ mod cli {
         // passing an empty list to --index-files should reject /all/
         // directory links.
         let result = main_command()
-            .arg(input)
+            .arg(&input)
             .arg("--index-files")
             .arg("")
             .assert()
@@ -2610,6 +2621,17 @@ mod cli {
         let num_dir_links = 4;
         result
             .stdout(contains("Cannot find index file").count(num_dir_links))
+            .stdout(contains("No directory links are allowed").count(num_dir_links))
+            .stdout(contains("0 OK"));
+
+        // ... as should passing a number of empty index file names
+        main_command()
+            .arg(&input)
+            .arg("--index-files")
+            .arg(",,,,,")
+            .assert()
+            .failure()
+            .stdout(contains("No directory links are allowed").count(num_dir_links))
             .stdout(contains("0 OK"));
     }
 
