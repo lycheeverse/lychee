@@ -229,9 +229,18 @@ impl FileChecker {
             None => &[".".to_owned()],
         };
 
+        let invalid_index_error = || {
+            // Drop empty index file names. These will never be accepted as valid
+            // index files, and doing this makes cleaner error reporting.
+            let mut names = index_names_to_try.to_vec();
+            names.retain(|x| !x.is_empty());
+
+            ErrorKind::InvalidIndexFile(names)
+        };
+
         index_names_to_try
             .iter()
-            .find_map(|filename| {
+            .find_map(|ref filename| {
                 // for some special index file names, we accept directories as well
                 // as files.
                 let exists = match filename.as_str() {
@@ -242,7 +251,7 @@ impl FileChecker {
                 let path = dir_path.join(filename);
                 exists(&path).then_some(path)
             })
-            .ok_or_else(|| ErrorKind::InvalidIndexFile(index_names_to_try.to_vec()))
+            .ok_or_else(invalid_index_error)
     }
 
     /// Checks a resolved file, optionally verifying fragments for HTML files.

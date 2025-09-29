@@ -28,13 +28,6 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
 
     let headers = HeaderMap::from_header_pairs(&cfg.header)?;
 
-    // Drop empty index file names. These will never be accepted as valid
-    // index files, and doing this makes cleaner error reporting.
-    let index_files = cfg.index_files.clone().map(|mut names| {
-        names.retain(|x| !x.is_empty());
-        names
-    });
-
     ClientBuilder::builder()
         .remaps(remaps)
         .base(cfg.base_url.clone())
@@ -61,7 +54,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .min_tls_version(cfg.min_tls.clone().map(Into::into))
         .include_fragments(cfg.include_fragments)
         .fallback_extensions(cfg.fallback_extensions.clone())
-        .index_files(index_files)
+        .index_files(cfg.index_files.clone())
         .build()
         .client()
         .context("Failed to create request client")
