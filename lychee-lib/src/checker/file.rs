@@ -240,7 +240,7 @@ impl FileChecker {
 
         index_names_to_try
             .iter()
-            .find_map(|ref filename| {
+            .find_map(|filename| {
                 // for some special index file names, we accept directories as well
                 // as files.
                 let exists = match filename.as_str() {
