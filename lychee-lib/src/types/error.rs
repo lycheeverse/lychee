@@ -116,6 +116,10 @@ pub enum ErrorKind {
     #[error("Invalid file path: {0}")]
     InvalidFile(PathBuf),
 
+    /// The given input is neither a valid file path nor a valid URL
+    #[error("{0}")]
+    InvalidInput(String),
+
     /// Error while traversing an input directory
     #[error("Cannot traverse input directory: {0}")]
     DirTraversal(#[from] ignore::Error),
@@ -333,6 +337,7 @@ impl ErrorKind {
             ErrorKind::InvalidIndexFile(_path) => Some(
                 "Index file not found in directory. Check if index.html or other index files exist".to_string()
             ),
+            ErrorKind::InvalidInput(_) => None, // Error message is already in the error itself
         }
     }
 
@@ -400,6 +405,7 @@ impl PartialEq for ErrorKind {
             }
             (Self::Cookies(e1), Self::Cookies(e2)) => e1 == e2,
             (Self::InvalidFile(p1), Self::InvalidFile(p2)) => p1 == p2,
+            (Self::InvalidInput(s1), Self::InvalidInput(s2)) => s1 == s2,
             (Self::InvalidFilePath(u1), Self::InvalidFilePath(u2)) => u1 == u2,
             (Self::InvalidFragment(u1), Self::InvalidFragment(u2)) => u1 == u2,
             (Self::InvalidIndexFile(p1), Self::InvalidIndexFile(p2)) => p1 == p2,
@@ -436,6 +442,7 @@ impl Hash for ErrorKind {
             Self::InvalidGithubUrl(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
             Self::InvalidFile(e) => e.to_string_lossy().hash(state),
+            Self::InvalidInput(s) => s.hash(state),
             Self::EmptyUrl => "Empty URL".hash(state),
             Self::ParseUrl(e, s) => (e.to_string(), s).hash(state),
             Self::InvalidURI(u) => u.hash(state),
