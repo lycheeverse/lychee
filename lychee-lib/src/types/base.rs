@@ -56,7 +56,7 @@ impl TryFrom<&str> for Base {
             if url.cannot_be_a_base() {
                 return Err(ErrorKind::InvalidBase(
                     value.to_string(),
-                    "The given URL cannot be a base".to_string(),
+                    "The given URL cannot be used as a base URL".to_string(),
                 ));
             }
             return Ok(Self::Remote(url));
@@ -71,12 +71,7 @@ impl TryFrom<&str> for Base {
         } else {
             Err(ErrorKind::InvalidBase(
                 value.to_string(),
-                [
-                    "Base must either be a URL (with scheme) or an absolute path.",
-                    "See `--help` for more information. If you want to resolve",
-                    "root-relative links in local files, also see `--root-dir`.",
-                ]
-                .join(" "),
+                "Base must either be a URL (with scheme) or an absolute local path".to_string(),
             ))
         }
     }
