@@ -70,9 +70,9 @@ pub enum ErrorKind {
     #[error("Cannot find fragment")]
     InvalidFragment(Uri),
 
-    /// The given directory is missing a required index file
+    /// Cannot resolve local directory link using the configured index files
     #[error("Cannot find index file within directory")]
-    InvalidIndexFile(PathBuf),
+    InvalidIndexFile(Vec<String>),
 
     /// The given path cannot be converted to a URI
     #[error("Invalid path to URL conversion: {0}")]
@@ -330,9 +330,11 @@ impl ErrorKind {
             ErrorKind::StatusCodeSelectorError(status_code_selector_error) => Some(format!(
                 "Status code selector error: {status_code_selector_error}. Check accept configuration",
             )),
-            ErrorKind::InvalidIndexFile(_path) => Some(
-                "Index file not found in directory. Check if index.html or other index files exist".to_string()
-            ),
+            ErrorKind::InvalidIndexFile(index_files) => match &index_files[..] {
+                [] => "No directory links are allowed because index_files is defined and empty".to_string(),
+                [name] => format!("An index file ({name}) is required"),
+                [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
+            }.into()
         }
     }
 
