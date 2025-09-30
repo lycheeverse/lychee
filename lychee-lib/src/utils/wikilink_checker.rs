@@ -3,8 +3,8 @@ use log::info;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::Path;
+use std::sync::Mutex;
 use std::{path::PathBuf, sync::Arc};
-use tokio::sync::Mutex;
 use walkdir::WalkDir;
 
 #[derive(Clone, Debug, Default)]
@@ -22,9 +22,9 @@ impl WikilinkChecker {
         }
     }
 
-    pub(crate) async fn index_files(&self) {
+    pub(crate) fn index_files(&self) {
         //Skip the indexing step in case the filenames are already populated
-        if !self.filenames.lock().await.is_empty() {
+        if !self.filenames.lock().unwrap().is_empty() {
             return;
         }
         match self.basedir {
@@ -39,7 +39,7 @@ impl WikilinkChecker {
                         localbasename.display()
                     );
 
-                    let mut filenameslock = self.filenames.lock().await;
+                    let mut filenameslock = self.filenames.lock().unwrap();
                     for entry in WalkDir::new::<PathBuf>(localbasename.into())
                         //actively ignore symlinks
                         .follow_links(false)
@@ -58,11 +58,11 @@ impl WikilinkChecker {
         }
     }
 
-    pub(crate) async fn check(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
+    pub(crate) fn check(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
         match path.file_name() {
             None => Err(ErrorKind::InvalidFilePath(uri.clone())),
             Some(filename) => {
-                let filenamelock = self.filenames.lock().await;
+                let filenamelock = self.filenames.lock().unwrap();
                 if filenamelock.contains_key(&filename.to_ascii_lowercase()) {
                     Ok(filenamelock
                         .get(&filename.to_ascii_lowercase())

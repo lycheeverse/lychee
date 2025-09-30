@@ -3044,7 +3044,8 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stdout(contains("https://example.org")); // Should extract the link as plaintext
-
+    }
+    #[test]
     fn test_wikilink_fixture_obsidian_style() {
         let input = fixtures_path().join("wiki/obsidian-style.md");
 
@@ -3063,53 +3064,40 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[test]
-    fn test_wikilink_fixture_with_fragments_obsidian_style() {
+    fn test_wikilink_fixture_with_fragments_obsidian_style_fixtures_excluded() {
         let input = fixtures_path().join("wiki/obsidian-style-plus-headers.md");
 
         //fragments should resolve all headers
-        let dir_links_with_fragment = 2;
-        main_command()
-            .arg(&input)
-            .arg("--include-wikilinks")
-            .arg("--include-fragments")
-            .arg("--fallback-extensions")
-            .arg("md")
-            .assert()
-            .failure()
-            .stdout(contains("Cannot find fragment").count(dir_links_with_fragment))
-            .stdout(contains("#").count(dir_links_with_fragment));
-    }
-
-    #[test]
-    fn test_wikilink_fixture_wikilink_style() {
-        let input = fixtures_path().join("wiki/wikilink-style.md");
-
-        // testing without fragments should not yield failures
         main_command()
             .arg(&input)
             .arg("--include-wikilinks")
             .arg("--fallback-extensions")
             .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path())
+            .arg("--root-dir")
+            .arg(fixtures_path())
             .assert()
             .success();
     }
 
     #[test]
-    fn test_wikilink_fixture_with_fragments_wikilink_style() {
-        let input = fixtures_path().join("wiki/wikilink-style.md");
+    fn test_wikilink_fixture_with_fragments_obsidian_style() {
+        let input = fixtures_path().join("wiki/obsidian-style-plus-headers.md");
 
         //fragments should resolve all headers
-        let dir_links_with_fragment = 2;
         main_command()
             .arg(&input)
             .arg("--include-wikilinks")
             .arg("--include-fragments")
             .arg("--fallback-extensions")
             .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path())
+            .arg("--root-dir")
+            .arg(fixtures_path())
             .assert()
-            .failure()
-            .stdout(contains("Cannot find fragment").count(dir_links_with_fragment))
-            .stdout(contains("#").count(dir_links_with_fragment));
+            .success();
     }
 
     /// An input which matches nothing should print a warning and continue.

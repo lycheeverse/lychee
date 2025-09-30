@@ -83,7 +83,7 @@ impl FileChecker {
     pub(crate) async fn check(&self, uri: &Uri) -> Status {
         //only populate the wikilink filenames if it is enabled
         if self.include_wikilinks {
-            self.setup_wikilinks().await;
+            self.setup_wikilinks();
         }
         let Ok(path) = uri.url.to_file_path() else {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
@@ -150,7 +150,7 @@ impl FileChecker {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 match self.apply_fallback_extensions(path, uri).map(Cow::Owned) {
                     Ok(val) => Ok(val),
-                    Err(_) => self.apply_wikilink_check(path, uri).await.map(Cow::Owned),
+                    Err(_) => self.apply_wikilink_check(path, uri).map(Cow::Owned),
                 }
             }
 
@@ -331,16 +331,16 @@ impl FileChecker {
     }
 
     // Initializes the Index of the wikilink checker
-    async fn setup_wikilinks(&self) {
-        self.wikilink_checker.index_files().await;
+    fn setup_wikilinks(&self) {
+        self.wikilink_checker.index_files();
     }
     // Tries to resolve a link by looking up the filename in the wikilink index
     // The
-    async fn apply_wikilink_check(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
+    fn apply_wikilink_check(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
         let mut path_buf = path.to_path_buf();
         for ext in &self.fallback_extensions {
             path_buf.set_extension(ext);
-            match self.wikilink_checker.check(&path_buf, uri).await {
+            match self.wikilink_checker.check(&path_buf, uri) {
                 Err(_) => {}
                 Ok(resolved_path) => return Ok(resolved_path),
             }
