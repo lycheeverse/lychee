@@ -39,10 +39,7 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Run cargo fmt (check if all code is rustfmt-ed)
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all --check
       - name: Run cargo clippy (deny warnings)
         uses: actions-rs/cargo@v1
         with:
