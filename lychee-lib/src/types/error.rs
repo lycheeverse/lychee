@@ -170,6 +170,10 @@ pub enum ErrorKind {
     #[error("Status code range error")]
     StatusCodeSelectorError(#[from] StatusCodeSelectorError),
 
+    /// Rate limiting error
+    #[error("Rate limiting error: {0}")]
+    RateLimit(#[from] crate::ratelimit::RateLimitError),
+
     /// Test-only error variant for formatter tests
     /// Available in both test and debug builds to support cross-crate testing
     #[cfg(any(test, debug_assertions))]
@@ -333,6 +337,9 @@ impl ErrorKind {
             ErrorKind::InvalidIndexFile(_path) => Some(
                 "Index file not found in directory. Check if index.html or other index files exist".to_string()
             ),
+            ErrorKind::RateLimit(e) => Some(format!(
+                "Rate limiting error: {e}. Consider adjusting rate limiting configuration or waiting before retrying"
+            )),
         }
     }
 
@@ -468,6 +475,7 @@ impl Hash for ErrorKind {
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
             Self::Cookies(e) => e.to_string().hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
+            Self::RateLimit(e) => e.to_string().hash(state),
         }
     }
 }

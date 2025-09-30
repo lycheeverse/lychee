@@ -13,6 +13,7 @@ use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
     FileType, Input, StatusCodeExcluder, StatusCodeSelector, archive::Archive,
+    ratelimit::HostConfig,
 };
 use reqwest::tls;
 use secrecy::SecretString;
@@ -416,6 +417,11 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) no_progress: bool,
 
+    /// Show per-host statistics at the end of the run
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) host_stats: bool,
+
     /// A list of file extensions. Files not matching the specified extensions are skipped.
     ///
     /// E.g. a user can specify `--extensions html,htm,php,asp,aspx,jsp,cgi`
@@ -439,8 +445,11 @@ specify both extensions explicitly."
     ///
     /// This is useful for files without extensions or with unknown extensions.
     /// The extension will be used to determine the file type for processing.
-    /// Examples: --default-extension md, --default-extension html
-    #[arg(long, value_name = "EXTENSION")]
+    ///
+    /// Examples:
+    ///   --default-extension md
+    ///   --default-extension html
+    #[arg(long, value_name = "EXTENSION", verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) default_extension: Option<String>,
 
@@ -524,6 +533,32 @@ with a status code of 429, 500 and 501."
     #[arg(long, default_value = &MAX_CONCURRENCY_STR)]
     #[serde(default = "max_concurrency")]
     pub(crate) max_concurrency: usize,
+
+    /// Default maximum concurrent requests per host (default: 10)
+    ///
+    /// This limits how many requests can be sent simultaneously to the same
+    /// host (domain/subdomain). This helps prevent overwhelming servers and
+    /// getting rate-limited. Each host is handled independently.
+    ///
+    /// Examples:
+    ///   --host-concurrency 5   # Conservative for slow APIs
+    ///   --host-concurrency 20  # Aggressive for fast APIs
+    #[arg(long = "host-concurrency", verbatim_doc_comment)]
+    #[serde(default)]
+    pub(crate) host_concurrency: Option<usize>,
+
+    /// Minimum interval between requests to the same host (default: 100ms)
+    ///
+    /// Sets a baseline delay between consecutive requests to prevent
+    /// hammering servers. The adaptive algorithm may increase this based
+    /// on server responses (rate limits, errors).
+    ///
+    /// Examples:
+    ///   --request-interval 50ms   # Fast for robust APIs
+    ///   --request-interval 1s     # Conservative for rate-limited APIs
+    #[arg(long = "request-interval", value_parser = humantime::parse_duration, verbatim_doc_comment)]
+    #[serde(default)]
+    pub(crate) request_interval: Option<Duration>,
 
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
@@ -846,6 +881,11 @@ and existing cookies will be updated."
     #[arg(long)]
     #[serde(default)]
     pub(crate) include_wikilinks: bool,
+
+    /// Host-specific configurations from config file
+    #[arg(skip)]
+    #[serde(default)]
+    pub(crate) hosts: HashMap<String, HostConfig>,
 }
 
 impl Config {
@@ -882,6 +922,11 @@ impl Config {
             self.github_token = toml.github_token;
         }
 
+        // Hosts configuration is only available in TOML for now (not in the CLI)
+        // That's because it's a bit complex to specify on the command line and
+        // we didn't come up with a good syntax for it yet.
+        self.hosts = toml.hosts;
+
         // NOTE: if you see an error within this macro call, check to make sure that
         // that the fields provided to fold_in! match all the fields of the Config struct.
         fold_in! {
@@ -892,6 +937,7 @@ impl Config {
                 // Keys which are handled outside of fold_in
                 ..header,
                 ..github_token,
+                ..hosts,
 
                 // Keys with defaults to assign
                 accept: StatusCodeSelector::default(),
@@ -903,6 +949,8 @@ impl Config {
                 cache_exclude_status: StatusCodeExcluder::default(),
                 cookie_jar: None,
                 default_extension: None,
+                host_concurrency: None,
+                request_interval: None,
                 dump: false,
                 dump_inputs: false,
                 exclude: Vec::<String>::new(),
@@ -917,6 +965,7 @@ impl Config {
                 format: StatsFormat::default(),
                 glob_ignore_case: false,
                 hidden: false,
+                host_stats: false,
                 include: Vec::<String>::new(),
                 include_fragments: false,
                 include_mail: false,
