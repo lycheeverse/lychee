@@ -91,19 +91,29 @@ pub(crate) fn extract_markdown(
                         }
 
                         //Strip potholes (|) from wikilinks
-                        let stripped_dest_url = if has_pothole {
+                        let mut stripped_dest_url = if has_pothole {
                             pulldown_cmark::CowStr::Borrowed(&dest_url[0..dest_url.find('|').unwrap_or(dest_url.len())])
                         }else {
                             dest_url.clone()
                         };
 
-                        Some(vec![RawUri {
-                            text: stripped_dest_url.to_string(),
-                            element: Some("a".to_string()),
-                            attribute: Some("wikilink".to_string()),
+                        //Strip fragments (#) from wikilinks, according to the obsidian spec
+                        //fragments come before potholes
+                        if stripped_dest_url.contains('#') {
+                            stripped_dest_url = pulldown_cmark::CowStr::Borrowed(&dest_url[0..dest_url.find('#').unwrap_or(dest_url.len())]);
+                        }
+
+                        if stripped_dest_url.is_empty() {
+                            None
+                        } else {
+                            Some(vec![RawUri {
+                                text: stripped_dest_url.to_string(),
+                                element: Some("a".to_string()),
+                                attribute: Some("wikilink".to_string()),
                         // wiki links start with `[[`, so offset the span by `2`
                             span: span.start + 2
-                        }])
+                            }])
+                        }
                     }
                 }
             }
@@ -643,9 +653,34 @@ Shortcut link: [link4]
                 "Missing expected URI: {expected_uri:?}. Found: {uris:?}"
             );
         }
-
+    }
+    #[test]
     fn test_remove_wikilink_pothole() {
         let markdown = r"[[foo|bar]]";
+        let uris = extract_markdown(markdown, true, true);
+        let expected = vec![RawUri {
+            text: "foo".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("wikilink".to_string()),
+        }];
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_remove_wikilink_fragment() {
+        let markdown = r"[[foo#bar]]";
+        let uris = extract_markdown(markdown, true, true);
+        let expected = vec![RawUri {
+            text: "foo".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("wikilink".to_string()),
+        }];
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_remove_wikilink_potholes_and_fragments() {
+        let markdown = r"[[foo#bar|baz]]";
         let uris = extract_markdown(markdown, true, true);
         let expected = vec![RawUri {
             text: "foo".to_string(),
