@@ -581,7 +581,7 @@ Options:
   -b, --base-url <BASE_URL>
           Base URL to use when resolving relative URLs in local files. If specified,
           relative links in local files are interpreted as being relative to the given
-          base URL. A base URL must either be a URL (with scheme) or an absolute path.
+          base URL.
 
           For example, given a base URL of `https://example.com/dir/page`, the link `a`
           would resolve to `https://example.com/dir/a` and the link `/b` would resolve
@@ -595,6 +595,9 @@ Options:
 
           Basically, the base URL option resolves links as if the local files were hosted
           at the given base URL address.
+
+          The provided base URL value must either be a URL (with scheme) or an absolute path.
+          Note that certain URL schemes cannot be used as a base, e.g., `data` and `mailto`.
 
       --root-dir <ROOT_DIR>
           Root directory to use when checking absolute links in local files. This option is
