@@ -750,7 +750,10 @@ of the base URL. For example, a base URL of `https://example.com/dir/page/` and
 a link of `a` would resolve to `https://example.com/dir/page/a`.
 
 Basically, the base URL option resolves links as if the local files were hosted
-at the given base URL address."
+at the given base URL address.
+
+The provided base URL value must either be a URL (with scheme) or an absolute path.
+Note that certain URL schemes cannot be used as a base, e.g., `data` and `mailto`."
     )]
     #[serde(default)]
     pub(crate) base_url: Option<Base>,
