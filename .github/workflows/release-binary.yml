@@ -85,7 +85,10 @@ jobs:
           cd target/${{ matrix.target }}/release
           ${GNU_PREFIX}strip lychee
           chmod +x lychee
-          tar -c lychee | gzip > lychee.tar.gz
+          mkdir docs
+          cp ../../../{README.md, docs/TROUBLESHOOTING.md} docs
+          ./lychee --generate man > docs/lychee.1
+          tar -c lychee docs/ | gzip > lychee.tar.gz
 
       - name: Upload binary
         uses: actions/upload-release-asset@v1
