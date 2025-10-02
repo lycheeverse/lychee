@@ -98,7 +98,7 @@ mod readme {
             .collect();
 
         let mut sorted = arguments.clone();
-        sorted.sort_by(|l, r| l.to_lowercase().cmp(&r.to_lowercase()));
+        sorted.sort_by_key(|arg| arg.to_lowercase());
 
         assert_eq!(
             arguments, sorted,

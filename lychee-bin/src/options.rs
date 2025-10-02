@@ -1,4 +1,5 @@
 use crate::files_from::FilesFrom;
+use crate::generate::GenerateMode;
 use crate::parse::parse_base;
 use crate::verbosity::Verbosity;
 use anyhow::{Context, Error, Result, anyhow};
@@ -827,6 +828,9 @@ followed by the absolute link's own path."
     #[serde(default)]
     pub(crate) format: StatsFormat,
 
+    #[arg(long, value_parser = PossibleValuesParser::new(GenerateMode::VARIANTS).map(|s| s.parse::<GenerateMode>().unwrap()))]
+    pub(crate) generate: Option<GenerateMode>,
+
     /// When HTTPS is available, treat HTTP links as errors
     #[arg(long)]
     #[serde(default)]
@@ -916,6 +920,7 @@ impl Config {
                 extensions: FileType::default_extensions(),
                 fallback_extensions: Vec::<String>::new(),
                 format: StatsFormat::default(),
+                generate: None,
                 glob_ignore_case: false,
                 hidden: false,
                 include: Vec::<String>::new(),
@@ -955,8 +960,6 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-
-    use clap::CommandFactory;
 
     use super::*;
 
@@ -1086,26 +1089,5 @@ mod tests {
                 ("X-Test".to_string(), "check=this".to_string()),
             ]
         );
-    }
-
-    #[test]
-    fn man_pages() -> std::io::Result<()> {
-        let out_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .to_path_buf();
-        // let out_dir = std::path::PathBuf::from(
-        //     std::env::var_os("OUT_DIR").ok_or(std::io::ErrorKind::NotFound)?,
-        // );
-
-        let date = chrono::offset::Local::now().format("%Y-%m-%d");
-        let man = clap_mangen::Man::new(LycheeOptions::command()).date(format!("{date}"));
-
-        let mut buffer: Vec<u8> = Vec::default();
-        man.render(&mut buffer)?;
-
-        std::fs::write(out_dir.join("lychee.1"), buffer)?;
-
-        Ok(())
     }
 }
