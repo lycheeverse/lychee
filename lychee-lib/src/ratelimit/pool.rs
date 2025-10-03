@@ -109,32 +109,11 @@ impl HostPool {
         }
     }
 
-    /// Create a new `HostPool` with a shared cookie jar
+    /// Add a shared cookie jar to the `HostPool`
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
-    pub fn with_cookie_jar(
-        global_config: RateLimitConfig,
-        host_configs: HashMap<String, HostConfig>,
-        max_total_concurrency: usize,
-        cache_max_age: u64,
-        global_headers: HeaderMap,
-        max_redirects: usize,
-        timeout: Option<Duration>,
-        allow_insecure: bool,
-        cookie_jar: Arc<CookieStoreMutex>,
-    ) -> Self {
-        Self {
-            hosts: Arc::new(DashMap::new()),
-            global_config: Arc::new(global_config),
-            host_configs: Arc::new(host_configs),
-            global_semaphore: Arc::new(Semaphore::new(max_total_concurrency)),
-            cache_max_age,
-            cookie_jar: Some(cookie_jar),
-            global_headers,
-            max_redirects,
-            timeout,
-            allow_insecure,
-        }
+    pub fn with_cookie_jar(mut self, cookie_jar: Arc<CookieStoreMutex>) -> Self {
+        self.cookie_jar = Some(cookie_jar);
+        self
     }
 
     /// Execute an HTTP request with appropriate per-host rate limiting
