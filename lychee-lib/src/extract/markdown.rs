@@ -88,20 +88,20 @@ pub(crate) fn extract_markdown(
                             return None;
                         }
                         inside_wikilink_block = true;
-                        //Ignore gitlab toc notation: https://docs.gitlab.com/user/markdown/#table-of-contents
+                        // Ignore gitlab toc notation: https://docs.gitlab.com/user/markdown/#table-of-contents
                         if ["_TOC_".to_string(), "TOC".to_string()].contains(&dest_url.to_string()) {
                             return None;
                         }
 
-                        //Strip potholes (|) from wikilinks
+                        // Strip potholes (|) from wikilinks
                         let mut stripped_dest_url = if has_pothole {
                             pulldown_cmark::CowStr::Borrowed(&dest_url[0..dest_url.find('|').unwrap_or(dest_url.len())])
                         } else {
                             dest_url.clone()
                         };
 
-                        //Strip fragments (#) from wikilinks, according to the obsidian spec
-                        //fragments come before potholes
+                        // Strip fragments (#) from wikilinks, according to the obsidian spec
+                        // fragments come before potholes
                         if stripped_dest_url.contains('#') {
                             stripped_dest_url = pulldown_cmark::CowStr::Borrowed(&dest_url[0..dest_url.find('#').unwrap_or(dest_url.len())]);
                         }
