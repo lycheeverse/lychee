@@ -1,7 +1,5 @@
 #[cfg(test)]
 mod readme {
-    use std::{fs, path::Path};
-
     use assert_cmd::Command;
     use pretty_assertions::assert_eq;
 
@@ -10,14 +8,6 @@ mod readme {
     fn main_command() -> Command {
         // this gets the "main" binary name (e.g. `lychee`)
         Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name")
-    }
-
-    fn load_readme_text() -> String {
-        let readme_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .join("README.md");
-        fs::read_to_string(readme_path).unwrap()
     }
 
     /// Remove line `[default: lychee/x.y.z]` from the string
@@ -44,6 +34,8 @@ mod readme {
     #[test]
     #[cfg(unix)]
     fn test_readme_usage_up_to_date() -> Result<(), Box<dyn std::error::Error>> {
+        use test_utils::load_readme_text;
+
         let mut cmd = main_command();
 
         let help_cmd = cmd.env_clear().arg("--help").assert().success();
@@ -54,7 +46,7 @@ mod readme {
         let usage_in_help = &help_output[usage_in_help_start..];
 
         let usage_in_help = trim_empty_lines(&remove_lychee_version_line(usage_in_help));
-        let readme = load_readme_text();
+        let readme = load_readme_text!();
         let usage_start = readme
             .find(USAGE_STRING)
             .ok_or("Usage not found in README")?;

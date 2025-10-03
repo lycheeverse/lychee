@@ -5,12 +5,25 @@
 
 use anyhow::Result;
 use clap::{CommandFactory, crate_authors};
+use clap_mangen::{
+    Man,
+    roff::{Roff, roman},
+};
 use serde::Deserialize;
 use strum::{Display, EnumIter, EnumString, VariantNames};
 
 use crate::LycheeOptions;
 
 const CONTRIBUTOR_THANK_NOTE: &str = "\n\nA huge thank you to all the wonderful contributors who helped make this project a success.";
+const EXIT_CODE_DESCRIPTION: &str = "
+0   Success. The operation was completed successfully as instructed.
+
+1   Missing inputs or any unexpected runtime failures or configuration errors
+
+2   Link check failures. At least one non-excluded link failed the check.
+
+3   Encountered errors in the config file.
+";
 
 /// What to generate when provided the --generate flag
 #[derive(Debug, Deserialize, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq)]
@@ -33,22 +46,38 @@ fn man_page() -> Result<String> {
     let date = chrono::offset::Local::now().format("%Y-%m-%d");
     let authors = crate_authors!("\n\n").to_owned() + CONTRIBUTOR_THANK_NOTE;
 
-    let man =
-        clap_mangen::Man::new(LycheeOptions::command().author(authors)).date(format!("{date}"));
+    let man = Man::new(LycheeOptions::command().author(authors)).date(format!("{date}"));
+    let buffer = &mut Vec::default();
 
-    let mut buffer: Vec<u8> = Vec::default();
-    man.render(&mut buffer)?;
+    // Manually customise `Man::render` (see https://github.com/clap-rs/clap/issues/3354)
+    man.render_title(buffer)?;
+    man.render_name_section(buffer)?;
+    man.render_synopsis_section(buffer)?;
+    man.render_description_section(buffer)?;
+    man.render_options_section(buffer)?;
+    render_exit_codes(buffer)?;
+    man.render_version_section(buffer)?;
+    man.render_authors_section(buffer)?;
 
-    Ok(std::str::from_utf8(&buffer)?.to_owned())
+    Ok(std::str::from_utf8(buffer)?.to_owned())
+}
+
+fn render_exit_codes(buffer: &mut Vec<u8>) -> Result<()> {
+    let mut roff = Roff::default();
+    roff.control("SH", ["EXIT CODES"]);
+    roff.text([roman(EXIT_CODE_DESCRIPTION)]);
+    roff.to_writer(buffer)?;
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::man_page;
+    use crate::generate::{CONTRIBUTOR_THANK_NOTE, EXIT_CODE_DESCRIPTION};
     use anyhow::Result;
 
     #[test]
-    fn test_man_pages() -> Result<()> {
+    fn test_man_page() -> Result<()> {
         let roff = man_page()?;
 
         // Must contain description
@@ -62,9 +91,43 @@ mod tests {
             )
         );
 
+        // Must contain authors and thank note
+        assert!(roff.contains("Matthias Endler"));
+        assert!(roff.contains(CONTRIBUTOR_THANK_NOTE));
+
         // Flags should normally occur exactly twice.
         // Once in SYNOPSIS and once in OPTIONS.
         assert_eq!(roff.matches("\\-\\-version").count(), 2);
         Ok(())
+    }
+
+    /// Test that the Exit Codes section in `README.md` is up to date with
+    /// lychee's manual page.
+    #[test]
+    #[cfg(unix)]
+    fn test_readme_exit_codes_up_to_date() -> Result<(), Box<dyn std::error::Error>> {
+        use test_utils::load_readme_text;
+
+        const BEGIN: &str = "### Exit codes";
+        const END: &str = "# ";
+
+        let readme = load_readme_text!();
+        let start = readme.find(BEGIN).ok_or("Beginning not found in README")? + BEGIN.len();
+        let end = readme[start..].find(END).ok_or("End not found in README")? - END.len();
+
+        let section = &readme[start..start + end];
+        assert_eq!(
+            filter_empty_lines(section),
+            filter_empty_lines(EXIT_CODE_DESCRIPTION)
+        );
+
+        Ok(())
+    }
+
+    fn filter_empty_lines(s: &str) -> String {
+        s.lines()
+            .filter(|line| !line.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }

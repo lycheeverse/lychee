@@ -672,10 +672,13 @@ Options:
 
 ### Exit codes
 
-- `0` for success (all links checked successfully or excluded/skipped as configured)
-- `1` for missing inputs and any unexpected runtime failures or config errors
-- `2` for link check failures (if any non-excluded link failed the check)
-- `3` for errors in the config file
+0   Success. The operation was completed successfully as instructed.
+
+1   Missing inputs or any unexpected runtime failures or configuration errors
+
+2   Link check failures. At least one non-excluded link failed the check.
+
+3   Encountered errors in the config file.
 
 ### Ignoring links
 
