@@ -18,6 +18,7 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
 ## Table of Contents
 
 - [Development](#development)
@@ -660,7 +661,7 @@ Options:
           and existing cookies will be updated.
 
       --include-wikilinks
-          Check WikiLinks in Markdown files
+          Check WikiLinks in Markdown files, this requires specifying --base-url
 
   -h, --help
           Print help (see a summary with '-h')

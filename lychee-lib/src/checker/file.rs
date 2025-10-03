@@ -1,8 +1,9 @@
 use http::StatusCode;
-use log::warn;
+use log::{trace, warn};
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
+use crate::utils::wikilink_checker::WikilinkChecker;
 use crate::{
     Base, ErrorKind, Status, Uri,
     utils::fragment_checker::{FragmentChecker, FragmentInput},
@@ -32,8 +33,12 @@ pub(crate) struct FileChecker {
     index_files: Option<Vec<String>>,
     /// Whether to check for the existence of fragments (e.g., `#section-id`) in HTML files.
     include_fragments: bool,
+    /// Whether to check for the existence of files linked to by Wikilinks
+    include_wikilinks: bool,
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
+    /// Utility for checking wikilinks, indexes files in a given directory
+    wikilink_checker: WikilinkChecker,
 }
 
 impl FileChecker {
@@ -50,13 +55,16 @@ impl FileChecker {
         fallback_extensions: Vec<String>,
         index_files: Option<Vec<String>>,
         include_fragments: bool,
+        include_wikilinks: bool,
     ) -> Self {
         Self {
-            base,
+            base: base.clone(),
             fallback_extensions,
             index_files,
             include_fragments,
+            include_wikilinks,
             fragment_checker: FragmentChecker::new(),
+            wikilink_checker: WikilinkChecker::new(base),
         }
     }
 
@@ -73,6 +81,13 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     pub(crate) async fn check(&self, uri: &Uri) -> Status {
+        // only populate the wikilink filenames if the feature is enabled
+        if self.include_wikilinks {
+            match self.setup_wikilinks() {
+                Ok(()) => (),
+                Err(e) => return Status::Error(e),
+            }
+        }
         let Ok(path) = uri.url.to_file_path() else {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         };
@@ -134,8 +149,12 @@ impl FileChecker {
     ) -> Result<Cow<'a, Path>, ErrorKind> {
         let path = match path.metadata() {
             // for non-existing paths, attempt fallback extensions
+            // if fallback extensions don't help, try wikilinks
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                self.apply_fallback_extensions(path, uri).map(Cow::Owned)
+                match self.apply_fallback_extensions(path, uri).map(Cow::Owned) {
+                    Ok(val) => Ok(val),
+                    Err(_) => self.apply_wikilink_check(path, uri).map(Cow::Owned),
+                }
             }
 
             // other IO errors are unexpected and should fail the check
@@ -313,6 +332,27 @@ impl FileChecker {
             }
         }
     }
+
+    // Initializes the index of the wikilink checker
+    fn setup_wikilinks(&self) -> Result<(), ErrorKind> {
+        self.wikilink_checker.setup_wikilinks_index()
+    }
+
+    // Tries to resolve a link by looking up the filename in the wikilink index
+    fn apply_wikilink_check(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
+        let mut path_buf = path.to_path_buf();
+        for ext in &self.fallback_extensions {
+            path_buf.set_extension(ext);
+            match self.wikilink_checker.contains_path(&path_buf) {
+                None => {
+                    trace!("Tried to find wikilink {} at {}", uri, path_buf.display());
+                }
+                Some(resolved_path) => return Ok(resolved_path),
+            }
+        }
+
+        Err(ErrorKind::InvalidFilePath(uri.clone()))
+    }
 }
 
 #[cfg(test)]
@@ -372,7 +412,7 @@ mod tests {
     #[tokio::test]
     async fn test_default() {
         // default behaviour accepts dir links as long as the directory exists.
-        let checker = FileChecker::new(None, vec![], None, true);
+        let checker = FileChecker::new(None, vec![], None, true, false);
 
         assert_filecheck!(&checker, "filechecker/index_dir", Status::Ok(_));
 
@@ -430,6 +470,7 @@ mod tests {
             vec![],
             Some(vec!["index.html".to_owned(), "index.md".to_owned()]),
             true,
+            false,
         );
 
         assert_resolves!(
@@ -468,6 +509,7 @@ mod tests {
             vec!["html".to_owned()],
             Some(vec!["index".to_owned()]),
             false,
+            false,
         );
 
         // this test case has a subdir 'same_name' and a file 'same_name.html'.
@@ -492,7 +534,7 @@ mod tests {
     #[tokio::test]
     async fn test_empty_index_list_corner() {
         // empty index_files list will reject all directory links
-        let checker_no_indexes = FileChecker::new(None, vec![], Some(vec![]), false);
+        let checker_no_indexes = FileChecker::new(None, vec![], Some(vec![]), false, false);
         assert_resolves!(
             &checker_no_indexes,
             "filechecker/index_dir",
@@ -516,7 +558,7 @@ mod tests {
             "..".to_owned(),
             "/".to_owned(),
         ];
-        let checker_dir_indexes = FileChecker::new(None, vec![], Some(dir_names), false);
+        let checker_dir_indexes = FileChecker::new(None, vec![], Some(dir_names), false, false);
         assert_resolves!(
             &checker_dir_indexes,
             "filechecker/index_dir",
@@ -537,6 +579,7 @@ mod tests {
             vec![],
             Some(vec!["../index_dir/index.html".to_owned()]),
             true,
+            false,
         );
         assert_resolves!(
             &checker_dotdot,
@@ -550,7 +593,8 @@ mod tests {
             .to_str()
             .expect("expected utf-8 fixtures path")
             .to_owned();
-        let checker_absolute = FileChecker::new(None, vec![], Some(vec![absolute_html]), true);
+        let checker_absolute =
+            FileChecker::new(None, vec![], Some(vec![absolute_html]), true, false);
         assert_resolves!(
             &checker_absolute,
             "filechecker/empty_dir#fragment",
@@ -560,7 +604,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fallback_extensions_on_directories() {
-        let checker = FileChecker::new(None, vec!["html".to_owned()], None, true);
+        let checker = FileChecker::new(None, vec!["html".to_owned()], None, true, false);
 
         // fallback extensions should be applied when directory links are resolved
         // to directories (i.e., the default index_files behavior or if `.`
