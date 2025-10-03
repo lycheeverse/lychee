@@ -1,5 +1,5 @@
-use crate::{Base, ErrorKind, Uri};
-use log::info;
+use crate::{Base, ErrorKind, Result};
+use log::{info, warn};
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::Path;
@@ -7,8 +7,12 @@ use std::sync::Mutex;
 use std::{path::PathBuf, sync::Arc};
 use walkdir::WalkDir;
 
+/// Indexes a given directory mapping filenames to their corresponding path.
+///
+/// The `WikilinkChecker` Recursively checks all subdirectories of the given
+/// base directory mapping any found files to the path where they can be found.
+/// Symlinks are ignored to prevent it from infinite loops.
 #[derive(Clone, Debug, Default)]
-// Indexes a given directory for filenames and the corresponding path
 pub(crate) struct WikilinkChecker {
     filenames: Arc<Mutex<HashMap<OsString, PathBuf>>>,
     basedir: Option<Base>,
@@ -18,58 +22,73 @@ impl WikilinkChecker {
     pub(crate) fn new(base: Option<Base>) -> Self {
         Self {
             basedir: base,
-            ..default::Default()
+            ..Default::default()
         }
     }
 
-    pub(crate) fn index_files(&self) {
-        //Skip the indexing step in case the filenames are already populated
+    /// Populates the index of the `WikilinkChecker` unless it is already populated.
+    ///
+    /// Recursively walks the base directory mapping each filename to an absolute filepath.
+    /// Errors if no base directory is given or if it is recognized as remote
+    pub(crate) fn setup_wikilinks_index(&self) -> Result<()> {
+        // Skip the indexing step in case the filenames are already populated
         if !self.filenames.lock().unwrap().is_empty() {
-            return;
+            return Ok(());
         }
         match self.basedir {
             None => {
-                info!("File indexing for Wikilinks aborted as no base directory is specified");
+                warn!("File indexing for Wikilinks aborted as no base directory is specified");
+                Ok(())
             }
-            Some(ref basetype) => match basetype {
-                Base::Local(localbasename) => {
-                    //Start file indexing only if the Base is valid and local
+            Some(ref base_type) => match base_type {
+                Base::Local(local_base_name) => {
+                    // Start file indexing only if the Base is valid and local
                     info!(
                         "Starting file indexing for wikilinks in {}",
-                        localbasename.display()
+                        local_base_name.display()
                     );
 
-                    let mut filenameslock = self.filenames.lock().unwrap();
-                    for entry in WalkDir::new::<PathBuf>(localbasename.into())
-                        //actively ignore symlinks
+                    let mut lock = self
+                        .filenames
+                        .lock()
+                        .map_err(|_| ErrorKind::MutexPoisoned)?;
+                    for entry in WalkDir::new::<PathBuf>(local_base_name.into())
+                        // actively ignore symlinks
                         .follow_links(false)
                         .into_iter()
                         .filter_map(std::result::Result::ok)
                     {
                         if let Some(filename) = entry.path().file_name() {
-                            filenameslock
-                                .insert(filename.to_ascii_lowercase(), entry.path().to_path_buf());
+                            lock.insert(filename.to_ascii_lowercase(), entry.path().to_path_buf());
                         }
                     }
+                    Ok(())
                 }
+
                 // A remote base is of no use for the wikilink checker, silently skip over it
-                Base::Remote(_remotebasename) => {}
+                Base::Remote(remote_base_name) => {
+                    warn!("Error using remote base url for checking wililinks: {remote_base_name}");
+                    Ok(())
+                }
             },
         }
     }
-
-    pub(crate) fn check(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
+    /// Checks the index for a filename. Returning the absolute path if the name is found,
+    /// otherwise returning None
+    pub(crate) fn contains_path(&self, path: &Path) -> Option<PathBuf> {
         match path.file_name() {
-            None => Err(ErrorKind::InvalidFilePath(uri.clone())),
+            None => None,
             Some(filename) => {
-                let filenamelock = self.filenames.lock().unwrap();
-                if filenamelock.contains_key(&filename.to_ascii_lowercase()) {
-                    Ok(filenamelock
-                        .get(&filename.to_ascii_lowercase())
-                        .expect("Could not retrieve inserted Path for discovered Wikilink-Path"))
+                let filename_lock = self.filenames.lock().unwrap();
+                if filename_lock.contains_key(&filename.to_ascii_lowercase()) {
+                    Some(
+                        filename_lock.get(&filename.to_ascii_lowercase()).expect(
+                            "Could not retrieve inserted Path for discovered Wikilink-Path",
+                        ),
+                    )
                     .cloned()
                 } else {
-                    Err(ErrorKind::InvalidFilePath(uri.clone()))
+                    None
                 }
             }
         }

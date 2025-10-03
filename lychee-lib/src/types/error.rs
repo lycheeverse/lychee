@@ -178,6 +178,16 @@ pub enum ErrorKind {
         /// The reason the command failed
         reason: String,
     },
+
+    /// Error locking a Mutex
+    #[error("Failed to lock a Mutex")]
+    MutexPoisoned,
+
+    /// Test-only error variant for formatter tests
+    /// Available in both test and debug builds to support cross-crate testing
+    #[cfg(any(test, debug_assertions))]
+    #[error("Generic test error")]
+    TestError,
 }
 
 impl ErrorKind {
@@ -336,6 +346,9 @@ impl ErrorKind {
                 [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
             }.into(),
             ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the preprocessor option")),
+            ErrorKind::MutexPoisoned => Some (
+                "One or more threads failed and poisoned a Mutex".to_string()
+            )
         }
     }
 
@@ -466,6 +479,7 @@ impl Hash for ErrorKind {
             Self::Cookies(e) => e.hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
             Self::PreprocessorError { command, reason } => (command, reason).hash(state),
+            Self::MutexPoisoned => "Mutex Poisoned".to_string().hash(state),
         }
     }
 }
