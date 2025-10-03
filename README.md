@@ -18,6 +18,7 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
 ## Table of Contents
 
 - [Development](#development)
@@ -717,6 +718,28 @@ Options:
           User agent
 
           [default: lychee/0.20.1]
+          [default: color]
+          [possible values: plain, color, emoji, task]
+
+  -f, --format <FORMAT>
+          Output format of final status report
+
+          [default: compact]
+          [possible values: compact, detailed, json, markdown, raw]
+
+      --require-https
+          When HTTPS is available, treat HTTP links as errors
+
+      --cookie-jar <COOKIE_JAR>
+          Tell lychee to read cookies from the given file. Cookies will be stored in the
+          cookie jar and sent with requests. New cookies will be stored in the cookie jar
+          and existing cookies will be updated.
+
+      --include-wikilinks
+          Check WikiLinks in Markdown files, this requires specifying --base-url
+
+  -h, --help
+          Print help (see a summary with '-h')
 
   -v, --verbose...
           Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)
@@ -732,13 +755,13 @@ Options:
 
 ### Exit codes
 
-0   Success. The operation was completed successfully as instructed.
+0 Success. The operation was completed successfully as instructed.
 
-1   Missing inputs or any unexpected runtime failures or configuration errors
+1 Missing inputs or any unexpected runtime failures or configuration errors
 
-2   Link check failures. At least one non-excluded link failed the check.
+2 Link check failures. At least one non-excluded link failed the check.
 
-3   Encountered errors in the config file.
+3 Encountered errors in the config file.
 
 ### Ignoring links
 
