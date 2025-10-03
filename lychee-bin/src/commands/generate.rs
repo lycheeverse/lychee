@@ -4,11 +4,13 @@
 //! and shell completions.
 
 use anyhow::Result;
-use clap::CommandFactory;
+use clap::{CommandFactory, crate_authors};
 use serde::Deserialize;
 use strum::{Display, EnumIter, EnumString, VariantNames};
 
 use crate::LycheeOptions;
+
+const CONTRIBUTOR_THANK_NOTE: &str = "\n\nA huge thank you to all the wonderful contributors who helped make this project a success.";
 
 /// What to generate when provided the --generate flag
 #[derive(Debug, Deserialize, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq)]
@@ -29,7 +31,10 @@ pub(crate) fn generate(mode: &GenerateMode) -> Result<String> {
 /// Generate the lychee man page in roff format using [`clap_mangen`]
 fn man_page() -> Result<String> {
     let date = chrono::offset::Local::now().format("%Y-%m-%d");
-    let man = clap_mangen::Man::new(LycheeOptions::command()).date(format!("{date}"));
+    let authors = crate_authors!("\n\n").to_owned() + CONTRIBUTOR_THANK_NOTE;
+
+    let man =
+        clap_mangen::Man::new(LycheeOptions::command().author(authors)).date(format!("{date}"));
 
     let mut buffer: Vec<u8> = Vec::default();
     man.render(&mut buffer)?;
