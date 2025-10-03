@@ -17,8 +17,8 @@ pub(crate) struct WikilinkChecker {
 impl WikilinkChecker {
     pub(crate) fn new(base: Option<Base>) -> Self {
         Self {
-            filenames: Arc::new(Mutex::new(HashMap::new())),
             basedir: base,
+            ..default::Default()
         }
     }
 

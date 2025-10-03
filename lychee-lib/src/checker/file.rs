@@ -81,7 +81,7 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     pub(crate) async fn check(&self, uri: &Uri) -> Status {
-        //only populate the wikilink filenames if it is enabled
+        //only populate the wikilink filenames if the feature is enabled
         if self.include_wikilinks {
             self.setup_wikilinks();
         }
@@ -271,7 +271,7 @@ impl FileChecker {
     }
 
     /// Checks a resolved file, optionally verifying fragments for HTML files.
-    ///u
+    ///
     /// # Arguments
     ///
     /// * `path` - The resolved path to check.
@@ -330,18 +330,17 @@ impl FileChecker {
         }
     }
 
-    // Initializes the Index of the wikilink checker
+    // Initializes the index of the wikilink checker
     fn setup_wikilinks(&self) {
         self.wikilink_checker.index_files();
     }
     // Tries to resolve a link by looking up the filename in the wikilink index
-    // The
     fn apply_wikilink_check(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
         let mut path_buf = path.to_path_buf();
         for ext in &self.fallback_extensions {
             path_buf.set_extension(ext);
             match self.wikilink_checker.check(&path_buf, uri) {
-                Err(_) => {}
+                Err(_) => { trace!("Tried to find wikilink at {path_buf}") }
                 Ok(resolved_path) => return Ok(resolved_path),
             }
         }
