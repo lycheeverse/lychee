@@ -2523,6 +2523,8 @@ The config file should contain every possible key for documentation purposes."
         main_command!()
             .arg("--dump")
             .arg("--include-wikilinks")
+            .arg("--base-url")
+            .arg(fixtures_path())
             .arg(test_path)
             .assert()
             .success()
@@ -2982,6 +2984,7 @@ The config file should contain every possible key for documentation purposes."
             .success()
             .stdout(contains("https://example.org")); // Should extract the link as plaintext
     }
+
     #[test]
     fn test_wikilink_fixture_obsidian_style() {
         let input = fixtures_path().join("wiki/obsidian-style.md");
@@ -2994,17 +2997,16 @@ The config file should contain every possible key for documentation purposes."
             .arg("md")
             .arg("--base-url")
             .arg(fixtures_path())
-            .arg("--root-dir")
-            .arg(fixtures_path())
             .assert()
-            .success();
+            .success()
+            .stdout(contains("4 OK"));
     }
 
     #[test]
     fn test_wikilink_fixture_with_fragments_obsidian_style_fixtures_excluded() {
         let input = fixtures_path().join("wiki/obsidian-style-plus-headers.md");
 
-        //fragments should resolve all headers
+        // fragments should resolve all headers
         main_command()
             .arg(&input)
             .arg("--include-wikilinks")
@@ -3012,17 +3014,16 @@ The config file should contain every possible key for documentation purposes."
             .arg("md")
             .arg("--base-url")
             .arg(fixtures_path())
-            .arg("--root-dir")
-            .arg(fixtures_path())
             .assert()
-            .success();
+            .success()
+            .stdout(contains("4 OK"));
     }
 
     #[test]
     fn test_wikilink_fixture_with_fragments_obsidian_style() {
         let input = fixtures_path().join("wiki/obsidian-style-plus-headers.md");
 
-        //fragments should resolve all headers
+        // fragments should resolve all headers
         main_command()
             .arg(&input)
             .arg("--include-wikilinks")
@@ -3031,10 +3032,9 @@ The config file should contain every possible key for documentation purposes."
             .arg("md")
             .arg("--base-url")
             .arg(fixtures_path())
-            .arg("--root-dir")
-            .arg(fixtures_path())
             .assert()
-            .success();
+            .success()
+            .stdout(contains("4 OK"));
     }
 
     /// An input which matches nothing should print a warning and continue.
