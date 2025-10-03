@@ -100,7 +100,7 @@ pub(crate) fn extract_markdown(
                         //Strip potholes (|) from wikilinks
                         let mut stripped_dest_url = if has_pothole {
                             pulldown_cmark::CowStr::Borrowed(&dest_url[0..dest_url.find('|').unwrap_or(dest_url.len())])
-                        }else {
+                        } else {
                             dest_url.clone()
                         };
 
