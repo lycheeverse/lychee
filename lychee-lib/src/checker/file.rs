@@ -1,5 +1,5 @@
 use http::StatusCode;
-use log::warn;
+use log::{trace, warn};
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
@@ -81,9 +81,12 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     pub(crate) async fn check(&self, uri: &Uri) -> Status {
-        //only populate the wikilink filenames if the feature is enabled
+        // only populate the wikilink filenames if the feature is enabled
         if self.include_wikilinks {
-            self.setup_wikilinks();
+            match self.setup_wikilinks() {
+                Ok(()) => (),
+                Err(e) => return Status::Error(e),
+            }
         }
         let Ok(path) = uri.url.to_file_path() else {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
@@ -331,17 +334,20 @@ impl FileChecker {
     }
 
     // Initializes the index of the wikilink checker
-    fn setup_wikilinks(&self) {
-        self.wikilink_checker.index_files();
+    fn setup_wikilinks(&self) -> Result<(), ErrorKind> {
+        self.wikilink_checker.setup_wikilinks_index()
     }
+
     // Tries to resolve a link by looking up the filename in the wikilink index
     fn apply_wikilink_check(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
         let mut path_buf = path.to_path_buf();
         for ext in &self.fallback_extensions {
             path_buf.set_extension(ext);
-            match self.wikilink_checker.check(&path_buf, uri) {
-                Err(_) => { trace!("Tried to find wikilink at {path_buf}") }
-                Ok(resolved_path) => return Ok(resolved_path),
+            match self.wikilink_checker.contains_path(&path_buf) {
+                None => {
+                    trace!("Tried to find wikilink {} at {}", uri, path_buf.display());
+                }
+                Some(resolved_path) => return Ok(resolved_path),
             }
         }
 
