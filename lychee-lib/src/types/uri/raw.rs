@@ -1,10 +1,8 @@
 use std::fmt::Display;
 
-use serde::Serialize;
-
 /// A raw URI that got extracted from a document with a fuzzy parser.
 /// Note that this can still be invalid according to stricter URI standards
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RawUri {
     /// Unparsed URI represented as a `String`. There is no guarantee that it
     /// can be parsed into a URI object
