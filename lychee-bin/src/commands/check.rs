@@ -12,7 +12,7 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use lychee_lib::archive::Archive;
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
-use lychee_lib::{InputSource};
+use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
 use crate::formatters::get_response_formatter;
@@ -23,16 +23,13 @@ use crate::parse::parse_duration_secs;
 use crate::verbosity::Verbosity;
 use crate::{ExitCode, cache::Cache, stats::ResponseStats};
 
-use std::result::Result;
-
-use lychee_lib::collector::CollectError;
 use super::CommandParams;
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
 ) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
 where
-    S: futures::Stream<Item = Result<Result<Request, CollectError>>>
+    S: futures::Stream<Item = Result<Request>>,
 {
     // Setup
     let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);

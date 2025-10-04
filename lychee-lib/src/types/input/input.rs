@@ -7,7 +7,6 @@ use super::InputResolver;
 use super::content::InputContent;
 use super::source::InputSource;
 use super::source::ResolvedInputSource;
-use crate::collector::CollectError;
 use crate::filter::PathExcludes;
 use crate::types::FileType;
 use crate::types::file::FileExtensions;
