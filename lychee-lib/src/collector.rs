@@ -296,7 +296,7 @@ impl Collector {
                         base.as_ref(),
                         basic_auth_extractor.as_ref(),
                     );
-                    Result::Ok(stream::iter(requests.into_iter()))
+                    Result::Ok(stream::iter(requests))
                 }
             })
             .try_flatten()

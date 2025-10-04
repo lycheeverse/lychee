@@ -1,4 +1,3 @@
-use log::warn;
 use percent_encoding::percent_decode_str;
 use reqwest::Url;
 use std::{
@@ -190,6 +189,19 @@ mod tests {
 
     use super::*;
 
+    fn create_ok_only(
+        uris: Vec<RawUri>,
+        source: &ResolvedInputSource,
+        root_dir: Option<&PathBuf>,
+        base: Option<&Base>,
+        extractor: Option<&BasicAuthExtractor>,
+    ) -> HashSet<Request> {
+        create(uris, source, root_dir, base, extractor)
+            .into_iter()
+            .filter_map(std::result::Result::ok)
+            .collect()
+    }
+
     #[test]
     fn test_is_anchor() {
         assert!(is_anchor("#anchor"));
@@ -209,7 +221,7 @@ mod tests {
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![RawUri::from("relative.html")];
-        let requests = create(uris, &source, None, Some(&base), None);
+        let requests = create_ok_only(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -225,7 +237,7 @@ mod tests {
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![RawUri::from("https://another.com/page")];
-        let requests = create(uris, &source, None, Some(&base), None);
+        let requests = create_ok_only(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -241,7 +253,7 @@ mod tests {
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![RawUri::from("/root-relative")];
-        let requests = create(uris, &source, None, Some(&base), None);
+        let requests = create_ok_only(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -257,7 +269,7 @@ mod tests {
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![RawUri::from("../parent")];
-        let requests = create(uris, &source, None, Some(&base), None);
+        let requests = create_ok_only(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -273,7 +285,7 @@ mod tests {
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![RawUri::from("#fragment")];
-        let requests = create(uris, &source, None, Some(&base), None);
+        let requests = create_ok_only(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -289,7 +301,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("relative.html")];
-        let requests = create(uris, &source, Some(&root_dir), None, None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -305,7 +317,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("https://another.com/page")];
-        let requests = create(uris, &source, Some(&root_dir), None, None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -321,7 +333,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("/root-relative")];
-        let requests = create(uris, &source, Some(&root_dir), None, None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -337,7 +349,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("../parent")];
-        let requests = create(uris, &source, Some(&root_dir), None, None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -353,7 +365,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("#fragment")];
-        let requests = create(uris, &source, Some(&root_dir), None, None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -370,7 +382,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("relative.html")];
-        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -387,7 +399,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("https://another.com/page")];
-        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -404,7 +416,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("/root-relative")];
-        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -421,7 +433,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("../parent")];
-        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -438,7 +450,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![RawUri::from("#fragment")];
-        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -453,7 +465,7 @@ mod tests {
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![RawUri::from("https://example.com/page")];
-        let requests = create(uris, &source, None, None, None);
+        let requests = create_ok_only(uris, &source, None, None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(

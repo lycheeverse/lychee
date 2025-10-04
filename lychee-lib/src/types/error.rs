@@ -16,6 +16,7 @@ use crate::{Uri, basic_auth::BasicAuthExtractorError, utils};
 /// Note: The error messages can change over time, so don't match on the output
 #[derive(Error, Debug)]
 #[non_exhaustive]
+#[allow(clippy::too_many_lines)]
 pub enum ErrorKind {
     /// Network error while handling request.
     /// This does not include erroneous status codes, `RejectedStatusCode` will be used in that case.
@@ -256,7 +257,7 @@ impl ErrorKind {
                 "Failed to create HTTP client: {error}. Check system configuration",
             )),
             ErrorKind::CreateRequestItem(_, _, error) => match error.details() {
-                Some(details) => format!("{}: {}", error.to_string(), details),
+                Some(details) => format!("{error}: {details}"),
                 None => error.to_string(),
             }.into(),
             ErrorKind::RuntimeJoin(join_error) => Some(format!(
@@ -287,9 +288,7 @@ impl ErrorKind {
             ErrorKind::InvalidBase(base, reason) => Some(format!(
                 "Invalid base URL or directory: '{base}'. {reason}",
             )),
-            ErrorKind::InvalidBaseJoin(_) => Some(format!(
-                "Check relative path format",
-            )),
+            ErrorKind::InvalidBaseJoin(_) => Some("Check relative path format".to_string()),
             ErrorKind::InvalidPathToUri(path) => match path {
                 path if path.starts_with('/') => "To resolve relative links in local files, provide a root dir",
                 _ => "Check path format",
@@ -447,7 +446,7 @@ impl Hash for ErrorKind {
             Self::NetworkRequest(e) => e.to_string().hash(state),
             Self::ReadResponseBody(e) => e.to_string().hash(state),
             Self::BuildRequestClient(e) => e.to_string().hash(state),
-            Self::CreateRequestItem(uri, s, e) => (uri, s, e.to_string()).hash(state),
+            Self::CreateRequestItem(uri, s, _e) => (uri, s).hash(state), /* omit error to avoid mutable fields */
             Self::BuildGithubClient(e) => e.to_string().hash(state),
             Self::GithubRequest(e) => e.to_string().hash(state),
             Self::InvalidGithubUrl(s) => s.hash(state),
