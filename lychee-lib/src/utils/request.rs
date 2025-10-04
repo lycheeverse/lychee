@@ -123,18 +123,14 @@ pub(crate) fn create(
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
-) -> HashSet<Request> {
+) -> HashSet<Result<Request>> {
     let base = base.cloned().or_else(|| Base::from_source(source));
 
     uris.into_iter()
-        .filter_map(|raw_uri| {
-            match create_request(&raw_uri, source, root_dir, base.as_ref(), extractor) {
-                Ok(request) => Some(request),
-                Err(e) => {
-                    warn!("Error creating request: {e:?}");
-                    None
-                }
-            }
+        .map(|raw_uri| {
+            create_request(&raw_uri, source, root_dir, base.as_ref(), extractor).map_err(|e|
+                ErrorKind::CreateRequestItem(raw_uri.clone(), source.clone(), Box::new(e))
+        )
         })
         .collect()
 }
