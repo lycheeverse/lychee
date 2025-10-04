@@ -10,8 +10,9 @@ use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
+use lychee_lib::ResolvedInputSource;
 use lychee_lib::archive::Archive;
-use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
+use lychee_lib::{Client, ErrorKind, RawUri, Request, Response, Uri};
 use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
@@ -24,6 +25,8 @@ use crate::verbosity::Verbosity;
 use crate::{ExitCode, cache::Cache, stats::ResponseStats};
 
 use super::CommandParams;
+
+type CollectResult<T> = std::result::Result<T, (RawUri, ResolvedInputSource, ErrorKind)>;
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
@@ -172,7 +175,7 @@ async fn suggest_archived_links(
 // the show_results_task to finish
 async fn send_inputs_loop<S>(
     requests: S,
-    send_req: mpsc::Sender<Result<Request>>,
+    send_req: mpsc::Sender<CollectResult<Request>>,
     bar: Option<ProgressBar>,
 ) -> Result<()>
 where
@@ -181,8 +184,8 @@ where
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
         let request = match request {
-            x @ Ok(_) => x,
-            x @ Err(ErrorKind::CreateRequestItem(_, _, _)) => x,
+            Ok(x) => Ok(x),
+            Err(ErrorKind::CreateRequestItem(uri, src, err)) => Err((uri, src, *err)),
             Err(e) => Err(e)?,
         };
         if let Some(pb) = &bar {
@@ -231,7 +234,7 @@ fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
 }
 
 async fn request_channel_task(
-    recv_req: mpsc::Receiver<Result<Request>>,
+    recv_req: mpsc::Receiver<CollectResult<Request>>,
     send_resp: mpsc::Sender<Response>,
     max_concurrency: usize,
     client: Client,
@@ -242,7 +245,7 @@ async fn request_channel_task(
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
-        |request: Result<Request>| async {
+        |request: CollectResult<Request>| async {
             let response = match request {
                 Ok(request) => {
                     handle(
@@ -254,12 +257,11 @@ async fn request_channel_task(
                     )
                     .await
                 }
-                Err(ErrorKind::CreateRequestItem(uri, src, e)) => Response::new(
+                Err((uri, src, e)) => Response::new(
                     Uri::try_from("error://").unwrap(),
-                    Status::Error(ErrorKind::CreateRequestItem(uri, src.clone(), e)),
+                    Status::Error(ErrorKind::CreateRequestItem(uri, src.clone(), Box::new(e))),
                     src,
                 ),
-                Err(e) => Err(e).expect("cannot read request"),
             };
 
             send_resp

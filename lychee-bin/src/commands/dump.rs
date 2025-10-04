@@ -1,4 +1,5 @@
 use log::error;
+use log::warn;
 use lychee_lib::ErrorKind;
 use lychee_lib::Request;
 use lychee_lib::Result;
@@ -28,7 +29,10 @@ where
     while let Some(request) = requests.next().await {
         let mut request = match request {
             Ok(x) => x,
-            Err(ErrorKind::CreateRequestItem(_, _, _)) => continue,
+            Err(e @ ErrorKind::CreateRequestItem(_, _, _)) => {
+                warn!("{e}");
+                continue;
+            }
             err @ Err(_) => err?,
         };
 
