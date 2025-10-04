@@ -1,8 +1,10 @@
 use std::fmt::Display;
+use std::result::Result;
 
 use http::StatusCode;
 use serde::Serialize;
 
+use crate::types::uri::raw::RawUri;
 use crate::{ResolvedInputSource, Status, Uri};
 
 /// Response type returned by lychee after checking a URI
@@ -20,7 +22,7 @@ impl Response {
     #[inline]
     #[must_use]
     /// Create new response
-    pub const fn new(uri: Uri, status: Status, source: ResolvedInputSource) -> Self {
+    pub const fn new(uri: Result<Uri, RawUri>, status: Status, source: ResolvedInputSource) -> Self {
         Response(source, ResponseBody { uri, status })
     }
 
@@ -68,7 +70,7 @@ impl Serialize for Response {
 pub struct ResponseBody {
     #[serde(flatten)]
     /// The URI which was checked
-    pub uri: Uri,
+    pub uri: Result<Uri, RawUri>,
     /// The status of the check
     pub status: Status,
 }
@@ -80,7 +82,11 @@ pub struct ResponseBody {
 impl Display for ResponseBody {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Always write the URI
-        write!(f, "{}", self.uri)?;
+
+        match &self.uri {
+            Ok(x) => write!(f, "{}", x)?,
+            Err(x) => write!(f, "{}", x)?,
+        }
 
         // Early return for OK status to avoid verbose output
         if matches!(self.status, Status::Ok(StatusCode::OK)) {

@@ -494,7 +494,7 @@ impl Client {
         self.remap(uri)?;
 
         if self.is_excluded(uri) {
-            return Ok(Response::new(uri.clone(), Status::Excluded, source));
+            return Ok(Response::new(Ok(uri.clone()), Status::Excluded, source));
         }
 
         let status = match uri.scheme() {
@@ -505,7 +505,7 @@ impl Client {
             _ => self.check_website(uri, credentials).await?,
         };
 
-        Ok(Response::new(uri.clone(), status, source))
+        Ok(Response::new(Ok(uri.clone()), status, source))
     }
 
     /// Check a single file using the file checker.
