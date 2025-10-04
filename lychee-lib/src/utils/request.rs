@@ -129,13 +129,8 @@ pub(crate) fn create(
 
     uris.into_iter()
         .map(|raw_uri| {
-            create_request(&raw_uri, source, root_dir, base.as_ref(), extractor).map_err(|e| {
-                CollectError {
-                    source: source.clone(),
-                    raw_uri: raw_uri,
-                    error: e,
-                }
-            })
+            create_request(&raw_uri, source, root_dir, base.as_ref(), extractor)
+                .map_err(|e| CollectError::CannotParseUrl(raw_uri, source.clone(), e))
         })
         .collect()
 }

@@ -13,7 +13,7 @@ use super::CommandParams;
 /// Dump all detected links to stdout without checking them
 pub(crate) async fn dump<S>(params: CommandParams<S>) -> Result<ExitCode>
 where
-    S: futures::Stream<Item = Result<Request>>,
+    S: futures::Stream<Item = Result<Result<Request, CollectError>>>
 {
     let requests = params.requests;
     tokio::pin!(requests);

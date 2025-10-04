@@ -10,14 +10,15 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::result::Result;
 
 use crate::cache::Cache;
 use crate::options::Config;
-use lychee_lib::Result;
 use lychee_lib::{Client, Request};
+use lychee_lib::collector::CollectError;
 
 /// Parameters passed to every command
-pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request>>> {
+pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request, CollectError>>> {
     pub(crate) client: Client,
     pub(crate) cache: Arc<Cache>,
     pub(crate) requests: S,

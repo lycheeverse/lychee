@@ -20,11 +20,13 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+/// a
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct CollectError {
-    pub source: ResolvedInputSource,
-    pub raw_uri: RawUri,
-    pub error: ErrorKind,
+pub enum CollectError {
+    /// a
+    CannotParseUrl(RawUri, ResolvedInputSource, ErrorKind),
+    /// a
+    CannotGetContents(InputSource, ErrorKind),
 }
 
 /// Collector keeps the state of link collection
@@ -231,7 +233,10 @@ impl Collector {
 
     /// Convenience method to fetch all unique links from inputs
     /// with the default extensions.
-    pub fn collect_links(self, inputs: HashSet<Input>) -> impl Stream<Item = std::result::Result<Request, CollectError>> {
+    pub fn collect_links(
+        self,
+        inputs: HashSet<Input>,
+    ) -> impl Stream<Item = std::result::Result<Request, CollectError>> {
         self.collect_links_from_file_types(inputs, crate::types::FileType::default_extensions())
     }
 
@@ -271,6 +276,7 @@ impl Collector {
                 let extensions = extensions.clone();
                 let resolver = resolver.clone();
                 let excluded_paths = excluded_paths.clone();
+                let source = input.source.clone();
 
                 async move {
                     let base = match &input.source {
@@ -287,7 +293,14 @@ impl Collector {
                             resolver,
                             excluded_paths,
                         )
-                        .map(move |content| (content, base.clone()))
+                        .map(move |content| {
+                            (
+                                content.map_err(|e| {
+                                    CollectError::CannotGetContents(source.clone(), e)
+                                }),
+                                base.clone(),
+                            )
+                        })
                 }
             })
             .flatten()
@@ -295,7 +308,7 @@ impl Collector {
                 let root_dir = self.root_dir.clone();
                 let basic_auth_extractor = self.basic_auth_extractor.clone();
                 async move {
-                    let content = content.map_err?;
+                    let content = content?;
                     let uris: Vec<RawUri> = extractor.extract(&content);
                     let requests = request::create(
                         uris,
@@ -304,7 +317,7 @@ impl Collector {
                         base.as_ref(),
                         basic_auth_extractor.as_ref(),
                     );
-                    Result::Ok(stream::iter(requests.into_iter()))
+                    std::result::Result::Ok(stream::iter(requests.into_iter()))
                 }
             })
             .try_flatten()
