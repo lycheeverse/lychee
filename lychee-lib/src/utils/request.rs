@@ -1,3 +1,4 @@
+use crate::collector::CollectError;
 use log::warn;
 use percent_encoding::percent_decode_str;
 use reqwest::Url;
@@ -123,18 +124,18 @@ pub(crate) fn create(
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
-) -> HashSet<Request> {
+) -> HashSet<std::result::Result<Request, CollectError>> {
     let base = base.cloned().or_else(|| Base::from_source(source));
 
     uris.into_iter()
-        .filter_map(|raw_uri| {
-            match create_request(&raw_uri, source, root_dir, base.as_ref(), extractor) {
-                Ok(request) => Some(request),
-                Err(e) => {
-                    warn!("Error creating request: {e:?}");
-                    None
+        .map(|raw_uri| {
+            create_request(&raw_uri, source, root_dir, base.as_ref(), extractor).map_err(|e| {
+                CollectError {
+                    source: source.clone(),
+                    raw_uri: raw_uri,
+                    error: e,
                 }
-            }
+            })
         })
         .collect()
 }

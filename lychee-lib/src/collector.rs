@@ -1,5 +1,6 @@
 use crate::ErrorKind;
 use crate::InputSource;
+use crate::ResolvedInputSource;
 use crate::filter::PathExcludes;
 use crate::types::resolver::UrlContentResolver;
 use crate::{
@@ -18,6 +19,13 @@ use reqwest::Client;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct CollectError {
+    pub source: ResolvedInputSource,
+    pub raw_uri: RawUri,
+    pub error: ErrorKind,
+}
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -223,7 +231,7 @@ impl Collector {
 
     /// Convenience method to fetch all unique links from inputs
     /// with the default extensions.
-    pub fn collect_links(self, inputs: HashSet<Input>) -> impl Stream<Item = Result<Request>> {
+    pub fn collect_links(self, inputs: HashSet<Input>) -> impl Stream<Item = std::result::Result<Request, CollectError>> {
         self.collect_links_from_file_types(inputs, crate::types::FileType::default_extensions())
     }
 
@@ -238,7 +246,7 @@ impl Collector {
         self,
         inputs: HashSet<Input>,
         extensions: FileExtensions,
-    ) -> impl Stream<Item = Result<Request>> {
+    ) -> impl Stream<Item = std::result::Result<Request, CollectError>> {
         let skip_missing_inputs = self.skip_missing_inputs;
         let skip_hidden = self.skip_hidden;
         let skip_ignored = self.skip_ignored;
@@ -287,7 +295,7 @@ impl Collector {
                 let root_dir = self.root_dir.clone();
                 let basic_auth_extractor = self.basic_auth_extractor.clone();
                 async move {
-                    let content = content?;
+                    let content = content.map_err?;
                     let uris: Vec<RawUri> = extractor.extract(&content);
                     let requests = request::create(
                         uris,
@@ -296,7 +304,7 @@ impl Collector {
                         base.as_ref(),
                         basic_auth_extractor.as_ref(),
                     );
-                    Result::Ok(stream::iter(requests.into_iter().map(Ok)))
+                    Result::Ok(stream::iter(requests.into_iter()))
                 }
             })
             .try_flatten()
