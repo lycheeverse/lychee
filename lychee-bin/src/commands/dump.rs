@@ -1,4 +1,6 @@
 use log::error;
+use log::warn;
+use lychee_lib::ErrorKind;
 use lychee_lib::Request;
 use lychee_lib::Result;
 use std::fs;
@@ -25,7 +27,14 @@ where
     let mut writer = super::create_writer(params.cfg.output)?;
 
     while let Some(request) = requests.next().await {
-        let mut request = request?;
+        let mut request = match request {
+            Ok(x) => x,
+            Err(e @ ErrorKind::CreateRequestItem(_, _, _)) => {
+                warn!("{e}");
+                continue;
+            }
+            err @ Err(_) => err?,
+        };
 
         // Apply URI remappings (if any)
         params.client.remap(&mut request.uri)?;
