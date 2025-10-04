@@ -16,7 +16,6 @@ use crate::{Uri, basic_auth::BasicAuthExtractorError, utils};
 /// Note: The error messages can change over time, so don't match on the output
 #[derive(Error, Debug)]
 #[non_exhaustive]
-#[allow(clippy::too_many_lines)]
 pub enum ErrorKind {
     /// Network error while handling request.
     /// This does not include erroneous status codes, `RejectedStatusCode` will be used in that case.
@@ -290,7 +289,8 @@ impl ErrorKind {
             )),
             ErrorKind::InvalidBaseJoin(_) => Some("Check relative path format".to_string()),
             ErrorKind::InvalidPathToUri(path) => match path {
-                path if path.starts_with('/') => "To resolve relative links in local files, provide a root dir",
+                path if path.starts_with('/') =>
+                    "To resolve root-relative links in local files, provide a root dir",
                 _ => "Check path format",
             }.to_string().into(),
             ErrorKind::RootDirMustBeAbsolute(path_buf) => Some(format!(
