@@ -28,8 +28,8 @@ pub enum ErrorKind {
     #[error("Error creating request client: {0}")]
     BuildRequestClient(#[source] reqwest::Error),
 
-    /// TODO: a
-    #[error("Error creating request: {0}")]
+    /// Cannot create a request item for the given URI in the given source
+    #[error("Error building URL for {0}")]
     CreateRequestItem(RawUri, ResolvedInputSource, #[source] Box<ErrorKind>),
 
     /// Network error while using GitHub API
@@ -255,9 +255,10 @@ impl ErrorKind {
             ErrorKind::BuildRequestClient(error) => Some(format!(
                 "Failed to create HTTP client: {error}. Check system configuration",
             )),
-            ErrorKind::CreateRequestItem(_, _, _) => Some(format!(
-                "TODO: details creat request utem"
-            )),
+            ErrorKind::CreateRequestItem(_, _, error) => match error.details() {
+                Some(details) => format!("{}: {}", error.to_string(), details),
+                None => error.to_string(),
+            }.into(),
             ErrorKind::RuntimeJoin(join_error) => Some(format!(
                 "Task execution failed: {join_error}. Internal processing error"
             )),
@@ -286,12 +287,13 @@ impl ErrorKind {
             ErrorKind::InvalidBase(base, reason) => Some(format!(
                 "Invalid base URL or directory: '{base}'. {reason}",
             )),
-            ErrorKind::InvalidBaseJoin(text) => Some(format!(
-                "Cannot join '{text}' with base URL. Check relative path format",
+            ErrorKind::InvalidBaseJoin(_) => Some(format!(
+                "Check relative path format",
             )),
-            ErrorKind::InvalidPathToUri(path) => Some(format!(
-                "Cannot convert path to URI: '{path}'. Check path format",
-            )),
+            ErrorKind::InvalidPathToUri(path) => match path {
+                path if path.starts_with('/') => "To resolve relative links in local files, provide a root dir",
+                _ => "Check path format",
+            }.to_string().into(),
             ErrorKind::RootDirMustBeAbsolute(path_buf) => Some(format!(
                 "Root directory must be absolute: '{}'. Use full path",
                 path_buf.display()

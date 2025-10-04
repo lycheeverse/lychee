@@ -21,7 +21,7 @@ pub struct RawUri {
 
 impl Display for RawUri {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} (Attribute: {:?})", self.text, self.attribute)
+        write!(f, "{:?} (Attribute: {:?})", self.text, self.attribute)
     }
 }
 

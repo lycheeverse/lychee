@@ -254,9 +254,11 @@ async fn request_channel_task(
                     )
                     .await
                 }
-                Err(ErrorKind::CreateRequestItem(uri, src, e)) => {
-                    Response::new(Uri::try_from("https://google.com").unwrap(), Status::Error(*e), src)
-                }
+                Err(ErrorKind::CreateRequestItem(uri, src, e)) => Response::new(
+                    Uri::try_from("error://").unwrap(),
+                    Status::Error(ErrorKind::CreateRequestItem(uri, src.clone(), e)),
+                    src,
+                ),
                 Err(e) => Err(e).expect("cannot read request"),
             };
 
