@@ -180,15 +180,18 @@ where
 {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
-        let request = request?;
+        let request = match request {
+            x @ Ok(_) => x,
+            x @ Err(ErrorKind::CreateRequestItem(_, _, _)) => x,
+            Err(e) => Err(e)?,
+        };
         if let Some(pb) = &bar {
             pb.inc_length(1);
-            pb.set_message(request.to_string());
+            if let Ok(request) = &request {
+                pb.set_message(request.to_string());
+            }
         }
-        send_req
-            .send(Ok(request))
-            .await
-            .expect("Cannot send request");
+        send_req.send(request).await.expect("Cannot send request");
     }
     Ok(())
 }
@@ -240,15 +243,22 @@ async fn request_channel_task(
         ReceiverStream::new(recv_req),
         max_concurrency,
         |request: Result<Request>| async {
-            let request = request.expect("cannot read request");
-            let response = handle(
-                &client,
-                cache.clone(),
-                cache_exclude_status.clone(),
-                request,
-                accept.clone(),
-            )
-            .await;
+            let response = match request {
+                Ok(request) => {
+                    handle(
+                        &client,
+                        cache.clone(),
+                        cache_exclude_status.clone(),
+                        request,
+                        accept.clone(),
+                    )
+                    .await
+                }
+                Err(ErrorKind::CreateRequestItem(uri, src, e)) => {
+                    Response::new(Uri::try_from("https://google.com").unwrap(), Status::Error(*e), src)
+                }
+                Err(e) => Err(e).expect("cannot read request"),
+            };
 
             send_resp
                 .send(response)
