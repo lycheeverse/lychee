@@ -251,12 +251,15 @@ async fn request_channel_task(
                     )
                     .await
                 }
-                Err(RequestError::CreateRequestItem(uri, src, e)) => Response::new(
-                    Uri::try_from("error://").unwrap(),
-                    Status::RequestError(RequestError::CreateRequestItem(uri, src.clone(), e)),
-                    src,
-                ),
-                Err(e @ RequestError::GetInputContent(_)) => panic!("{e}"),
+                // Err(RequestError::CreateRequestItem(uri, src, e)) => Response::new(
+                //     Uri::try_from("error://").unwrap(),
+                //     Status::RequestError(RequestError::CreateRequestItem(uri, src.clone(), e)),
+                //     src,
+                // ),
+                err @ Err(_) => {
+                    err.expect("ads");
+                    panic!()
+                }
             };
 
             send_resp

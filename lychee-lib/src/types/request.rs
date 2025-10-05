@@ -19,7 +19,15 @@ pub enum RequestError {
 
 impl RequestError {
     /// a
-    pub fn source(&self) -> &ErrorKind {
+    pub fn error_kind(&self) -> &ErrorKind {
+        match self {
+            Self::CreateRequestItem(_, _, e) => e,
+            Self::GetInputContent(e) => e,
+        }
+    }
+
+    /// b
+    pub fn into_source(self) -> ErrorKind {
         match self {
             Self::CreateRequestItem(_, _, e) => e,
             Self::GetInputContent(e) => e,
