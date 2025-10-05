@@ -3,7 +3,6 @@ use thiserror::Error;
 
 use crate::{BasicAuthCredentials, ErrorKind, RawUri, Uri};
 
-use super::InputSource;
 use super::ResolvedInputSource;
 
 /// An error which occurs while trying to construct a [`Request`] object.

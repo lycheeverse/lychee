@@ -11,9 +11,8 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
 use lychee_lib::RequestError;
-use lychee_lib::ResolvedInputSource;
 use lychee_lib::archive::Archive;
-use lychee_lib::{Client, ErrorKind, RawUri, Request, Response, Uri};
+use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
 use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
@@ -241,22 +240,14 @@ async fn request_channel_task(
         ReceiverStream::new(recv_req),
         max_concurrency,
         |request: std::result::Result<Request, RequestError>| async {
-            let response = match request {
-                Ok(request) => Ok(handle(
-                    &client,
-                    cache.clone(),
-                    cache_exclude_status.clone(),
-                    request,
-                    accept.clone(),
-                )
-                .await),
-                Err(RequestError::CreateRequestItem(uri, src, e)) => Ok(Response::new(
-                    Uri::try_from("error://").unwrap(),
-                    Status::RequestError(RequestError::CreateRequestItem(uri, src.clone(), e)),
-                    src,
-                )),
-                Err(e) => Err(e.into_source()),
-            };
+            let response = handle(
+                &client,
+                cache.clone(),
+                cache_exclude_status.clone(),
+                request,
+                accept.clone(),
+            )
+            .await;
 
             send_resp
                 .send(response)
@@ -291,9 +282,21 @@ async fn handle(
     client: &Client,
     cache: Arc<Cache>,
     cache_exclude_status: HashSet<u16>,
-    request: Request,
+    request: std::result::Result<Request, RequestError>,
     accept: HashSet<u16>,
-) -> Response {
+) -> Result<Response> {
+    let request = match request {
+        Ok(x) => x,
+        Err(RequestError::CreateRequestItem(uri, src, e)) => {
+            return Ok(Response::new(
+                Uri::try_from("error://").unwrap(),
+                Status::RequestError(RequestError::CreateRequestItem(uri, src.clone(), e)),
+                src,
+            ));
+        }
+        Err(e) => return Err(e.into_source()),
+    };
+
     let uri = request.uri.clone();
     if let Some(v) = cache.get(&uri) {
         // Found a cached request
@@ -308,7 +311,7 @@ async fn handle(
             // code.
             Status::from_cache_status(v.value().status, &accept)
         };
-        return Response::new(uri.clone(), status, request.source);
+        return Ok(Response::new(uri.clone(), status, request.source));
     }
 
     // Request was not cached; run a normal check
@@ -322,11 +325,11 @@ async fn handle(
     // - Skip caching links for which the status code has been explicitly excluded from the cache.
     let status = response.status();
     if ignore_cache(&uri, status, &cache_exclude_status) {
-        return response;
+        return Ok(response);
     }
 
     cache.insert(uri, status.into());
-    response
+    Ok(response)
 }
 
 /// Returns `true` if the response should be ignored in the cache.

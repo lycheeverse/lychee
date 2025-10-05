@@ -1,6 +1,5 @@
 use log::error;
 use log::warn;
-use lychee_lib::ErrorKind;
 use lychee_lib::Request;
 use lychee_lib::RequestError;
 use lychee_lib::Result;

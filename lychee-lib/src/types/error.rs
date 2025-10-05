@@ -7,9 +7,7 @@ use thiserror::Error;
 use tokio::task::JoinError;
 
 use super::InputContent;
-use crate::ResolvedInputSource;
 use crate::types::StatusCodeSelectorError;
-use crate::types::uri::raw::RawUri;
 use crate::{Uri, basic_auth::BasicAuthExtractorError, utils};
 
 /// Kinds of status errors

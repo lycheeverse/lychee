@@ -1,4 +1,4 @@
-use std::{collections::HashSet, error::Error, fmt::Display};
+use std::{collections::HashSet, fmt::Display};
 
 use super::CacheStatus;
 use super::redirect_history::Redirects;
