@@ -10,10 +10,10 @@ use super::ResolvedInputSource;
 #[derive(Error, Debug, PartialEq, Eq, Hash)]
 pub enum RequestError {
     /// a
-    #[error("Network error")]
+    #[error("Error building URL for {0}: {2}")]
     CreateRequestItem(RawUri, ResolvedInputSource, #[source] ErrorKind),
     /// a
-    #[error("Network error")]
+    #[error("Error getting input content: {0}")]
     GetInputContent(#[source] ErrorKind),
 }
 

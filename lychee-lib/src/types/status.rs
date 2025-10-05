@@ -179,7 +179,10 @@ impl Status {
     pub const fn is_error(&self) -> bool {
         matches!(
             self,
-            Status::Error(_) | Status::Cached(CacheStatus::Error(_)) | Status::Timeout(_)
+            Status::Error(_)
+                | Status::RequestError(_)
+                | Status::Cached(CacheStatus::Error(_))
+                | Status::Timeout(_)
         )
     }
 
