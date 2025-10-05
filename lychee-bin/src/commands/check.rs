@@ -10,6 +10,7 @@ use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
+use lychee_lib::RequestError;
 use lychee_lib::ResolvedInputSource;
 use lychee_lib::archive::Archive;
 use lychee_lib::{Client, ErrorKind, RawUri, Request, Response, Uri};
@@ -26,13 +27,11 @@ use crate::{ExitCode, cache::Cache, stats::ResponseStats};
 
 use super::CommandParams;
 
-type CollectResult<T> = std::result::Result<T, (RawUri, ResolvedInputSource, ErrorKind)>;
-
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
 ) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
 where
-    S: futures::Stream<Item = Result<Request>>,
+    S: futures::Stream<Item = std::result::Result<Request, RequestError>>,
 {
     // Setup
     let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
@@ -175,19 +174,14 @@ async fn suggest_archived_links(
 // the show_results_task to finish
 async fn send_inputs_loop<S>(
     requests: S,
-    send_req: mpsc::Sender<CollectResult<Request>>,
+    send_req: mpsc::Sender<std::result::Result<Request, RequestError>>,
     bar: Option<ProgressBar>,
 ) -> Result<()>
 where
-    S: futures::Stream<Item = Result<Request>>,
+    S: futures::Stream<Item = std::result::Result<Request, RequestError>>,
 {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
-        let request = match request {
-            Ok(x) => Ok(x),
-            Err(ErrorKind::CreateRequestItem(uri, src, err)) => Err((uri, src, *err)),
-            Err(e) => Err(e)?,
-        };
         if let Some(pb) = &bar {
             pb.inc_length(1);
             if let Ok(request) = &request {
@@ -234,7 +228,7 @@ fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
 }
 
 async fn request_channel_task(
-    recv_req: mpsc::Receiver<CollectResult<Request>>,
+    recv_req: mpsc::Receiver<std::result::Result<Request, RequestError>>,
     send_resp: mpsc::Sender<Response>,
     max_concurrency: usize,
     client: Client,
@@ -245,7 +239,7 @@ async fn request_channel_task(
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
-        |request: CollectResult<Request>| async {
+        |request: std::result::Result<Request, RequestError>| async {
             let response = match request {
                 Ok(request) => {
                     handle(
@@ -257,11 +251,12 @@ async fn request_channel_task(
                     )
                     .await
                 }
-                Err((uri, src, e)) => Response::new(
+                Err(RequestError::CreateRequestItem(uri, src, e)) => Response::new(
                     Uri::try_from("error://").unwrap(),
                     Status::Error(ErrorKind::CreateRequestItem(uri, src.clone(), Box::new(e))),
                     src,
                 ),
+                Err(e @ RequestError::GetInputContent(_)) => panic!("{e}"),
             };
 
             send_resp

@@ -3,7 +3,7 @@ use crate::InputSource;
 use crate::filter::PathExcludes;
 use crate::types::resolver::UrlContentResolver;
 use crate::{
-    Base, Input, InputResolver, Request, Result, basic_auth::BasicAuthExtractor,
+    Base, Input, InputResolver, Request, RequestError, Result, basic_auth::BasicAuthExtractor,
     extract::Extractor, types::FileExtensions, types::uri::raw::RawUri, utils::request,
 };
 use dashmap::DashSet;
@@ -223,7 +223,10 @@ impl Collector {
 
     /// Convenience method to fetch all unique links from inputs
     /// with the default extensions.
-    pub fn collect_links(self, inputs: HashSet<Input>) -> impl Stream<Item = Result<Request>> {
+    pub fn collect_links(
+        self,
+        inputs: HashSet<Input>,
+    ) -> impl Stream<Item = std::result::Result<Request, RequestError>> {
         self.collect_links_from_file_types(inputs, crate::types::FileType::default_extensions())
     }
 
@@ -238,7 +241,7 @@ impl Collector {
         self,
         inputs: HashSet<Input>,
         extensions: FileExtensions,
-    ) -> impl Stream<Item = Result<Request>> {
+    ) -> impl Stream<Item = std::result::Result<Request, RequestError>> {
         let skip_missing_inputs = self.skip_missing_inputs;
         let skip_hidden = self.skip_hidden;
         let skip_ignored = self.skip_ignored;
@@ -279,7 +282,9 @@ impl Collector {
                             resolver,
                             excluded_paths,
                         )
-                        .map(move |content| (content, base.clone()))
+                        .map(move |content| {
+                            (content.map_err(RequestError::GetInputContent), base.clone())
+                        })
                 }
             })
             .flatten()
@@ -296,7 +301,7 @@ impl Collector {
                         base.as_ref(),
                         basic_auth_extractor.as_ref(),
                     );
-                    Result::Ok(stream::iter(requests))
+                    std::result::Result::Ok(stream::iter(requests))
                 }
             })
             .try_flatten()

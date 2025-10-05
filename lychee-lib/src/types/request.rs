@@ -1,8 +1,21 @@
 use std::{borrow::Cow, convert::TryFrom, fmt::Display};
+use thiserror::Error;
 
-use crate::{BasicAuthCredentials, ErrorKind, Uri};
+use crate::{BasicAuthCredentials, ErrorKind, RawUri, Uri};
 
+use super::InputSource;
 use super::ResolvedInputSource;
+
+/// a
+#[derive(Error, Debug, PartialEq, Eq, Hash)]
+pub enum RequestError {
+    /// a
+    #[error("Network error")]
+    CreateRequestItem(RawUri, ResolvedInputSource, #[source] ErrorKind),
+    /// a
+    #[error("Network error")]
+    GetInputContent(#[source] ErrorKind),
+}
 
 /// A request type that can be handle by lychee
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]

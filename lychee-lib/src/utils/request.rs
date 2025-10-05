@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    Base, BasicAuthCredentials, ErrorKind, Request, Result, Uri,
+    Base, BasicAuthCredentials, ErrorKind, Request, RequestError, Result, Uri,
     basic_auth::BasicAuthExtractor,
     types::{ResolvedInputSource, uri::raw::RawUri},
     utils::{path, url},
@@ -122,14 +122,13 @@ pub(crate) fn create(
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
-) -> HashSet<Result<Request>> {
+) -> HashSet<std::result::Result<Request, RequestError>> {
     let base = base.cloned().or_else(|| Base::from_source(source));
 
     uris.into_iter()
         .map(|raw_uri| {
-            create_request(&raw_uri, source, root_dir, base.as_ref(), extractor).map_err(|e| {
-                ErrorKind::CreateRequestItem(raw_uri.clone(), source.clone(), Box::new(e))
-            })
+            create_request(&raw_uri, source, root_dir, base.as_ref(), extractor)
+                .map_err(|e| RequestError::CreateRequestItem(raw_uri.clone(), source.clone(), e))
         })
         .collect()
 }

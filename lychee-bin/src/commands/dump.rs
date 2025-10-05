@@ -2,6 +2,7 @@ use log::error;
 use log::warn;
 use lychee_lib::ErrorKind;
 use lychee_lib::Request;
+use lychee_lib::RequestError;
 use lychee_lib::Result;
 use std::fs;
 use std::io::{self, Write};
@@ -15,7 +16,7 @@ use super::CommandParams;
 /// Dump all detected links to stdout without checking them
 pub(crate) async fn dump<S>(params: CommandParams<S>) -> Result<ExitCode>
 where
-    S: futures::Stream<Item = Result<Request>>,
+    S: futures::Stream<Item = std::result::Result<Request, RequestError>>,
 {
     let requests = params.requests;
     tokio::pin!(requests);
@@ -29,11 +30,11 @@ where
     while let Some(request) = requests.next().await {
         let mut request = match request {
             Ok(x) => x,
-            Err(e @ ErrorKind::CreateRequestItem(_, _, _)) => {
+            Err(e @ RequestError::CreateRequestItem(_, _, _)) => {
                 warn!("{e}");
                 continue;
             }
-            err @ Err(_) => err?,
+            Err(RequestError::GetInputContent(e)) => Err(e)?,
         };
 
         // Apply URI remappings (if any)
