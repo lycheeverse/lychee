@@ -253,7 +253,7 @@ async fn request_channel_task(
                 }
                 Err(RequestError::CreateRequestItem(uri, src, e)) => Response::new(
                     Uri::try_from("error://").unwrap(),
-                    Status::Error(ErrorKind::CreateRequestItem(uri, src.clone(), Box::new(e))),
+                    Status::RequestError(RequestError::CreateRequestItem(uri, src.clone(), e)),
                     src,
                 ),
                 Err(e @ RequestError::GetInputContent(_)) => panic!("{e}"),

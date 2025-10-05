@@ -1,8 +1,9 @@
-use std::{collections::HashSet, fmt::Display};
+use std::{collections::HashSet, error::Error, fmt::Display};
 
 use super::CacheStatus;
 use super::redirect_history::Redirects;
 use crate::ErrorKind;
+use crate::RequestError;
 use http::StatusCode;
 use reqwest::Response;
 use serde::ser::SerializeStruct;
@@ -25,6 +26,8 @@ pub enum Status {
     Ok(StatusCode),
     /// Failed request
     Error(ErrorKind),
+    /// Request could not be built
+    RequestError(RequestError),
     /// Request timed out
     Timeout(Option<StatusCode>),
     /// Got redirected to different resource
@@ -51,6 +54,7 @@ impl Display for Status {
             Status::Timeout(None) => f.write_str("Timeout"),
             Status::Unsupported(e) => write!(f, "Unsupported: {e}"),
             Status::Error(e) => write!(f, "{e}"),
+            Status::RequestError(e) => write!(f, "{e}"),
             Status::Cached(status) => write!(f, "{status}"),
             Status::Excluded => Ok(()),
         }
@@ -153,6 +157,7 @@ impl Status {
                 ))
             }
             Status::Error(e) => e.details(),
+            Status::RequestError(e) => e.source().details(),
             Status::Timeout(_) => None,
             Status::UnknownStatusCode(_) => None,
             Status::Unsupported(_) => None,
@@ -214,6 +219,7 @@ impl Status {
             Status::UnknownStatusCode(_) => ICON_UNKNOWN,
             Status::Excluded => ICON_EXCLUDED,
             Status::Error(_) => ICON_ERROR,
+            Status::RequestError(_) => ICON_ERROR,
             Status::Timeout(_) => ICON_TIMEOUT,
             Status::Unsupported(_) => ICON_UNSUPPORTED,
             Status::Cached(_) => ICON_CACHED,
@@ -260,6 +266,7 @@ impl Status {
                 }
                 _ => "ERROR".to_string(),
             },
+            Status::RequestError(_) => "ERROR".to_string(),
             Status::Timeout(code) => match code {
                 Some(code) => code.as_str().to_string(),
                 None => "TIMEOUT".to_string(),

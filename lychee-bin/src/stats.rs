@@ -71,7 +71,7 @@ impl ResponseStats {
     pub(crate) const fn increment_status_counters(&mut self, status: &Status) {
         match status {
             Status::Ok(_) => self.successful += 1,
-            Status::Error(_) => self.errors += 1,
+            Status::Error(_) | Status::RequestError(_) => self.errors += 1,
             Status::UnknownStatusCode(_) => self.unknown += 1,
             Status::Timeout(_) => self.timeouts += 1,
             Status::Redirected(_, _) => self.redirects += 1,

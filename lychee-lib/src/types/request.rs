@@ -17,6 +17,16 @@ pub enum RequestError {
     GetInputContent(#[source] ErrorKind),
 }
 
+impl RequestError {
+    /// a
+    pub fn source(&self) -> &ErrorKind {
+        match self {
+            Self::CreateRequestItem(_, _, e) => e,
+            Self::GetInputContent(e) => e,
+        }
+    }
+}
+
 /// A request type that can be handle by lychee
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Request {
