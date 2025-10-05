@@ -28,10 +28,6 @@ pub enum ErrorKind {
     #[error("Error creating request client: {0}")]
     BuildRequestClient(#[source] reqwest::Error),
 
-    /// Cannot create a request item for the given URI in the given source
-    #[error("Error building URL for {0}")]
-    CreateRequestItem(RawUri, ResolvedInputSource, #[source] Box<ErrorKind>),
-
     /// Network error while using GitHub API
     #[error("Network error (GitHub client)")]
     GithubRequest(#[from] Box<octocrab::Error>),
@@ -255,10 +251,6 @@ impl ErrorKind {
             ErrorKind::BuildRequestClient(error) => Some(format!(
                 "Failed to create HTTP client: {error}. Check system configuration",
             )),
-            ErrorKind::CreateRequestItem(_, _, error) => match error.details() {
-                Some(details) => format!("{error}: {details}"),
-                None => error.to_string(),
-            }.into(),
             ErrorKind::RuntimeJoin(join_error) => Some(format!(
                 "Task execution failed: {join_error}. Internal processing error"
             )),
@@ -384,9 +376,6 @@ impl PartialEq for ErrorKind {
             (Self::BuildRequestClient(e1), Self::BuildRequestClient(e2)) => {
                 e1.to_string() == e2.to_string()
             }
-            (Self::CreateRequestItem(uri1, s1, e1), Self::CreateRequestItem(uri2, s2, e2)) => {
-                uri1 == uri2 && s1 == s2 && e1.to_string() == e2.to_string()
-            }
             (Self::RuntimeJoin(e1), Self::RuntimeJoin(e2)) => e1.to_string() == e2.to_string(),
             (Self::ReadFileInput(e1, s1), Self::ReadFileInput(e2, s2)) => {
                 e1.kind() == e2.kind() && s1 == s2
@@ -446,7 +435,6 @@ impl Hash for ErrorKind {
             Self::NetworkRequest(e) => e.to_string().hash(state),
             Self::ReadResponseBody(e) => e.to_string().hash(state),
             Self::BuildRequestClient(e) => e.to_string().hash(state),
-            Self::CreateRequestItem(uri, s, _e) => (uri, s).hash(state), /* omit error to avoid mutable fields */
             Self::BuildGithubClient(e) => e.to_string().hash(state),
             Self::GithubRequest(e) => e.to_string().hash(state),
             Self::InvalidGithubUrl(s) => s.hash(state),
