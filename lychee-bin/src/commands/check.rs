@@ -195,13 +195,14 @@ where
 
 /// Reads from the request channel and updates the progress bar status
 async fn progress_bar_task(
-    mut recv_resp: mpsc::Receiver<Response>,
+    mut recv_resp: mpsc::Receiver<Result<Response>>,
     verbose: Verbosity,
     pb: Option<ProgressBar>,
     formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
 ) -> Result<(Option<ProgressBar>, ResponseStats)> {
     while let Some(response) = recv_resp.recv().await {
+        let response = response?;
         show_progress(
             &mut io::stderr(),
             pb.as_ref(),
@@ -229,7 +230,7 @@ fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
 
 async fn request_channel_task(
     recv_req: mpsc::Receiver<std::result::Result<Request, RequestError>>,
-    send_resp: mpsc::Sender<Response>,
+    send_resp: mpsc::Sender<Result<Response>>,
     max_concurrency: usize,
     client: Client,
     cache: Arc<Cache>,
@@ -241,25 +242,20 @@ async fn request_channel_task(
         max_concurrency,
         |request: std::result::Result<Request, RequestError>| async {
             let response = match request {
-                Ok(request) => {
-                    handle(
-                        &client,
-                        cache.clone(),
-                        cache_exclude_status.clone(),
-                        request,
-                        accept.clone(),
-                    )
-                    .await
-                }
-                Err(RequestError::CreateRequestItem(uri, src, e)) => Response::new(
+                Ok(request) => Ok(handle(
+                    &client,
+                    cache.clone(),
+                    cache_exclude_status.clone(),
+                    request,
+                    accept.clone(),
+                )
+                .await),
+                Err(RequestError::CreateRequestItem(uri, src, e)) => Ok(Response::new(
                     Uri::try_from("error://").unwrap(),
                     Status::RequestError(RequestError::CreateRequestItem(uri, src.clone(), e)),
                     src,
-                ),
-                err @ Err(_) => {
-                    err.expect("ads");
-                    panic!()
-                }
+                )),
+                Err(e) => Err(e.into_source()),
             };
 
             send_resp
