@@ -2977,7 +2977,7 @@ mod cli {
             .arg("non-existing-file-name???")
             .assert()
             .success()
-            .stdout(contains("No files found").count(5));
+            .stderr(contains("No files found").count(5));
 
         Ok(())
     }
