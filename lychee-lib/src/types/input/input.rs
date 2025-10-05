@@ -202,6 +202,8 @@ impl Input {
                 &excluded_paths,
             ));
 
+            let mut sources_empty = true;
+
             while let Some(source_result) = sources_stream.next().await {
                 match source_result {
                     Ok(source) => {
@@ -229,11 +231,18 @@ impl Input {
                                 }
                             },
                             Err(e) => Err(e)?,
-                            Ok(content) => yield content,
+                            Ok(content) => {
+                                sources_empty = false;
+                                yield content
+                            }
                         }
                     },
                     Err(e) => Err(e)?,
                 }
+            }
+
+            if sources_empty {
+                log::warn!("{}: No files found for this input source", self.source);
             }
         }
     }

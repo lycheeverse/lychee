@@ -21,7 +21,7 @@ mod cli {
         path::{Path, PathBuf},
         time::Duration,
     };
-    use tempfile::NamedTempFile;
+    use tempfile::{NamedTempFile, tempdir};
     use test_utils::{mock_server, redirecting_mock_server};
 
     use uuid::Uuid;
@@ -2962,5 +2962,21 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("https://example.org")); // Should extract the link as plaintext
+    }
+
+    /// An input which matches nothing should print a warning and continue.
+    #[test]
+    fn test_input_matching_nothing_warns() {
+        let empty_dir = tempdir()?;
+
+        main_command()
+            .arg(format!("{}", empty_dir.to_string_lossy()))
+            .arg(format!("{}/*", empty_dir.to_string_lossy()))
+            .arg("non-existing-path/*")
+            .arg("*.non-existing-extension")
+            .arg("non-existing-file-name???")
+            .assert()
+            .success()
+            .stdout(contains("No files found").count(5));
     }
 }
