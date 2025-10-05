@@ -157,7 +157,7 @@ impl Status {
                 ))
             }
             Status::Error(e) => e.details(),
-            Status::RequestError(e) => e.error_kind().details(),
+            Status::RequestError(e) => e.error().details(),
             Status::Timeout(_) => None,
             Status::UnknownStatusCode(_) => None,
             Status::Unsupported(_) => None,

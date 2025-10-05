@@ -6,27 +6,30 @@ use crate::{BasicAuthCredentials, ErrorKind, RawUri, Uri};
 use super::InputSource;
 use super::ResolvedInputSource;
 
-/// a
+/// An error which occurs while trying to construct a [`Request`] object.
+/// That is, an error which happens while trying to load links from an input
+/// source.
 #[derive(Error, Debug, PartialEq, Eq, Hash)]
 pub enum RequestError {
-    /// a
+    /// Unable to construct a URL for a link appearing within the given source.
     #[error("Error building URL for {0}: {2}")]
     CreateRequestItem(RawUri, ResolvedInputSource, #[source] ErrorKind),
-    /// a
+
+    /// Unable to load the content of an input source.
     #[error("Error getting input content: {0}")]
     GetInputContent(#[source] ErrorKind),
 }
 
 impl RequestError {
-    /// a
-    pub fn error_kind(&self) -> &ErrorKind {
+    /// Get the underlying cause of this [`RequestError`].
+    pub fn error(&self) -> &ErrorKind {
         match self {
             Self::CreateRequestItem(_, _, e) => e,
             Self::GetInputContent(e) => e,
         }
     }
 
-    /// b
+    /// Convert this [`RequestError`] into its source error.
     pub fn into_source(self) -> ErrorKind {
         match self {
             Self::CreateRequestItem(_, _, e) => e,
