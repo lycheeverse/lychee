@@ -2966,17 +2966,19 @@ mod cli {
 
     /// An input which matches nothing should print a warning and continue.
     #[test]
-    fn test_input_matching_nothing_warns() {
+    fn test_input_matching_nothing_warns() -> Result<()> {
         let empty_dir = tempdir()?;
 
         main_command()
-            .arg(format!("{}", empty_dir.to_string_lossy()))
-            .arg(format!("{}/*", empty_dir.to_string_lossy()))
+            .arg(format!("{}", empty_dir.path().to_string_lossy()))
+            .arg(format!("{}/*", empty_dir.path().to_string_lossy()))
             .arg("non-existing-path/*")
             .arg("*.non-existing-extension")
             .arg("non-existing-file-name???")
             .assert()
             .success()
             .stdout(contains("No files found").count(5));
+
+        Ok(())
     }
 }
