@@ -194,14 +194,13 @@ where
 
 /// Reads from the request channel and updates the progress bar status
 async fn progress_bar_task(
-    mut recv_resp: mpsc::Receiver<Result<Response>>,
+    mut recv_resp: mpsc::Receiver<Response>,
     verbose: Verbosity,
     pb: Option<ProgressBar>,
     formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
 ) -> Result<(Option<ProgressBar>, ResponseStats)> {
     while let Some(response) = recv_resp.recv().await {
-        let response = response?;
         show_progress(
             &mut io::stderr(),
             pb.as_ref(),
@@ -229,7 +228,7 @@ fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
 
 async fn request_channel_task(
     recv_req: mpsc::Receiver<std::result::Result<Request, RequestError>>,
-    send_resp: mpsc::Sender<Result<Response>>,
+    send_resp: mpsc::Sender<Response>,
     max_concurrency: usize,
     client: Client,
     cache: Arc<Cache>,
@@ -284,20 +283,18 @@ async fn handle(
     cache_exclude_status: HashSet<u16>,
     request: std::result::Result<Request, RequestError>,
     accept: HashSet<u16>,
-) -> Result<Response> {
+) -> Response {
+    // Note that the RequestError cases bypass the cache.
     let request = match request {
         Ok(x) => x,
         Err(e) => {
-            let src = match e {
-                RequestError::CreateRequestItem(_, ref src, _) => src.clone().into(),
-                RequestError::GetInputContent(ref src, _) => src.clone(),
-            };
+            let src = e.input_source();
 
-            return Ok(Response::new(
+            return Response::new(
                 Uri::try_from("error://").unwrap(),
                 Status::RequestError(e),
                 src,
-            ));
+            );
         }
     };
 
@@ -315,7 +312,7 @@ async fn handle(
             // code.
             Status::from_cache_status(v.value().status, &accept)
         };
-        return Ok(Response::new(uri.clone(), status, request.source.into()));
+        return Response::new(uri.clone(), status, request.source.into());
     }
 
     // Request was not cached; run a normal check
@@ -329,11 +326,11 @@ async fn handle(
     // - Skip caching links for which the status code has been explicitly excluded from the cache.
     let status = response.status();
     if ignore_cache(&uri, status, &cache_exclude_status) {
-        return Ok(response);
+        return response;
     }
 
     cache.insert(uri, status.into());
-    Ok(response)
+    response
 }
 
 /// Returns `true` if the response should be ignored in the cache.

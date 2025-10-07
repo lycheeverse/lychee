@@ -34,6 +34,15 @@ impl RequestError {
             Self::CreateRequestItem(_, _, e) | Self::GetInputContent(_, e) => *e,
         }
     }
+
+    /// Get (a clone of) the input source within which the error happened.
+    #[must_use]
+    pub fn input_source(&self) -> InputSource {
+        match self {
+            Self::CreateRequestItem(_, src, _) => src.clone().into(),
+            Self::GetInputContent(src, _) => src.clone(),
+        }
+    }
 }
 
 /// A request type that can be handle by lychee
