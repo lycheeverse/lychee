@@ -29,11 +29,10 @@ where
     while let Some(request) = requests.next().await {
         let mut request = match request {
             Ok(x) => x,
-            Err(e @ RequestError::CreateRequestItem(_, _, _)) => {
+            Err(e) => {
                 warn!("{e}");
                 continue;
             }
-            Err(RequestError::GetInputContent(e)) => Err(*e)?,
         };
 
         // Apply URI remappings (if any)

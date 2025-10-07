@@ -272,7 +272,7 @@ async fn check_url(client: &Client, request: Request) -> Response {
         Response::new(
             uri.clone(),
             Status::Error(ErrorKind::InvalidURI(uri.clone())),
-            source,
+            source.into(),
         )
     })
 }
@@ -287,14 +287,18 @@ async fn handle(
 ) -> Result<Response> {
     let request = match request {
         Ok(x) => x,
-        Err(RequestError::CreateRequestItem(uri, src, e)) => {
+        Err(e) => {
+            let src = match e {
+                RequestError::CreateRequestItem(_, ref src, _) => src.clone().into(),
+                RequestError::GetInputContent(ref src, _) => src.clone(),
+            };
+
             return Ok(Response::new(
                 Uri::try_from("error://").unwrap(),
-                Status::RequestError(RequestError::CreateRequestItem(uri, src.clone(), e)),
+                Status::RequestError(e),
                 src,
             ));
         }
-        Err(e) => return Err(e.into_error()),
     };
 
     let uri = request.uri.clone();
@@ -311,7 +315,7 @@ async fn handle(
             // code.
             Status::from_cache_status(v.value().status, &accept)
         };
-        return Ok(Response::new(uri.clone(), status, request.source));
+        return Ok(Response::new(uri.clone(), status, request.source.into()));
     }
 
     // Request was not cached; run a normal check
@@ -409,7 +413,7 @@ mod tests {
     use crate::{formatters::get_response_formatter, options};
     use http::StatusCode;
     use log::info;
-    use lychee_lib::{CacheStatus, ClientBuilder, ErrorKind, ResolvedInputSource, Uri};
+    use lychee_lib::{CacheStatus, ClientBuilder, ErrorKind, Uri};
 
     use super::*;
 
@@ -419,7 +423,7 @@ mod tests {
         let response = Response::new(
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Ok(200)),
-            ResolvedInputSource::Stdin,
+            InputSource::Stdin,
         );
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(
@@ -441,7 +445,7 @@ mod tests {
         let response = Response::new(
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Ok(200)),
-            ResolvedInputSource::Stdin,
+            InputSource::Stdin,
         );
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(

@@ -282,14 +282,7 @@ impl Collector {
                             resolver,
                             excluded_paths,
                         )
-                        .map(move |content| {
-                            (
-                                content
-                                    .map_err(Box::new)
-                                    .map_err(RequestError::GetInputContent),
-                                base.clone(),
-                            )
-                        })
+                        .map(move |content| (content, base.clone()))
                 }
             })
             .flatten()

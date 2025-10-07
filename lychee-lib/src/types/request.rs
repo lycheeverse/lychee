@@ -2,8 +2,7 @@ use std::{borrow::Cow, convert::TryFrom, fmt::Display};
 use thiserror::Error;
 
 use crate::{BasicAuthCredentials, ErrorKind, RawUri, Uri};
-
-use super::ResolvedInputSource;
+use crate::{InputSource, ResolvedInputSource};
 
 /// An error which occurs while trying to construct a [`Request`] object.
 /// That is, an error which happens while trying to load links from an input
@@ -15,8 +14,8 @@ pub enum RequestError {
     CreateRequestItem(RawUri, ResolvedInputSource, #[source] Box<ErrorKind>),
 
     /// Unable to load the content of an input source.
-    #[error("Error getting input content: {0}")]
-    GetInputContent(#[source] Box<ErrorKind>),
+    #[error("Error reading input '{0}': {1}")]
+    GetInputContent(InputSource, #[source] Box<ErrorKind>),
 }
 
 impl RequestError {
@@ -24,7 +23,7 @@ impl RequestError {
     #[must_use]
     pub const fn error(&self) -> &ErrorKind {
         match self {
-            Self::CreateRequestItem(_, _, e) | Self::GetInputContent(e) => e,
+            Self::CreateRequestItem(_, _, e) | Self::GetInputContent(_, e) => e,
         }
     }
 
@@ -32,7 +31,7 @@ impl RequestError {
     #[must_use]
     pub fn into_error(self) -> ErrorKind {
         match self {
-            Self::CreateRequestItem(_, _, e) | Self::GetInputContent(e) => *e,
+            Self::CreateRequestItem(_, _, e) | Self::GetInputContent(_, e) => *e,
         }
     }
 }

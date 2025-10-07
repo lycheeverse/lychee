@@ -8,9 +8,9 @@ use super::content::InputContent;
 use super::source::InputSource;
 use super::source::ResolvedInputSource;
 use crate::filter::PathExcludes;
-use crate::types::FileType;
 use crate::types::file::FileExtensions;
 use crate::types::resolver::UrlContentResolver;
+use crate::types::{FileType, RequestError};
 use crate::{ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
@@ -170,7 +170,8 @@ impl Input {
         file_extensions: FileExtensions,
         resolver: UrlContentResolver,
         excluded_paths: PathExcludes,
-    ) -> impl Stream<Item = Result<InputContent>> {
+    ) -> impl Stream<Item = std::result::Result<InputContent, RequestError>> {
+        let source = self.source.clone();
         try_stream! {
             // Handle simple cases that don't need resolution
             match self.source {
@@ -236,6 +237,9 @@ impl Input {
                 }
             }
         }
+        .map(move |result|
+            result.map_err(|e| RequestError::GetInputContent(source.clone(), Box::new(e)))
+        )
     }
 
     /// Create a `WalkBuilder` for directory traversal
