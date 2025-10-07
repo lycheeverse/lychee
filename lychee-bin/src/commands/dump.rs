@@ -33,7 +33,7 @@ where
                 warn!("{e}");
                 continue;
             }
-            Err(RequestError::GetInputContent(e)) => Err(e)?,
+            Err(RequestError::GetInputContent(e)) => Err(*e)?,
         };
 
         // Apply URI remappings (if any)

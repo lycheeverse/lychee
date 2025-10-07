@@ -12,27 +12,27 @@ use super::ResolvedInputSource;
 pub enum RequestError {
     /// Unable to construct a URL for a link appearing within the given source.
     #[error("Error building URL for {0}: {2}")]
-    CreateRequestItem(RawUri, ResolvedInputSource, #[source] ErrorKind),
+    CreateRequestItem(RawUri, ResolvedInputSource, #[source] Box<ErrorKind>),
 
     /// Unable to load the content of an input source.
     #[error("Error getting input content: {0}")]
-    GetInputContent(#[source] ErrorKind),
+    GetInputContent(#[source] Box<ErrorKind>),
 }
 
 impl RequestError {
     /// Get the underlying cause of this [`RequestError`].
-    pub fn error(&self) -> &ErrorKind {
+    #[must_use]
+    pub const fn error(&self) -> &ErrorKind {
         match self {
-            Self::CreateRequestItem(_, _, e) => e,
-            Self::GetInputContent(e) => e,
+            Self::CreateRequestItem(_, _, e) | Self::GetInputContent(e) => e,
         }
     }
 
     /// Convert this [`RequestError`] into its source error.
-    pub fn into_source(self) -> ErrorKind {
+    #[must_use]
+    pub fn into_error(self) -> ErrorKind {
         match self {
-            Self::CreateRequestItem(_, _, e) => e,
-            Self::GetInputContent(e) => e,
+            Self::CreateRequestItem(_, _, e) | Self::GetInputContent(e) => *e,
         }
     }
 }

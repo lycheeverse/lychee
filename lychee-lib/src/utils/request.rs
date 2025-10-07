@@ -127,8 +127,9 @@ pub(crate) fn create(
 
     uris.into_iter()
         .map(|raw_uri| {
-            create_request(&raw_uri, source, root_dir, base.as_ref(), extractor)
-                .map_err(|e| RequestError::CreateRequestItem(raw_uri.clone(), source.clone(), e))
+            create_request(&raw_uri, source, root_dir, base.as_ref(), extractor).map_err(|e| {
+                RequestError::CreateRequestItem(raw_uri.clone(), source.clone(), Box::new(e))
+            })
         })
         .collect()
 }

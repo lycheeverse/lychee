@@ -294,7 +294,7 @@ async fn handle(
                 src,
             ));
         }
-        Err(e) => return Err(e.into_source()),
+        Err(e) => return Err(e.into_error()),
     };
 
     let uri = request.uri.clone();
