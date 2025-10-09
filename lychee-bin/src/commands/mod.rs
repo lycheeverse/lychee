@@ -13,11 +13,14 @@ use std::sync::Arc;
 
 use crate::cache::Cache;
 use crate::options::Config;
+use lychee_lib::RequestError;
 use lychee_lib::Result;
 use lychee_lib::{Client, Request};
 
 /// Parameters passed to every command
-pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request>>> {
+pub(crate) struct CommandParams<
+    S: futures::Stream<Item = std::result::Result<Request, RequestError>>,
+> {
     pub(crate) client: Client,
     pub(crate) cache: Arc<Cache>,
     pub(crate) requests: S,
