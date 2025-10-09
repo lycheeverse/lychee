@@ -497,6 +497,8 @@ Options:
             Empty lines are also ignored.
 
       --generate <GENERATE>
+          Generate special output (e.g. man page) instead of performing link checking
+
           [possible values: man]
 
       --github-token <GITHUB_TOKEN>
