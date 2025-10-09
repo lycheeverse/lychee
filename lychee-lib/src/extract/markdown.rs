@@ -82,6 +82,7 @@ pub(crate) fn extract_markdown(
                             text: dest_url.to_string(),
                             element: Some("a".to_string()),
                             attribute: Some("href".to_string()),
+                            span: span_provider.span(span.start),
                         }])
                     },
                     // Autolink like `<http://foo.bar/baz>`
@@ -525,6 +526,7 @@ $$
             text: "https://example.com".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
+            span: span(1, 1),
         }];
 
         assert_eq!(uris, expected);
@@ -548,11 +550,13 @@ $$
                 text: "https://example.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(1, 1),
             },
             RawUri {
                 text: "https://lycheerepublic.gov/notexist".to_string(),
                 element: None,
                 attribute: None,
+                span: span(1, 2),
             },
         ];
 
@@ -591,20 +595,24 @@ Shortcut link: [link4]
                 text: "target1.md".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(2, 14),
             },
             RawUri {
                 text: "target2.md".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(4, 17),
             },
             RawUri {
                 text: "target3.md".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(5, 17),
             },
             RawUri {
                 text: "target4.md".to_string(),
                 element: Some("a".to_string()),
+                span: span(6, 16),
                 attribute: Some("href".to_string()),
             },
         ];
