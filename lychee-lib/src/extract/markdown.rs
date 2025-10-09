@@ -5,7 +5,9 @@ use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, Text
 
 use crate::{
     extract::{html::html5gum::extract_html_with_span, plaintext::extract_raw_uri_from_plaintext},
-    types::uri::raw::{OffsetSpanProvider, RawUri, SourceSpanProvider, SpanProvider as _},
+    types::uri::raw::{
+        OffsetSpanProvider, RawUri, RawUriSpan, SourceSpanProvider, SpanProvider as _,
+    },
 };
 
 use super::html::html5gum::extract_html_fragments;
@@ -20,7 +22,6 @@ fn md_extensions() -> Options {
 }
 
 /// Extract unparsed URL strings from a Markdown string.
-#[allow(clippy::too_many_lines)]
 pub(crate) fn extract_markdown(
     input: &str,
     include_verbatim: bool,
@@ -51,17 +52,7 @@ pub(crate) fn extract_markdown(
                     // This is the most common link type
                     LinkType::Inline => {
                         inside_link_block = true;
-                        Some(vec![RawUri {
-                            text: dest_url.to_string(),
-                            // Emulate `<a href="...">` tag here to be compatible with
-                            // HTML links. We might consider using the actual Markdown
-                            // `LinkType` for better granularity in the future
-                            element: Some("a".to_string()),
-                            attribute: Some("href".to_string()),
-                            // Sadly, we don't know how long the `foo` part in `[foo](bar)` is,
-                            // so the span points to the `[` and not to the `b`.
-                            span: span_provider.span(span.start),
-                        }])
+                        Some(raw_uri(&dest_url, span_provider.span(span.start)))
                     }
                     // Reference without destination in the document, but resolved by the `broken_link_callback`
                     LinkType::Reference |
@@ -78,28 +69,14 @@ pub(crate) fn extract_markdown(
                         inside_link_block = true;
                         // For reference links, create RawUri directly to handle relative file paths
                         // that linkify doesn't recognize as URLs
-                        Some(vec![RawUri {
-                            text: dest_url.to_string(),
-                            element: Some("a".to_string()),
-                            attribute: Some("href".to_string()),
-                            span: span_provider.span(span.start),
-                        }])
+                        Some(raw_uri(&dest_url, span_provider.span(span.start)))
                     },
                     // Autolink like `<http://foo.bar/baz>`
                     LinkType::Autolink |
                     // Email address in autolink like `<john@example.org>`
                     LinkType::Email => {
-                        let offset = match link_type {
-                            // We don't know how the link starts, so don't offset the span.
-                            LinkType::Reference | LinkType::CollapsedUnknown | LinkType::ShortcutUnknown => 0,
-                            // These start all with `[` or `<`, so offset the span by `1`.
-                            LinkType::ReferenceUnknown | LinkType::Collapsed | LinkType::Shortcut | LinkType::Autolink | LinkType::Email => 1,
-                            _ => {
-                                debug_assert!(false, "unreachable");
-                                0
-                            }
-                        };
-                        Some(extract_raw_uri_from_plaintext(&dest_url, &OffsetSpanProvider { offset: span.start + offset, inner: &span_provider, }))
+                        let span_provider = get_email_span_provider(&span_provider, &span, link_type);
+                        Some(extract_raw_uri_from_plaintext(&dest_url, &span_provider))
                     }
                     // Wiki URL (`[[http://example.com]]`)
                     LinkType::WikiLink { has_pothole: _ } => {
@@ -112,30 +89,14 @@ pub(crate) fn extract_markdown(
                         if ["_TOC_".to_string(), "TOC".to_string()].contains(&dest_url.to_string()) {
                             return None;
                         }
-                        Some(vec![RawUri {
-                            text: dest_url.to_string(),
-                            element: Some("a".to_string()),
-                            attribute: Some("href".to_string()),
-                            // wiki links start with `[[`, so offset the span by `2`
-                            span: span_provider.span(span.start + 2),
-                        }])
+
+                        // wiki links start with `[[`, so offset the span by `2`
+                        Some(raw_uri(&dest_url, span_provider.span(span.start + 2)))
                     }
                 }
             }
 
-            // An image.
-            // The first field is the link type, the second the destination URL and the third is a title.
-            Event::Start(Tag::Image { dest_url, .. }) => {
-                Some(vec![RawUri {
-                    text: dest_url.to_string(),
-                    // Emulate `<img src="...">` tag here to be compatible with
-                    // HTML links. We might consider using the actual Markdown
-                    // `LinkType` for better granularity in the future
-                    element: Some("img".to_string()),
-                    attribute: Some("src".to_string()),
-                    span: span_provider.span(span.start),
-                }])
-            }
+            Event::Start(Tag::Image { dest_url, .. }) => Some(extract_image(&dest_url, span_provider.span(span.start))),
 
             // A code block (inline or fenced).
             Event::Start(Tag::CodeBlock(_)) => {
@@ -185,27 +146,71 @@ pub(crate) fn extract_markdown(
                 }
             }
 
-            // A detected link block.
             Event::End(TagEnd::Link) => {
                 inside_link_block = false;
                 inside_wikilink_block = false;
                 None
             }
 
-            // Skip footnote references and definitions - they're not links to check
-            // Note: These are kept explicit (rather than relying on the wildcard) for clarity
+            // Skip footnote references and definitions explicitly - they're not links to check
             #[allow(clippy::match_same_arms)]
-            Event::FootnoteReference(_) => None,
-            #[allow(clippy::match_same_arms)]
-            Event::Start(Tag::FootnoteDefinition(_)) => None,
-            #[allow(clippy::match_same_arms)]
-            Event::End(TagEnd::FootnoteDefinition) => None,
+            Event::FootnoteReference(_) | Event::Start(Tag::FootnoteDefinition(_)) | Event::End(TagEnd::FootnoteDefinition) => None,
 
             // Silently skip over other events
             _ => None,
         })
         .flatten()
         .collect()
+}
+
+fn get_email_span_provider<'a>(
+    span_provider: &'a SourceSpanProvider<'_>,
+    span: &std::ops::Range<usize>,
+    link_type: LinkType,
+) -> OffsetSpanProvider<'a> {
+    let offset = match link_type {
+        // We don't know how the link starts, so don't offset the span.
+        LinkType::Reference | LinkType::CollapsedUnknown | LinkType::ShortcutUnknown => 0,
+        // These start all with `[` or `<`, so offset the span by `1`.
+        LinkType::ReferenceUnknown
+        | LinkType::Collapsed
+        | LinkType::Shortcut
+        | LinkType::Autolink
+        | LinkType::Email => 1,
+        _ => {
+            debug_assert!(false, "Unexpected email link type: {link_type:?}");
+            0
+        }
+    };
+
+    OffsetSpanProvider {
+        offset: span.start + offset,
+        inner: span_provider,
+    }
+}
+
+/// Emulate `<img src="...">` tag to be compatible with HTML links.
+/// We might consider using the actual Markdown `LinkType` for better granularity in the future.
+fn extract_image(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
+    vec![RawUri {
+        text: dest_url.to_string(),
+        element: Some("img".to_string()),
+        attribute: Some("src".to_string()),
+        span,
+    }]
+}
+
+/// Emulate `<a href="...">` tag to be compatible with HTML links.
+/// We might consider using the actual Markdown `LinkType` for better granularity in the future.
+fn raw_uri(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
+    vec![RawUri {
+        text: dest_url.to_string(),
+        element: Some("a".to_string()),
+        attribute: Some("href".to_string()),
+        // Sadly, we don't know how long the `foo` part in `[foo](bar)` is,
+        // so the span points to the `[` and not to the `b`.
+        span,
+    }]
 }
 
 /// Extract fragments/anchors from a Markdown string.
