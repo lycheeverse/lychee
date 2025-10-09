@@ -14,7 +14,7 @@ use crate::types::resolver::UrlContentResolver;
 use crate::{ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
-use glob::glob_with;
+use glob::{Pattern, glob_with};
 use ignore::WalkBuilder;
 use reqwest::Url;
 use shellexpand::tilde;
@@ -71,9 +71,14 @@ impl Input {
                     let is_glob = glob::Pattern::escape(input) != input;
 
                     if is_glob {
-                        InputSource::FsGlob {
-                            pattern: input.to_owned(),
-                            ignore_case: glob_ignore_case,
+                        // TODO: move all this source parsing logic into InputSource itself.
+                        // TODO: think about requiring a Pattern object within InputSource::FsGlob.
+                        match Pattern::new(input) {
+                            Err(e) => return Err(ErrorKind::InvalidGlobPattern(e)),
+                            Ok(_) => InputSource::FsGlob {
+                                pattern: input.to_owned(),
+                                ignore_case: glob_ignore_case,
+                            },
                         }
                     } else {
                         // It might be a file path; check if it exists
