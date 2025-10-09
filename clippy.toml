@@ -1,1 +1,8 @@
+# This is needed when using ErrorKind within a hashed collection. This is because
+# ErrorKind contains some errors which have a backtrace and those backtraces
+# make use of mutable cells. We expect this is safe, since the mutability is
+# contained within Once and so probably only mutated during initialisation.
+#
+# Therefore, the hash value *should* remain stable while it's within the hashed
+# collection.
 ignore-interior-mutability = ["lychee_lib::ErrorKind"]
