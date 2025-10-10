@@ -54,6 +54,15 @@ impl TokenSink for LinkExtractor {
                     return TokenSinkResult::Continue;
                 }
                 if self.include_verbatim {
+                    // offset line number by line breaks included in the raw text,
+                    // as we are provided multiline `Tendril`s
+                    let line_number = line_number.saturating_sub(
+                        raw.chars()
+                            .filter(|c| *c == '\n')
+                            .count()
+                            .try_into()
+                            .unwrap(),
+                    );
                     self.links
                         .borrow_mut()
                         .extend(extract_raw_uri_from_plaintext(
@@ -273,6 +282,8 @@ pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
 
 #[cfg(test)]
 mod tests {
+    use crate::types::uri::raw::{span, span_line};
+
     use super::*;
 
     const HTML_INPUT: &str = r#"
@@ -289,21 +300,13 @@ mod tests {
     </body>
 </html>"#;
 
-    /// Small test helper to create a [`RawUriSpan`] from just the line and leave the column unset.
-    const fn span(line: usize) -> RawUriSpan {
-        RawUriSpan {
-            line: std::num::NonZeroUsize::new(line).unwrap(),
-            column: None,
-        }
-    }
-
     #[test]
     fn test_skip_verbatim() {
         let expected = vec![RawUri {
             text: "https://example.org".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
-            span: span(4),
+            span: span_line(4),
         }];
 
         let uris = extract_html(HTML_INPUT, false);
@@ -317,31 +320,31 @@ mod tests {
                 text: "https://example.com".to_string(),
                 element: None,
                 attribute: None,
-                span: span(4),
+                span: span_line(4),
             },
             RawUri {
                 text: "https://example.org".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
-                span: span(4),
+                span: span_line(4),
             },
             RawUri {
                 text: "https://foo.com".to_string(),
                 element: None,
                 attribute: None,
-                span: span(7),
+                span: span(7, 9),
             },
             RawUri {
                 text: "http://bar.com/some/path".to_string(),
                 element: None,
                 attribute: None,
-                span: span(7),
+                span: span(7, 29),
             },
             RawUri {
                 text: "https://baz.org".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
-                span: span(9),
+                span: span_line(9),
             },
         ];
 
@@ -364,7 +367,7 @@ mod tests {
             text: "https://example.com/".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
-            span: span(2),
+            span: span_line(2),
         }];
 
         let uris = extract_html(HTML_INPUT, false);
@@ -382,7 +385,7 @@ mod tests {
             text: "https://example.org".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
-            span: span(4),
+            span: span_line(4),
         }];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
@@ -400,7 +403,7 @@ mod tests {
             text: "https://example.org".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
-            span: span(5),
+            span: span_line(5),
         }];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
@@ -417,7 +420,7 @@ mod tests {
             text: "https://example.org".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
-            span: span(4),
+            span: span_line(4),
         }];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
@@ -440,7 +443,7 @@ mod tests {
             text: "mailto:foo@bar.com".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
-            span: span(8),
+            span: span_line(8),
         }];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
@@ -463,7 +466,7 @@ mod tests {
             text: "tel:1234567890".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
-            span: span(8),
+            span: span_line(8),
         }];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
@@ -544,7 +547,7 @@ mod tests {
             text: "https://example.com".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
-            span: span(2),
+            span: span_line(2),
         }];
 
         let uris = extract_html(input, false);

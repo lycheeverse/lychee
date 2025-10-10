@@ -58,10 +58,19 @@ pub struct RawUriSpan {
 
 /// Test helper to create [`RawUriSpan`]s easily.
 #[cfg(test)]
-pub const fn span(line: usize, column: usize) -> RawUriSpan {
+pub(crate) const fn span(line: usize, column: usize) -> RawUriSpan {
     RawUriSpan {
         line: NonZeroUsize::new(line).unwrap(),
         column: Some(NonZeroUsize::new(column).unwrap()),
+    }
+}
+
+/// Test helper to create a [`RawUriSpan`] from just the line and leave the column unset.
+#[cfg(test)]
+pub(crate) const fn span_line(line: usize) -> RawUriSpan {
+    RawUriSpan {
+        line: std::num::NonZeroUsize::new(line).unwrap(),
+        column: None,
     }
 }
 
