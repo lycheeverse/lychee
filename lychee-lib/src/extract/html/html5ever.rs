@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use html5ever::{
     buffer_queue::BufferQueue,
-    tendril::StrTendril,
+    tendril::{StrTendril, Tendril, fmt::UTF8},
     tokenizer::{Tag, TagKind, Token, TokenSink, TokenSinkResult, Tokenizer, TokenizerOpts},
 };
 
@@ -48,27 +48,21 @@ impl TokenSink for LinkExtractor {
     #[allow(clippy::match_same_arms)]
     fn process_token(&self, token: Token, line_number: u64) -> TokenSinkResult<()> {
         debug_assert_ne!(line_number, 0);
+        let line_number =
+            usize::try_from(line_number).expect("Unable to convert u64 line_number to usize");
+
         match token {
             Token::CharacterTokens(raw) => {
                 if self.current_verbatim_element_name.borrow().is_some() {
                     return TokenSinkResult::Continue;
                 }
                 if self.include_verbatim {
-                    // offset line number by line breaks included in the raw text,
-                    // as we are provided multiline `Tendril`s
-                    let line_number = line_number.saturating_sub(
-                        raw.chars()
-                            .filter(|c| *c == '\n')
-                            .count()
-                            .try_into()
-                            .unwrap(),
-                    );
                     self.links
                         .borrow_mut()
                         .extend(extract_raw_uri_from_plaintext(
                             &raw,
                             &LineOffsetSpanProvider {
-                                lines_before: line_number.try_into().unwrap(),
+                                lines_before: respect_multiline_tendril(line_number, &raw),
                                 inner: &SourceSpanProvider::from_input(&raw),
                             },
                         ));
@@ -85,6 +79,13 @@ impl TokenSink for LinkExtractor {
         }
         TokenSinkResult::Continue
     }
+}
+
+/// Offset line number by line breaks included in the raw text.
+/// This is necessary since html5ever version 0.35.0.
+/// Previously html5ever did not supply us with multiline `Tendril`s.
+fn respect_multiline_tendril(line_number: usize, raw: &Tendril<UTF8>) -> usize {
+    line_number.saturating_sub(raw.chars().filter(|c| *c == '\n').count())
 }
 
 impl LinkExtractor {
@@ -104,7 +105,7 @@ impl LinkExtractor {
             self_closing: _,
             attrs,
         }: Tag,
-        line_number: u64,
+        line_number: usize,
     ) -> TokenSinkResult<()> {
         // Check if this is a verbatim element, which we want to skip.
         if !self.include_verbatim && is_verbatim_elem(&name) {
@@ -165,7 +166,7 @@ impl LinkExtractor {
                 None => extract_raw_uri_from_plaintext(
                     &attr.value,
                     &LineOffsetSpanProvider {
-                        lines_before: line_number.try_into().unwrap(),
+                        lines_before: line_number,
                         inner: &SourceSpanProvider::from_input(&attr.value),
                     },
                 ),
@@ -210,8 +211,7 @@ impl LinkExtractor {
                         element: Some(name.to_string()),
                         attribute: Some(attr.name.local.to_string()),
                         span: RawUriSpan {
-                            line: usize::try_from(line_number)
-                                .unwrap()
+                            line: line_number
                                 .try_into()
                                 .expect("checked above that `line_number != 0`"),
                             column: None,
