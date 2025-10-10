@@ -15,7 +15,37 @@ use strum::{Display, EnumIter, EnumString, VariantNames};
 use crate::LycheeOptions;
 
 const CONTRIBUTOR_THANK_NOTE: &str = "\n\nA huge thank you to all the wonderful contributors who helped make this project a success.";
-const EXIT_CODE_DESCRIPTION: &str = "
+
+const BUG_SECTION: &str =
+    "Report any bugs or questions to <https://github.com/lycheeverse/lychee/issues/>
+
+Questions can also be asked on <https://github.com/lycheeverse/lychee/discussions>";
+const EXAMPLES_SECTION: &str = "Check all links in supported files by specifying a directory
+
+    $ lychee .
+
+Specify files explicitly or use glob patterns
+
+    $ lychee README.md test.html info.txt
+    $ lychee 'public/**/*.html' '*.md'
+
+Check all links on a website
+
+    $ lychee https://example.com
+
+Check links from stdin
+
+    $ cat test.md | lychee -
+    $ echo 'https://example.com' | lychee -
+
+Links can be excluded and included with regular expressions
+
+    $ lychee --exclude '^https?://blog\\.example\\.com' --exclude '\\.(pdf|zip|png|jpg)$'
+
+Further examples can be found in the online documentation at <https://lychee.cli.rs>
+";
+
+const EXIT_CODE_SECTION: &str = "
 0   Success. The operation was completed successfully as instructed.
 
 1   Missing inputs or any unexpected runtime failures or configuration errors
@@ -55,7 +85,9 @@ fn man_page() -> Result<String> {
     man.render_synopsis_section(buffer)?;
     man.render_description_section(buffer)?;
     man.render_options_section(buffer)?;
+    render_examples(buffer)?;
     render_exit_codes(buffer)?;
+    render_bug_reporting(buffer)?;
     man.render_version_section(buffer)?;
     man.render_authors_section(buffer)?;
 
@@ -63,9 +95,21 @@ fn man_page() -> Result<String> {
 }
 
 fn render_exit_codes(buffer: &mut Vec<u8>) -> Result<()> {
+    render_section("EXIT CODES", EXIT_CODE_SECTION, buffer)
+}
+
+fn render_examples(buffer: &mut Vec<u8>) -> Result<()> {
+    render_section("EXAMPLES", EXAMPLES_SECTION, buffer)
+}
+
+fn render_bug_reporting(buffer: &mut Vec<u8>) -> Result<()> {
+    render_section("REPORTING BUGS", BUG_SECTION, buffer)
+}
+
+fn render_section(title: &str, content: &str, buffer: &mut Vec<u8>) -> Result<()> {
     let mut roff = Roff::default();
-    roff.control("SH", ["EXIT CODES"]);
-    roff.text([roman(EXIT_CODE_DESCRIPTION)]);
+    roff.control("SH", [title]);
+    roff.text([roman(content)]);
     roff.to_writer(buffer)?;
     Ok(())
 }
@@ -73,7 +117,7 @@ fn render_exit_codes(buffer: &mut Vec<u8>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::man_page;
-    use crate::generate::{CONTRIBUTOR_THANK_NOTE, EXIT_CODE_DESCRIPTION};
+    use crate::generate::{CONTRIBUTOR_THANK_NOTE, EXIT_CODE_SECTION};
     use anyhow::Result;
 
     #[test]
@@ -116,7 +160,7 @@ mod tests {
         let section = &readme[start..start + end];
         assert_eq!(
             filter_empty_lines(section),
-            filter_empty_lines(EXIT_CODE_DESCRIPTION)
+            filter_empty_lines(EXIT_CODE_SECTION)
         );
 
         Ok(())
