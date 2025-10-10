@@ -2981,4 +2981,16 @@ mod cli {
 
         Ok(())
     }
+
+    /// Invalid glob patterns should be checked and reported as a CLI parsing
+    /// error before link checking.
+    #[test]
+    fn test_invalid_glob_fails_parse() {
+        main_command()
+            .arg("invalid-unmatched-brackets[")
+            .assert()
+            .stderr(contains("Cannot parse input"))
+            .failure()
+            .code(1); // cli parsing error code
+    }
 }
