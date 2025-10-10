@@ -78,7 +78,7 @@ pub(crate) const fn span_line(line: usize) -> RawUriSpan {
 ///
 /// If you have a document and want spans with absolute positions, use [`SourceSpanProvider`].
 /// If you start inside a document at a given offset, use [`OffsetSpanProvider`].
-pub trait SpanProvider {
+pub(crate) trait SpanProvider {
     /// Compute the [`RawUriSpan`] at a given byte offset in the document.
     fn span(&self, offset: usize) -> RawUriSpan;
 }
@@ -88,7 +88,7 @@ pub trait SpanProvider {
 /// Precomputes line lengths so that constructing [`RawUriSpan`]s is faster.
 /// If you start inside a document at a given offset, consider using [`OffsetSpanProvider`].
 #[derive(Clone, Debug)]
-pub struct SourceSpanProvider<'a> {
+pub(crate) struct SourceSpanProvider<'a> {
     /// The computed map from line number to offset in the document.
     line_starts: Vec<usize>,
     /// The input document.
@@ -105,7 +105,7 @@ impl<'a> SourceSpanProvider<'a> {
     ///
     /// This function isn't just a simple constructor but does some work, so call this only if you
     /// want to use it.
-    pub fn from_input(input: &'a str) -> Self {
+    pub(crate) fn from_input(input: &'a str) -> Self {
         // FIXME: Consider making this lazy?
         let line_starts: Vec<_> = core::iter::once(0)
             .chain(input.match_indices('\n').map(|(i, _)| i + 1))
@@ -144,12 +144,12 @@ impl SpanProvider for SourceSpanProvider<'_> {
 /// All given offsets are changed by the given amount before computing the
 /// resulting [`RawUriSpan`] with the inner [`SpanProvider`].
 #[derive(Clone, Debug)]
-pub struct OffsetSpanProvider<'a, T: SpanProvider = SourceSpanProvider<'a>> {
+pub(crate) struct OffsetSpanProvider<'a, T: SpanProvider = SourceSpanProvider<'a>> {
     /// The byte offset in the document by which all given offsets are changed before computing the
     /// resulting [`RawUriSpan`] with the inner [`SpanProvider`].
-    pub offset: usize,
+    pub(crate) offset: usize,
     /// The inner [`SpanProvider`] which will be used to determine the spans.
-    pub inner: &'a T,
+    pub(crate) inner: &'a T,
 }
 
 impl<T: SpanProvider> SpanProvider for OffsetSpanProvider<'_, T> {
