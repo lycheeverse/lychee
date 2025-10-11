@@ -149,3 +149,14 @@ macro_rules! fixture_uri {
             .expect("expected subpath to form a valid URL")
     }};
 }
+
+#[macro_export]
+macro_rules! load_readme_text {
+    () => {{
+        let readme_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("README.md");
+        std::fs::read_to_string(readme_path).unwrap()
+    }};
+}
