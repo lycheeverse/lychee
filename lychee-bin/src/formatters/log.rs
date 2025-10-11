@@ -62,7 +62,7 @@ pub(crate) fn init_logging(verbose: &Verbosity, mode: &OutputMode) {
             let level_text = format!("{level}");
             let padding = (MAX_RESPONSE_OUTPUT_WIDTH.saturating_sub(max_level_text_width)).max(0);
             let level_padding = max_level_text_width.saturating_sub(level_text.len() + 2);
-            let prefix = format!("[{level_text}]{:<width$}", "", width = level_padding);
+            let prefix = format!("{:>width$}[{level_text}]", "", width = level_padding);
             let color = formatters::color::color_for_level(level);
             let colored_level = color.apply_to(&prefix);
             writeln!(
