@@ -59,13 +59,10 @@ pub(crate) fn init_logging(verbose: &Verbosity, mode: &OutputMode) {
     } else {
         builder.format(move |buf, record| {
             let level = record.level();
-            let level_text = format!("{level:5}");
+            let level_text = format!("{level}");
             let padding = (MAX_RESPONSE_OUTPUT_WIDTH.saturating_sub(max_level_text_width)).max(0);
-            let prefix = format!(
-                "{:<width$}",
-                format!("[{}]", level_text),
-                width = max_level_text_width
-            );
+            let level_padding = max_level_text_width.saturating_sub(level_text.len() + 2);
+            let prefix = format!("{:>width$}[{level_text}]", "", width = level_padding);
             let color = formatters::color::color_for_level(level);
             let colored_level = color.apply_to(&prefix);
             writeln!(
