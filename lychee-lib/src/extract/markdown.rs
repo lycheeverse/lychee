@@ -104,8 +104,8 @@ pub(crate) fn extract_markdown(
                                 text: wikilink.to_string(),
                                 element: Some("a".to_string()),
                                 attribute: Some("wikilink".to_string()),
-                        // wiki links start with `[[`, so offset the span by `2`
-                            span: span.start + 2
+                                // wiki links start with `[[`, so offset the span by `2`
+                                span: span_provider.span(span.start + 2)
                             }])
                         } else {
                             warn!("WARNING: The wikilink destination url {dest_url} could not be cleaned by removing potholes and fragments");
@@ -725,16 +725,19 @@ Shortcut link: [link4]
                 text: "foo".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("wikilink".to_string()),
+                span: span(2, 3),
             },
             RawUri {
                 text: "foo".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("wikilink".to_string()),
+                span: span(3, 3),
             },
             RawUri {
                 text: "foo".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("wikilink".to_string()),
+                span: span(4, 3),
             },
         ];
         assert_eq!(uris, expected);

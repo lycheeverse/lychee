@@ -2587,7 +2587,7 @@ The config file should contain every possible key for documentation purposes."
             .arg("--dump")
             .arg("--include-wikilinks")
             .arg("--base-url")
-            .arg(fixtures_path())
+            .arg(fixtures_path!())
             .arg(test_path)
             .assert()
             .success()
@@ -3050,16 +3050,16 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_wikilink_fixture_obsidian_style() {
-        let input = fixtures_path().join("wiki/obsidian-style.md");
+        let input = fixtures_path!().join("wiki/obsidian-style.md");
 
         // testing without fragments should not yield failures
-        main_command()
+        main_command!()
             .arg(&input)
             .arg("--include-wikilinks")
             .arg("--fallback-extensions")
             .arg("md")
             .arg("--base-url")
-            .arg(fixtures_path())
+            .arg(fixtures_path!())
             .assert()
             .success()
             .stdout(contains("4 OK"));
@@ -3067,16 +3067,16 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_wikilink_fixture_with_fragments_obsidian_style_fixtures_excluded() {
-        let input = fixtures_path().join("wiki/obsidian-style-plus-headers.md");
+        let input = fixtures_path!().join("wiki/obsidian-style-plus-headers.md");
 
         // fragments should resolve all headers
-        main_command()
+        main_command!()
             .arg(&input)
             .arg("--include-wikilinks")
             .arg("--fallback-extensions")
             .arg("md")
             .arg("--base-url")
-            .arg(fixtures_path())
+            .arg(fixtures_path!())
             .assert()
             .success()
             .stdout(contains("4 OK"));
@@ -3084,17 +3084,17 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_wikilink_fixture_with_fragments_obsidian_style() {
-        let input = fixtures_path().join("wiki/obsidian-style-plus-headers.md");
+        let input = fixtures_path!().join("wiki/obsidian-style-plus-headers.md");
 
         // fragments should resolve all headers
-        main_command()
+        main_command!()
             .arg(&input)
             .arg("--include-wikilinks")
             .arg("--include-fragments")
             .arg("--fallback-extensions")
             .arg("md")
             .arg("--base-url")
-            .arg(fixtures_path())
+            .arg(fixtures_path!())
             .assert()
             .success()
             .stdout(contains("4 OK"));

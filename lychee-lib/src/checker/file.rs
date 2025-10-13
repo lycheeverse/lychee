@@ -38,7 +38,7 @@ pub(crate) struct FileChecker {
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
     /// Utility for checking wikilinks, indexes files in a given directory
-    wikilink_checker: WikilinkChecker,
+    wikilink_checker: Option<WikilinkChecker>,
 }
 
 impl FileChecker {
@@ -335,7 +335,12 @@ impl FileChecker {
 
     // Initializes the index of the wikilink checker
     fn setup_wikilinks(&self) -> Result<(), ErrorKind> {
-        self.wikilink_checker.setup_wikilinks_index()
+        match &self.wikilink_checker {
+            Some(checker) => checker.setup_wikilinks_index(),
+            None => Err(ErrorKind::WikilinkCheckerInit(
+                "Initialization failed, no checker instantiated".to_string(),
+            )),
+        }
     }
 
     // Tries to resolve a link by looking up the filename in the wikilink index
@@ -343,11 +348,13 @@ impl FileChecker {
         let mut path_buf = path.to_path_buf();
         for ext in &self.fallback_extensions {
             path_buf.set_extension(ext);
-            match self.wikilink_checker.contains_path(&path_buf) {
-                None => {
-                    trace!("Tried to find wikilink {} at {}", uri, path_buf.display());
+            if let Some(checker) = &self.wikilink_checker {
+                match checker.contains_path(&path_buf) {
+                    None => {
+                        trace!("Tried to find wikilink {} at {}", uri, path_buf.display());
+                    }
+                    Some(resolved_path) => return Ok(resolved_path),
                 }
-                Some(resolved_path) => return Ok(resolved_path),
             }
         }
 
