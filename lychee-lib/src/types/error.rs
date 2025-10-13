@@ -174,6 +174,10 @@ pub enum ErrorKind {
     #[error("Failed to lock a Mutex")]
     MutexPoisoned,
 
+    /// Error when initializing the Wikilink Checker
+    #[error("Failed to initialize Wikilink Checker")]
+    WikilinkCheckerInit(String),
+
     /// Test-only error variant for formatter tests
     /// Available in both test and debug builds to support cross-crate testing
     #[cfg(any(test, debug_assertions))]
@@ -341,7 +345,10 @@ impl ErrorKind {
             }.into(),
             ErrorKind::MutexPoisoned => Some (
                 "One or more threads failed and poisoned a Mutex".to_string()
-            )
+            ),
+            ErrorKind::WikilinkCheckerInit(reason) => Some(format!(
+                "Error initialzing the Wikilink Checker: {reason} ",
+            )),
         }
     }
 
@@ -478,6 +485,7 @@ impl Hash for ErrorKind {
             Self::Cookies(e) => e.to_string().hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
             Self::MutexPoisoned => "Mutex Poisoned".to_string().hash(state),
+            Self::WikilinkCheckerInit(e) => e.to_string().hash(state),
         }
     }
 }

@@ -19,10 +19,17 @@ pub(crate) struct WikilinkChecker {
 }
 
 impl WikilinkChecker {
-    pub(crate) fn new(base: Option<Base>) -> Self {
-        Self {
-            basedir: base,
-            ..Default::default()
+    pub(crate) fn new(base: Option<Base>) -> Option<Self> {
+        if base.is_none() {
+            None
+        } else {
+            warn!(
+                "The Wikilink Checker could not be initialized because the base directory is missing"
+            );
+            Some(Self {
+                basedir: base,
+                ..Default::default()
+            })
         }
     }
 
@@ -68,7 +75,10 @@ impl WikilinkChecker {
                 // A remote base is of no use for the wikilink checker, silently skip over it
                 Base::Remote(remote_base_name) => {
                     warn!("Error using remote base url for checking wililinks: {remote_base_name}");
-                    Ok(())
+                    Err(ErrorKind::WikilinkCheckerInit(
+                        "Remote Base Directory found, only local directories are allowed"
+                            .to_string(),
+                    ))
                 }
             },
         }
