@@ -170,6 +170,14 @@ pub enum ErrorKind {
     #[error("Status code range error")]
     StatusCodeSelectorError(#[from] StatusCodeSelectorError),
 
+    /// Error locking a Mutex
+    #[error("Failed to lock a Mutex")]
+    MutexPoisoned,
+
+    /// Error when initializing the Wikilink Checker
+    #[error("Failed to initialize Wikilink Checker")]
+    WikilinkCheckerInit(String),
+
     /// Test-only error variant for formatter tests
     /// Available in both test and debug builds to support cross-crate testing
     #[cfg(any(test, debug_assertions))]
@@ -334,7 +342,13 @@ impl ErrorKind {
                 [] => "No directory links are allowed because index_files is defined and empty".to_string(),
                 [name] => format!("An index file ({name}) is required"),
                 [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
-            }.into()
+            }.into(),
+            ErrorKind::MutexPoisoned => Some (
+                "One or more threads failed and poisoned a Mutex".to_string()
+            ),
+            ErrorKind::WikilinkCheckerInit(reason) => Some(format!(
+                "Error initialzing the Wikilink Checker: {reason} ",
+            )),
         }
     }
 
@@ -470,6 +484,8 @@ impl Hash for ErrorKind {
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
             Self::Cookies(e) => e.to_string().hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
+            Self::MutexPoisoned => "Mutex Poisoned".to_string().hash(state),
+            Self::WikilinkCheckerInit(e) => e.to_string().hash(state),
         }
     }
 }
