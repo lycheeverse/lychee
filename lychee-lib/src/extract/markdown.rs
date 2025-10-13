@@ -1,9 +1,11 @@
 //! Extract links and fragments from markdown documents
 use std::collections::{HashMap, HashSet};
 
+use log::warn;
 use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, TextMergeWithOffset};
 
 use crate::{
+    ErrorKind,
     extract::{html::html5gum::extract_html_with_span, plaintext::extract_raw_uri_from_plaintext},
     types::uri::raw::{
         OffsetSpanProvider, RawUri, RawUriSpan, SourceSpanProvider, SpanProvider as _,
@@ -97,29 +99,17 @@ pub(crate) fn extract_markdown(
                             return None;
                         }
 
-                        // Strip potholes (|) from wikilinks
-                        let mut stripped_dest_url = if has_pothole {
-                            pulldown_cmark::CowStr::Borrowed(&dest_url[0..dest_url.find('|').unwrap_or(dest_url.len())])
-                        } else {
-                            dest_url.clone()
-                        };
-
-                        // Strip fragments (#) from wikilinks, according to the obsidian spec
-                        // fragments come before potholes
-                        if stripped_dest_url.contains('#') {
-                            stripped_dest_url = pulldown_cmark::CowStr::Borrowed(&dest_url[0..dest_url.find('#').unwrap_or(dest_url.len())]);
-                        }
-
-                        if stripped_dest_url.is_empty() {
-                            None
-                        } else {
+                        if let Ok(wikilink) = clean_wikilink(&dest_url, has_pothole) {
                             Some(vec![RawUri {
-                                text: stripped_dest_url.to_string(),
+                                text: wikilink.to_string(),
                                 element: Some("a".to_string()),
                                 attribute: Some("wikilink".to_string()),
                         // wiki links start with `[[`, so offset the span by `2`
                             span: span.start + 2
                             }])
+                        } else {
+                            warn!("WARNING: The wikilink destination url {dest_url} could not be cleaned by removing potholes and fragments");
+                            None
                         }
                     }
                 }
@@ -333,6 +323,26 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     out
 }
 
+fn clean_wikilink(input: &str, has_pothole: bool) -> Result<CowStr<'_>, ErrorKind> {
+    // Strip potholes (|) from wikilinks
+    let mut stripped_input = if has_pothole {
+        pulldown_cmark::CowStr::Borrowed(&input[0..input.find('|').unwrap_or(input.len())])
+    } else {
+        pulldown_cmark::CowStr::Borrowed(input)
+    };
+
+    // Strip fragments (#) from wikilinks, according to the obsidian spec
+    // fragments always come before potholes
+    if stripped_input.contains('#') {
+        stripped_input =
+            pulldown_cmark::CowStr::Borrowed(&input[0..input.find('#').unwrap_or(input.len())]);
+    }
+    if stripped_input.is_empty() {
+        return Err(ErrorKind::EmptyUrl);
+    }
+    Ok(stripped_input)
+}
+
 #[derive(Default)]
 struct HeadingIdGenerator {
     counter: HashMap<String, usize>,
@@ -373,6 +383,7 @@ mod tests {
     use crate::types::uri::raw::span;
 
     use super::*;
+    use rstest::rstest;
 
     const MD_INPUT: &str = r#"
 # A Test
@@ -700,15 +711,32 @@ Shortcut link: [link4]
             );
         }
     }
+
     #[test]
-    fn test_remove_wikilink_pothole() {
-        let markdown = r"[[foo|bar]]";
+    fn test_clean_wikilink() {
+        let markdown = r"
+[[foo|bar]]
+[[foo#bar]]
+[[foo#bar|baz]]
+";
         let uris = extract_markdown(markdown, true, true);
-        let expected = vec![RawUri {
-            text: "foo".to_string(),
-            element: Some("a".to_string()),
-            attribute: Some("wikilink".to_string()),
-        }];
+        let expected = vec![
+            RawUri {
+                text: "foo".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("wikilink".to_string()),
+            },
+            RawUri {
+                text: "foo".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("wikilink".to_string()),
+            },
+            RawUri {
+                text: "foo".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("wikilink".to_string()),
+            },
+        ];
         assert_eq!(uris, expected);
     }
 
@@ -730,15 +758,16 @@ Shortcut link: [link4]
         let uris = extract_markdown(input, false, false);
     }
     #[test]
-    fn test_remove_wikilink_fragment() {
+    fn test_wikilink_extraction_returns_none_on_empty_links() {
         let markdown = r"[[foo#bar]]";
+        let markdown = r"
+[[|bar]]
+[[#bar]]
+[[#bar|baz]]
+";
+
         let uris = extract_markdown(markdown, true, true);
-        let expected = vec![RawUri {
-            text: "foo".to_string(),
-            element: Some("a".to_string()),
-            attribute: Some("wikilink".to_string()),
-        }];
-        assert_eq!(uris, expected);
+        assert!(uris.is_empty());
     }
 
     #[test]
@@ -811,5 +840,12 @@ Shortcut link: [link4]
             attribute: Some("wikilink".to_string()),
         }];
         assert_eq!(uris, expected);
+    #[rstest]
+    #[case("|foo", true)]
+    #[case("|foo#bar", true)]
+    #[case("#baz", false)]
+    fn test_from_str(#[case] input: &str, #[case] has_pothole: bool) {
+        let result = clean_wikilink(input, has_pothole);
+        assert!(result.is_err());
     }
 }
