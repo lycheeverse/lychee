@@ -2,6 +2,7 @@
 mod readme {
     use assert_cmd::Command;
     use pretty_assertions::assert_eq;
+    use regex::Regex;
     use test_utils::load_readme_text;
 
     fn main_command() -> Command {
@@ -58,36 +59,43 @@ mod readme {
     #[test]
     #[cfg(unix)]
     fn test_arguments_ordered_alphabetically() -> Result<(), Box<dyn std::error::Error>> {
-        use regex::Regex;
-
         let mut cmd = main_command();
-
         let help_cmd = cmd.env_clear().arg("--help").assert().success();
         let help_text = std::str::from_utf8(&help_cmd.get_output().stdout)?;
 
-        let regex = Regex::new(r"^\s{2,6}(-(?<short>[a-zA-Z]),)? --(?<long>[a-zA-Z-]*)").unwrap();
+        let regex = Regex::new(r"^\s{2,6}(?:-(?<short>[a-zA-Z]),)?\s--(?<long>[a-zA-Z-]+)")?;
 
         let arguments: Vec<&str> = help_text
             .lines()
             .filter_map(|line| {
                 let captures = regex.captures(line)?;
-                Some(
-                    // Short flags (-a) take precedence over the long flags (--a)
-                    captures
-                        .name("short")
-                        .unwrap_or_else(|| captures.name("long").unwrap())
-                        .as_str(),
-                )
+                captures
+                    .name("short")
+                    .or_else(|| captures.name("long"))
+                    .map(|m| m.as_str())
             })
             .collect();
 
         let mut sorted = arguments.clone();
         sorted.sort_by_key(|arg| arg.to_lowercase());
 
-        assert_eq!(
-            arguments, sorted,
-            "Arguments are not sorted alphabetically: {arguments:?}",
-        );
+        if arguments != sorted {
+            // Find all positions where order differs
+            let mismatches: Vec<_> = arguments
+                .iter()
+                .zip(&sorted)
+                .enumerate()
+                .filter(|(_, (a, b))| a != b)
+                .map(|(i, (actual, expected))| format!("  [{i}] '{actual}' should be '{expected}'"))
+                .collect();
+
+            panic!(
+                "\nArguments are not sorted alphabetically!\n\nMismatches:\n{}\n\nFull actual order:\n{:?}\n\nFull expected order:\n{:?}",
+                mismatches.join("\n"),
+                arguments,
+                sorted
+            );
+        }
 
         Ok(())
     }
