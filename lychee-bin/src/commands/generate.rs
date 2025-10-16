@@ -55,7 +55,7 @@ const EXIT_CODE_SECTION: &str = "
 3   Encountered errors in the config file.
 ";
 
-/// What to generate when provided the --generate flag
+/// What to generate when providing the --generate flag
 #[derive(Debug, Deserialize, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq)]
 #[non_exhaustive]
 #[strum(serialize_all = "snake_case")]
@@ -65,6 +65,7 @@ pub(crate) enum GenerateMode {
     Man,
 }
 
+/// Generate special output according to the [`GenerateMode`]
 pub(crate) fn generate(mode: &GenerateMode) -> Result<String> {
     match mode {
         GenerateMode::Man => man_page(),

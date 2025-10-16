@@ -828,7 +828,7 @@ followed by the absolute link's own path."
     #[serde(default)]
     pub(crate) format: StatsFormat,
 
-    /// Generate special output (e.g. man page) instead of performing link checking
+    /// Generate special output (e.g. the man page) instead of performing link checking
     #[arg(long, value_parser = PossibleValuesParser::new(GenerateMode::VARIANTS).map(|s| s.parse::<GenerateMode>().unwrap()))]
     pub(crate) generate: Option<GenerateMode>,
 
