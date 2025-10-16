@@ -325,8 +325,8 @@ Please follow the [GitHub App Setup][github-app-setup] example.
 There is an extensive list of command line parameters to customize the behavior.
 See below for a full list.
 
-```text
-lychee is a tool to detect broken URLs and mail addresses in local files and websites. It supports Markdown and HTML explicitly and works well with many plain text file formats.
+```help-message
+lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses in local files and websites. It supports Markdown and HTML and works well with many plain text file formats.
 
 lychee is powered by lychee-lib, the Rust library for link checking.
 
@@ -497,7 +497,7 @@ Options:
             Empty lines are also ignored.
 
       --generate <GENERATE>
-          Generate special output (e.g. man page) instead of performing link checking
+          Generate special output (e.g. the man page) instead of performing link checking
 
           [possible values: man]
 

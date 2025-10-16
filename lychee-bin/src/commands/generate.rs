@@ -128,7 +128,7 @@ mod tests {
         // Must contain description
         assert!(roff.contains("lychee \\- A fast, async link checker"));
         assert!(roff.contains(
-            "lychee is a fast, async link checker which detects broken URLs and mail addresses in local files and websites."
+            "lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses in local files and websites. It supports Markdown and HTML and works well with many plain text file formats."
         ));
         assert!(
             roff.contains("lychee is powered by lychee\\-lib, the Rust library for link checking.")

@@ -2,8 +2,7 @@
 mod readme {
     use assert_cmd::Command;
     use pretty_assertions::assert_eq;
-
-    const USAGE_STRING: &str = "Usage: lychee [OPTIONS] [inputs]...\n";
+    use test_utils::load_readme_text;
 
     fn main_command() -> Command {
         // this gets the "main" binary name (e.g. `lychee`)
@@ -34,22 +33,15 @@ mod readme {
     #[test]
     #[cfg(unix)]
     fn test_readme_usage_up_to_date() -> Result<(), Box<dyn std::error::Error>> {
-        use test_utils::load_readme_text;
-
+        const BEGIN: &str = "```help-message\n";
         let mut cmd = main_command();
 
         let help_cmd = cmd.env_clear().arg("--help").assert().success();
-        let help_output = std::str::from_utf8(&help_cmd.get_output().stdout)?;
-        let usage_in_help_start = help_output
-            .find(USAGE_STRING)
-            .ok_or("Usage not found in help")?;
-        let usage_in_help = &help_output[usage_in_help_start..];
+        let usage_in_help = std::str::from_utf8(&help_cmd.get_output().stdout)?;
 
         let usage_in_help = trim_empty_lines(&remove_lychee_version_line(usage_in_help));
         let readme = load_readme_text!();
-        let usage_start = readme
-            .find(USAGE_STRING)
-            .ok_or("Usage not found in README")?;
+        let usage_start = readme.find(BEGIN).ok_or("Usage not found in README")? + BEGIN.len();
         let usage_end = readme[usage_start..]
             .find("\n```")
             .ok_or("End of usage not found in README")?;
