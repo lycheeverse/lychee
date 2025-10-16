@@ -18,11 +18,11 @@ mod cli {
         error::Error,
         fs::{self, File},
         io::{BufRead, Write},
-        path::{Path, PathBuf},
+        path::Path,
         time::Duration,
     };
     use tempfile::{NamedTempFile, tempdir};
-    use test_utils::{mock_server, redirecting_mock_server};
+    use test_utils::{fixtures_path, mock_server, redirecting_mock_server, root_path};
 
     use uuid::Uuid;
     use wiremock::{
@@ -55,19 +55,6 @@ mod cli {
         Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name")
     }
 
-    /// Get the root path of the project.
-    fn root_path() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .to_path_buf()
-    }
-
-    /// Get the path to the fixtures directory.
-    fn fixtures_path() -> PathBuf {
-        root_path().join("fixtures")
-    }
-
     /// Convert a relative path to an absolute path string
     /// starting from a base directory.
     fn path_str(base: &Path, relative_path: &str) -> String {
@@ -98,7 +85,7 @@ mod cli {
     macro_rules! test_json_output {
         ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
             let mut cmd = main_command();
-            let test_path = fixtures_path().join($test_file);
+            let test_path = fixtures_path!().join($test_file);
             let outfile = format!("{}.json", uuid::Uuid::new_v4());
 
             let result = cmd$(.arg($arg))*.arg("--output").arg(&outfile).arg("--format").arg("json").arg(test_path).assert();
@@ -138,7 +125,7 @@ mod cli {
     /// sure that the status code only occurs once.
     #[test]
     fn test_compact_output_format_contains_status() -> Result<()> {
-        let test_path = fixtures_path().join("TEST_INVALID_URLS.html");
+        let test_path = fixtures_path!().join("TEST_INVALID_URLS.html");
 
         let mut cmd = main_command();
         cmd.arg("--format")
@@ -237,7 +224,7 @@ mod cli {
     /// See https://github.com/lycheeverse/lychee/issues/1355
     #[test]
     fn test_valid_json_output_to_stdout_on_error() -> Result<()> {
-        let test_path = fixtures_path().join("TEST_GITHUB_404.md");
+        let test_path = fixtures_path!().join("TEST_GITHUB_404.md");
 
         let mut cmd = main_command();
         cmd.arg("--format")
@@ -256,7 +243,7 @@ mod cli {
 
     #[test]
     fn test_detailed_json_output_on_error() -> Result<()> {
-        let test_path = fixtures_path().join("TEST_DETAILED_JSON_OUTPUT_ERROR.md");
+        let test_path = fixtures_path!().join("TEST_DETAILED_JSON_OUTPUT_ERROR.md");
 
         let mut cmd = main_command();
         cmd.arg("--format")
@@ -338,7 +325,7 @@ mod cli {
     #[test]
     fn test_email_html_with_subject() -> Result<()> {
         let mut cmd = main_command();
-        let input = fixtures_path().join("TEST_EMAIL_QUERY_PARAMS.html");
+        let input = fixtures_path!().join("TEST_EMAIL_QUERY_PARAMS.html");
 
         cmd.arg("--dump")
             .arg(input)
@@ -353,7 +340,7 @@ mod cli {
     #[test]
     fn test_email_markdown_with_subject() -> Result<()> {
         let mut cmd = main_command();
-        let input = fixtures_path().join("TEST_EMAIL_QUERY_PARAMS.md");
+        let input = fixtures_path!().join("TEST_EMAIL_QUERY_PARAMS.md");
 
         cmd.arg("--dump")
             .arg(input)
@@ -393,7 +380,7 @@ mod cli {
     #[test]
     fn test_unsupported_uri_schemes_are_ignored() {
         let mut cmd = main_command();
-        let test_schemes_path = fixtures_path().join("TEST_SCHEMES.txt");
+        let test_schemes_path = fixtures_path!().join("TEST_SCHEMES.txt");
 
         // Exclude file link because it doesn't exist on the filesystem.
         // (File URIs are absolute paths, which we don't have.)
@@ -412,7 +399,7 @@ mod cli {
     #[test]
     fn test_resolve_paths() {
         let mut cmd = main_command();
-        let dir = fixtures_path().join("resolve_paths");
+        let dir = fixtures_path!().join("resolve_paths");
 
         cmd.arg("--offline")
             .arg("--base-url")
@@ -428,7 +415,7 @@ mod cli {
     #[test]
     fn test_resolve_paths_from_root_dir() {
         let mut cmd = main_command();
-        let dir = fixtures_path().join("resolve_paths_from_root_dir");
+        let dir = fixtures_path!().join("resolve_paths_from_root_dir");
 
         cmd.arg("--offline")
             .arg("--include-fragments")
@@ -446,7 +433,7 @@ mod cli {
     #[test]
     fn test_resolve_paths_from_root_dir_and_base_url() {
         let mut cmd = main_command();
-        let dir = fixtures_path();
+        let dir = fixtures_path!();
 
         cmd.arg("--offline")
             .arg("--root-dir")
@@ -530,7 +517,7 @@ mod cli {
     #[test]
     fn test_schemes() {
         let mut cmd = main_command();
-        let test_schemes_path = fixtures_path().join("TEST_SCHEMES.md");
+        let test_schemes_path = fixtures_path!().join("TEST_SCHEMES.md");
 
         cmd.arg(test_schemes_path)
             .arg("--scheme")
@@ -549,7 +536,7 @@ mod cli {
     fn test_caching_single_file() {
         let mut cmd = main_command();
         // Repetitions in one file shall all be checked and counted only once.
-        let test_schemes_path_1 = fixtures_path().join("TEST_REPETITION_1.txt");
+        let test_schemes_path_1 = fixtures_path!().join("TEST_REPETITION_1.txt");
 
         cmd.arg(&test_schemes_path_1)
             .env_clear()
@@ -563,7 +550,7 @@ mod cli {
     // Test that two identical requests don't get executed twice.
     fn test_caching_across_files() -> Result<()> {
         // Repetitions across multiple files shall all be checked only once.
-        let repeated_uris = fixtures_path().join("TEST_REPETITION_*.txt");
+        let repeated_uris = fixtures_path!().join("TEST_REPETITION_*.txt");
 
         test_json_output!(
             repeated_uris,
@@ -585,7 +572,7 @@ mod cli {
     #[test]
     fn test_failure_github_404_no_token() {
         let mut cmd = main_command();
-        let test_github_404_path = fixtures_path().join("TEST_GITHUB_404.md");
+        let test_github_404_path = fixtures_path!().join("TEST_GITHUB_404.md");
 
         cmd.arg(test_github_404_path)
             .arg("--no-progress")
@@ -651,7 +638,7 @@ mod cli {
     #[test]
     fn test_skips_hidden_files_by_default() {
         main_command()
-            .arg(fixtures_path().join("hidden/"))
+            .arg(fixtures_path!().join("hidden/"))
             .assert()
             .success()
             .stdout(contains("0 Total"));
@@ -660,7 +647,7 @@ mod cli {
     #[test]
     fn test_include_hidden_file() {
         main_command()
-            .arg(fixtures_path().join("hidden/"))
+            .arg(fixtures_path!().join("hidden/"))
             .arg("--hidden")
             .assert()
             .success()
@@ -670,7 +657,7 @@ mod cli {
     #[test]
     fn test_skips_ignored_files_by_default() {
         main_command()
-            .arg(fixtures_path().join("ignore/"))
+            .arg(fixtures_path!().join("ignore/"))
             .assert()
             .success()
             .stdout(contains("0 Total"));
@@ -679,7 +666,7 @@ mod cli {
     #[test]
     fn test_include_ignored_file() {
         main_command()
-            .arg(fixtures_path().join("ignore/"))
+            .arg(fixtures_path!().join("ignore/"))
             .arg("--no-ignore")
             .assert()
             .success()
@@ -774,7 +761,7 @@ mod cli {
     #[test]
     fn test_dump_to_file() -> Result<()> {
         let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST.md");
+        let test_path = fixtures_path!().join("TEST.md");
         let outfile = format!("{}", Uuid::new_v4());
 
         cmd.arg("--output")
@@ -800,7 +787,7 @@ mod cli {
     #[test]
     fn test_exclude_wildcard() -> Result<()> {
         let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST.md");
+        let test_path = fixtures_path!().join("TEST.md");
 
         cmd.arg(test_path)
             .arg("--exclude")
@@ -815,7 +802,7 @@ mod cli {
     #[test]
     fn test_exclude_multiple_urls() -> Result<()> {
         let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST.md");
+        let test_path = fixtures_path!().join("TEST.md");
 
         cmd.arg(test_path)
             .arg("--exclude")
@@ -832,7 +819,7 @@ mod cli {
     #[tokio::test]
     async fn test_empty_config() -> Result<()> {
         let mock_server = mock_server!(StatusCode::OK);
-        let config = fixtures_path().join("configs").join("empty.toml");
+        let config = fixtures_path!().join("configs").join("empty.toml");
         let mut cmd = main_command();
         cmd.arg("--config")
             .arg(config)
@@ -849,7 +836,7 @@ mod cli {
 
     #[test]
     fn test_invalid_default_config() -> Result<()> {
-        let test_path = fixtures_path().join("configs");
+        let test_path = fixtures_path!().join("configs");
         let mut cmd = main_command();
         cmd.current_dir(test_path)
             .arg(".")
@@ -898,7 +885,7 @@ mod cli {
     #[tokio::test]
     async fn test_cache_config() -> Result<()> {
         let mock_server = mock_server!(StatusCode::OK);
-        let config = fixtures_path().join("configs").join("cache.toml");
+        let config = fixtures_path!().join("configs").join("cache.toml");
         let mut cmd = main_command();
         cmd.arg("--config")
             .arg(config)
@@ -915,7 +902,7 @@ mod cli {
 
     #[tokio::test]
     async fn test_invalid_config() {
-        let config = fixtures_path().join("configs").join("invalid.toml");
+        let config = fixtures_path!().join("configs").join("invalid.toml");
         let mut cmd = main_command();
         cmd.arg("--config")
             .arg(config)
@@ -944,7 +931,7 @@ mod cli {
     #[tokio::test]
     async fn test_config_example() {
         let mock_server = mock_server!(StatusCode::OK);
-        let config = root_path().join("lychee.example.toml");
+        let config = root_path!().join("lychee.example.toml");
         let mut cmd = main_command();
         cmd.arg("--config")
             .arg(config)
@@ -958,7 +945,7 @@ mod cli {
     #[tokio::test]
     async fn test_config_smoketest() {
         let mock_server = mock_server!(StatusCode::OK);
-        let config = fixtures_path().join("configs").join("smoketest.toml");
+        let config = fixtures_path!().join("configs").join("smoketest.toml");
         let mut cmd = main_command();
         cmd.arg("--config")
             .arg(config)
@@ -972,7 +959,7 @@ mod cli {
     #[tokio::test]
     async fn test_config_accept() {
         let mock_server = mock_server!(StatusCode::OK);
-        let config = fixtures_path().join("configs").join("accept.toml");
+        let config = fixtures_path!().join("configs").join("accept.toml");
         let mut cmd = main_command();
         cmd.arg("--config")
             .arg(config)
@@ -986,7 +973,7 @@ mod cli {
     #[test]
     fn test_lycheeignore_file() -> Result<()> {
         let mut cmd = main_command();
-        let test_path = fixtures_path().join("lycheeignore");
+        let test_path = fixtures_path!().join("lycheeignore");
 
         let cmd = cmd
             .current_dir(test_path)
@@ -1007,7 +994,7 @@ mod cli {
     #[test]
     fn test_lycheeignore_and_exclude_file() -> Result<()> {
         let mut cmd = main_command();
-        let test_path = fixtures_path().join("lycheeignore");
+        let test_path = fixtures_path!().join("lycheeignore");
         let excludes_path = test_path.join("normal-exclude-file");
 
         cmd.current_dir(test_path)
@@ -1024,7 +1011,7 @@ mod cli {
 
     #[tokio::test]
     async fn test_lycheecache_file() -> Result<()> {
-        let base_path = fixtures_path().join("cache");
+        let base_path = fixtures_path!().join("cache");
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Ensure clean state
@@ -1108,7 +1095,7 @@ mod cli {
 
     #[tokio::test]
     async fn test_lycheecache_exclude_custom_status_codes() -> Result<()> {
-        let base_path = fixtures_path().join("cache");
+        let base_path = fixtures_path!().join("cache");
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Unconditionally remove cache file if it exists
@@ -1171,7 +1158,7 @@ mod cli {
 
     #[tokio::test]
     async fn test_lycheecache_accept_custom_status_codes() -> Result<()> {
-        let base_path = fixtures_path().join("cache_accept_custom_status_codes");
+        let base_path = fixtures_path!().join("cache_accept_custom_status_codes");
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Unconditionally remove cache file if it exists
@@ -1266,7 +1253,7 @@ mod cli {
 
     #[tokio::test]
     async fn test_skip_cache_unsupported() -> Result<()> {
-        let base_path = fixtures_path().join("cache");
+        let base_path = fixtures_path!().join("cache");
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Unconditionally remove cache file if it exists
@@ -1317,7 +1304,7 @@ mod cli {
     /// status codes.
     #[tokio::test]
     async fn test_skip_cache_unknown_status_code() -> Result<()> {
-        let base_path = fixtures_path().join("cache");
+        let base_path = fixtures_path!().join("cache");
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Unconditionally remove cache file if it exists
@@ -1361,7 +1348,7 @@ mod cli {
     #[test]
     fn test_verbatim_skipped_by_default() -> Result<()> {
         let mut cmd = main_command();
-        let input = fixtures_path().join("TEST_CODE_BLOCKS.md");
+        let input = fixtures_path!().join("TEST_CODE_BLOCKS.md");
 
         cmd.arg(input)
             .arg("--dump")
@@ -1375,7 +1362,7 @@ mod cli {
     #[test]
     fn test_include_verbatim() -> Result<()> {
         let mut cmd = main_command();
-        let input = fixtures_path().join("TEST_CODE_BLOCKS.md");
+        let input = fixtures_path!().join("TEST_CODE_BLOCKS.md");
 
         cmd.arg("--include-verbatim")
             .arg(input)
@@ -1390,7 +1377,7 @@ mod cli {
     }
     #[tokio::test]
     async fn test_verbatim_skipped_by_default_via_file() -> Result<()> {
-        let file = fixtures_path().join("TEST_VERBATIM.html");
+        let file = fixtures_path!().join("TEST_VERBATIM.html");
 
         main_command()
             .arg("--dump")
@@ -1405,7 +1392,7 @@ mod cli {
     #[tokio::test]
     async fn test_verbatim_skipped_by_default_via_remote_url() -> Result<()> {
         let mut cmd = main_command();
-        let file = fixtures_path().join("TEST_VERBATIM.html");
+        let file = fixtures_path!().join("TEST_VERBATIM.html");
         let body = fs::read_to_string(file)?;
         let mock_server = mock_response!(body);
 
@@ -1421,7 +1408,7 @@ mod cli {
     #[tokio::test]
     async fn test_include_verbatim_via_remote_url() -> Result<()> {
         let mut cmd = main_command();
-        let file = fixtures_path().join("TEST_VERBATIM.html");
+        let file = fixtures_path!().join("TEST_VERBATIM.html");
         let body = fs::read_to_string(file)?;
         let mock_server = mock_response!(body);
 
@@ -1442,7 +1429,7 @@ mod cli {
     #[test]
     fn test_require_https() -> Result<()> {
         let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST_HTTP.html");
+        let test_path = fixtures_path!().join("TEST_HTTP.html");
         cmd.arg(&test_path).assert().success();
 
         let mut cmd = main_command();
@@ -1462,7 +1449,7 @@ mod cli {
     fn test_ignore_absolute_local_links_without_base() -> Result<()> {
         let mut cmd = main_command();
 
-        let offline_dir = fixtures_path().join("offline");
+        let offline_dir = fixtures_path!().join("offline");
 
         cmd.arg("--offline")
             .arg(offline_dir.join("index.html"))
@@ -1476,7 +1463,7 @@ mod cli {
 
     #[test]
     fn test_inputs_without_scheme() -> Result<()> {
-        let test_path = fixtures_path().join("TEST_HTTP.html");
+        let test_path = fixtures_path!().join("TEST_HTTP.html");
         let mut cmd = main_command();
 
         cmd.arg("--dump")
@@ -1490,7 +1477,7 @@ mod cli {
 
     #[test]
     fn test_print_excluded_links_in_verbose_mode() -> Result<()> {
-        let test_path = fixtures_path().join("TEST_DUMP_EXCLUDE.txt");
+        let test_path = fixtures_path!().join("TEST_DUMP_EXCLUDE.txt");
         let mut cmd = main_command();
 
         cmd.arg("--dump")
@@ -1595,7 +1582,7 @@ mod cli {
 
     #[test]
     fn test_excluded_paths_regex() -> Result<()> {
-        let test_path = fixtures_path().join("exclude-path");
+        let test_path = fixtures_path!().join("exclude-path");
         let excluded_path_1 = "\\/excluded?\\/"; // exclude paths containing a directory "exclude" and "excluded"
         let excluded_path_2 = "(\\.mdx|\\.txt)$"; // exclude .mdx and .txt files
         let mut cmd = main_command();
@@ -1624,7 +1611,7 @@ mod cli {
 
     #[test]
     fn test_handle_relative_paths_as_input() -> Result<()> {
-        let test_path = fixtures_path();
+        let test_path = fixtures_path!();
         let mut cmd = main_command();
 
         cmd.current_dir(&test_path)
@@ -1643,7 +1630,7 @@ mod cli {
 
     #[test]
     fn test_handle_nonexistent_relative_paths_as_input() -> Result<()> {
-        let test_path = fixtures_path();
+        let test_path = fixtures_path!();
         let mut cmd = main_command();
 
         cmd.current_dir(&test_path)
@@ -1682,7 +1669,7 @@ mod cli {
         for _ in 0..3 {
             // This can be flaky. Try up to 3 times
             let mut cmd = main_command();
-            let input = fixtures_path().join("INTERNET_ARCHIVE.md");
+            let input = fixtures_path!().join("INTERNET_ARCHIVE.md");
 
             cmd.arg("--no-progress").arg("--suggest").arg(input);
 
@@ -1811,7 +1798,7 @@ mod cli {
 
     #[test]
     fn test_dump_inputs_does_not_include_duplicates() -> Result<()> {
-        let pattern = fixtures_path().join("dump_inputs/markdown.md");
+        let pattern = fixtures_path!().join("dump_inputs/markdown.md");
 
         let mut cmd = main_command();
         cmd.arg("--dump-inputs")
@@ -1826,8 +1813,8 @@ mod cli {
 
     #[test]
     fn test_dump_inputs_glob_does_not_include_duplicates() -> Result<()> {
-        let pattern1 = fixtures_path().join("**/markdown.*");
-        let pattern2 = fixtures_path().join("**/*.md");
+        let pattern1 = fixtures_path!().join("**/markdown.*");
+        let pattern2 = fixtures_path!().join("**/*.md");
 
         let mut cmd = main_command();
         cmd.arg("--dump-inputs")
@@ -1842,7 +1829,7 @@ mod cli {
 
     #[test]
     fn test_dump_inputs_glob_md() -> Result<()> {
-        let pattern = fixtures_path().join("**/*.md");
+        let pattern = fixtures_path!().join("**/*.md");
 
         let mut cmd = main_command();
         cmd.arg("--dump-inputs")
@@ -1857,7 +1844,7 @@ mod cli {
 
     #[test]
     fn test_dump_inputs_glob_all() -> Result<()> {
-        let pattern = fixtures_path().join("**/*");
+        let pattern = fixtures_path!().join("**/*");
 
         let mut cmd = main_command();
         cmd.arg("--dump-inputs")
@@ -1875,13 +1862,13 @@ mod cli {
 
     #[test]
     fn test_dump_inputs_glob_exclude_path() -> Result<()> {
-        let pattern = fixtures_path().join("**/*");
+        let pattern = fixtures_path!().join("**/*");
 
         let mut cmd = main_command();
         cmd.arg("--dump-inputs")
             .arg(pattern)
             .arg("--exclude-path")
-            .arg(fixtures_path().join("dump_inputs/subfolder"))
+            .arg(fixtures_path!().join("dump_inputs/subfolder"))
             .assert()
             .success()
             .stdout(contains("fixtures/dump_inputs/subfolder/test.html").not())
@@ -1909,11 +1896,11 @@ mod cli {
         let mut cmd = main_command();
         let result = cmd
             .arg("--dump-inputs")
-            .arg(fixtures_path().join("dump_inputs"))
+            .arg(fixtures_path!().join("dump_inputs"))
             .assert()
             .success();
 
-        let base_path = fixtures_path().join("dump_inputs");
+        let base_path = fixtures_path!().join("dump_inputs");
         let expected_lines = [
             "some_file.txt",
             "subfolder/file2.md",
@@ -1933,7 +1920,7 @@ mod cli {
     #[test]
     fn test_dump_inputs_with_extensions() -> Result<()> {
         let mut cmd = main_command();
-        let test_dir = fixtures_path().join("dump_inputs");
+        let test_dir = fixtures_path!().join("dump_inputs");
 
         let output = cmd
             .arg("--dump-inputs")
@@ -1952,7 +1939,7 @@ mod cli {
             .collect();
         actual_lines.sort();
 
-        let base_path = fixtures_path().join("dump_inputs");
+        let base_path = fixtures_path!().join("dump_inputs");
         let mut expected_lines = vec![
             path_str(&base_path, "some_file.txt"),
             path_str(&base_path, "subfolder/file2.md"),
@@ -1975,7 +1962,7 @@ mod cli {
 
     #[test]
     fn test_dump_inputs_skip_hidden() -> Result<()> {
-        let test_dir = fixtures_path().join("hidden");
+        let test_dir = fixtures_path!().join("hidden");
 
         // Test default behavior (skip hidden)
         main_command()
@@ -2000,7 +1987,7 @@ mod cli {
     #[test]
     fn test_dump_inputs_individual_file() -> Result<()> {
         let mut cmd = main_command();
-        let test_file = fixtures_path().join("TEST.md");
+        let test_file = fixtures_path!().join("TEST.md");
 
         cmd.arg("--dump-inputs")
             .arg(&test_file)
@@ -2027,7 +2014,7 @@ mod cli {
     #[test]
     fn test_fragments_regression() {
         let mut cmd = main_command();
-        let input = fixtures_path().join("FRAGMENT_REGRESSION.md");
+        let input = fixtures_path!().join("FRAGMENT_REGRESSION.md");
 
         cmd.arg("--include-fragments")
             .arg("--verbose")
@@ -2039,7 +2026,7 @@ mod cli {
     #[test]
     fn test_fragments() {
         let mut cmd = main_command();
-        let input = fixtures_path().join("fragments");
+        let input = fixtures_path!().join("fragments");
 
         let mut result = cmd
             .arg("--include-fragments")
@@ -2132,7 +2119,7 @@ mod cli {
     #[test]
     fn test_fragments_when_accept_error_status_codes() {
         let mut cmd = main_command();
-        let input = fixtures_path().join("TEST_FRAGMENT_ERR_CODE.md");
+        let input = fixtures_path!().join("TEST_FRAGMENT_ERR_CODE.md");
 
         // it's common for user to accept 429, but let's test with 404 since
         // triggering 429 may annoy the server
@@ -2153,7 +2140,7 @@ mod cli {
     #[test]
     fn test_fallback_extensions() {
         let mut cmd = main_command();
-        let input = fixtures_path().join("fallback-extensions");
+        let input = fixtures_path!().join("fallback-extensions");
 
         cmd.arg("--verbose")
             .arg("--fallback-extensions=htm,html")
@@ -2166,7 +2153,7 @@ mod cli {
     #[test]
     fn test_fragments_fallback_extensions() {
         let mut cmd = main_command();
-        let input = fixtures_path().join("fragments-fallback-extensions");
+        let input = fixtures_path!().join("fragments-fallback-extensions");
 
         cmd.arg("--include-fragments")
             .arg("--fallback-extensions=html")
@@ -2226,7 +2213,7 @@ mod cli {
     #[tokio::test]
     async fn test_json_format_in_config() -> Result<()> {
         let mock_server = mock_server!(StatusCode::OK);
-        let config = fixtures_path().join("configs").join("format.toml");
+        let config = fixtures_path!().join("configs").join("format.toml");
         let mut cmd = main_command();
         let output = cmd
             .arg("--config")
@@ -2409,7 +2396,7 @@ mod cli {
             )
             .await;
 
-        let config = fixtures_path().join("configs").join("headers.toml");
+        let config = fixtures_path!().join("configs").join("headers.toml");
         cmd.arg("--verbose")
             .arg("--config")
             .arg(config)
@@ -2435,8 +2422,8 @@ mod cli {
         let cmd = &mut main_command()
             .arg("--format")
             .arg("compact")
-            .arg(fixtures_path().join(test_files[1]))
-            .arg(fixtures_path().join(test_files[0]))
+            .arg(fixtures_path!().join(test_files[1]))
+            .arg(fixtures_path!().join(test_files[0]))
             .assert()
             .failure()
             .code(2);
@@ -2471,7 +2458,7 @@ mod cli {
 
     #[test]
     fn test_extract_url_ending_with_period_file() {
-        let test_path = fixtures_path().join("LINK_PERIOD.html");
+        let test_path = fixtures_path!().join("LINK_PERIOD.html");
 
         let mut cmd = main_command();
         cmd.arg("--dump")
@@ -2496,7 +2483,7 @@ mod cli {
 
     #[test]
     fn test_wikilink_extract_when_specified() {
-        let test_path = fixtures_path().join("TEST_WIKI.md");
+        let test_path = fixtures_path!().join("TEST_WIKI.md");
 
         let mut cmd = main_command();
         cmd.arg("--dump")
@@ -2509,7 +2496,7 @@ mod cli {
 
     #[test]
     fn test_wikilink_dont_extract_when_not_specified() {
-        let test_path = fixtures_path().join("TEST_WIKI.md");
+        let test_path = fixtures_path!().join("TEST_WIKI.md");
 
         let mut cmd = main_command();
         cmd.arg("--dump")
@@ -2521,7 +2508,7 @@ mod cli {
 
     #[test]
     fn test_index_files_default() {
-        let input = fixtures_path().join("filechecker/dir_links.md");
+        let input = fixtures_path!().join("filechecker/dir_links.md");
 
         // the dir links in this file all exist.
         main_command()
@@ -2544,7 +2531,7 @@ mod cli {
 
     #[test]
     fn test_index_files_specified() {
-        let input = fixtures_path().join("filechecker/dir_links.md");
+        let input = fixtures_path!().join("filechecker/dir_links.md");
 
         // passing `--index-files index.html,index.htm` should reject all links
         // to /empty_dir because it doesn't have the index file
@@ -2577,7 +2564,7 @@ mod cli {
 
     #[test]
     fn test_index_files_dot_in_list() {
-        let input = fixtures_path().join("filechecker/dir_links.md");
+        let input = fixtures_path!().join("filechecker/dir_links.md");
 
         // passing `.` in the index files list should accept a directory
         // even if no other index file is found.
@@ -2607,7 +2594,7 @@ mod cli {
 
     #[test]
     fn test_index_files_empty_list() {
-        let input = fixtures_path().join("filechecker/dir_links.md");
+        let input = fixtures_path!().join("filechecker/dir_links.md");
 
         // passing an empty list to --index-files should reject /all/
         // directory links.
@@ -2638,7 +2625,7 @@ mod cli {
     #[test]
     fn test_skip_binary_input() {
         // A path containing a binary file
-        let inputs = fixtures_path().join("invalid_utf8");
+        let inputs = fixtures_path!().join("invalid_utf8");
 
         // Run the command with the binary input
         let mut cmd = main_command();
@@ -2668,7 +2655,7 @@ mod cli {
     #[test]
     fn test_dump_invalid_utf8_inputs() {
         // A path containing a binary file
-        let inputs = fixtures_path().join("invalid_utf8");
+        let inputs = fixtures_path!().join("invalid_utf8");
 
         // Run the command with the binary input
         let mut cmd = main_command();
@@ -2687,7 +2674,7 @@ mod cli {
     /// See https://github.com/lycheeverse/lychee-action/issues/305
     #[test]
     fn test_globbed_files_are_always_checked() {
-        let input = fixtures_path().join("glob_dir/**/*.tsx");
+        let input = fixtures_path!().join("glob_dir/**/*.tsx");
 
         // The directory contains:
         // - example.ts
@@ -2710,7 +2697,7 @@ mod cli {
 
     #[test]
     fn test_extensions_work_on_glob_files_directory() {
-        let input = fixtures_path().join("glob_dir");
+        let input = fixtures_path!().join("glob_dir");
 
         // Make sure all files matching the given extensions are checked
         // if we specify a directory (and not a glob pattern).
@@ -2735,8 +2722,8 @@ mod cli {
     /// The extensions should only apply to the directory path, not the glob pattern.
     #[test]
     fn test_extensions_apply_to_files_not_globs() {
-        let glob_input = fixtures_path().join("glob_dir/**/*.tsx");
-        let dir_input = fixtures_path().join("example_dir");
+        let glob_input = fixtures_path!().join("glob_dir/**/*.tsx");
+        let dir_input = fixtures_path!().join("example_dir");
 
         main_command()
             .arg("--verbose")
@@ -2764,8 +2751,8 @@ mod cli {
     /// extension does not match the given extensions.
     #[test]
     fn test_file_inputs_always_get_checked_no_matter_their_extension() {
-        let ts_input_file = fixtures_path().join("glob_dir/example.ts");
-        let md_input_file = fixtures_path().join("glob_dir/example.md");
+        let ts_input_file = fixtures_path!().join("glob_dir/example.ts");
+        let md_input_file = fixtures_path!().join("glob_dir/example.md");
 
         main_command()
             .arg("--verbose")

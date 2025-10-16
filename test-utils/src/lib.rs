@@ -107,11 +107,18 @@ macro_rules! mail {
     }};
 }
 
-/// Returns the path to the `fixtures` directory.
-///
-/// # Panic
-///
-/// Panics if the fixtures directory could not be determined.
+/// Get the root path of the project.
+#[macro_export]
+macro_rules! root_path {
+    () => {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .to_path_buf()
+    };
+}
+
+/// Get the path to the `fixtures` directory.
 #[macro_export]
 macro_rules! fixtures_path {
     () => {
@@ -158,5 +165,16 @@ macro_rules! load_readme_text {
             .unwrap()
             .join("README.md");
         std::fs::read_to_string(readme_path).unwrap()
+    }};
+}
+
+/// Helper function to create a ResponseBody with a given status and URI
+#[macro_export]
+macro_rules! mock_response_body {
+    ($status:expr, $uri:expr $(,)?) => {{
+        ResponseBody {
+            uri: Uri::try_from($uri).unwrap(),
+            status: $status,
+        }
     }};
 }
