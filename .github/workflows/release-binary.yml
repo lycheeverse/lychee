@@ -86,7 +86,7 @@ jobs:
           ${GNU_PREFIX}strip lychee
           chmod +x lychee
           mkdir docs
-          cp ../../../{README.md, docs/TROUBLESHOOTING.md} docs
+          cp ../../../README.md ../../../docs/TROUBLESHOOTING.md docs
           ./lychee --generate man > docs/lychee.1
           tar -c lychee docs/ | gzip > lychee.tar.gz
 
