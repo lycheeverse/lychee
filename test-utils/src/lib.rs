@@ -178,3 +178,11 @@ macro_rules! mock_response_body {
         }
     }};
 }
+
+/// Gets the "main" binary name (e.g. `lychee`)
+#[macro_export]
+macro_rules! main_command {
+    () => {
+        Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name")
+    };
+}

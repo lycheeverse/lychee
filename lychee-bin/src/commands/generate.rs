@@ -20,30 +20,45 @@ const BUG_SECTION: &str =
     "Report any bugs or questions to <https://github.com/lycheeverse/lychee/issues/>
 
 Questions can also be asked on <https://github.com/lycheeverse/lychee/discussions>";
-const EXAMPLES_SECTION: &str = "Check all links in supported files by specifying a directory
 
-    $ lychee .
+type Description = &'static str;
+type Commands = &'static [&'static str];
+type Example = (Description, Commands);
 
-Specify files explicitly or use glob patterns
-
-    $ lychee README.md test.html info.txt
-    $ lychee 'public/**/*.html' '*.md'
-
-Check all links on a website
-
-    $ lychee https://example.com
-
-Check links from stdin
-
-    $ cat test.md | lychee -
-    $ echo 'https://example.com' | lychee -
-
-Links can be excluded and included with regular expressions
-
-    $ lychee --exclude '^https?://blog\\.example\\.com' --exclude '\\.(pdf|zip|png|jpg)$'
-
-Further examples can be found in the online documentation at <https://lychee.cli.rs>
-";
+/// Used to render the EXAMPLES section in the man page.
+/// Note that the `Commands` are executed and tested.
+const EXAMPLES: &[Example] = &[
+    (
+        "Check all links in supported files by specifying a directory",
+        &["lychee ."],
+    ),
+    (
+        "Specify files explicitly or use glob patterns",
+        &[
+            "lychee README.md test.html info.txt",
+            "lychee 'public/**/*.html' '*.md'",
+        ],
+    ),
+    (
+        "Check all links on a website",
+        &["lychee https://example.com"],
+    ),
+    (
+        "Check links from stdin",
+        &[
+            "cat test.md | lychee -",
+            "echo 'https://example.com' | lychee -",
+        ],
+    ),
+    (
+        "Links can be excluded and included with regular expressions",
+        &["lychee --exclude '^https?://blog\\.example\\.com' --exclude '\\.(pdf|zip|png|jpg)$' ."],
+    ),
+    (
+        "Further examples can be found in the online documentation at <https://lychee.cli.rs>",
+        &[],
+    ),
+];
 
 const EXIT_CODE_SECTION: &str = "
 0   Success. The operation was completed successfully as instructed.
@@ -100,7 +115,19 @@ fn render_exit_codes(buffer: &mut Vec<u8>) -> Result<()> {
 }
 
 fn render_examples(buffer: &mut Vec<u8>) -> Result<()> {
-    render_section("EXAMPLES", EXAMPLES_SECTION, buffer)
+    let section = EXAMPLES
+        .iter()
+        .map(|(description, examples)| {
+            let examples = examples
+                .iter()
+                .map(|example| format!("    $ {example}"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!("{description}\n\n{examples}")
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    render_section("EXAMPLES", &section, buffer)
 }
 
 fn render_bug_reporting(buffer: &mut Vec<u8>) -> Result<()> {
@@ -117,9 +144,11 @@ fn render_section(title: &str, content: &str, buffer: &mut Vec<u8>) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::man_page;
+    use super::{EXAMPLES, man_page};
     use crate::generate::{CONTRIBUTOR_THANK_NOTE, EXIT_CODE_SECTION};
     use anyhow::Result;
+    use assert_cmd::Command;
+    use test_utils::{fixtures_path, main_command};
 
     #[test]
     fn test_man_page() -> Result<()> {
@@ -163,6 +192,43 @@ mod tests {
             filter_empty_lines(section),
             filter_empty_lines(EXIT_CODE_SECTION)
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_examples_work() -> Result<()> {
+        let results: Vec<_> = EXAMPLES
+            .iter()
+            .flat_map(|(_, examples)| examples.iter())
+            .map(|example| {
+                let command = example.replace(
+                    "lychee",
+                    main_command!()
+                        .get_program()
+                        .to_str()
+                        .expect("Unable to convert to string"),
+                );
+
+                (
+                    command.clone(),
+                    Command::new("sh")
+                        .arg("-c")
+                        .arg(command)
+                        .current_dir(fixtures_path!().join("manpage_examples"))
+                        .output(),
+                )
+            })
+            .collect();
+
+        for (command, result) in results {
+            let result = result?;
+            let output = str::from_utf8(&result.stderr)?;
+            assert!(
+                result.status.success(),
+                "The command '{command}' failed with: {output}",
+            );
+        }
 
         Ok(())
     }
