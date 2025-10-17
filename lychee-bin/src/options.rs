@@ -107,7 +107,7 @@ impl FromStr for StatsFormat {
             "json" => Ok(StatsFormat::Json),
             "markdown" | "md" => Ok(StatsFormat::Markdown),
             "raw" => Ok(StatsFormat::Raw),
-            _ => Err(anyhow!("Unknown format {}", format)),
+            _ => Err(anyhow!("Unknown format {format}")),
         }
     }
 }
@@ -231,11 +231,11 @@ fn parse_single_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
     let parts: Vec<&str> = header.splitn(2, ':').collect();
     match parts.as_slice() {
         [name, value] => {
-            let name = HeaderName::from_str(name.trim())
-                .map_err(|e| anyhow!("Unable to convert header name '{}': {}", name.trim(), e))?;
-            let value = HeaderValue::from_str(value.trim()).map_err(|e| {
-                anyhow!("Unable to read value of header with name '{}': {}", name, e)
-            })?;
+            let name = name.trim();
+            let name = HeaderName::from_str(name)
+                .map_err(|e| anyhow!("Unable to convert header name '{name}': {e}"))?;
+            let value = HeaderValue::from_str(value.trim())
+                .map_err(|e| anyhow!("Unable to read value of header with name '{name}': {e}"))?;
             Ok((name, value))
         }
         _ => Err(anyhow!(
@@ -303,9 +303,9 @@ impl HeaderMapExt for HeaderMap {
         let mut header_map = HeaderMap::new();
         for (name, value) in headers {
             let header_name = HeaderName::from_bytes(name.as_bytes())
-                .map_err(|e| anyhow!("Invalid header name '{}': {}", name, e))?;
+                .map_err(|e| anyhow!("Invalid header name '{name}': {e}"))?;
             let header_value = HeaderValue::from_str(value)
-                .map_err(|e| anyhow!("Invalid header value '{}': {}", value, e))?;
+                .map_err(|e| anyhow!("Invalid header value '{value}': {e}"))?;
             header_map.insert(header_name, header_value);
         }
         Ok(header_map)
