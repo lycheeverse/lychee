@@ -72,18 +72,11 @@ mod tests {
     use http::StatusCode;
     use lychee_lib::{ErrorKind, Status, Uri};
     use pretty_assertions::assert_eq;
+    use test_utils::mock_response_body;
 
     /// Helper function to strip ANSI color codes for tests
     fn strip_ansi_codes(s: &str) -> String {
         console::strip_ansi_codes(s).to_string()
-    }
-
-    // Helper function to create a ResponseBody with a given status and URI
-    fn mock_response_body(status: Status, uri: &str) -> ResponseBody {
-        ResponseBody {
-            uri: Uri::try_from(uri).unwrap(),
-            status,
-        }
     }
 
     #[test]
@@ -95,7 +88,7 @@ mod tests {
     #[test]
     fn test_format_response_with_ok_status() {
         let formatter = ColorFormatter;
-        let body = mock_response_body(Status::Ok(StatusCode::OK), "https://example.com");
+        let body = mock_response_body!(Status::Ok(StatusCode::OK), "https://example.com");
         let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
         assert_eq!(formatted_response, "     [200] https://example.com/");
     }
@@ -103,7 +96,7 @@ mod tests {
     #[test]
     fn test_format_response_with_error_status() {
         let formatter = ColorFormatter;
-        let body = mock_response_body(
+        let body = mock_response_body!(
             Status::Error(ErrorKind::TestError),
             "https://example.com/404",
         );
@@ -116,7 +109,7 @@ mod tests {
         let formatter = ColorFormatter;
         let long_uri =
             "https://example.com/some/very/long/path/to/a/resource/that/exceeds/normal/lengths";
-        let body = mock_response_body(Status::Ok(StatusCode::OK), long_uri);
+        let body = mock_response_body!(Status::Ok(StatusCode::OK), long_uri);
         let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
         assert!(formatted_response.contains(long_uri));
     }
@@ -124,7 +117,7 @@ mod tests {
     #[test]
     fn test_detailed_response_output() {
         let formatter = ColorFormatter;
-        let body = mock_response_body(
+        let body = mock_response_body!(
             Status::Error(ErrorKind::TestError),
             "https://example.com/404",
         );

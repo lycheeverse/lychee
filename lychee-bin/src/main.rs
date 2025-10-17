@@ -1,6 +1,6 @@
 //! `lychee` is a fast, asynchronous, resource-friendly link checker.
 //! It is able to find broken hyperlinks and mail addresses inside Markdown,
-//! HTML, `reStructuredText`, and any other format.
+//! HTML, reStructuredText, and any other format.
 //!
 //! The lychee binary is a wrapper around lychee-lib, which provides
 //! convenience functions for calling lychee from the command-line.
@@ -65,7 +65,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Error, Result, bail};
 use clap::Parser;
-use commands::CommandParams;
+use commands::{CommandParams, generate};
 use formatters::{get_stats_formatter, log::init_logging};
 use http::HeaderMap;
 use log::{error, info, warn};
@@ -92,10 +92,10 @@ mod stats;
 mod time;
 mod verbosity;
 
-use crate::formatters::duration::Duration;
 use crate::{
     cache::{Cache, StoreExt},
-    formatters::stats::StatsFormatter,
+    formatters::{duration::Duration, stats::StatsFormatter},
+    generate::generate,
     options::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
 };
 
@@ -248,7 +248,7 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
     let cache = Cache::load(
         LYCHEE_CACHE_FILE,
         cfg.max_cache_age.as_secs(),
-        &cfg.cache_exclude_status,
+        &cfg.cache_exclude_status.clone().unwrap_or_default(),
     );
     match cache {
         Ok(cache) => Some(cache),
@@ -270,6 +270,11 @@ fn run_main() -> Result<i32> {
             exit(ExitCode::ConfigFile as i32);
         }
     };
+
+    if let Some(mode) = opts.config.generate {
+        print!("{}", generate(&mode)?);
+        exit(ExitCode::Success as i32);
+    }
 
     let runtime = match opts.config.threads {
         Some(threads) => {
