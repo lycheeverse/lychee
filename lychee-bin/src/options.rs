@@ -324,6 +324,7 @@ pub(crate) struct LycheeOptions {
     #[arg(
         name = "inputs",
         required_unless_present = "files_from",
+        required_unless_present = "generate",
         long_help = "Inputs for link checking (where to get links to check from). These can be:
 files (e.g. `README.md`), file globs (e.g. `'~/git/*/README.md'`), remote URLs
 (e.g. `https://example.com/README.md`), or standard input (`-`). Alternatively,
