@@ -135,11 +135,16 @@ jobs:
       - name: Generate man page without emulation
         if: matrix.qemu == ''
         run: |
+          $BIN --version
           $BIN --generate man > out/docs/lychee.1
 
       - name: Generate man page with emulation
         if: matrix.qemu != ''
         run: |
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
+            "${{ matrix.qemu }}" "/$BIN" --version
           docker run --rm -v \
             "$PWD/target:/target:Z" \
             "ghcr.io/cross-rs/${{ matrix.target }}:main" \
