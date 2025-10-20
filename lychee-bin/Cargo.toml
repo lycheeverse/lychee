@@ -23,7 +23,7 @@ clap = { version = "4.5.49", features = ["env", "derive", "cargo", "string"] }
 clap_mangen = "0.2.30"
 console = "0.16.1"
 const_format = "0.2.35"
-csv = "1.3.1"
+csv = "1.4.0"
 dashmap = { version = "6.1.0", features = ["serde"] }
 env_logger = "0.11.8"
 futures = "0.3.31"
