@@ -30,6 +30,7 @@ jobs:
       - name: Get release
         id: get_release
         uses: bruceadams/get-release@v1.3.2
+        if: github.ref == 'refs/heads/master' # fail only on upload step, if not on master
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -40,17 +41,48 @@ jobs:
     needs: prepare
     strategy:
       matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - x86_64-unknown-linux-musl
-          - arm-unknown-linux-gnueabihf
-          - arm-unknown-linux-musleabi
-          - arm-unknown-linux-musleabihf
-          - aarch64-unknown-linux-gnu
-          - aarch64-unknown-linux-musl
-          # See https://github.com/briansmith/ring/issues/562
-          # - mips-unknown-linux-musl
-          # - mipsel-unknown-linux-musl
+        include:
+          - build: linux
+            os: ubuntu-latest
+            rust: nightly
+            target: x86_64-unknown-linux-musl
+            strip: x86_64-linux-musl-strip
+          - build: stable-x86
+            os: ubuntu-latest
+            rust: stable
+            target: i686-unknown-linux-gnu
+            strip: x86_64-linux-gnu-strip
+            qemu: i386
+          - build: stable-aarch64
+            os: ubuntu-latest
+            rust: stable
+            target: aarch64-unknown-linux-gnu
+            strip: aarch64-linux-gnu-strip
+            qemu: qemu-aarch64
+          - build: stable-arm-gnueabihf
+            os: ubuntu-latest
+            rust: stable
+            target: armv7-unknown-linux-gnueabihf
+            strip: arm-linux-gnueabihf-strip
+            qemu: qemu-arm
+          - build: stable-arm-musleabihf
+            os: ubuntu-latest
+            rust: stable
+            target: armv7-unknown-linux-musleabihf
+            strip: arm-linux-musleabihf-strip
+            qemu: qemu-arm
+          - build: stable-arm-musleabi
+            os: ubuntu-latest
+            rust: stable
+            target: armv7-unknown-linux-musleabi
+            strip: arm-linux-musleabi-strip
+            qemu: qemu-arm
+          - build: stable-s390x
+            os: ubuntu-latest
+            rust: stable
+            target: s390x-unknown-linux-gnu
+            strip: s390x-linux-gnu-strip
+            qemu: qemu-s390x
       fail-fast: false
     steps:
       - name: Install musl tools
@@ -80,23 +112,52 @@ jobs:
           args: --release --target ${{ matrix.target }} --features vendored-openssl
           use-cross: true
 
-      - name: Optimize and package binary
+      - name: Prepare binary
         run: |
-          cd target/${{ matrix.target }}/release
-          ${GNU_PREFIX}strip lychee
-          chmod +x lychee
-          mkdir docs
-          cp ../../../README.md ../../../docs/TROUBLESHOOTING.md docs
-          ./lychee --generate man > docs/lychee.1
+          bin="target/${{ matrix.target }}/release/lychee"
+          chmod +x $bin
+          echo "BIN=$bin" >> $GITHUB_ENV
+
+      - name: Strip binary (cross)
+        run: |
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
+            "${{ matrix.strip }}" \
+            "/$BIN"
+
+      - name: Prepare release directory
+        run: |
+          mkdir out out/docs
+          cp $BIN out
+          cp README.md docs/*.md out/docs
+
+      - name: Generate man page without emulation
+        if: matrix.qemu == ''
+        run: |
+          $BIN --generate man > out/docs/lychee.1
+
+      - name: Generate man page with emulation
+        if: matrix.qemu != ''
+        run: |
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
+            "${{ matrix.qemu }}" "/$BIN" \
+              --generate man > "out/docs/lychee.1"
+
+      - name: Package release
+        run: |
+          cd out
           tar -czf lychee.tar.gz lychee docs/
 
-      - name: Upload binary
+      - name: Upload .tar.gz
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           asset_name: lychee-${{ matrix.target }}.tar.gz
-          asset_path: target/${{ matrix.target }}/release/lychee.tar.gz
+          asset_path: out/lychee.tar.gz
           upload_url: ${{needs.prepare.outputs.upload_url}}
           asset_content_type: application/gzip
 
