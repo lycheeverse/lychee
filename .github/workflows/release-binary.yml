@@ -30,7 +30,8 @@ jobs:
       - name: Get release
         id: get_release
         uses: bruceadams/get-release@v1.3.2
-        if: github.ref == 'refs/heads/master' # fail only on upload step, if not on master
+        # Skip step if not on master/main in the official repository since it would fail. Instead fail at the end of this workflow.
+        if: ${{ github.repository == 'lycheeverse/lychee' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -155,6 +156,12 @@ jobs:
         run: |
           cd out
           tar -czf lychee.tar.gz lychee docs/
+
+      - name: Check if possible to release
+        if: ${{ needs.prepare.outputs.upload_url == '' }}
+        run: |
+          echo "Releasing only works on the master/main branch in the official repository."
+          exit 1
 
       - name: Upload .tar.gz
         uses: actions/upload-release-asset@v1
