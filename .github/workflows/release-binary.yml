@@ -27,6 +27,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Debugging
+        if: ${{ github.repository }}
+        run: |
+          echo ${{github.repository}}
+          echo ${{github.ref}}
+          echo $GITHUB_REF
+          echo ${{ github.repository == 'lycheeverse/lychee' }}
+          echo ${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' }}
+          echo ${{ (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') }}
+          echo ${{ github.repository == 'lycheeverse/lychee' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') }}
+          exit 1
+
       - name: Get release
         id: get_release
         uses: bruceadams/get-release@v1.3.2
