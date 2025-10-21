@@ -43,47 +43,36 @@ jobs:
     strategy:
       matrix:
         include:
-          - build: linux
-            os: ubuntu-latest
-            rust: nightly
+          - build: x86_64-gnu
+            target: x86_64-unknown-linux-gnu
+            strip: x86_64-linux-gnu-strip
+          - build: x86_64-musl
             target: x86_64-unknown-linux-musl
             strip: x86_64-linux-musl-strip
-          - build: stable-x86
-            os: ubuntu-latest
-            rust: stable
-            target: i686-unknown-linux-gnu
-            strip: x86_64-linux-gnu-strip
-            qemu: i386
-          - build: stable-aarch64
-            os: ubuntu-latest
-            rust: stable
-            target: aarch64-unknown-linux-gnu
-            strip: aarch64-linux-gnu-strip
-            qemu: qemu-aarch64
-          - build: stable-arm-gnueabihf
-            os: ubuntu-latest
-            rust: stable
+          - build: arm-gnueabihf
             target: armv7-unknown-linux-gnueabihf
             strip: arm-linux-gnueabihf-strip
             qemu: qemu-arm
-          - build: stable-arm-musleabihf
-            os: ubuntu-latest
-            rust: stable
-            target: armv7-unknown-linux-musleabihf
-            strip: arm-linux-musleabihf-strip
-            qemu: qemu-arm
-          - build: stable-arm-musleabi
-            os: ubuntu-latest
-            rust: stable
-            target: armv7-unknown-linux-musleabi
+          - build: arm-musleabi
+            target: arm-unknown-linux-musleabi
             strip: arm-linux-musleabi-strip
             qemu: qemu-arm
-          - build: stable-s390x
-            os: ubuntu-latest
-            rust: stable
-            target: s390x-unknown-linux-gnu
-            strip: s390x-linux-gnu-strip
-            qemu: qemu-s390x
+          - build: arm-musleabihf
+            target: arm-unknown-linux-musleabihf
+            strip: arm-linux-musleabihf-strip
+            qemu: qemu-arm
+          - build: aarch64-gnu
+            target: aarch64-unknown-linux-gnu
+            strip: aarch64-linux-gnu-strip
+            qemu: qemu-aarch64
+          - build: aarch64-musl
+            target: aarch64-unknown-linux-musl
+            strip: aarch64-linux-musl-strip
+            qemu: qemu-aarch64
+          - build: i686-gnu
+            target: i686-unknown-linux-gnu
+            strip: x86_64-linux-gnu-strip
+            qemu: i386
       fail-fast: false
     steps:
       - name: Install musl tools
