@@ -56,7 +56,7 @@ test: ## Run tests
 
 .PHONY: bench
 bench: ## Run benchmarks
-	cargo bench
+	cargo bench --profile=dev
 
 .PHONY: doc
 doc: ## Open documentation
