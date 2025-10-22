@@ -1,6 +1,7 @@
 pub(crate) mod check;
 pub(crate) mod dump;
 pub(crate) mod dump_inputs;
+pub(crate) mod generate;
 
 pub(crate) use check::check;
 pub(crate) use dump::dump;

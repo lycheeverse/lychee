@@ -9,11 +9,11 @@ path = "collect_links.rs"
 
 [dependencies]
 lychee-lib = { path = "../../lychee-lib",  default-features = false }
-tokio = { version = "1.47.1", features = ["full"] }
-regex = "1.11.2"
+tokio = { version = "1.48.0", features = ["full"] }
+regex = "1.12.2"
 http = "1.3.1"
 tokio-stream = "0.1.17"
-reqwest = { version = "0.12.18", default-features = false, features = ["gzip"] }
+reqwest = { version = "0.12.24", default-features = false, features = ["gzip"] }
 
 [features]
 email-check = ["lychee-lib/email-check"]
