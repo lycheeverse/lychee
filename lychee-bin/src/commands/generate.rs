@@ -89,10 +89,9 @@ pub(crate) fn generate(mode: &GenerateMode) -> Result<String> {
 
 /// Generate the lychee man page in roff format using [`clap_mangen`]
 fn man_page() -> Result<String> {
-    let date = chrono::offset::Local::now().format("%Y-%m-%d");
     let authors = crate_authors!("\n\n").to_owned() + CONTRIBUTOR_THANK_NOTE;
 
-    let man = Man::new(LycheeOptions::command().author(authors)).date(format!("{date}"));
+    let man = Man::new(LycheeOptions::command().author(authors)).date(env!("GIT_DATE"));
     let buffer = &mut Vec::default();
 
     // Manually customise `Man::render` (see https://github.com/clap-rs/clap/issues/3354)

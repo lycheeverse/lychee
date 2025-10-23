@@ -2510,7 +2510,6 @@ dependencies = [
  "anyhow",
  "assert-json-diff",
  "assert_cmd",
- "chrono",
  "clap",
  "clap_mangen",
  "console",
