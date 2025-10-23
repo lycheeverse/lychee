@@ -30,9 +30,9 @@ jobs:
       - name: Get release
         id: get_release
         uses: bruceadams/get-release@v1.3.2
-        # Skip step if not on master/main branch or nightly tag in the official repository as it would fail.
+        # Skip step if not in the official repository as it would fail.
         # Instead fail at the end of this workflow.
-        if: ${{ github.repository == 'lycheeverse/lychee' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || github.ref == 'refs/tags/nightly') }}
+        if: ${{ github.repository == 'lycheeverse/lychee' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
