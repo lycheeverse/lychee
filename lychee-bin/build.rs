@@ -13,6 +13,7 @@ fn set_git_date_variable() {
 /// Get the commit date of HEAD with git
 fn git_date() -> String {
     let output = Command::new("git")
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
         .args(["show", "--no-patch", "--format=%cs", "HEAD"])
         .output()
         .expect("Error while trying to determine latest commit date");
