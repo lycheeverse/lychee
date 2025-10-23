@@ -144,35 +144,27 @@ impl InputResolver {
                         }
                     };
 
-                    // NOTE: lifetime wrangling here! we need to MOVE `walk`
-                    // into a stream so that the stream can be returned without being
-                    // cnstrained to the input lifetime. try_stream! does not move,
-                    // so we need to use an async move block here to perform the move.
-                    let walk_stream = once(async move { walk });
+                    Box::pin(try_stream! {
+                        for entry in walk {
+                            let entry = entry?;
+                            if excluded_paths.is_match(&entry.path().to_string_lossy()) {
+                                continue;
+                            }
 
-                    Box::pin(walk_stream.flat_map(move |walk| {
-                        try_stream! {
-                            for entry in walk {
-                                let entry = entry?;
-                                if excluded_paths.is_match(&entry.path().to_string_lossy()) {
-                                    continue;
-                                }
-
-                                match entry.file_type() {
-                                    None => continue,
-                                    Some(file_type) => {
-                                        if !file_type.is_file() {
-                                            continue;
-                                        }
+                            match entry.file_type() {
+                                None => continue,
+                                Some(file_type) => {
+                                    if !file_type.is_file() {
+                                        continue;
                                     }
                                 }
-
-                                yield ResolvedInputSource::FsPath(
-                                    entry.path().to_path_buf()
-                                );
                             }
+
+                            yield ResolvedInputSource::FsPath(
+                                entry.path().to_path_buf()
+                            );
                         }
-                    }))
+                    })
                 } else {
                     // For individual files, yield if not excluded.
                     //
