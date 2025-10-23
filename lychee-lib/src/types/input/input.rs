@@ -182,7 +182,7 @@ impl Input {
                 InputSource::RemoteUrl(url) => {
                     match resolver.url_contents(*url).await {
                         Err(_) if skip_missing => (),
-                        Err(e) => Err(e).map_err(user_input_error)?,
+                        Err(e) => Err(user_input_error(e))?,
                         Ok(content) => yield content,
                     }
                     return;
@@ -235,14 +235,14 @@ impl Input {
                                     log::warn!("Skipping file with invalid UTF-8 content: {}", path.display());
                                 }
                             },
-                            Err(e) => Err(e).map_err(discovered_input_error)?,
+                            Err(e) => Err(discovered_input_error(e))?,
                             Ok(content) => {
                                 sources_empty = false;
                                 yield content
                             }
                         }
                     },
-                    Err(e) => Err(e).map_err(discovered_input_error)?,
+                    Err(e) => Err(discovered_input_error(e))?,
                 }
             }
 

@@ -48,8 +48,7 @@ impl RequestError {
     pub fn input_source(&self) -> InputSource {
         match self {
             Self::CreateRequestItem(_, src, _) => src.clone().into(),
-            Self::GetInputContent(src, _) => src.clone(),
-            Self::UserInputContent(src, _) => src.clone(),
+            Self::GetInputContent(src, _) | Self::UserInputContent(src, _) => src.clone(),
         }
     }
 }
