@@ -42,7 +42,7 @@ impl From<(&str, RawUriSpan)> for RawUri {
 /// A span of a [`RawUri`] in the document.
 ///
 /// The span can be used to give more precise error messages.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct RawUriSpan {
     /// The line of the URI.
     ///
