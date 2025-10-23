@@ -14,10 +14,7 @@ use crate::types::resolver::UrlContentResolver;
 use crate::{ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
-use glob::glob_with;
-use ignore::WalkBuilder;
 use reqwest::Url;
-use shellexpand::tilde;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
 
@@ -194,13 +191,13 @@ impl Input {
             }
 
             // Handle complex cases that need resolution (FsPath, FsGlob)
-            let mut sources_stream = Box::pin(InputResolver::resolve(
+            let mut sources_stream = InputResolver::resolve(
                 &self,
                 file_extensions,
                 skip_hidden,
                 skip_gitignored,
                 &excluded_paths,
-            ));
+            );
 
             let mut sources_empty = true;
 
@@ -247,24 +244,6 @@ impl Input {
         }
     }
 
-    /// Create a `WalkBuilder` for directory traversal
-    fn walk_entries(
-        path: &Path,
-        file_extensions: FileExtensions,
-        skip_hidden: bool,
-        skip_gitignored: bool,
-    ) -> Result<ignore::Walk> {
-        Ok(WalkBuilder::new(path)
-            // Enable standard filters if `skip_gitignored `is true.
-            // This will skip files ignored by `.gitignore` and other VCS ignore files.
-            .standard_filters(skip_gitignored)
-            // Override hidden file behavior to be controlled by the separate skip_hidden parameter
-            .hidden(skip_hidden)
-            // Configure the file types filter to only include files with matching extensions
-            .types(file_extensions.try_into()?)
-            .build())
-    }
-
     /// Retrieve all sources from this input. The output depends on the type of
     /// input:
     ///
@@ -294,56 +273,21 @@ impl Input {
         skip_gitignored: bool,
         excluded_paths: &PathExcludes,
     ) -> impl Stream<Item = Result<String>> {
-        try_stream! {
-            match self.source {
-                InputSource::RemoteUrl(url) => yield url.to_string(),
-                InputSource::FsGlob {
-                    ref pattern,
-                    ignore_case,
-                } => {
-                    let glob_expanded = tilde(&pattern).to_string();
-                    let mut match_opts = glob::MatchOptions::new();
-                    match_opts.case_sensitive = !ignore_case;
-                    for entry in glob_with(&glob_expanded, match_opts)? {
-                        match entry {
-                            Ok(path) => {
-                                if !Self::is_excluded_path(&path, excluded_paths) {
-                                    yield path.to_string_lossy().to_string();
-                                }
-                            },
-                            Err(e) => eprintln!("{e:?}"),
-                        }
-                    }
-                }
-                InputSource::FsPath(ref path) => {
-                    if path.is_dir() {
-                        for entry in Input::walk_entries(
-                            path,
-                            file_extensions,
-                            skip_hidden,
-                            skip_gitignored,
-                        )? {
-                            let entry = entry?;
-                            if !Self::is_excluded_path(entry.path(), excluded_paths) {
-                                // Only yield files, not directories
-                                if entry.file_type().is_some_and(|ft| ft.is_file()) {
-                                    yield entry.path().to_string_lossy().to_string();
-                                }
-                            }
-                        }
-                    } else if !Self::is_excluded_path(path, excluded_paths) {
-                        yield path.to_string_lossy().to_string();
-                    }
-                }
-                InputSource::Stdin => yield "<stdin>".into(),
-                InputSource::String(_) => yield "<raw string>".into(),
-            }
-        }
-    }
-
-    /// Check if the given path was excluded from link checking
-    fn is_excluded_path(path: &Path, excluded_paths: &PathExcludes) -> bool {
-        excluded_paths.is_match(&path.to_string_lossy())
+        InputResolver::resolve(
+            &self,
+            file_extensions,
+            skip_hidden,
+            skip_gitignored,
+            &excluded_paths,
+        )
+        .map(|res| {
+            res.map(|src| match src {
+                ResolvedInputSource::FsPath(path) => path.to_string_lossy().to_string(),
+                ResolvedInputSource::RemoteUrl(url) => url.to_string(),
+                ResolvedInputSource::Stdin => "<stdin>".to_string(),
+                ResolvedInputSource::String(_) => "<raw string>".to_string(),
+            })
+        })
     }
 
     /// Get the content for a given path.

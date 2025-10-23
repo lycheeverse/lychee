@@ -9,10 +9,14 @@ use crate::Result;
 use crate::filter::PathExcludes;
 use crate::types::file::FileExtensions;
 use async_stream::try_stream;
+use futures::StreamExt;
 use futures::stream::Stream;
+use futures::stream::once;
 use glob::glob_with;
 use ignore::WalkBuilder;
 use shellexpand::tilde;
+use std::path::Path;
+use std::pin::Pin;
 
 /// Resolves input sources into concrete, processable sources.
 ///
@@ -37,12 +41,12 @@ impl InputResolver {
     ///
     /// Will return errors for file system operations or glob pattern issues
     pub fn resolve<'a>(
-        input: &'a Input,
+        input: &'_ Input,
         file_extensions: FileExtensions,
         skip_hidden: bool,
         skip_gitignored: bool,
         excluded_paths: &'a PathExcludes,
-    ) -> impl Stream<Item = Result<ResolvedInputSource>> + 'a {
+    ) -> Pin<Box<dyn Stream<Item = Result<ResolvedInputSource>> + Send + 'a>> {
         Self::resolve_input(
             input,
             file_extensions,
@@ -52,30 +56,54 @@ impl InputResolver {
         )
     }
 
+    /// Create a `WalkBuilder` for directory traversal
+    fn walk_entries(
+        path: &Path,
+        file_extensions: FileExtensions,
+        skip_hidden: bool,
+        skip_gitignored: bool,
+    ) -> Result<ignore::Walk> {
+        Ok(WalkBuilder::new(path)
+            // Enable standard filters if `skip_gitignored `is true.
+            // This will skip files ignored by `.gitignore` and other VCS ignore files.
+            .standard_filters(skip_gitignored)
+            // Override hidden file behavior to be controlled by the separate skip_hidden parameter
+            .hidden(skip_hidden)
+            // Configure the file types filter to only include files with matching extensions
+            .types(file_extensions.try_into()?)
+            .build())
+    }
+
     /// Internal method for resolving input sources.
     ///
     /// Takes an Input and returns a stream of `ResolvedInputSource` items,
     /// expanding glob patterns and applying filtering based on the provided
     /// configuration.
     fn resolve_input<'a>(
-        input: &'a Input,
+        input: &'_ Input,
         file_extensions: FileExtensions,
         skip_hidden: bool,
         skip_gitignored: bool,
         excluded_paths: &'a PathExcludes,
-    ) -> impl Stream<Item = Result<ResolvedInputSource>> + 'a {
-        try_stream! {
-            match &input.source {
-                InputSource::RemoteUrl(url) => {
-                    yield ResolvedInputSource::RemoteUrl(url.clone());
-                },
-                InputSource::FsGlob { pattern, ignore_case } => {
+    ) -> Pin<Box<dyn Stream<Item = Result<ResolvedInputSource>> + Send + 'a>> {
+        match &input.source {
+            InputSource::RemoteUrl(url) => {
+                let url = url.clone();
+                Box::pin(try_stream! {
+                    yield ResolvedInputSource::RemoteUrl(url);
+                })
+            }
+            InputSource::FsGlob {
+                pattern,
+                ignore_case,
+            } => {
+                let glob_expanded = tilde(pattern).to_string();
+                let mut match_opts = glob::MatchOptions::new();
+                match_opts.case_sensitive = !ignore_case;
+
+                Box::pin(try_stream! {
                     // For glob patterns, we expand the pattern and yield
                     // matching paths as ResolvedInputSource::FsPath items.
-                    let glob_expanded = tilde(pattern).to_string();
-                    let mut match_opts = glob::MatchOptions::new();
-                    match_opts.case_sensitive = !ignore_case;
-
                     for entry in glob_with(&glob_expanded, match_opts)? {
                         match entry {
                             Ok(path) => {
@@ -100,60 +128,79 @@ impl InputResolver {
                             }
                         }
                     }
-                },
-                InputSource::FsPath(path) => {
-                    if path.is_dir() {
-                        let walk = WalkBuilder::new(path)
-                            // Enable standard filters if `skip_gitignored `is
-                            // true. This will skip files ignored by
-                            // `.gitignore` and other VCS ignore files.
-                            .standard_filters(skip_gitignored)
-                            // Override hidden file behavior to be controlled by
-                            // the separate skip_hidden parameter
-                            .hidden(skip_hidden)
-                            // Configure the file types filter to only include
-                            // files with matching extensions
-                            .types(file_extensions.try_into()?)
-                            .build();
+                })
+            }
+            InputSource::FsPath(path) => {
+                if path.is_dir() {
+                    let walk = match Self::walk_entries(
+                        path,
+                        file_extensions,
+                        skip_hidden,
+                        skip_gitignored,
+                    ) {
+                        Ok(x) => x,
+                        Err(e) => {
+                            return Box::pin(once(async move { Err(e) }));
+                        }
+                    };
 
-                        for entry in walk {
-                            let entry = entry?;
-                            if excluded_paths.is_match(&entry.path().to_string_lossy()) {
-                                continue;
-                            }
+                    // NOTE: lifetime wrangling here! we need to MOVE `walk`
+                    // into a stream so that the stream can be returned without being
+                    // cnstrained to the input lifetime. try_stream! does not move,
+                    // so we need to use an async move block here to perform the move.
+                    let walk_stream = once(async move { walk });
 
-                            match entry.file_type() {
-                                None => continue,
-                                Some(file_type) => {
-                                    if !file_type.is_file() {
-                                        continue;
+                    Box::pin(walk_stream.flat_map(move |walk| {
+                        try_stream! {
+                            for entry in walk {
+                                let entry = entry?;
+                                if excluded_paths.is_match(&entry.path().to_string_lossy()) {
+                                    continue;
+                                }
+
+                                match entry.file_type() {
+                                    None => continue,
+                                    Some(file_type) => {
+                                        if !file_type.is_file() {
+                                            continue;
+                                        }
                                     }
                                 }
-                            }
 
-                            yield ResolvedInputSource::FsPath(entry.path().to_path_buf());
+                                yield ResolvedInputSource::FsPath(
+                                    entry.path().to_path_buf()
+                                );
+                            }
                         }
+                    }))
+                } else {
+                    // For individual files, yield if not excluded.
+                    //
+                    // We do not filter by extension here, as individual
+                    // files should always be checked, no matter if their
+                    // extension matches or not.
+                    //
+                    // This follows the principle of least surprise because
+                    // the user explicitly specified the file, so they
+                    // expect it to be checked.
+                    if !excluded_paths.is_match(&path.to_string_lossy()) {
+                        let path = path.clone();
+                        Box::pin(try_stream! {
+                            yield ResolvedInputSource::FsPath(path);
+                        })
                     } else {
-                        // For individual files, yield if not excluded.
-                        //
-                        // We do not filter by extension here, as individual
-                        // files should always be checked, no matter if their
-                        // extension matches or not.
-                        //
-                        // This follows the principle of least surprise because
-                        // the user explicitly specified the file, so they
-                        // expect it to be checked.
-                        if !excluded_paths.is_match(&path.to_string_lossy()) {
-                            yield ResolvedInputSource::FsPath(path.clone());
-                        }
+                        Box::pin(futures::stream::empty())
                     }
-                },
-                InputSource::Stdin => {
-                    yield ResolvedInputSource::Stdin;
-                },
-                InputSource::String(s) => {
-                    yield ResolvedInputSource::String(s.clone());
                 }
+            }
+            InputSource::Stdin => Box::pin(try_stream! {
+                yield ResolvedInputSource::Stdin;
+            }),
+            InputSource::String(s) => {
+                let s = s.clone();
+                Box::pin(try_stream! {
+                    yield ResolvedInputSource::String(s);
+                })
             }
         }
     }
