@@ -16,6 +16,10 @@ pub enum RequestError {
     /// Unable to load the content of an input source.
     #[error("Error reading input '{0}': {1}")]
     GetInputContent(InputSource, #[source] Box<ErrorKind>),
+
+    /// Unable to load an input source directly provided by the user.
+    #[error("Error reading user input '{0}': {1}")]
+    UserInputContent(InputSource, #[source] Box<ErrorKind>),
 }
 
 impl RequestError {
@@ -23,7 +27,9 @@ impl RequestError {
     #[must_use]
     pub const fn error(&self) -> &ErrorKind {
         match self {
-            Self::CreateRequestItem(_, _, e) | Self::GetInputContent(_, e) => e,
+            Self::CreateRequestItem(_, _, e)
+            | Self::GetInputContent(_, e)
+            | Self::UserInputContent(_, e) => e,
         }
     }
 
@@ -31,7 +37,9 @@ impl RequestError {
     #[must_use]
     pub fn into_error(self) -> ErrorKind {
         match self {
-            Self::CreateRequestItem(_, _, e) | Self::GetInputContent(_, e) => *e,
+            Self::CreateRequestItem(_, _, e)
+            | Self::GetInputContent(_, e)
+            | Self::UserInputContent(_, e) => *e,
         }
     }
 
@@ -41,6 +49,7 @@ impl RequestError {
         match self {
             Self::CreateRequestItem(_, src, _) => src.clone().into(),
             Self::GetInputContent(src, _) => src.clone(),
+            Self::UserInputContent(src, _) => src.clone(),
         }
     }
 }

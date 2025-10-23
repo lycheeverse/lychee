@@ -27,6 +27,10 @@ where
     let mut writer = super::create_writer(params.cfg.output)?;
 
     while let Some(request) = requests.next().await {
+        if let Err(e @ RequestError::UserInputContent { .. }) = request {
+            return Err(e.into_error());
+        }
+
         let mut request = match request {
             Ok(x) => x,
             Err(e) => {

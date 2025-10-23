@@ -171,20 +171,24 @@ impl Input {
         resolver: UrlContentResolver,
         excluded_paths: PathExcludes,
     ) -> impl Stream<Item = std::result::Result<InputContent, RequestError>> {
-        let source = self.source.clone();
         try_stream! {
+            let source = self.source.clone();
+
+            let user_input_error = move |e: ErrorKind| RequestError::UserInputContent(source.clone(), Box::new(e));
+            let discovered_input_error = |e: ErrorKind| RequestError::GetInputContent(self.source.clone(), Box::new(e));
+
             // Handle simple cases that don't need resolution
             match self.source {
                 InputSource::RemoteUrl(url) => {
                     match resolver.url_contents(*url).await {
                         Err(_) if skip_missing => (),
-                        Err(e) => Err(e)?,
+                        Err(e) => Err(e).map_err(user_input_error)?,
                         Ok(content) => yield content,
                     }
                     return;
                 }
                 InputSource::Stdin => {
-                    yield Self::stdin_content(self.file_type_hint).await?;
+                    yield Self::stdin_content(self.file_type_hint).await.map_err(user_input_error)?;
                     return;
                 }
                 InputSource::String(ref s) => {
@@ -231,14 +235,14 @@ impl Input {
                                     log::warn!("Skipping file with invalid UTF-8 content: {}", path.display());
                                 }
                             },
-                            Err(e) => Err(e)?,
+                            Err(e) => Err(e).map_err(discovered_input_error)?,
                             Ok(content) => {
                                 sources_empty = false;
                                 yield content
                             }
                         }
                     },
-                    Err(e) => Err(e)?,
+                    Err(e) => Err(e).map_err(discovered_input_error)?,
                 }
             }
 
@@ -246,9 +250,6 @@ impl Input {
                 log::warn!("{}: No files found for this input source", self.source);
             }
         }
-        .map(move |result|
-            result.map_err(|e| RequestError::GetInputContent(source.clone(), Box::new(e)))
-        )
     }
 
     /// Create a `WalkBuilder` for directory traversal

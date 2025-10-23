@@ -185,6 +185,10 @@ where
 {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
+        if let Err(e @ RequestError::UserInputContent { .. }) = request {
+            return Err(e.into_error());
+        }
+
         if let Some(pb) = &bar {
             pb.inc_length(1);
             if let Ok(request) = &request {
