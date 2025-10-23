@@ -9,7 +9,6 @@ use crate::Result;
 use crate::filter::PathExcludes;
 use crate::types::file::FileExtensions;
 use async_stream::try_stream;
-use futures::StreamExt;
 use futures::stream::Stream;
 use futures::stream::once;
 use glob::glob_with;
@@ -40,6 +39,7 @@ impl InputResolver {
     /// # Errors
     ///
     /// Will return errors for file system operations or glob pattern issues
+    #[must_use]
     pub fn resolve<'a>(
         input: &'_ Input,
         file_extensions: FileExtensions,
@@ -175,13 +175,13 @@ impl InputResolver {
                     // This follows the principle of least surprise because
                     // the user explicitly specified the file, so they
                     // expect it to be checked.
-                    if !excluded_paths.is_match(&path.to_string_lossy()) {
+                    if excluded_paths.is_match(&path.to_string_lossy()) {
+                        Box::pin(futures::stream::empty())
+                    } else {
                         let path = path.clone();
                         Box::pin(try_stream! {
                             yield ResolvedInputSource::FsPath(path);
                         })
-                    } else {
-                        Box::pin(futures::stream::empty())
                     }
                 }
             }

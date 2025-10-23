@@ -278,7 +278,7 @@ impl Input {
             file_extensions,
             skip_hidden,
             skip_gitignored,
-            &excluded_paths,
+            excluded_paths,
         )
         .map(|res| {
             res.map(|src| match src {
