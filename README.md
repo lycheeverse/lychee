@@ -422,7 +422,7 @@ Options:
           and existing cookies will be updated.
 
       --default-extension <EXTENSION>
-          Default file extension to treat files without extensions as having.
+          This is the default file extension that is applied to files without an extension.
 
           This is useful for files without extensions or with unknown extensions. The extension will be used to determine the file type for processing. Examples: --default-extension md, --default-extension html
 

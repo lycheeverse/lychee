@@ -437,7 +437,7 @@ specify both extensions explicitly."
     #[serde(default = "FileExtensions::default")]
     pub(crate) extensions: FileExtensions,
 
-    /// Default file extension to treat files without extensions as having.
+    /// This is the default file extension that is applied to files without an extension.
     ///
     /// This is useful for files without extensions or with unknown extensions.
     /// The extension will be used to determine the file type for processing.
