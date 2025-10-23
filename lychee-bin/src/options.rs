@@ -1,4 +1,5 @@
 use crate::files_from::FilesFrom;
+use crate::generate::GenerateMode;
 use crate::parse::parse_base;
 use crate::verbosity::Verbosity;
 use anyhow::{Context, Error, Result, anyhow};
@@ -106,7 +107,7 @@ impl FromStr for StatsFormat {
             "json" => Ok(StatsFormat::Json),
             "markdown" | "md" => Ok(StatsFormat::Markdown),
             "raw" => Ok(StatsFormat::Raw),
-            _ => Err(anyhow!("Unknown format {}", format)),
+            _ => Err(anyhow!("Unknown format {format}")),
         }
     }
 }
@@ -193,7 +194,6 @@ default_function! {
     retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
     verbosity: Verbosity = Verbosity::default();
-    cache_exclude_selector: StatusCodeExcluder = StatusCodeExcluder::new();
     accept_selector: StatusCodeSelector = StatusCodeSelector::default();
 }
 
@@ -231,11 +231,11 @@ fn parse_single_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
     let parts: Vec<&str> = header.splitn(2, ':').collect();
     match parts.as_slice() {
         [name, value] => {
-            let name = HeaderName::from_str(name.trim())
-                .map_err(|e| anyhow!("Unable to convert header name '{}': {}", name.trim(), e))?;
-            let value = HeaderValue::from_str(value.trim()).map_err(|e| {
-                anyhow!("Unable to read value of header with name '{}': {}", name, e)
-            })?;
+            let name = name.trim();
+            let name = HeaderName::from_str(name)
+                .map_err(|e| anyhow!("Unable to convert header name '{name}': {e}"))?;
+            let value = HeaderValue::from_str(value.trim())
+                .map_err(|e| anyhow!("Unable to read value of header with name '{name}': {e}"))?;
             Ok((name, value))
         }
         _ => Err(anyhow!(
@@ -303,26 +303,28 @@ impl HeaderMapExt for HeaderMap {
         let mut header_map = HeaderMap::new();
         for (name, value) in headers {
             let header_name = HeaderName::from_bytes(name.as_bytes())
-                .map_err(|e| anyhow!("Invalid header name '{}': {}", name, e))?;
+                .map_err(|e| anyhow!("Invalid header name '{name}': {e}"))?;
             let header_value = HeaderValue::from_str(value)
-                .map_err(|e| anyhow!("Invalid header value '{}': {}", value, e))?;
+                .map_err(|e| anyhow!("Invalid header value '{value}': {e}"))?;
             header_map.insert(header_name, header_value);
         }
         Ok(header_map)
     }
 }
 
-/// A fast, async link checker
+/// lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses
+/// in local files and websites. It supports Markdown and HTML and works well
+/// with many plain text file formats.
 ///
-/// Finds broken URLs and mail addresses inside Markdown, HTML,
-/// `reStructuredText`, websites and more!
+/// lychee is powered by lychee-lib, the Rust library for link checking.
 #[derive(Parser, Debug)]
-#[command(version, about)]
+#[command(version, about, next_display_order = None)]
 pub(crate) struct LycheeOptions {
     /// Inputs for link checking (where to get links to check from).
     #[arg(
         name = "inputs",
         required_unless_present = "files_from",
+        required_unless_present = "generate",
         long_help = "Inputs for link checking (where to get links to check from). These can be:
 files (e.g. `README.md`), file globs (e.g. `'~/git/*/README.md'`), remote URLs
 (e.g. `https://example.com/README.md`), or standard input (`-`). Alternatively,
@@ -462,7 +464,6 @@ specify both extensions explicitly."
     /// A list of status codes that will be excluded from the cache
     #[arg(
         long,
-        default_value_t,
         long_help = "A list of status codes that will be ignored from the cache
 
 The following exclude range syntax is supported: [start]..[[=]end]|code. Some valid
@@ -478,8 +479,7 @@ Use \"lychee --cache-exclude-status '429, 500..502' <inputs>...\" to provide a
 comma-separated list of excluded status codes. This example will not cache results
 with a status code of 429, 500 and 501."
     )]
-    #[serde(default = "cache_exclude_selector")]
-    pub(crate) cache_exclude_status: StatusCodeExcluder,
+    pub(crate) cache_exclude_status: Option<StatusCodeExcluder>,
 
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
@@ -829,6 +829,10 @@ followed by the absolute link's own path."
     #[serde(default)]
     pub(crate) format: StatsFormat,
 
+    /// Generate special output (e.g. the man page) instead of performing link checking
+    #[arg(long, value_parser = PossibleValuesParser::new(GenerateMode::VARIANTS).map(|s| s.parse::<GenerateMode>().unwrap()))]
+    pub(crate) generate: Option<GenerateMode>,
+
     /// When HTTPS is available, treat HTTP links as errors
     #[arg(long)]
     #[serde(default)]
@@ -903,7 +907,7 @@ impl Config {
                 base_url: None,
                 basic_auth: None,
                 cache: false,
-                cache_exclude_status: StatusCodeExcluder::default(),
+                cache_exclude_status: None,
                 cookie_jar: None,
                 default_extension: None,
                 dump: false,
@@ -918,6 +922,7 @@ impl Config {
                 extensions: FileType::default_extensions(),
                 fallback_extensions: Vec::<String>::new(),
                 format: StatsFormat::default(),
+                generate: None,
                 glob_ignore_case: false,
                 hidden: false,
                 include: Vec::<String>::new(),
@@ -985,7 +990,6 @@ mod tests {
             cli.accept,
             StatusCodeSelector::from_str("100..=103,200..=299").expect("no error")
         );
-        assert_eq!(cli.cache_exclude_status, StatusCodeExcluder::new());
     }
 
     #[test]
