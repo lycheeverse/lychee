@@ -23,27 +23,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
-- Update flag description
-- Fix working directory in build script
-- Make man page generation deterministic
-- Do not require inputs with generate flag
 - Bump the dependencies group across 1 directory with 15 updates ([#1874](https://github.com/lycheeverse/lychee/pull/1874))
 - Inline formatting arguments for anyhow macros as per new lint
 - Man pages ([#1858](https://github.com/lycheeverse/lychee/pull/1858))
 - Add --default-extension argument to force file format ([#1842](https://github.com/lycheeverse/lychee/pull/1842))
-- hard wrap help text for options ([#1854](https://github.com/lycheeverse/lychee/pull/1854))
+- Hard wrap help text for options ([#1854](https://github.com/lycheeverse/lychee/pull/1854))
 - Bump the dependencies group with 6 updates ([#1855](https://github.com/lycheeverse/lychee/pull/1855))
-- add exhaustivity check for `fold_in!` macro ([#1848](https://github.com/lycheeverse/lychee/pull/1848))
+- Add exhaustivity check for `fold_in!` macro ([#1848](https://github.com/lycheeverse/lychee/pull/1848))
 - Additional redirect reporting ([#1853](https://github.com/lycheeverse/lychee/pull/1853))
 - Redirect reporting ([#1725](https://github.com/lycheeverse/lychee/pull/1725))
 - Add WinGet installation instructions ([#1849](https://github.com/lycheeverse/lychee/pull/1849))
-- [**breaking**] use `ResolvedInputSource` downstream of `InputContent` ([#1840](https://github.com/lycheeverse/lychee/pull/1840))
+- [**breaking**] Use `ResolvedInputSource` downstream of `InputContent` ([#1840](https://github.com/lycheeverse/lychee/pull/1840))
 - Bump the dependencies group with 5 updates ([#1845](https://github.com/lycheeverse/lychee/pull/1845))
 - Implement `--files-from` Option ([#1836](https://github.com/lycheeverse/lychee/pull/1836))
-- apply fallback extensions if directory links resolve to a dir ([#1826](https://github.com/lycheeverse/lychee/pull/1826))
-- clarify `--base-url` and `--root-dir` and their interactions ([#1787](https://github.com/lycheeverse/lychee/pull/1787))
+- Apply fallback extensions if directory links resolve to a dir ([#1826](https://github.com/lycheeverse/lychee/pull/1826))
+- Clarify `--base-url` and `--root-dir` and their interactions ([#1787](https://github.com/lycheeverse/lychee/pull/1787))
 - Add test for making sure URL inputs always get checked ([#1824](https://github.com/lycheeverse/lychee/pull/1824))
-- add conda install to readme ([#1822](https://github.com/lycheeverse/lychee/pull/1822))
+- Add conda install to readme ([#1822](https://github.com/lycheeverse/lychee/pull/1822))
 - Bump the dependencies group with 3 updates ([#1821](https://github.com/lycheeverse/lychee/pull/1821))
 - Refactor error reporting ([#1731](https://github.com/lycheeverse/lychee/pull/1731))
 
