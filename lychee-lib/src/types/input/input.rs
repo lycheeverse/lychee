@@ -192,20 +192,19 @@ impl Input {
                 }
                 InputSource::FsPath(ref path) => {
                     let is_readable = if path.is_dir() {
-                        path.read_dir().map(|_| ())
+                        path.read_dir()
+                            .map(|_| ())
+                            .map_err(|e| ErrorKind::DirTraversal(ignore::Error::Io(e)))
                     } else {
                         // this checks existence without requiring an open. opening here,
-                        // then re-opening later, might cause problems with pipes.
-                        path.metadata().map(|_| ())
+                        // then re-opening later, might cause problems with pipes. this
+                        // does not validate permissions.
+                        path.metadata()
+                            .map(|_| ())
+                            .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))
                     };
 
-                    match is_readable {
-                        Ok(()) => (),
-                        Err(e) => Err(user_input_error(ErrorKind::ReadFileInput(
-                            e,
-                            path.clone(),
-                        )))?,
-                    }
+                    is_readable.map_err(user_input_error)?;
                 }
                 InputSource::Stdin => {
                     yield Self::stdin_content(self.file_type_hint)
