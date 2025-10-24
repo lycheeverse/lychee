@@ -200,10 +200,10 @@ impl Input {
                     };
 
                     match is_readable {
-                        Ok(_) => (),
+                        Ok(()) => (),
                         Err(e) => Err(user_input_error(ErrorKind::ReadFileInput(
                             e,
-                            path.to_path_buf(),
+                            path.clone(),
                         )))?,
                     }
                 }
