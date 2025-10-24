@@ -185,10 +185,6 @@ where
 {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
-        if let Err(e @ RequestError::UserInputContent { .. }) = request {
-            return Err(e.into_error());
-        }
-
         if let Some(pb) = &bar {
             pb.inc_length(1);
             if let Ok(request) = &request {
@@ -202,13 +198,14 @@ where
 
 /// Reads from the request channel and updates the progress bar status
 async fn progress_bar_task(
-    mut recv_resp: mpsc::Receiver<Response>,
+    mut recv_resp: mpsc::Receiver<Result<Response>>,
     verbose: Verbosity,
     pb: Option<ProgressBar>,
     formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
 ) -> Result<(Option<ProgressBar>, ResponseStats)> {
     while let Some(response) = recv_resp.recv().await {
+        let response = response?;
         show_progress(
             &mut io::stderr(),
             pb.as_ref(),
@@ -236,7 +233,7 @@ fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
 
 async fn request_channel_task(
     recv_req: mpsc::Receiver<std::result::Result<Request, RequestError>>,
-    send_resp: mpsc::Sender<Response>,
+    send_resp: mpsc::Sender<Result<Response>>,
     max_concurrency: usize,
     client: Client,
     cache: Arc<Cache>,
@@ -285,24 +282,34 @@ async fn check_url(client: &Client, request: Request) -> Response {
 }
 
 /// Handle a single request
+///
+/// # Errors
+///
+/// An Err is returned if and only if there was an error while loading
+/// a *user-provided* input argument. Other errors, including errors in
+/// link resolution and in resolved inputs, will be returned as Ok with
+/// a failed response.
 async fn handle(
     client: &Client,
     cache: Arc<Cache>,
     cache_exclude_status: HashSet<u16>,
     request: std::result::Result<Request, RequestError>,
     accept: HashSet<u16>,
-) -> Response {
+) -> Result<Response> {
     // Note that the RequestError cases bypass the cache.
     let request = match request {
         Ok(x) => x,
+        Err(e @ RequestError::UserInputContent { .. }) => {
+            return Err(e.into_error());
+        }
         Err(e) => {
             let src = e.input_source();
 
-            return Response::new(
+            return Ok(Response::new(
                 Uri::try_from("error://").unwrap(),
                 Status::RequestError(e),
                 src,
-            );
+            ));
         }
     };
 
@@ -320,7 +327,7 @@ async fn handle(
             // code.
             Status::from_cache_status(v.value().status, &accept)
         };
-        return Response::new(uri.clone(), status, request.source.into());
+        return Ok(Response::new(uri.clone(), status, request.source.into()));
     }
 
     // Request was not cached; run a normal check
@@ -334,11 +341,11 @@ async fn handle(
     // - Skip caching links for which the status code has been explicitly excluded from the cache.
     let status = response.status();
     if ignore_cache(&uri, status, &cache_exclude_status) {
-        return response;
+        return Ok(response);
     }
 
     cache.insert(uri, status.into());
-    response
+    Ok(response)
 }
 
 /// Returns `true` if the response should be ignored in the cache.
