@@ -4,7 +4,7 @@ use std::{collections::HashSet, path::PathBuf, result::Result};
 use tokio_stream::StreamExt;
 
 #[tokio::main]
-async fn main() -> Result<(), RequestError> {
+async fn main() -> Result<(), Box<RequestError>> {
     // Collect all links from the following inputs
     let inputs = HashSet::from_iter([
         Input::from_input_source(InputSource::RemoteUrl(Box::new(
