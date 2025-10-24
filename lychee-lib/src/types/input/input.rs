@@ -174,10 +174,13 @@ impl Input {
         try_stream! {
             let source = self.source.clone();
 
-            let user_input_error = move |e: ErrorKind| RequestError::UserInputContent(source.clone(), Box::new(e));
-            let discovered_input_error = |e: ErrorKind| RequestError::GetInputContent(self.source.clone(), Box::new(e));
+            let user_input_error =
+                move |e: ErrorKind| RequestError::UserInputContent(source.clone(), Box::new(e));
+            let discovered_input_error =
+                |e: ErrorKind| RequestError::GetInputContent(self.source.clone(), Box::new(e));
 
-            // Handle simple cases that don't need resolution
+            // Handle simple cases that don't need resolution, and perform simple
+            // checks for more complex cases.
             match self.source {
                 InputSource::RemoteUrl(url) => {
                     match resolver.url_contents(*url).await {
@@ -187,8 +190,27 @@ impl Input {
                     }
                     return;
                 }
+                InputSource::FsPath(ref path) => {
+                    let is_readable = if path.is_dir() {
+                        path.read_dir().map(|_| ())
+                    } else {
+                        // this checks existence without requiring an open. opening here,
+                        // then re-opening later, might cause problems with pipes.
+                        path.metadata().map(|_| ())
+                    };
+
+                    match is_readable {
+                        Ok(_) => (),
+                        Err(e) => Err(user_input_error(ErrorKind::ReadFileInput(
+                            e,
+                            path.to_path_buf(),
+                        )))?,
+                    }
+                }
                 InputSource::Stdin => {
-                    yield Self::stdin_content(self.file_type_hint).await.map_err(user_input_error)?;
+                    yield Self::stdin_content(self.file_type_hint)
+                        .await
+                        .map_err(user_input_error)?;
                     return;
                 }
                 InputSource::String(ref s) => {
@@ -213,35 +235,37 @@ impl Input {
                 match source_result {
                     Ok(source) => {
                         let content_result = match source {
-                            ResolvedInputSource::FsPath(path) => {
-                                Self::path_content(&path).await
-                            },
+                            ResolvedInputSource::FsPath(path) => Self::path_content(&path).await,
                             ResolvedInputSource::RemoteUrl(url) => {
                                 resolver.url_contents(*url).await
-                            },
+                            }
                             ResolvedInputSource::Stdin => {
                                 Self::stdin_content(self.file_type_hint).await
-                            },
+                            }
                             ResolvedInputSource::String(s) => {
                                 Ok(Self::string_content(&s, self.file_type_hint))
-                            },
+                            }
                         };
 
                         match content_result {
                             Err(_) if skip_missing => (),
-                            Err(e) if matches!(&e, ErrorKind::ReadFileInput(io_err, _) if io_err.kind() == std::io::ErrorKind::InvalidData) => {
+                            Err(e) if matches!(&e, ErrorKind::ReadFileInput(io_err, _) if io_err.kind() == std::io::ErrorKind::InvalidData) =>
+                            {
                                 // If the file contains invalid UTF-8 (e.g. binary), we skip it
                                 if let ErrorKind::ReadFileInput(_, path) = &e {
-                                    log::warn!("Skipping file with invalid UTF-8 content: {}", path.display());
+                                    log::warn!(
+                                        "Skipping file with invalid UTF-8 content: {}",
+                                        path.display()
+                                    );
                                 }
-                            },
+                            }
                             Err(e) => Err(discovered_input_error(e))?,
                             Ok(content) => {
                                 sources_empty = false;
                                 yield content
                             }
                         }
-                    },
+                    }
                     Err(e) => Err(discovered_input_error(e))?,
                 }
             }
