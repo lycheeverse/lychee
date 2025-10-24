@@ -36,6 +36,7 @@ pub struct Collector {
     excluded_paths: PathExcludes,
     headers: HeaderMap,
     client: Client,
+    pre: Option<String>,
 }
 
 impl Default for Collector {
@@ -59,6 +60,7 @@ impl Default for Collector {
             headers: HeaderMap::new(),
             client: Client::new(),
             excluded_paths: PathExcludes::empty(),
+            pre: None,
         }
     }
 }
@@ -84,6 +86,7 @@ impl Collector {
             use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
+            pre: None,
             headers: HeaderMap::new(),
             client: Client::builder()
                 .build()
@@ -143,11 +146,18 @@ impl Collector {
         self
     }
 
-    #[allow(clippy::doc_markdown)]
     /// Check WikiLinks in Markdown files
+    #[allow(clippy::doc_markdown)]
     #[must_use]
     pub const fn include_wikilinks(mut self, yes: bool) -> Self {
         self.include_wikilinks = yes;
+        self
+    }
+
+    /// Skip over links in verbatim sections (like Markdown code blocks)
+    #[must_use]
+    pub fn pre(mut self, pre: Option<String>) -> Self {
+        self.pre = pre;
         self
     }
 
@@ -263,6 +273,7 @@ impl Collector {
                 let extensions = extensions.clone();
                 let resolver = resolver.clone();
                 let excluded_paths = excluded_paths.clone();
+                let pre = self.pre.clone();
 
                 async move {
                     let base = match &input.source {
@@ -278,6 +289,7 @@ impl Collector {
                             extensions,
                             resolver,
                             excluded_paths,
+                            pre,
                         )
                         .map(move |content| (content, base.clone()))
                 }

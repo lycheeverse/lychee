@@ -853,6 +853,16 @@ and existing cookies will be updated."
     #[arg(long)]
     #[serde(default)]
     pub(crate) include_wikilinks: bool,
+
+    /// Preprocess input files.
+    #[arg(
+        short,
+        long,
+        long_help = "Preprocess input files.
+This allows files not recognized by lychee to be converted into a compatible format."
+    )]
+    #[serde(default)]
+    pub(crate) pre: Option<String>,
 }
 
 impl Config {
@@ -943,6 +953,7 @@ impl Config {
                 no_progress: false,
                 offline: false,
                 output: None,
+                pre: None,
                 remap: Vec::<String>::new(),
                 require_https: false,
                 retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS,
