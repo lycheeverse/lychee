@@ -26,7 +26,7 @@ pub use error::ErrorKind;
 pub use file::{FileExtensions, FileType};
 pub use input::{Input, InputContent, InputResolver, InputSource, ResolvedInputSource};
 pub use redirect_history::Redirects;
-pub use request::Request;
+pub use request::{Request, RequestError};
 pub use response::{Response, ResponseBody};
 pub use status::Status;
 pub use status_code::*;
