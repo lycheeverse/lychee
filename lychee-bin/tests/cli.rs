@@ -1439,11 +1439,10 @@ mod cli {
         Ok(())
     }
 
-    /// If `base-dir` is not set, don't throw an error in case we encounter
+    /// If `base-dir` is not set, an error should be thrown if we encounter
     /// an absolute local link (e.g. `/about`) within a file.
-    /// Instead, simply ignore the link.
     #[test]
-    fn test_ignore_absolute_local_links_without_base() -> Result<()> {
+    fn test_absolute_local_links_without_base() -> Result<()> {
         let mut cmd = main_command!();
 
         let offline_dir = fixtures_path!().join("offline");
@@ -1452,8 +1451,9 @@ mod cli {
             .arg(offline_dir.join("index.html"))
             .env_clear()
             .assert()
-            .success()
-            .stdout(contains("0 Total"));
+            .failure()
+            .stdout(contains("5 Error"))
+            .stdout(contains("Error building URL").count(5));
 
         Ok(())
     }
@@ -2962,6 +2962,30 @@ mod cli {
             .assert()
             .success()
             .stderr(contains("No files found").count(5));
+
+        Ok(())
+    }
+
+    // An input which is invalid (no permission directory or invalid glob)
+    // should fail as a CLI error, not a link checking error.
+    #[test]
+    fn test_invalid_user_input_source() -> Result<()> {
+        main_command!()
+            .arg("http://website.invalid")
+            .assert()
+            .failure()
+            .code(1);
+
+        // maybe test with a directory with no write permissions? but there
+        // doesn't seem to be an equivalent to chmod on the windows API:
+        // https://doc.rust-lang.org/std/fs/struct.Permissions.html
+
+        main_command!()
+            .arg("invalid-glob[")
+            .assert()
+            .failure()
+            .code(2);
+        // TODO: change above exit code to 1 after https://github.com/lycheeverse/lychee/pull/1869
 
         Ok(())
     }

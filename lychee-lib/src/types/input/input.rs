@@ -179,8 +179,11 @@ impl Input {
             let discovered_input_error =
                 |e: ErrorKind| RequestError::GetInputContent(self.source.clone(), Box::new(e));
 
-            // Handle simple cases that don't need resolution, and perform simple
-            // checks for more complex cases.
+            // Handle simple cases that don't need resolution. Also, perform
+            // simple *stateful* checks for more complex input sources.
+            //
+            // However, stateless well-formedness checks (e.g., checking glob
+            // syntax) should be done in Input::new.
             match self.source {
                 InputSource::RemoteUrl(url) => {
                     match resolver.url_contents(*url).await {
