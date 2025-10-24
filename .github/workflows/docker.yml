@@ -38,8 +38,8 @@ jobs:
             type=schedule
             type=ref,event=branch
             type=ref,event=pr
-            type=semver,pattern=lychee-{{version}},value=${{ github.ref_name }}
-            type=semver,pattern=lychee-{{major}}.{{minor}},value=${{ github.ref_name }}
+            type=semver,pattern={{version}},value=${{ github.ref_name }},match=lychee-v(\d.\d.\d)$
+            type=semver,pattern={{major}}.{{minor}},value=${{ github.ref_name }},match=lychee-v(\d.\d.\d)$
             type=sha
             # set latest tag for default branch
             type=raw,value=latest,enable={{is_default_branch}}
@@ -59,8 +59,8 @@ jobs:
             type=schedule
             type=ref,event=branch
             type=ref,event=pr
-            type=semver,pattern=lychee-{{version}},value=${{ github.ref_name }}
-            type=semver,pattern=lychee-{{major}}.{{minor}},value=${{ github.ref_name }}
+            type=semver,pattern={{version}},value=${{ github.ref_name }},match=lychee-v(\d.\d.\d)$
+            type=semver,pattern={{major}}.{{minor}},value=${{ github.ref_name }},match=lychee-v(\d.\d.\d)$
             type=sha
             # set latest tag for default branch
             type=raw,value=latest,enable={{is_default_branch}}
