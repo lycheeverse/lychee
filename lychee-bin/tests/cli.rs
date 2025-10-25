@@ -639,6 +639,20 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("0 Total"));
+
+        main_command!()
+            .arg("--dump")
+            .arg(fixtures_path!().join("hidden/"))
+            .assert()
+            .stdout("")
+            .success();
+
+        main_command!()
+            .arg("--dump-inputs")
+            .arg(fixtures_path!().join("hidden/"))
+            .assert()
+            .stdout("")
+            .success();
     }
 
     #[test]
@@ -649,6 +663,22 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("1 Total"));
+
+        main_command!()
+            .arg("--dump")
+            .arg("--hidden")
+            .arg(fixtures_path!().join("hidden/"))
+            .assert()
+            .stdout(contains("wikipedia.org"))
+            .success();
+
+        main_command!()
+            .arg("--dump-inputs")
+            .arg("--hidden")
+            .arg(fixtures_path!().join("hidden/"))
+            .assert()
+            .stdout(contains(".hidden"))
+            .success();
     }
 
     #[test]
@@ -658,6 +688,20 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("0 Total"));
+
+        main_command!()
+            .arg("--dump")
+            .arg(fixtures_path!().join("ignore/"))
+            .assert()
+            .success()
+            .stdout("");
+
+        main_command!()
+            .arg("--dump-inputs")
+            .arg(fixtures_path!().join("ignore/"))
+            .assert()
+            .success()
+            .stdout("");
     }
 
     #[test]
@@ -668,6 +712,22 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("1 Total"));
+
+        main_command!()
+            .arg("--dump")
+            .arg("--no-ignore")
+            .arg(fixtures_path!().join("ignore/"))
+            .assert()
+            .success()
+            .stdout(contains("wikipedia.org"));
+
+        main_command!()
+            .arg("--dump-inputs")
+            .arg("--no-ignore")
+            .arg(fixtures_path!().join("ignore/"))
+            .assert()
+            .success()
+            .stdout(contains("ignored-file.md"));
     }
 
     #[tokio::test]
