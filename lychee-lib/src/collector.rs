@@ -378,6 +378,7 @@ mod tests {
                 FileType::default_extensions(),
                 UrlContentResolver::default(),
                 PathExcludes::empty(),
+                None,
             )
             .collect::<Vec<_>>()
             .await;
@@ -398,6 +399,7 @@ mod tests {
                 FileType::default_extensions(),
                 UrlContentResolver::default(),
                 PathExcludes::empty(),
+                None,
             )
             .collect::<Vec<_>>()
             .await;

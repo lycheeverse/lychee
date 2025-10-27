@@ -61,7 +61,7 @@ mod cli {
     /// Assert actual output lines equals to expected lines.
     /// Order of the lines is ignored.
     fn assert_lines_eq<S: AsRef<str> + Ord>(result: Assert, mut expected_lines: Vec<S>) {
-        let output = result.get_output().stdout.clone();
+        let output = &result.get_output().stdout;
         let mut actual_lines: Vec<String> = output
             .lines()
             .map(|line| line.unwrap().to_string())
@@ -3024,5 +3024,70 @@ mod cli {
             .stderr(contains("No files found").count(5));
 
         Ok(())
+    }
+
+    /// Preprocessing with `cat` is like an identity function because it
+    /// outputs its input without any changes.
+    #[test]
+    fn test_pre_cat() {
+        let file = fixtures_path!().join("TEST.md");
+        let pre_with_cat = main_command!()
+            .arg("--pre")
+            .arg("cat")
+            .arg("--dump")
+            .arg(&file)
+            .assert()
+            .success();
+
+        let no_pre = main_command!()
+            .arg("--dump")
+            .arg(&file)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+
+        assert_lines_eq(pre_with_cat, no_pre);
+    }
+
+    #[test]
+    fn test_pre_invalid_command() {
+        let file = fixtures_path!().join("TEST.md");
+        main_command!()
+            .arg("--pre")
+            .arg("program does not exist")
+            .arg(file)
+            .assert()
+            .failure()
+            .stderr(contains("Error: Preprocessor command 'program does not exist' failed: could not start: No such file or directory (os error 2)"));
+    }
+
+    #[test]
+    fn test_pre_error() {
+        let file = fixtures_path!().join("TEST.md");
+        let script = fixtures_path!().join("pre").join("no_error_message.sh");
+        main_command!()
+            .arg("--pre")
+            .arg(&script)
+            .arg(&file)
+            .assert()
+            .failure()
+            .stderr(contains(format!(
+                "Error: Preprocessor command '{}' failed: exited with non-zero code: <empty stderr>", script.as_os_str().to_str().unwrap()
+            )));
+
+        let script = fixtures_path!().join("pre").join("error_message.sh");
+        main_command!()
+            .arg("--pre")
+            .arg(&script)
+            .arg(file)
+            .assert()
+            .failure()
+            .stderr(contains(format!(
+                "Error: Preprocessor command '{}' failed: exited with non-zero code: Some error message", script.as_os_str().to_str().unwrap()
+            )));
     }
 }
