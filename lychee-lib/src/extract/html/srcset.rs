@@ -20,6 +20,7 @@
 //! use a state machine to keep track of the current state.
 
 use log::info;
+use std::result::Result;
 
 enum State {
     InsideDescriptor,
@@ -52,27 +53,26 @@ pub(crate) fn parse(input: &str) -> Vec<&str> {
     /// Implements one iteration of the "splitting loop" from the reference algorithm.
     /// This is intended to be repeatedly called until the remaining string is empty.
     ///
-    /// Returns a tuple of remaining string and parsed URL (if any).
+    /// Returns a tuple of remaining string and an optional parsed URL, if successful.
+    /// Otherwise, in case of srcset syntax errors, returns Err.
     ///
     /// <https://html.spec.whatwg.org/multipage/images.html#parsing-a-srcset-attribute>
-    fn parse_one_url(remaining: &str) -> (&str, Option<&str>) {
+    fn parse_one_url(remaining: &str) -> Result<(&str, Option<&str>), String> {
         let (start, remaining) = split_at(remaining, |c| *c == ',' || c.is_whitespace());
 
         if start.find(',').is_some() {
-            info!("srcset parse Error");
-            return ("", None);
+            return Err("srcset parse error (too many commas)".to_string());
         }
 
         if remaining.is_empty() {
-            return ("", None);
+            return Ok(("", None));
         }
 
         let (url, remaining) = split_at(remaining, |c| !c.is_whitespace());
 
         let comma_count = url.chars().rev().take_while(|c| *c == ',').count();
         if comma_count > 1 {
-            info!("srcset parse error (trailing commas)");
-            return ("", None);
+            return Err("srcset parse error (trailing commas)".to_string());
         }
 
         let url = url.get(..url.len() - comma_count);
@@ -81,17 +81,23 @@ pub(crate) fn parse(input: &str) -> Vec<&str> {
 
         let remaining = skip_descriptor(remaining);
 
-        (remaining, url)
+        Ok((remaining, url))
     }
 
     let mut candidates: Vec<&str> = Vec::new();
     let mut remaining = input;
     while !remaining.is_empty() {
-        let (new_remaining, url) = parse_one_url(remaining);
-        if let Some(url) = url {
-            candidates.push(url);
+        remaining = match parse_one_url(remaining) {
+            Ok((rem, None)) => rem,
+            Ok((rem, Some(url))) => {
+                candidates.push(url);
+                rem
+            }
+            Err(e) => {
+                info!("{e}");
+                return vec![];
+            }
         }
-        remaining = new_remaining;
     }
 
     candidates
