@@ -2,6 +2,10 @@
 //! This crate does not depend on `lychee-lib` or `lychee-bin`, else we would get dependency cycles.
 //! Macros are used instead, so that the importer is responsible for providing the dependencies.
 
+pub mod dir_builder;
+
+pub use dir_builder::DirBuilder;
+
 /// Create a mock web server, which responds with a predefined status when
 /// handling a matching request
 #[macro_export]
