@@ -1,5 +1,6 @@
 use crate::ErrorKind;
 use crate::InputSource;
+use crate::Preprocessor;
 use crate::filter::PathExcludes;
 use crate::types::resolver::UrlContentResolver;
 use crate::{
@@ -36,7 +37,7 @@ pub struct Collector {
     excluded_paths: PathExcludes,
     headers: HeaderMap,
     client: Client,
-    pre: Option<String>,
+    preprocessor: Option<Preprocessor>,
 }
 
 impl Default for Collector {
@@ -60,7 +61,7 @@ impl Default for Collector {
             headers: HeaderMap::new(),
             client: Client::new(),
             excluded_paths: PathExcludes::empty(),
-            pre: None,
+            preprocessor: None,
         }
     }
 }
@@ -86,7 +87,7 @@ impl Collector {
             use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
-            pre: None,
+            preprocessor: None,
             headers: HeaderMap::new(),
             client: Client::builder()
                 .build()
@@ -154,10 +155,10 @@ impl Collector {
         self
     }
 
-    /// Skip over links in verbatim sections (like Markdown code blocks)
+    /// Configure a file [`Preprocessor`]
     #[must_use]
-    pub fn pre(mut self, pre: Option<String>) -> Self {
-        self.pre = pre;
+    pub fn preprocessor(mut self, preprocessor: Option<Preprocessor>) -> Self {
+        self.preprocessor = preprocessor;
         self
     }
 
@@ -273,7 +274,7 @@ impl Collector {
                 let extensions = extensions.clone();
                 let resolver = resolver.clone();
                 let excluded_paths = excluded_paths.clone();
-                let pre = self.pre.clone();
+                let preprocessor = self.preprocessor.clone();
 
                 async move {
                     let base = match &input.source {
@@ -289,7 +290,7 @@ impl Collector {
                             extensions,
                             resolver,
                             excluded_paths,
-                            pre,
+                            preprocessor,
                         )
                         .map(move |content| (content, base.clone()))
                 }

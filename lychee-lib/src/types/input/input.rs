@@ -7,6 +7,7 @@ use super::InputResolver;
 use super::content::InputContent;
 use super::source::InputSource;
 use super::source::ResolvedInputSource;
+use crate::Preprocessor;
 use crate::filter::PathExcludes;
 use crate::types::FileType;
 use crate::types::file::FileExtensions;
@@ -19,7 +20,6 @@ use ignore::WalkBuilder;
 use reqwest::Url;
 use shellexpand::tilde;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use tokio::io::{AsyncReadExt, stdin};
 
 const STDIN: &str = "-";
@@ -171,7 +171,7 @@ impl Input {
         file_extensions: FileExtensions,
         resolver: UrlContentResolver,
         excluded_paths: PathExcludes,
-        pre: Option<String>,
+        preprocessor: Option<Preprocessor>,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             // Handle simple cases that don't need resolution
@@ -211,7 +211,7 @@ impl Input {
                     Ok(source) => {
                         let content_result = match source {
                             ResolvedInputSource::FsPath(path) => {
-                                Self::path_content(&path, &pre).await
+                                Self::path_content(&path, &preprocessor).await
                             },
                             ResolvedInputSource::RemoteUrl(url) => {
                                 resolver.url_contents(*url).await
@@ -355,10 +355,10 @@ impl Input {
     /// Returns an error if the file cannot be read
     pub async fn path_content<P: Into<PathBuf> + AsRef<Path> + Clone>(
         path: P,
-        pre: &Option<String>,
+        preprocessor: &Option<Preprocessor>,
     ) -> Result<InputContent> {
         let path = path.into();
-        let content = Self::get_content(&path, pre).await?;
+        let content = Self::get_content(&path, preprocessor).await?;
 
         Ok(InputContent {
             file_type: FileType::from(&path),
@@ -392,27 +392,9 @@ impl Input {
         InputContent::from_string(s, file_type_hint.unwrap_or_default())
     }
 
-    async fn get_content(path: &PathBuf, pre: &Option<String>) -> Result<String> {
-        if let Some(pre) = pre {
-            let output = Command::new(pre).arg(path).output().map_err(|e| {
-                ErrorKind::PreprocessorError(pre.clone(), format!("could not start: {e}"))
-            })?;
-
-            if output.status.success() {
-                String::from_utf8(output.stdout).map_err(|e| ErrorKind::Utf8(e.utf8_error()))
-            } else {
-                let mut stderr = String::from_utf8(output.stderr)
-                    .map_err(|e| ErrorKind::Utf8(e.utf8_error()))?;
-
-                if stderr.is_empty() {
-                    stderr = "<empty stderr>".to_owned();
-                }
-
-                Err(ErrorKind::PreprocessorError(
-                    pre.clone(),
-                    format!("exited with non-zero code: {stderr}"),
-                ))
-            }
+    async fn get_content(path: &PathBuf, preprocessor: &Option<Preprocessor>) -> Result<String> {
+        if let Some(pre) = preprocessor {
+            pre.process(path)
         } else {
             Ok(tokio::fs::read_to_string(path)
                 .await
