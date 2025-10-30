@@ -50,40 +50,6 @@ where
 // This state-machine is a bit convoluted, but we keep everything in one place
 // for simplicity so we have to please clippy.
 pub(crate) fn parse(input: &str) -> Vec<&str> {
-    /// Implements one iteration of the "splitting loop" from the reference algorithm.
-    /// This is intended to be repeatedly called until the remaining string is empty.
-    ///
-    /// Returns a tuple of remaining string and an optional parsed URL, if successful.
-    /// Otherwise, in case of srcset syntax errors, returns Err.
-    ///
-    /// <https://html.spec.whatwg.org/multipage/images.html#parsing-a-srcset-attribute>
-    fn parse_one_url(remaining: &str) -> Result<(&str, Option<&str>), String> {
-        let (start, remaining) = split_at(remaining, |c| *c == ',' || c.is_ascii_whitespace());
-
-        if start.find(',').is_some() {
-            return Err("srcset parse error (too many commas)".to_string());
-        }
-
-        if remaining.is_empty() {
-            return Ok(("", None));
-        }
-
-        let (url, remaining) = split_at(remaining, |c| !c.is_ascii_whitespace());
-
-        let comma_count = url.chars().rev().take_while(|c| *c == ',').count();
-        if comma_count > 1 {
-            return Err("srcset parse error (trailing commas)".to_string());
-        }
-
-        let url = url.get(..url.len() - comma_count);
-
-        let (_spaces, remaining) = split_at(remaining, char::is_ascii_whitespace);
-
-        let remaining = skip_descriptor(remaining);
-
-        Ok((remaining, url))
-    }
-
     let mut candidates: Vec<&str> = Vec::new();
     let mut remaining = input;
     while !remaining.is_empty() {
@@ -101,6 +67,40 @@ pub(crate) fn parse(input: &str) -> Vec<&str> {
     }
 
     candidates
+}
+
+/// Implements one iteration of the "splitting loop" from the reference algorithm.
+/// This is intended to be repeatedly called until the remaining string is empty.
+///
+/// Returns a tuple of remaining string and an optional parsed URL, if successful.
+/// Otherwise, in case of srcset syntax errors, returns Err.
+///
+/// <https://html.spec.whatwg.org/multipage/images.html#parsing-a-srcset-attribute>
+fn parse_one_url(remaining: &str) -> Result<(&str, Option<&str>), String> {
+    let (start, remaining) = split_at(remaining, |c| *c == ',' || c.is_ascii_whitespace());
+
+    if start.find(',').is_some() {
+        return Err("srcset parse error (too many commas)".to_string());
+    }
+
+    if remaining.is_empty() {
+        return Ok(("", None));
+    }
+
+    let (url, remaining) = split_at(remaining, |c| !c.is_ascii_whitespace());
+
+    let comma_count = url.chars().rev().take_while(|c| *c == ',').count();
+    if comma_count > 1 {
+        return Err("srcset parse error (trailing commas)".to_string());
+    }
+
+    let url = url.get(..url.len() - comma_count);
+
+    let (_spaces, remaining) = split_at(remaining, char::is_ascii_whitespace);
+
+    let remaining = skip_descriptor(remaining);
+
+    Ok((remaining, url))
 }
 
 /// Helper function to skip over a descriptor. Returns the string remaining
