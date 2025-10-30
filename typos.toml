@@ -1,0 +1,5 @@
+[files]
+extend-exclude = ["assets/screencast.svg", "fixtures/bench"]
+
+[default.extend-words]
+excluder = "excluder"
