@@ -10,7 +10,7 @@ license = "Apache-2.0 OR MIT"
 repository = "https://github.com/lycheeverse/lychee"
 readme = "../README.md"
 version.workspace = true
-rust-version = "1.85.0"
+rust-version = "1.88.0"
 
 [dependencies]
 # NOTE: We need to specify the version of lychee-lib here because crates.io
