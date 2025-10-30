@@ -77,7 +77,7 @@ pub(crate) fn parse(input: &str) -> Vec<&str> {
 
         let url = url.get(..url.len() - comma_count);
 
-        let (_spaces, remaining) = split_at(remaining, |c| c.is_ascii_whitespace());
+        let (_spaces, remaining) = split_at(remaining, char::is_ascii_whitespace);
 
         let remaining = skip_descriptor(remaining);
 
