@@ -58,7 +58,7 @@ pub(crate) fn parse(input: &str) -> Vec<&str> {
     ///
     /// <https://html.spec.whatwg.org/multipage/images.html#parsing-a-srcset-attribute>
     fn parse_one_url(remaining: &str) -> Result<(&str, Option<&str>), String> {
-        let (start, remaining) = split_at(remaining, |c| *c == ',' || c.is_whitespace());
+        let (start, remaining) = split_at(remaining, |c| *c == ',' || c.is_ascii_whitespace());
 
         if start.find(',').is_some() {
             return Err("srcset parse error (too many commas)".to_string());
@@ -68,7 +68,7 @@ pub(crate) fn parse(input: &str) -> Vec<&str> {
             return Ok(("", None));
         }
 
-        let (url, remaining) = split_at(remaining, |c| !c.is_whitespace());
+        let (url, remaining) = split_at(remaining, |c| !c.is_ascii_whitespace());
 
         let comma_count = url.chars().rev().take_while(|c| *c == ',').count();
         if comma_count > 1 {
@@ -77,7 +77,7 @@ pub(crate) fn parse(input: &str) -> Vec<&str> {
 
         let url = url.get(..url.len() - comma_count);
 
-        let (_spaces, remaining) = split_at(remaining, |c| c.is_whitespace());
+        let (_spaces, remaining) = split_at(remaining, |c| c.is_ascii_whitespace());
 
         let remaining = skip_descriptor(remaining);
 
@@ -110,16 +110,12 @@ pub(crate) fn parse(input: &str) -> Vec<&str> {
 fn skip_descriptor(remaining: &str) -> &str {
     let mut state = State::InsideDescriptor;
 
-    // ASCII whitespace is U+0009 TAB, U+000A LF, U+000C FF, U+000D CR, or U+0020 SPACE.
-    // https://infra.spec.whatwg.org/#ascii-whitespace
-
-    let mut it = remaining.chars();
-    while let Some(c) = it.next() {
+    for (i, c) in remaining.char_indices() {
         match state {
             State::InsideDescriptor => match c {
-                ' ' | '\t' | '\n' | '\u{000C}' | '\r' => state = State::AfterDescriptor,
+                c if c.is_ascii_whitespace() => state = State::AfterDescriptor,
                 '(' => state = State::InsideParens,
-                ',' => return it.as_str(), // returns string after this comma
+                ',' => return &remaining[i + c.len_utf8()..], // returns string after this comma
                 _ => (),
             },
             State::InsideParens => match c {
@@ -127,7 +123,7 @@ fn skip_descriptor(remaining: &str) -> &str {
                 _ => (),
             },
             State::AfterDescriptor => match c {
-                ' ' | '\t' | '\n' | '\u{000C}' | '\r' => (),
+                c if c.is_ascii_whitespace() => (),
                 _ => state = State::InsideDescriptor,
             },
         }
