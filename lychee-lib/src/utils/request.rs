@@ -178,12 +178,11 @@ fn resolve_and_create_url(
 }
 
 fn prepend_root_dir_if_absolute_local_link(text: &str, root_dir: Option<&PathBuf>) -> String {
-    if text.starts_with('/') {
-        if let Some(path) = root_dir {
-            if let Some(path_str) = path.to_str() {
-                return format!("{path_str}{text}");
-            }
-        }
+    if text.starts_with('/')
+        && let Some(path) = root_dir
+        && let Some(path_str) = path.to_str()
+    {
+        return format!("{path_str}{text}");
     }
     text.to_string()
 }
