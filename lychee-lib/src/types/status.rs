@@ -117,10 +117,10 @@ impl Status {
                 Self::Cached(CacheStatus::Error(Some(code)))
             }
             CacheStatus::Error(code) => {
-                if let Some(code) = code {
-                    if accepted.contains(&code) {
-                        return Self::Cached(CacheStatus::Ok(code));
-                    }
+                if let Some(code) = code
+                    && accepted.contains(&code)
+                {
+                    return Self::Cached(CacheStatus::Ok(code));
                 }
                 Self::Cached(CacheStatus::Error(code))
             }

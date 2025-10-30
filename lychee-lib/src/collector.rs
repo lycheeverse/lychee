@@ -71,10 +71,10 @@ impl Collector {
     /// Returns an `Err` if the `root_dir` is not an absolute path
     /// or if the reqwest `Client` fails to build
     pub fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> Result<Self> {
-        if let Some(root_dir) = &root_dir {
-            if root_dir.is_relative() {
-                return Err(ErrorKind::RootDirMustBeAbsolute(root_dir.clone()));
-            }
+        if let Some(root_dir) = &root_dir
+            && root_dir.is_relative()
+        {
+            return Err(ErrorKind::RootDirMustBeAbsolute(root_dir.clone()));
         }
         Ok(Collector {
             basic_auth_extractor: None,
@@ -210,10 +210,10 @@ impl Collector {
                 move |source: Result<String>| {
                     let seen = Arc::clone(&seen);
                     async move {
-                        if let Ok(s) = &source {
-                            if !seen.insert(s.clone()) {
-                                return None;
-                            }
+                        if let Ok(s) = &source
+                            && !seen.insert(s.clone())
+                        {
+                            return None;
                         }
                         Some(source)
                     }

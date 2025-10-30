@@ -35,7 +35,7 @@ impl Redirects {
     /// Count how many times a redirect was followed.
     /// This is the length of the list minus one.
     #[must_use]
-    pub fn count(&self) -> usize {
+    pub const fn count(&self) -> usize {
         self.0.len().saturating_sub(1)
     }
 
