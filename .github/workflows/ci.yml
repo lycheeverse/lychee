@@ -18,6 +18,12 @@ env:
   RUSTFLAGS: -D warnings
 
 jobs:
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: crate-ci/typos@v1.38.1
+
   test:
     runs-on: ubuntu-latest
     steps:

@@ -2740,7 +2740,7 @@ mod cli {
             .stderr(contains("https://example.com/example_dir/md"))
             // TS files in example_dir are ignored because we did not specify that extension.
             .stderr(contains("https://example.com/example_dir/ts ").not())
-            // TSX files in examle_dir are ignored because we did not specify that extension.
+            // TSX files in example_dir are ignored because we did not specify that extension.
             .stderr(contains("https://example.com/example_dir/tsx").not());
     }
 
