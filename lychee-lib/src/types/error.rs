@@ -468,7 +468,7 @@ impl Hash for ErrorKind {
             }
             Self::Regex(e) => e.to_string().hash(state),
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
-            Self::Cookies(e) => e.clone().hash(state),
+            Self::Cookies(e) => e.hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
         }
     }
