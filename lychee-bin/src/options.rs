@@ -861,12 +861,13 @@ and existing cookies will be updated."
         long,
         value_name = "COMMAND",
         long_help = r#"Preprocess input files.
-For each input file, this flag causes lychee to process the standard output of COMMAND PATH instead of the contents of PATH.
-This allows you to convert files that would otherwise not be understood by lychee.
-The preprocessor COMMAND is only run on input files, not on standard input or URLs.
+For each file input, this flag causes lychee to execute `COMMAND PATH` and process
+its standard output instead of the original contents of PATH. This allows you to
+convert files that would otherwise not be understood by lychee. The preprocessor
+COMMAND is only run on input files, not on standard input or URLs.
 
-To invoke programs with custom arguments or to use multiple preprocessors use a wrapper program such as a shell script.
-An example script looks like this:
+To invoke programs with custom arguments or to use multiple preprocessors use a
+wrapper program such as a shell script. An example script looks like this:
 
 #!/usr/bin/env bash
 case "$1" in
