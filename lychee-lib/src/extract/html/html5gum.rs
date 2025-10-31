@@ -108,7 +108,7 @@ impl<S: SpanProvider> LinkExtractor<S> {
                     urls.push(RawUri {
                         text: attr_value.to_string(),
                         element: Some(self.current_element.clone()),
-                        attribute: Some(attr_name.to_string()),
+                        attribute: Some(attr_name.clone()),
                         span: self.span_provider.span(attr_value.span.start),
                     });
                 }
