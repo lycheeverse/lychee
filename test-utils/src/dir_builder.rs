@@ -12,15 +12,13 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::result::Result;
 
-pub struct DirBuilder {
-    path: PathBuf,
+pub struct DirBuilder<'a> {
+    path: &'a Path,
 }
 
-impl DirBuilder {
-    pub fn new(path: &Path) -> Self {
-        Self {
-            path: path.to_path_buf(),
-        }
+impl<'a> DirBuilder<'a> {
+    pub fn new(path: &'a Path) -> DirBuilder<'a> {
+        Self { path: path }
     }
 
     fn make_path(&self, subpath: &str) -> Result<PathBuf, String> {
@@ -32,39 +30,37 @@ impl DirBuilder {
     }
 
     fn append_bytes(&self, path: &Path, contents: &[u8]) -> Result<(), String> {
+        println!("{:?}", path);
         let file = OpenOptions::new()
             .create(true)
             .append(true)
             .open(path)
             .map_err(debug_to_string)?;
 
-        let file = BufWriter::new(file);
+        let mut file = BufWriter::new(file);
         file.write_all(contents).map_err(debug_to_string)?;
         file.write_all(b"\n").map_err(debug_to_string)?;
 
         Ok(())
     }
 
-    fn append_str(&self, path: &Path, s: &str) -> Result<(), String> {
-        self.append_bytes(path, s.as_bytes())
+    pub fn dir(&self, subpath: &str) -> Result<PathBuf, String> {
+        let path = self.make_path(subpath)?;
+        std::fs::create_dir_all(&path).map_err(debug_to_string)?;
+        Ok(path)
     }
 
-    pub fn dir(self, subpath: &str) -> Result<Self, String> {
-        std::fs::create_dir_all(&self.make_path(subpath)?).map_err(debug_to_string)?;
-        Ok(self)
+    pub fn raw(&self, subpath: &str, contents: &[u8]) -> Result<PathBuf, String> {
+        let path = self.make_path(subpath)?;
+        self.append_bytes(&path, contents)?;
+        Ok(path)
     }
 
-    pub fn raw(self, subpath: &str, contents: &[u8]) -> Result<Self, String> {
-        self.append_bytes(&self.make_path(subpath)?, contents)?;
-        Ok(self)
+    pub fn str(&self, subpath: &str, contents: &str) -> Result<PathBuf, String> {
+        self.raw(subpath, contents.as_bytes())
     }
 
-    pub fn str(self, subpath: &str, contents: &str) -> Result<Self, String> {
-        self.append_str(&self.make_path(subpath)?, contents)?;
-        Ok(self)
-    }
-
-    pub fn html(self, subpath: &str, links: &[&str]) -> Result<Self, String> {
+    pub fn html(&self, subpath: &str, links: &[&str]) -> Result<PathBuf, String> {
         let mut content = String::new();
         for link in links {
             content.push_str(&format!("<a href=\"{link}\">link</a>\n"));
@@ -72,7 +68,7 @@ impl DirBuilder {
         self.str(subpath, &content)
     }
 
-    pub fn html_anchors(self, subpath: &str, ids: &[&str]) -> Result<Self, String> {
+    pub fn html_anchors(&self, subpath: &str, ids: &[&str]) -> Result<PathBuf, String> {
         let mut content = String::new();
         for id in ids {
             content.push_str(&format!("<p id=\"{id}\">text</p>"));
@@ -80,7 +76,7 @@ impl DirBuilder {
         self.str(subpath, &content)
     }
 
-    pub fn md(self, subpath: &str, links: &[&str]) -> Result<Self, String> {
+    pub fn md(&self, subpath: &str, links: &[&str]) -> Result<PathBuf, String> {
         let mut content = String::new();
         for link in links {
             content.push_str(&format!("[link]({link})\n"));
