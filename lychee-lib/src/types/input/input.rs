@@ -8,9 +8,9 @@ use super::content::InputContent;
 use super::source::InputSource;
 use super::source::ResolvedInputSource;
 use crate::filter::PathExcludes;
-use crate::types::FileType;
 use crate::types::file::FileExtensions;
 use crate::types::resolver::UrlContentResolver;
+use crate::types::{FileType, RequestError};
 use crate::{ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
@@ -170,20 +170,49 @@ impl Input {
         file_extensions: FileExtensions,
         resolver: UrlContentResolver,
         excluded_paths: PathExcludes,
-    ) -> impl Stream<Item = Result<InputContent>> {
+    ) -> impl Stream<Item = std::result::Result<InputContent, RequestError>> {
         try_stream! {
-            // Handle simple cases that don't need resolution
+            let source = self.source.clone();
+
+            let user_input_error =
+                move |e: ErrorKind| RequestError::UserInputContent(source.clone(), Box::new(e));
+            let discovered_input_error =
+                |e: ErrorKind| RequestError::GetInputContent(self.source.clone(), Box::new(e));
+
+            // Handle simple cases that don't need resolution. Also, perform
+            // simple *stateful* checks for more complex input sources.
+            //
+            // However, stateless well-formedness checks (e.g., checking glob
+            // syntax) should be done in Input::new.
             match self.source {
                 InputSource::RemoteUrl(url) => {
                     match resolver.url_contents(*url).await {
                         Err(_) if skip_missing => (),
-                        Err(e) => Err(e)?,
+                        Err(e) => Err(user_input_error(e))?,
                         Ok(content) => yield content,
                     }
                     return;
                 }
+                InputSource::FsPath(ref path) => {
+                    let is_readable = if path.is_dir() {
+                        path.read_dir()
+                            .map(|_| ())
+                            .map_err(|e| ErrorKind::DirTraversal(ignore::Error::Io(e)))
+                    } else {
+                        // this checks existence without requiring an open. opening here,
+                        // then re-opening later, might cause problems with pipes. this
+                        // does not validate permissions.
+                        path.metadata()
+                            .map(|_| ())
+                            .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))
+                    };
+
+                    is_readable.map_err(user_input_error)?;
+                }
                 InputSource::Stdin => {
-                    yield Self::stdin_content(self.file_type_hint).await?;
+                    yield Self::stdin_content(self.file_type_hint)
+                        .await
+                        .map_err(user_input_error)?;
                     return;
                 }
                 InputSource::String(ref s) => {
@@ -208,36 +237,38 @@ impl Input {
                 match source_result {
                     Ok(source) => {
                         let content_result = match source {
-                            ResolvedInputSource::FsPath(path) => {
-                                Self::path_content(&path).await
-                            },
+                            ResolvedInputSource::FsPath(path) => Self::path_content(&path).await,
                             ResolvedInputSource::RemoteUrl(url) => {
                                 resolver.url_contents(*url).await
-                            },
+                            }
                             ResolvedInputSource::Stdin => {
                                 Self::stdin_content(self.file_type_hint).await
-                            },
+                            }
                             ResolvedInputSource::String(s) => {
                                 Ok(Self::string_content(&s, self.file_type_hint))
-                            },
+                            }
                         };
 
                         match content_result {
                             Err(_) if skip_missing => (),
-                            Err(e) if matches!(&e, ErrorKind::ReadFileInput(io_err, _) if io_err.kind() == std::io::ErrorKind::InvalidData) => {
+                            Err(e) if matches!(&e, ErrorKind::ReadFileInput(io_err, _) if io_err.kind() == std::io::ErrorKind::InvalidData) =>
+                            {
                                 // If the file contains invalid UTF-8 (e.g. binary), we skip it
                                 if let ErrorKind::ReadFileInput(_, path) = &e {
-                                    log::warn!("Skipping file with invalid UTF-8 content: {}", path.display());
+                                    log::warn!(
+                                        "Skipping file with invalid UTF-8 content: {}",
+                                        path.display()
+                                    );
                                 }
-                            },
-                            Err(e) => Err(e)?,
+                            }
+                            Err(e) => Err(discovered_input_error(e))?,
                             Ok(content) => {
                                 sources_empty = false;
                                 yield content
                             }
                         }
-                    },
-                    Err(e) => Err(e)?,
+                    }
+                    Err(e) => Err(discovered_input_error(e))?,
                 }
             }
 

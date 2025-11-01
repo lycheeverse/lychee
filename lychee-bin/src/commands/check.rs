@@ -10,6 +10,7 @@ use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
+use lychee_lib::RequestError;
 use lychee_lib::archive::Archive;
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
 use lychee_lib::{InputSource, Result};
@@ -29,7 +30,7 @@ pub(crate) async fn check<S>(
     params: CommandParams<S>,
 ) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
 where
-    S: futures::Stream<Item = Result<Request>>,
+    S: futures::Stream<Item = std::result::Result<Request, RequestError>>,
 {
     // Setup
     let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
@@ -176,36 +177,35 @@ async fn suggest_archived_links(
 // the show_results_task to finish
 async fn send_inputs_loop<S>(
     requests: S,
-    send_req: mpsc::Sender<Result<Request>>,
+    send_req: mpsc::Sender<std::result::Result<Request, RequestError>>,
     bar: Option<ProgressBar>,
 ) -> Result<()>
 where
-    S: futures::Stream<Item = Result<Request>>,
+    S: futures::Stream<Item = std::result::Result<Request, RequestError>>,
 {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
-        let request = request?;
         if let Some(pb) = &bar {
             pb.inc_length(1);
-            pb.set_message(request.to_string());
+            if let Ok(request) = &request {
+                pb.set_message(request.to_string());
+            }
         }
-        send_req
-            .send(Ok(request))
-            .await
-            .expect("Cannot send request");
+        send_req.send(request).await.expect("Cannot send request");
     }
     Ok(())
 }
 
 /// Reads from the request channel and updates the progress bar status
 async fn progress_bar_task(
-    mut recv_resp: mpsc::Receiver<Response>,
+    mut recv_resp: mpsc::Receiver<Result<Response>>,
     verbose: Verbosity,
     pb: Option<ProgressBar>,
     formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
 ) -> Result<(Option<ProgressBar>, ResponseStats)> {
     while let Some(response) = recv_resp.recv().await {
+        let response = response?;
         show_progress(
             &mut io::stderr(),
             pb.as_ref(),
@@ -232,8 +232,8 @@ fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
 }
 
 async fn request_channel_task(
-    recv_req: mpsc::Receiver<Result<Request>>,
-    send_resp: mpsc::Sender<Response>,
+    recv_req: mpsc::Receiver<std::result::Result<Request, RequestError>>,
+    send_resp: mpsc::Sender<Result<Response>>,
     max_concurrency: usize,
     client: Client,
     cache: Arc<Cache>,
@@ -243,8 +243,7 @@ async fn request_channel_task(
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
-        |request: Result<Request>| async {
-            let request = request.expect("cannot read request");
+        |request: std::result::Result<Request, RequestError>| async {
             let response = handle(
                 &client,
                 cache.clone(),
@@ -277,19 +276,43 @@ async fn check_url(client: &Client, request: Request) -> Response {
         Response::new(
             uri.clone(),
             Status::Error(ErrorKind::InvalidURI(uri.clone())),
-            source,
+            source.into(),
         )
     })
 }
 
 /// Handle a single request
+///
+/// # Errors
+///
+/// An Err is returned if and only if there was an error while loading
+/// a *user-provided* input argument. Other errors, including errors in
+/// link resolution and in resolved inputs, will be returned as Ok with
+/// a failed response.
 async fn handle(
     client: &Client,
     cache: Arc<Cache>,
     cache_exclude_status: HashSet<u16>,
-    request: Request,
+    request: std::result::Result<Request, RequestError>,
     accept: HashSet<u16>,
-) -> Response {
+) -> Result<Response> {
+    // Note that the RequestError cases bypass the cache.
+    let request = match request {
+        Ok(x) => x,
+        Err(e @ RequestError::UserInputContent { .. }) => {
+            return Err(e.into_error());
+        }
+        Err(e) => {
+            let src = e.input_source();
+
+            return Ok(Response::new(
+                Uri::try_from("error://").unwrap(),
+                Status::RequestError(e),
+                src,
+            ));
+        }
+    };
+
     let uri = request.uri.clone();
     if let Some(v) = cache.get(&uri) {
         // Found a cached request
@@ -304,7 +327,7 @@ async fn handle(
             // code.
             Status::from_cache_status(v.value().status, &accept)
         };
-        return Response::new(uri.clone(), status, request.source);
+        return Ok(Response::new(uri.clone(), status, request.source.into()));
     }
 
     // Request was not cached; run a normal check
@@ -318,11 +341,11 @@ async fn handle(
     // - Skip caching links for which the status code has been explicitly excluded from the cache.
     let status = response.status();
     if ignore_cache(&uri, status, &cache_exclude_status) {
-        return response;
+        return Ok(response);
     }
 
     cache.insert(uri, status.into());
-    response
+    Ok(response)
 }
 
 /// Returns `true` if the response should be ignored in the cache.
@@ -402,7 +425,7 @@ mod tests {
     use crate::{formatters::get_response_formatter, options};
     use http::StatusCode;
     use log::info;
-    use lychee_lib::{CacheStatus, ClientBuilder, ErrorKind, ResolvedInputSource, Uri};
+    use lychee_lib::{CacheStatus, ClientBuilder, ErrorKind, Uri};
 
     use super::*;
 
@@ -412,7 +435,7 @@ mod tests {
         let response = Response::new(
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Ok(200)),
-            ResolvedInputSource::Stdin,
+            InputSource::Stdin,
         );
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(
@@ -434,7 +457,7 @@ mod tests {
         let response = Response::new(
             Uri::try_from("http://127.0.0.1").unwrap(),
             Status::Cached(CacheStatus::Ok(200)),
-            ResolvedInputSource::Stdin,
+            InputSource::Stdin,
         );
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         show_progress(

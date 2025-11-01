@@ -20,7 +20,9 @@ impl ColorFormatter {
             | Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => &DIM,
             Status::UnknownStatusCode(_) | Status::Timeout(_) => &YELLOW,
-            Status::Error(_) | Status::Cached(CacheStatus::Error(_)) => &PINK,
+            Status::Error(_) | Status::RequestError(_) | Status::Cached(CacheStatus::Error(_)) => {
+                &PINK
+            }
         }
     }
 
