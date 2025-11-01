@@ -170,6 +170,10 @@ pub enum ErrorKind {
     #[error("Status code range error")]
     StatusCodeSelectorError(#[from] StatusCodeSelectorError),
 
+    /// Preprocessor command error
+    #[error("Preprocessor command '{0}' failed: {1}")]
+    PreprocessorError(String, String),
+
     /// Test-only error variant for formatter tests
     /// Available in both test and debug builds to support cross-crate testing
     #[cfg(any(test, debug_assertions))]
@@ -334,7 +338,8 @@ impl ErrorKind {
                 [] => "No directory links are allowed because index_files is defined and empty".to_string(),
                 [name] => format!("An index file ({name}) is required"),
                 [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
-            }.into()
+            }.into(),
+            ErrorKind::PreprocessorError(command, reason) => Some(format!("Command '{command}' failed {reason}. Check value of the pre option"))
         }
     }
 
@@ -470,6 +475,7 @@ impl Hash for ErrorKind {
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
             Self::Cookies(e) => e.hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
+            Self::PreprocessorError(c, e) => (c, e).hash(state),
         }
     }
 }

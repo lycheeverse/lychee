@@ -1,14 +1,12 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use lychee_lib::extract::Extractor;
-use lychee_lib::{FileType, InputContent};
+use lychee_lib::{FileType, Input, InputContent};
 use std::hint::black_box;
-use std::path::PathBuf;
 
-fn extract(paths: &[PathBuf]) {
-    for path in paths {
-        let content: InputContent = path.try_into().unwrap();
+fn extract(inputs: &Vec<InputContent>) {
+    for input in inputs {
         let extractor = Extractor::default();
-        let extracted = extractor.extract(&content);
+        let extracted = extractor.extract(input);
         println!("{}", extracted.len());
     }
 }
@@ -36,14 +34,24 @@ fn benchmark_input_content_creation(c: &mut Criterion) {
 
 fn benchmark(c: &mut Criterion) {
     // Currently Wikipedia's biggest featured article
-    c.bench_function("extract from large docs", |b| {
-        b.iter(|| {
-            extract(black_box(&[
-                PathBuf::from("../fixtures/bench/elvis.html"),
-                PathBuf::from("../fixtures/bench/arch.html"),
-            ]))
-        })
+    let mut inputs = vec![];
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap();
+
+    runtime.block_on(async {
+        inputs = vec![
+            Input::path_content("../fixtures/bench/elvis.html", None)
+                .await
+                .unwrap(),
+            Input::path_content("../fixtures/bench/arch.html", None)
+                .await
+                .unwrap(),
+        ];
     });
+
+    c.bench_function("extract from large docs", |b| b.iter(|| extract(&inputs)));
 }
 
 criterion_group!(
