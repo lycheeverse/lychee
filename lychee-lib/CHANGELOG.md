@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.1](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.21.0...lychee-lib-v0.21.1) - 2025-11-01
+
+### Fixed
+
+- parsing of srcset URLs after the first URL ([#1890](https://github.com/lycheeverse/lychee/pull/1890))
+
+### Other
+
+- Fix typos, and configure the typos tool ([#1895](https://github.com/lycheeverse/lychee/pull/1895))
+- Remove an unneeded clone ([#1897](https://github.com/lycheeverse/lychee/pull/1897))
+- Address new clippy lints with version 1.91
+- clippy --fix
+- Bump MSRV
+- Bump the dependencies group across 1 directory with 7 updates
+
 ## [0.21.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.20.1...lychee-lib-v0.21.0) - 2025-10-23
 
 ### Added
