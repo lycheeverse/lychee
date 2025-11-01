@@ -609,6 +609,31 @@ Options:
       --offline
           Only check local files and block network requests
 
+  -p, --pre <COMMAND>
+          Preprocess input files.
+          For each input file, this flag causes lychee to process the standard output of COMMAND PATH instead of the contents of PATH.
+          This allows you to convert files that would otherwise not be understood by lychee.
+          The preprocessor COMMAND is only run on input files, not on standard input or URLs.
+
+          To invoke programs with custom arguments or to use multiple preprocessors use a wrapper program such as a shell script.
+          An example script looks like this:
+
+          #!/usr/bin/env bash
+          case "$1" in
+          *.epub|*.odt|*.docx|*.ipynb)
+              exec pandoc "$1" --to=html --wrap=none --markdown-headings=atx
+              ;;
+          *.adoc|*.asciidoc)
+              asciidoctor -a stylesheet! "$1" -o -
+              ;;
+          *.pdf)
+              exec pdftotext "$1" -
+              ;;
+          *)
+              exec cat # identity function, output input without changes
+              ;;
+          esac
+
   -q, --quiet...
           Less output per occurrence (e.g. `-q` or `-qq`)
 

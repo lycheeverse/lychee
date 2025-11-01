@@ -36,7 +36,7 @@ impl Preprocessor {
             let mut stderr = from_utf8(output.stderr)?;
 
             if stderr.is_empty() {
-                stderr = "<empty stderr>".to_owned();
+                stderr = "<empty stderr>".into();
             }
 
             Err(ErrorKind::PreprocessorError(

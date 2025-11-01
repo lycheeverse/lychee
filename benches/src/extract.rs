@@ -42,10 +42,10 @@ fn benchmark(c: &mut Criterion) {
 
     runtime.block_on(async {
         inputs = vec![
-            Input::path_content("../fixtures/bench/elvis.html", &None)
+            Input::path_content("../fixtures/bench/elvis.html", None)
                 .await
                 .unwrap(),
-            Input::path_content("../fixtures/bench/arch.html", &None)
+            Input::path_content("../fixtures/bench/arch.html", None)
                 .await
                 .unwrap(),
         ];

@@ -1140,11 +1140,7 @@ mod cli {
 
         // Clean up
         fs::remove_file(&cache_file).map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to remove cache file: {:?}, error: {}",
-                cache_file,
-                e
-            )
+            anyhow::anyhow!("Failed to remove cache file: {cache_file:?}, error: {e}")
         })?;
 
         Ok(())
