@@ -3,10 +3,9 @@ use crate::InputSource;
 use crate::filter::PathExcludes;
 use crate::types::resolver::UrlContentResolver;
 use crate::{
-    Base, Input, InputResolver, Request, Result, basic_auth::BasicAuthExtractor,
-    extract::Extractor, types::FileExtensions, types::uri::raw::RawUri, utils::request,
+    Base, Input, Request, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
+    types::FileExtensions, types::uri::raw::RawUri, utils::request,
 };
-use dashmap::DashSet;
 use futures::TryStreamExt;
 use futures::{
     StreamExt,
@@ -17,7 +16,6 @@ use par_stream::ParStreamExt;
 use reqwest::Client;
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -166,59 +164,6 @@ impl Collector {
     pub fn excluded_paths(mut self, excluded_paths: PathExcludes) -> Self {
         self.excluded_paths = excluded_paths;
         self
-    }
-
-    /// Collect all sources from a list of [`Input`]s. For further details,
-    /// see also [`Input::get_sources`](crate::Input#method.get_sources).
-    pub fn collect_sources(self, inputs: HashSet<Input>) -> impl Stream<Item = Result<String>> {
-        self.collect_sources_with_file_types(inputs, crate::types::FileType::default_extensions())
-    }
-
-    /// Collect all sources from a list of [`Input`]s with specific file extensions.
-    pub fn collect_sources_with_file_types(
-        self,
-        inputs: HashSet<Input>,
-        file_extensions: FileExtensions,
-    ) -> impl Stream<Item = Result<String>> + 'static {
-        let seen = Arc::new(DashSet::new());
-        let skip_hidden = self.skip_hidden;
-        let skip_ignored = self.skip_ignored;
-        let excluded_paths = self.excluded_paths;
-
-        stream::iter(inputs)
-            .par_then_unordered(None, move |input| {
-                let excluded_paths = excluded_paths.clone();
-                let file_extensions = file_extensions.clone();
-                async move {
-                    let input_sources = InputResolver::resolve(
-                        &input,
-                        file_extensions,
-                        skip_hidden,
-                        skip_ignored,
-                        &excluded_paths,
-                    );
-
-                    input_sources
-                        .map(|source| source.map(|source| source.to_string()))
-                        .collect::<Vec<_>>()
-                        .await
-                }
-            })
-            .map(stream::iter)
-            .flatten()
-            .filter_map({
-                move |source: Result<String>| {
-                    let seen = Arc::clone(&seen);
-                    async move {
-                        if let Ok(s) = &source
-                            && !seen.insert(s.clone())
-                        {
-                            return None;
-                        }
-                        Some(source)
-                    }
-                }
-            })
     }
 
     /// Convenience method to fetch all unique links from inputs
@@ -393,40 +338,6 @@ mod tests {
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0].as_ref().unwrap().file_type, FileType::Html);
         Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_collect_sources() -> Result<()> {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let temp_dir_path = temp_dir.path();
-
-        std::env::set_current_dir(temp_dir_path)?;
-
-        let file_path = temp_dir_path.join("markdown.md");
-        File::create(&file_path).unwrap();
-
-        let file_path = temp_dir_path.join("README");
-        File::create(&file_path).unwrap();
-
-        let inputs = HashSet::from_iter([
-            Input::from_input_source(InputSource::FsGlob {
-                pattern: "*.md".to_string(),
-                ignore_case: true,
-            }),
-            Input::from_input_source(InputSource::FsGlob {
-                pattern: "markdown.*".to_string(),
-                ignore_case: true,
-            }),
-        ]);
-
-        let collector = Collector::new(Some(temp_dir_path.to_path_buf()), None)?;
-
-        let sources: Vec<_> = collector.collect_sources(inputs).collect().await;
-
-        assert_eq!(sources.len(), 1);
-        assert_eq!(sources[0], Ok("markdown.md".to_string()));
-
-        return Ok(());
     }
 
     #[tokio::test]
