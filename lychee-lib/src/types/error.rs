@@ -171,8 +171,13 @@ pub enum ErrorKind {
     StatusCodeSelectorError(#[from] StatusCodeSelectorError),
 
     /// Preprocessor command error
-    #[error("Preprocessor command '{0}' failed: {1}")]
-    PreprocessorError(String, String),
+    #[error("Preprocessor command '{command}' failed: {reason}")]
+    PreprocessorError {
+        /// The command which did not execute successfully
+        command: String,
+        /// The reason the command failed
+        reason: String,
+    },
 
     /// Test-only error variant for formatter tests
     /// Available in both test and debug builds to support cross-crate testing
@@ -339,7 +344,7 @@ impl ErrorKind {
                 [name] => format!("An index file ({name}) is required"),
                 [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
             }.into(),
-            ErrorKind::PreprocessorError(command, reason) => Some(format!("Command '{command}' failed {reason}. Check value of the pre option"))
+            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the pre option"))
         }
     }
 
@@ -475,7 +480,7 @@ impl Hash for ErrorKind {
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
             Self::Cookies(e) => e.hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
-            Self::PreprocessorError(c, e) => (c, e).hash(state),
+            Self::PreprocessorError { command, reason } => (command, reason).hash(state),
         }
     }
 }

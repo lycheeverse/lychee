@@ -3028,7 +3028,7 @@ mod cli {
     fn test_pre_cat() {
         let file = fixtures_path!().join("TEST.md");
         let pre_with_cat = main_command!()
-            .arg("--pre")
+            .arg("--preprocess")
             .arg("cat")
             .arg("--dump")
             .arg(&file)
@@ -3053,7 +3053,7 @@ mod cli {
     fn test_pre_invalid_command() {
         let file = fixtures_path!().join("TEST.md");
         main_command!()
-            .arg("--pre")
+            .arg("--preprocess")
             .arg("program does not exist")
             .arg(file)
             .assert()
@@ -3066,7 +3066,7 @@ mod cli {
         let file = fixtures_path!().join("TEST.md");
         let script = fixtures_path!().join("pre").join("no_error_message.sh");
         main_command!()
-            .arg("--pre")
+            .arg("--preprocess")
             .arg(&script)
             .arg(&file)
             .assert()
@@ -3077,7 +3077,7 @@ mod cli {
 
         let script = fixtures_path!().join("pre").join("error_message.sh");
         main_command!()
-            .arg("--pre")
+            .arg("--preprocess")
             .arg(&script)
             .arg(file)
             .assert()

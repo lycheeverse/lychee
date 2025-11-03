@@ -167,7 +167,7 @@ impl Input {
         self,
         skip_missing: bool,
         skip_hidden: bool,
-        skip_gitignored: bool,
+        skip_ignored: bool,
         file_extensions: FileExtensions,
         resolver: UrlContentResolver,
         excluded_paths: PathExcludes,
@@ -200,7 +200,7 @@ impl Input {
                 &self,
                 file_extensions,
                 skip_hidden,
-                skip_gitignored,
+                skip_ignored,
                 &excluded_paths,
             ));
 
@@ -275,7 +275,7 @@ impl Input {
         self,
         file_extensions: FileExtensions,
         skip_hidden: bool,
-        skip_gitignored: bool,
+        skip_ignored: bool,
         excluded_paths: &PathExcludes,
     ) -> impl Stream<Item = Result<String>> {
         try_stream! {
@@ -305,7 +305,7 @@ impl Input {
                             path,
                             file_extensions,
                             skip_hidden,
-                            skip_gitignored,
+                            skip_ignored,
                         )? {
                             let entry = entry?;
                             if !Self::is_excluded_path(entry.path(), excluded_paths) {

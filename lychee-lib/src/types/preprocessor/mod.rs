@@ -13,11 +13,13 @@ use super::{ErrorKind, Result};
 /// To invoke programs with custom arguments,
 /// create a shell script to specify it as preprocessor command.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
-pub struct Preprocessor(String);
+pub struct Preprocessor {
+    command: String,
+}
 
 impl From<String> for Preprocessor {
-    fn from(s: String) -> Self {
-        Self(s)
+    fn from(command: String) -> Self {
+        Self { command }
     }
 }
 
@@ -25,10 +27,13 @@ impl Preprocessor {
     /// Try to invoke the preprocessor command with `path` as single argument
     /// and return the resulting stdout.
     pub(crate) fn process(&self, path: &PathBuf) -> Result<String> {
-        let pre = &self.0;
-        let output = Command::new(pre).arg(path).output().map_err(|e| {
-            ErrorKind::PreprocessorError(pre.clone(), format!("could not start: {e}"))
-        })?;
+        let output = Command::new(&self.command)
+            .arg(path)
+            .output()
+            .map_err(|e| ErrorKind::PreprocessorError {
+                command: self.command.clone(),
+                reason: format!("could not start: {e}"),
+            })?;
 
         if output.status.success() {
             from_utf8(output.stdout)
@@ -39,10 +44,10 @@ impl Preprocessor {
                 stderr = "<empty stderr>".into();
             }
 
-            Err(ErrorKind::PreprocessorError(
-                pre.clone(),
-                format!("exited with non-zero code: {stderr}"),
-            ))
+            Err(ErrorKind::PreprocessorError {
+                command: self.command.clone(),
+                reason: format!("exited with non-zero code: {stderr}"),
+            })
         }
     }
 }

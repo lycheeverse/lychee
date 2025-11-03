@@ -42,14 +42,14 @@ impl InputResolver {
         input: &'a Input,
         file_extensions: FileExtensions,
         skip_hidden: bool,
-        skip_gitignored: bool,
+        skip_ignored: bool,
         excluded_paths: &'a PathExcludes,
     ) -> impl Stream<Item = Result<ResolvedInputSource>> + 'a {
         Self::resolve_input(
             input,
             file_extensions,
             skip_hidden,
-            skip_gitignored,
+            skip_ignored,
             excluded_paths,
         )
     }
@@ -63,14 +63,16 @@ impl InputResolver {
         path: &Path,
         file_extensions: FileExtensions,
         skip_hidden: bool,
-        skip_gitignored: bool,
+        skip_ignored: bool,
     ) -> Result<Walk> {
         Ok(WalkBuilder::new(path)
-            .git_ignore(skip_gitignored)
-            .git_global(skip_gitignored)
-            .git_exclude(skip_gitignored)
-            .ignore(skip_gitignored)
-            .parents(skip_gitignored)
+            // Skip over files which are ignored by git or `.ignore` if necessary
+            .git_ignore(skip_ignored)
+            .git_global(skip_ignored)
+            .git_exclude(skip_ignored)
+            .ignore(skip_ignored)
+            .parents(skip_ignored)
+            // Ignore hidden files if necessary
             .hidden(skip_hidden)
             // Configure the file types filter to only include files with matching extensions
             .types(file_extensions.try_into()?)
@@ -86,7 +88,7 @@ impl InputResolver {
         input: &'a Input,
         file_extensions: FileExtensions,
         skip_hidden: bool,
-        skip_gitignored: bool,
+        skip_ignored: bool,
         excluded_paths: &'a PathExcludes,
     ) -> impl Stream<Item = Result<ResolvedInputSource>> + 'a {
         try_stream! {
@@ -128,7 +130,7 @@ impl InputResolver {
                 },
                 InputSource::FsPath(path) => {
                     if path.is_dir() {
-                        for entry in Self::walk(path, file_extensions, skip_hidden, skip_gitignored)? {
+                        for entry in Self::walk(path, file_extensions, skip_hidden, skip_ignored)? {
                             let entry = entry?;
                             if excluded_paths.is_match(&entry.path().to_string_lossy()) {
                                 continue;

@@ -886,7 +886,7 @@ case "$1" in
 esac"#
     )]
     #[serde(default)]
-    pub(crate) pre: Option<Preprocessor>,
+    pub(crate) preprocess: Option<Preprocessor>,
 }
 
 impl Config {
@@ -977,7 +977,7 @@ impl Config {
                 no_progress: false,
                 offline: false,
                 output: None,
-                pre: None,
+                preprocess: None,
                 remap: Vec::<String>::new(),
                 require_https: false,
                 retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS,
