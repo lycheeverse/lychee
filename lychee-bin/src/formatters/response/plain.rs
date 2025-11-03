@@ -40,12 +40,12 @@ mod plain_tests {
     fn test_format_response_with_error_status() {
         let formatter = PlainFormatter;
         let body = mock_response_body!(
-            Status::Error(ErrorKind::TestError),
+            Status::Error(ErrorKind::EmptyUrl),
             "https://example.com/404",
         );
         assert_eq!(
             formatter.format_response(&body),
-            "[ERROR] https://example.com/404 | Generic test error: Test error for formatter testing"
+            "[ERROR] https://example.com/404 | URL cannot be empty: Empty URL found. Check for missing links or malformed markdown"
         );
     }
 
