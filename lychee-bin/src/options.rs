@@ -866,7 +866,7 @@ its standard output instead of the original contents of PATH. This allows you to
 convert files that would otherwise not be understood by lychee. The preprocessor
 COMMAND is only run on input files, not on standard input or URLs.
 
-To invoke programs with custom arguments or to use multiple preprocessors use a
+To invoke programs with custom arguments or to use multiple preprocessors, use a
 wrapper program such as a shell script. An example script looks like this:
 
 #!/usr/bin/env bash
