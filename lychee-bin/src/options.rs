@@ -10,6 +10,7 @@ use http::{
     HeaderMap,
     header::{HeaderName, HeaderValue},
 };
+use lychee_lib::Preprocessor;
 use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
@@ -853,6 +854,37 @@ and existing cookies will be updated."
     #[arg(long)]
     #[serde(default)]
     pub(crate) include_wikilinks: bool,
+
+    /// Preprocess input files.
+    #[arg(
+        short,
+        long,
+        value_name = "COMMAND",
+        long_help = r#"Preprocess input files.
+For each file input, this flag causes lychee to execute `COMMAND PATH` and process
+its standard output instead of the original contents of PATH. This allows you to
+convert files that would otherwise not be understood by lychee. The preprocessor
+COMMAND is only run on input files, not on standard input or URLs.
+
+To invoke programs with custom arguments or to use multiple preprocessors, use a
+wrapper program such as a shell script. An example script looks like this:
+
+#!/usr/bin/env bash
+case "$1" in
+*.pdf)
+    exec pdftohtml -i -s -stdout "$1"
+    ;;
+*.odt|*.docx|*.epub|*.ipynb)
+    exec pandoc "$1" --to=html --wrap=none
+    ;;
+*)
+    # identity function, output input without changes
+    exec cat
+    ;;
+esac"#
+    )]
+    #[serde(default)]
+    pub(crate) preprocess: Option<Preprocessor>,
 }
 
 impl Config {
@@ -943,6 +975,7 @@ impl Config {
                 no_progress: false,
                 offline: false,
                 output: None,
+                preprocess: None,
                 remap: Vec::<String>::new(),
                 require_https: false,
                 retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS,

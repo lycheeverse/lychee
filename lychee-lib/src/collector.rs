@@ -1,6 +1,8 @@
 use crate::ErrorKind;
 use crate::InputSource;
+use crate::Preprocessor;
 use crate::filter::PathExcludes;
+
 use crate::types::resolver::UrlContentResolver;
 use crate::{
     Base, Input, Request, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
@@ -34,6 +36,7 @@ pub struct Collector {
     excluded_paths: PathExcludes,
     headers: HeaderMap,
     client: Client,
+    preprocessor: Option<Preprocessor>,
 }
 
 impl Default for Collector {
@@ -57,6 +60,7 @@ impl Default for Collector {
             headers: HeaderMap::new(),
             client: Client::new(),
             excluded_paths: PathExcludes::empty(),
+            preprocessor: None,
         }
     }
 }
@@ -82,6 +86,7 @@ impl Collector {
             use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
+            preprocessor: None,
             headers: HeaderMap::new(),
             client: Client::builder()
                 .build()
@@ -141,11 +146,18 @@ impl Collector {
         self
     }
 
-    #[allow(clippy::doc_markdown)]
     /// Check WikiLinks in Markdown files
+    #[allow(clippy::doc_markdown)]
     #[must_use]
     pub const fn include_wikilinks(mut self, yes: bool) -> Self {
         self.include_wikilinks = yes;
+        self
+    }
+
+    /// Configure a file [`Preprocessor`]
+    #[must_use]
+    pub fn preprocessor(mut self, preprocessor: Option<Preprocessor>) -> Self {
+        self.preprocessor = preprocessor;
         self
     }
 
@@ -208,6 +220,7 @@ impl Collector {
                 let extensions = extensions.clone();
                 let resolver = resolver.clone();
                 let excluded_paths = excluded_paths.clone();
+                let preprocessor = self.preprocessor.clone();
 
                 async move {
                     let base = match &input.source {
@@ -223,6 +236,7 @@ impl Collector {
                             extensions,
                             resolver,
                             excluded_paths,
+                            preprocessor,
                         )
                         .map(move |content| (content, base.clone()))
                 }
@@ -311,6 +325,7 @@ mod tests {
                 FileType::default_extensions(),
                 UrlContentResolver::default(),
                 PathExcludes::empty(),
+                None,
             )
             .collect::<Vec<_>>()
             .await;
@@ -331,6 +346,7 @@ mod tests {
                 FileType::default_extensions(),
                 UrlContentResolver::default(),
                 PathExcludes::empty(),
+                None,
             )
             .collect::<Vec<_>>()
             .await;
