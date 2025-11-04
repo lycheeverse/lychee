@@ -871,17 +871,15 @@ wrapper program such as a shell script. An example script looks like this:
 
 #!/usr/bin/env bash
 case "$1" in
-*.epub|*.odt|*.docx|*.ipynb)
-    exec pandoc "$1" --to=html --wrap=none --markdown-headings=atx
-    ;;
-*.adoc|*.asciidoc)
-    asciidoctor -a stylesheet! "$1" -o -
-    ;;
 *.pdf)
-    exec pdftotext "$1" -
+    exec pdftohtml -i -s -stdout "$1"
+    ;;
+*.odt|*.docx|*.epub|*.ipynb)
+    exec pandoc "$1" --to=html --wrap=none
     ;;
 *)
-    exec cat # identity function, output input without changes
+    # identity function, output input without changes
+    exec cat
     ;;
 esac"#
     )]
