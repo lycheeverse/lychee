@@ -6,7 +6,7 @@ mod cli {
     use http::{Method, StatusCode};
     use lychee_lib::{InputSource, ResponseBody};
     use predicates::{
-        prelude::{PredicateBooleanExt, predicate},
+        prelude::PredicateBooleanExt,
         str::{contains, is_empty},
     };
     use pretty_assertions::assert_eq;
@@ -967,9 +967,25 @@ mod cli {
             .env_clear()
             .assert()
             .failure()
-            .stderr(predicate::str::contains("Cannot load configuration file"))
-            .stderr(predicate::str::contains("Failed to parse"))
-            .stderr(predicate::str::contains("TOML parse error"));
+            .stderr(contains("Cannot load configuration file"))
+            .stderr(contains("Failed to parse"))
+            .stderr(contains("TOML parse error"));
+    }
+
+    #[tokio::test]
+    async fn test_config_invalid_keys() {
+        let mock_server = mock_server!(StatusCode::OK);
+        let config = fixtures_path!().join("configs").join("invalid-key.toml");
+        let mut cmd = main_command!();
+        cmd.arg("--config")
+            .arg(config)
+            .arg("-")
+            .write_stdin(mock_server.uri())
+            .env_clear()
+            .assert()
+            .failure()
+            .code(3)
+            .stderr(contains("unknown field `this_is_invalid`, expected one of"));
     }
 
     #[tokio::test]

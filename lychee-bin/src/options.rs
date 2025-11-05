@@ -407,6 +407,7 @@ where
 /// The main configuration for lychee
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Parser, Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Config {
     /// Verbose program output
     #[clap(flatten)]
