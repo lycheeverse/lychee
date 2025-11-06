@@ -321,10 +321,10 @@ mod cli {
 
     #[test]
     fn test_email_html_with_subject() -> Result<()> {
-        let mut cmd = main_command!();
         let input = fixtures_path!().join("TEST_EMAIL_QUERY_PARAMS.html");
 
-        cmd.arg("--dump")
+        main_command!()
+            .arg("--dump")
             .arg(input)
             .arg("--include-mail")
             .assert()
@@ -336,10 +336,10 @@ mod cli {
 
     #[test]
     fn test_email_markdown_with_subject() -> Result<()> {
-        let mut cmd = main_command!();
         let input = fixtures_path!().join("TEST_EMAIL_QUERY_PARAMS.md");
 
-        cmd.arg("--dump")
+        main_command!()
+            .arg("--dump")
             .arg(input)
             .arg("--include-mail")
             .assert()
@@ -376,13 +376,13 @@ mod cli {
     /// Test unsupported URI schemes
     #[test]
     fn test_unsupported_uri_schemes_are_ignored() {
-        let mut cmd = main_command!();
         let test_schemes_path = fixtures_path!().join("TEST_SCHEMES.txt");
 
         // Exclude file link because it doesn't exist on the filesystem.
         // (File URIs are absolute paths, which we don't have.)
         // Nevertheless, the `file` scheme should be recognized.
-        cmd.arg(test_schemes_path)
+        main_command!()
+            .arg(test_schemes_path)
             .arg("--exclude")
             .arg("file://")
             .env_clear()
@@ -395,10 +395,10 @@ mod cli {
 
     #[test]
     fn test_resolve_paths() {
-        let mut cmd = main_command!();
         let dir = fixtures_path!().join("resolve_paths");
 
-        cmd.arg("--offline")
+        main_command!()
+            .arg("--offline")
             .arg("--base-url")
             .arg(&dir)
             .arg(dir.join("index.html"))
@@ -411,10 +411,10 @@ mod cli {
 
     #[test]
     fn test_resolve_paths_from_root_dir() {
-        let mut cmd = main_command!();
         let dir = fixtures_path!().join("resolve_paths_from_root_dir");
 
-        cmd.arg("--offline")
+        main_command!()
+            .arg("--offline")
             .arg("--include-fragments")
             .arg("--root-dir")
             .arg(&dir)
@@ -429,10 +429,10 @@ mod cli {
 
     #[test]
     fn test_resolve_paths_from_root_dir_and_base_url() {
-        let mut cmd = main_command!();
         let dir = fixtures_path!();
 
-        cmd.arg("--offline")
+        main_command!()
+            .arg("--offline")
             .arg("--root-dir")
             .arg("/resolve_paths")
             .arg("--base-url")
@@ -501,8 +501,8 @@ mod cli {
         let mut file = File::create(&file_path)?;
         writeln!(file, "{}", mock_server.uri())?;
 
-        let mut cmd = main_command!();
-        cmd.arg(file_path)
+        main_command!()
+            .arg(file_path)
             .write_stdin(mock_server.uri())
             .assert()
             .failure()
@@ -513,10 +513,10 @@ mod cli {
 
     #[test]
     fn test_schemes() {
-        let mut cmd = main_command!();
         let test_schemes_path = fixtures_path!().join("TEST_SCHEMES.md");
 
-        cmd.arg(test_schemes_path)
+        main_command!()
+            .arg(test_schemes_path)
             .arg("--scheme")
             .arg("https")
             .arg("--scheme")
@@ -531,11 +531,11 @@ mod cli {
 
     #[test]
     fn test_caching_single_file() {
-        let mut cmd = main_command!();
         // Repetitions in one file shall all be checked and counted only once.
         let test_schemes_path_1 = fixtures_path!().join("TEST_REPETITION_1.txt");
 
-        cmd.arg(&test_schemes_path_1)
+        main_command!()
+            .arg(&test_schemes_path_1)
             .env_clear()
             .assert()
             .success()
@@ -568,10 +568,10 @@ mod cli {
 
     #[test]
     fn test_failure_github_404_no_token() {
-        let mut cmd = main_command!();
         let test_github_404_path = fixtures_path!().join("TEST_GITHUB_404.md");
 
-        cmd.arg(test_github_404_path)
+        main_command!()
+            .arg(test_github_404_path)
             .arg("--no-progress")
             .env_clear()
             .assert()
@@ -587,10 +587,10 @@ mod cli {
 
     #[tokio::test]
     async fn test_stdin_input() {
-        let mut cmd = main_command!();
         let mock_server = mock_server!(StatusCode::OK);
 
-        cmd.arg("-")
+        main_command!()
+            .arg("-")
             .write_stdin(mock_server.uri())
             .assert()
             .success();
@@ -598,10 +598,10 @@ mod cli {
 
     #[tokio::test]
     async fn test_stdin_input_failure() {
-        let mut cmd = main_command!();
         let mock_server = mock_server!(StatusCode::INTERNAL_SERVER_ERROR);
 
-        cmd.arg("-")
+        main_command!()
+            .arg("-")
             .write_stdin(mock_server.uri())
             .assert()
             .failure()
@@ -610,13 +610,13 @@ mod cli {
 
     #[tokio::test]
     async fn test_stdin_input_multiple() {
-        let mut cmd = main_command!();
         let mock_server_a = mock_server!(StatusCode::OK);
         let mock_server_b = mock_server!(StatusCode::OK);
 
         // this behavior (treating multiple `-` as separate inputs) is the same as most CLI tools
         // that accept `-` as stdin, e.g. `cat`, `bat`, `grep` etc.
-        cmd.arg("-")
+        main_command!()
+            .arg("-")
             .arg("-")
             .write_stdin(mock_server_a.uri())
             .write_stdin(mock_server_b.uri())
@@ -626,10 +626,12 @@ mod cli {
 
     #[test]
     fn test_missing_file_ok_if_skip_missing() {
-        let mut cmd = main_command!();
         let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
-
-        cmd.arg(&filename).arg("--skip-missing").assert().success();
+        main_command!()
+            .arg(&filename)
+            .arg("--skip-missing")
+            .assert()
+            .success();
     }
 
     #[test]
@@ -732,9 +734,6 @@ mod cli {
 
     #[tokio::test]
     async fn test_glob() -> Result<()> {
-        // using Result to be able to use `?`
-        let mut cmd = main_command!();
-
         let dir = tempfile::tempdir()?;
         let mock_server_a = mock_server!(StatusCode::OK);
         let mock_server_b = mock_server!(StatusCode::OK);
@@ -744,7 +743,8 @@ mod cli {
         writeln!(file_a, "{}", mock_server_a.uri().as_str())?;
         writeln!(file_b, "{}", mock_server_b.uri().as_str())?;
 
-        cmd.arg(dir.path().join("*.md"))
+        main_command!()
+            .arg(dir.path().join("*.md"))
             .arg("--verbose")
             .assert()
             .success()
@@ -756,8 +756,6 @@ mod cli {
     #[cfg(target_os = "linux")] // MacOS and Windows have case-insensitive filesystems
     #[tokio::test]
     async fn test_glob_ignore_case() -> Result<()> {
-        let mut cmd = main_command!();
-
         let dir = tempfile::tempdir()?;
         let mock_server_a = mock_server!(StatusCode::OK);
         let mock_server_b = mock_server!(StatusCode::OK);
@@ -767,7 +765,8 @@ mod cli {
         writeln!(file_a, "{}", mock_server_a.uri().as_str())?;
         writeln!(file_b, "{}", mock_server_b.uri().as_str())?;
 
-        cmd.arg(dir.path().join("[r]eadme.md"))
+        main_command!()
+            .arg(dir.path().join("[r]eadme.md"))
             .arg("--verbose")
             .arg("--glob-ignore-case")
             .assert()
@@ -779,8 +778,6 @@ mod cli {
 
     #[tokio::test]
     async fn test_glob_recursive() -> Result<()> {
-        let mut cmd = main_command!();
-
         let dir = tempfile::tempdir()?;
         let subdir_level_1 = tempfile::tempdir_in(&dir)?;
         let subdir_level_2 = tempfile::tempdir_in(&subdir_level_1)?;
@@ -790,8 +787,8 @@ mod cli {
 
         writeln!(file, "{}", mock_server.uri().as_str())?;
 
-        // ** should be a recursive glob
-        cmd.arg(dir.path().join("**/*.md"))
+        main_command!()
+            .arg(dir.path().join("**/*.md")) // ** should be a recursive glob
             .arg("--verbose")
             .assert()
             .success()
@@ -817,11 +814,11 @@ mod cli {
     /// Test writing output of `--dump` command to file
     #[test]
     fn test_dump_to_file() -> Result<()> {
-        let mut cmd = main_command!();
         let test_path = fixtures_path!().join("TEST.md");
         let outfile = format!("{}", Uuid::new_v4());
 
-        cmd.arg("--output")
+        main_command!()
+            .arg("--output")
             .arg(&outfile)
             .arg("--dump")
             .arg("--include-mail")
@@ -843,10 +840,10 @@ mod cli {
     /// Test excludes
     #[test]
     fn test_exclude_wildcard() -> Result<()> {
-        let mut cmd = main_command!();
         let test_path = fixtures_path!().join("TEST.md");
 
-        cmd.arg(test_path)
+        main_command!()
+            .arg(test_path)
             .arg("--exclude")
             .arg(".*")
             .assert()
@@ -858,10 +855,10 @@ mod cli {
 
     #[test]
     fn test_exclude_multiple_urls() -> Result<()> {
-        let mut cmd = main_command!();
         let test_path = fixtures_path!().join("TEST.md");
 
-        cmd.arg(test_path)
+        main_command!()
+            .arg(test_path)
             .arg("--exclude")
             .arg("https://en.wikipedia.org/*")
             .arg("--exclude")
@@ -874,11 +871,11 @@ mod cli {
     }
 
     #[tokio::test]
-    async fn test_empty_config() -> Result<()> {
+    async fn test_empty_config() {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("empty.toml");
-        let mut cmd = main_command!();
-        cmd.arg("--config")
+        main_command!()
+            .arg("--config")
             .arg(config)
             .arg("-")
             .write_stdin(mock_server.uri())
@@ -887,12 +884,10 @@ mod cli {
             .success()
             .stdout(contains("1 Total"))
             .stdout(contains("1 OK"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_invalid_default_config() -> Result<()> {
+    fn test_invalid_default_config() {
         let test_path = fixtures_path!().join("configs");
         let mut cmd = main_command!();
         cmd.current_dir(test_path)
@@ -900,8 +895,6 @@ mod cli {
             .assert()
             .failure()
             .stderr(contains("Cannot load default configuration file"));
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -911,8 +904,8 @@ mod cli {
         let mut config = NamedTempFile::new()?;
         writeln!(config, "include_mail = false")?;
 
-        let mut cmd = main_command!();
-        cmd.arg("--config")
+        main_command!()
+            .arg("--config")
             .arg(config.path().to_str().unwrap())
             .arg("-")
             .write_stdin(test_mail_address)
@@ -925,8 +918,8 @@ mod cli {
         let mut config = NamedTempFile::new()?;
         writeln!(config, "include_mail = true")?;
 
-        let mut cmd = main_command!();
-        cmd.arg("--config")
+        main_command!()
+            .arg("--config")
             .arg(config.path().to_str().unwrap())
             .arg("-")
             .write_stdin(test_mail_address)
@@ -943,8 +936,8 @@ mod cli {
     async fn test_cache_config() -> Result<()> {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("cache.toml");
-        let mut cmd = main_command!();
-        cmd.arg("--config")
+        main_command!()
+            .arg("--config")
             .arg(config)
             .arg("-")
             .write_stdin(mock_server.uri())
@@ -960,8 +953,8 @@ mod cli {
     #[tokio::test]
     async fn test_invalid_config() {
         let config = fixtures_path!().join("configs").join("invalid.toml");
-        let mut cmd = main_command!();
-        cmd.arg("--config")
+        main_command!()
+            .arg("--config")
             .arg(config)
             .arg("-")
             .env_clear()
@@ -976,8 +969,8 @@ mod cli {
     async fn test_config_invalid_keys() {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("invalid-key.toml");
-        let mut cmd = main_command!();
-        cmd.arg("--config")
+        main_command!()
+            .arg("--config")
             .arg(config)
             .arg("-")
             .write_stdin(mock_server.uri())
@@ -991,8 +984,8 @@ mod cli {
     #[tokio::test]
     async fn test_missing_config_error() {
         let mock_server = mock_server!(StatusCode::OK);
-        let mut cmd = main_command!();
-        cmd.arg("--config")
+        main_command!()
+            .arg("--config")
             .arg("config.does.not.exist.toml")
             .arg("-")
             .write_stdin(mock_server.uri())
@@ -1005,8 +998,8 @@ mod cli {
     async fn test_config_example() {
         let mock_server = mock_server!(StatusCode::OK);
         let config = root_path!().join("lychee.example.toml");
-        let mut cmd = main_command!();
-        cmd.arg("--config")
+        main_command!()
+            .arg("--config")
             .arg(config)
             .arg("-")
             .write_stdin(mock_server.uri())
@@ -1018,8 +1011,7 @@ mod cli {
     #[test]
     #[cfg(unix)]
     fn test_all_arguments_in_config() -> Result<()> {
-        let mut cmd = main_command!();
-        let help_cmd = cmd.env_clear().arg("--help").assert().success();
+        let help_cmd = main_command!().env_clear().arg("--help").assert().success();
         let help_text = std::str::from_utf8(&help_cmd.get_output().stdout)?;
 
         let regex = test_utils::arg_regex_help!()?;
@@ -1061,8 +1053,8 @@ The config file should contain every possible key for documentation purposes."
     async fn test_config_smoketest() {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("smoketest.toml");
-        let mut cmd = main_command!();
-        cmd.arg("--config")
+        main_command!()
+            .arg("--config")
             .arg(config)
             .arg("-")
             .write_stdin(mock_server.uri())
@@ -1075,8 +1067,8 @@ The config file should contain every possible key for documentation purposes."
     async fn test_config_accept() {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("accept.toml");
-        let mut cmd = main_command!();
-        cmd.arg("--config")
+        main_command!()
+            .arg("--config")
             .arg(config)
             .arg("-")
             .write_stdin(mock_server.uri())
@@ -1087,10 +1079,9 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_lycheeignore_file() -> Result<()> {
-        let mut cmd = main_command!();
         let test_path = fixtures_path!().join("lycheeignore");
 
-        let cmd = cmd
+        let cmd = main_command!()
             .current_dir(test_path)
             .arg("--dump")
             .arg("TEST.md")
@@ -1108,11 +1099,11 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_lycheeignore_and_exclude_file() -> Result<()> {
-        let mut cmd = main_command!();
         let test_path = fixtures_path!().join("lycheeignore");
         let excludes_path = test_path.join("normal-exclude-file");
 
-        cmd.current_dir(test_path)
+        main_command!()
+            .current_dir(test_path)
             .arg("TEST.md")
             .arg("--exclude-file")
             .arg(excludes_path)
@@ -1346,8 +1337,8 @@ The config file should contain every possible key for documentation purposes."
     async fn test_accept_overrides_defaults_not_additive() -> Result<()> {
         let mock_server_200 = mock_server!(StatusCode::OK);
 
-        let mut cmd = main_command!();
-        cmd.arg("--accept")
+        main_command!()
+            .arg("--accept")
             .arg("404") // ONLY accept 404 - should reject 200 as we overwrite the default
             .arg("-")
             .write_stdin(mock_server_200.uri())
@@ -1457,25 +1448,23 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[test]
-    fn test_verbatim_skipped_by_default() -> Result<()> {
-        let mut cmd = main_command!();
+    fn test_verbatim_skipped_by_default() {
         let input = fixtures_path!().join("TEST_CODE_BLOCKS.md");
 
-        cmd.arg(input)
+        main_command!()
+            .arg(input)
             .arg("--dump")
             .assert()
             .success()
             .stdout(is_empty());
-
-        Ok(())
     }
 
     #[test]
-    fn test_include_verbatim() -> Result<()> {
-        let mut cmd = main_command!();
+    fn test_include_verbatim() {
         let input = fixtures_path!().join("TEST_CODE_BLOCKS.md");
 
-        cmd.arg("--include-verbatim")
+        main_command!()
+            .arg("--include-verbatim")
             .arg(input)
             .arg("--dump")
             .assert()
@@ -1483,11 +1472,9 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("http://127.0.0.1/block"))
             .stdout(contains("http://127.0.0.1/inline"))
             .stdout(contains("http://127.0.0.1/bash"));
-
-        Ok(())
     }
     #[tokio::test]
-    async fn test_verbatim_skipped_by_default_via_file() -> Result<()> {
+    async fn test_verbatim_skipped_by_default_via_file() {
         let file = fixtures_path!().join("TEST_VERBATIM.html");
 
         main_command!()
@@ -1496,34 +1483,30 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stdout(is_empty());
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_verbatim_skipped_by_default_via_remote_url() -> Result<()> {
-        let mut cmd = main_command!();
+    async fn test_verbatim_skipped_by_default_via_remote_url() {
         let file = fixtures_path!().join("TEST_VERBATIM.html");
-        let body = fs::read_to_string(file)?;
+        let body = fs::read_to_string(file).unwrap();
         let mock_server = mock_response!(body);
 
-        cmd.arg("--dump")
+        main_command!()
+            .arg("--dump")
             .arg(mock_server.uri())
             .assert()
             .success()
             .stdout(is_empty());
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_include_verbatim_via_remote_url() -> Result<()> {
-        let mut cmd = main_command!();
+    async fn test_include_verbatim_via_remote_url() {
         let file = fixtures_path!().join("TEST_VERBATIM.html");
-        let body = fs::read_to_string(file)?;
+        let body = fs::read_to_string(file).unwrap();
         let mock_server = mock_response!(body);
 
-        cmd.arg("--include-verbatim")
+        main_command!()
+            .arg("--include-verbatim")
             .arg("--dump")
             .arg(mock_server.uri())
             .assert()
@@ -1534,64 +1517,54 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("http://www.example.com/kbd"))
             .stdout(contains("http://www.example.com/var"))
             .stdout(contains("http://www.example.com/script"));
-        Ok(())
     }
 
     #[test]
-    fn test_require_https() -> Result<()> {
-        let mut cmd = main_command!();
+    fn test_require_https() {
         let test_path = fixtures_path!().join("TEST_HTTP.html");
-        cmd.arg(&test_path).assert().success();
+        main_command!().arg(&test_path).assert().success();
 
-        let mut cmd = main_command!();
-        cmd.arg("--require-https")
+        main_command!()
+            .arg("--require-https")
             .arg(test_path)
             .assert()
             .failure()
             .stdout(contains("This URI is available in HTTPS protocol, but HTTP is provided. Use 'https://example.com/' instead"));
-
-        Ok(())
     }
 
     /// If `base-dir` is not set, don't throw an error in case we encounter
     /// an absolute local link (e.g. `/about`) within a file.
     /// Instead, simply ignore the link.
     #[test]
-    fn test_ignore_absolute_local_links_without_base() -> Result<()> {
-        let mut cmd = main_command!();
-
+    fn test_ignore_absolute_local_links_without_base() {
         let offline_dir = fixtures_path!().join("offline");
 
-        cmd.arg("--offline")
+        main_command!()
+            .arg("--offline")
             .arg(offline_dir.join("index.html"))
             .env_clear()
             .assert()
             .success()
             .stdout(contains("0 Total"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_inputs_without_scheme() -> Result<()> {
+    fn test_inputs_without_scheme() {
         let test_path = fixtures_path!().join("TEST_HTTP.html");
-        let mut cmd = main_command!();
-
-        cmd.arg("--dump")
+        main_command!()
+            .arg("--dump")
             .arg("example.com")
             .arg(&test_path)
             .arg("https://example.org")
             .assert()
             .success();
-        Ok(())
     }
 
     #[test]
-    fn test_print_excluded_links_in_verbose_mode() -> Result<()> {
+    fn test_print_excluded_links_in_verbose_mode() {
         let test_path = fixtures_path!().join("TEST_DUMP_EXCLUDE.txt");
-        let mut cmd = main_command!();
-
-        cmd.arg("--dump")
+        main_command!()
+            .arg("--dump")
             .arg("--verbose")
             .arg("--exclude")
             .arg("example.com")
@@ -1611,14 +1584,12 @@ The config file should contain every possible key for documentation purposes."
                 "https://example.com/foo/bar ({}) [excluded]",
                 test_path.display()
             )));
-        Ok(())
     }
 
     #[test]
-    fn test_remap_uri() -> Result<()> {
-        let mut cmd = main_command!();
-
-        cmd.arg("--dump")
+    fn test_remap_uri() {
+        main_command!()
+            .arg("--dump")
             .arg("--remap")
             .arg("https://example.com http://127.0.0.1:8080")
             .arg("--remap")
@@ -1632,16 +1603,13 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("http://127.0.0.1:8080/"))
             .stdout(contains("https://staging.example.com/"))
             .stdout(contains("https://example.net/"));
-
-        Ok(())
     }
 
     #[test]
     #[ignore = "Skipping test until https://github.com/robinst/linkify/pull/58 is merged"]
-    fn test_remap_path() -> Result<()> {
-        let mut cmd = main_command!();
-
-        cmd.arg("--dump")
+    fn test_remap_path() {
+        main_command!()
+            .arg("--dump")
             .arg("--remap")
             .arg("../../issues https://github.com/usnistgov/OSCAL/issues")
             .arg("--")
@@ -1651,15 +1619,12 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stdout(contains("https://github.com/usnistgov/OSCAL/issues"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_remap_capture() -> Result<()> {
-        let mut cmd = main_command!();
-
-        cmd.arg("--dump")
+    fn test_remap_capture() {
+        main_command!()
+            .arg("--dump")
             .arg("--remap")
             .arg("https://example.com/(.*) http://example.org/$1")
             .arg("--")
@@ -1669,15 +1634,12 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stdout(contains("http://example.org/foo"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_remap_named_capture() -> Result<()> {
-        let mut cmd = main_command!();
-
-        cmd.arg("--dump")
+    fn test_remap_named_capture() {
+        main_command!()
+            .arg("--dump")
             .arg("--remap")
             .arg("https://github.com/(?P<org>.*)/(?P<repo>.*) https://gitlab.com/$org/$repo")
             .arg("--")
@@ -1687,18 +1649,14 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stdout(contains("https://gitlab.com/lycheeverse/lychee"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_excluded_paths_regex() -> Result<()> {
+    fn test_excluded_paths_regex() {
         let test_path = fixtures_path!().join("exclude-path");
         let excluded_path_1 = "\\/excluded?\\/"; // exclude paths containing a directory "exclude" and "excluded"
         let excluded_path_2 = "(\\.mdx|\\.txt)$"; // exclude .mdx and .txt files
-        let mut cmd = main_command!();
-
-        let result = cmd
+        let result = main_command!()
             .arg("--exclude-path")
             .arg(excluded_path_1)
             .arg("--exclude-path")
@@ -1716,16 +1674,14 @@ The config file should contain every possible key for documentation purposes."
                 "https://test.md/to-be-included-inner",
             ],
         );
-
-        Ok(())
     }
 
     #[test]
-    fn test_handle_relative_paths_as_input() -> Result<()> {
+    fn test_handle_relative_paths_as_input() {
         let test_path = fixtures_path!();
-        let mut cmd = main_command!();
 
-        cmd.current_dir(&test_path)
+        main_command!()
+            .current_dir(&test_path)
             .arg("--verbose")
             .arg("--exclude")
             .arg("example.*")
@@ -1735,16 +1691,14 @@ The config file should contain every possible key for documentation purposes."
             .success()
             .stdout(contains("3 Total"))
             .stdout(contains("3 Excluded"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_handle_nonexistent_relative_paths_as_input() -> Result<()> {
+    fn test_handle_nonexistent_relative_paths_as_input() {
         let test_path = fixtures_path!();
-        let mut cmd = main_command!();
 
-        cmd.current_dir(&test_path)
+        main_command!()
+            .current_dir(&test_path)
             .arg("--verbose")
             .arg("--exclude")
             .arg("example.*")
@@ -1753,23 +1707,19 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .stderr(contains("Invalid file path: ./NOT-A-REAL-TEST-FIXTURE.md"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_prevent_too_many_redirects() -> Result<()> {
-        let mut cmd = main_command!();
+    fn test_prevent_too_many_redirects() {
         let url = "https://http.codes/308";
 
-        cmd.write_stdin(url)
+        main_command!()
+            .write_stdin(url)
             .arg("--max-redirects")
             .arg("0")
             .arg("-")
             .assert()
             .failure();
-
-        Ok(())
     }
 
     #[test]
@@ -1806,7 +1756,7 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
-    async fn test_basic_auth() -> Result<()> {
+    async fn test_basic_auth() {
         let username = "username";
         let password = "password123";
 
@@ -1843,12 +1793,10 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stdout(contains("0 Total")); // Mock server returns no body, so there are no URLs to check
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_multi_basic_auth() -> Result<()> {
+    async fn test_multi_basic_auth() {
         let username1 = "username";
         let password1 = "password123";
         let mock_server1 = wiremock::MockServer::start().await;
@@ -1879,16 +1827,14 @@ The config file should contain every possible key for documentation purposes."
             .success()
             .stdout(contains("2 Total"))
             .stdout(contains("2 OK"));
-
-        Ok(())
     }
 
     #[tokio::test]
     async fn test_cookie_jar() -> Result<()> {
         // Create a random cookie jar file
         let cookie_jar = NamedTempFile::new()?;
-        let mut cmd = main_command!();
-        cmd.arg("--cookie-jar")
+        main_command!()
+            .arg("--cookie-jar")
             .arg(cookie_jar.path().to_str().unwrap())
             .arg("-")
             // Using Google as a test target because I couldn't
@@ -1908,57 +1854,51 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[test]
-    fn test_dump_inputs_does_not_include_duplicates() -> Result<()> {
+    fn test_dump_inputs_does_not_include_duplicates() {
         let pattern = fixtures_path!().join("dump_inputs/markdown.md");
 
-        let mut cmd = main_command!();
-        cmd.arg("--dump-inputs")
+        main_command!()
+            .arg("--dump-inputs")
             .arg(&pattern)
             .arg(&pattern)
             .assert()
             .success()
             .stdout(contains("fixtures/dump_inputs/markdown.md").count(1));
-
-        Ok(())
     }
 
     #[test]
-    fn test_dump_inputs_glob_does_not_include_duplicates() -> Result<()> {
+    fn test_dump_inputs_glob_does_not_include_duplicates() {
         let pattern1 = fixtures_path!().join("**/markdown.*");
         let pattern2 = fixtures_path!().join("**/*.md");
 
-        let mut cmd = main_command!();
-        cmd.arg("--dump-inputs")
+        main_command!()
+            .arg("--dump-inputs")
             .arg(pattern1)
             .arg(pattern2)
             .assert()
             .success()
             .stdout(contains("fixtures/dump_inputs/markdown.md").count(1));
-
-        Ok(())
     }
 
     #[test]
-    fn test_dump_inputs_glob_md() -> Result<()> {
+    fn test_dump_inputs_glob_md() {
         let pattern = fixtures_path!().join("**/*.md");
 
-        let mut cmd = main_command!();
-        cmd.arg("--dump-inputs")
+        main_command!()
+            .arg("--dump-inputs")
             .arg(pattern)
             .assert()
             .success()
             .stdout(contains("fixtures/dump_inputs/subfolder/file2.md"))
             .stdout(contains("fixtures/dump_inputs/markdown.md"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_dump_inputs_glob_all() -> Result<()> {
+    fn test_dump_inputs_glob_all() {
         let pattern = fixtures_path!().join("**/*");
 
-        let mut cmd = main_command!();
-        cmd.arg("--dump-inputs")
+        main_command!()
+            .arg("--dump-inputs")
             .arg(pattern)
             .assert()
             .success()
@@ -1967,16 +1907,14 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("fixtures/dump_inputs/subfolder"))
             .stdout(contains("fixtures/dump_inputs/markdown.md"))
             .stdout(contains("fixtures/dump_inputs/some_file.txt"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_dump_inputs_glob_exclude_path() -> Result<()> {
+    fn test_dump_inputs_glob_exclude_path() {
         let pattern = fixtures_path!().join("**/*");
 
-        let mut cmd = main_command!();
-        cmd.arg("--dump-inputs")
+        main_command!()
+            .arg("--dump-inputs")
             .arg(pattern)
             .arg("--exclude-path")
             .arg(fixtures_path!().join("dump_inputs/subfolder"))
@@ -1985,27 +1923,22 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("fixtures/dump_inputs/subfolder/test.html").not())
             .stdout(contains("fixtures/dump_inputs/subfolder/file2.md").not())
             .stdout(contains("fixtures/dump_inputs/subfolder").not());
-
-        Ok(())
     }
 
     #[test]
-    fn test_dump_inputs_url() -> Result<()> {
-        let mut cmd = main_command!();
-        let result = cmd
+    fn test_dump_inputs_url() {
+        let result = main_command!()
             .arg("--dump-inputs")
             .arg("https://example.com")
             .assert()
             .success();
 
         assert_lines_eq(result, vec!["https://example.com/"]);
-        Ok(())
     }
 
     #[test]
-    fn test_dump_inputs_path() -> Result<()> {
-        let mut cmd = main_command!();
-        let result = cmd
+    fn test_dump_inputs_path() {
+        let result = main_command!()
             .arg("--dump-inputs")
             .arg(fixtures_path!().join("dump_inputs"))
             .assert()
@@ -2023,17 +1956,15 @@ The config file should contain every possible key for documentation purposes."
         .collect();
 
         assert_lines_eq(result, expected_lines);
-        Ok(())
     }
 
     // Ensures that dumping stdin does not panic and results in an empty output
     // as `stdin` is not a path
     #[test]
-    fn test_dump_inputs_with_extensions() -> Result<()> {
-        let mut cmd = main_command!();
+    fn test_dump_inputs_with_extensions() {
         let test_dir = fixtures_path!().join("dump_inputs");
 
-        let output = cmd
+        let output = main_command!()
             .arg("--dump-inputs")
             .arg("--extensions")
             .arg("md,txt")
@@ -2067,12 +1998,10 @@ The config file should contain every possible key for documentation purposes."
                 "Should not contain example.bin: {line}"
             );
         }
-
-        Ok(())
     }
 
     #[test]
-    fn test_dump_inputs_skip_hidden() -> Result<()> {
+    fn test_dump_inputs_skip_hidden() {
         let test_dir = fixtures_path!().join("hidden");
 
         // Test default behavior (skip hidden)
@@ -2091,43 +2020,36 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stdout(contains(".hidden/file.md"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_dump_inputs_individual_file() -> Result<()> {
-        let mut cmd = main_command!();
+    fn test_dump_inputs_individual_file() {
         let test_file = fixtures_path!().join("TEST.md");
 
-        cmd.arg("--dump-inputs")
+        main_command!()
+            .arg("--dump-inputs")
             .arg(&test_file)
             .assert()
             .success()
             .stdout(contains("fixtures/TEST.md"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_dump_inputs_stdin() -> Result<()> {
-        let mut cmd = main_command!();
-
-        cmd.arg("--dump-inputs")
+    fn test_dump_inputs_stdin() {
+        main_command!()
+            .arg("--dump-inputs")
             .arg("-")
             .assert()
             .success()
             .stdout(contains("<stdin>"));
-
-        Ok(())
     }
 
     #[test]
     fn test_fragments_regression() {
-        let mut cmd = main_command!();
         let input = fixtures_path!().join("FRAGMENT_REGRESSION.md");
 
-        cmd.arg("--include-fragments")
+        main_command!()
+            .arg("--include-fragments")
             .arg("--verbose")
             .arg(input)
             .assert()
@@ -2136,10 +2058,9 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_fragments() {
-        let mut cmd = main_command!();
         let input = fixtures_path!().join("fragments");
 
-        let mut result = cmd
+        let mut result = main_command!()
             .arg("--include-fragments")
             .arg("--verbose")
             .arg(input)
@@ -2229,12 +2150,12 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_fragments_when_accept_error_status_codes() {
-        let mut cmd = main_command!();
         let input = fixtures_path!().join("TEST_FRAGMENT_ERR_CODE.md");
 
         // it's common for user to accept 429, but let's test with 404 since
         // triggering 429 may annoy the server
-        cmd.arg("--verbose")
+        main_command!()
+            .arg("--verbose")
             .arg("--accept=200,404")
             .arg("--include-fragments")
             .arg(input)
@@ -2250,10 +2171,10 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_fallback_extensions() {
-        let mut cmd = main_command!();
         let input = fixtures_path!().join("fallback-extensions");
 
-        cmd.arg("--verbose")
+        main_command!()
+            .arg("--verbose")
             .arg("--fallback-extensions=htm,html")
             .arg(input)
             .assert()
@@ -2263,10 +2184,10 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_fragments_fallback_extensions() {
-        let mut cmd = main_command!();
         let input = fixtures_path!().join("fragments-fallback-extensions");
 
-        cmd.arg("--include-fragments")
+        main_command!()
+            .arg("--include-fragments")
             .arg("--fallback-extensions=html")
             .arg("--no-progress")
             .arg("--offline")
@@ -2294,7 +2215,7 @@ The config file should contain every possible key for documentation purposes."
     /// Note that the relative path is not resolved to the root of the server
     /// but relative to the file that contains the link.
     #[tokio::test]
-    async fn test_resolve_relative_paths_in_subfolder() -> Result<()> {
+    async fn test_resolve_relative_paths_in_subfolder() {
         let mock_server = wiremock::MockServer::start().await;
 
         let body = r#"<a href="next.html">next</a>"#;
@@ -2310,23 +2231,20 @@ The config file should contain every possible key for documentation purposes."
             .mount(&mock_server)
             .await;
 
-        let mut cmd = main_command!();
-        cmd.arg("--verbose")
+        main_command!()
+            .arg("--verbose")
             .arg(format!("{}/test/index.html", mock_server.uri()))
             .assert()
             .success()
             .stdout(contains("1 Total"))
             .stdout(contains("0 Errors"));
-
-        Ok(())
     }
 
     #[tokio::test]
     async fn test_json_format_in_config() -> Result<()> {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("format.toml");
-        let mut cmd = main_command!();
-        let output = cmd
+        let output = main_command!()
             .arg("--config")
             .arg(config)
             .arg("-")
@@ -2335,11 +2253,10 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .get_output()
-            .clone()
-            .unwrap();
+            .clone();
 
         // Check that the output is in JSON format
-        let output = std::str::from_utf8(&output.stdout).unwrap();
+        let output = std::str::from_utf8(&output.stdout)?;
         let json: serde_json::Value = serde_json::from_str(output)?;
         assert_eq!(json["total"], 1);
 
@@ -2350,8 +2267,7 @@ The config file should contain every possible key for documentation purposes."
     async fn test_redirect_json() {
         use serde_json::json;
         redirecting_mock_server!(async |redirect_url: Url, ok_url| {
-            let mut cmd = main_command!();
-            let output = cmd
+            let output = main_command!()
                 .arg("-")
                 .arg("--format")
                 .arg("json")
@@ -2385,7 +2301,7 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
-    async fn test_retry() -> Result<()> {
+    async fn test_retry() {
         let mock_server = wiremock::MockServer::start().await;
 
         wiremock::Mock::given(wiremock::matchers::method("GET"))
@@ -2399,18 +2315,15 @@ The config file should contain every possible key for documentation purposes."
             .mount(&mock_server)
             .await;
 
-        let mut cmd = main_command!();
-        cmd.arg("-")
+        main_command!()
+            .arg("-")
             .write_stdin(mock_server.uri())
             .assert()
             .success();
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_no_header_set_on_input() -> Result<()> {
-        let mut cmd = main_command!();
+    async fn test_no_header_set_on_input() {
         let server = wiremock::MockServer::start().await;
         server
             .register(
@@ -2420,7 +2333,11 @@ The config file should contain every possible key for documentation purposes."
             )
             .await;
 
-        cmd.arg("--verbose").arg(server.uri()).assert().success();
+        main_command!()
+            .arg("--verbose")
+            .arg(server.uri())
+            .assert()
+            .success();
 
         let received_requests = server.received_requests().await.unwrap();
         assert_eq!(received_requests.len(), 1);
@@ -2431,12 +2348,10 @@ The config file should contain every possible key for documentation purposes."
 
         // Make sure the request does not contain the custom header
         assert!(!received_request.headers.contains_key("X-Foo"));
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_header_set_on_input() -> Result<()> {
-        let mut cmd = main_command!();
+    async fn test_header_set_on_input() {
         let server = wiremock::MockServer::start().await;
         server
             .register(
@@ -2449,7 +2364,8 @@ The config file should contain every possible key for documentation purposes."
             )
             .await;
 
-        cmd.arg("--verbose")
+        main_command!()
+            .arg("--verbose")
             .arg("--header")
             .arg("X-Foo: Bar")
             .arg(server.uri())
@@ -2458,12 +2374,10 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the server received the request with the header
         server.verify().await;
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_multi_header_set_on_input() -> Result<()> {
-        let mut cmd = main_command!();
+    async fn test_multi_header_set_on_input() {
         let server = wiremock::MockServer::start().await;
         server
             .register(
@@ -2477,7 +2391,8 @@ The config file should contain every possible key for documentation purposes."
             )
             .await;
 
-        cmd.arg("--verbose")
+        main_command!()
+            .arg("--verbose")
             .arg("--header")
             .arg("X-Foo: Bar")
             .arg("--header")
@@ -2488,12 +2403,10 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the server received the request with the header
         server.verify().await;
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_header_set_in_config() -> Result<()> {
-        let mut cmd = main_command!();
+    async fn test_header_set_in_config() {
         let server = wiremock::MockServer::start().await;
         server
             .register(
@@ -2508,7 +2421,8 @@ The config file should contain every possible key for documentation purposes."
             .await;
 
         let config = fixtures_path!().join("configs").join("headers.toml");
-        cmd.arg("--verbose")
+        main_command!()
+            .arg("--verbose")
             .arg("--config")
             .arg(config)
             .arg(server.uri())
@@ -2517,13 +2431,11 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the server received the request with the header
         server.verify().await;
-        Ok(())
     }
 
     #[test]
-    fn test_sorted_error_output() -> Result<()> {
+    fn test_sorted_error_output() {
         let test_files = ["TEST_GITHUB_404.md", "TEST_INVALID_URLS.html"];
-
         let test_urls = [
             "https://httpbin.org/status/404",
             "https://httpbin.org/status/500",
@@ -2563,16 +2475,14 @@ The config file should contain every possible key for documentation purposes."
             assert!(next_position > position);
             position = next_position;
         }
-
-        Ok(())
     }
 
     #[test]
     fn test_extract_url_ending_with_period_file() {
         let test_path = fixtures_path!().join("LINK_PERIOD.html");
 
-        let mut cmd = main_command!();
-        cmd.arg("--dump")
+        main_command!()
+            .arg("--dump")
             .arg(test_path)
             .assert()
             .success()
@@ -2581,11 +2491,11 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_extract_url_ending_with_period_webserver() {
-        let mut cmd = main_command!();
         let body = r#"<a href="https://www.example.com/smth.">link</a>"#;
         let mock_server = mock_response!(body);
 
-        cmd.arg("--dump")
+        main_command!()
+            .arg("--dump")
             .arg(mock_server.uri())
             .assert()
             .success()
@@ -2596,8 +2506,8 @@ The config file should contain every possible key for documentation purposes."
     fn test_wikilink_extract_when_specified() {
         let test_path = fixtures_path!().join("TEST_WIKI.md");
 
-        let mut cmd = main_command!();
-        cmd.arg("--dump")
+        main_command!()
+            .arg("--dump")
             .arg("--include-wikilinks")
             .arg(test_path)
             .assert()
@@ -2609,8 +2519,8 @@ The config file should contain every possible key for documentation purposes."
     fn test_wikilink_dont_extract_when_not_specified() {
         let test_path = fixtures_path!().join("TEST_WIKI.md");
 
-        let mut cmd = main_command!();
-        cmd.arg("--dump")
+        main_command!()
+            .arg("--dump")
             .arg(test_path)
             .assert()
             .success()
@@ -2739,8 +2649,7 @@ The config file should contain every possible key for documentation purposes."
         let inputs = fixtures_path!().join("invalid_utf8");
 
         // Run the command with the binary input
-        let mut cmd = main_command!();
-        let result = cmd
+        let result = main_command!()
             .arg("--verbose")
             .arg(&inputs)
             .assert()
@@ -2769,8 +2678,8 @@ The config file should contain every possible key for documentation purposes."
         let inputs = fixtures_path!().join("invalid_utf8");
 
         // Run the command with the binary input
-        let mut cmd = main_command!();
-        cmd.arg("--dump-inputs")
+        main_command!()
+            .arg("--dump-inputs")
             .arg(inputs)
             .assert()
             .success()
@@ -2905,8 +2814,8 @@ The config file should contain every possible key for documentation purposes."
         fs::write(&test_md, "# Test\n[link](https://example.com)")?;
         fs::write(&files_list_path, test_md.to_string_lossy().as_ref())?;
 
-        let mut cmd = main_command!();
-        cmd.arg("--files-from")
+        main_command!()
+            .arg("--files-from")
             .arg(&files_list_path)
             .arg("--dump-inputs")
             .assert()
@@ -2924,8 +2833,8 @@ The config file should contain every possible key for documentation purposes."
         // Create test file
         fs::write(&test_md, "# Test\n[link](https://example.com)")?;
 
-        let mut cmd = main_command!();
-        cmd.arg("--files-from")
+        main_command!()
+            .arg("--files-from")
             .arg("-")
             .arg("--dump-inputs")
             .write_stdin(test_md.to_string_lossy().as_ref())
@@ -2952,8 +2861,8 @@ The config file should contain every possible key for documentation purposes."
             ),
         )?;
 
-        let mut cmd = main_command!();
-        cmd.arg("--files-from")
+        main_command!()
+            .arg("--files-from")
             .arg(&files_list_path)
             .arg("--dump-inputs")
             .assert()
@@ -2989,16 +2898,14 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[test]
-    fn test_files_from_nonexistent_file_error() -> Result<()> {
-        let mut cmd = main_command!();
-        cmd.arg("--files-from")
+    fn test_files_from_nonexistent_file_error() {
+        main_command!()
+            .arg("--files-from")
             .arg("/nonexistent/file.txt")
             .arg("--dump-inputs")
             .assert()
             .failure()
             .stderr(contains("Cannot open --files-from file"));
-
-        Ok(())
     }
 
     /// Test the --default-extension option for files without extensions
