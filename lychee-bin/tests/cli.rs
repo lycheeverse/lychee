@@ -1077,6 +1077,20 @@ The config file should contain every possible key for documentation purposes."
             .success();
     }
 
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn test_config_files_from() {
+        let dir = fixtures_path!().join("configs").join("files_from");
+        let result = main_command!()
+            .current_dir(dir)
+            .arg("/dev/null") // at least one input arg is required. this could be changed in the future
+            .arg("--dump")
+            .assert()
+            .success();
+
+        assert_lines_eq(result, vec!["https://wikipedia.org/"]);
+    }
+
     #[test]
     fn test_lycheeignore_file() -> Result<()> {
         let test_path = fixtures_path!().join("lycheeignore");
