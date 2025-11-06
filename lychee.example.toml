@@ -22,9 +22,6 @@ dump = true
 # Dump inputs instead of doing link extraction / checking
 dump_inputs = true
 
-# Generate special output instead of performing link checking
-generate = "man"
-
 #############################  Cache  ###############################
 
 # Enable link caching. This can be helpful to avoid checking the same links on
@@ -190,7 +187,13 @@ include_wikilinks = true
 # Only check local files
 offline = true
 
-#############################  Remediation  ##########################
+#############################  Other  #############################
+
+# Read input filenames from the given file or stdin ('-')
+files_from = "files.txt"
+
+# Generate special output instead of performing link checking
+generate = "man"
 
 # Use the Wayback Machine as web archive
 archive = "wayback"

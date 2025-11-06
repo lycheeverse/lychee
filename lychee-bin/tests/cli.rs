@@ -1027,7 +1027,6 @@ mod cli {
             "base",         // deprecated
             "exclude_file", // deprecated
             "config",       // not part of config
-            "files_from",   // not part of config
             "quiet",        // not part of config
             "help",         // special clap argument
             "version",      // special clap argument
@@ -1044,7 +1043,7 @@ mod cli {
             .collect();
 
         let config = root_path!().join("lychee.example.toml");
-        let values: toml::Table = dbg!(toml::from_str(&std::fs::read_to_string(config)?)?);
+        let values: toml::Table = toml::from_str(&std::fs::read_to_string(config)?)?;
 
         for argument in arguments {
             if !values.contains_key(&argument) {
