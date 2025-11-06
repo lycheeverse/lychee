@@ -123,4 +123,4 @@ exclude_link_local = false
 exclude_loopback = false
 
 # Exclude all mail addresses from checking.
-exclude_mail = false
+include_mail = false

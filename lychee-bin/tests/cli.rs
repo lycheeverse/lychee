@@ -1015,6 +1015,49 @@ mod cli {
             .success();
     }
 
+    #[test]
+    #[cfg(unix)]
+    fn test_all_arguments_in_config() -> Result<()> {
+        let mut cmd = main_command!();
+        let help_cmd = cmd.env_clear().arg("--help").assert().success();
+        let help_text = std::str::from_utf8(&help_cmd.get_output().stdout)?;
+
+        let regex = test_utils::arg_regex_help!()?;
+        let excluded = [
+            "base",         // deprecated
+            "exclude_file", // deprecated
+            "config",       // not part of config
+            "files_from",   // not part of config
+            "quiet",        // not part of config
+            "help",         // special clap argument
+            "version",      // special clap argument
+        ];
+
+        let arguments: Vec<String> = help_text
+            .lines()
+            .filter_map(|line| {
+                let captures = regex.captures(line)?;
+                captures.name("long").map(|m| m.as_str())
+            })
+            .map(|arg| arg.replace("-", "_"))
+            .filter(|arg| !excluded.contains(&arg.as_str()))
+            .collect();
+
+        let config = root_path!().join("lychee.example.toml");
+        let values: toml::Table = dbg!(toml::from_str(&std::fs::read_to_string(config)?)?);
+
+        for argument in arguments {
+            if !values.contains_key(&argument) {
+                panic!(
+                    "Key '{argument}' missing in config.
+The config file should contain every possible key for documentation purposes."
+                )
+            }
+        }
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_config_smoketest() {
         let mock_server = mock_server!(StatusCode::OK);

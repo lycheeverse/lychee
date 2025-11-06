@@ -10,6 +10,7 @@ mod cli {
 
     use assert_cmd::Command;
     use predicates::str::contains;
+    use test_utils::main_command;
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -20,14 +21,9 @@ mod cli {
             .join("fixtures")
     }
 
-    fn main_command() -> Command {
-        // this gets the "main" binary name (e.g. `lychee`)
-        Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name")
-    }
-
     #[test]
     fn test_dont_dump_data_uris_by_default() -> Result<()> {
-        let mut cmd = main_command();
+        let mut cmd = main_command!();
         let input = fixtures_path().join("TEST_DATA_URIS.html");
 
         let cmd = cmd
@@ -46,7 +42,7 @@ mod cli {
 
     #[test]
     fn test_dump_data_uris_in_verbose_mode() -> Result<()> {
-        let mut cmd = main_command();
+        let mut cmd = main_command!();
         let input = fixtures_path().join("TEST_DATA_URIS.html");
 
         let cmd = cmd
