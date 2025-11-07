@@ -98,7 +98,15 @@ impl<'de> Deserialize<'de> for Verbosity {
     where
         D: serde::Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
+        let append_expected = |err| {
+            D::Error::custom(format!(
+                r#"{err}expected one of "error", "warn", "info", "debug", or "trace""#
+            ))
+        };
+
+        use serde::de::Error;
+
+        let s = String::deserialize(deserializer).map_err(append_expected)?;
         let level = match s.to_lowercase().as_str() {
             "error" => Level::Error,
             "warn" | "warning" => Level::Warn,
@@ -106,9 +114,9 @@ impl<'de> Deserialize<'de> for Verbosity {
             "debug" => Level::Debug,
             "trace" => Level::Trace,
             level => {
-                return Err(serde::de::Error::custom(format!(
-                    "invalid log level `{level}`"
-                )));
+                return Err(append_expected(serde::de::Error::custom(format!(
+                    r#"invalid log level "{level}""#
+                ))));
             }
         };
         Ok(Verbosity {
