@@ -98,27 +98,7 @@ impl<'de> Deserialize<'de> for Verbosity {
     where
         D: serde::Deserializer<'de>,
     {
-        let append_expected = |err| {
-            D::Error::custom(format!(
-                r#"{err}expected one of "error", "warn", "info", "debug", or "trace""#
-            ))
-        };
-
-        use serde::de::Error;
-
-        let s = String::deserialize(deserializer).map_err(append_expected)?;
-        let level = match s.to_lowercase().as_str() {
-            "error" => Level::Error,
-            "warn" | "warning" => Level::Warn,
-            "info" => Level::Info,
-            "debug" => Level::Debug,
-            "trace" => Level::Trace,
-            level => {
-                return Err(append_expected(serde::de::Error::custom(format!(
-                    r#"invalid log level "{level}""#
-                ))));
-            }
-        };
+        let level = log::Level::deserialize(deserializer)?;
         Ok(Verbosity {
             verbose: level_value(level) as u8,
             quiet: 0,

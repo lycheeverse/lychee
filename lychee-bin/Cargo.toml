@@ -34,7 +34,7 @@ humantime = "2.3.0"
 humantime-serde = "1.1.1"
 numeric-sort = "0.1.5"
 indicatif = "0.18.1"
-log = "0.4.28"
+log = { version = "0.4.28", features = ["serde"] }
 openssl-sys = { version = "0.9.110", optional = true }
 pad = "0.1.6"
 regex = "1.12.2"

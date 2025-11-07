@@ -64,7 +64,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Error, Result, bail};
-use clap::Parser;
+use clap::{Parser, crate_version};
 use commands::{CommandParams, generate};
 use formatters::{get_stats_formatter, log::init_logging};
 use http::HeaderMap;
@@ -266,7 +266,12 @@ fn run_main() -> Result<i32> {
     let opts = match load_config() {
         Ok(opts) => opts,
         Err(e) => {
-            error!("Error while loading config: {e}");
+            error!(
+                "Error while loading config: {}\n\
+                See: https://github.com/lycheeverse/lychee/blob/lychee-v{}/lychee.example.toml",
+                e,
+                crate_version!()
+            );
             exit(ExitCode::ConfigFile as i32);
         }
     };
