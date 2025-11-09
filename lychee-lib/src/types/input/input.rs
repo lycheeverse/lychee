@@ -14,14 +14,11 @@ use crate::types::resolver::UrlContentResolver;
 use crate::{ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
-use glob::{Pattern, glob_with};
+use glob::glob_with;
 use ignore::WalkBuilder;
-use reqwest::Url;
 use shellexpand::tilde;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
-
-const STDIN: &str = "-";
 
 /// Lychee Input with optional file hint for parsing
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -51,84 +48,7 @@ impl Input {
         file_type_hint: Option<FileType>,
         glob_ignore_case: bool,
     ) -> Result<Self> {
-        let source = if input == STDIN {
-            InputSource::Stdin
-        } else {
-            // We use [`reqwest::Url::parse`] because it catches some other edge cases that [`http::Request:builder`] does not
-            match Url::parse(input) {
-                // Weed out non-HTTP schemes, including Windows drive
-                // specifiers, which can be parsed by the
-                // [url](https://crates.io/crates/url) crate
-                Ok(url) if url.scheme() == "http" || url.scheme() == "https" => {
-                    InputSource::RemoteUrl(Box::new(url))
-                }
-                Ok(_) => {
-                    // URL parsed successfully, but it's not HTTP or HTTPS
-                    return Err(ErrorKind::InvalidFile(PathBuf::from(input)));
-                }
-                _ => {
-                    // This seems to be the only way to determine if this is a glob pattern
-                    let is_glob = glob::Pattern::escape(input) != input;
-
-                    if is_glob {
-                        // TODO: move all this source parsing logic into InputSource itself.
-                        // TODO: think about requiring a Pattern object within InputSource::FsGlob.
-                        match Pattern::new(input) {
-                            Err(e) => return Err(ErrorKind::InvalidGlobPattern(e)),
-                            Ok(pattern) => InputSource::FsGlob {
-                                pattern,
-                                ignore_case: glob_ignore_case,
-                            },
-                        }
-                    } else {
-                        // It might be a file path; check if it exists
-                        let path = PathBuf::from(input);
-
-                        // On Windows, a filepath can never be mistaken for a
-                        // URL, because Windows filepaths use `\` and URLs use
-                        // `/`
-                        #[cfg(windows)]
-                        if path.exists() {
-                            // The file exists, so we return the path
-                            InputSource::FsPath(path)
-                        } else {
-                            // We have a valid filepath, but the file does not
-                            // exist so we return an error
-                            return Err(ErrorKind::InvalidFile(path));
-                        }
-
-                        #[cfg(unix)]
-                        if path.exists() {
-                            InputSource::FsPath(path)
-                        } else if input.starts_with('~') || input.starts_with('.') {
-                            // The path is not valid, but it might still be a
-                            // valid URL.
-                            //
-                            // Check if the path starts with a tilde (`~`) or a
-                            // dot and exit early if it does.
-                            //
-                            // This check might not be sufficient to cover all cases
-                            // but it catches the most common ones
-                            return Err(ErrorKind::InvalidFile(path));
-                        } else {
-                            // Invalid path; check if a valid URL can be constructed from the input
-                            // by prefixing it with a `http://` scheme.
-                            //
-                            // Curl also uses http (i.e. not https), see
-                            // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
-                            //
-                            // TODO: We should get rid of this heuristic and
-                            // require users to provide a full URL with scheme.
-                            // This is a big source of confusion to users.
-                            let url = Url::parse(&format!("http://{input}")).map_err(|e| {
-                                ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string())
-                            })?;
-                            InputSource::RemoteUrl(Box::new(url))
-                        }
-                    }
-                }
-            }
-        };
+        let source = InputSource::new(input, glob_ignore_case)?;
         Ok(Self {
             source,
             file_type_hint,
