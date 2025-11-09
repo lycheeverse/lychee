@@ -51,6 +51,12 @@ impl InputSource {
 
     /// Parses a [`InputSource`] from the given string. The kind of input source will be
     /// automatically detected according to certain rules and precedences.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - the input does not exist (i.e. the path is invalid)
+    /// - the input cannot be parsed as a URL
     pub fn new(input: &str, glob_ignore_case: bool) -> Result<Self, ErrorKind> {
         if input == Self::STDIN {
             return Ok(InputSource::Stdin);

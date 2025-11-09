@@ -3026,7 +3026,7 @@ mod cli {
     /// error before link checking.
     #[test]
     fn test_invalid_glob_fails_parse() {
-        main_command()
+        main_command!()
             .arg("invalid-unmatched-brackets[")
             .assert()
             .stderr(contains("Cannot parse input"))

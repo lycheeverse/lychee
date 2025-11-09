@@ -13,8 +13,6 @@ use crate::{ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
 use glob::glob_with;
-use ignore::WalkBuilder;
-use reqwest::Url;
 use shellexpand::tilde;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
