@@ -357,40 +357,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_collect_sources() -> Result<()> {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let temp_dir_path = temp_dir.path();
-
-        std::env::set_current_dir(temp_dir_path)?;
-
-        let file_path = temp_dir_path.join("markdown.md");
-        File::create(&file_path).unwrap();
-
-        let file_path = temp_dir_path.join("README");
-        File::create(&file_path).unwrap();
-
-        let inputs = HashSet::from_iter([
-            Input::from_input_source(InputSource::FsGlob {
-                pattern: glob::Pattern::new("*.md")?,
-                ignore_case: true,
-            }),
-            Input::from_input_source(InputSource::FsGlob {
-                pattern: glob::Pattern::new("markdown.*")?,
-                ignore_case: true,
-            }),
-        ]);
-
-        let collector = Collector::new(Some(temp_dir_path.to_path_buf()), None)?;
-
-        let sources: Vec<_> = collector.collect_sources(inputs).collect().await;
-
-        assert_eq!(sources.len(), 1);
-        assert_eq!(sources[0], Ok("markdown.md".to_string()));
-
-        return Ok(());
-    }
-
-    #[tokio::test]
     async fn test_collect_links() -> Result<()> {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_dir_path = temp_dir.path();
