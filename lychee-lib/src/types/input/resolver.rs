@@ -38,7 +38,18 @@ impl InputResolver {
     ///
     /// # Errors
     ///
-    /// Will return errors for file system operations or glob pattern issues
+    /// Returns an error (within the stream) if:
+    /// - The glob pattern is invalid or expansion encounters I/O errors
+    /// - Directory traversal fails, including:
+    ///   - Permission denied when accessing directories or files
+    ///   - I/O errors while reading directory contents
+    ///   - Filesystem errors (disk errors, network filesystem issues, etc.)
+    ///   - Invalid file paths or symbolic link resolution failures
+    /// - Errors when reading or evaluating `.gitignore` or `.ignore` files
+    /// - Errors occur during file extension or path exclusion evaluation
+    ///
+    /// Once an error is returned, resolution of that input source halts
+    /// and no further `Ok(ResolvedInputSource)` will be produced.
     #[must_use]
     pub fn resolve<'a>(
         input: &'_ Input,

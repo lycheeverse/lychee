@@ -248,24 +248,14 @@ impl Input {
     /// input:
     ///
     /// - Remote URLs are returned as is, in their full form
-    /// - Filepath Glob Patterns are expanded and each matched entry is returned
-    /// - Absolute or relative filepaths are returned as is
-    /// - All other input types are not returned
+    /// - Glob patterns are expanded and each matched entry is returned
+    /// - Absolute or relative filepaths are returned as-is
+    /// - Stdin input is returned as the special string "<stdin>"
+    /// - A raw string input is returned as the special string "<raw string>"
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The glob pattern is invalid or expansion encounters I/O errors
-    /// - Directory traversal fails, including:
-    ///   - Permission denied when accessing directories or files
-    ///   - I/O errors while reading directory contents
-    ///   - Filesystem errors (disk errors, network filesystem issues, etc.)
-    ///   - Invalid file paths or symbolic link resolution failures
-    /// - Errors when reading or evaluating `.gitignore` or `.ignore` files
-    /// - Errors occur during file extension or path exclusion evaluation
-    ///
-    /// Note: Individual glob match failures are logged to stderr but don't terminate the stream.
-    /// However, directory traversal errors will stop processing and return the error immediately.
+    /// Returns an error if [`InputResolver::resolve`] returns an error.
     pub fn get_sources(
         self,
         file_extensions: FileExtensions,
