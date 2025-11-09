@@ -14,11 +14,13 @@
 //!   and filtered by extension
 //! - URLs, raw strings, and standard input (`stdin`) are read directly
 
+use glob::Pattern;
 use reqwest::Url;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::borrow::Cow;
 use std::fmt::Display;
 use std::path::PathBuf;
+use std::result::Result;
 
 /// Input types which lychee supports
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
@@ -29,7 +31,8 @@ pub enum InputSource {
     /// Unix shell-style glob pattern.
     FsGlob {
         /// The glob pattern matching all input files
-        pattern: String,
+        #[serde(deserialize_with = "InputSource::deserialize_pattern")]
+        pattern: Pattern,
         /// Don't be case sensitive when matching files against a glob pattern
         ignore_case: bool,
     },
@@ -83,6 +86,17 @@ impl Display for ResolvedInputSource {
     }
 }
 
+impl InputSource {
+    fn deserialize_pattern<'de, D>(deserializer: D) -> Result<Pattern, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let s = String::deserialize(deserializer)?;
+        Pattern::new(&s).map_err(D::Error::custom)
+    }
+}
+
 /// Custom serialization for the `InputSource` enum.
 ///
 /// This implementation serializes all variants as strings to ensure
@@ -105,10 +119,36 @@ impl Display for InputSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::RemoteUrl(url) => url.as_str(),
-            Self::FsGlob { pattern, .. } => pattern,
+            Self::FsGlob { pattern, .. } => pattern.as_str(),
             Self::FsPath(path) => path.to_str().unwrap_or_default(),
             Self::Stdin => "stdin",
             Self::String(s) => s.as_ref(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn to_json<T>(value: &T) -> Result<String, String>
+    where
+        T: serde::Serialize + ?Sized,
+    {
+        serde_json::to_string(value).map_err(|e| e.to_string())
+    }
+
+    /// Serialization of `FsGlob` relies on [`glob::Pattern::to_string`].
+    /// Here, we check that the `to_string` works as we require.
+    #[test]
+    fn test_pattern_serialization_is_original_pattern() {
+        let pat = "asd[f]*";
+        assert_eq!(
+            to_json(&InputSource::FsGlob {
+                pattern: Pattern::new(pat).unwrap(),
+                ignore_case: false,
+            }),
+            to_json(pat),
+        );
     }
 }

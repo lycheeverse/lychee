@@ -75,8 +75,8 @@ impl Input {
                         // TODO: think about requiring a Pattern object within InputSource::FsGlob.
                         match Pattern::new(input) {
                             Err(e) => return Err(ErrorKind::InvalidGlobPattern(e)),
-                            Ok(_) => InputSource::FsGlob {
-                                pattern: input.to_owned(),
+                            Ok(pattern) => InputSource::FsGlob {
+                                pattern,
                                 ignore_case: glob_ignore_case,
                             },
                         }
@@ -306,7 +306,7 @@ impl Input {
                     ref pattern,
                     ignore_case,
                 } => {
-                    let glob_expanded = tilde(&pattern).to_string();
+                    let glob_expanded = tilde(pattern.as_str()).to_string();
                     let mut match_opts = glob::MatchOptions::new();
                     match_opts.case_sensitive = !ignore_case;
                     for entry in glob_with(&glob_expanded, match_opts)? {

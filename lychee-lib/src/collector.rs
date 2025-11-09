@@ -410,11 +410,11 @@ mod tests {
 
         let inputs = HashSet::from_iter([
             Input::from_input_source(InputSource::FsGlob {
-                pattern: "*.md".to_string(),
+                pattern: glob::Pattern::new("*.md")?,
                 ignore_case: true,
             }),
             Input::from_input_source(InputSource::FsGlob {
-                pattern: "markdown.*".to_string(),
+                pattern: glob::Pattern::new("markdown.*")?,
                 ignore_case: true,
             }),
         ]);
@@ -457,7 +457,7 @@ mod tests {
             ))),
             Input::from_input_source(InputSource::FsPath(file_path)),
             Input::from_input_source(InputSource::FsGlob {
-                pattern: temp_dir_path.join("glob*").to_str().unwrap().to_owned(),
+                pattern: glob::Pattern::new(&temp_dir_path.join("glob*").to_string_lossy())?,
                 ignore_case: true,
             }),
         ]);
