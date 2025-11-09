@@ -41,27 +41,20 @@ mod emoji_tests {
     use super::*;
     use http::StatusCode;
     use lychee_lib::{ErrorKind, Redirects, Status, Uri};
-
-    // Helper function to create a ResponseBody with a given status and URI
-    fn mock_response_body(status: Status, uri: &str) -> ResponseBody {
-        ResponseBody {
-            uri: Uri::try_from(uri).unwrap(),
-            status,
-        }
-    }
+    use test_utils::mock_response_body;
 
     #[test]
     fn test_format_response_with_ok_status() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body(Status::Ok(StatusCode::OK), "https://example.com");
+        let body = mock_response_body!(Status::Ok(StatusCode::OK), "https://example.com");
         assert_eq!(formatter.format_response(&body), "✅ https://example.com/");
     }
 
     #[test]
     fn test_format_response_with_error_status() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body(
-            Status::Error(ErrorKind::TestError),
+        let body = mock_response_body!(
+            Status::Error(ErrorKind::EmptyUrl),
             "https://example.com/404",
         );
         assert_eq!(
@@ -73,7 +66,7 @@ mod emoji_tests {
     #[test]
     fn test_format_response_with_excluded_status() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body(Status::Excluded, "https://example.com/not-checked");
+        let body = mock_response_body!(Status::Excluded, "https://example.com/not-checked");
         assert_eq!(
             formatter.format_response(&body),
             "🚫 https://example.com/not-checked"
@@ -83,7 +76,7 @@ mod emoji_tests {
     #[test]
     fn test_format_response_with_redirect_status() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body(
+        let body = mock_response_body!(
             Status::Redirected(StatusCode::MOVED_PERMANENTLY, Redirects::none()),
             "https://example.com/redirect",
         );
@@ -96,7 +89,7 @@ mod emoji_tests {
     #[test]
     fn test_format_response_with_unknown_status_code() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body(
+        let body = mock_response_body!(
             Status::UnknownStatusCode(StatusCode::from_u16(999).unwrap()),
             "https://example.com/unknown",
         );
@@ -109,8 +102,8 @@ mod emoji_tests {
     #[test]
     fn test_detailed_response_output() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body(
-            Status::Error(ErrorKind::TestError),
+        let body = mock_response_body!(
+            Status::Error(ErrorKind::EmptyUrl),
             "https://example.com/404",
         );
 
@@ -118,7 +111,7 @@ mod emoji_tests {
         assert!(
             formatter
                 .format_detailed_response(&body)
-                .contains("Test error for formatter testing")
+                .contains("Empty URL found")
         );
     }
 }

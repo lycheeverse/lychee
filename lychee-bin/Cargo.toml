@@ -1,6 +1,6 @@
 [package]
 name = "lychee"
-authors = ["Matthias Endler <matthias@endler.dev>"]
+authors = ["Matthias Endler <matthias@endler.dev>", "Thomas Zahner <thomas.zahner@protonmail.ch>"]
 description = "A fast, async link checker"
 documentation = "https://docs.rs/lychee"
 homepage = "https://github.com/lycheeverse/lychee"
@@ -10,19 +10,20 @@ license = "Apache-2.0 OR MIT"
 repository = "https://github.com/lycheeverse/lychee"
 readme = "../README.md"
 version.workspace = true
-rust-version = "1.85.0"
+rust-version = "1.88.0"
 
 [dependencies]
 # NOTE: We need to specify the version of lychee-lib here because crates.io
 # requires all dependencies to have a version number.
-lychee-lib = { path = "../lychee-lib", version = "0.20.1", default-features = false }
+lychee-lib = { path = "../lychee-lib", version = "0.21.0", default-features = false }
 
-anyhow = "1.0.99"
+anyhow = "1.0.100"
 assert-json-diff = "2.0.2"
-clap = { version = "4.5.47", features = ["env", "derive"] }
+clap = { version = "4.5.50", features = ["env", "derive", "cargo", "string"] }
+clap_mangen = "0.2.31"
 console = "0.16.1"
-const_format = "0.2.34"
-csv = "1.3.1"
+const_format = "0.2.35"
+csv = "1.4.0"
 dashmap = { version = "6.1.0", features = ["serde"] }
 env_logger = "0.11.8"
 futures = "0.3.31"
@@ -32,12 +33,12 @@ http-serde = "2.1.1"
 humantime = "2.3.0"
 humantime-serde = "1.1.1"
 numeric-sort = "0.1.5"
-indicatif = "0.18.0"
+indicatif = "0.18.1"
 log = "0.4.28"
-openssl-sys = { version = "0.9.109", optional = true }
+openssl-sys = { version = "0.9.110", optional = true }
 pad = "0.1.6"
-regex = "1.11.2"
-reqwest = { version = "0.12.18", default-features = false, features = [
+regex = "1.12.2"
+reqwest = { version = "0.12.24", default-features = false, features = [
     "gzip",
     "json",
 ] }
@@ -49,14 +50,14 @@ reqwest_cookie_store = { version = "0.9.0", features = ["serde"] }
 # https://github.com/Homebrew/homebrew-core/pull/70216
 ring = "0.17.14"
 secrecy = { version = "0.10.3", features = ["serde"] }
-serde = { version = "1.0.223", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 strum = { version = "0.27.2", features = ["derive"] }
 supports-color = "3.0.2"
 tabled = "0.20.0"
-tokio = { version = "1.47.1", features = ["full"] }
+tokio = { version = "1.48.0", features = ["full"] }
 tokio-stream = "0.1.17"
-toml = "0.9.5"
+toml = "0.9.8"
 url = "2.5.7"
 
 
@@ -65,7 +66,7 @@ assert_cmd = "2.0.17"
 cookie_store = "0.22.0"
 predicates = "3.1.3"
 pretty_assertions = "1.4.1"
-tempfile = "3.22.0"
+tempfile = "3.23.0"
 test-utils = { path = "../test-utils" }
 tracing-subscriber = { version = "0.3.20", default-features = false, features = [
     "fmt",

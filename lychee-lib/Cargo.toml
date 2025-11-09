@@ -1,6 +1,6 @@
 [package]
 name = "lychee-lib"
-authors = ["Matthias Endler <matthias@endler.dev>"]
+authors = ["Matthias Endler <matthias@endler.dev>", "Thomas Zahner <thomas.zahner@protonmail.ch>"]
 description = "A fast, async link checker"
 documentation = "https://docs.rs/lychee_lib"
 edition = "2024"
@@ -10,7 +10,7 @@ license = "Apache-2.0 OR MIT"
 repository = "https://github.com/lycheeverse/lychee"
 readme = "../README.md"
 version.workspace = true
-rust-version = "1.85.0"
+rust-version = "1.88.0"
 
 [dependencies]
 async-stream = "0.3.6"
@@ -18,7 +18,6 @@ async-trait = "0.1.88"
 cached = "0.56.0"
 check-if-email-exists = { version = "0.9.1", optional = true }
 cookie_store = "0.22.0"
-dashmap = { version = "6.1.0", features = ["serde"] }
 email_address = "0.2.9"
 futures = "0.3.31"
 glob = "0.3.3"
@@ -27,19 +26,19 @@ html5ever = "0.35.0"
 html5gum = "0.8.0"
 http = "1.3.1"
 hyper = "1.6.0"
-ignore = "0.4.23"
+ignore = "0.4.24"
 ip_network = "0.4.1"
 linkify = "0.10.0"
 log = "0.4.28"
-octocrab = "0.45.0"
-openssl-sys = { version = "0.9.109", optional = true }
+octocrab = "0.47.0"
+openssl-sys = { version = "0.9.110", optional = true }
 path-clean = "1.0.1"
 percent-encoding = "2.3.1"
 pulldown-cmark = "0.13.0"
-regex = "1.11.2"
+regex = "1.12.2"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.12.18", default-features = false, features = [
+reqwest = { version = "0.12.24", default-features = false, features = [
     "gzip",
     "trust-dns",
     "cookies",
@@ -52,14 +51,14 @@ reqwest_cookie_store = { version = "0.9.0", features = ["serde"] }
 # https://github.com/Homebrew/homebrew-core/pull/70216
 ring = "0.17.14"
 secrecy = "0.10.3"
-serde = { version = "1.0.223", features = ["derive"] }
-serde_with = "3.14.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_with = "3.15.1"
 shellexpand = "3.1.1"
 strum = { version = "0.27.2", features = ["derive"] }
-thiserror = "2.0.14"
-tokio = { version = "1.47.1", features = ["full"] }
-toml = "0.9.5"
-typed-builder = "0.22.0"
+thiserror = "2.0.17"
+tokio = { version = "1.48.0", features = ["full"] }
+toml = "0.9.8"
+typed-builder = "0.23.0"
 url = { version = "2.5.7", features = ["serde"] }
 
 [dependencies.par-stream]
@@ -67,13 +66,13 @@ version = "0.10.2"
 features = ["runtime-tokio"]
 
 [dev-dependencies]
-doc-comment = "0.3.3"
+doc-comment = "0.3.4"
 pretty_assertions = "1.4.1"
 rstest = "0.26.1"
 serde_json = "1.0.145"
-tempfile = "3.22.0"
+tempfile = "3.23.0"
 test-utils = { path = "../test-utils" }
-toml = "0.9.5"
+toml = "0.9.8"
 wiremock = "0.6.5"
 
 [features]

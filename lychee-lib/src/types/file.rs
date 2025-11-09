@@ -111,13 +111,14 @@ impl std::str::FromStr for FileExtensions {
 }
 
 /// `FileType` defines which file types lychee can handle
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize, Default)]
 pub enum FileType {
     /// File in HTML format
     Html,
     /// File in Markdown format
     Markdown,
     /// Generic text file without syntax-specific parsing
+    #[default]
     Plaintext,
 }
 
@@ -183,14 +184,6 @@ impl FileType {
         } else {
             None
         }
-    }
-}
-
-impl Default for FileType {
-    fn default() -> Self {
-        // This is the default file type when no other type can be determined.
-        // It represents a generic text file with no specific syntax.
-        Self::Plaintext
     }
 }
 

@@ -71,7 +71,7 @@ impl Serialize for Status {
         } else if let Some(details) = self.details() {
             s = serializer.serialize_struct("Status", 2)?;
             s.serialize_field("text", &self.to_string())?;
-            s.serialize_field("details", &details.to_string())?;
+            s.serialize_field("details", &details)?;
         } else {
             s = serializer.serialize_struct("Status", 1)?;
             s.serialize_field("text", &self.to_string())?;
@@ -117,10 +117,10 @@ impl Status {
                 Self::Cached(CacheStatus::Error(Some(code)))
             }
             CacheStatus::Error(code) => {
-                if let Some(code) = code {
-                    if accepted.contains(&code) {
-                        return Self::Cached(CacheStatus::Ok(code));
-                    }
+                if let Some(code) = code
+                    && accepted.contains(&code)
+                {
+                    return Self::Cached(CacheStatus::Ok(code));
                 }
                 Self::Cached(CacheStatus::Error(code))
             }
@@ -318,6 +318,13 @@ mod tests {
         let status_ok = Status::Ok(StatusCode::from_u16(200).unwrap());
         let serialized_with_code = serde_json::to_string(&status_ok).unwrap();
         assert_eq!("{\"text\":\"200 OK\",\"code\":200}", serialized_with_code);
+
+        let status_error = Status::Error(ErrorKind::EmptyUrl);
+        let serialized_with_error = serde_json::to_string(&status_error).unwrap();
+        assert_eq!(
+            "{\"text\":\"URL cannot be empty\",\"details\":\"Empty URL found. Check for missing links or malformed markdown\"}",
+            serialized_with_error
+        );
 
         let status_timeout = Status::Timeout(None);
         let serialized_without_code = serde_json::to_string(&status_timeout).unwrap();

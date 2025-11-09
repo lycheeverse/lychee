@@ -30,6 +30,9 @@ jobs:
       - name: Get release
         id: get_release
         uses: bruceadams/get-release@v1.3.2
+        # Skip step if not in the official repository as it would fail.
+        # Instead fail at the end of this workflow.
+        if: ${{ github.repository == 'lycheeverse/lychee' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -40,17 +43,37 @@ jobs:
     needs: prepare
     strategy:
       matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - x86_64-unknown-linux-musl
-          - arm-unknown-linux-gnueabihf
-          - arm-unknown-linux-musleabi
-          - arm-unknown-linux-musleabihf
-          - aarch64-unknown-linux-gnu
-          - aarch64-unknown-linux-musl
-          # See https://github.com/briansmith/ring/issues/562
-          # - mips-unknown-linux-musl
-          # - mipsel-unknown-linux-musl
+        include:
+          - build: x86_64-gnu
+            target: x86_64-unknown-linux-gnu
+            strip: x86_64-linux-gnu-strip
+          - build: x86_64-musl
+            target: x86_64-unknown-linux-musl
+            strip: x86_64-linux-musl-strip
+          - build: arm-gnueabihf
+            target: armv7-unknown-linux-gnueabihf
+            strip: arm-linux-gnueabihf-strip
+            qemu: qemu-arm
+          - build: arm-musleabi
+            target: arm-unknown-linux-musleabi
+            strip: arm-linux-musleabi-strip
+            qemu: qemu-arm
+          - build: arm-musleabihf
+            target: arm-unknown-linux-musleabihf
+            strip: arm-linux-musleabihf-strip
+            qemu: qemu-arm
+          - build: aarch64-gnu
+            target: aarch64-unknown-linux-gnu
+            strip: aarch64-linux-gnu-strip
+            qemu: qemu-aarch64
+          - build: aarch64-musl
+            target: aarch64-unknown-linux-musl
+            strip: aarch64-linux-musl-strip
+            qemu: qemu-aarch64
+          - build: i686-gnu
+            target: i686-unknown-linux-gnu
+            strip: x86_64-linux-gnu-strip
+            qemu: i386
       fail-fast: false
     steps:
       - name: Install musl tools
@@ -80,20 +103,63 @@ jobs:
           args: --release --target ${{ matrix.target }} --features vendored-openssl
           use-cross: true
 
-      - name: Optimize and package binary
+      - name: Prepare binary
         run: |
-          cd target/${{ matrix.target }}/release
-          ${GNU_PREFIX}strip lychee
-          chmod +x lychee
-          tar -c lychee | gzip > lychee.tar.gz
+          bin="target/${{ matrix.target }}/release/lychee"
+          chmod +x $bin
+          echo "BIN=$bin" >> $GITHUB_ENV
 
-      - name: Upload binary
+      - name: Strip binary (cross)
+        run: |
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
+            "${{ matrix.strip }}" \
+            "/$BIN"
+
+      - name: Prepare release directory
+        run: |
+          mkdir out out/docs
+          cp $BIN out
+          cp README.md docs/*.md out/docs
+
+      - name: Generate man page without emulation
+        if: matrix.qemu == ''
+        run: |
+          $BIN --version
+          $BIN --generate man > out/docs/lychee.1
+
+      - name: Generate man page with emulation
+        if: matrix.qemu != ''
+        run: |
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
+            "${{ matrix.qemu }}" "/$BIN" --version
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
+            "${{ matrix.qemu }}" "/$BIN" \
+              --generate man > "out/docs/lychee.1"
+
+      - name: Package release
+        run: |
+          cd out
+          tar -czf lychee.tar.gz lychee docs/
+
+      - name: Check if possible to release
+        if: ${{ needs.prepare.outputs.upload_url == '' }}
+        run: |
+          echo "Releasing only works on the master/main branch in the official repository."
+          exit 1
+
+      - name: Upload .tar.gz
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           asset_name: lychee-${{ matrix.target }}.tar.gz
-          asset_path: target/${{ matrix.target }}/release/lychee.tar.gz
+          asset_path: out/lychee.tar.gz
           upload_url: ${{needs.prepare.outputs.upload_url}}
           asset_content_type: application/gzip
 
@@ -119,10 +185,14 @@ jobs:
           cd target/release
           strip lychee
           chmod +x lychee
+          mkdir docs
+          cp ../../README.md ../../docs/TROUBLESHOOTING.md docs
+          ./lychee --generate man > docs/lychee.1
+          tar -czf lychee.tar.gz lychee docs/
+
           mkdir dmg
           mv lychee dmg/
           hdiutil create -fs HFS+ -srcfolder dmg -volname lychee lychee.dmg
-          tar -czvf lychee.tar.gz -C dmg/ lychee
 
       - name: Upload .dmg
         uses: actions/upload-release-asset@v1

@@ -1,12 +1,13 @@
 use crate::ErrorKind;
 use crate::InputSource;
+use crate::Preprocessor;
 use crate::filter::PathExcludes;
+
 use crate::types::resolver::UrlContentResolver;
 use crate::{
-    Base, Input, InputResolver, Request, Result, basic_auth::BasicAuthExtractor,
-    extract::Extractor, types::FileExtensions, types::uri::raw::RawUri, utils::request,
+    Base, Input, Request, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
+    types::FileExtensions, types::uri::raw::RawUri, utils::request,
 };
-use dashmap::DashSet;
 use futures::TryStreamExt;
 use futures::{
     StreamExt,
@@ -17,7 +18,6 @@ use par_stream::ParStreamExt;
 use reqwest::Client;
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -36,6 +36,7 @@ pub struct Collector {
     excluded_paths: PathExcludes,
     headers: HeaderMap,
     client: Client,
+    preprocessor: Option<Preprocessor>,
 }
 
 impl Default for Collector {
@@ -59,6 +60,7 @@ impl Default for Collector {
             headers: HeaderMap::new(),
             client: Client::new(),
             excluded_paths: PathExcludes::empty(),
+            preprocessor: None,
         }
     }
 }
@@ -71,10 +73,10 @@ impl Collector {
     /// Returns an `Err` if the `root_dir` is not an absolute path
     /// or if the reqwest `Client` fails to build
     pub fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> Result<Self> {
-        if let Some(root_dir) = &root_dir {
-            if root_dir.is_relative() {
-                return Err(ErrorKind::RootDirMustBeAbsolute(root_dir.clone()));
-            }
+        if let Some(root_dir) = &root_dir
+            && root_dir.is_relative()
+        {
+            return Err(ErrorKind::RootDirMustBeAbsolute(root_dir.clone()));
         }
         Ok(Collector {
             basic_auth_extractor: None,
@@ -84,6 +86,7 @@ impl Collector {
             use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
+            preprocessor: None,
             headers: HeaderMap::new(),
             client: Client::builder()
                 .build()
@@ -143,11 +146,18 @@ impl Collector {
         self
     }
 
-    #[allow(clippy::doc_markdown)]
     /// Check WikiLinks in Markdown files
+    #[allow(clippy::doc_markdown)]
     #[must_use]
     pub const fn include_wikilinks(mut self, yes: bool) -> Self {
         self.include_wikilinks = yes;
+        self
+    }
+
+    /// Configure a file [`Preprocessor`]
+    #[must_use]
+    pub fn preprocessor(mut self, preprocessor: Option<Preprocessor>) -> Self {
+        self.preprocessor = preprocessor;
         self
     }
 
@@ -166,59 +176,6 @@ impl Collector {
     pub fn excluded_paths(mut self, excluded_paths: PathExcludes) -> Self {
         self.excluded_paths = excluded_paths;
         self
-    }
-
-    /// Collect all sources from a list of [`Input`]s. For further details,
-    /// see also [`Input::get_sources`](crate::Input#method.get_sources).
-    pub fn collect_sources(self, inputs: HashSet<Input>) -> impl Stream<Item = Result<String>> {
-        self.collect_sources_with_file_types(inputs, crate::types::FileType::default_extensions())
-    }
-
-    /// Collect all sources from a list of [`Input`]s with specific file extensions.
-    pub fn collect_sources_with_file_types(
-        self,
-        inputs: HashSet<Input>,
-        file_extensions: FileExtensions,
-    ) -> impl Stream<Item = Result<String>> + 'static {
-        let seen = Arc::new(DashSet::new());
-        let skip_hidden = self.skip_hidden;
-        let skip_ignored = self.skip_ignored;
-        let excluded_paths = self.excluded_paths;
-
-        stream::iter(inputs)
-            .par_then_unordered(None, move |input| {
-                let excluded_paths = excluded_paths.clone();
-                let file_extensions = file_extensions.clone();
-                async move {
-                    let input_sources = InputResolver::resolve(
-                        &input,
-                        file_extensions,
-                        skip_hidden,
-                        skip_ignored,
-                        &excluded_paths,
-                    );
-
-                    input_sources
-                        .map(|source| source.map(|source| source.to_string()))
-                        .collect::<Vec<_>>()
-                        .await
-                }
-            })
-            .map(stream::iter)
-            .flatten()
-            .filter_map({
-                move |source: Result<String>| {
-                    let seen = Arc::clone(&seen);
-                    async move {
-                        if let Ok(s) = &source {
-                            if !seen.insert(s.clone()) {
-                                return None;
-                            }
-                        }
-                        Some(source)
-                    }
-                }
-            })
     }
 
     /// Convenience method to fetch all unique links from inputs
@@ -263,6 +220,7 @@ impl Collector {
                 let extensions = extensions.clone();
                 let resolver = resolver.clone();
                 let excluded_paths = excluded_paths.clone();
+                let preprocessor = self.preprocessor.clone();
 
                 async move {
                     let base = match &input.source {
@@ -278,6 +236,7 @@ impl Collector {
                             extensions,
                             resolver,
                             excluded_paths,
+                            preprocessor,
                         )
                         .map(move |content| (content, base.clone()))
                 }
@@ -366,6 +325,7 @@ mod tests {
                 FileType::default_extensions(),
                 UrlContentResolver::default(),
                 PathExcludes::empty(),
+                None,
             )
             .collect::<Vec<_>>()
             .await;
@@ -386,6 +346,7 @@ mod tests {
                 FileType::default_extensions(),
                 UrlContentResolver::default(),
                 PathExcludes::empty(),
+                None,
             )
             .collect::<Vec<_>>()
             .await;

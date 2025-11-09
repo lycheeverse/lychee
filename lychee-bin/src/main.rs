@@ -1,6 +1,6 @@
 //! `lychee` is a fast, asynchronous, resource-friendly link checker.
 //! It is able to find broken hyperlinks and mail addresses inside Markdown,
-//! HTML, `reStructuredText`, and any other format.
+//! HTML, reStructuredText, and any other format.
 //!
 //! The lychee binary is a wrapper around lychee-lib, which provides
 //! convenience functions for calling lychee from the command-line.
@@ -65,7 +65,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Error, Result, bail};
 use clap::Parser;
-use commands::CommandParams;
+use commands::{CommandParams, generate};
 use formatters::{get_stats_formatter, log::init_logging};
 use http::HeaderMap;
 use log::{error, info, warn};
@@ -92,10 +92,10 @@ mod stats;
 mod time;
 mod verbosity;
 
-use crate::formatters::duration::Duration;
 use crate::{
     cache::{Cache, StoreExt},
-    formatters::stats::StatsFormatter,
+    formatters::{duration::Duration, stats::StatsFormatter},
+    generate::generate,
     options::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
 };
 
@@ -248,7 +248,7 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
     let cache = Cache::load(
         LYCHEE_CACHE_FILE,
         cfg.max_cache_age.as_secs(),
-        &cfg.cache_exclude_status,
+        &cfg.cache_exclude_status.clone().unwrap_or_default(),
     );
     match cache {
         Ok(cache) => Some(cache),
@@ -270,6 +270,11 @@ fn run_main() -> Result<i32> {
             exit(ExitCode::ConfigFile as i32);
         }
     };
+
+    if let Some(mode) = opts.config.generate {
+        print!("{}", generate(&mode)?);
+        exit(ExitCode::Success as i32);
+    }
 
     let runtime = match opts.config.threads {
         Some(threads) => {
@@ -327,7 +332,8 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             &opts.config.exclude_path,
             &opts.config.extensions,
             !opts.config.hidden,
-            opts.config.no_ignore,
+            // be aware that "no ignore" means do *not* ignore files
+            !opts.config.no_ignore,
         )
         .await?;
 
@@ -337,13 +343,15 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let mut collector = Collector::new(opts.config.root_dir.clone(), base)?
         .skip_missing_inputs(opts.config.skip_missing)
         .skip_hidden(!opts.config.hidden)
+        // be aware that "no ignore" means do *not* ignore files
         .skip_ignored(!opts.config.no_ignore)
         .include_verbatim(opts.config.include_verbatim)
         .headers(HeaderMap::from_header_pairs(&opts.config.header)?)
         .excluded_paths(PathExcludes::new(opts.config.exclude_path.clone())?)
         // File a bug if you rely on this envvar! It's going to go away eventually.
         .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").is_ok_and(|x| x == "1"))
-        .include_wikilinks(opts.config.include_wikilinks);
+        .include_wikilinks(opts.config.include_wikilinks)
+        .preprocessor(opts.config.preprocess.clone());
 
     collector = if let Some(ref basic_auth) = opts.config.basic_auth {
         collector.basic_auth_extractor(BasicAuthExtractor::new(basic_auth)?)

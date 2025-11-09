@@ -1,11 +1,16 @@
 //! Extract links and fragments from markdown documents
 use std::collections::{HashMap, HashSet};
 
-use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, TextMergeStream};
+use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, TextMergeWithOffset};
 
-use crate::{extract::plaintext::extract_raw_uri_from_plaintext, types::uri::raw::RawUri};
+use crate::{
+    extract::{html::html5gum::extract_html_with_span, plaintext::extract_raw_uri_from_plaintext},
+    types::uri::raw::{
+        OffsetSpanProvider, RawUri, RawUriSpan, SourceSpanProvider, SpanProvider as _,
+    },
+};
 
-use super::html::html5gum::{extract_html, extract_html_fragments};
+use super::html::html5gum::extract_html_fragments;
 
 /// Returns the default markdown extensions used by lychee.
 /// Sadly, `|` is not const for `Options` so we can't use a const global.
@@ -17,7 +22,6 @@ fn md_extensions() -> Options {
 }
 
 /// Extract unparsed URL strings from a Markdown string.
-#[allow(clippy::too_many_lines)]
 pub(crate) fn extract_markdown(
     input: &str,
     include_verbatim: bool,
@@ -29,9 +33,11 @@ pub(crate) fn extract_markdown(
     let mut inside_link_block = false;
     let mut inside_wikilink_block = false;
 
-    let parser = TextMergeStream::new(Parser::new_ext(input, md_extensions()));
+    let span_provider = SourceSpanProvider::from_input(input);
+    let parser =
+        TextMergeWithOffset::new(Parser::new_ext(input, md_extensions()).into_offset_iter());
     parser
-        .filter_map(|event| match event {
+        .filter_map(|(event, span)| match event {
             // A link.
             Event::Start(Tag::Link {
                 link_type,
@@ -46,14 +52,7 @@ pub(crate) fn extract_markdown(
                     // This is the most common link type
                     LinkType::Inline => {
                         inside_link_block = true;
-                        Some(vec![RawUri {
-                            text: dest_url.to_string(),
-                            // Emulate `<a href="...">` tag here to be compatible with
-                            // HTML links. We might consider using the actual Markdown
-                            // `LinkType` for better granularity in the future
-                            element: Some("a".to_string()),
-                            attribute: Some("href".to_string()),
-                        }])
+                        Some(raw_uri(&dest_url, span_provider.span(span.start)))
                     }
                     // Reference without destination in the document, but resolved by the `broken_link_callback`
                     LinkType::Reference |
@@ -70,17 +69,15 @@ pub(crate) fn extract_markdown(
                         inside_link_block = true;
                         // For reference links, create RawUri directly to handle relative file paths
                         // that linkify doesn't recognize as URLs
-                        Some(vec![RawUri {
-                            text: dest_url.to_string(),
-                            element: Some("a".to_string()),
-                            attribute: Some("href".to_string()),
-                        }])
+                        Some(raw_uri(&dest_url, span_provider.span(span.start)))
                     },
                     // Autolink like `<http://foo.bar/baz>`
                     LinkType::Autolink |
                     // Email address in autolink like `<john@example.org>`
-                    LinkType::Email =>
-                     Some(extract_raw_uri_from_plaintext(&dest_url)),
+                    LinkType::Email => {
+                        let span_provider = get_email_span_provider(&span_provider, &span, link_type);
+                        Some(extract_raw_uri_from_plaintext(&dest_url, &span_provider))
+                    }
                     // Wiki URL (`[[http://example.com]]`)
                     LinkType::WikiLink { has_pothole: _ } => {
                         // Exclude WikiLinks if not explicitly enabled
@@ -88,31 +85,18 @@ pub(crate) fn extract_markdown(
                             return None;
                         }
                         inside_wikilink_block = true;
-                        //Ignore gitlab toc notation: https://docs.gitlab.com/user/markdown/#table-of-contents
+                        // Ignore gitlab toc notation: https://docs.gitlab.com/user/markdown/#table-of-contents
                         if ["_TOC_".to_string(), "TOC".to_string()].contains(&dest_url.to_string()) {
                             return None;
                         }
-                        Some(vec![RawUri {
-                            text: dest_url.to_string(),
-                            element: Some("a".to_string()),
-                            attribute: Some("href".to_string()),
-                        }])
+
+                        // wiki links start with `[[`, so offset the span by `2`
+                        Some(raw_uri(&dest_url, span_provider.span(span.start + 2)))
                     }
                 }
             }
 
-            // An image.
-            // The first field is the link type, the second the destination URL and the third is a title.
-            Event::Start(Tag::Image { dest_url, .. }) => {
-                Some(vec![RawUri {
-                    text: dest_url.to_string(),
-                    // Emulate `<img src="...">` tag here to be compatible with
-                    // HTML links. We might consider using the actual Markdown
-                    // `LinkType` for better granularity in the future
-                    element: Some("img".to_string()),
-                    attribute: Some("src".to_string()),
-                }])
-            }
+            Event::Start(Tag::Image { dest_url, .. }) => Some(extract_image(&dest_url, span_provider.span(span.start))),
 
             // A code block (inline or fenced).
             Event::Start(Tag::CodeBlock(_)) => {
@@ -131,7 +115,10 @@ pub(crate) fn extract_markdown(
                     || (inside_code_block && !include_verbatim) {
                     None
                 } else {
-                    Some(extract_raw_uri_from_plaintext(&txt))
+                    Some(extract_raw_uri_from_plaintext(
+                        &txt,
+                        &OffsetSpanProvider { offset: span.start, inner: &span_provider }
+                    ))
                 }
             }
 
@@ -139,39 +126,91 @@ pub(crate) fn extract_markdown(
             Event::Html(html) | Event::InlineHtml(html) => {
                 // This won't exclude verbatim links right now, because HTML gets passed in chunks
                 // by pulldown_cmark. So excluding `<pre>` and `<code>` is not handled right now.
-                Some(extract_html(&html, include_verbatim))
+                Some(extract_html_with_span(
+                    &html,
+                    include_verbatim,
+                    OffsetSpanProvider { offset: span.start, inner: &span_provider }
+                ))
             }
 
             // An inline code node.
             Event::Code(code) => {
                 if include_verbatim {
-                    Some(extract_raw_uri_from_plaintext(&code))
+                    // inline code starts with '`', so offset the span by `1`.
+                    Some(extract_raw_uri_from_plaintext(
+                        &code,
+                        &OffsetSpanProvider { offset: span.start + 1, inner: &span_provider }
+                    ))
                 } else {
                     None
                 }
             }
 
-            // A detected link block.
             Event::End(TagEnd::Link) => {
                 inside_link_block = false;
                 inside_wikilink_block = false;
                 None
             }
 
-            // Skip footnote references and definitions - they're not links to check
-            // Note: These are kept explicit (rather than relying on the wildcard) for clarity
+            // Skip footnote references and definitions explicitly - they're not links to check
             #[allow(clippy::match_same_arms)]
-            Event::FootnoteReference(_) => None,
-            #[allow(clippy::match_same_arms)]
-            Event::Start(Tag::FootnoteDefinition(_)) => None,
-            #[allow(clippy::match_same_arms)]
-            Event::End(TagEnd::FootnoteDefinition) => None,
+            Event::FootnoteReference(_) | Event::Start(Tag::FootnoteDefinition(_)) | Event::End(TagEnd::FootnoteDefinition) => None,
 
             // Silently skip over other events
             _ => None,
         })
         .flatten()
         .collect()
+}
+
+fn get_email_span_provider<'a>(
+    span_provider: &'a SourceSpanProvider<'_>,
+    span: &std::ops::Range<usize>,
+    link_type: LinkType,
+) -> OffsetSpanProvider<'a> {
+    let offset = match link_type {
+        // We don't know how the link starts, so don't offset the span.
+        LinkType::Reference | LinkType::CollapsedUnknown | LinkType::ShortcutUnknown => 0,
+        // These start all with `[` or `<`, so offset the span by `1`.
+        LinkType::ReferenceUnknown
+        | LinkType::Collapsed
+        | LinkType::Shortcut
+        | LinkType::Autolink
+        | LinkType::Email => 1,
+        _ => {
+            debug_assert!(false, "Unexpected email link type: {link_type:?}");
+            0
+        }
+    };
+
+    OffsetSpanProvider {
+        offset: span.start + offset,
+        inner: span_provider,
+    }
+}
+
+/// Emulate `<img src="...">` tag to be compatible with HTML links.
+/// We might consider using the actual Markdown `LinkType` for better granularity in the future.
+fn extract_image(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
+    vec![RawUri {
+        text: dest_url.to_string(),
+        element: Some("img".to_string()),
+        attribute: Some("src".to_string()),
+        span,
+    }]
+}
+
+/// Emulate `<a href="...">` tag to be compatible with HTML links.
+/// We might consider using the actual Markdown `LinkType` for better granularity in the future.
+fn raw_uri(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
+    vec![RawUri {
+        text: dest_url.to_string(),
+        element: Some("a".to_string()),
+        attribute: Some("href".to_string()),
+        // Sadly, we don't know how long the `foo` part in `[foo](bar)` is,
+        // so the span points to the `[` and not to the `b`.
+        span,
+    }]
 }
 
 /// Extract fragments/anchors from a Markdown string.
@@ -263,6 +302,8 @@ impl HeadingIdGenerator {
 
 #[cfg(test)]
 mod tests {
+    use crate::types::uri::raw::span;
+
     use super::*;
 
     const MD_INPUT: &str = r#"
@@ -307,11 +348,13 @@ or inline like `https://bar.org` for instance.
                 text: "https://foo.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(4, 19),
             },
             RawUri {
                 text: "http://example.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(18, 1),
             },
         ];
 
@@ -326,21 +369,25 @@ or inline like `https://bar.org` for instance.
                 text: "https://foo.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(4, 19),
             },
             RawUri {
                 text: "https://bar.com/123".to_string(),
                 element: None,
                 attribute: None,
+                span: span(11, 1),
             },
             RawUri {
                 text: "https://bar.org".to_string(),
                 element: None,
                 attribute: None,
+                span: span(14, 17),
             },
             RawUri {
                 text: "http://example.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(18, 1),
             },
         ];
 
@@ -412,6 +459,7 @@ $$
             text: "https://example.com/_/foo".to_string(),
             element: None,
             attribute: None,
+            span: span(1, 1),
         }];
         let uris = extract_markdown(markdown, true, false);
         assert_eq!(uris, expected);
@@ -424,6 +472,7 @@ $$
             text: "https://example.com/_".to_string(),
             element: None,
             attribute: None,
+            span: span(1, 1),
         }];
         let uris = extract_markdown(markdown, true, false);
         assert_eq!(uris, expected);
@@ -436,6 +485,7 @@ $$
             text: "https://example.com/destination".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
+            span: span(1, 3),
         }];
         let uris = extract_markdown(markdown, true, true);
         assert_eq!(uris, expected);
@@ -449,11 +499,13 @@ $$
                 text: "https://example.com/destination".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(1, 3),
             },
             RawUri {
                 text: "https://example.com/source".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(1, 38),
             },
         ];
         let uris = extract_markdown(markdown, true, true);
@@ -479,6 +531,7 @@ $$
             text: "https://example.com".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
+            span: span(1, 1),
         }];
 
         assert_eq!(uris, expected);
@@ -502,11 +555,13 @@ $$
                 text: "https://example.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(1, 1),
             },
             RawUri {
                 text: "https://lycheerepublic.gov/notexist".to_string(),
                 element: None,
                 attribute: None,
+                span: span(1, 2),
             },
         ];
 
@@ -545,20 +600,24 @@ Shortcut link: [link4]
                 text: "target1.md".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(2, 14),
             },
             RawUri {
                 text: "target2.md".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(4, 17),
             },
             RawUri {
                 text: "target3.md".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(5, 17),
             },
             RawUri {
                 text: "target4.md".to_string(),
                 element: Some("a".to_string()),
+                span: span(6, 16),
                 attribute: Some("href".to_string()),
             },
         ];

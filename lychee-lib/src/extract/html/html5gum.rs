@@ -1,17 +1,14 @@
-use html5gum::{Emitter, Error, State, Tokenizer};
+use html5gum::{
+    Spanned, Tokenizer,
+    emitters::callback::{Callback, CallbackEmitter, CallbackEvent},
+};
 use std::collections::{HashMap, HashSet};
 
 use super::{is_email_link, is_verbatim_elem, srcset};
-use crate::{extract::plaintext::extract_raw_uri_from_plaintext, types::uri::raw::RawUri};
-
-#[derive(Clone, Default, Debug)]
-struct Element {
-    /// Current element name being processed.
-    /// This is called a tag in html5gum.
-    name: String,
-    /// Whether the current element is a closing tag.
-    is_closing: bool,
-}
+use crate::{
+    extract::plaintext::extract_raw_uri_from_plaintext,
+    types::uri::raw::{OffsetSpanProvider, RawUri, SourceSpanProvider, SpanProvider},
+};
 
 /// Extract links from HTML documents.
 ///
@@ -25,38 +22,48 @@ struct Element {
 ///
 /// The `links` vector contains all links extracted from the HTML document and
 /// the `fragments` set contains all fragments extracted from the HTML document.
-#[derive(Clone, Default, Debug)]
-struct LinkExtractor {
+#[derive(Clone, Debug)]
+struct LinkExtractor<S: SpanProvider> {
+    /// The [`SpanProvider`] which will be used to compute spans for URIs.
+    ///
+    /// This is generic, since e.g. the markdown parser has already started, so we have to compute
+    /// the span location in relation to the offset in the outer document.
+    span_provider: S,
     /// Links extracted from the HTML document.
     links: Vec<RawUri>,
     /// Fragments extracted from the HTML document.
     fragments: HashSet<String>,
     /// Whether to include verbatim elements in the output.
     include_verbatim: bool,
-    /// Current element being processed.
-    current_element: Element,
+    /// Current element name being processed.
+    /// This is called a tag in html5gum.
+    current_element: String,
     /// Current attributes being processed.
     /// This is a list of key-value pairs (in order of appearance), where the key is the attribute name
     /// and the value is the attribute value.
-    current_attributes: HashMap<String, String>,
+    current_attributes: HashMap<String, Spanned<String>>,
     /// Current attribute name being processed.
     current_attribute_name: String,
-    /// A bunch of plain characters currently being processed.
-    current_raw_string: String,
     /// Element name of the current verbatim block.
     /// Used to keep track of nested verbatim blocks.
     verbatim_stack: Vec<String>,
 }
 
-impl LinkExtractor {
+impl<S: SpanProvider> LinkExtractor<S> {
     /// Create a new `LinkExtractor`.
     ///
     /// Set `include_verbatim` to `true` if you want to include verbatim
     /// elements in the output.
-    fn new(include_verbatim: bool) -> Self {
+    fn new(span_provider: S, include_verbatim: bool) -> Self {
         Self {
+            span_provider,
             include_verbatim,
-            ..Default::default()
+            links: Vec::default(),
+            fragments: HashSet::default(),
+            current_element: String::default(),
+            current_attributes: HashMap::default(),
+            current_attribute_name: String::default(),
+            verbatim_stack: Vec::default(),
         }
     }
 
@@ -69,17 +76,19 @@ impl LinkExtractor {
 
         // Process 'srcset' attribute first
         if let Some(srcset) = self.current_attributes.get("srcset") {
+            let span = srcset.span;
             urls.extend(srcset::parse(srcset).into_iter().map(|url| RawUri {
                 text: url.to_string(),
-                element: Some(self.current_element.name.clone()),
+                element: Some(self.current_element.clone()),
                 attribute: Some("srcset".to_string()),
+                span: self.span_provider.span(span.start),
             }));
         }
 
         // Process other attributes
         for (attr_name, attr_value) in &self.current_attributes {
             #[allow(clippy::unnested_or_patterns)]
-            match (self.current_element.name.as_str(), attr_name.as_str()) {
+            match (self.current_element.as_str(), attr_name.as_str()) {
                 // Common element/attribute combinations for links
                 (_, "href" | "src" | "cite" | "usemap") |
                 // Less common (but still valid!) combinations
@@ -98,8 +107,9 @@ impl LinkExtractor {
                 ("video", "poster") => {
                     urls.push(RawUri {
                         text: attr_value.to_string(),
-                        element: Some(self.current_element.name.clone()),
-                        attribute: Some(attr_name.to_string()),
+                        element: Some(self.current_element.clone()),
+                        attribute: Some(attr_name.clone()),
+                        span: self.span_provider.span(attr_value.span.start),
                     });
                 }
                 _ => {}
@@ -109,37 +119,9 @@ impl LinkExtractor {
         urls
     }
 
-    /// Extract links from the current string and add them to the links vector.
-    fn flush_current_characters(&mut self) {
-        if !self.include_verbatim
-            && (is_verbatim_elem(&self.current_element.name) || !self.verbatim_stack.is_empty())
-        {
-            self.update_verbatim_element();
-            // Early return since we don't want to extract links from verbatim
-            // blocks according to the configuration.
-            self.current_raw_string.clear();
-            return;
-        }
-
-        self.links
-            .extend(extract_raw_uri_from_plaintext(&self.current_raw_string));
-        self.current_raw_string.clear();
-    }
-
-    /// Update the current verbatim element name.
-    ///
-    /// Keeps track of the last verbatim element name, so that we can
-    /// properly handle nested verbatim blocks.
-    fn update_verbatim_element(&mut self) {
-        if self.current_element.is_closing {
-            if let Some(last_verbatim) = self.verbatim_stack.last() {
-                if last_verbatim == &self.current_element.name {
-                    self.verbatim_stack.pop();
-                }
-            }
-        } else if !self.include_verbatim && is_verbatim_elem(&self.current_element.name) {
-            self.verbatim_stack.push(self.current_element.name.clone());
-        }
+    fn filter_verbatim_here(&self) -> bool {
+        !self.include_verbatim
+            && (is_verbatim_elem(&self.current_element) || !self.verbatim_stack.is_empty())
     }
 
     /// Flush the current element and attribute values to the links vector.
@@ -160,11 +142,7 @@ impl LinkExtractor {
     ///
     /// The current attribute name and value are cleared after processing.
     fn flush_links(&mut self) {
-        self.update_verbatim_element();
-
-        if !self.include_verbatim
-            && (!self.verbatim_stack.is_empty() || is_verbatim_elem(&self.current_element.name))
-        {
+        if self.filter_verbatim_here() {
             self.current_attributes.clear();
             return;
         }
@@ -191,11 +169,11 @@ impl LinkExtractor {
             .get("rel")
             .is_some_and(|rel| rel.contains("stylesheet"))
         {
-            if let Some(href) = self.current_attributes.get("href") {
-                if href.starts_with("/@") || href.starts_with('@') {
-                    self.current_attributes.clear();
-                    return;
-                }
+            if let Some(href) = self.current_attributes.get("href")
+                && (href.starts_with("/@") || href.starts_with('@'))
+            {
+                self.current_attributes.clear();
+                return;
             }
             // Skip disabled stylesheets
             // Ref: https://developer.mozilla.org/en-US/docs/Web/API/HTMLLinkElement/disabled
@@ -254,119 +232,96 @@ impl LinkExtractor {
     }
 }
 
-impl Emitter for &mut LinkExtractor {
-    type Token = ();
+impl<S: SpanProvider> Callback<(), usize> for &mut LinkExtractor<S> {
+    fn handle_event(
+        &mut self,
+        event: CallbackEvent<'_>,
+        span: html5gum::Span<usize>,
+    ) -> Option<()> {
+        match event {
+            CallbackEvent::OpenStartTag { name } => {
+                self.current_element = String::from_utf8_lossy(name).into_owned();
 
-    fn set_last_start_tag(&mut self, last_start_tag: Option<&[u8]>) {
-        self.current_element.name =
-            String::from_utf8_lossy(last_start_tag.unwrap_or_default()).into_owned();
-    }
+                // Update the current verbatim element name.
+                //
+                // Keeps track of the last verbatim element name, so that we can
+                // properly handle nested verbatim blocks.
+                if self.filter_verbatim_here() && is_verbatim_elem(&self.current_element) {
+                    self.verbatim_stack.push(self.current_element.clone());
+                }
+            }
+            CallbackEvent::AttributeName { name } => {
+                self.current_attribute_name = String::from_utf8_lossy(name).into_owned();
+            }
+            CallbackEvent::AttributeValue { value } => {
+                let value = String::from_utf8_lossy(value);
+                self.current_attributes
+                    .entry(self.current_attribute_name.clone())
+                    .and_modify(|v| v.push_str(&value))
+                    .or_insert_with(|| Spanned {
+                        value: value.into_owned(),
+                        span,
+                    });
+            }
+            CallbackEvent::CloseStartTag { self_closing } => {
+                self.flush_links();
 
-    fn emit_eof(&mut self) {
-        self.flush_current_characters();
-    }
-
-    fn emit_error(&mut self, _: Error) {}
-
-    fn should_emit_errors(&mut self) -> bool {
-        false
-    }
-
-    fn pop_token(&mut self) -> Option<()> {
+                // Update the current verbatim element name.
+                //
+                // Keeps track of the last verbatim element name, so that we can
+                // properly handle nested verbatim blocks.
+                if self_closing
+                    && self.filter_verbatim_here()
+                    && let Some(last_verbatim) = self.verbatim_stack.last()
+                    && last_verbatim == &self.current_element
+                {
+                    self.verbatim_stack.pop();
+                }
+            }
+            CallbackEvent::EndTag { .. } => {
+                // Update the current verbatim element name.
+                //
+                // Keeps track of the last verbatim element name, so that we can
+                // properly handle nested verbatim blocks.
+                if self.filter_verbatim_here()
+                    && let Some(last_verbatim) = self.verbatim_stack.last()
+                    && last_verbatim == &self.current_element
+                {
+                    self.verbatim_stack.pop();
+                }
+            }
+            CallbackEvent::String { value } => {
+                if !self.filter_verbatim_here() {
+                    // Extract links from the current string and add them to the links vector.
+                    self.links.extend(extract_raw_uri_from_plaintext(
+                        &String::from_utf8_lossy(value),
+                        &OffsetSpanProvider {
+                            offset: span.start,
+                            inner: &self.span_provider,
+                        },
+                    ));
+                }
+            }
+            CallbackEvent::Comment { .. }
+            | CallbackEvent::Doctype { .. }
+            | CallbackEvent::Error(_) => {}
+        }
         None
     }
-
-    /// Emit a bunch of plain characters as character tokens.
-    fn emit_string(&mut self, c: &[u8]) {
-        self.current_raw_string
-            .push_str(&String::from_utf8_lossy(c));
-    }
-
-    fn init_start_tag(&mut self) {
-        self.flush_current_characters();
-        self.current_element = Element::default();
-    }
-
-    fn init_end_tag(&mut self) {
-        self.flush_current_characters();
-        self.current_element = Element {
-            name: String::new(),
-            is_closing: true,
-        };
-    }
-
-    fn init_comment(&mut self) {
-        self.flush_current_characters();
-    }
-
-    fn emit_current_tag(&mut self) -> Option<State> {
-        self.flush_links();
-
-        if self.current_element.is_closing {
-            None
-        } else {
-            html5gum::naive_next_state(self.current_element.name.as_bytes())
-        }
-    }
-
-    fn emit_current_doctype(&mut self) {}
-
-    fn set_self_closing(&mut self) {
-        self.current_element.is_closing = true;
-    }
-
-    fn set_force_quirks(&mut self) {}
-
-    fn push_tag_name(&mut self, s: &[u8]) {
-        self.current_element
-            .name
-            .push_str(&String::from_utf8_lossy(s));
-    }
-
-    fn push_comment(&mut self, _: &[u8]) {}
-
-    fn push_doctype_name(&mut self, _: &[u8]) {}
-
-    fn init_doctype(&mut self) {
-        self.flush_current_characters();
-    }
-
-    fn init_attribute(&mut self) {
-        self.current_attribute_name.clear();
-    }
-
-    fn push_attribute_name(&mut self, s: &[u8]) {
-        self.current_attribute_name
-            .push_str(&String::from_utf8_lossy(s));
-    }
-
-    fn push_attribute_value(&mut self, s: &[u8]) {
-        let value = String::from_utf8_lossy(s);
-        self.current_attributes
-            .entry(self.current_attribute_name.clone())
-            .and_modify(|v| v.push_str(&value))
-            .or_insert_with(|| value.into_owned());
-    }
-
-    fn set_doctype_public_identifier(&mut self, _: &[u8]) {}
-
-    fn set_doctype_system_identifier(&mut self, _: &[u8]) {}
-
-    fn push_doctype_public_identifier(&mut self, _: &[u8]) {}
-
-    fn push_doctype_system_identifier(&mut self, _: &[u8]) {}
-
-    fn current_is_appropriate_end_tag_token(&mut self) -> bool {
-        self.current_element.is_closing && !self.current_element.name.is_empty()
-    }
-
-    fn emit_current_comment(&mut self) {}
 }
 
 /// Extract unparsed URL strings from an HTML string.
 pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
-    let mut extractor = LinkExtractor::new(include_verbatim);
-    let mut tokenizer = Tokenizer::new_with_emitter(buf, &mut extractor);
+    extract_html_with_span(buf, include_verbatim, SourceSpanProvider::from_input(buf))
+}
+
+pub(crate) fn extract_html_with_span<S: SpanProvider>(
+    buf: &str,
+    include_verbatim: bool,
+    span_provider: S,
+) -> Vec<RawUri> {
+    let mut extractor = LinkExtractor::new(span_provider, include_verbatim);
+    let mut tokenizer = Tokenizer::new_with_emitter(buf, CallbackEmitter::new(&mut extractor));
     assert!(tokenizer.next().is_none());
     extractor
         .links
@@ -377,14 +332,17 @@ pub(crate) fn extract_html(buf: &str, include_verbatim: bool) -> Vec<RawUri> {
 
 /// Extract fragments from id attributes within a HTML string.
 pub(crate) fn extract_html_fragments(buf: &str) -> HashSet<String> {
-    let mut extractor = LinkExtractor::new(true);
-    let mut tokenizer = Tokenizer::new_with_emitter(buf, &mut extractor);
+    let span_provider = SourceSpanProvider::from_input(buf);
+    let mut extractor = LinkExtractor::new(span_provider, true);
+    let mut tokenizer = Tokenizer::new_with_emitter(buf, CallbackEmitter::new(&mut extractor));
     assert!(tokenizer.next().is_none());
     extractor.fragments
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::types::uri::raw::span;
+
     use super::*;
 
     const HTML_INPUT: &str = r#"
@@ -418,6 +376,7 @@ mod tests {
             text: "https://example.org".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
+            span: span(4, 121),
         }];
 
         let uris = extract_html(HTML_INPUT, false);
@@ -431,26 +390,31 @@ mod tests {
                 text: "https://example.com".to_string(),
                 element: None,
                 attribute: None,
+                span: span(4, 72),
             },
             RawUri {
                 text: "https://example.org".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(4, 121),
             },
             RawUri {
                 text: "https://foo.com".to_string(),
                 element: None,
                 attribute: None,
+                span: span(7, 9),
             },
             RawUri {
                 text: "http://bar.com/some/path".to_string(),
                 element: None,
                 attribute: None,
+                span: span(7, 29),
             },
             RawUri {
                 text: "https://baz.org".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(9, 18),
             },
         ];
 
@@ -473,6 +437,7 @@ mod tests {
             text: "https://example.com/".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
+            span: span(2, 18),
         }];
 
         let uris = extract_html(HTML_INPUT, false);
@@ -504,6 +469,7 @@ mod tests {
             text: "https://example.org".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
+            span: span(4, 18),
         }];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
@@ -530,6 +496,7 @@ mod tests {
             text: "https://example.org".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
+            span: span(5, 18),
         }];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
@@ -546,6 +513,7 @@ mod tests {
             text: "https://example.org".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
+            span: span(4, 18),
         }];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
@@ -568,6 +536,7 @@ mod tests {
             text: "tel:1234567890".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
+            span: span(8, 22),
         }];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
@@ -590,6 +559,7 @@ mod tests {
             text: "mailto:foo@bar.com".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
+            span: span(8, 22),
         }];
         let uris = extract_html(input, false);
         assert_eq!(uris, expected);
@@ -629,16 +599,19 @@ mod tests {
             text: "/cdn-cgi/image/format=webp,width=640/https://img.youtube.com/vi/hVBl8_pgQf0/maxresdefault.jpg".to_string(),
             element: Some("img".to_string()),
             attribute: Some("srcset".to_string()),
+            span: span(2, 26),
         },
         RawUri {
             text: "/cdn-cgi/image/format=webp,width=750/https://img.youtube.com/vi/hVBl8_pgQf0/maxresdefault.jpg".to_string(),
             element: Some("img".to_string()),
             attribute: Some("srcset".to_string()),
+            span: span(2, 26),
         },
         RawUri {
             text: "/cdn-cgi/image/format=webp,width=3840/https://img.youtube.com/vi/hVBl8_pgQf0/maxresdefault.jpg".to_string(),
             element: Some("img".to_string()),
             attribute: Some("src".to_string()),
+            span: span(2, 231),
         }
 
         ];
@@ -685,6 +658,7 @@ mod tests {
             text: "https://example.com".to_string(),
             element: Some("a".to_string()),
             attribute: Some("href".to_string()),
+            span: span(2, 22),
         }];
 
         let uris = extract_html(input, false);
