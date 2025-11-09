@@ -89,9 +89,7 @@ impl InputResolver {
         match &input.source {
             InputSource::RemoteUrl(url) => {
                 let url = url.clone();
-                Box::pin(try_stream! {
-                    yield ResolvedInputSource::RemoteUrl(url);
-                })
+                Box::pin(once(async move { Ok(ResolvedInputSource::RemoteUrl(url)) }))
             }
             InputSource::FsGlob {
                 pattern,
@@ -179,20 +177,14 @@ impl InputResolver {
                         Box::pin(futures::stream::empty())
                     } else {
                         let path = path.clone();
-                        Box::pin(try_stream! {
-                            yield ResolvedInputSource::FsPath(path);
-                        })
+                        Box::pin(once(async move { Ok(ResolvedInputSource::FsPath(path)) }))
                     }
                 }
             }
-            InputSource::Stdin => Box::pin(try_stream! {
-                yield ResolvedInputSource::Stdin;
-            }),
+            InputSource::Stdin => Box::pin(once(async move { Ok(ResolvedInputSource::Stdin) })),
             InputSource::String(s) => {
                 let s = s.clone();
-                Box::pin(try_stream! {
-                    yield ResolvedInputSource::String(s);
-                })
+                Box::pin(once(async move { Ok(ResolvedInputSource::String(s)) }))
             }
         }
     }
