@@ -3,8 +3,6 @@
 //! Provides the `InputResolver` which handles resolution of various input sources
 //! into concrete, processable sources by expanding glob patterns and applying filters.
 
-use std::path::Path;
-
 use super::input::Input;
 use super::source::{InputSource, ResolvedInputSource};
 use crate::Result;
@@ -130,7 +128,7 @@ impl InputResolver {
                                 if path.is_dir() {
                                     continue;
                                 }
-                                if excluded_paths.is_match(&path.to_string_lossy()) {
+                                if Self::is_excluded_path(&path, excluded_paths) {
                                     continue;
                                 }
 
@@ -160,7 +158,8 @@ impl InputResolver {
                     Box::pin(try_stream! {
                         for entry in walk {
                             let entry = entry?;
-                            if excluded_paths.is_match(&entry.path().to_string_lossy()) {
+                            if Self::is_excluded_path(entry.path(), excluded_paths)
+                            {
                                 continue;
                             }
 
@@ -188,7 +187,7 @@ impl InputResolver {
                     // This follows the principle of least surprise because
                     // the user explicitly specified the file, so they
                     // expect it to be checked.
-                    if excluded_paths.is_match(&path.to_string_lossy()) {
+                    if Self::is_excluded_path(path, excluded_paths) {
                         Box::pin(futures::stream::empty())
                     } else {
                         let path = path.clone();
@@ -202,5 +201,10 @@ impl InputResolver {
                 Box::pin(once(async move { Ok(ResolvedInputSource::String(s)) }))
             }
         }
+    }
+
+    /// Check if the given path was excluded from link checking
+    fn is_excluded_path(path: &Path, excluded_paths: &PathExcludes) -> bool {
+        excluded_paths.is_match(&path.to_string_lossy())
     }
 }

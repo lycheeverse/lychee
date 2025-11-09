@@ -270,7 +270,7 @@ impl Input {
             &self,
             file_extensions,
             skip_hidden,
-            skip_gitignored,
+            skip_ignored,
             excluded_paths,
         )
         .map(|res| {
@@ -281,11 +281,6 @@ impl Input {
                 ResolvedInputSource::String(_) => "<raw string>".to_string(),
             })
         })
-    }
-
-    /// Check if the given path was excluded from link checking
-    fn is_excluded_path(path: &Path, excluded_paths: &PathExcludes) -> bool {
-        excluded_paths.is_match(&path.to_string_lossy())
     }
 
     /// Get the content for a given path.
