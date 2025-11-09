@@ -108,7 +108,7 @@ impl<S: SpanProvider> LinkExtractor<S> {
                     urls.push(RawUri {
                         text: attr_value.to_string(),
                         element: Some(self.current_element.clone()),
-                        attribute: Some(attr_name.to_string()),
+                        attribute: Some(attr_name.clone()),
                         span: self.span_provider.span(attr_value.span.start),
                     });
                 }
@@ -169,11 +169,11 @@ impl<S: SpanProvider> LinkExtractor<S> {
             .get("rel")
             .is_some_and(|rel| rel.contains("stylesheet"))
         {
-            if let Some(href) = self.current_attributes.get("href") {
-                if href.starts_with("/@") || href.starts_with('@') {
-                    self.current_attributes.clear();
-                    return;
-                }
+            if let Some(href) = self.current_attributes.get("href")
+                && (href.starts_with("/@") || href.starts_with('@'))
+            {
+                self.current_attributes.clear();
+                return;
             }
             // Skip disabled stylesheets
             // Ref: https://developer.mozilla.org/en-US/docs/Web/API/HTMLLinkElement/disabled
@@ -270,12 +270,12 @@ impl<S: SpanProvider> Callback<(), usize> for &mut LinkExtractor<S> {
                 //
                 // Keeps track of the last verbatim element name, so that we can
                 // properly handle nested verbatim blocks.
-                if self_closing && self.filter_verbatim_here() {
-                    if let Some(last_verbatim) = self.verbatim_stack.last() {
-                        if last_verbatim == &self.current_element {
-                            self.verbatim_stack.pop();
-                        }
-                    }
+                if self_closing
+                    && self.filter_verbatim_here()
+                    && let Some(last_verbatim) = self.verbatim_stack.last()
+                    && last_verbatim == &self.current_element
+                {
+                    self.verbatim_stack.pop();
                 }
             }
             CallbackEvent::EndTag { .. } => {
@@ -283,12 +283,11 @@ impl<S: SpanProvider> Callback<(), usize> for &mut LinkExtractor<S> {
                 //
                 // Keeps track of the last verbatim element name, so that we can
                 // properly handle nested verbatim blocks.
-                if self.filter_verbatim_here() {
-                    if let Some(last_verbatim) = self.verbatim_stack.last() {
-                        if last_verbatim == &self.current_element {
-                            self.verbatim_stack.pop();
-                        }
-                    }
+                if self.filter_verbatim_here()
+                    && let Some(last_verbatim) = self.verbatim_stack.last()
+                    && last_verbatim == &self.current_element
+                {
+                    self.verbatim_stack.pop();
                 }
             }
             CallbackEvent::String { value } => {

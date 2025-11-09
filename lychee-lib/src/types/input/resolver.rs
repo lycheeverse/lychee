@@ -3,6 +3,8 @@
 //! Provides the `InputResolver` which handles resolution of various input sources
 //! into concrete, processable sources by expanding glob patterns and applying filters.
 
+use std::path::Path;
+
 use super::input::Input;
 use super::source::{InputSource, ResolvedInputSource};
 use crate::Result;
@@ -12,7 +14,7 @@ use async_stream::try_stream;
 use futures::stream::Stream;
 use futures::stream::once;
 use glob::glob_with;
-use ignore::WalkBuilder;
+use ignore::{Walk, WalkBuilder};
 use shellexpand::tilde;
 use std::path::Path;
 use std::pin::Pin;
@@ -55,30 +57,37 @@ impl InputResolver {
         input: &'_ Input,
         file_extensions: FileExtensions,
         skip_hidden: bool,
-        skip_gitignored: bool,
+        skip_ignored: bool,
         excluded_paths: &'a PathExcludes,
     ) -> Pin<Box<dyn Stream<Item = Result<ResolvedInputSource>> + Send + 'a>> {
         Self::resolve_input(
             input,
             file_extensions,
             skip_hidden,
-            skip_gitignored,
+            skip_ignored,
             excluded_paths,
         )
     }
 
-    /// Create a `WalkBuilder` for directory traversal
-    fn walk_entries(
+    /// Create a [`Walk`] iterator for directory traversal
+    ///
+    /// # Errors
+    ///
+    /// Fails if [`FileExtensions`] cannot be converted
+    pub(crate) fn walk(
         path: &Path,
         file_extensions: FileExtensions,
         skip_hidden: bool,
-        skip_gitignored: bool,
-    ) -> Result<ignore::Walk> {
+        skip_ignored: bool,
+    ) -> Result<Walk> {
         Ok(WalkBuilder::new(path)
-            // Enable standard filters if `skip_gitignored `is true.
-            // This will skip files ignored by `.gitignore` and other VCS ignore files.
-            .standard_filters(skip_gitignored)
-            // Override hidden file behavior to be controlled by the separate skip_hidden parameter
+            // Skip over files which are ignored by git or `.ignore` if necessary
+            .git_ignore(skip_ignored)
+            .git_global(skip_ignored)
+            .git_exclude(skip_ignored)
+            .ignore(skip_ignored)
+            .parents(skip_ignored)
+            // Ignore hidden files if necessary
             .hidden(skip_hidden)
             // Configure the file types filter to only include files with matching extensions
             .types(file_extensions.try_into()?)
@@ -94,7 +103,7 @@ impl InputResolver {
         input: &'_ Input,
         file_extensions: FileExtensions,
         skip_hidden: bool,
-        skip_gitignored: bool,
+        skip_ignored: bool,
         excluded_paths: &'a PathExcludes,
     ) -> Pin<Box<dyn Stream<Item = Result<ResolvedInputSource>> + Send + 'a>> {
         match &input.source {
@@ -141,12 +150,7 @@ impl InputResolver {
             }
             InputSource::FsPath(path) => {
                 if path.is_dir() {
-                    let walk = match Self::walk_entries(
-                        path,
-                        file_extensions,
-                        skip_hidden,
-                        skip_gitignored,
-                    ) {
+                    let walk = match Self::walk(path, file_extensions, skip_hidden, skip_ignored) {
                         Ok(x) => x,
                         Err(e) => {
                             return Box::pin(once(async move { Err(e) }));

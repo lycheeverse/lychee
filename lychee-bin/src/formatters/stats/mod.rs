@@ -65,7 +65,7 @@ mod tests {
     fn make_test_response(url_str: &str, source: ResolvedInputSource) -> Response {
         let uri = Uri::from(make_test_url(url_str));
 
-        Response::new(uri, Status::Error(ErrorKind::TestError), source)
+        Response::new(uri, Status::Error(ErrorKind::EmptyUrl), source)
     }
 
     #[test]

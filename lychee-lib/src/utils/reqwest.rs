@@ -411,10 +411,10 @@ mod tests {
         // (actual reqwest::Error creation is complex, so we test the integration point)
 
         // For other error types, ensure they still work
-        let test_error = ErrorKind::TestError;
+        let test_error = ErrorKind::EmptyUrl;
         assert_eq!(
             test_error.details(),
-            Some("Test error for formatter testing".to_string())
+            Some("Empty URL found. Check for missing links or malformed markdown".to_string())
         );
     }
 }

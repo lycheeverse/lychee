@@ -86,7 +86,7 @@ mod tests {
 
     #[tokio::test]
     /// Test retrieval by mocking the Wayback API.
-    /// We mock their API beacuse unfortuantely it happens quite often that the
+    /// We mock their API because unfortunately it happens quite often that the
     /// `archived_snapshots` field is empty because the API is unreliable.
     /// This way we avoid flaky tests.
     async fn wayback_suggestion_mocked() -> Result<(), Box<dyn StdError>> {
@@ -166,7 +166,7 @@ mod tests {
 
     #[tokio::test]
     /// This tests the real Wayback API without any mocks.
-    /// The flakyness of the API shouldn't affect this test because it originates from
+    /// The flakiness of the API shouldn't affect this test because it originates from
     /// the `archived_snapshots` field.
     async fn wayback_suggestion_real_unknown() -> Result<(), Box<dyn StdError>> {
         let url = &"https://github.com/mre/idiomatic-rust-doesnt-exist-man".try_into()?;

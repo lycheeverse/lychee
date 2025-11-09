@@ -5,12 +5,10 @@
 
 use super::InputResolver;
 use super::content::InputContent;
-use super::source::InputSource;
-use super::source::ResolvedInputSource;
+use super::source::{InputSource, ResolvedInputSource};
+use crate::Preprocessor;
 use crate::filter::PathExcludes;
-use crate::types::FileType;
-use crate::types::file::FileExtensions;
-use crate::types::resolver::UrlContentResolver;
+use crate::types::{FileType, file::FileExtensions, resolver::UrlContentResolver};
 use crate::{ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
@@ -159,14 +157,19 @@ impl Input {
     /// Returns an error if the contents can not be retrieved because of an
     /// underlying I/O error (e.g. an error while making a network request or
     /// retrieving the contents from the file system)
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "https://github.com/lycheeverse/lychee/issues/1898"
+    )]
     pub fn get_contents(
         self,
         skip_missing: bool,
         skip_hidden: bool,
-        skip_gitignored: bool,
+        skip_ignored: bool,
         file_extensions: FileExtensions,
         resolver: UrlContentResolver,
         excluded_paths: PathExcludes,
+        preprocessor: Option<Preprocessor>,
     ) -> impl Stream<Item = Result<InputContent>> {
         try_stream! {
             // Handle simple cases that don't need resolution
@@ -195,7 +198,7 @@ impl Input {
                 &self,
                 file_extensions,
                 skip_hidden,
-                skip_gitignored,
+                skip_ignored,
                 &excluded_paths,
             );
 
@@ -206,7 +209,7 @@ impl Input {
                     Ok(source) => {
                         let content_result = match source {
                             ResolvedInputSource::FsPath(path) => {
-                                Self::path_content(&path).await
+                                Self::path_content(&path, preprocessor.as_ref()).await
                             },
                             ResolvedInputSource::RemoteUrl(url) => {
                                 resolver.url_contents(*url).await
@@ -260,7 +263,7 @@ impl Input {
         self,
         file_extensions: FileExtensions,
         skip_hidden: bool,
-        skip_gitignored: bool,
+        skip_ignored: bool,
         excluded_paths: &PathExcludes,
     ) -> impl Stream<Item = Result<String>> {
         InputResolver::resolve(
@@ -280,27 +283,29 @@ impl Input {
         })
     }
 
+    /// Check if the given path was excluded from link checking
+    fn is_excluded_path(path: &Path, excluded_paths: &PathExcludes) -> bool {
+        excluded_paths.is_match(&path.to_string_lossy())
+    }
+
     /// Get the content for a given path.
     ///
     /// # Errors
     ///
     /// Returns an error if the file cannot be read
+    /// or [`Preprocessor`] failed
     pub async fn path_content<P: Into<PathBuf> + AsRef<Path> + Clone>(
         path: P,
+        preprocessor: Option<&Preprocessor>,
     ) -> Result<InputContent> {
         let path = path.into();
+        let content = Self::get_content(&path, preprocessor).await?;
 
-        let content = tokio::fs::read_to_string(&path)
-            .await
-            .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))?;
-
-        let input_content = InputContent {
+        Ok(InputContent {
             file_type: FileType::from(&path),
             source: ResolvedInputSource::FsPath(path),
             content,
-        };
-
-        Ok(input_content)
+        })
     }
 
     /// Create `InputContent` from stdin.
@@ -326,6 +331,18 @@ impl Input {
     #[must_use]
     pub fn string_content(s: &str, file_type_hint: Option<FileType>) -> InputContent {
         InputContent::from_string(s, file_type_hint.unwrap_or_default())
+    }
+
+    /// Get content of file.
+    /// Get preprocessed file content if [`Preprocessor`] is [`Some`]
+    async fn get_content(path: &PathBuf, preprocessor: Option<&Preprocessor>) -> Result<String> {
+        if let Some(pre) = preprocessor {
+            pre.process(path)
+        } else {
+            Ok(tokio::fs::read_to_string(path)
+                .await
+                .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))?)
+        }
     }
 }
 

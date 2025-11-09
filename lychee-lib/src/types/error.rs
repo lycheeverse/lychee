@@ -170,11 +170,14 @@ pub enum ErrorKind {
     #[error("Status code range error")]
     StatusCodeSelectorError(#[from] StatusCodeSelectorError),
 
-    /// Test-only error variant for formatter tests
-    /// Available in both test and debug builds to support cross-crate testing
-    #[cfg(any(test, debug_assertions))]
-    #[error("Generic test error")]
-    TestError,
+    /// Preprocessor command error
+    #[error("Preprocessor command '{command}' failed: {reason}")]
+    PreprocessorError {
+        /// The command which did not execute successfully
+        command: String,
+        /// The reason the command failed
+        reason: String,
+    },
 }
 
 impl ErrorKind {
@@ -237,8 +240,6 @@ impl ErrorKind {
             ErrorKind::EmptyUrl => {
                         Some("Empty URL found. Check for missing links or malformed markdown".to_string())
                     }
-            #[cfg(any(test, debug_assertions))]
-            ErrorKind::TestError => Some("Test error for formatter testing".to_string()),
             ErrorKind::InvalidFile(path) => Some(format!(
                         "Invalid file path: '{}'. Check if file exists and is readable",
                         path.display()
@@ -334,7 +335,8 @@ impl ErrorKind {
                 [] => "No directory links are allowed because index_files is defined and empty".to_string(),
                 [name] => format!("An index file ({name}) is required"),
                 [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
-            }.into()
+            }.into(),
+            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the pre option"))
         }
     }
 
@@ -410,8 +412,6 @@ impl PartialEq for ErrorKind {
             (Self::InvalidUrlRemap(r1), Self::InvalidUrlRemap(r2)) => r1 == r2,
             (Self::EmptyUrl, Self::EmptyUrl) => true,
             (Self::RejectedStatusCode(c1), Self::RejectedStatusCode(c2)) => c1 == c2,
-            #[cfg(any(test, debug_assertions))]
-            (Self::TestError, Self::TestError) => true,
 
             _ => false,
         }
@@ -462,14 +462,11 @@ impl Hash for ErrorKind {
             Self::MissingGitHubToken | Self::InvalidUrlHost => {
                 std::mem::discriminant(self).hash(state);
             }
-            #[cfg(any(test, debug_assertions))]
-            Self::TestError => {
-                std::mem::discriminant(self).hash(state);
-            }
             Self::Regex(e) => e.to_string().hash(state),
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
-            Self::Cookies(e) => e.to_string().hash(state),
+            Self::Cookies(e) => e.hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
+            Self::PreprocessorError { command, reason } => (command, reason).hash(state),
         }
     }
 }

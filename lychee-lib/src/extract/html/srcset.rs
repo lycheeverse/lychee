@@ -20,6 +20,7 @@
 //! use a state machine to keep track of the current state.
 
 use log::info;
+use std::result::Result;
 
 enum State {
     InsideDescriptor,
@@ -29,6 +30,9 @@ enum State {
 
 /// Split an input string at the first character for which
 /// the predicate returns false.
+///
+/// In other words, returns the longest prefix span where `predicate` is
+/// satisfied, along with the rest of the string.
 fn split_at<F>(input: &str, predicate: F) -> (&str, &str)
 where
     F: Fn(&char) -> bool,
@@ -47,77 +51,85 @@ where
 // for simplicity so we have to please clippy.
 pub(crate) fn parse(input: &str) -> Vec<&str> {
     let mut candidates: Vec<&str> = Vec::new();
-    let mut index = 0;
-
-    while index < input.len() {
-        let position = &input[index..];
-        let (start, remaining) = split_at(position, |c| *c == ',' || c.is_whitespace());
-
-        if start.find(',').is_some() {
-            info!("srcset parse Error");
-            return vec![];
+    let mut remaining = input;
+    while !remaining.is_empty() {
+        remaining = match parse_one_url(remaining) {
+            Ok((rem, None)) => rem,
+            Ok((rem, Some(url))) => {
+                candidates.push(url);
+                rem
+            }
+            Err(e) => {
+                info!("{e}");
+                return vec![];
+            }
         }
-        index += start.chars().count();
-
-        if remaining.is_empty() {
-            return candidates;
-        }
-
-        let (url, remaining) = split_at(remaining, |c| !c.is_whitespace());
-        index += url.chars().count();
-
-        let comma_count = url.chars().rev().take_while(|c| *c == ',').count();
-
-        if let Some(url) = url.get(..url.len() - comma_count) {
-            candidates.push(url);
-        }
-
-        if comma_count > 1 {
-            info!("srcset parse error (trailing commas)");
-            return vec![];
-        }
-
-        index += 1;
-
-        let (space, remaining) = split_at(remaining, |c| c.is_whitespace());
-        index += space.len();
-
-        index = skip_descriptor(index, remaining);
     }
 
     candidates
 }
 
-/// Helper function to skip over a descriptor.
-/// Returns the index of the next character after the descriptor
-/// (i.e. pointing at the comma or the end of the string)
-fn skip_descriptor(mut index: usize, remaining: &str) -> usize {
+/// Implements one iteration of the "splitting loop" from the reference algorithm.
+/// This is intended to be repeatedly called until the remaining string is empty.
+///
+/// Returns a tuple of remaining string and an optional parsed URL, if successful.
+/// Otherwise, in case of srcset syntax errors, returns Err.
+///
+/// <https://html.spec.whatwg.org/multipage/images.html#parsing-a-srcset-attribute>
+fn parse_one_url(remaining: &str) -> Result<(&str, Option<&str>), String> {
+    let (start, remaining) = split_at(remaining, |c| *c == ',' || c.is_ascii_whitespace());
+
+    if start.find(',').is_some() {
+        return Err("srcset parse error (too many commas)".to_string());
+    }
+
+    if remaining.is_empty() {
+        return Ok(("", None));
+    }
+
+    let (url, remaining) = split_at(remaining, |c| !c.is_ascii_whitespace());
+
+    let comma_count = url.chars().rev().take_while(|c| *c == ',').count();
+    if comma_count > 1 {
+        return Err("srcset parse error (trailing commas)".to_string());
+    }
+
+    let url = url.get(..url.len() - comma_count);
+
+    let (_spaces, remaining) = split_at(remaining, char::is_ascii_whitespace);
+
+    let remaining = skip_descriptor(remaining);
+
+    Ok((remaining, url))
+}
+
+/// Helper function to skip over a descriptor. Returns the string remaining
+/// after the descriptor (i.e. a string beginning after the next comma or an
+/// empty string).
+#[allow(clippy::single_match)]
+fn skip_descriptor(remaining: &str) -> &str {
     let mut state = State::InsideDescriptor;
 
-    for c in remaining.chars() {
-        index += 1;
-
+    for (i, c) in remaining.char_indices() {
         match state {
             State::InsideDescriptor => match c {
-                ' ' => state = State::AfterDescriptor,
+                c if c.is_ascii_whitespace() => state = State::AfterDescriptor,
                 '(' => state = State::InsideParens,
-                ',' => return index,
-                _ => {}
+                ',' => return &remaining[i + c.len_utf8()..], // returns string after this comma
+                _ => (),
             },
-            State::InsideParens => {
-                if c == ')' {
-                    state = State::InsideDescriptor;
-                }
-            }
-            State::AfterDescriptor => {
-                if c != ' ' {
-                    state = State::InsideDescriptor;
-                }
-            }
+            State::InsideParens => match c {
+                ')' => state = State::InsideDescriptor,
+                _ => (),
+            },
+            State::AfterDescriptor => match c {
+                c if c.is_ascii_whitespace() => (),
+                _ => state = State::InsideDescriptor,
+            },
         }
     }
 
-    index
+    ""
 }
 
 #[cfg(test)]
@@ -214,6 +226,22 @@ mod tests {
             vec![
                 "/cdn-cgi/image/format=webp,width=640/https://img.youtube.com/vi/hVBl8_pgQf0/maxresdefault.jpg",
                 "/cdn-cgi/image/format=webp,width=750/https://img.youtube.com/vi/hVBl8_pgQf0/maxresdefault.jpg"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_srcset_without_spaces() {
+        assert_eq!(
+            parse(
+                "/300.png 300w,/600.png 600w,/900.png 900w,https://x.invalid/a.png 1000w,relative.png 10w"
+            ),
+            vec![
+                "/300.png",
+                "/600.png",
+                "/900.png",
+                "https://x.invalid/a.png",
+                "relative.png"
             ]
         );
     }
