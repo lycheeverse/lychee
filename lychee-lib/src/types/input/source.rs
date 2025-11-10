@@ -214,24 +214,18 @@ impl Display for InputSource {
 mod tests {
     use super::*;
 
-    fn to_json<T>(value: &T) -> Result<String, String>
-    where
-        T: serde::Serialize + ?Sized,
-    {
-        serde_json::to_string(value).map_err(|e| e.to_string())
-    }
-
     /// Serialization of `FsGlob` relies on [`glob::Pattern::to_string`].
     /// Here, we check that the `to_string` works as we require.
     #[test]
     fn test_pattern_serialization_is_original_pattern() {
         let pat = "asd[f]*";
         assert_eq!(
-            to_json(&InputSource::FsGlob {
+            serde_json::to_string(&InputSource::FsGlob {
                 pattern: Pattern::new(pat).unwrap(),
                 ignore_case: false,
-            }),
-            to_json(pat),
+            })
+            .unwrap(),
+            serde_json::to_string(pat).unwrap(),
         );
     }
 }
