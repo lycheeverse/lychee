@@ -77,10 +77,10 @@ impl InputSource {
         let is_glob = glob::Pattern::escape(input) != input;
 
         if is_glob {
-            return Ok(Pattern::new(input).map(|pattern| InputSource::FsGlob {
-                pattern,
+            return Ok(InputSource::FsGlob {
+                pattern: Pattern::new(input)?,
                 ignore_case: glob_ignore_case,
-            })?);
+            });
         }
 
         // It might be a file path; check if it exists
