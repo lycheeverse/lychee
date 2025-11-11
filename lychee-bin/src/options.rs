@@ -335,27 +335,6 @@ NOTE: Use `--` to separate inputs from options that allow multiple arguments."
     )]
     raw_inputs: Vec<String>,
 
-    /// Read input filenames from the given file or stdin (if path is '-').
-    #[arg(
-        long = "files-from",
-        value_name = "PATH",
-        long_help = "Read input filenames from the given file or stdin (if path is '-').
-
-This is useful when you have a large number of inputs that would be
-cumbersome to specify on the command line directly.
-
-Examples:
-  lychee --files-from list.txt
-  find . -name '*.md' | lychee --files-from -
-  echo 'README.md' | lychee --files-from -
-
-File Format:
-  Each line should contain one input (file path, URL, or glob pattern).
-  Lines starting with '#' are treated as comments and ignored.
-  Empty lines are also ignored."
-    )]
-    files_from: Option<PathBuf>,
-
     /// Configuration file to use
     #[arg(short, long = "config")]
     #[arg(help = HELP_MSG_CONFIG_FILE)]
@@ -374,7 +353,7 @@ impl LycheeOptions {
         let mut all_inputs = self.raw_inputs.clone();
 
         // If --files-from is specified, read inputs from the file
-        if let Some(files_from_path) = &self.files_from {
+        if let Some(files_from_path) = &self.config.files_from {
             let files_from = FilesFrom::try_from(files_from_path.as_path())
                 .context("Cannot read inputs from --files-from")?;
             all_inputs.extend(files_from.inputs);
@@ -407,7 +386,29 @@ where
 /// The main configuration for lychee
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Parser, Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Config {
+    /// Read input filenames from the given file or stdin (if path is '-').
+    #[arg(
+        long = "files-from",
+        value_name = "PATH",
+        long_help = "Read input filenames from the given file or stdin (if path is '-').
+
+This is useful when you have a large number of inputs that would be
+cumbersome to specify on the command line directly.
+
+Examples:
+  lychee --files-from list.txt
+  find . -name '*.md' | lychee --files-from -
+  echo 'README.md' | lychee --files-from -
+
+File Format:
+  Each line should contain one input (file path, URL, or glob pattern).
+  Lines starting with '#' are treated as comments and ignored.
+  Empty lines are also ignored."
+    )]
+    files_from: Option<PathBuf>,
+
     /// Verbose program output
     #[clap(flatten)]
     #[serde(default = "verbosity")]
@@ -953,6 +954,7 @@ impl Config {
                 exclude_private: false,
                 extensions: FileType::default_extensions(),
                 fallback_extensions: Vec::<String>::new(),
+                files_from: None,
                 format: StatsFormat::default(),
                 generate: None,
                 glob_ignore_case: false,

@@ -10,6 +10,7 @@ mod cli {
 
     use assert_cmd::Command;
     use predicates::str::contains;
+    use test_utils::main_command;
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -20,15 +21,10 @@ mod cli {
             .join("fixtures")
     }
 
-    fn main_command() -> Command {
-        // this gets the "main" binary name (e.g. `lychee`)
-        Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name")
-    }
-
     #[test]
     #[cfg(not(feature = "check_example_domains"))]
     fn test_exclude_example_domains() -> Result<()> {
-        let mut cmd = main_command();
+        let mut cmd = main_command!();
         let input = fixtures_path().join("TEST_EXAMPLE_DOMAINS.md");
 
         let cmd = cmd
@@ -51,7 +47,7 @@ mod cli {
 
     #[test]
     fn test_do_not_exclude_false_positive_example_domains() -> Result<()> {
-        let mut cmd = main_command();
+        let mut cmd = main_command!();
         let input = fixtures_path().join("TEST_EXAMPLE_DOMAINS_FALSE_POSITIVES.md");
 
         let cmd = cmd

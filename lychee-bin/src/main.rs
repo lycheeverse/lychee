@@ -136,8 +136,8 @@ fn read_lines(file: &File) -> Result<Vec<String>> {
         .collect())
 }
 
-/// Merge all provided config options into one This includes a potential config
-/// file, command-line- and environment variables
+/// Merge all provided config options into one.
+/// This includes a potential config file, command-line- and environment variables
 fn load_config() -> Result<LycheeOptions> {
     let mut opts = LycheeOptions::parse();
 
