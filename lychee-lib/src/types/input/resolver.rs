@@ -52,7 +52,7 @@ impl InputResolver {
     /// and no further `Ok(ResolvedInputSource)` will be produced.
     #[must_use]
     pub fn resolve<'a>(
-        input: &'_ Input,
+        input: &Input,
         file_extensions: FileExtensions,
         skip_hidden: bool,
         skip_ignored: bool,
@@ -98,7 +98,7 @@ impl InputResolver {
     /// expanding glob patterns and applying filtering based on the provided
     /// configuration.
     fn resolve_input<'a>(
-        input: &'_ Input,
+        input: &Input,
         file_extensions: FileExtensions,
         skip_hidden: bool,
         skip_ignored: bool,
