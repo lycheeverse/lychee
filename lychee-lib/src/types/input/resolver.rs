@@ -113,13 +113,16 @@ impl InputResolver {
                 pattern,
                 ignore_case,
             } => {
-                let glob_expanded = tilde(pattern).to_string();
+                // NOTE: we convert the glob::Pattern back to str because
+                // `glob_with` only takes string arguments.
+                let glob_expanded = tilde(pattern.as_str()).to_string();
                 let mut match_opts = glob::MatchOptions::new();
                 match_opts.case_sensitive = !ignore_case;
 
                 Box::pin(try_stream! {
                     // For glob patterns, we expand the pattern and yield
                     // matching paths as ResolvedInputSource::FsPath items.
+
                     for entry in glob_with(&glob_expanded, match_opts)? {
                         match entry {
                             Ok(path) => {

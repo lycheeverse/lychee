@@ -14,11 +14,15 @@
 //!   and filtered by extension
 //! - URLs, raw strings, and standard input (`stdin`) are read directly
 
+use crate::ErrorKind;
+
+use glob::Pattern;
 use reqwest::Url;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::borrow::Cow;
 use std::fmt::Display;
 use std::path::PathBuf;
+use std::result::Result;
 
 /// Input types which lychee supports
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
@@ -29,7 +33,8 @@ pub enum InputSource {
     /// Unix shell-style glob pattern.
     FsGlob {
         /// The glob pattern matching all input files
-        pattern: String,
+        #[serde(deserialize_with = "InputSource::deserialize_pattern")]
+        pattern: Pattern,
         /// Don't be case sensitive when matching files against a glob pattern
         ignore_case: bool,
     },
@@ -39,6 +44,98 @@ pub enum InputSource {
     Stdin,
     /// Raw string input.
     String(Cow<'static, str>),
+}
+
+impl InputSource {
+    const STDIN: &str = "-";
+
+    /// Parses a [`InputSource`] from the given string. The kind of input source will be
+    /// automatically detected according to certain rules and precedences.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - the input does not exist (i.e. the path is invalid)
+    /// - the input cannot be parsed as a URL
+    pub fn new(input: &str, glob_ignore_case: bool) -> Result<Self, ErrorKind> {
+        if input == Self::STDIN {
+            return Ok(InputSource::Stdin);
+        }
+
+        // We use [`reqwest::Url::parse`] because it catches some other edge cases that [`http::Request:builder`] does not
+        if let Ok(url) = Url::parse(input) {
+            // Weed out non-HTTP schemes, including Windows drive
+            // specifiers, which can be parsed by the
+            // [url](https://crates.io/crates/url) crate
+            return match url.scheme() {
+                "http" | "https" => Ok(InputSource::RemoteUrl(Box::new(url))),
+                _ => Err(ErrorKind::InvalidFile(PathBuf::from(input))),
+            };
+        }
+
+        // This seems to be the only way to determine if this is a glob pattern
+        let is_glob = glob::Pattern::escape(input) != input;
+
+        if is_glob {
+            return Ok(InputSource::FsGlob {
+                pattern: Pattern::new(input)?,
+                ignore_case: glob_ignore_case,
+            });
+        }
+
+        // It might be a file path; check if it exists
+        let path = PathBuf::from(input);
+
+        // On Windows, a filepath can never be mistaken for a
+        // URL, because Windows filepaths use `\` and URLs use
+        // `/`
+        #[cfg(windows)]
+        if path.exists() {
+            // The file exists, so we return the path
+            Ok(InputSource::FsPath(path))
+        } else {
+            // We have a valid filepath, but the file does not
+            // exist so we return an error
+            Err(ErrorKind::InvalidFile(path))
+        }
+
+        #[cfg(unix)]
+        if path.exists() {
+            Ok(InputSource::FsPath(path))
+        } else if input.starts_with('~') || input.starts_with('.') {
+            // The path is not valid, but it might still be a
+            // valid URL.
+            //
+            // Check if the path starts with a tilde (`~`) or a
+            // dot and exit early if it does.
+            //
+            // This check might not be sufficient to cover all cases
+            // but it catches the most common ones
+            Err(ErrorKind::InvalidFile(path))
+        } else {
+            // Invalid path; check if a valid URL can be constructed from the input
+            // by prefixing it with a `http://` scheme.
+            //
+            // Curl also uses http (i.e. not https), see
+            // https://github.com/curl/curl/blob/70ac27604a2abfa809a7b2736506af0da8c3c8a9/lib/urlapi.c#L1104-L1124
+            //
+            // TODO: We should get rid of this heuristic and
+            // require users to provide a full URL with scheme.
+            // This is a big source of confusion to users.
+            let url = Url::parse(&format!("http://{input}"))
+                .map_err(|e| ErrorKind::ParseUrl(e, "Input is not a valid URL".to_string()))?;
+            Ok(InputSource::RemoteUrl(Box::new(url)))
+        }
+    }
+
+    fn deserialize_pattern<'de, D>(deserializer: D) -> Result<Pattern, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let s = String::deserialize(deserializer)?;
+        Pattern::new(&s).map_err(D::Error::custom)
+    }
 }
 
 /// Resolved input sources that can be processed for content.
@@ -105,10 +202,30 @@ impl Display for InputSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::RemoteUrl(url) => url.as_str(),
-            Self::FsGlob { pattern, .. } => pattern,
+            Self::FsGlob { pattern, .. } => pattern.as_str(),
             Self::FsPath(path) => path.to_str().unwrap_or_default(),
             Self::Stdin => "stdin",
             Self::String(s) => s.as_ref(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Serialization of `FsGlob` relies on [`glob::Pattern::to_string`].
+    /// Here, we check that the `to_string` works as we require.
+    #[test]
+    fn test_pattern_serialization_is_original_pattern() {
+        let pat = "asd[f]*";
+        assert_eq!(
+            serde_json::to_string(&InputSource::FsGlob {
+                pattern: Pattern::new(pat).unwrap(),
+                ignore_case: false,
+            })
+            .unwrap(),
+            serde_json::to_string(pat).unwrap(),
+        );
     }
 }

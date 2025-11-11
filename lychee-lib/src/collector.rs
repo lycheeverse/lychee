@@ -384,7 +384,7 @@ mod tests {
             ))),
             Input::from_input_source(InputSource::FsPath(file_path)),
             Input::from_input_source(InputSource::FsGlob {
-                pattern: temp_dir_path.join("glob*").to_str().unwrap().to_owned(),
+                pattern: glob::Pattern::new(&temp_dir_path.join("glob*").to_string_lossy())?,
                 ignore_case: true,
             }),
         ]);
