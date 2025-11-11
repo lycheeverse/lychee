@@ -106,11 +106,11 @@ impl<'de> Deserialize<'de> for Verbosity {
             )
         };
 
-        let level = <&str>::deserialize(deserializer).map_err(|_| custom_error())?;
+        let level = String::deserialize(deserializer).map_err(|_| custom_error())?;
         let level = if level.eq_ignore_ascii_case("warning") {
             "warn"
         } else {
-            level
+            &level
         };
         let level = log::Level::from_str(level).map_err(|_| custom_error())?;
 
