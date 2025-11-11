@@ -14,9 +14,9 @@ use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
 use crate::formatters::get_response_formatter;
+use crate::formatters::progress::ProgressBar;
 use crate::formatters::response::ResponseFormatter;
 use crate::formatters::suggestion::Suggestion;
-use crate::lychee_progress_bar::LycheeProgressBar;
 use crate::options::OutputMode;
 use crate::parse::parse_duration_secs;
 use crate::verbosity::Verbosity;
@@ -57,7 +57,7 @@ where
     let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {
         None
     } else {
-        Some(LycheeProgressBar::new("Extracting links"))
+        Some(ProgressBar::new("Extracting links"))
     };
 
     // Start receiving requests
@@ -135,7 +135,7 @@ async fn suggest_archived_links(
 ) {
     let failed_urls = &get_failed_urls(stats);
     let bar = if show_progress {
-        let bar = LycheeProgressBar::new("Searching for alternatives");
+        let bar = ProgressBar::new("Searching for alternatives");
         bar.set_length(failed_urls.len() as u64);
         Some(bar)
     } else {
@@ -176,23 +176,21 @@ async fn suggest_archived_links(
 async fn send_inputs_loop<S>(
     requests: S,
     send_req: mpsc::Sender<Result<Request>>,
-    bar: Option<LycheeProgressBar>,
+    bar: Option<ProgressBar>,
 ) -> Result<()>
 where
     S: futures::Stream<Item = Result<Request>>,
 {
     tokio::pin!(requests);
-    let mut request_count = 0;
     while let Some(request) = requests.next().await {
         let request = request?;
-        request_count += 1;
+        if let Some(pb) = &bar {
+            pb.inc_length(1);
+        }
         send_req
             .send(Ok(request))
             .await
             .expect("Cannot send request");
-    }
-    if let Some(pb) = &bar {
-        pb.set_length(request_count);
     }
     Ok(())
 }
@@ -201,10 +199,10 @@ where
 async fn progress_bar_task(
     mut recv_resp: mpsc::Receiver<Response>,
     verbose: Verbosity,
-    pb: Option<LycheeProgressBar>,
+    pb: Option<ProgressBar>,
     formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
-) -> Result<(Option<LycheeProgressBar>, ResponseStats)> {
+) -> Result<(Option<ProgressBar>, ResponseStats)> {
     while let Some(response) = recv_resp.recv().await {
         show_progress(
             &mut io::stderr(),
@@ -334,7 +332,7 @@ fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<u16>)
 
 fn show_progress(
     output: &mut dyn Write,
-    progress_bar: Option<&LycheeProgressBar>,
+    progress_bar: Option<&ProgressBar>,
     response: &Response,
     formatter: &dyn ResponseFormatter,
     verbose: &Verbosity,

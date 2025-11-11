@@ -1,6 +1,7 @@
 pub(crate) mod color;
 pub(crate) mod duration;
 pub(crate) mod log;
+pub(crate) mod progress;
 pub(crate) mod response;
 pub(crate) mod stats;
 pub(crate) mod suggestion;
