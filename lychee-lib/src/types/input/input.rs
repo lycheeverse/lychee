@@ -184,7 +184,6 @@ impl Input {
     /// # Errors
     ///
     /// Returns an error if [`InputResolver::resolve`] returns an error.
-    #[must_use]
     pub fn get_sources(
         self,
         file_extensions: FileExtensions,
