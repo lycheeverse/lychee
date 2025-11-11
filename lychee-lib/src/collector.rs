@@ -74,6 +74,7 @@ impl Collector {
     /// or if the reqwest `Client` fails to build
     pub fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> Result<Self> {
         let root_dir = match root_dir {
+            Some(root_dir) if base.is_some() => Some(root_dir),
             Some(root_dir) => Some(
                 root_dir
                     .canonicalize()
