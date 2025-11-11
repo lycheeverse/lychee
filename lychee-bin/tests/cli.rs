@@ -425,6 +425,21 @@ mod cli {
             .stdout(contains("7 Total"))
             .stdout(contains("5 OK"))
             .stdout(contains("2 Errors"));
+
+        // test with a relative root-dir argument too
+        main_command!()
+            .current_dir(dir.parent().unwrap())
+            .arg("--offline")
+            .arg("--include-fragments")
+            .arg("--root-dir")
+            .arg(dir.file_name().unwrap())
+            .arg(dir.join("nested").join("index.html"))
+            .env_clear()
+            .assert()
+            .failure()
+            .stdout(contains("7 Total"))
+            .stdout(contains("5 OK"))
+            .stdout(contains("2 Errors"));
     }
 
     #[test]
@@ -443,6 +458,18 @@ mod cli {
             .success()
             .stdout(contains("3 Total"))
             .stdout(contains("3 OK"));
+    }
+
+    #[test]
+    fn test_nonexistent_root_dir() {
+        main_command!()
+            .arg("--root-dir")
+            .arg("i don't exist blah blah")
+            .arg("http://example.com")
+            .assert()
+            .failure()
+            .stdout(contains("Invalid root directory"))
+            .code(1);
     }
 
     #[test]
