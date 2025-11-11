@@ -583,4 +583,40 @@ mod tests {
         let uris = extract_html(input, false);
         assert!(uris.is_empty());
     }
+
+    #[test]
+    fn test_extract_links_after_empty_verbatim_block() {
+        // Test that links are correctly extracted after empty <pre><code> blocks
+        let input = r#"
+        <body>
+            <div>
+                See <a href="https://example.com/1">First</a>
+            </div>
+            <pre>
+                <code></code>
+            </pre>
+            <div>
+                See <a href="https://example.com/2">Second</a>
+            </div>
+        </body>
+        "#;
+
+        let expected = vec![
+            RawUri {
+                text: "https://example.com/1".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+                span: span_line(4),
+            },
+            RawUri {
+                text: "https://example.com/2".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+                span: span_line(10),
+            },
+        ];
+
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
+    }
 }

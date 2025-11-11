@@ -278,14 +278,15 @@ impl<S: SpanProvider> Callback<(), usize> for &mut LinkExtractor<S> {
                     self.verbatim_stack.pop();
                 }
             }
-            CallbackEvent::EndTag { .. } => {
+            CallbackEvent::EndTag { name } => {
+                let tag_name = String::from_utf8_lossy(name);
                 // Update the current verbatim element name.
                 //
                 // Keeps track of the last verbatim element name, so that we can
                 // properly handle nested verbatim blocks.
-                if self.filter_verbatim_here()
+                if !self.include_verbatim
                     && let Some(last_verbatim) = self.verbatim_stack.last()
-                    && last_verbatim == &self.current_element
+                    && last_verbatim == tag_name.as_ref()
                 {
                     self.verbatim_stack.pop();
                 }
@@ -725,5 +726,41 @@ mod tests {
         ]);
         let actual = extract_html_fragments(input);
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extract_links_after_empty_verbatim_block() {
+        // Test that links are correctly extracted after empty <pre><code> blocks
+        let input = r#"
+        <body>
+            <div>
+                See <a href="https://example.com/1">First</a>
+            </div>
+            <pre>
+                <code></code>
+            </pre>
+            <div>
+                See <a href="https://example.com/2">Second</a>
+            </div>
+        </body>
+        "#;
+
+        let expected = vec![
+            RawUri {
+                text: "https://example.com/1".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+                span: span(4, 30),
+            },
+            RawUri {
+                text: "https://example.com/2".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+                span: span(10, 30),
+            },
+        ];
+
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
     }
 }
