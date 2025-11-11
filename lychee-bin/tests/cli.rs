@@ -468,7 +468,7 @@ mod cli {
             .arg("http://example.com")
             .assert()
             .failure()
-            .stdout(contains("Invalid root directory"))
+            .stderr(contains("Invalid root directory"))
             .code(1);
     }
 
