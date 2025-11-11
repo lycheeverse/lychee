@@ -122,7 +122,6 @@ impl InputResolver {
                 Box::pin(try_stream! {
                     // For glob patterns, we expand the pattern and yield
                     // matching paths as ResolvedInputSource::FsPath items.
-
                     for entry in glob_with(&glob_expanded, match_opts)? {
                         match entry {
                             Ok(path) => {
