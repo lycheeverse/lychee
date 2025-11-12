@@ -12,8 +12,6 @@ use crate::types::{FileType, file::FileExtensions, resolver::UrlContentResolver}
 use crate::{ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
-use glob::glob_with;
-use shellexpand::tilde;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
 
@@ -121,13 +119,13 @@ impl Input {
             }
 
             // Handle complex cases that need resolution (FsPath, FsGlob)
-            let mut sources_stream = Box::pin(InputResolver::resolve(
+            let mut sources_stream = InputResolver::resolve(
                 &self,
                 file_extensions,
                 skip_hidden,
                 skip_ignored,
                 &excluded_paths,
-            ));
+            );
 
             let mut sources_empty = true;
 
@@ -178,24 +176,14 @@ impl Input {
     /// input:
     ///
     /// - Remote URLs are returned as is, in their full form
-    /// - Filepath Glob Patterns are expanded and each matched entry is returned
-    /// - Absolute or relative filepaths are returned as is
-    /// - All other input types are not returned
+    /// - Glob patterns are expanded and each matched entry is returned
+    /// - Absolute or relative filepaths are returned as-is
+    /// - Stdin input is returned as the special string "<stdin>"
+    /// - A raw string input is returned as the special string "<raw string>"
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The glob pattern is invalid or expansion encounters I/O errors
-    /// - Directory traversal fails, including:
-    ///   - Permission denied when accessing directories or files
-    ///   - I/O errors while reading directory contents
-    ///   - Filesystem errors (disk errors, network filesystem issues, etc.)
-    ///   - Invalid file paths or symbolic link resolution failures
-    /// - Errors when reading or evaluating `.gitignore` or `.ignore` files
-    /// - Errors occur during file extension or path exclusion evaluation
-    ///
-    /// Note: Individual glob match failures are logged to stderr but don't terminate the stream.
-    /// However, directory traversal errors will stop processing and return the error immediately.
+    /// Returns an error if [`InputResolver::resolve`] returns an error.
     pub fn get_sources(
         self,
         file_extensions: FileExtensions,
@@ -203,56 +191,21 @@ impl Input {
         skip_ignored: bool,
         excluded_paths: &PathExcludes,
     ) -> impl Stream<Item = Result<String>> {
-        try_stream! {
-            match self.source {
-                InputSource::RemoteUrl(url) => yield url.to_string(),
-                InputSource::FsGlob {
-                    ref pattern,
-                    ignore_case,
-                } => {
-                    let glob_expanded = tilde(pattern.as_str()).to_string();
-                    let mut match_opts = glob::MatchOptions::new();
-                    match_opts.case_sensitive = !ignore_case;
-                    for entry in glob_with(&glob_expanded, match_opts)? {
-                        match entry {
-                            Ok(path) => {
-                                if !Self::is_excluded_path(&path, excluded_paths) {
-                                    yield path.to_string_lossy().to_string();
-                                }
-                            },
-                            Err(e) => eprintln!("{e:?}"),
-                        }
-                    }
-                }
-                InputSource::FsPath(ref path) => {
-                    if path.is_dir() {
-                        for entry in InputResolver::walk(
-                            path,
-                            file_extensions,
-                            skip_hidden,
-                            skip_ignored,
-                        )? {
-                            let entry = entry?;
-                            if !Self::is_excluded_path(entry.path(), excluded_paths) {
-                                // Only yield files, not directories
-                                if entry.file_type().is_some_and(|ft| ft.is_file()) {
-                                    yield entry.path().to_string_lossy().to_string();
-                                }
-                            }
-                        }
-                    } else if !Self::is_excluded_path(path, excluded_paths) {
-                        yield path.to_string_lossy().to_string();
-                    }
-                }
-                InputSource::Stdin => yield "<stdin>".into(),
-                InputSource::String(_) => yield "<raw string>".into(),
-            }
-        }
-    }
-
-    /// Check if the given path was excluded from link checking
-    fn is_excluded_path(path: &Path, excluded_paths: &PathExcludes) -> bool {
-        excluded_paths.is_match(&path.to_string_lossy())
+        InputResolver::resolve(
+            &self,
+            file_extensions,
+            skip_hidden,
+            skip_ignored,
+            excluded_paths,
+        )
+        .map(|res| {
+            res.map(|src| match src {
+                ResolvedInputSource::FsPath(path) => path.to_string_lossy().to_string(),
+                ResolvedInputSource::RemoteUrl(url) => url.to_string(),
+                ResolvedInputSource::Stdin => "<stdin>".to_string(),
+                ResolvedInputSource::String(_) => "<raw string>".to_string(),
+            })
+        })
     }
 
     /// Get the content for a given path.
