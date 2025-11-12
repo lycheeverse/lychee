@@ -4,11 +4,7 @@ mod readme {
     use pretty_assertions::assert_eq;
     use regex::Regex;
     use test_utils::load_readme_text;
-
-    fn main_command() -> Command {
-        // this gets the "main" binary name (e.g. `lychee`)
-        Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name")
-    }
+    use test_utils::main_command;
 
     /// Remove line `[default: lychee/x.y.z]` from the string
     fn remove_lychee_version_line(string: &str) -> String {
@@ -35,7 +31,7 @@ mod readme {
     #[cfg(unix)]
     fn test_readme_usage_up_to_date() -> Result<(), Box<dyn std::error::Error>> {
         const BEGIN: &str = "```help-message\n";
-        let mut cmd = main_command();
+        let mut cmd = main_command!();
 
         let help_cmd = cmd.env_clear().arg("--help").assert().success();
         let usage_in_help = std::str::from_utf8(&help_cmd.get_output().stdout)?;
@@ -59,12 +55,11 @@ mod readme {
     #[test]
     #[cfg(unix)]
     fn test_arguments_ordered_alphabetically() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = main_command();
+        let mut cmd = main_command!();
         let help_cmd = cmd.env_clear().arg("--help").assert().success();
         let help_text = std::str::from_utf8(&help_cmd.get_output().stdout)?;
 
-        let regex = Regex::new(r"^\s{2,6}(?:-(?<short>[a-zA-Z]),)?\s--(?<long>[a-zA-Z-]+)")?;
-
+        let regex = test_utils::arg_regex_help!()?;
         let arguments: Vec<&str> = help_text
             .lines()
             .filter_map(|line| {

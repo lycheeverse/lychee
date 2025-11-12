@@ -56,7 +56,7 @@ mod emoji_tests {
     fn test_format_response_with_error_status() {
         let formatter = EmojiFormatter;
         let body = mock_response_body!(
-            Status::Error(ErrorKind::TestError),
+            Status::Error(ErrorKind::EmptyUrl),
             "https://example.com/404",
         );
         assert_eq!(
@@ -105,7 +105,7 @@ mod emoji_tests {
     fn test_detailed_response_output() {
         let formatter = EmojiFormatter;
         let body = mock_response_body!(
-            Status::Error(ErrorKind::TestError),
+            Status::Error(ErrorKind::EmptyUrl),
             "https://example.com/404",
         );
 
@@ -113,7 +113,7 @@ mod emoji_tests {
         assert!(
             formatter
                 .format_detailed_response(&body)
-                .contains("Test error for formatter testing")
+                .contains("Empty URL found")
         );
     }
 }

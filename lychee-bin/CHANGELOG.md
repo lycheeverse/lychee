@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.20.1...lychee-v0.21.0) - 2025-10-23
+
+### Added
+
+- print warning if input source matches no files ([#1865](https://github.com/lycheeverse/lychee/pull/1865))
+- *(base-url)* [**breaking**] disallow relative local base to avoid confusion ([#1857](https://github.com/lycheeverse/lychee/pull/1857))
+- improve InvalidIndexFile error to mention index file names ([#1859](https://github.com/lycheeverse/lychee/pull/1859))
+
+### Fixed
+
+- move log level padding outside brackets ([#1871](https://github.com/lycheeverse/lychee/pull/1871))
+- do not reuse excluded status from cache ([#1850](https://github.com/lycheeverse/lychee/pull/1850))
+- fields missing from config.toml parsing logic ([#1843](https://github.com/lycheeverse/lychee/pull/1843))
+
+### Other
+
+- Bump the dependencies group across 1 directory with 15 updates ([#1874](https://github.com/lycheeverse/lychee/pull/1874))
+- Inline formatting arguments for anyhow macros as per new lint
+- Man pages ([#1858](https://github.com/lycheeverse/lychee/pull/1858))
+- Add --default-extension argument to force file format ([#1842](https://github.com/lycheeverse/lychee/pull/1842))
+- Hard wrap help text for options ([#1854](https://github.com/lycheeverse/lychee/pull/1854))
+- Bump the dependencies group with 6 updates ([#1855](https://github.com/lycheeverse/lychee/pull/1855))
+- Add exhaustivity check for `fold_in!` macro ([#1848](https://github.com/lycheeverse/lychee/pull/1848))
+- Additional redirect reporting ([#1853](https://github.com/lycheeverse/lychee/pull/1853))
+- Redirect reporting ([#1725](https://github.com/lycheeverse/lychee/pull/1725))
+- Add WinGet installation instructions ([#1849](https://github.com/lycheeverse/lychee/pull/1849))
+- [**breaking**] Use `ResolvedInputSource` downstream of `InputContent` ([#1840](https://github.com/lycheeverse/lychee/pull/1840))
+- Bump the dependencies group with 5 updates ([#1845](https://github.com/lycheeverse/lychee/pull/1845))
+- Implement `--files-from` Option ([#1836](https://github.com/lycheeverse/lychee/pull/1836))
+- Apply fallback extensions if directory links resolve to a dir ([#1826](https://github.com/lycheeverse/lychee/pull/1826))
+- Clarify `--base-url` and `--root-dir` and their interactions ([#1787](https://github.com/lycheeverse/lychee/pull/1787))
+- Add test for making sure URL inputs always get checked ([#1824](https://github.com/lycheeverse/lychee/pull/1824))
+- Add conda install to readme ([#1822](https://github.com/lycheeverse/lychee/pull/1822))
+- Bump the dependencies group with 3 updates ([#1821](https://github.com/lycheeverse/lychee/pull/1821))
+- Refactor error reporting ([#1731](https://github.com/lycheeverse/lychee/pull/1731))
+
 ## [0.20.1](https://github.com/lycheeverse/lychee/compare/lychee-v0.20.0...lychee-v0.20.1) - 2025-08-25
 
 ### Other

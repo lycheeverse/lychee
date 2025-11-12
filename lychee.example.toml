@@ -4,11 +4,23 @@
 # Accepts log level: "error", "warn", "info", "debug", "trace"
 verbose = "info"
 
+# Output format
+format = "detailed"
+
+# Output display mode
+mode = "emoji"
+
 # Don't show interactive progress bar while checking links.
 no_progress = false
 
 # Path to summary output file.
 output = ".config.dummy.report.md"
+
+# Extract links instead of checking them
+dump = true
+
+# Dump inputs instead of doing link extraction / checking
+dump_inputs = true
 
 #############################  Cache  ###############################
 
@@ -19,7 +31,13 @@ cache = true
 # Discard all cached requests older than this duration.
 max_cache_age = "2d"
 
+# A list of status codes that will be ignored from the cache
+cache_exclude_status = "500.."
+
 #############################  Runtime  #############################
+
+# File to read and write cookies
+cookie_jar = "cookie-jar"
 
 # Number of threads to utilize.
 # Defaults to number of cores available to the system if omitted.
@@ -33,6 +51,18 @@ max_retries = 2
 
 # Maximum number of concurrent link checks.
 max_concurrency = 14
+
+# extension applied to files without extension
+default_extension = "md"
+
+# GitHub API token
+github_token = "secret"
+
+# Resolve directories to index files
+index_files = ["index.html"]
+
+# Preprocess input files
+preprocess = { command = "preprocess.sh" }
 
 #############################  Requests  ############################
 
@@ -92,10 +122,19 @@ basic_auth = ["example.com user:pwd"]
 # Enable the checking of fragments in links.
 include_fragments = true
 
+# Minimum accepted TLS Version
+min_tls = "TLSv1_3"
+
 #############################  Exclusions  ##########################
 
 # Skip missing input files (default is to error if they don't exist).
 skip_missing = false
+
+# Do not skip hidden directories and files
+hidden = true
+
+# Do not skip files that are ignored
+no_ignore = true
 
 # Check links inside `<code>` and `<pre>` blocks as well as Markdown code
 # blocks.
@@ -119,6 +158,9 @@ exclude_path = [
     "[aeiouAEIOU]", # exclude paths containing vowels
 ]
 
+# Check the specified file extensions
+extensions = ["md","txt","html"]
+
 # URLs to check (supports regex). Has preference over all excludes.
 include = ['gist\.github\.com.*']
 
@@ -138,3 +180,23 @@ exclude_loopback = false
 
 # Check mail addresses
 include_mail = true
+
+# Check WikiLinks in Markdown files
+include_wikilinks = true
+
+# Only check local files
+offline = true
+
+#############################  Other  #############################
+
+# Read input filenames from the given file or stdin ('-')
+files_from = "files.txt"
+
+# Generate special output instead of performing link checking
+generate = "man"
+
+# Use the Wayback Machine as web archive
+archive = "wayback"
+
+# Search and suggest link replacements for all broken links
+suggest = true

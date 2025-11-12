@@ -1,6 +1,7 @@
 use log::Level;
 use log::LevelFilter;
 use serde::Deserialize;
+use std::str::FromStr;
 
 /// Control the verbosity of the CLI output
 ///
@@ -98,19 +99,21 @@ impl<'de> Deserialize<'de> for Verbosity {
     where
         D: serde::Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
-        let level = match s.to_lowercase().as_str() {
-            "error" => Level::Error,
-            "warn" | "warning" => Level::Warn,
-            "info" => Level::Info,
-            "debug" => Level::Debug,
-            "trace" => Level::Trace,
-            level => {
-                return Err(serde::de::Error::custom(format!(
-                    "invalid log level `{level}`"
-                )));
-            }
+        let custom_error = || {
+            use serde::de::Error;
+            D::Error::custom(
+                r#"invalid verbosity value, expected one of "error", "warn", "info", "debug", or "trace""#,
+            )
         };
+
+        let level = String::deserialize(deserializer).map_err(|_| custom_error())?;
+        let level = if level.eq_ignore_ascii_case("warning") {
+            "warn"
+        } else {
+            &level
+        };
+        let level = log::Level::from_str(level).map_err(|_| custom_error())?;
+
         Ok(Verbosity {
             verbose: level_value(level) as u8,
             quiet: 0,

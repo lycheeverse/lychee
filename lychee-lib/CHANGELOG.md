@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.20.1...lychee-lib-v0.21.0) - 2025-10-23
+
+### Added
+
+- print warning if input source matches no files ([#1865](https://github.com/lycheeverse/lychee/pull/1865))
+- *(base-url)* [**breaking**] disallow relative local base to avoid confusion ([#1857](https://github.com/lycheeverse/lychee/pull/1857))
+- improve InvalidIndexFile error to mention index file names ([#1859](https://github.com/lycheeverse/lychee/pull/1859))
+
+### Fixed
+
+- do not reuse excluded status from cache ([#1850](https://github.com/lycheeverse/lychee/pull/1850))
+- fields missing from config.toml parsing logic ([#1843](https://github.com/lycheeverse/lychee/pull/1843))
+- add support for name attributes in HTML fragment extraction ([#1839](https://github.com/lycheeverse/lychee/pull/1839))
+
+### Other
+
+- Update flag description
+- Bump the dependencies group across 1 directory with 15 updates ([#1874](https://github.com/lycheeverse/lychee/pull/1874))
+- Man pages ([#1858](https://github.com/lycheeverse/lychee/pull/1858))
+- Extract spans ([#1870](https://github.com/lycheeverse/lychee/pull/1870))
+- Remove truncate_source logic ([#1847](https://github.com/lycheeverse/lychee/pull/1847))
+- Add --default-extension argument to force file format ([#1842](https://github.com/lycheeverse/lychee/pull/1842))
+- Hard wrap help text for options ([#1854](https://github.com/lycheeverse/lychee/pull/1854))
+- Bump the dependencies group with 6 updates ([#1855](https://github.com/lycheeverse/lychee/pull/1855))
+- Additional redirect reporting ([#1853](https://github.com/lycheeverse/lychee/pull/1853))
+- Fix extraction of reference links in Markdown ([#1841](https://github.com/lycheeverse/lychee/pull/1841))
+- Redirect reporting ([#1725](https://github.com/lycheeverse/lychee/pull/1725))
+- Add WinGet installation instructions ([#1849](https://github.com/lycheeverse/lychee/pull/1849))
+- [**breaking**] Use `ResolvedInputSource` downstream of `InputContent` ([#1840](https://github.com/lycheeverse/lychee/pull/1840))
+- Bump the dependencies group with 5 updates ([#1845](https://github.com/lycheeverse/lychee/pull/1845))
+- Implement `--files-from` Option ([#1836](https://github.com/lycheeverse/lychee/pull/1836))
+- Optimize InputSource handling with Cow and add benchmarks ([#1832](https://github.com/lycheeverse/lychee/pull/1832))
+- Ignore Links in Markdown Link Text ([#1831](https://github.com/lycheeverse/lychee/pull/1831))
+- Separate resolving and checking for easier testing ([#1830](https://github.com/lycheeverse/lychee/pull/1830))
+- Refactor Input Handling ([#1827](https://github.com/lycheeverse/lychee/pull/1827))
+- Fix links in doc comments ([#1828](https://github.com/lycheeverse/lychee/pull/1828))
+- Apply fallback extensions if directory links resolve to a dir ([#1826](https://github.com/lycheeverse/lychee/pull/1826))
+- Clarify `--base-url` and `--root-dir` and their interactions ([#1787](https://github.com/lycheeverse/lychee/pull/1787))
+- Refactor collector and input ([#1823](https://github.com/lycheeverse/lychee/pull/1823))
+- Add conda install to readme ([#1822](https://github.com/lycheeverse/lychee/pull/1822))
+- Bump the dependencies group with 3 updates ([#1821](https://github.com/lycheeverse/lychee/pull/1821))
+- Refactor error reporting ([#1731](https://github.com/lycheeverse/lychee/pull/1731))
+
 ## [0.20.1](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.20.0...lychee-lib-v0.20.1) - 2025-08-25
 
 ### Other

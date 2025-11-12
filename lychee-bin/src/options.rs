@@ -10,6 +10,7 @@ use http::{
     HeaderMap,
     header::{HeaderName, HeaderValue},
 };
+use lychee_lib::Preprocessor;
 use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
@@ -334,27 +335,6 @@ NOTE: Use `--` to separate inputs from options that allow multiple arguments."
     )]
     raw_inputs: Vec<String>,
 
-    /// Read input filenames from the given file or stdin (if path is '-').
-    #[arg(
-        long = "files-from",
-        value_name = "PATH",
-        long_help = "Read input filenames from the given file or stdin (if path is '-').
-
-This is useful when you have a large number of inputs that would be
-cumbersome to specify on the command line directly.
-
-Examples:
-  lychee --files-from list.txt
-  find . -name '*.md' | lychee --files-from -
-  echo 'README.md' | lychee --files-from -
-
-File Format:
-  Each line should contain one input (file path, URL, or glob pattern).
-  Lines starting with '#' are treated as comments and ignored.
-  Empty lines are also ignored."
-    )]
-    files_from: Option<PathBuf>,
-
     /// Configuration file to use
     #[arg(short, long = "config")]
     #[arg(help = HELP_MSG_CONFIG_FILE)]
@@ -373,7 +353,7 @@ impl LycheeOptions {
         let mut all_inputs = self.raw_inputs.clone();
 
         // If --files-from is specified, read inputs from the file
-        if let Some(files_from_path) = &self.files_from {
+        if let Some(files_from_path) = &self.config.files_from {
             let files_from = FilesFrom::try_from(files_from_path.as_path())
                 .context("Cannot read inputs from --files-from")?;
             all_inputs.extend(files_from.inputs);
@@ -406,7 +386,29 @@ where
 /// The main configuration for lychee
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Parser, Debug, Deserialize, Clone, Default)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Config {
+    /// Read input filenames from the given file or stdin (if path is '-').
+    #[arg(
+        long = "files-from",
+        value_name = "PATH",
+        long_help = "Read input filenames from the given file or stdin (if path is '-').
+
+This is useful when you have a large number of inputs that would be
+cumbersome to specify on the command line directly.
+
+Examples:
+  lychee --files-from list.txt
+  find . -name '*.md' | lychee --files-from -
+  echo 'README.md' | lychee --files-from -
+
+File Format:
+  Each line should contain one input (file path, URL, or glob pattern).
+  Lines starting with '#' are treated as comments and ignored.
+  Empty lines are also ignored."
+    )]
+    files_from: Option<PathBuf>,
+
     /// Verbose program output
     #[clap(flatten)]
     #[serde(default = "verbosity")]
@@ -437,7 +439,7 @@ specify both extensions explicitly."
     #[serde(default = "FileExtensions::default")]
     pub(crate) extensions: FileExtensions,
 
-    /// Default file extension to treat files without extensions as having.
+    /// This is the default file extension that is applied to files without an extension.
     ///
     /// This is useful for files without extensions or with unknown extensions.
     /// The extension will be used to determine the file type for processing.
@@ -853,6 +855,37 @@ and existing cookies will be updated."
     #[arg(long)]
     #[serde(default)]
     pub(crate) include_wikilinks: bool,
+
+    /// Preprocess input files.
+    #[arg(
+        short,
+        long,
+        value_name = "COMMAND",
+        long_help = r#"Preprocess input files.
+For each file input, this flag causes lychee to execute `COMMAND PATH` and process
+its standard output instead of the original contents of PATH. This allows you to
+convert files that would otherwise not be understood by lychee. The preprocessor
+COMMAND is only run on input files, not on standard input or URLs.
+
+To invoke programs with custom arguments or to use multiple preprocessors, use a
+wrapper program such as a shell script. An example script looks like this:
+
+#!/usr/bin/env bash
+case "$1" in
+*.pdf)
+    exec pdftohtml -i -s -stdout "$1"
+    ;;
+*.odt|*.docx|*.epub|*.ipynb)
+    exec pandoc "$1" --to=html --wrap=none
+    ;;
+*)
+    # identity function, output input without changes
+    exec cat
+    ;;
+esac"#
+    )]
+    #[serde(default)]
+    pub(crate) preprocess: Option<Preprocessor>,
 }
 
 impl Config {
@@ -921,6 +954,7 @@ impl Config {
                 exclude_private: false,
                 extensions: FileType::default_extensions(),
                 fallback_extensions: Vec::<String>::new(),
+                files_from: None,
                 format: StatsFormat::default(),
                 generate: None,
                 glob_ignore_case: false,
@@ -943,6 +977,7 @@ impl Config {
                 no_progress: false,
                 offline: false,
                 output: None,
+                preprocess: None,
                 remap: Vec::<String>::new(),
                 require_https: false,
                 retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS,

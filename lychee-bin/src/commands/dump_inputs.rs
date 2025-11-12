@@ -18,7 +18,7 @@ pub(crate) async fn dump_inputs(
     excluded_paths: &[String],
     file_extensions: &FileExtensions,
     skip_hidden: bool,
-    skip_gitignored: bool,
+    skip_ignored: bool,
 ) -> Result<ExitCode> {
     if let Some(out_file) = output {
         fs::File::create(out_file)?;
@@ -36,7 +36,7 @@ pub(crate) async fn dump_inputs(
         let sources_stream = input.get_sources(
             file_extensions.clone(),
             skip_hidden,
-            skip_gitignored,
+            skip_ignored,
             &excluded_path_filter,
         );
         tokio::pin!(sources_stream);

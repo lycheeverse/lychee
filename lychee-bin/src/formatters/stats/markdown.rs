@@ -108,9 +108,7 @@ impl Display for MarkdownResponseStats {
         })?;
 
         write_stats_per_input(f, "Redirects", &stats.redirect_map, |response| {
-            markdown_response(response)
-                .map(|s| s.to_string())
-                .map_err(|_| fmt::Error)
+            markdown_response(response).map_err(|_| fmt::Error)
         })?;
 
         write_stats_per_input(f, "Suggestions", &stats.suggestion_map, |suggestion| {

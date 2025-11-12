@@ -138,18 +138,18 @@ impl LinkExtractor {
         // Check for rel=nofollow. We only extract the first `rel` attribute.
         // This is correct as per https://html.spec.whatwg.org/multipage/syntax.html#attributes-0, which states
         // "There must never be two or more attributes on the same start tag whose names are an ASCII case-insensitive match for each other."
-        if let Some(rel) = attrs.iter().find(|attr| &attr.name.local == "rel") {
-            if rel.value.contains("nofollow") {
-                return TokenSinkResult::Continue;
-            }
+        if let Some(rel) = attrs.iter().find(|attr| &attr.name.local == "rel")
+            && rel.value.contains("nofollow")
+        {
+            return TokenSinkResult::Continue;
         }
 
         // Check and exclude `rel=preconnect` and `rel=dns-prefetch`. Unlike `prefetch` and `preload`,
         // `preconnect` and `dns-prefetch` only perform DNS lookups and do not necessarily link to a resource
-        if let Some(rel) = attrs.iter().find(|attr| &attr.name.local == "rel") {
-            if rel.value.contains("preconnect") || rel.value.contains("dns-prefetch") {
-                return TokenSinkResult::Continue;
-            }
+        if let Some(rel) = attrs.iter().find(|attr| &attr.name.local == "rel")
+            && (rel.value.contains("preconnect") || rel.value.contains("dns-prefetch"))
+        {
+            return TokenSinkResult::Continue;
         }
 
         // Check and exclude `prefix` attribute. This attribute is used to define a prefix
@@ -582,5 +582,41 @@ mod tests {
 
         let uris = extract_html(input, false);
         assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_extract_links_after_empty_verbatim_block() {
+        // Test that links are correctly extracted after empty <pre><code> blocks
+        let input = r#"
+        <body>
+            <div>
+                See <a href="https://example.com/1">First</a>
+            </div>
+            <pre>
+                <code></code>
+            </pre>
+            <div>
+                See <a href="https://example.com/2">Second</a>
+            </div>
+        </body>
+        "#;
+
+        let expected = vec![
+            RawUri {
+                text: "https://example.com/1".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+                span: span_line(4),
+            },
+            RawUri {
+                text: "https://example.com/2".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+                span: span_line(10),
+            },
+        ];
+
+        let uris = extract_html(input, false);
+        assert_eq!(uris, expected);
     }
 }

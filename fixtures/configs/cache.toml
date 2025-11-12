@@ -1,2 +1,2 @@
 cache = true
-max_age = "1d"
+max_cache_age = "1d"

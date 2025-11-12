@@ -87,10 +87,10 @@ impl StatusCodeSelector {
     /// This method merges the new and existing ranges if they overlap.
     pub fn add_range(&mut self, range: AcceptRange) -> &mut Self {
         // Merge with previous range if possible
-        if let Some(last) = self.ranges.last_mut() {
-            if last.merge(&range) {
-                return self;
-            }
+        if let Some(last) = self.ranges.last_mut()
+            && last.merge(&range)
+        {
+            return self;
         }
 
         // If neither is the case, the ranges have no overlap at all. Just add
@@ -106,7 +106,7 @@ impl StatusCodeSelector {
     }
 
     #[cfg(test)]
-    pub(crate) fn len(&self) -> usize {
+    pub(crate) const fn len(&self) -> usize {
         self.ranges.len()
     }
 }
