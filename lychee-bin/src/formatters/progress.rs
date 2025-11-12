@@ -1,19 +1,17 @@
 use indicatif::{ProgressBar as Bar, ProgressStyle};
 use lychee_lib::{Response, Result};
-use std::{io::Write, sync::LazyLock, time::Duration};
+use std::{io::Write, sync::LazyLock};
 
 use crate::formatters::response::ResponseFormatter;
 
 #[derive(Clone)]
 struct ProgressConfig {
     template: &'static str,
-    tick_interval: Duration,
     progress_chars: &'static str,
 }
 
 const CONFIG: ProgressConfig = ProgressConfig {
-    template: "{spinner:.162} {pos}/{len:.238} {bar:.162/238} {wide_msg}",
-    tick_interval: Duration::from_millis(500),
+    template: "{pos}/{len:.238} {bar:.162/238} {wide_msg}",
     progress_chars: "━ ━",
 };
 
@@ -39,7 +37,6 @@ impl Progress {
             let bar = Bar::new_spinner().with_style(STYLE.clone());
             bar.set_length(0);
             bar.set_message(initial_message);
-            bar.enable_steady_tick(CONFIG.tick_interval);
             Some(bar)
         };
 
