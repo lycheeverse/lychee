@@ -88,11 +88,11 @@ where
     ));
 
     // Wait until all messages are sent
-    send_inputs_loop(params.requests, send_req, progress).await?;
+    send_inputs_loop(params.requests, send_req, &progress).await?;
 
     // Wait until all responses are received
     let result = show_results_task.await?;
-    let (progress, mut stats) = result?;
+    let mut stats = result?;
     stats.duration_secs = start.elapsed().as_secs();
 
     // Note that print statements may interfere with the progress bar, so this
@@ -159,7 +159,7 @@ async fn suggest_archived_links(
 async fn send_inputs_loop<S>(
     requests: S,
     send_req: mpsc::Sender<Result<Request>>,
-    bar: Progress,
+    progress: &Progress,
 ) -> Result<()>
 where
     S: futures::Stream<Item = Result<Request>>,
@@ -167,7 +167,7 @@ where
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
         let request = request?;
-        bar.inc_length(1);
+        progress.inc_length(1);
         send_req
             .send(Ok(request))
             .await
@@ -182,12 +182,12 @@ async fn collect_responses(
     progress: Progress,
     formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
-) -> Result<(Progress, ResponseStats)> {
+) -> Result<ResponseStats> {
     while let Some(response) = recv_resp.recv().await {
         progress.show(&mut io::stderr(), &response, formatter.as_ref())?;
         stats.add(response);
     }
-    Ok((progress, stats))
+    Ok(stats)
 }
 
 async fn request_channel_task(

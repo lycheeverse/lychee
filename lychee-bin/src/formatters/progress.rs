@@ -32,22 +32,18 @@ pub(crate) struct Progress {
 
 impl Progress {
     pub(crate) fn new(initial_message: &'static str, hidden: bool, detailed: bool) -> Self {
-        if hidden || detailed {
-            return Self {
-                bar: None,
-                detailed,
-            };
-        }
+        // Showing the progress bar and detailed logging is too much information
+        let bar = if hidden || detailed {
+            None
+        } else {
+            let bar = Bar::new_spinner().with_style(STYLE.clone());
+            bar.set_length(0);
+            bar.set_message(initial_message);
+            bar.enable_steady_tick(CONFIG.tick_interval);
+            Some(bar)
+        };
 
-        let bar = Bar::new_spinner().with_style(STYLE.clone());
-        bar.set_length(0);
-        bar.set_message(initial_message);
-        bar.enable_steady_tick(CONFIG.tick_interval);
-
-        Progress {
-            bar: Some(bar),
-            detailed,
-        }
+        Progress { bar, detailed }
     }
 
     pub(crate) fn show(
@@ -62,7 +58,7 @@ impl Progress {
             formatter.format_response(response.body())
         };
 
-        if self.detailed || (!response.status().is_success() && !response.status().is_excluded()) {
+        if self.detailed {
             writeln!(output, "{}", &out)?;
         }
 
