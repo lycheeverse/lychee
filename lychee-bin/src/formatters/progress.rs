@@ -1,25 +1,27 @@
 use indicatif::{ProgressBar as Bar, ProgressStyle};
 use lychee_lib::{Response, Result};
-use std::{io::Write, time::Duration};
+use std::{io::Write, sync::LazyLock, time::Duration};
 
 use crate::formatters::response::ResponseFormatter;
 
 #[derive(Clone)]
 struct ProgressConfig {
-    pub template: &'static str,
-    pub tick_interval: Duration,
-    pub progress_chars: &'static str,
+    template: &'static str,
+    tick_interval: Duration,
+    progress_chars: &'static str,
 }
 
-impl Default for ProgressConfig {
-    fn default() -> Self {
-        Self {
-            template: "{spinner:.162} {pos}/{len:.238} {bar:.162/238} {wide_msg}",
-            tick_interval: Duration::from_millis(500),
-            progress_chars: "━ ━",
-        }
-    }
-}
+const CONFIG: ProgressConfig = ProgressConfig {
+    template: "{spinner:.162} {pos}/{len:.238} {bar:.162/238} {wide_msg}",
+    tick_interval: Duration::from_millis(500),
+    progress_chars: "━ ━",
+};
+
+static STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
+    ProgressStyle::with_template(CONFIG.template)
+        .expect("Valid progress bar")
+        .progress_chars(CONFIG.progress_chars)
+});
 
 #[derive(Clone)]
 /// Report progress to the CLI.
@@ -37,16 +39,10 @@ impl Progress {
             };
         }
 
-        let config = ProgressConfig::default();
-        let style = ProgressStyle::with_template(config.template)
-            .expect("Valid progress bar")
-            .progress_chars(config.progress_chars);
-
-        let bar = Bar::new_spinner().with_style(style);
-
+        let bar = Bar::new_spinner().with_style(STYLE.clone());
         bar.set_length(0);
         bar.set_message(initial_message);
-        bar.enable_steady_tick(config.tick_interval);
+        bar.enable_steady_tick(CONFIG.tick_interval);
 
         Progress {
             bar: Some(bar),
