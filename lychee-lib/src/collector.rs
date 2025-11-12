@@ -5,10 +5,8 @@ use crate::filter::PathExcludes;
 
 use crate::types::resolver::UrlContentResolver;
 use crate::{
-    Base, Base, Input, Input, InputResolver, Request, Request, RequestError, Result, Result,
-    basic_auth::BasicAuthExtractor, basic_auth::BasicAuthExtractor, extract::Extractor,
-    extract::Extractor, types::FileExtensions, types::FileExtensions, types::uri::raw::RawUri,
-    types::uri::raw::RawUri, utils::request, utils::request,
+    Base, Input, Request, RequestError, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
+    types::FileExtensions, types::uri::raw::RawUri, utils::request,
 };
 use futures::TryStreamExt;
 use futures::{
