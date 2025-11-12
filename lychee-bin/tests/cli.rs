@@ -3019,8 +3019,7 @@ The config file should contain every possible key for documentation purposes."
             .arg("invalid-glob[")
             .assert()
             .failure()
-            .code(2);
-        // TODO: change above exit code to 1 after https://github.com/lycheeverse/lychee/pull/1869
+            .code(1);
 
         Ok(())
     }
