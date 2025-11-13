@@ -124,8 +124,8 @@ impl Input {
                             .map(|_| ())
                             .map_err(|e| ErrorKind::DirTraversal(ignore::Error::Io(e)))
                     } else {
-                        // this checks existence without requiring an open. opening here,
-                        // then re-opening later, might cause problems with pipes. this
+                        // This checks existence without requiring an open. Opening here,
+                        // then re-opening later, might cause problems with pipes. This
                         // does not validate permissions.
                         path.metadata()
                             .map(|_| ())
