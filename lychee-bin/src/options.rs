@@ -861,7 +861,6 @@ and existing cookies will be updated."
         short,
         long,
         value_name = "COMMAND",
-        value_parser = Preprocessor::new,
         long_help = r#"Preprocess input files.
 For each file input, this flag causes lychee to execute `COMMAND PATH` and process
 its standard output instead of the original contents of PATH. This allows you to

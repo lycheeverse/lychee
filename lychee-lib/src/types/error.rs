@@ -174,7 +174,7 @@ pub enum ErrorKind {
     #[error("Preprocessor command '{command}' failed: {reason}")]
     PreprocessorError {
         /// The command which did not execute successfully
-        command: PathBuf,
+        command: String,
         /// The reason the command failed
         reason: String,
     },
@@ -336,7 +336,7 @@ impl ErrorKind {
                 [name] => format!("An index file ({name}) is required"),
                 [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
             }.into(),
-            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{}' failed {}. Check value of the pre option", command.to_string_lossy(), reason))
+            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the pre option"))
         }
     }
 
