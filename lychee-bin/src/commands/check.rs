@@ -190,7 +190,7 @@ where
             match &request {
                 Ok(x) => pb.set_message(x.to_string()),
                 Err(e) => pb.set_message(e.to_string()),
-            };
+            }
         }
         send_req.send(request).await.expect("Cannot send request");
     }
