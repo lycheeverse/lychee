@@ -1,4 +1,4 @@
-use std::{path::PathBuf, process::Command};
+use std::{path::Path, path::PathBuf, process::Command};
 
 use serde::Deserialize;
 
@@ -14,19 +14,28 @@ use super::{ErrorKind, Result};
 /// create a shell script to specify it as preprocessor command.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct Preprocessor {
-    command: String,
+    command: PathBuf,
 }
 
-impl From<String> for Preprocessor {
-    fn from(command: String) -> Self {
-        Self { command }
+impl Preprocessor {
+    /// Constructs a new [`Preprocessor`] from the given command, while
+    /// validating that the command exists.
+    pub fn new(command: &str) -> Result<Preprocessor> {
+        let command = PathBuf::from(command);
+        match command.metadata() {
+            Err(e) => Err(ErrorKind::PreprocessorError {
+                command,
+                reason: format!("command not found: {e}"),
+            }),
+            Ok(_) => Ok(Self { command }),
+        }
     }
 }
 
 impl Preprocessor {
     /// Try to invoke the preprocessor command with `path` as single argument
     /// and return the resulting stdout.
-    pub(crate) fn process(&self, path: &PathBuf) -> Result<String> {
+    pub(crate) fn process(&self, path: &Path) -> Result<String> {
         let output = Command::new(&self.command)
             .arg(path)
             .output()
