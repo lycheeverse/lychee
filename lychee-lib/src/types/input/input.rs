@@ -107,8 +107,8 @@ impl Input {
             // Handle simple cases that don't need resolution. Also, perform
             // simple *stateful* checks for more complex input sources.
             //
-            // However, stateless well-formedness checks (e.g., checking glob
-            // syntax) should be done in Input::new.
+            // Stateless well-formedness checks (e.g., checking glob syntax)
+            // are done in InputSource::new.
             match self.source {
                 InputSource::RemoteUrl(url) => {
                     match resolver.url_contents(*url).await {

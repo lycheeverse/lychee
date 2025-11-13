@@ -17,7 +17,7 @@ pub enum RequestError {
     #[error("Error reading input '{0}': {1}")]
     GetInputContent(InputSource, #[source] Box<ErrorKind>),
 
-    /// Unable to load an input source directly provided by the user.
+    /// Unable to load an input source directly specified by the user.
     #[error("Error reading user input '{0}': {1}")]
     UserInputContent(InputSource, #[source] Box<ErrorKind>),
 }

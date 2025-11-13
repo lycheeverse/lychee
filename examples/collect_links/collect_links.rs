@@ -1,6 +1,6 @@
 use lychee_lib::{Collector, Input, InputSource, RequestError};
 use reqwest::Url;
-use std::{collections::HashSet, path::PathBuf, result::Result};
+use std::{collections::HashSet, path::PathBuf};
 use tokio_stream::StreamExt;
 
 #[tokio::main]

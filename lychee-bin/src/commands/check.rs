@@ -10,10 +10,10 @@ use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
+use lychee_lib::InputSource;
 use lychee_lib::RequestError;
 use lychee_lib::archive::Archive;
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
-use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
 use crate::formatters::get_response_formatter;
@@ -28,9 +28,9 @@ use super::CommandParams;
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
-) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
+) -> Result<(ResponseStats, Arc<Cache>, ExitCode), ErrorKind>
 where
-    S: futures::Stream<Item = std::result::Result<Request, RequestError>>,
+    S: futures::Stream<Item = Result<Request, RequestError>>,
 {
     // Setup
     let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
@@ -177,19 +177,20 @@ async fn suggest_archived_links(
 // the show_results_task to finish
 async fn send_inputs_loop<S>(
     requests: S,
-    send_req: mpsc::Sender<std::result::Result<Request, RequestError>>,
+    send_req: mpsc::Sender<Result<Request, RequestError>>,
     bar: Option<ProgressBar>,
-) -> Result<()>
+) -> Result<(), ErrorKind>
 where
-    S: futures::Stream<Item = std::result::Result<Request, RequestError>>,
+    S: futures::Stream<Item = Result<Request, RequestError>>,
 {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
         if let Some(pb) = &bar {
             pb.inc_length(1);
-            if let Ok(request) = &request {
-                pb.set_message(request.to_string());
-            }
+            match &request {
+                Ok(x) => pb.set_message(x.to_string()),
+                Err(e) => pb.set_message(e.to_string()),
+            };
         }
         send_req.send(request).await.expect("Cannot send request");
     }
@@ -198,12 +199,12 @@ where
 
 /// Reads from the request channel and updates the progress bar status
 async fn progress_bar_task(
-    mut recv_resp: mpsc::Receiver<Result<Response>>,
+    mut recv_resp: mpsc::Receiver<Result<Response, ErrorKind>>,
     verbose: Verbosity,
     pb: Option<ProgressBar>,
     formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
-) -> Result<(Option<ProgressBar>, ResponseStats)> {
+) -> Result<(Option<ProgressBar>, ResponseStats), ErrorKind> {
     while let Some(response) = recv_resp.recv().await {
         let response = response?;
         show_progress(
@@ -232,8 +233,8 @@ fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
 }
 
 async fn request_channel_task(
-    recv_req: mpsc::Receiver<std::result::Result<Request, RequestError>>,
-    send_resp: mpsc::Sender<Result<Response>>,
+    recv_req: mpsc::Receiver<Result<Request, RequestError>>,
+    send_resp: mpsc::Sender<Result<Response, ErrorKind>>,
     max_concurrency: usize,
     client: Client,
     cache: Arc<Cache>,
@@ -243,7 +244,7 @@ async fn request_channel_task(
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
-        |request: std::result::Result<Request, RequestError>| async {
+        |request: Result<Request, RequestError>| async {
             let response = handle(
                 &client,
                 cache.clone(),
@@ -293,9 +294,9 @@ async fn handle(
     client: &Client,
     cache: Arc<Cache>,
     cache_exclude_status: HashSet<u16>,
-    request: std::result::Result<Request, RequestError>,
+    request: Result<Request, RequestError>,
     accept: HashSet<u16>,
-) -> Result<Response> {
+) -> Result<Response, ErrorKind> {
     // Note that the RequestError cases bypass the cache.
     let request = match request {
         Ok(x) => x,
@@ -374,7 +375,7 @@ fn show_progress(
     response: &Response,
     formatter: &dyn ResponseFormatter,
     verbose: &Verbosity,
-) -> Result<()> {
+) -> Result<(), ErrorKind> {
     // In case the log level is set to info, we want to show the detailed
     // response output. Otherwise, we only show the essential information
     // (typically the status code and the URL, but this is dependent on the
