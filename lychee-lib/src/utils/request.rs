@@ -193,6 +193,10 @@ mod tests {
 
     /// Create requests from the given raw URIs and returns requests that were
     /// constructed successfully, silently ignoring link parsing errors.
+    ///
+    /// This reduces the Result handling which is needed in test cases. Test
+    /// cases can still detect the unexpected appearance of errors by the
+    /// length being different.
     fn create_ok_only(
         uris: Vec<RawUri>,
         source: &ResolvedInputSource,
