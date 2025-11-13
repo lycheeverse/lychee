@@ -520,6 +520,33 @@ mod tests {
     }
 
     #[test]
+    fn test_create_request_from_relative_file_path_errors() {
+        // relative links unsupported from stdin
+        assert!(
+            create_request(
+                &raw_uri("file.html"),
+                &ResolvedInputSource::Stdin,
+                None,
+                None,
+                None,
+            )
+            .is_err()
+        );
+
+        // error because no root-dir and no base-url
+        assert!(
+            create_request(
+                &raw_uri("/file.html"),
+                &ResolvedInputSource::FsPath(PathBuf::from("page.html")),
+                None,
+                None,
+                None,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn test_create_request_from_absolute_file_path() {
         let base = Base::Local(PathBuf::from("/tmp/lychee"));
         let input_source = ResolvedInputSource::FsPath(PathBuf::from("/tmp/lychee/page.html"));
