@@ -8,9 +8,8 @@ mod cli {
         path::{Path, PathBuf},
     };
 
-    use assert_cmd::Command;
+    use assert_cmd::cargo::cargo_bin_cmd;
     use predicates::str::contains;
-    use test_utils::main_command;
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -24,10 +23,9 @@ mod cli {
     #[test]
     #[cfg(not(feature = "check_example_domains"))]
     fn test_exclude_example_domains() -> Result<()> {
-        let mut cmd = main_command!();
         let input = fixtures_path().join("TEST_EXAMPLE_DOMAINS.md");
 
-        let cmd = cmd
+        let cmd = cargo_bin_cmd!()
             .arg(input)
             .arg("--include-mail")
             .arg("--dump")
@@ -47,10 +45,9 @@ mod cli {
 
     #[test]
     fn test_do_not_exclude_false_positive_example_domains() -> Result<()> {
-        let mut cmd = main_command!();
         let input = fixtures_path().join("TEST_EXAMPLE_DOMAINS_FALSE_POSITIVES.md");
 
-        let cmd = cmd
+        let cmd = cargo_bin_cmd!()
             .arg(input)
             .arg("--include-mail")
             .arg("--dump")

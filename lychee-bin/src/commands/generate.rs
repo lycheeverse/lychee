@@ -147,7 +147,7 @@ mod tests {
     use crate::generate::{CONTRIBUTOR_THANK_NOTE, EXIT_CODE_SECTION};
     use anyhow::Result;
     use assert_cmd::Command;
-    use test_utils::{fixtures_path, main_command};
+    use test_utils::fixtures_path;
 
     #[test]
     fn test_man_page() -> Result<()> {
@@ -203,7 +203,8 @@ mod tests {
             .map(|example| {
                 let command = example.replace(
                     "lychee",
-                    main_command!()
+                    Command::cargo_bin(env!("CARGO_PKG_NAME"))
+                        .expect("Couldn't get cargo package name")
                         .get_program()
                         .to_str()
                         .expect("Unable to convert to string"),

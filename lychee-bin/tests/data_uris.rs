@@ -3,16 +3,10 @@
 //! works as expected for normal users.
 #[cfg(test)]
 mod cli {
-    use std::{
-        error::Error,
-        path::{Path, PathBuf},
-    };
+    use std::path::{Path, PathBuf};
 
-    use assert_cmd::Command;
+    use assert_cmd::cargo::cargo_bin_cmd;
     use predicates::str::contains;
-    use test_utils::main_command;
-
-    type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
     fn fixtures_path() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -22,11 +16,10 @@ mod cli {
     }
 
     #[test]
-    fn test_dont_dump_data_uris_by_default() -> Result<()> {
-        let mut cmd = main_command!();
+    fn test_dont_dump_data_uris_by_default() {
         let input = fixtures_path().join("TEST_DATA_URIS.html");
 
-        let cmd = cmd
+        let cmd = cargo_bin_cmd!()
             .arg(input)
             .arg("--dump")
             .assert()
@@ -36,16 +29,13 @@ mod cli {
         let output = cmd.get_output();
         let output = std::str::from_utf8(&output.stdout).unwrap();
         assert_eq!(output.lines().count(), 1);
-
-        Ok(())
     }
 
     #[test]
-    fn test_dump_data_uris_in_verbose_mode() -> Result<()> {
-        let mut cmd = main_command!();
+    fn test_dump_data_uris_in_verbose_mode() {
         let input = fixtures_path().join("TEST_DATA_URIS.html");
 
-        let cmd = cmd
+        let cmd = cargo_bin_cmd!()
             .arg(input)
             .arg("--dump")
             .arg("--verbose")
@@ -62,7 +52,5 @@ mod cli {
         let output = cmd.get_output();
         let output = std::str::from_utf8(&output.stdout).unwrap();
         assert_eq!(output.lines().count(), 5);
-
-        Ok(())
     }
 }
