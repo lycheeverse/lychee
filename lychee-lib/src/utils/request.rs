@@ -191,6 +191,8 @@ mod tests {
 
     use super::*;
 
+    /// Create requests from the given raw URIs and returns requests that were
+    /// constructed successfully, silently ignoring link parsing errors.
     fn create_ok_only(
         uris: Vec<RawUri>,
         source: &ResolvedInputSource,
