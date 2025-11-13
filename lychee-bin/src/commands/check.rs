@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::io;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -14,11 +13,11 @@ use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
 use crate::formatters::get_response_formatter;
-use crate::formatters::progress::Progress;
 use crate::formatters::response::ResponseFormatter;
 use crate::formatters::suggestion::Suggestion;
 use crate::options::OutputMode;
 use crate::parse::parse_duration_secs;
+use crate::progress::Progress;
 use crate::{ExitCode, cache::Cache, stats::ResponseStats};
 
 use super::CommandParams;
@@ -76,10 +75,10 @@ where
         &formatter_default
     });
 
-    let hide_progress = params.cfg.no_progress;
+    let hide_bar = params.cfg.no_progress;
     let detailed = params.cfg.verbose.log_level() >= log::Level::Info;
 
-    let progress = Progress::new("Extracting links", hide_progress, detailed);
+    let progress = Progress::new("Extracting links", hide_bar, detailed);
     let show_results_task = tokio::spawn(collect_responses(
         recv_resp,
         progress.clone(),
@@ -100,7 +99,7 @@ where
     progress.finish("Finished extracting links");
 
     if params.cfg.suggest {
-        let progress = Progress::new("Searching for alternatives", hide_progress, detailed);
+        let progress = Progress::new("Searching for alternatives", hide_bar, detailed);
         suggest_archived_links(
             params.cfg.archive.unwrap_or_default(),
             &mut stats,
@@ -184,7 +183,7 @@ async fn collect_responses(
     mut stats: ResponseStats,
 ) -> Result<ResponseStats> {
     while let Some(response) = recv_resp.recv().await {
-        progress.show(&mut io::stderr(), &response, formatter.as_ref())?;
+        progress.show(&response, formatter.as_ref())?;
         stats.add(response);
     }
     Ok(stats)

@@ -29,9 +29,9 @@ pub(crate) struct Progress {
 }
 
 impl Progress {
-    pub(crate) fn new(initial_message: &'static str, hidden: bool, detailed: bool) -> Self {
+    pub(crate) fn new(initial_message: &'static str, hide_bar: bool, detailed: bool) -> Self {
         // Showing the progress bar and detailed logging is too much information
-        let bar = if hidden || detailed {
+        let bar = if hide_bar || detailed {
             None
         } else {
             let bar = Bar::new_spinner().with_style(STYLE.clone());
@@ -45,7 +45,16 @@ impl Progress {
 
     pub(crate) fn show(
         &self,
-        output: &mut dyn Write,
+        response: &Response,
+        formatter: &dyn ResponseFormatter,
+    ) -> Result<()> {
+        // progress is reported on stderr and NOT on stdout
+        self.show_to_buffer(&mut std::io::stderr(), response, formatter)
+    }
+
+    fn show_to_buffer(
+        &self,
+        buffer: &mut dyn Write,
         response: &Response,
         formatter: &dyn ResponseFormatter,
     ) -> Result<()> {
@@ -56,7 +65,7 @@ impl Progress {
         };
 
         if self.detailed {
-            writeln!(output, "{}", &out)?;
+            writeln!(buffer, "{}", &out)?;
         }
 
         self.update(Some(out));
@@ -113,7 +122,7 @@ mod tests {
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         let progress = Progress::new("", false, false);
         progress
-            .show(&mut buf, &response, formatter.as_ref())
+            .show_to_buffer(&mut buf, &response, formatter.as_ref())
             .unwrap();
 
         info!("{:?}", String::from_utf8_lossy(&buf));
@@ -132,7 +141,7 @@ mod tests {
         let progress = Progress::new("", false, true);
         let formatter = get_response_formatter(&options::OutputMode::Plain);
         progress
-            .show(&mut buf, &response, formatter.as_ref())
+            .show_to_buffer(&mut buf, &response, formatter.as_ref())
             .unwrap();
 
         assert!(!buf.is_empty());
