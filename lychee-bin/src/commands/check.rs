@@ -12,10 +12,9 @@ use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
 use lychee_lib::{InputSource, Result};
 use lychee_lib::{ResponseBody, Status};
 
-use crate::formatters::get_response_formatter;
+use crate::formatters::get_progress_formatter;
 use crate::formatters::response::ResponseFormatter;
 use crate::formatters::suggestion::Suggestion;
-use crate::options::OutputMode;
 use crate::parse::parse_duration_secs;
 use crate::progress::Progress;
 use crate::{ExitCode, cache::Cache, stats::ResponseStats};
@@ -63,18 +62,6 @@ where
         accept,
     ));
 
-    // Set the default formatter for progress bar output
-    let formatter_default = OutputMode::default();
-
-    // Make it easier to add new formatters in the future (without breaking the progress bar)
-    let allowed_output_modes = [OutputMode::Emoji, OutputMode::Plain, OutputMode::Color];
-
-    let formatter = get_response_formatter(if allowed_output_modes.contains(&params.cfg.mode) {
-        &params.cfg.mode
-    } else {
-        &formatter_default
-    });
-
     let hide_bar = params.cfg.no_progress;
     let detailed = params.cfg.verbose.log_level() >= log::Level::Info;
 
@@ -82,7 +69,7 @@ where
     let show_results_task = tokio::spawn(collect_responses(
         recv_resp,
         progress.clone(),
-        formatter,
+        get_progress_formatter(&params.cfg.mode),
         stats,
     ));
 
