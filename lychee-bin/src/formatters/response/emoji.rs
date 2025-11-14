@@ -27,11 +27,6 @@ impl EmojiFormatter {
 impl ResponseFormatter for EmojiFormatter {
     fn format_response(&self, body: &ResponseBody) -> String {
         let emoji = EmojiFormatter::emoji_for_status(&body.status);
-        format!("{} {}", emoji, body.uri)
-    }
-
-    fn format_detailed_response(&self, body: &ResponseBody) -> String {
-        let emoji = EmojiFormatter::emoji_for_status(&body.status);
         format!("{emoji} {body}")
     }
 }
@@ -100,7 +95,7 @@ mod emoji_tests {
     }
 
     #[test]
-    fn test_detailed_response_output() {
+    fn test_error_response_output() {
         let formatter = EmojiFormatter;
         let body = mock_response_body!(
             Status::Error(ErrorKind::EmptyUrl),
@@ -108,10 +103,6 @@ mod emoji_tests {
         );
 
         // Just assert the output contains the expected error message
-        assert!(
-            formatter
-                .format_detailed_response(&body)
-                .contains("Empty URL found")
-        );
+        assert!(formatter.format_response(&body).contains("Empty URL found"));
     }
 }

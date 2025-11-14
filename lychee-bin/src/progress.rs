@@ -58,11 +58,7 @@ impl Progress {
         response: &Response,
         formatter: &dyn ResponseFormatter,
     ) -> Result<()> {
-        let out = if self.detailed {
-            formatter.format_detailed_response(response.body())
-        } else {
-            formatter.format_response(response.body())
-        };
+        let out = formatter.format_response(response.body());
 
         if self.detailed {
             writeln!(buffer, "{}", &out)?;
