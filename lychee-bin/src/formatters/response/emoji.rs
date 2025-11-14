@@ -14,8 +14,8 @@ impl EmojiFormatter {
     const fn emoji_for_status(status: &Status) -> &'static str {
         match status {
             Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => "✅",
-            Status::Excluded
-            | Status::Unsupported(_)
+            Status::Excluded => "👻",
+            Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => "🚫",
             Status::Redirected(_, _) => "↪️",
             Status::UnknownStatusCode(_) | Status::Timeout(_) => "⚠️",
@@ -64,7 +64,7 @@ mod emoji_tests {
         let body = mock_response_body!(Status::Excluded, "https://example.com/not-checked");
         assert_eq!(
             formatter.format_response(&body),
-            "🚫 https://example.com/not-checked"
+            "👻 https://example.com/not-checked"
         );
     }
 
