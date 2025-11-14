@@ -170,7 +170,8 @@ async fn collect_responses(
     mut stats: ResponseStats,
 ) -> Result<ResponseStats> {
     while let Some(response) = recv_resp.recv().await {
-        progress.show(&response, formatter.as_ref())?;
+        let out = formatter.format_response(response.body());
+        progress.show(out)?;
         stats.add(response);
     }
     Ok(stats)

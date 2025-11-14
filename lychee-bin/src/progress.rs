@@ -1,8 +1,6 @@
 use indicatif::{ProgressBar as Bar, ProgressStyle};
-use lychee_lib::{Response, Result};
+use lychee_lib::Result;
 use std::{io::Write, sync::LazyLock};
-
-use crate::formatters::response::ResponseFormatter;
 
 #[derive(Clone)]
 struct ProgressConfig {
@@ -43,23 +41,12 @@ impl Progress {
         Progress { bar, detailed }
     }
 
-    pub(crate) fn show(
-        &self,
-        response: &Response,
-        formatter: &dyn ResponseFormatter,
-    ) -> Result<()> {
+    pub(crate) fn show(&self, out: String) -> Result<()> {
         // progress is reported on stderr and NOT on stdout
-        self.show_to_buffer(&mut std::io::stderr(), response, formatter)
+        self.show_to_buffer(&mut std::io::stderr(), out)
     }
 
-    fn show_to_buffer(
-        &self,
-        buffer: &mut dyn Write,
-        response: &Response,
-        formatter: &dyn ResponseFormatter,
-    ) -> Result<()> {
-        let out = formatter.format_response(response.body());
-
+    fn show_to_buffer(&self, buffer: &mut dyn Write, out: String) -> Result<()> {
         if self.detailed {
             writeln!(buffer, "{}", &out)?;
         }
@@ -103,22 +90,13 @@ impl Progress {
 mod tests {
     use super::*;
 
-    use crate::{formatters::get_response_formatter, options};
     use log::info;
-    use lychee_lib::{CacheStatus, ResolvedInputSource, Status, Uri};
 
     #[test]
     fn test_skip_cached_responses_in_progress_output() {
         let mut buf = Vec::new();
-        let response = Response::new(
-            Uri::try_from("http://127.0.0.1").unwrap(),
-            Status::Cached(CacheStatus::Ok(200)),
-            ResolvedInputSource::Stdin,
-        );
-        let formatter = get_response_formatter(&options::OutputMode::Plain);
-        let progress = Progress::new("", false, false);
-        progress
-            .show_to_buffer(&mut buf, &response, formatter.as_ref())
+        Progress::new("", false, false)
+            .show_to_buffer(&mut buf, "I checked a link!".into())
             .unwrap();
 
         info!("{:?}", String::from_utf8_lossy(&buf));
@@ -128,20 +106,12 @@ mod tests {
     #[test]
     fn test_show_cached_responses_in_progress_debug_output() {
         let mut buf = Vec::new();
-        let response = Response::new(
-            Uri::try_from("http://127.0.0.1").unwrap(),
-            Status::Cached(CacheStatus::Ok(200)),
-            ResolvedInputSource::Stdin,
-        );
-
-        let progress = Progress::new("", false, true);
-        let formatter = get_response_formatter(&options::OutputMode::Plain);
-        progress
-            .show_to_buffer(&mut buf, &response, formatter.as_ref())
+        Progress::new("", false, true)
+            .show_to_buffer(&mut buf, "I checked a link!".into())
             .unwrap();
 
         assert!(!buf.is_empty());
         let buf = String::from_utf8_lossy(&buf);
-        assert_eq!(buf, "[200] http://127.0.0.1/ | OK (cached)\n");
+        assert_eq!(buf, "I checked a link!\n");
     }
 }

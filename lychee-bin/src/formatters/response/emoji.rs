@@ -54,7 +54,7 @@ mod emoji_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "❌ https://example.com/404"
+            "❌ https://example.com/404 | URL cannot be empty: Empty URL found. Check for missing links or malformed markdown"
         );
     }
 
@@ -77,7 +77,7 @@ mod emoji_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "↪️ https://example.com/redirect"
+            "↪️ https://example.com/redirect | Redirect: Followed 0 redirects resolving to the final status of: Moved Permanently. Redirects: "
         );
     }
 
@@ -90,7 +90,7 @@ mod emoji_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "⚠️ https://example.com/unknown"
+            "⚠️ https://example.com/unknown | Unknown status (999 <unknown status code>)"
         );
     }
 
