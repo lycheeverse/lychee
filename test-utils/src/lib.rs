@@ -179,14 +179,6 @@ macro_rules! mock_response_body {
     }};
 }
 
-/// Gets the "main" binary name (e.g. `lychee`)
-#[macro_export]
-macro_rules! main_command {
-    () => {
-        Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name")
-    };
-}
-
 /// Capture all CLI flags (e.g. `-a` or `--accept`) from the help message via regex
 #[macro_export]
 macro_rules! arg_regex_help {

@@ -1,10 +1,9 @@
 #[cfg(test)]
 mod readme {
-    use assert_cmd::Command;
+    use assert_cmd::cargo::cargo_bin_cmd;
     use pretty_assertions::assert_eq;
     use regex::Regex;
     use test_utils::load_readme_text;
-    use test_utils::main_command;
 
     /// Remove line `[default: lychee/x.y.z]` from the string
     fn remove_lychee_version_line(string: &str) -> String {
@@ -31,9 +30,12 @@ mod readme {
     #[cfg(unix)]
     fn test_readme_usage_up_to_date() -> Result<(), Box<dyn std::error::Error>> {
         const BEGIN: &str = "```help-message\n";
-        let mut cmd = main_command!();
 
-        let help_cmd = cmd.env_clear().arg("--help").assert().success();
+        let help_cmd = cargo_bin_cmd!()
+            .env_clear()
+            .arg("--help")
+            .assert()
+            .success();
         let usage_in_help = std::str::from_utf8(&help_cmd.get_output().stdout)?;
 
         let usage_in_help = trim_empty_lines(&remove_lychee_version_line(usage_in_help));
@@ -55,8 +57,11 @@ mod readme {
     #[test]
     #[cfg(unix)]
     fn test_arguments_ordered_alphabetically() -> Result<(), Box<dyn std::error::Error>> {
-        let mut cmd = main_command!();
-        let help_cmd = cmd.env_clear().arg("--help").assert().success();
+        let help_cmd = cargo_bin_cmd!()
+            .env_clear()
+            .arg("--help")
+            .assert()
+            .success();
         let help_text = std::str::from_utf8(&help_cmd.get_output().stdout)?;
 
         let regex = test_utils::arg_regex_help!()?;
