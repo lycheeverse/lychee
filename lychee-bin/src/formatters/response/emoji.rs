@@ -14,8 +14,8 @@ impl EmojiFormatter {
     const fn emoji_for_status(status: &Status) -> &'static str {
         match status {
             Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => "✅",
-            Status::Excluded
-            | Status::Unsupported(_)
+            Status::Excluded => "👻",
+            Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => "🚫",
             Status::Redirected(_, _) => "↪️",
             Status::UnknownStatusCode(_) | Status::Timeout(_) => "⚠️",
@@ -26,11 +26,6 @@ impl EmojiFormatter {
 
 impl ResponseFormatter for EmojiFormatter {
     fn format_response(&self, body: &ResponseBody) -> String {
-        let emoji = EmojiFormatter::emoji_for_status(&body.status);
-        format!("{} {}", emoji, body.uri)
-    }
-
-    fn format_detailed_response(&self, body: &ResponseBody) -> String {
         let emoji = EmojiFormatter::emoji_for_status(&body.status);
         format!("{emoji} {body}")
     }
@@ -59,7 +54,7 @@ mod emoji_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "❌ https://example.com/404"
+            "❌ https://example.com/404 | URL cannot be empty: Empty URL found. Check for missing links or malformed markdown"
         );
     }
 
@@ -69,7 +64,7 @@ mod emoji_tests {
         let body = mock_response_body!(Status::Excluded, "https://example.com/not-checked");
         assert_eq!(
             formatter.format_response(&body),
-            "🚫 https://example.com/not-checked"
+            "👻 https://example.com/not-checked"
         );
     }
 
@@ -82,7 +77,7 @@ mod emoji_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "↪️ https://example.com/redirect"
+            "↪️ https://example.com/redirect | Redirect: Followed 0 redirects resolving to the final status of: Moved Permanently. Redirects: "
         );
     }
 
@@ -95,12 +90,12 @@ mod emoji_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "⚠️ https://example.com/unknown"
+            "⚠️ https://example.com/unknown | Unknown status (999 <unknown status code>)"
         );
     }
 
     #[test]
-    fn test_detailed_response_output() {
+    fn test_error_response_output() {
         let formatter = EmojiFormatter;
         let body = mock_response_body!(
             Status::Error(ErrorKind::EmptyUrl),
@@ -108,10 +103,6 @@ mod emoji_tests {
         );
 
         // Just assert the output contains the expected error message
-        assert!(
-            formatter
-                .format_detailed_response(&body)
-                .contains("Empty URL found")
-        );
+        assert!(formatter.format_response(&body).contains("Empty URL found"));
     }
 }

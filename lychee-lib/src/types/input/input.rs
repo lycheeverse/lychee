@@ -12,6 +12,7 @@ use crate::types::{FileType, file::FileExtensions, resolver::UrlContentResolver}
 use crate::{ErrorKind, Result};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
+use log::debug;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
 
@@ -236,6 +237,8 @@ impl Input {
     pub async fn stdin_content(file_type_hint: Option<FileType>) -> Result<InputContent> {
         let mut content = String::new();
         let mut stdin = stdin();
+
+        debug!("Reading content from stdin"); // useful info when nothing piped and process blocks
         stdin.read_to_string(&mut content).await?;
 
         let input_content = InputContent {

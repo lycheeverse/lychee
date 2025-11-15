@@ -59,11 +59,7 @@ impl Display for DetailedResponseStats {
             write!(f, "\n\nErrors in {source}")?;
 
             for response in responses {
-                write!(
-                    f,
-                    "\n{}",
-                    response_formatter.format_detailed_response(response)
-                )?;
+                write!(f, "\n{}", response_formatter.format_response(response))?;
             }
 
             write_stats(f, "Suggestions", source, stats.suggestion_map.get(source))?;
