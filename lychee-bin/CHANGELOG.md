@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.1](https://github.com/lycheeverse/lychee/compare/lychee-v0.21.0...lychee-v0.21.1) - 2025-11-15
+
+### Added
+
+- file preprocessing ([#1891](https://github.com/lycheeverse/lychee/pull/1891))
+
+### Fixed
+
+- inverted gitignore behaviour for --dump-inputs  ([#1882](https://github.com/lycheeverse/lychee/pull/1882))
+
+### Other
+
+- Bump the dependencies group across 1 directory with 8 updates ([#1916](https://github.com/lycheeverse/lychee/pull/1916))
+- use log::Level's deserialiser, and link example TOML ([#1907](https://github.com/lycheeverse/lychee/pull/1907))
+- Config file up to date ([#1906](https://github.com/lycheeverse/lychee/pull/1906))
+- check glob validity when parsing input source arguments ([#1869](https://github.com/lycheeverse/lychee/pull/1869))
+- Fix typos, and configure the typos tool ([#1895](https://github.com/lycheeverse/lychee/pull/1895))
+- Address new clippy lints with version 1.91
+- Bump MSRV
+- Bump the dependencies group across 1 directory with 7 updates
+
 ## [0.21.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.20.1...lychee-v0.21.0) - 2025-10-23
 
 ### Added
