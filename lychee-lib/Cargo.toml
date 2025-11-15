@@ -16,7 +16,8 @@ rust-version = "1.88.0"
 async-stream = "0.3.6"
 async-trait = "0.1.88"
 cached = "0.56.0"
-check-if-email-exists = { version = "0.9.1", optional = true }
+# latest versions not on crates.io yet: https://github.com/reacherhq/check-if-email-exists/issues/1625
+check-if-email-exists = { git = "https://github.com/reacherhq/check-if-email-exists.git", tag = "v0.11.6", optional = true }
 cookie_store = "0.22.0"
 email_address = "0.2.9"
 futures = "0.3.31"
@@ -31,7 +32,6 @@ ip_network = "0.4.1"
 linkify = "0.10.0"
 log = "0.4.28"
 octocrab = "0.47.1"
-openssl-sys = { version = "0.9.111", optional = true }
 path-clean = "1.0.1"
 percent-encoding = "2.3.1"
 pulldown-cmark = "0.13.0"
@@ -43,6 +43,8 @@ reqwest = { version = "0.12.24", default-features = false, features = [
     "trust-dns",
     "cookies",
     "json",
+    "rustls-tls-native-roots",
+    "rustls-tls"
 ] }
 reqwest_cookie_store = { version = "0.9.0", features = ["serde"] }
 # Make build work on Apple Silicon.
@@ -80,15 +82,6 @@ wiremock = "0.6.5"
 # Enable checking email addresses. Requires the native-tls feature.
 email-check = ["check-if-email-exists"]
 
-# Use platform-native TLS.
-native-tls = ["openssl-sys", "reqwest/native-tls"]
-
-# Use Rustls TLS.
-rustls-tls = ["reqwest/rustls-tls-native-roots"]
-
-# Compile and statically link a copy of OpenSSL.
-vendored-openssl = ["openssl-sys/vendored"]
-
 # Feature flag to include checking reserved example domains
 # as per RFC 2606, section 3.
 # This flag is off by default and only exists to allow example domains in
@@ -96,4 +89,4 @@ vendored-openssl = ["openssl-sys/vendored"]
 # See https://users.rust-lang.org/t/36630
 check_example_domains = []
 
-default = ["native-tls", "email-check"]
+# default = ["email-check"]
