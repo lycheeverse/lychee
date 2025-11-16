@@ -36,5 +36,5 @@ pub use status_code::*;
 /// The lychee `Result` type
 pub type Result<T> = std::result::Result<T, crate::ErrorKind>;
 
-/// The lychee `Result` type, aliased to avoid conflicting with std::result::Result.
+/// The lychee `Result` type, aliased to avoid conflicting with [`std::result::Result`].
 pub type LycheeResult<T> = Result<T>;

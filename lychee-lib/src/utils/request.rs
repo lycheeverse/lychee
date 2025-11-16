@@ -1,5 +1,6 @@
 use percent_encoding::percent_decode_str;
 use reqwest::Url;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::{
@@ -109,10 +110,11 @@ fn create_uri_from_file_path(
 }
 
 /// Create requests out of the collected URLs.
-/// Only keeps "valid" URLs. This filters out anchors for example.
+/// Returns a vector of valid URLs and errors. Valid URLs are deduplicated,
+/// request errors are not deduplicated.
 ///
 /// If a URLs is ignored (because of the current settings),
-/// it will not be added to the `HashSet`.
+/// it will not be added to the results.
 pub(crate) fn create(
     uris: Vec<RawUri>,
     source: &ResolvedInputSource,
@@ -122,13 +124,27 @@ pub(crate) fn create(
 ) -> Vec<Result<Request, RequestError>> {
     let base = base.cloned().or_else(|| Base::from_source(source));
 
-    uris.into_iter()
-        .map(|raw_uri| {
-            create_request(&raw_uri, source, root_dir, base.as_ref(), extractor).map_err(|e| {
-                RequestError::CreateRequestItem(raw_uri.clone(), source.clone(), Box::new(e))
-            })
-        })
-        .collect()
+    let mut requests = HashSet::<Request>::new();
+    let mut errors = Vec::<RequestError>::new();
+
+    for raw_uri in uris.into_iter() {
+        let result = create_request(&raw_uri, source, root_dir, base.as_ref(), extractor);
+        match result {
+            Ok(request) => {
+                requests.insert(request);
+            }
+            Err(e) => errors.push(RequestError::CreateRequestItem(
+                raw_uri.clone(),
+                source.clone(),
+                Box::new(e),
+            )),
+        }
+    }
+
+    let errs_iter = errors.into_iter().map(Result::Err);
+    let reqs_iter = requests.into_iter().map(Result::Ok);
+
+    reqs_iter.chain(errs_iter).collect()
 }
 
 /// Create a URI from a path
@@ -200,7 +216,7 @@ mod tests {
         root_dir: Option<&PathBuf>,
         base: Option<&Base>,
         extractor: Option<&BasicAuthExtractor>,
-    ) -> HashSet<Request> {
+    ) -> Vec<Request> {
         create(uris, source, root_dir, base, extractor)
             .into_iter()
             .filter_map(Result::ok)
