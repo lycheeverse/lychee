@@ -3072,7 +3072,8 @@ The config file should contain every possible key for documentation purposes."
             .arg(file)
             .assert()
             .failure()
-            .stderr(contains("Error: Preprocessor command 'program does not exist' failed: could not start: No such file or directory (os error 2)"));
+            .code(2)
+            .stdout(contains("Preprocessor command 'program does not exist' failed: could not start: No such file or directory"));
     }
 
     #[test]
@@ -3085,8 +3086,10 @@ The config file should contain every possible key for documentation purposes."
             .arg(&file)
             .assert()
             .failure()
-            .stderr(contains(format!(
-                "Error: Preprocessor command '{}' failed: exited with non-zero code: <empty stderr>", script.as_os_str().to_str().unwrap()
+            .code(2)
+            .stdout(contains(format!(
+                "Preprocessor command '{}' failed: exited with non-zero code: <empty stderr>",
+                script.as_os_str().to_str().unwrap()
             )));
 
         let script = fixtures_path!().join("pre").join("error_message.sh");
@@ -3096,8 +3099,10 @@ The config file should contain every possible key for documentation purposes."
             .arg(file)
             .assert()
             .failure()
-            .stderr(contains(format!(
-                "Error: Preprocessor command '{}' failed: exited with non-zero code: Some error message", script.as_os_str().to_str().unwrap()
+            .code(2)
+            .stdout(contains(format!(
+                "Preprocessor command '{}' failed: exited with non-zero code: Some error message",
+                script.as_os_str().to_str().unwrap()
             )));
     }
 }
