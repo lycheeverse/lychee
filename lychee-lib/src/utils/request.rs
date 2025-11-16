@@ -127,7 +127,7 @@ pub(crate) fn create(
     let mut requests = HashSet::<Request>::new();
     let mut errors = Vec::<RequestError>::new();
 
-    for raw_uri in uris.into_iter() {
+    for raw_uri in uris {
         let result = create_request(&raw_uri, source, root_dir, base.as_ref(), extractor);
         match result {
             Ok(request) => {
@@ -207,7 +207,7 @@ mod tests {
     /// Create requests from the given raw URIs and returns requests that were
     /// constructed successfully, silently ignoring link parsing errors.
     ///
-    /// This reduces the LycheeResult handling which is needed in test cases. Test
+    /// This reduces the `Result` handling which is needed in test cases. Test
     /// cases can still detect the unexpected appearance of errors by the
     /// length being different.
     fn create_ok_only(
