@@ -12,6 +12,11 @@ use crate::{
     utils::{path, url},
 };
 
+pub(crate) struct RequestBatch {
+    requests: HashSet<Request>,
+    errors: Vec<RequestError>,
+}
+
 /// Extract basic auth credentials for a given URL.
 pub(crate) fn extract_credentials(
     extractor: Option<&BasicAuthExtractor>,
@@ -122,16 +127,27 @@ pub(crate) fn create(
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
-) -> HashSet<std::result::Result<Request, RequestError>> {
+) -> RequestBatch {
     let base = base.cloned().or_else(|| Base::from_source(source));
 
-    uris.into_iter()
-        .map(|raw_uri| {
-            create_request(&raw_uri, source, root_dir, base.as_ref(), extractor).map_err(|e| {
-                RequestError::CreateRequestItem(raw_uri.clone(), source.clone(), Box::new(e))
-            })
-        })
-        .collect()
+    let mut requests = HashSet::<Request>::new();
+    let mut errors = Vec::<RequestError>::new();
+
+    for raw_uri in uris.into_iter() {
+        let result = create_request(&raw_uri, source, root_dir, base.as_ref(), extractor);
+        match result {
+            Ok(request) => {
+                requests.insert(request);
+            }
+            Err(e) => errors.push(RequestError::CreateRequestItem(
+                raw_uri.clone(),
+                source.clone(),
+                Box::new(e),
+            )),
+        }
+    }
+
+    RequestBatch { requests, errors }
 }
 
 /// Create a URI from a path
