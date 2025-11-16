@@ -5,8 +5,8 @@ use crate::filter::PathExcludes;
 
 use crate::types::resolver::UrlContentResolver;
 use crate::{
-    Base, Input, Request, RequestError, Result, basic_auth::BasicAuthExtractor, extract::Extractor,
-    types::FileExtensions, types::uri::raw::RawUri, utils::request,
+    Base, Input, LycheeResult, Request, RequestError, basic_auth::BasicAuthExtractor,
+    extract::Extractor, types::FileExtensions, types::uri::raw::RawUri, utils::request,
 };
 use futures::TryStreamExt;
 use futures::{
@@ -72,7 +72,7 @@ impl Collector {
     ///
     /// Returns an `Err` if the `root_dir` is not an absolute path
     /// or if the reqwest `Client` fails to build
-    pub fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> Result<Self> {
+    pub fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> LycheeResult<Self> {
         if let Some(root_dir) = &root_dir
             && root_dir.is_relative()
         {
@@ -183,7 +183,7 @@ impl Collector {
     pub fn collect_links(
         self,
         inputs: HashSet<Input>,
-    ) -> impl Stream<Item = std::result::Result<Request, RequestError>> {
+    ) -> impl Stream<Item = Result<Request, RequestError>> {
         self.collect_links_from_file_types(inputs, crate::types::FileType::default_extensions())
     }
 
@@ -198,7 +198,7 @@ impl Collector {
         self,
         inputs: HashSet<Input>,
         extensions: FileExtensions,
-    ) -> impl Stream<Item = std::result::Result<Request, RequestError>> {
+    ) -> impl Stream<Item = Result<Request, RequestError>> {
         let skip_missing_inputs = self.skip_missing_inputs;
         let skip_hidden = self.skip_hidden;
         let skip_ignored = self.skip_ignored;
@@ -258,7 +258,7 @@ impl Collector {
                         base.as_ref(),
                         basic_auth_extractor.as_ref(),
                     );
-                    std::result::Result::Ok(stream::iter(requests))
+                    Result::Ok(stream::iter(requests))
                 }
             })
             .try_flatten()
@@ -276,7 +276,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        Result, Uri,
+        LycheeResult, Uri,
         filter::PathExcludes,
         types::{FileType, Input, InputSource},
     };
@@ -286,7 +286,7 @@ mod tests {
         inputs: HashSet<Input>,
         root_dir: Option<PathBuf>,
         base: Option<Base>,
-    ) -> Result<HashSet<Uri>> {
+    ) -> LycheeResult<HashSet<Uri>> {
         let responses = Collector::new(root_dir, base)?.collect_links(inputs);
         Ok(responses.map(|r| r.unwrap().uri).collect().await)
     }
@@ -300,7 +300,7 @@ mod tests {
         root_dir: Option<PathBuf>,
         base: Option<Base>,
         extensions: FileExtensions,
-    ) -> Result<HashSet<Uri>> {
+    ) -> LycheeResult<HashSet<Uri>> {
         let responses = Collector::new(root_dir, base)?
             .include_verbatim(true)
             .collect_links_from_file_types(inputs, extensions);
@@ -314,7 +314,7 @@ mod tests {
     const TEST_GLOB_2_MAIL: &str = "test@glob-2.io";
 
     #[tokio::test]
-    async fn test_file_without_extension_is_plaintext() -> Result<()> {
+    async fn test_file_without_extension_is_plaintext() -> LycheeResult<()> {
         let temp_dir = tempfile::tempdir().unwrap();
         // Treat as plaintext file (no extension)
         let file_path = temp_dir.path().join("README");
@@ -339,7 +339,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_url_without_extension_is_html() -> Result<()> {
+    async fn test_url_without_extension_is_html() -> LycheeResult<()> {
         let input = Input::new("https://example.com/", None, true)?;
         let contents: Vec<_> = input
             .get_contents(
@@ -360,7 +360,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_collect_links() -> Result<()> {
+    async fn test_collect_links() -> LycheeResult<()> {
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_dir_path = temp_dir.path();
 

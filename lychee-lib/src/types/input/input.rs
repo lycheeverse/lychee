@@ -9,7 +9,7 @@ use super::source::{InputSource, ResolvedInputSource};
 use crate::Preprocessor;
 use crate::filter::PathExcludes;
 use crate::types::{FileType, RequestError, file::FileExtensions, resolver::UrlContentResolver};
-use crate::{ErrorKind, Result};
+use crate::{ErrorKind, LycheeResult};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
 use std::path::{Path, PathBuf};
@@ -42,7 +42,7 @@ impl Input {
         input: &str,
         file_type_hint: Option<FileType>,
         glob_ignore_case: bool,
-    ) -> Result<Self> {
+    ) -> LycheeResult<Self> {
         let source = InputSource::new(input, glob_ignore_case)?;
         Ok(Self {
             source,
@@ -57,7 +57,7 @@ impl Input {
     /// Returns an error if:
     /// - the input does not exist (i.e. the path is invalid)
     /// - the input cannot be parsed as a URL
-    pub fn from_value(value: &str) -> Result<Self> {
+    pub fn from_value(value: &str) -> LycheeResult<Self> {
         Self::new(value, None, false)
     }
 
@@ -95,7 +95,7 @@ impl Input {
         resolver: UrlContentResolver,
         excluded_paths: PathExcludes,
         preprocessor: Option<Preprocessor>,
-    ) -> impl Stream<Item = std::result::Result<InputContent, RequestError>> {
+    ) -> impl Stream<Item = Result<InputContent, RequestError>> {
         try_stream! {
             let source = self.source.clone();
 
@@ -223,7 +223,7 @@ impl Input {
         skip_hidden: bool,
         skip_ignored: bool,
         excluded_paths: &PathExcludes,
-    ) -> impl Stream<Item = Result<String>> {
+    ) -> impl Stream<Item = LycheeResult<String>> {
         InputResolver::resolve(
             &self,
             file_extensions,
@@ -250,7 +250,7 @@ impl Input {
     pub async fn path_content<P: Into<PathBuf> + AsRef<Path> + Clone>(
         path: P,
         preprocessor: Option<&Preprocessor>,
-    ) -> Result<InputContent> {
+    ) -> LycheeResult<InputContent> {
         let path = path.into();
         let content = Self::get_content(&path, preprocessor).await?;
 
@@ -266,7 +266,7 @@ impl Input {
     /// # Errors
     ///
     /// Returns an error if stdin cannot be read
-    pub async fn stdin_content(file_type_hint: Option<FileType>) -> Result<InputContent> {
+    pub async fn stdin_content(file_type_hint: Option<FileType>) -> LycheeResult<InputContent> {
         let mut content = String::new();
         let mut stdin = stdin();
         stdin.read_to_string(&mut content).await?;
@@ -288,7 +288,10 @@ impl Input {
 
     /// Get content of file.
     /// Get preprocessed file content if [`Preprocessor`] is [`Some`]
-    async fn get_content(path: &PathBuf, preprocessor: Option<&Preprocessor>) -> Result<String> {
+    async fn get_content(
+        path: &PathBuf,
+        preprocessor: Option<&Preprocessor>,
+    ) -> LycheeResult<String> {
         if let Some(pre) = preprocessor {
             pre.process(path)
         } else {
@@ -302,7 +305,7 @@ impl Input {
 impl TryFrom<&str> for Input {
     type Error = crate::ErrorKind;
 
-    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::from_value(value)
     }
 }

@@ -3,7 +3,7 @@ use reqwest::Url;
 use std::path::{Path, PathBuf};
 
 use crate::{
-    Base, BasicAuthCredentials, ErrorKind, Request, RequestError, Result, Uri,
+    Base, BasicAuthCredentials, ErrorKind, LycheeResult, Request, RequestError, Uri,
     basic_auth::BasicAuthExtractor,
     types::{ResolvedInputSource, uri::raw::RawUri},
     utils::{path, url},
@@ -24,7 +24,7 @@ fn create_request(
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
-) -> Result<Request> {
+) -> LycheeResult<Request> {
     let uri = try_parse_into_uri(raw_uri, source, root_dir, base)?;
     let source = source.clone();
     let element = raw_uri.element.clone();
@@ -50,7 +50,7 @@ fn try_parse_into_uri(
     source: &ResolvedInputSource,
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
-) -> Result<Uri> {
+) -> LycheeResult<Uri> {
     let text = prepend_root_dir_if_absolute_local_link(&raw_uri.text, root_dir);
     let uri = match Uri::try_from(raw_uri.clone()) {
         Ok(uri) => uri,
@@ -86,7 +86,7 @@ fn create_uri_from_file_path(
     file_path: &Path,
     link_text: &str,
     ignore_absolute_local_links: bool,
-) -> Result<Uri> {
+) -> LycheeResult<Uri> {
     let target_path = if is_anchor(link_text) {
         // For anchors, we need to append the anchor to the file name.
         let file_name = file_path
@@ -119,7 +119,7 @@ pub(crate) fn create(
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
-) -> Vec<std::result::Result<Request, RequestError>> {
+) -> Vec<Result<Request, RequestError>> {
     let base = base.cloned().or_else(|| Base::from_source(source));
 
     uris.into_iter()
@@ -146,7 +146,7 @@ fn resolve_and_create_url(
     src_path: &Path,
     dest_path: &str,
     ignore_absolute_local_links: bool,
-) -> Result<Url> {
+) -> LycheeResult<Url> {
     let (dest_path, fragment) = url::remove_get_params_and_separate_fragment(dest_path);
 
     // Decode the destination path to avoid double-encoding
@@ -191,7 +191,7 @@ mod tests {
     /// Create requests from the given raw URIs and returns requests that were
     /// constructed successfully, silently ignoring link parsing errors.
     ///
-    /// This reduces the Result handling which is needed in test cases. Test
+    /// This reduces the LycheeResult handling which is needed in test cases. Test
     /// cases can still detect the unexpected appearance of errors by the
     /// length being different.
     fn create_ok_only(
@@ -203,7 +203,7 @@ mod tests {
     ) -> HashSet<Request> {
         create(uris, source, root_dir, base, extractor)
             .into_iter()
-            .filter_map(std::result::Result::ok)
+            .filter_map(Result::ok)
             .collect()
     }
 

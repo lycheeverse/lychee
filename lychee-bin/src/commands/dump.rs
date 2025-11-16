@@ -2,7 +2,6 @@ use log::error;
 use log::warn;
 use lychee_lib::Request;
 use lychee_lib::RequestError;
-use lychee_lib::Result;
 use std::fs;
 use std::io::{self, Write};
 use tokio_stream::StreamExt;
@@ -13,9 +12,9 @@ use crate::verbosity::Verbosity;
 use super::CommandParams;
 
 /// Dump all detected links to stdout without checking them
-pub(crate) async fn dump<S>(params: CommandParams<S>) -> Result<ExitCode>
+pub(crate) async fn dump<S>(params: CommandParams<S>) -> lychee_lib::Result<ExitCode>
 where
-    S: futures::Stream<Item = std::result::Result<Request, RequestError>>,
+    S: futures::Stream<Item = Result<Request, RequestError>>,
 {
     let requests = params.requests;
     tokio::pin!(requests);
