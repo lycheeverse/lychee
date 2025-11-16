@@ -1,7 +1,7 @@
 use std::{borrow::Cow, convert::TryFrom, fmt::Display};
 use thiserror::Error;
 
-use crate::{BasicAuthCredentials, ErrorKind, RawUri, Uri};
+use crate::{BasicAuthCredentials, ErrorKind, RawUri, Response, Status, Uri};
 use crate::{InputSource, ResolvedInputSource};
 
 /// An error which occurs while trying to construct a [`Request`] object.
@@ -49,6 +49,25 @@ impl RequestError {
         match self {
             Self::CreateRequestItem(_, src, _) => src.clone().into(),
             Self::GetInputContent(src, _) | Self::UserInputContent(src, _) => src.clone(),
+        }
+    }
+
+    /// Convert this request error into a failure [`Response`] for reporting
+    /// purposes. However, if this error was caused by failing to load a
+    /// user-specified input, then an Err is returned for propagating back
+    /// to the user.
+    #[must_use]
+    pub fn into_response(self) -> Result<Response, ErrorKind> {
+        match self {
+            RequestError::UserInputContent(_, e) => Err(*e),
+            e => {
+                let src = e.input_source();
+                Ok(Response::new(
+                    Uri::try_from("error:").unwrap(),
+                    Status::RequestError(e),
+                    src,
+                ))
+            }
         }
     }
 }

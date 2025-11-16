@@ -300,18 +300,7 @@ async fn handle(
     // Note that the RequestError cases bypass the cache.
     let request = match request {
         Ok(x) => x,
-        Err(e @ RequestError::UserInputContent { .. }) => {
-            return Err(e.into_error());
-        }
-        Err(e) => {
-            let src = e.input_source();
-
-            return Ok(Response::new(
-                Uri::try_from("error://").unwrap(),
-                Status::RequestError(e),
-                src,
-            ));
-        }
+        Err(e) => return e.into_response(),
     };
 
     let uri = request.uri.clone();
