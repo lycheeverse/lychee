@@ -2,7 +2,7 @@ use std::{fmt::Display, num::NonZeroUsize};
 
 /// A raw URI that got extracted from a document with a fuzzy parser.
 /// Note that this can still be invalid according to stricter URI standards
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RawUri {
     /// Unparsed URI represented as a `String`. There is no guarantee that it
     /// can be parsed into a URI object
@@ -23,7 +23,7 @@ pub struct RawUri {
 
 impl Display for RawUri {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} (Attribute: {:?})", self.text, self.attribute)
+        write!(f, "{:?} (Attribute: {:?})", self.text, self.attribute)
     }
 }
 
@@ -42,7 +42,7 @@ impl From<(&str, RawUriSpan)> for RawUri {
 /// A span of a [`RawUri`] in the document.
 ///
 /// The span can be used to give more precise error messages.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct RawUriSpan {
     /// The line of the URI.
     ///
