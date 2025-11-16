@@ -3003,7 +3003,7 @@ The config file should contain every possible key for documentation purposes."
     // should fail as a CLI error, not a link checking error.
     #[test]
     fn test_invalid_user_input_source() -> Result<()> {
-        main_command!()
+        cargo_bin_cmd!()
             .arg("http://website.invalid")
             .assert()
             .failure()
@@ -3013,7 +3013,7 @@ The config file should contain every possible key for documentation purposes."
         // doesn't seem to be an equivalent to chmod on the windows API:
         // https://doc.rust-lang.org/std/fs/struct.Permissions.html
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("invalid-glob[")
             .assert()
             .failure()
