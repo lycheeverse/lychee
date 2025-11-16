@@ -1,9 +1,6 @@
 use percent_encoding::percent_decode_str;
 use reqwest::Url;
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use crate::{
     Base, BasicAuthCredentials, ErrorKind, Request, RequestError, Result, Uri,
@@ -122,7 +119,7 @@ pub(crate) fn create(
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
-) -> HashSet<std::result::Result<Request, RequestError>> {
+) -> Vec<std::result::Result<Request, RequestError>> {
     let base = base.cloned().or_else(|| Base::from_source(source));
 
     uris.into_iter()
