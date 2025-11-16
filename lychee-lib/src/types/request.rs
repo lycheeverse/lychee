@@ -1,7 +1,8 @@
 use std::{borrow::Cow, convert::TryFrom, fmt::Display};
 
-use crate::ResolvedInputSource;
 use crate::{BasicAuthCredentials, ErrorKind, Uri};
+
+use super::ResolvedInputSource;
 
 /// A request type that can be handle by lychee
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
