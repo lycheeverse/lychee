@@ -37,7 +37,7 @@ pub(crate) struct FileChecker {
     include_wikilinks: bool,
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
-    /// Utility for checking wikilinks, indexes files in a given directory
+    /// Utility for checking Wikilinks, indexes files in a given directory
     wikilink_checker: Option<WikilinkChecker>,
 }
 
@@ -83,9 +83,8 @@ impl FileChecker {
     pub(crate) async fn check(&self, uri: &Uri) -> Status {
         // only populate the wikilink filenames if the feature is enabled
         if self.include_wikilinks {
-            match self.setup_wikilinks() {
-                Ok(()) => (),
-                Err(e) => return Status::Error(e),
+            if let Err(e) = self.setup_wikilinks() {
+                return Status::Error(e);
             }
         }
         let Ok(path) = uri.url.to_file_path() else {
