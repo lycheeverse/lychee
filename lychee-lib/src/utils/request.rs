@@ -141,10 +141,9 @@ pub(crate) fn create(
         }
     }
 
-    let errs_iter = errors.into_iter().map(Result::Err);
-    let reqs_iter = requests.into_iter().map(Result::Ok);
-
-    reqs_iter.chain(errs_iter).collect()
+    (requests.into_iter().map(Result::Ok))
+        .chain(errors.into_iter().map(Result::Err))
+        .collect()
 }
 
 /// Create a URI from a path
