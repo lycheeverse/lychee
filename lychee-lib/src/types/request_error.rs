@@ -1,10 +1,11 @@
 use std::convert::TryFrom;
+use std::sync::LazyLock;
 use thiserror::Error;
 
 use crate::{ErrorKind, RawUri, Response, Status, Uri};
 use crate::{InputSource, ResolvedInputSource};
 
-const ERROR_URL: &str = "error:";
+static ERROR_URI: LazyLock<Uri> = LazyLock::new(|| Uri::try_from("error:").unwrap());
 
 /// An error which occurs while trying to construct a [`Request`] object.
 /// That is, an error which happens while trying to load links from an input
@@ -62,14 +63,13 @@ impl RequestError {
     /// If this `RequestError` was caused by failing to load a user-specified
     /// input, the underlying cause of the `RequestError` will be returned
     /// as an Err. This allows the error to be propagated back to the user.
-    #[allow(clippy::missing_panics_doc)]
     pub fn into_response(self) -> Result<Response, ErrorKind> {
         match self {
             RequestError::UserInputContent(_, e) => Err(e),
             e => {
                 let src = e.input_source();
                 Ok(Response::new(
-                    Uri::try_from(ERROR_URL).unwrap(),
+                    ERROR_URI.clone(),
                     Status::RequestError(e),
                     src,
                 ))
@@ -80,10 +80,11 @@ impl RequestError {
 
 #[cfg(test)]
 mod tests {
-    use super::{ERROR_URL, Uri};
+    use super::ERROR_URI;
+    use std::sync::LazyLock;
 
     #[test]
     fn test_error_url_parses() {
-        assert!(Uri::try_from(ERROR_URL).is_ok());
+        let _ = LazyLock::force(&ERROR_URI);
     }
 }
