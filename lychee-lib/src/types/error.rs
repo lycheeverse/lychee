@@ -336,7 +336,7 @@ impl ErrorKind {
                 [name] => format!("An index file ({name}) is required"),
                 [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
             }.into(),
-            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the pre option"))
+            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the preprocessor option"))
         }
     }
 
