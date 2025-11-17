@@ -25,7 +25,7 @@ headers = "0.4.1"
 html5ever = "0.36.1"
 html5gum = "0.8.0"
 http = "1.3.1"
-hyper = "1.8.0"
+hyper = "1.8.1"
 ignore = "0.4.25"
 ip_network = "0.4.1"
 linkify = "0.10.0"
@@ -52,13 +52,13 @@ reqwest_cookie_store = { version = "0.9.0", features = ["serde"] }
 ring = "0.17.14"
 secrecy = "0.10.3"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_with = "3.15.1"
+serde_with = "3.16.0"
 shellexpand = "3.1.1"
 strum = { version = "0.27.2", features = ["derive"] }
 thiserror = "2.0.17"
 tokio = { version = "1.48.0", features = ["full"] }
 toml = "0.9.8"
-typed-builder = "0.23.0"
+typed-builder = "0.23.1"
 url = { version = "2.5.7", features = ["serde"] }
 
 [dependencies.par-stream]
