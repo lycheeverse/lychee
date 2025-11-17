@@ -100,9 +100,9 @@ impl Input {
             let source = self.source.clone();
 
             let user_input_error =
-                move |e: ErrorKind| RequestError::UserInputContent(source.clone(), Box::new(e));
+                move |e: ErrorKind| RequestError::UserInputContent(source.clone(), e);
             let discovered_input_error =
-                |e: ErrorKind| RequestError::GetInputContent(self.source.clone(), Box::new(e));
+                |e: ErrorKind| RequestError::GetInputContent(self.source.clone(), e);
 
             // Handle simple cases that don't need resolution. Also, perform
             // simple *stateful* checks for more complex input sources.

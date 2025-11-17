@@ -13,15 +13,15 @@ const ERROR_URL: &str = "error:";
 pub enum RequestError {
     /// Unable to construct a URL for a link appearing within the given source.
     #[error("Error building URL for {0}: {2}")]
-    CreateRequestItem(RawUri, ResolvedInputSource, #[source] Box<ErrorKind>),
+    CreateRequestItem(RawUri, ResolvedInputSource, #[source] ErrorKind),
 
     /// Unable to load the content of an input source.
     #[error("Error reading input '{0}': {1}")]
-    GetInputContent(InputSource, #[source] Box<ErrorKind>),
+    GetInputContent(InputSource, #[source] ErrorKind),
 
     /// Unable to load an input source directly specified by the user.
     #[error("Error reading user input '{0}': {1}")]
-    UserInputContent(InputSource, #[source] Box<ErrorKind>),
+    UserInputContent(InputSource, #[source] ErrorKind),
 }
 
 impl RequestError {
@@ -41,7 +41,7 @@ impl RequestError {
         match self {
             Self::CreateRequestItem(_, _, e)
             | Self::GetInputContent(_, e)
-            | Self::UserInputContent(_, e) => *e,
+            | Self::UserInputContent(_, e) => e,
         }
     }
 
@@ -65,7 +65,7 @@ impl RequestError {
     #[allow(clippy::missing_panics_doc)]
     pub fn into_response(self) -> Result<Response, ErrorKind> {
         match self {
-            RequestError::UserInputContent(_, e) => Err(*e),
+            RequestError::UserInputContent(_, e) => Err(e),
             e => {
                 let src = e.input_source();
                 Ok(Response::new(

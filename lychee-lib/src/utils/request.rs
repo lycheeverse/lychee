@@ -136,7 +136,7 @@ pub(crate) fn create(
             Err(e) => errors.push(RequestError::CreateRequestItem(
                 raw_uri.clone(),
                 source.clone(),
-                Box::new(e),
+                e,
             )),
         }
     }
