@@ -270,6 +270,6 @@ mod test {
     #[test]
     fn test_default_accepted_values() {
         // assert that accessing the value does not panic as described in the SAFETY note.
-        let _ = &*DEFAULT_ACCEPTED_STATUS_CODES;
+        let _ = LazyLock::force(&DEFAULT_ACCEPTED_STATUS_CODES);
     }
 }
