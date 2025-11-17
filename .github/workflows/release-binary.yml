@@ -78,19 +78,19 @@ jobs:
     steps:
       - name: Install musl tools
         if: ${{ contains(matrix.target, 'musl') }}
-        run: apt-get update && apt-get install -y musl-tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Install arm tools
         if: ${{ contains(matrix.target, 'arm') }}
         run: |
           echo "GNU_PREFIX=arm-linux-gnueabihf-" >> $GITHUB_ENV
-          apt-get update && apt-get install -y binutils-arm-linux-gnueabihf
+          sudo apt-get update && sudo apt-get install -y binutils-arm-linux-gnueabihf
 
       - name: Install aarch64 tools
         if: ${{ contains(matrix.target, 'aarch64') }}
         run: |
           echo "GNU_PREFIX=aarch64-linux-gnu-" >> $GITHUB_ENV
-          apt-get update && apt-get install -y binutils-aarch64-linux-gnu
+          sudo apt-get update && sudo apt-get install -y binutils-aarch64-linux-gnu
 
       - uses: actions/checkout@v5
 

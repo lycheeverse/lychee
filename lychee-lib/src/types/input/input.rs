@@ -8,12 +8,10 @@ use super::content::InputContent;
 use super::source::{InputSource, ResolvedInputSource};
 use crate::Preprocessor;
 use crate::filter::PathExcludes;
-use crate::types::{FileType, file::FileExtensions, resolver::UrlContentResolver};
-use crate::{ErrorKind, Result};
+use crate::types::{FileType, RequestError, file::FileExtensions, resolver::UrlContentResolver};
+use crate::{ErrorKind, LycheeResult};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
-use glob::glob_with;
-use shellexpand::tilde;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
 
@@ -44,7 +42,7 @@ impl Input {
         input: &str,
         file_type_hint: Option<FileType>,
         glob_ignore_case: bool,
-    ) -> Result<Self> {
+    ) -> LycheeResult<Self> {
         let source = InputSource::new(input, glob_ignore_case)?;
         Ok(Self {
             source,
@@ -59,7 +57,7 @@ impl Input {
     /// Returns an error if:
     /// - the input does not exist (i.e. the path is invalid)
     /// - the input cannot be parsed as a URL
-    pub fn from_value(value: &str) -> Result<Self> {
+    pub fn from_value(value: &str) -> LycheeResult<Self> {
         Self::new(value, None, false)
     }
 
@@ -97,20 +95,49 @@ impl Input {
         resolver: UrlContentResolver,
         excluded_paths: PathExcludes,
         preprocessor: Option<Preprocessor>,
-    ) -> impl Stream<Item = Result<InputContent>> {
+    ) -> impl Stream<Item = Result<InputContent, RequestError>> {
         try_stream! {
-            // Handle simple cases that don't need resolution
+            let source = self.source.clone();
+
+            let user_input_error =
+                move |e: ErrorKind| RequestError::UserInputContent(source.clone(), e);
+            let discovered_input_error =
+                |e: ErrorKind| RequestError::GetInputContent(self.source.clone(), e);
+
+            // Handle simple cases that don't need resolution. Also, perform
+            // simple *stateful* checks for more complex input sources.
+            //
+            // Stateless well-formedness checks (e.g., checking glob syntax)
+            // are done in InputSource::new.
             match self.source {
                 InputSource::RemoteUrl(url) => {
                     match resolver.url_contents(*url).await {
                         Err(_) if skip_missing => (),
-                        Err(e) => Err(e)?,
+                        Err(e) => Err(user_input_error(e))?,
                         Ok(content) => yield content,
                     }
                     return;
                 }
+                InputSource::FsPath(ref path) => {
+                    let is_readable = if path.is_dir() {
+                        path.read_dir()
+                            .map(|_| ())
+                            .map_err(|e| ErrorKind::DirTraversal(ignore::Error::Io(e)))
+                    } else {
+                        // This checks existence without requiring an open. Opening here,
+                        // then re-opening later, might cause problems with pipes. This
+                        // does not validate permissions.
+                        path.metadata()
+                            .map(|_| ())
+                            .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))
+                    };
+
+                    is_readable.map_err(user_input_error)?;
+                }
                 InputSource::Stdin => {
-                    yield Self::stdin_content(self.file_type_hint).await?;
+                    yield Self::stdin_content(self.file_type_hint)
+                        .await
+                        .map_err(user_input_error)?;
                     return;
                 }
                 InputSource::String(ref s) => {
@@ -121,13 +148,13 @@ impl Input {
             }
 
             // Handle complex cases that need resolution (FsPath, FsGlob)
-            let mut sources_stream = Box::pin(InputResolver::resolve(
+            let mut sources_stream = InputResolver::resolve(
                 &self,
                 file_extensions,
                 skip_hidden,
                 skip_ignored,
                 &excluded_paths,
-            ));
+            );
 
             let mut sources_empty = true;
 
@@ -140,31 +167,35 @@ impl Input {
                             },
                             ResolvedInputSource::RemoteUrl(url) => {
                                 resolver.url_contents(*url).await
-                            },
+                            }
                             ResolvedInputSource::Stdin => {
                                 Self::stdin_content(self.file_type_hint).await
-                            },
+                            }
                             ResolvedInputSource::String(s) => {
                                 Ok(Self::string_content(&s, self.file_type_hint))
-                            },
+                            }
                         };
 
                         match content_result {
                             Err(_) if skip_missing => (),
-                            Err(e) if matches!(&e, ErrorKind::ReadFileInput(io_err, _) if io_err.kind() == std::io::ErrorKind::InvalidData) => {
+                            Err(e) if matches!(&e, ErrorKind::ReadFileInput(io_err, _) if io_err.kind() == std::io::ErrorKind::InvalidData) =>
+                            {
                                 // If the file contains invalid UTF-8 (e.g. binary), we skip it
                                 if let ErrorKind::ReadFileInput(_, path) = &e {
-                                    log::warn!("Skipping file with invalid UTF-8 content: {}", path.display());
+                                    log::warn!(
+                                        "Skipping file with invalid UTF-8 content: {}",
+                                        path.display()
+                                    );
                                 }
-                            },
-                            Err(e) => Err(e)?,
+                            }
+                            Err(e) => Err(discovered_input_error(e))?,
                             Ok(content) => {
                                 sources_empty = false;
                                 yield content
                             }
                         }
-                    },
-                    Err(e) => Err(e)?,
+                    }
+                    Err(e) => Err(discovered_input_error(e))?,
                 }
             }
 
@@ -178,81 +209,36 @@ impl Input {
     /// input:
     ///
     /// - Remote URLs are returned as is, in their full form
-    /// - Filepath Glob Patterns are expanded and each matched entry is returned
-    /// - Absolute or relative filepaths are returned as is
-    /// - All other input types are not returned
+    /// - Glob patterns are expanded and each matched entry is returned
+    /// - Absolute or relative filepaths are returned as-is
+    /// - Stdin input is returned as the special string "<stdin>"
+    /// - A raw string input is returned as the special string "<raw string>"
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The glob pattern is invalid or expansion encounters I/O errors
-    /// - Directory traversal fails, including:
-    ///   - Permission denied when accessing directories or files
-    ///   - I/O errors while reading directory contents
-    ///   - Filesystem errors (disk errors, network filesystem issues, etc.)
-    ///   - Invalid file paths or symbolic link resolution failures
-    /// - Errors when reading or evaluating `.gitignore` or `.ignore` files
-    /// - Errors occur during file extension or path exclusion evaluation
-    ///
-    /// Note: Individual glob match failures are logged to stderr but don't terminate the stream.
-    /// However, directory traversal errors will stop processing and return the error immediately.
+    /// Returns an error if [`InputResolver::resolve`] returns an error.
     pub fn get_sources(
         self,
         file_extensions: FileExtensions,
         skip_hidden: bool,
         skip_ignored: bool,
         excluded_paths: &PathExcludes,
-    ) -> impl Stream<Item = Result<String>> {
-        try_stream! {
-            match self.source {
-                InputSource::RemoteUrl(url) => yield url.to_string(),
-                InputSource::FsGlob {
-                    ref pattern,
-                    ignore_case,
-                } => {
-                    let glob_expanded = tilde(pattern.as_str()).to_string();
-                    let mut match_opts = glob::MatchOptions::new();
-                    match_opts.case_sensitive = !ignore_case;
-                    for entry in glob_with(&glob_expanded, match_opts)? {
-                        match entry {
-                            Ok(path) => {
-                                if !Self::is_excluded_path(&path, excluded_paths) {
-                                    yield path.to_string_lossy().to_string();
-                                }
-                            },
-                            Err(e) => eprintln!("{e:?}"),
-                        }
-                    }
-                }
-                InputSource::FsPath(ref path) => {
-                    if path.is_dir() {
-                        for entry in InputResolver::walk(
-                            path,
-                            file_extensions,
-                            skip_hidden,
-                            skip_ignored,
-                        )? {
-                            let entry = entry?;
-                            if !Self::is_excluded_path(entry.path(), excluded_paths) {
-                                // Only yield files, not directories
-                                if entry.file_type().is_some_and(|ft| ft.is_file()) {
-                                    yield entry.path().to_string_lossy().to_string();
-                                }
-                            }
-                        }
-                    } else if !Self::is_excluded_path(path, excluded_paths) {
-                        yield path.to_string_lossy().to_string();
-                    }
-                }
-                InputSource::Stdin => yield "<stdin>".into(),
-                InputSource::String(_) => yield "<raw string>".into(),
-            }
-        }
-    }
-
-    /// Check if the given path was excluded from link checking
-    fn is_excluded_path(path: &Path, excluded_paths: &PathExcludes) -> bool {
-        excluded_paths.is_match(&path.to_string_lossy())
+    ) -> impl Stream<Item = LycheeResult<String>> {
+        InputResolver::resolve(
+            &self,
+            file_extensions,
+            skip_hidden,
+            skip_ignored,
+            excluded_paths,
+        )
+        .map(|res| {
+            res.map(|src| match src {
+                ResolvedInputSource::FsPath(path) => path.to_string_lossy().to_string(),
+                ResolvedInputSource::RemoteUrl(url) => url.to_string(),
+                ResolvedInputSource::Stdin => "<stdin>".to_string(),
+                ResolvedInputSource::String(_) => "<raw string>".to_string(),
+            })
+        })
     }
 
     /// Get the content for a given path.
@@ -264,7 +250,7 @@ impl Input {
     pub async fn path_content<P: Into<PathBuf> + AsRef<Path> + Clone>(
         path: P,
         preprocessor: Option<&Preprocessor>,
-    ) -> Result<InputContent> {
+    ) -> LycheeResult<InputContent> {
         let path = path.into();
         let content = Self::get_content(&path, preprocessor).await?;
 
@@ -280,7 +266,7 @@ impl Input {
     /// # Errors
     ///
     /// Returns an error if stdin cannot be read
-    pub async fn stdin_content(file_type_hint: Option<FileType>) -> Result<InputContent> {
+    pub async fn stdin_content(file_type_hint: Option<FileType>) -> LycheeResult<InputContent> {
         let mut content = String::new();
         let mut stdin = stdin();
         stdin.read_to_string(&mut content).await?;
@@ -302,7 +288,10 @@ impl Input {
 
     /// Get content of file.
     /// Get preprocessed file content if [`Preprocessor`] is [`Some`]
-    async fn get_content(path: &PathBuf, preprocessor: Option<&Preprocessor>) -> Result<String> {
+    async fn get_content(
+        path: &PathBuf,
+        preprocessor: Option<&Preprocessor>,
+    ) -> LycheeResult<String> {
         if let Some(pre) = preprocessor {
             pre.process(path)
         } else {
@@ -316,7 +305,7 @@ impl Input {
 impl TryFrom<&str> for Input {
     type Error = crate::ErrorKind;
 
-    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::from_value(value)
     }
 }

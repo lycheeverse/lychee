@@ -1,13 +1,10 @@
-use log::warn;
 use percent_encoding::percent_decode_str;
 use reqwest::Url;
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 use crate::{
-    Base, BasicAuthCredentials, ErrorKind, Request, Result, Uri,
+    Base, BasicAuthCredentials, ErrorKind, LycheeResult, Request, RequestError, Uri,
     basic_auth::BasicAuthExtractor,
     types::{ResolvedInputSource, uri::raw::RawUri},
     utils::{path, url},
@@ -28,7 +25,7 @@ fn create_request(
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
-) -> Result<Request> {
+) -> LycheeResult<Request> {
     let uri = try_parse_into_uri(raw_uri, source, root_dir, base)?;
     let source = source.clone();
     let element = raw_uri.element.clone();
@@ -54,7 +51,7 @@ fn try_parse_into_uri(
     source: &ResolvedInputSource,
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
-) -> Result<Uri> {
+) -> LycheeResult<Uri> {
     let text = prepend_root_dir_if_absolute_local_link(&raw_uri.text, root_dir);
     let uri = match Uri::try_from(raw_uri.clone()) {
         Ok(uri) => uri,
@@ -90,7 +87,7 @@ fn create_uri_from_file_path(
     file_path: &Path,
     link_text: &str,
     ignore_absolute_local_links: bool,
-) -> Result<Uri> {
+) -> LycheeResult<Uri> {
     let target_path = if is_anchor(link_text) {
         // For anchors, we need to append the anchor to the file name.
         let file_name = file_path
@@ -113,29 +110,39 @@ fn create_uri_from_file_path(
 }
 
 /// Create requests out of the collected URLs.
-/// Only keeps "valid" URLs. This filters out anchors for example.
+/// Returns a vector of valid URLs and errors. Valid URLs are deduplicated,
+/// request errors are not deduplicated.
 ///
 /// If a URLs is ignored (because of the current settings),
-/// it will not be added to the `HashSet`.
+/// it will not be added to the results.
 pub(crate) fn create(
     uris: Vec<RawUri>,
     source: &ResolvedInputSource,
     root_dir: Option<&PathBuf>,
     base: Option<&Base>,
     extractor: Option<&BasicAuthExtractor>,
-) -> HashSet<Request> {
+) -> Vec<Result<Request, RequestError>> {
     let base = base.cloned().or_else(|| Base::from_source(source));
 
-    uris.into_iter()
-        .filter_map(|raw_uri| {
-            match create_request(&raw_uri, source, root_dir, base.as_ref(), extractor) {
-                Ok(request) => Some(request),
-                Err(e) => {
-                    warn!("Error creating request: {e:?}");
-                    None
-                }
+    let mut requests = HashSet::<Request>::new();
+    let mut errors = Vec::<RequestError>::new();
+
+    for raw_uri in uris {
+        let result = create_request(&raw_uri, source, root_dir, base.as_ref(), extractor);
+        match result {
+            Ok(request) => {
+                requests.insert(request);
             }
-        })
+            Err(e) => errors.push(RequestError::CreateRequestItem(
+                raw_uri.clone(),
+                source.clone(),
+                e,
+            )),
+        }
+    }
+
+    (requests.into_iter().map(Result::Ok))
+        .chain(errors.into_iter().map(Result::Err))
         .collect()
 }
 
@@ -154,7 +161,7 @@ fn resolve_and_create_url(
     src_path: &Path,
     dest_path: &str,
     ignore_absolute_local_links: bool,
-) -> Result<Url> {
+) -> LycheeResult<Url> {
     let (dest_path, fragment) = url::remove_get_params_and_separate_fragment(dest_path);
 
     // Decode the destination path to avoid double-encoding
@@ -196,6 +203,25 @@ mod tests {
 
     use super::*;
 
+    /// Create requests from the given raw URIs and returns requests that were
+    /// constructed successfully, silently ignoring link parsing errors.
+    ///
+    /// This reduces the `Result` handling which is needed in test cases. Test
+    /// cases can still detect the unexpected appearance of errors by the
+    /// length being different.
+    fn create_ok_only(
+        uris: Vec<RawUri>,
+        source: &ResolvedInputSource,
+        root_dir: Option<&PathBuf>,
+        base: Option<&Base>,
+        extractor: Option<&BasicAuthExtractor>,
+    ) -> Vec<Request> {
+        create(uris, source, root_dir, base, extractor)
+            .into_iter()
+            .filter_map(Result::ok)
+            .collect()
+    }
+
     fn raw_uri(text: &'static str) -> RawUri {
         RawUri {
             text: text.to_string(),
@@ -227,7 +253,7 @@ mod tests {
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![raw_uri("relative.html")];
-        let requests = create(uris, &source, None, Some(&base), None);
+        let requests = create_ok_only(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -243,7 +269,7 @@ mod tests {
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![raw_uri("https://another.com/page")];
-        let requests = create(uris, &source, None, Some(&base), None);
+        let requests = create_ok_only(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -259,7 +285,7 @@ mod tests {
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![raw_uri("/root-relative")];
-        let requests = create(uris, &source, None, Some(&base), None);
+        let requests = create_ok_only(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -275,7 +301,7 @@ mod tests {
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![raw_uri("../parent")];
-        let requests = create(uris, &source, None, Some(&base), None);
+        let requests = create_ok_only(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -291,7 +317,7 @@ mod tests {
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![raw_uri("#fragment")];
-        let requests = create(uris, &source, None, Some(&base), None);
+        let requests = create_ok_only(uris, &source, None, Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -307,7 +333,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![raw_uri("relative.html")];
-        let requests = create(uris, &source, Some(&root_dir), None, None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -323,7 +349,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![raw_uri("https://another.com/page")];
-        let requests = create(uris, &source, Some(&root_dir), None, None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -339,7 +365,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![raw_uri("/root-relative")];
-        let requests = create(uris, &source, Some(&root_dir), None, None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -355,7 +381,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![raw_uri("../parent")];
-        let requests = create(uris, &source, Some(&root_dir), None, None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -371,7 +397,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![raw_uri("#fragment")];
-        let requests = create(uris, &source, Some(&root_dir), None, None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -388,7 +414,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![raw_uri("relative.html")];
-        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -405,7 +431,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![raw_uri("https://another.com/page")];
-        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -422,7 +448,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![raw_uri("/root-relative")];
-        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -439,7 +465,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![raw_uri("../parent")];
-        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -456,7 +482,7 @@ mod tests {
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
 
         let uris = vec![raw_uri("#fragment")];
-        let requests = create(uris, &source, Some(&root_dir), Some(&base), None);
+        let requests = create_ok_only(uris, &source, Some(&root_dir), Some(&base), None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -471,7 +497,7 @@ mod tests {
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let uris = vec![raw_uri("https://example.com/page")];
-        let requests = create(uris, &source, None, None, None);
+        let requests = create_ok_only(uris, &source, None, None, None);
 
         assert_eq!(requests.len(), 1);
         assert!(
@@ -506,6 +532,33 @@ mod tests {
                 None,
                 None,
             )
+        );
+    }
+
+    #[test]
+    fn test_create_request_from_relative_file_path_errors() {
+        // relative links unsupported from stdin
+        assert!(
+            create_request(
+                &raw_uri("file.html"),
+                &ResolvedInputSource::Stdin,
+                None,
+                None,
+                None,
+            )
+            .is_err()
+        );
+
+        // error because no root-dir and no base-url
+        assert!(
+            create_request(
+                &raw_uri("/file.html"),
+                &ResolvedInputSource::FsPath(PathBuf::from("page.html")),
+                None,
+                None,
+                None,
+            )
+            .is_err()
         );
     }
 
