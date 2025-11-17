@@ -421,7 +421,7 @@ mod cli {
             .stdout(contains("2 Errors"));
 
         // test with a relative root-dir argument too
-        main_command!()
+        cargo_bin_cmd!()
             .current_dir(dir.parent().unwrap())
             .arg("--offline")
             .arg("--include-fragments")
@@ -456,7 +456,7 @@ mod cli {
 
     #[test]
     fn test_nonexistent_root_dir() {
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--root-dir")
             .arg("i don't exist blah blah")
             .arg("http://example.com")
