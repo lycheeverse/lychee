@@ -1,6 +1,7 @@
 use log::error;
+use log::warn;
 use lychee_lib::Request;
-use lychee_lib::Result;
+use lychee_lib::RequestError;
 use std::fs;
 use std::io::{self, Write};
 use tokio_stream::StreamExt;
@@ -11,9 +12,9 @@ use crate::verbosity::Verbosity;
 use super::CommandParams;
 
 /// Dump all detected links to stdout without checking them
-pub(crate) async fn dump<S>(params: CommandParams<S>) -> Result<ExitCode>
+pub(crate) async fn dump<S>(params: CommandParams<S>) -> lychee_lib::Result<ExitCode>
 where
-    S: futures::Stream<Item = Result<Request>>,
+    S: futures::Stream<Item = Result<Request, RequestError>>,
 {
     let requests = params.requests;
     tokio::pin!(requests);
@@ -25,7 +26,17 @@ where
     let mut writer = super::create_writer(params.cfg.output)?;
 
     while let Some(request) = requests.next().await {
-        let mut request = request?;
+        if let Err(e @ RequestError::UserInputContent { .. }) = request {
+            return Err(e.into_error());
+        }
+
+        let mut request = match request {
+            Ok(x) => x,
+            Err(e) => {
+                warn!("{e}");
+                continue;
+            }
+        };
 
         // Apply URI remappings (if any)
         params.client.remap(&mut request.uri)?;

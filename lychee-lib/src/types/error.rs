@@ -278,12 +278,12 @@ impl ErrorKind {
             ErrorKind::InvalidBase(base, reason) => Some(format!(
                 "Invalid base URL or directory: '{base}'. {reason}",
             )),
-            ErrorKind::InvalidBaseJoin(text) => Some(format!(
-                "Cannot join '{text}' with base URL. Check relative path format",
-            )),
-            ErrorKind::InvalidPathToUri(path) => Some(format!(
-                "Cannot convert path to URI: '{path}'. Check path format",
-            )),
+            ErrorKind::InvalidBaseJoin(_) => Some("Check relative path format".to_string()),
+            ErrorKind::InvalidPathToUri(path) => match path {
+                path if path.starts_with('/') =>
+                    "To resolve root-relative links in local files, provide a root dir",
+                _ => "Check path format",
+            }.to_string().into(),
             ErrorKind::RootDirMustBeAbsolute(path_buf) => Some(format!(
                 "Root directory must be absolute: '{}'. Use full path",
                 path_buf.display()

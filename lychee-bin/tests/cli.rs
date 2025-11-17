@@ -1544,11 +1544,10 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("This URI is available in HTTPS protocol, but HTTP is provided. Use 'https://example.com/' instead"));
     }
 
-    /// If `base-dir` is not set, don't throw an error in case we encounter
+    /// If `base-dir` is not set, an error should be thrown if we encounter
     /// an absolute local link (e.g. `/about`) within a file.
-    /// Instead, simply ignore the link.
     #[test]
-    fn test_ignore_absolute_local_links_without_base() {
+    fn test_absolute_local_links_without_base() {
         let offline_dir = fixtures_path!().join("offline");
 
         cargo_bin_cmd!()
@@ -1556,8 +1555,9 @@ The config file should contain every possible key for documentation purposes."
             .arg(offline_dir.join("index.html"))
             .env_clear()
             .assert()
-            .success()
-            .stdout(contains("0 Total"));
+            .failure()
+            .stdout(contains("5 Error"))
+            .stdout(contains("Error building URL").count(5));
     }
 
     #[test]
@@ -2999,6 +2999,29 @@ The config file should contain every possible key for documentation purposes."
         Ok(())
     }
 
+    // An input which is invalid (no permission directory or invalid glob)
+    // should fail as a CLI error, not a link checking error.
+    #[test]
+    fn test_invalid_user_input_source() -> Result<()> {
+        cargo_bin_cmd!()
+            .arg("http://website.invalid")
+            .assert()
+            .failure()
+            .code(1);
+
+        // maybe test with a directory with no write permissions? but there
+        // doesn't seem to be an equivalent to chmod on the windows API:
+        // https://doc.rust-lang.org/std/fs/struct.Permissions.html
+
+        cargo_bin_cmd!()
+            .arg("invalid-glob[")
+            .assert()
+            .failure()
+            .code(1);
+
+        Ok(())
+    }
+
     /// Invalid glob patterns should be checked and reported as a CLI parsing
     /// error before link checking.
     #[test]
@@ -3047,7 +3070,8 @@ The config file should contain every possible key for documentation purposes."
             .arg(file)
             .assert()
             .failure()
-            .stderr(contains("Error: Preprocessor command 'program does not exist' failed: could not start: No such file or directory (os error 2)"));
+            .code(2)
+            .stdout(contains("Preprocessor command 'program does not exist' failed: could not start: No such file or directory"));
     }
 
     #[test]
@@ -3060,8 +3084,10 @@ The config file should contain every possible key for documentation purposes."
             .arg(&file)
             .assert()
             .failure()
-            .stderr(contains(format!(
-                "Error: Preprocessor command '{}' failed: exited with non-zero code: <empty stderr>", script.as_os_str().to_str().unwrap()
+            .code(2)
+            .stdout(contains(format!(
+                "Preprocessor command '{}' failed: exited with non-zero code: <empty stderr>",
+                script.as_os_str().to_str().unwrap()
             )));
 
         let script = fixtures_path!().join("pre").join("error_message.sh");
@@ -3071,8 +3097,10 @@ The config file should contain every possible key for documentation purposes."
             .arg(file)
             .assert()
             .failure()
-            .stderr(contains(format!(
-                "Error: Preprocessor command '{}' failed: exited with non-zero code: Some error message", script.as_os_str().to_str().unwrap()
+            .code(2)
+            .stdout(contains(format!(
+                "Preprocessor command '{}' failed: exited with non-zero code: Some error message",
+                script.as_os_str().to_str().unwrap()
             )));
     }
 }
