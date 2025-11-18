@@ -3103,4 +3103,15 @@ The config file should contain every possible key for documentation purposes."
                 script.as_os_str().to_str().unwrap()
             )));
     }
+
+    #[test]
+    fn test_mdx_file() {
+        let file = fixtures_path!().join("mdx").join("test.mdx");
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(&file)
+            .assert()
+            .success()
+            .stdout(contains("https://example.com"));
+    }
 }
