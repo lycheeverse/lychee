@@ -77,7 +77,7 @@ wiremock = "0.6.5"
 # Allow checking example domains such as example.com.
 check_example_domains = ["lychee-lib/check_example_domains"]
 
-# Enable checking email addresses. Requires the native-tls feature.
+# Enable checking email addresses.
 email-check = ["lychee-lib/email-check"]
 
 default = ["email-check"]

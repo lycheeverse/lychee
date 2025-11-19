@@ -93,4 +93,4 @@ email-check = ["mailify-lib"]
 # See https://users.rust-lang.org/t/36630
 check_example_domains = []
 
-# default = ["email-check"]
+default = ["email-check"]
