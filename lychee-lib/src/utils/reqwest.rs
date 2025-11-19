@@ -346,7 +346,7 @@ fn analyze_generic_error_string(error_msg: &str) -> Option<String> {
     // Try to match using our rule-based system
     let result = ErrorRules::new()
         .rule(
-            &["bad protocol version", "protocol version"],
+            &["protocol version"],
             "TLS protocol version mismatch. The client and server cannot agree on a TLS version. This is often due to outdated system TLS libraries or the server TLS settings.",
         )
         .rule(
