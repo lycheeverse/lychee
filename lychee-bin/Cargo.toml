@@ -81,10 +81,10 @@ wiremock = "0.6.5"
 # Allow checking example domains such as example.com.
 check_example_domains = ["lychee-lib/check_example_domains"]
 
-# Enable checking email addresses. Requires the native-tls feature.
-# email-check = ["lychee-lib/email-check"]
+# Enable checking email addresses.
+email-check = ["lychee-lib/email-check"]
 
-# default = ["email-check"]
+default = ["email-check"]
 
 # Unfortunately, it's not possible to automatically enable features for cargo
 # test. See rust-lang/cargo#2911. As a workaround we introduce a new feature to
