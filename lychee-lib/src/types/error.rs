@@ -179,13 +179,9 @@ pub enum ErrorKind {
         reason: String,
     },
 
-    /// Error locking a Mutex
-    #[error("Failed to lock a Mutex")]
-    MutexPoisoned,
-
-    /// Error when initializing the Wikilink Checker
+    /// The extracted `WikiLink` could not be found by searching the directory
     #[error("Failed to initialize Wikilink Checker")]
-    WikilinkCheckerInit(String),
+    WikilinkNotFound(Uri),
 }
 
 impl ErrorKind {
@@ -343,12 +339,9 @@ impl ErrorKind {
                 [name] => format!("An index file ({name}) is required"),
                 [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
             }.into(),
-            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the preprocessor option")),
-            ErrorKind::MutexPoisoned => Some (
-                "One or more threads failed and poisoned a Mutex".to_string()
-            ),
-            ErrorKind::WikilinkCheckerInit(reason) => Some(format!(
-                "Error initializing the Wikilink Checker: {reason} ",
+            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the pre option")),
+            ErrorKind::WikilinkNotFound(uri) => Some(format!(
+                "WikiLink could not be found: {uri} ",
             )),
         }
     }
@@ -480,8 +473,7 @@ impl Hash for ErrorKind {
             Self::Cookies(e) => e.hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
             Self::PreprocessorError { command, reason } => (command, reason).hash(state),
-            Self::MutexPoisoned => "Mutex Poisoned".hash(state),
-            Self::WikilinkCheckerInit(e) => e.hash(state),
+            Self::WikilinkNotFound(e) => e.hash(state),
         }
     }
 }

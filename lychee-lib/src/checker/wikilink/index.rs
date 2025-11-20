@@ -1,5 +1,5 @@
-use crate::{Base, ErrorKind, Result};
-use log::{info, warn};
+use crate::Base;
+use log::{info, trace, warn};
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::Path;
@@ -9,45 +9,36 @@ use walkdir::WalkDir;
 
 /// Indexes a given directory mapping filenames to their corresponding path.
 ///
-/// The `WikilinkChecker` Recursively checks all subdirectories of the given
+/// The `WikilinkIndex` Recursively checks all subdirectories of the given
 /// base directory mapping any found files to the path where they can be found.
 /// Symlinks are ignored to prevent it from infinite loops.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct WikilinkChecker {
+pub(crate) struct WikilinkIndex {
     filenames: Arc<Mutex<HashMap<OsString, PathBuf>>>,
     basedir: Option<Base>,
 }
 
-impl WikilinkChecker {
-    pub(crate) fn new(base: Option<Base>) -> Option<Self> {
-        if base.is_none() {
-            None
-        } else {
-            warn!(
-                "The Wikilink Checker could not be initialized because the base directory is missing"
-            );
-            Some(Self {
-                basedir: base,
-                ..Default::default()
-            })
-        }
+impl WikilinkIndex {
+    pub(crate) fn new(base: Option<Base>) -> Self {
+        let index = Self {
+            basedir: base,
+            ..Default::default()
+        };
+        index.start_indexing();
+        index
     }
 
-    /// Populates the index of the `WikilinkChecker` unless it is already populated.
+    /// Populates the index of the `WikilinkIndex` on startup
     ///
     /// Recursively walks the base directory mapping each filename to an absolute filepath.
-    /// Errors if no base directory is given or if it is recognized as remote
-    pub(crate) fn setup_wikilinks_index(&self) -> Result<()> {
-        // Skip the indexing step in case the filenames are already populated
-        if !self.filenames.lock().unwrap().is_empty() {
-            return Ok(());
-        }
-        match self.basedir {
+    /// The Index stays empty if no base directory is supplied or if the base directory is remote
+    pub(crate) fn start_indexing(&self) {
+        match &self.basedir {
             None => {
-                warn!("File indexing for Wikilinks aborted as no base directory is specified");
-                Ok(())
+                // The Empty Index returns no results in this case
+                trace!("File indexing for Wikilinks aborted as no base directory is specified");
             }
-            Some(ref base_type) => match base_type {
+            Some(base_type) => match base_type {
                 Base::Local(local_base_name) => {
                     // Start file indexing only if the Base is valid and local
                     info!(
@@ -55,10 +46,7 @@ impl WikilinkChecker {
                         local_base_name.display()
                     );
 
-                    let mut lock = self
-                        .filenames
-                        .lock()
-                        .map_err(|_| ErrorKind::MutexPoisoned)?;
+                    let mut lock = self.filenames.lock().unwrap();
                     for entry in WalkDir::new::<PathBuf>(local_base_name.into())
                         // actively ignore symlinks
                         .follow_links(false)
@@ -69,16 +57,11 @@ impl WikilinkChecker {
                             lock.insert(filename.to_ascii_lowercase(), entry.path().to_path_buf());
                         }
                     }
-                    Ok(())
                 }
 
-                // A remote base is of no use for the wikilink checker, silently skip over it
+                // A remote base is of no use for the wikilink checker, return an error to the user
                 Base::Remote(remote_base_name) => {
                     warn!("Error using remote base url for checking wililinks: {remote_base_name}");
-                    Err(ErrorKind::WikilinkCheckerInit(
-                        "Remote Base Directory found, only local directories are allowed"
-                            .to_string(),
-                    ))
                 }
             },
         }
