@@ -3015,7 +3015,7 @@ The config file should contain every possible key for documentation purposes."
         let input = fixtures_path!().join("wiki/obsidian-style.md");
 
         // testing without fragments should not yield failures
-        main_command!()
+        cargo_bin_cmd!()
             .arg(&input)
             .arg("--include-wikilinks")
             .arg("--fallback-extensions")
@@ -3032,7 +3032,7 @@ The config file should contain every possible key for documentation purposes."
         let input = fixtures_path!().join("wiki/obsidian-style-plus-headers.md");
 
         // fragments should resolve all headers
-        main_command!()
+        cargo_bin_cmd!()
             .arg(&input)
             .arg("--include-wikilinks")
             .arg("--fallback-extensions")
@@ -3049,7 +3049,7 @@ The config file should contain every possible key for documentation purposes."
         let input = fixtures_path!().join("wiki/obsidian-style-plus-headers.md");
 
         // fragments should resolve all headers
-        main_command!()
+        cargo_bin_cmd!()
             .arg(&input)
             .arg("--include-wikilinks")
             .arg("--include-fragments")
