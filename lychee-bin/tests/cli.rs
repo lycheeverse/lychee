@@ -2548,6 +2548,8 @@ The config file should contain every possible key for documentation purposes."
         cargo_bin_cmd!()
             .arg("--dump")
             .arg("--include-wikilinks")
+            .arg("--base-url")
+            .arg(fixtures_path!())
             .arg(test_path)
             .assert()
             .success()
@@ -3006,6 +3008,58 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stdout(contains("https://example.org")); // Should extract the link as plaintext
+    }
+
+    #[test]
+    fn test_wikilink_fixture_obsidian_style() {
+        let input = fixtures_path!().join("wiki/obsidian-style.md");
+
+        // testing without fragments should not yield failures
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path!())
+            .assert()
+            .success()
+            .stdout(contains("4 OK"));
+    }
+
+    #[test]
+    fn test_wikilink_fixture_with_fragments_obsidian_style_fixtures_excluded() {
+        let input = fixtures_path!().join("wiki/obsidian-style-plus-headers.md");
+
+        // fragments should resolve all headers
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path!())
+            .assert()
+            .success()
+            .stdout(contains("4 OK"));
+    }
+
+    #[test]
+    fn test_wikilink_fixture_with_fragments_obsidian_style() {
+        let input = fixtures_path!().join("wiki/obsidian-style-plus-headers.md");
+
+        // fragments should resolve all headers
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--include-fragments")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path!())
+            .assert()
+            .success()
+            .stdout(contains("4 OK"));
     }
 
     /// An input which matches nothing should print a warning and continue.
