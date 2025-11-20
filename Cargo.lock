@@ -113,6 +113,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
 
 [[package]]
+name = "archive"
+version = "0.1.0"
+dependencies = [
+ "lychee-lib",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "arraydeque"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -335,6 +344,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "builder"
+version = "0.1.0"
+dependencies = [
+ "http 1.3.1",
+ "lychee-lib",
+ "regex",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -431,6 +451,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "chain"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "lychee-lib",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
 name = "check-if-email-exists"
 version = "0.11.6"
 source = "git+https://github.com/reacherhq/check-if-email-exists.git?tag=v0.11.6#3fbe5200a3d8608fbd72c0f2a5917326c1f8ec91"
@@ -516,9 +546,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.52"
+version = "4.5.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa8120877db0e5c011242f96806ce3c94e0737ab8108532a76a3300a01db2ab8"
+checksum = "c9e340e012a1bf4935f5282ed1436d1489548e8f72308207ea5df0e23d2d03f8"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -526,9 +556,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.52"
+version = "4.5.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02576b399397b659c26064fbc92a75fede9d18ffd5f80ca1cd74ddab167016e1"
+checksum = "d76b5d13eaa18c901fd2f7fca939fefe3a0727a953561fefdf3b2922b8569d00"
 dependencies = [
  "anstream",
  "anstyle",
@@ -565,12 +595,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "client_pool"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "lychee-lib",
+ "tokio",
+ "tokio-stream",
+]
+
+[[package]]
 name = "cmake"
 version = "0.1.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7caa3f9de89ddbe2c607f4101924c5abec803763ae9534e4f4d7d8f84aa81f0"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "collect_links"
+version = "0.1.0"
+dependencies = [
+ "http 1.3.1",
+ "lychee-lib",
+ "regex",
+ "reqwest",
+ "tokio",
+ "tokio-stream",
 ]
 
 [[package]]
@@ -1237,6 +1289,14 @@ checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "extract"
+version = "0.1.0"
+dependencies = [
+ "lychee-lib",
+ "tokio",
 ]
 
 [[package]]
@@ -3758,6 +3818,14 @@ name = "simd-adler32"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
+
+[[package]]
+name = "simple"
+version = "0.1.0"
+dependencies = [
+ "lychee-lib",
+ "tokio",
+]
 
 [[package]]
 name = "simple_asn1"
