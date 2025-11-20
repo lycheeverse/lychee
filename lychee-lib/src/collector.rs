@@ -73,11 +73,15 @@ impl Collector {
     /// Returns an `Err` if the `root_dir` is not an absolute path
     /// or if the reqwest `Client` fails to build
     pub fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> LycheeResult<Self> {
-        if let Some(root_dir) = &root_dir
-            && root_dir.is_relative()
-        {
-            return Err(ErrorKind::RootDirMustBeAbsolute(root_dir.clone()));
-        }
+        let root_dir = match root_dir {
+            Some(root_dir) if base.is_some() => Some(root_dir),
+            Some(root_dir) => Some(
+                root_dir
+                    .canonicalize()
+                    .map_err(|e| ErrorKind::InvalidRootDir(root_dir, e))?,
+            ),
+            None => None,
+        };
         Ok(Collector {
             basic_auth_extractor: None,
             skip_missing_inputs: false,

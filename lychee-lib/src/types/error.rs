@@ -100,9 +100,9 @@ pub enum ErrorKind {
     #[error("Cannot convert path '{0}' to a URI")]
     InvalidPathToUri(String),
 
-    /// Root dir must be an absolute path
-    #[error("Root dir must be an absolute path: '{0}'")]
-    RootDirMustBeAbsolute(PathBuf),
+    /// Invalid root directory given
+    #[error("Invalid root directory '{0}': {1}")]
+    InvalidRootDir(PathBuf, #[source] std::io::Error),
 
     /// The given URI type is not supported
     #[error("Unsupported URI type: '{0}'")]
@@ -284,10 +284,9 @@ impl ErrorKind {
                     "To resolve root-relative links in local files, provide a root dir",
                 _ => "Check path format",
             }.to_string().into(),
-            ErrorKind::RootDirMustBeAbsolute(path_buf) => Some(format!(
-                "Root directory must be absolute: '{}'. Use full path",
-                path_buf.display()
-            )),
+            ErrorKind::InvalidRootDir(_, _) => Some(
+                "Check the root dir exists and is accessible".to_string()
+            ),
             ErrorKind::UnsupportedUriType(uri_type) => Some(format!(
                 "Unsupported URI type: '{uri_type}'. Only http, https, file, and mailto are supported",
             )),
@@ -451,7 +450,7 @@ impl Hash for ErrorKind {
             Self::InvalidBase(base, e) => (base, e).hash(state),
             Self::InvalidBaseJoin(s) => s.hash(state),
             Self::InvalidPathToUri(s) => s.hash(state),
-            Self::RootDirMustBeAbsolute(s) => s.hash(state),
+            Self::InvalidRootDir(s, _) => s.hash(state),
             Self::UnsupportedUriType(s) => s.hash(state),
             Self::InvalidUrlRemap(remap) => (remap).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
