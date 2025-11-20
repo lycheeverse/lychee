@@ -16,6 +16,4 @@ reqwest = { version = "0.13.1", default-features = false, features = ["gzip"] }
 
 [features]
 email-check = ["lychee-lib/email-check"]
-native-tls = ["lychee-lib/native-tls", "reqwest/native-tls"]
-rustls-tls = ["lychee-lib/rustls-tls", "reqwest/rustls"]
-default = ["native-tls", "email-check"]
+default = []

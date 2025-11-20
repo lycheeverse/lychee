@@ -125,6 +125,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "archive"
+version = "0.1.0"
+dependencies = [
+ "lychee-lib",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "assert-json-diff"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -298,6 +307,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "builder"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "lychee-lib",
+ "regex",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -424,6 +444,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "chain"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "lychee-lib",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -515,12 +545,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "client_pool"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "lychee-lib",
+ "tokio",
+ "tokio-stream",
+]
+
+[[package]]
 name = "cmake"
 version = "0.1.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75443c44cd6b379beb8c5b45d85d0773baf31cce901fe7bb252f4eff3008ef7d"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "collect_links"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "lychee-lib",
+ "regex",
+ "reqwest",
+ "tokio",
+ "tokio-stream",
 ]
 
 [[package]]
@@ -1216,6 +1268,14 @@ checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "extract"
+version = "0.1.0"
+dependencies = [
+ "lychee-lib",
+ "tokio",
 ]
 
 [[package]]
@@ -3845,6 +3905,14 @@ name = "simd-adler32"
 version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e320a6c5ad31d271ad523dcf3ad13e2767ad8b1cb8f047f75a8aeaf8da139da2"
+
+[[package]]
+name = "simple"
+version = "0.1.0"
+dependencies = [
+ "lychee-lib",
+ "tokio",
+]
 
 [[package]]
 name = "simple_asn1"
