@@ -759,10 +759,11 @@ Shortcut link: [link4]
         }];
 
         let uris = extract_markdown(input, false, false);
+
+        assert_eq!(uris, expected);
     }
     #[test]
     fn test_wikilink_extraction_returns_none_on_empty_links() {
-        let markdown = r"[[foo#bar]]";
         let markdown = r"
 [[|bar]]
 [[#bar]]
@@ -841,8 +842,11 @@ Shortcut link: [link4]
             text: "foo".to_string(),
             element: Some("a".to_string()),
             attribute: Some("wikilink".to_string()),
+            span: span(1, 3),
         }];
         assert_eq!(uris, expected);
+    }
+
     #[rstest]
     #[case("|foo", true)]
     #[case("|foo#bar", true)]

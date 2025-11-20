@@ -1,9 +1,9 @@
 use http::StatusCode;
-use log::{trace, warn};
+use log::warn;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
-use crate::utils::wikilink_checker::WikilinkChecker;
+use crate::checker::wikilink::resolver::WikilinkResolver;
 use crate::{
     Base, ErrorKind, Status, Uri,
     utils::fragment_checker::{FragmentChecker, FragmentInput},
@@ -37,8 +37,8 @@ pub(crate) struct FileChecker {
     include_wikilinks: bool,
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
-    /// Utility for checking Wikilinks, indexes files in a given directory
-    wikilink_checker: Option<WikilinkChecker>,
+    /// Utility for resolving Wikilinks, indexes files in a given directory
+    wikilink_resolver: WikilinkResolver,
 }
 
 impl FileChecker {
@@ -59,12 +59,12 @@ impl FileChecker {
     ) -> Self {
         Self {
             base: base.clone(),
-            fallback_extensions,
+            fallback_extensions: fallback_extensions.clone(),
             index_files,
             include_fragments,
             include_wikilinks,
             fragment_checker: FragmentChecker::new(),
-            wikilink_checker: WikilinkChecker::new(base),
+            wikilink_resolver: WikilinkResolver::new(base, fallback_extensions),
         }
     }
 
@@ -81,12 +81,6 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     pub(crate) async fn check(&self, uri: &Uri) -> Status {
-        // only populate the wikilink filenames if the feature is enabled
-        if self.include_wikilinks {
-            if let Err(e) = self.setup_wikilinks() {
-                return Status::Error(e);
-            }
-        }
         let Ok(path) = uri.url.to_file_path() else {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         };
@@ -149,12 +143,16 @@ impl FileChecker {
         let path = match path.metadata() {
             // for non-existing paths, attempt fallback extensions
             // if fallback extensions don't help, try wikilinks
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                match self.apply_fallback_extensions(path, uri).map(Cow::Owned) {
-                    Ok(val) => Ok(val),
-                    Err(_) => self.apply_wikilink_check(path, uri).map(Cow::Owned),
-                }
-            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => self
+                .apply_fallback_extensions(path, uri)
+                .or_else(|_| {
+                    if self.include_wikilinks {
+                        self.wikilink_resolver.resolve(path, uri)
+                    } else {
+                        Err(ErrorKind::InvalidFilePath(uri.clone()))
+                    }
+                })
+                .map(Cow::Owned),
 
             // other IO errors are unexpected and should fail the check
             Err(e) => Err(ErrorKind::ReadFileInput(e, path.to_path_buf())),
@@ -330,34 +328,6 @@ impl FileChecker {
                 Status::Ok(StatusCode::OK)
             }
         }
-    }
-
-    // Initializes the index of the wikilink checker
-    fn setup_wikilinks(&self) -> Result<(), ErrorKind> {
-        match &self.wikilink_checker {
-            Some(checker) => checker.setup_wikilinks_index(),
-            None => Err(ErrorKind::WikilinkCheckerInit(
-                "Initialization failed, no checker instantiated".to_string(),
-            )),
-        }
-    }
-
-    // Tries to resolve a link by looking up the filename in the wikilink index
-    fn apply_wikilink_check(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
-        let mut path_buf = path.to_path_buf();
-        for ext in &self.fallback_extensions {
-            path_buf.set_extension(ext);
-            if let Some(checker) = &self.wikilink_checker {
-                match checker.contains_path(&path_buf) {
-                    None => {
-                        trace!("Tried to find wikilink {} at {}", uri, path_buf.display());
-                    }
-                    Some(resolved_path) => return Ok(resolved_path),
-                }
-            }
-        }
-
-        Err(ErrorKind::InvalidFilePath(uri.clone()))
     }
 }
 
