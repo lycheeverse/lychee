@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod cli {
     use anyhow::anyhow;
-    use assert_cmd::{Command, assert::Assert, output::OutputOkExt};
+    use assert_cmd::{assert::Assert, cargo::cargo_bin_cmd, output::OutputOkExt};
     use assert_json_diff::assert_json_include;
     use http::{Method, StatusCode};
     use lychee_lib::{InputSource, ResponseBody};
@@ -22,9 +22,7 @@ mod cli {
         time::Duration,
     };
     use tempfile::{NamedTempFile, tempdir};
-    use test_utils::{
-        fixtures_path, main_command, mock_server, redirecting_mock_server, root_path,
-    };
+    use test_utils::{fixtures_path, mock_server, redirecting_mock_server, root_path};
 
     use uuid::Uuid;
     use wiremock::{
@@ -81,7 +79,7 @@ mod cli {
     /// Test the output of the JSON format.
     macro_rules! test_json_output {
         ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
-            let mut cmd = main_command!();
+            let mut cmd = cargo_bin_cmd!();
             let test_path = fixtures_path!().join($test_file);
             let outfile = format!("{}.json", uuid::Uuid::new_v4());
 
@@ -124,7 +122,7 @@ mod cli {
     fn test_compact_output_format_contains_status() -> Result<()> {
         let test_path = fixtures_path!().join("TEST_INVALID_URLS.html");
 
-        let mut cmd = main_command!();
+        let mut cmd = cargo_bin_cmd!();
         cmd.arg("--format")
             .arg("compact")
             .arg("--mode")
@@ -166,7 +164,7 @@ mod cli {
     async fn test_json_output() -> Result<()> {
         // Server that returns a bunch of 200 OK responses
         let mock_server_ok = mock_server!(StatusCode::OK);
-        let mut cmd = main_command!();
+        let mut cmd = cargo_bin_cmd!();
         cmd.arg("--format")
             .arg("json")
             .arg("-vv")
@@ -223,7 +221,7 @@ mod cli {
     fn test_valid_json_output_to_stdout_on_error() -> Result<()> {
         let test_path = fixtures_path!().join("TEST_GITHUB_404.md");
 
-        let mut cmd = main_command!();
+        let mut cmd = cargo_bin_cmd!();
         cmd.arg("--format")
             .arg("json")
             .arg(test_path)
@@ -242,7 +240,7 @@ mod cli {
     fn test_detailed_json_output_on_error() -> Result<()> {
         let test_path = fixtures_path!().join("TEST_DETAILED_JSON_OUTPUT_ERROR.md");
 
-        let mut cmd = main_command!();
+        let mut cmd = cargo_bin_cmd!();
         cmd.arg("--format")
             .arg("json")
             .arg(&test_path)
@@ -320,33 +318,29 @@ mod cli {
     }
 
     #[test]
-    fn test_email_html_with_subject() -> Result<()> {
+    fn test_email_html_with_subject() {
         let input = fixtures_path!().join("TEST_EMAIL_QUERY_PARAMS.html");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg(input)
             .arg("--include-mail")
             .assert()
             .success()
             .stdout(contains("hello@example.org?subject=%5BHello%5D"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_email_markdown_with_subject() -> Result<()> {
+    fn test_email_markdown_with_subject() {
         let input = fixtures_path!().join("TEST_EMAIL_QUERY_PARAMS.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg(input)
             .arg("--include-mail")
             .assert()
             .success()
             .stdout(contains("hello@example.org?subject=%5BHello%5D"));
-
-        Ok(())
     }
 
     #[test]
@@ -381,7 +375,7 @@ mod cli {
         // Exclude file link because it doesn't exist on the filesystem.
         // (File URIs are absolute paths, which we don't have.)
         // Nevertheless, the `file` scheme should be recognized.
-        main_command!()
+        cargo_bin_cmd!()
             .arg(test_schemes_path)
             .arg("--exclude")
             .arg("file://")
@@ -397,7 +391,7 @@ mod cli {
     fn test_resolve_paths() {
         let dir = fixtures_path!().join("resolve_paths");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--offline")
             .arg("--base-url")
             .arg(&dir)
@@ -413,11 +407,26 @@ mod cli {
     fn test_resolve_paths_from_root_dir() {
         let dir = fixtures_path!().join("resolve_paths_from_root_dir");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--offline")
             .arg("--include-fragments")
             .arg("--root-dir")
             .arg(&dir)
+            .arg(dir.join("nested").join("index.html"))
+            .env_clear()
+            .assert()
+            .failure()
+            .stdout(contains("7 Total"))
+            .stdout(contains("5 OK"))
+            .stdout(contains("2 Errors"));
+
+        // test with a relative root-dir argument too
+        cargo_bin_cmd!()
+            .current_dir(dir.parent().unwrap())
+            .arg("--offline")
+            .arg("--include-fragments")
+            .arg("--root-dir")
+            .arg(dir.file_name().unwrap())
             .arg(dir.join("nested").join("index.html"))
             .env_clear()
             .assert()
@@ -431,7 +440,7 @@ mod cli {
     fn test_resolve_paths_from_root_dir_and_base_url() {
         let dir = fixtures_path!();
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--offline")
             .arg("--root-dir")
             .arg("/resolve_paths")
@@ -446,10 +455,22 @@ mod cli {
     }
 
     #[test]
+    fn test_nonexistent_root_dir() {
+        cargo_bin_cmd!()
+            .arg("--root-dir")
+            .arg("i don't exist blah blah")
+            .arg("http://example.com")
+            .assert()
+            .failure()
+            .stderr(contains("Invalid root directory"))
+            .code(1);
+    }
+
+    #[test]
     fn test_youtube_quirk() {
         let url = "https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7";
 
-        main_command!()
+        cargo_bin_cmd!()
             .write_stdin(url)
             .arg("--verbose")
             .arg("--no-progress")
@@ -464,7 +485,7 @@ mod cli {
     fn test_crates_io_quirk() {
         let url = "https://crates.io/crates/lychee";
 
-        main_command!()
+        cargo_bin_cmd!()
             .write_stdin(url)
             .arg("--verbose")
             .arg("--no-progress")
@@ -482,7 +503,7 @@ mod cli {
     fn test_ignored_hosts() {
         let url = "https://twitter.com/zarfeblong/status/1339742840142872577";
 
-        main_command!()
+        cargo_bin_cmd!()
             .write_stdin(url)
             .arg("--verbose")
             .arg("--no-progress")
@@ -501,7 +522,7 @@ mod cli {
         let mut file = File::create(&file_path)?;
         writeln!(file, "{}", mock_server.uri())?;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg(file_path)
             .write_stdin(mock_server.uri())
             .assert()
@@ -515,7 +536,7 @@ mod cli {
     fn test_schemes() {
         let test_schemes_path = fixtures_path!().join("TEST_SCHEMES.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg(test_schemes_path)
             .arg("--scheme")
             .arg("https")
@@ -534,7 +555,7 @@ mod cli {
         // Repetitions in one file shall all be checked and counted only once.
         let test_schemes_path_1 = fixtures_path!().join("TEST_REPETITION_1.txt");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg(&test_schemes_path_1)
             .env_clear()
             .assert()
@@ -570,7 +591,7 @@ mod cli {
     fn test_failure_github_404_no_token() {
         let test_github_404_path = fixtures_path!().join("TEST_GITHUB_404.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg(test_github_404_path)
             .arg("--no-progress")
             .env_clear()
@@ -589,7 +610,7 @@ mod cli {
     async fn test_stdin_input() {
         let mock_server = mock_server!(StatusCode::OK);
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("-")
             .write_stdin(mock_server.uri())
             .assert()
@@ -600,7 +621,7 @@ mod cli {
     async fn test_stdin_input_failure() {
         let mock_server = mock_server!(StatusCode::INTERNAL_SERVER_ERROR);
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("-")
             .write_stdin(mock_server.uri())
             .assert()
@@ -615,7 +636,7 @@ mod cli {
 
         // this behavior (treating multiple `-` as separate inputs) is the same as most CLI tools
         // that accept `-` as stdin, e.g. `cat`, `bat`, `grep` etc.
-        main_command!()
+        cargo_bin_cmd!()
             .arg("-")
             .arg("-")
             .write_stdin(mock_server_a.uri())
@@ -627,7 +648,7 @@ mod cli {
     #[test]
     fn test_missing_file_ok_if_skip_missing() {
         let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
-        main_command!()
+        cargo_bin_cmd!()
             .arg(&filename)
             .arg("--skip-missing")
             .assert()
@@ -636,20 +657,20 @@ mod cli {
 
     #[test]
     fn test_skips_hidden_files_by_default() {
-        main_command!()
+        cargo_bin_cmd!()
             .arg(fixtures_path!().join("hidden/"))
             .assert()
             .success()
             .stdout(contains("0 Total"));
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg(fixtures_path!().join("hidden/"))
             .assert()
             .stdout("")
             .success();
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg(fixtures_path!().join("hidden/"))
             .assert()
@@ -659,14 +680,14 @@ mod cli {
 
     #[test]
     fn test_include_hidden_file() {
-        main_command!()
+        cargo_bin_cmd!()
             .arg(fixtures_path!().join("hidden/"))
             .arg("--hidden")
             .assert()
             .success()
             .stdout(contains("1 Total"));
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg("--hidden")
             .arg(fixtures_path!().join("hidden/"))
@@ -674,7 +695,7 @@ mod cli {
             .stdout(contains("wikipedia.org"))
             .success();
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg("--hidden")
             .arg(fixtures_path!().join("hidden/"))
@@ -685,20 +706,20 @@ mod cli {
 
     #[test]
     fn test_skips_ignored_files_by_default() {
-        main_command!()
+        cargo_bin_cmd!()
             .arg(fixtures_path!().join("ignore/"))
             .assert()
             .success()
             .stdout(contains("0 Total"));
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg(fixtures_path!().join("ignore/"))
             .assert()
             .success()
             .stdout("");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg(fixtures_path!().join("ignore/"))
             .assert()
@@ -708,14 +729,14 @@ mod cli {
 
     #[test]
     fn test_include_ignored_file() {
-        main_command!()
+        cargo_bin_cmd!()
             .arg(fixtures_path!().join("ignore/"))
             .arg("--no-ignore")
             .assert()
             .success()
             .stdout(contains("1 Total"));
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg("--no-ignore")
             .arg(fixtures_path!().join("ignore/"))
@@ -723,7 +744,7 @@ mod cli {
             .success()
             .stdout(contains("wikipedia.org"));
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg("--no-ignore")
             .arg(fixtures_path!().join("ignore/"))
@@ -743,7 +764,7 @@ mod cli {
         writeln!(file_a, "{}", mock_server_a.uri().as_str())?;
         writeln!(file_b, "{}", mock_server_b.uri().as_str())?;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg(dir.path().join("*.md"))
             .arg("--verbose")
             .assert()
@@ -765,7 +786,7 @@ mod cli {
         writeln!(file_a, "{}", mock_server_a.uri().as_str())?;
         writeln!(file_b, "{}", mock_server_b.uri().as_str())?;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg(dir.path().join("[r]eadme.md"))
             .arg("--verbose")
             .arg("--glob-ignore-case")
@@ -787,7 +808,7 @@ mod cli {
 
         writeln!(file, "{}", mock_server.uri().as_str())?;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg(dir.path().join("**/*.md")) // ** should be a recursive glob
             .arg("--verbose")
             .assert()
@@ -817,7 +838,7 @@ mod cli {
         let test_path = fixtures_path!().join("TEST.md");
         let outfile = format!("{}", Uuid::new_v4());
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--output")
             .arg(&outfile)
             .arg("--dump")
@@ -842,7 +863,7 @@ mod cli {
     fn test_exclude_wildcard() -> Result<()> {
         let test_path = fixtures_path!().join("TEST.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg(test_path)
             .arg("--exclude")
             .arg(".*")
@@ -857,7 +878,7 @@ mod cli {
     fn test_exclude_multiple_urls() -> Result<()> {
         let test_path = fixtures_path!().join("TEST.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg(test_path)
             .arg("--exclude")
             .arg("https://en.wikipedia.org/*")
@@ -874,7 +895,7 @@ mod cli {
     async fn test_empty_config() {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("empty.toml");
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--config")
             .arg(config)
             .arg("-")
@@ -889,7 +910,7 @@ mod cli {
     #[test]
     fn test_invalid_default_config() {
         let test_path = fixtures_path!().join("configs");
-        let mut cmd = main_command!();
+        let mut cmd = cargo_bin_cmd!();
         cmd.current_dir(test_path)
             .arg(".")
             .assert()
@@ -904,7 +925,7 @@ mod cli {
         let mut config = NamedTempFile::new()?;
         writeln!(config, "include_mail = false")?;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--config")
             .arg(config.path().to_str().unwrap())
             .arg("-")
@@ -918,7 +939,7 @@ mod cli {
         let mut config = NamedTempFile::new()?;
         writeln!(config, "include_mail = true")?;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--config")
             .arg(config.path().to_str().unwrap())
             .arg("-")
@@ -936,7 +957,7 @@ mod cli {
     async fn test_cache_config() -> Result<()> {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("cache.toml");
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--config")
             .arg(config)
             .arg("-")
@@ -953,7 +974,7 @@ mod cli {
     #[tokio::test]
     async fn test_invalid_config() {
         let config = fixtures_path!().join("configs").join("invalid.toml");
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--config")
             .arg(config)
             .arg("-")
@@ -969,7 +990,7 @@ mod cli {
     async fn test_config_invalid_keys() {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("invalid-key.toml");
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--config")
             .arg(config)
             .arg("-")
@@ -984,7 +1005,7 @@ mod cli {
     #[tokio::test]
     async fn test_missing_config_error() {
         let mock_server = mock_server!(StatusCode::OK);
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--config")
             .arg("config.does.not.exist.toml")
             .arg("-")
@@ -998,7 +1019,7 @@ mod cli {
     async fn test_config_example() {
         let mock_server = mock_server!(StatusCode::OK);
         let config = root_path!().join("lychee.example.toml");
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--config")
             .arg(config)
             .arg("-")
@@ -1011,7 +1032,11 @@ mod cli {
     #[test]
     #[cfg(unix)]
     fn test_all_arguments_in_config() -> Result<()> {
-        let help_cmd = main_command!().env_clear().arg("--help").assert().success();
+        let help_cmd = cargo_bin_cmd!()
+            .env_clear()
+            .arg("--help")
+            .assert()
+            .success();
         let help_text = std::str::from_utf8(&help_cmd.get_output().stdout)?;
 
         let regex = test_utils::arg_regex_help!()?;
@@ -1053,7 +1078,7 @@ The config file should contain every possible key for documentation purposes."
     async fn test_config_smoketest() {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("smoketest.toml");
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--config")
             .arg(config)
             .arg("-")
@@ -1067,7 +1092,7 @@ The config file should contain every possible key for documentation purposes."
     async fn test_config_accept() {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("accept.toml");
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--config")
             .arg(config)
             .arg("-")
@@ -1081,7 +1106,7 @@ The config file should contain every possible key for documentation purposes."
     #[cfg(unix)]
     async fn test_config_files_from() {
         let dir = fixtures_path!().join("configs").join("files_from");
-        let result = main_command!()
+        let result = cargo_bin_cmd!()
             .current_dir(dir)
             .arg("/dev/null") // at least one input arg is required. this could be changed in the future
             .arg("--dump")
@@ -1095,7 +1120,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_lycheeignore_file() -> Result<()> {
         let test_path = fixtures_path!().join("lycheeignore");
 
-        let cmd = main_command!()
+        let cmd = cargo_bin_cmd!()
             .current_dir(test_path)
             .arg("--dump")
             .arg("TEST.md")
@@ -1116,7 +1141,7 @@ The config file should contain every possible key for documentation purposes."
         let test_path = fixtures_path!().join("lycheeignore");
         let excludes_path = test_path.join("normal-exclude-file");
 
-        main_command!()
+        cargo_bin_cmd!()
             .current_dir(test_path)
             .arg("TEST.md")
             .arg("--exclude-file")
@@ -1156,7 +1181,7 @@ The config file should contain every possible key for documentation purposes."
         file.sync_all()?;
 
         // Create and run command
-        let mut cmd = main_command!();
+        let mut cmd = cargo_bin_cmd!();
         cmd.current_dir(&base_path)
             .arg(&file_path)
             .arg("--verbose")
@@ -1228,7 +1253,7 @@ The config file should contain every possible key for documentation purposes."
         writeln!(file, "{}", mock_server_no_content.uri().as_str())?;
         writeln!(file, "{}", mock_server_too_many_requests.uri().as_str())?;
 
-        let mut cmd = main_command!();
+        let mut cmd = cargo_bin_cmd!();
         let test_cmd = cmd
             .current_dir(&base_path)
             .arg(dir.path().join("c.md"))
@@ -1291,7 +1316,7 @@ The config file should contain every possible key for documentation purposes."
         writeln!(file, "{}", mock_server_teapot.uri().as_str())?;
         writeln!(file, "{}", mock_server_server_error.uri().as_str())?;
 
-        let mut cmd = main_command!();
+        let mut cmd = cargo_bin_cmd!();
         let test_cmd = cmd
             .current_dir(&base_path)
             .arg(dir.path().join("c.md"))
@@ -1351,7 +1376,7 @@ The config file should contain every possible key for documentation purposes."
     async fn test_accept_overrides_defaults_not_additive() -> Result<()> {
         let mock_server_200 = mock_server!(StatusCode::OK);
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--accept")
             .arg("404") // ONLY accept 404 - should reject 200 as we overwrite the default
             .arg("-")
@@ -1379,7 +1404,7 @@ The config file should contain every possible key for documentation purposes."
         let excluded_url = "https://example.com/";
 
         // run first without cache to generate the cache file
-        main_command!()
+        cargo_bin_cmd!()
             .current_dir(&base_path)
             .write_stdin(format!("{unsupported_url}\n{excluded_url}"))
             .arg("--cache")
@@ -1431,7 +1456,7 @@ The config file should contain every possible key for documentation purposes."
         let unknown_url = "https://www.linkedin.com/company/corrode";
 
         // run first without cache to generate the cache file
-        main_command!()
+        cargo_bin_cmd!()
             .current_dir(&base_path)
             .write_stdin(unknown_url.to_string())
             .arg("--cache")
@@ -1465,7 +1490,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_verbatim_skipped_by_default() {
         let input = fixtures_path!().join("TEST_CODE_BLOCKS.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg(input)
             .arg("--dump")
             .assert()
@@ -1477,7 +1502,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_include_verbatim() {
         let input = fixtures_path!().join("TEST_CODE_BLOCKS.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--include-verbatim")
             .arg(input)
             .arg("--dump")
@@ -1491,7 +1516,7 @@ The config file should contain every possible key for documentation purposes."
     async fn test_verbatim_skipped_by_default_via_file() {
         let file = fixtures_path!().join("TEST_VERBATIM.html");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg(file)
             .assert()
@@ -1505,7 +1530,7 @@ The config file should contain every possible key for documentation purposes."
         let body = fs::read_to_string(file).unwrap();
         let mock_server = mock_response!(body);
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg(mock_server.uri())
             .assert()
@@ -1519,7 +1544,7 @@ The config file should contain every possible key for documentation purposes."
         let body = fs::read_to_string(file).unwrap();
         let mock_server = mock_response!(body);
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--include-verbatim")
             .arg("--dump")
             .arg(mock_server.uri())
@@ -1536,9 +1561,9 @@ The config file should contain every possible key for documentation purposes."
     #[test]
     fn test_require_https() {
         let test_path = fixtures_path!().join("TEST_HTTP.html");
-        main_command!().arg(&test_path).assert().success();
+        cargo_bin_cmd!().arg(&test_path).assert().success();
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--require-https")
             .arg(test_path)
             .assert()
@@ -1546,26 +1571,26 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("This URI is available in HTTPS protocol, but HTTP is provided. Use 'https://example.com/' instead"));
     }
 
-    /// If `base-dir` is not set, don't throw an error in case we encounter
+    /// If `base-dir` is not set, an error should be thrown if we encounter
     /// an absolute local link (e.g. `/about`) within a file.
-    /// Instead, simply ignore the link.
     #[test]
-    fn test_ignore_absolute_local_links_without_base() {
+    fn test_absolute_local_links_without_base() {
         let offline_dir = fixtures_path!().join("offline");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--offline")
             .arg(offline_dir.join("index.html"))
             .env_clear()
             .assert()
-            .success()
-            .stdout(contains("0 Total"));
+            .failure()
+            .stdout(contains("5 Error"))
+            .stdout(contains("Error building URL").count(5));
     }
 
     #[test]
     fn test_inputs_without_scheme() {
         let test_path = fixtures_path!().join("TEST_HTTP.html");
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg("example.com")
             .arg(&test_path)
@@ -1577,7 +1602,7 @@ The config file should contain every possible key for documentation purposes."
     #[test]
     fn test_print_excluded_links_in_verbose_mode() {
         let test_path = fixtures_path!().join("TEST_DUMP_EXCLUDE.txt");
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg("--verbose")
             .arg("--exclude")
@@ -1602,7 +1627,7 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_remap_uri() {
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg("--remap")
             .arg("https://example.com http://127.0.0.1:8080")
@@ -1622,7 +1647,7 @@ The config file should contain every possible key for documentation purposes."
     #[test]
     #[ignore = "Skipping test until https://github.com/robinst/linkify/pull/58 is merged"]
     fn test_remap_path() {
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg("--remap")
             .arg("../../issues https://github.com/usnistgov/OSCAL/issues")
@@ -1637,7 +1662,7 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_remap_capture() {
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg("--remap")
             .arg("https://example.com/(.*) http://example.org/$1")
@@ -1652,7 +1677,7 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_remap_named_capture() {
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg("--remap")
             .arg("https://github.com/(?P<org>.*)/(?P<repo>.*) https://gitlab.com/$org/$repo")
@@ -1670,7 +1695,7 @@ The config file should contain every possible key for documentation purposes."
         let test_path = fixtures_path!().join("exclude-path");
         let excluded_path_1 = "\\/excluded?\\/"; // exclude paths containing a directory "exclude" and "excluded"
         let excluded_path_2 = "(\\.mdx|\\.txt)$"; // exclude .mdx and .txt files
-        let result = main_command!()
+        let result = cargo_bin_cmd!()
             .arg("--exclude-path")
             .arg(excluded_path_1)
             .arg("--exclude-path")
@@ -1694,7 +1719,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_handle_relative_paths_as_input() {
         let test_path = fixtures_path!();
 
-        main_command!()
+        cargo_bin_cmd!()
             .current_dir(&test_path)
             .arg("--verbose")
             .arg("--exclude")
@@ -1711,7 +1736,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_handle_nonexistent_relative_paths_as_input() {
         let test_path = fixtures_path!();
 
-        main_command!()
+        cargo_bin_cmd!()
             .current_dir(&test_path)
             .arg("--verbose")
             .arg("--exclude")
@@ -1727,7 +1752,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_prevent_too_many_redirects() {
         let url = "https://http.codes/308";
 
-        main_command!()
+        cargo_bin_cmd!()
             .write_stdin(url)
             .arg("--max-redirects")
             .arg("0")
@@ -1743,7 +1768,7 @@ The config file should contain every possible key for documentation purposes."
 
         for _ in 0..3 {
             // This can be flaky. Try up to 3 times
-            let mut cmd = main_command!();
+            let mut cmd = cargo_bin_cmd!();
             let input = fixtures_path!().join("INTERNET_ARCHIVE.md");
 
             cmd.arg("--no-progress").arg("--suggest").arg(input);
@@ -1787,7 +1812,7 @@ The config file should contain every possible key for documentation purposes."
             .await;
 
         // Configure the command to use the BasicAuthExtractor
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--basic-auth")
             .arg(format!("{} {username}:{password}", mock_server.uri()))
@@ -1799,7 +1824,7 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("1 OK"));
 
         // Websites as direct arguments must also use authentication
-        main_command!()
+        cargo_bin_cmd!()
             .arg(mock_server.uri())
             .arg("--verbose")
             .arg("--basic-auth")
@@ -1829,7 +1854,7 @@ The config file should contain every possible key for documentation purposes."
             .await;
 
         // Configure the command to use the BasicAuthExtractor
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--basic-auth")
             .arg(format!("{} {username1}:{password1}", mock_server1.uri()))
@@ -1847,7 +1872,7 @@ The config file should contain every possible key for documentation purposes."
     async fn test_cookie_jar() -> Result<()> {
         // Create a random cookie jar file
         let cookie_jar = NamedTempFile::new()?;
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--cookie-jar")
             .arg(cookie_jar.path().to_str().unwrap())
             .arg("-")
@@ -1871,7 +1896,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_dump_inputs_does_not_include_duplicates() {
         let pattern = fixtures_path!().join("dump_inputs/markdown.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg(&pattern)
             .arg(&pattern)
@@ -1885,7 +1910,7 @@ The config file should contain every possible key for documentation purposes."
         let pattern1 = fixtures_path!().join("**/markdown.*");
         let pattern2 = fixtures_path!().join("**/*.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg(pattern1)
             .arg(pattern2)
@@ -1898,7 +1923,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_dump_inputs_glob_md() {
         let pattern = fixtures_path!().join("**/*.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg(pattern)
             .assert()
@@ -1911,7 +1936,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_dump_inputs_glob_all() {
         let pattern = fixtures_path!().join("**/*");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg(pattern)
             .assert()
@@ -1927,7 +1952,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_dump_inputs_glob_exclude_path() {
         let pattern = fixtures_path!().join("**/*");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg(pattern)
             .arg("--exclude-path")
@@ -1941,7 +1966,7 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_dump_inputs_url() {
-        let result = main_command!()
+        let result = cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg("https://example.com")
             .assert()
@@ -1952,7 +1977,7 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_dump_inputs_path() {
-        let result = main_command!()
+        let result = cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg(fixtures_path!().join("dump_inputs"))
             .assert()
@@ -1978,7 +2003,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_dump_inputs_with_extensions() {
         let test_dir = fixtures_path!().join("dump_inputs");
 
-        let output = main_command!()
+        let output = cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg("--extensions")
             .arg("md,txt")
@@ -2019,7 +2044,7 @@ The config file should contain every possible key for documentation purposes."
         let test_dir = fixtures_path!().join("hidden");
 
         // Test default behavior (skip hidden)
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg(&test_dir)
             .assert()
@@ -2027,7 +2052,7 @@ The config file should contain every possible key for documentation purposes."
             .stdout(is_empty());
 
         // Test with --hidden flag
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg("--hidden")
             .arg(test_dir)
@@ -2040,7 +2065,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_dump_inputs_individual_file() {
         let test_file = fixtures_path!().join("TEST.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg(&test_file)
             .assert()
@@ -2050,7 +2075,7 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_dump_inputs_stdin() {
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg("-")
             .assert()
@@ -2062,7 +2087,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_fragments_regression() {
         let input = fixtures_path!().join("FRAGMENT_REGRESSION.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--include-fragments")
             .arg("--verbose")
             .arg(input)
@@ -2074,7 +2099,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_fragments() {
         let input = fixtures_path!().join("fragments");
 
-        let mut result = main_command!()
+        let mut result = cargo_bin_cmd!()
             .arg("--include-fragments")
             .arg("--verbose")
             .arg(input)
@@ -2168,7 +2193,7 @@ The config file should contain every possible key for documentation purposes."
 
         // it's common for user to accept 429, but let's test with 404 since
         // triggering 429 may annoy the server
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--accept=200,404")
             .arg("--include-fragments")
@@ -2187,7 +2212,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_fallback_extensions() {
         let input = fixtures_path!().join("fallback-extensions");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--fallback-extensions=htm,html")
             .arg(input)
@@ -2200,7 +2225,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_fragments_fallback_extensions() {
         let input = fixtures_path!().join("fragments-fallback-extensions");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--include-fragments")
             .arg("--fallback-extensions=html")
             .arg("--no-progress")
@@ -2245,7 +2270,7 @@ The config file should contain every possible key for documentation purposes."
             .mount(&mock_server)
             .await;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg(format!("{}/test/index.html", mock_server.uri()))
             .assert()
@@ -2258,7 +2283,7 @@ The config file should contain every possible key for documentation purposes."
     async fn test_json_format_in_config() -> Result<()> {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("format.toml");
-        let output = main_command!()
+        let output = cargo_bin_cmd!()
             .arg("--config")
             .arg(config)
             .arg("-")
@@ -2281,7 +2306,7 @@ The config file should contain every possible key for documentation purposes."
     async fn test_redirect_json() {
         use serde_json::json;
         redirecting_mock_server!(async |redirect_url: Url, ok_url| {
-            let output = main_command!()
+            let output = cargo_bin_cmd!()
                 .arg("-")
                 .arg("--format")
                 .arg("json")
@@ -2329,7 +2354,7 @@ The config file should contain every possible key for documentation purposes."
             .mount(&mock_server)
             .await;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("-")
             .write_stdin(mock_server.uri())
             .assert()
@@ -2347,7 +2372,7 @@ The config file should contain every possible key for documentation purposes."
             )
             .await;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg(server.uri())
             .assert()
@@ -2378,7 +2403,7 @@ The config file should contain every possible key for documentation purposes."
             )
             .await;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--header")
             .arg("X-Foo: Bar")
@@ -2405,7 +2430,7 @@ The config file should contain every possible key for documentation purposes."
             )
             .await;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--header")
             .arg("X-Foo: Bar")
@@ -2435,7 +2460,7 @@ The config file should contain every possible key for documentation purposes."
             .await;
 
         let config = fixtures_path!().join("configs").join("headers.toml");
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--config")
             .arg(config)
@@ -2456,7 +2481,7 @@ The config file should contain every possible key for documentation purposes."
             "https://httpbin.org/status/502",
         ];
 
-        let cmd = &mut main_command!()
+        let cmd = &mut cargo_bin_cmd!()
             .arg("--format")
             .arg("compact")
             .arg(fixtures_path!().join(test_files[1]))
@@ -2495,7 +2520,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_extract_url_ending_with_period_file() {
         let test_path = fixtures_path!().join("LINK_PERIOD.html");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg(test_path)
             .assert()
@@ -2508,7 +2533,7 @@ The config file should contain every possible key for documentation purposes."
         let body = r#"<a href="https://www.example.com/smth.">link</a>"#;
         let mock_server = mock_response!(body);
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg(mock_server.uri())
             .assert()
@@ -2520,7 +2545,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_wikilink_extract_when_specified() {
         let test_path = fixtures_path!().join("TEST_WIKI.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg("--include-wikilinks")
             .arg(test_path)
@@ -2533,7 +2558,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_wikilink_dont_extract_when_not_specified() {
         let test_path = fixtures_path!().join("TEST_WIKI.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg(test_path)
             .assert()
@@ -2546,7 +2571,7 @@ The config file should contain every possible key for documentation purposes."
         let input = fixtures_path!().join("filechecker/dir_links.md");
 
         // the dir links in this file all exist.
-        main_command!()
+        cargo_bin_cmd!()
             .arg(&input)
             .arg("--verbose")
             .assert()
@@ -2555,7 +2580,7 @@ The config file should contain every possible key for documentation purposes."
         // ... but checking fragments will find none, because dirs
         // have no fragments and no index file given.
         let dir_links_with_fragment = 2;
-        main_command!()
+        cargo_bin_cmd!()
             .arg(&input)
             .arg("--include-fragments")
             .assert()
@@ -2570,7 +2595,7 @@ The config file should contain every possible key for documentation purposes."
 
         // passing `--index-files index.html,index.htm` should reject all links
         // to /empty_dir because it doesn't have the index file
-        let result = main_command!()
+        let result = cargo_bin_cmd!()
             .arg(&input)
             .arg("--index-files")
             .arg("index.html,index.htm")
@@ -2588,7 +2613,7 @@ The config file should contain every possible key for documentation purposes."
 
         // within the error message, formatting of the index file name list should
         // omit empty names.
-        main_command!()
+        cargo_bin_cmd!()
             .arg(&input)
             .arg("--index-files")
             .arg(",index.html,,,index.htm,")
@@ -2603,7 +2628,7 @@ The config file should contain every possible key for documentation purposes."
 
         // passing `.` in the index files list should accept a directory
         // even if no other index file is found.
-        main_command!()
+        cargo_bin_cmd!()
             .arg(&input)
             .arg("--index-files")
             .arg("index.html,.")
@@ -2614,7 +2639,7 @@ The config file should contain every possible key for documentation purposes."
         // checking fragments will accept the index_dir#fragment link,
         // but reject empty_dir#fragment because empty_dir doesn’t have
         // index.html.
-        main_command!()
+        cargo_bin_cmd!()
             .arg(&input)
             .arg("--index-files")
             .arg("index.html,.")
@@ -2633,7 +2658,7 @@ The config file should contain every possible key for documentation purposes."
 
         // passing an empty list to --index-files should reject /all/
         // directory links.
-        let result = main_command!()
+        let result = cargo_bin_cmd!()
             .arg(&input)
             .arg("--index-files")
             .arg("")
@@ -2647,7 +2672,7 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("0 OK"));
 
         // ... as should passing a number of empty index file names
-        main_command!()
+        cargo_bin_cmd!()
             .arg(&input)
             .arg("--index-files")
             .arg(",,,,,")
@@ -2663,7 +2688,7 @@ The config file should contain every possible key for documentation purposes."
         let inputs = fixtures_path!().join("invalid_utf8");
 
         // Run the command with the binary input
-        let result = main_command!()
+        let result = cargo_bin_cmd!()
             .arg("--verbose")
             .arg(&inputs)
             .assert()
@@ -2692,7 +2717,7 @@ The config file should contain every possible key for documentation purposes."
         let inputs = fixtures_path!().join("invalid_utf8");
 
         // Run the command with the binary input
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--dump-inputs")
             .arg(inputs)
             .assert()
@@ -2716,7 +2741,7 @@ The config file should contain every possible key for documentation purposes."
         // - example.md
         // - example.html
         // But the user only specified the .tsx file via the glob pattern.
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             // Only check ts, js, and html files by default.
             // However, all files explicitly specified by the user
@@ -2735,7 +2760,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Make sure all files matching the given extensions are checked
         // if we specify a directory (and not a glob pattern).
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--extensions=ts,html")
             .arg(input)
@@ -2759,7 +2784,7 @@ The config file should contain every possible key for documentation purposes."
         let glob_input = fixtures_path!().join("glob_dir/**/*.tsx");
         let dir_input = fixtures_path!().join("example_dir");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--extensions=html,md")
             .arg(glob_input)
@@ -2788,7 +2813,7 @@ The config file should contain every possible key for documentation purposes."
         let ts_input_file = fixtures_path!().join("glob_dir/example.ts");
         let md_input_file = fixtures_path!().join("glob_dir/example.md");
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--dump")
             .arg("--extensions=html,md")
@@ -2808,7 +2833,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_url_inputs_always_get_checked_no_matter_their_extension() {
         let url_input = "https://example.com/sitemap.xml";
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--dump")
             .arg(url_input)
@@ -2828,7 +2853,7 @@ The config file should contain every possible key for documentation purposes."
         fs::write(&test_md, "# Test\n[link](https://example.com)")?;
         fs::write(&files_list_path, test_md.to_string_lossy().as_ref())?;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--files-from")
             .arg(&files_list_path)
             .arg("--dump-inputs")
@@ -2847,7 +2872,7 @@ The config file should contain every possible key for documentation purposes."
         // Create test file
         fs::write(&test_md, "# Test\n[link](https://example.com)")?;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--files-from")
             .arg("-")
             .arg("--dump-inputs")
@@ -2875,7 +2900,7 @@ The config file should contain every possible key for documentation purposes."
             ),
         )?;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--files-from")
             .arg(&files_list_path)
             .arg("--dump-inputs")
@@ -2898,7 +2923,7 @@ The config file should contain every possible key for documentation purposes."
         fs::write(&test_md2, "# Test 2")?;
         fs::write(&files_list_path, test_md1.to_string_lossy().as_ref())?;
 
-        let mut cmd = main_command!();
+        let mut cmd = cargo_bin_cmd!();
         cmd.arg("--files-from")
             .arg(&files_list_path)
             .arg(&test_md2) // Regular input argument
@@ -2913,7 +2938,7 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_files_from_nonexistent_file_error() {
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--files-from")
             .arg("/nonexistent/file.txt")
             .arg("--dump-inputs")
@@ -2932,7 +2957,7 @@ The config file should contain every possible key for documentation purposes."
         writeln!(file_without_ext, "[Local](local.md)")?;
 
         // Test with --default-extension md
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--default-extension")
             .arg("md")
             .arg("--dump")
@@ -2951,7 +2976,7 @@ The config file should contain every possible key for documentation purposes."
         writeln!(html_file_without_ext, "</body></html>")?;
 
         // Test with --default-extension html
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--default-extension")
             .arg("html")
             .arg("--dump")
@@ -2973,7 +2998,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Unknown extensions should fall back to default behavior (plaintext)
         // and still extract links from the content
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--default-extension")
             .arg("unknown")
             .arg("--dump")
@@ -2988,7 +3013,7 @@ The config file should contain every possible key for documentation purposes."
     fn test_input_matching_nothing_warns() -> Result<()> {
         let empty_dir = tempdir()?;
 
-        main_command!()
+        cargo_bin_cmd!()
             .arg(format!("{}", empty_dir.path().to_string_lossy()))
             .arg(format!("{}/*", empty_dir.path().to_string_lossy()))
             .arg("non-existing-path/*")
@@ -3001,11 +3026,34 @@ The config file should contain every possible key for documentation purposes."
         Ok(())
     }
 
+    // An input which is invalid (no permission directory or invalid glob)
+    // should fail as a CLI error, not a link checking error.
+    #[test]
+    fn test_invalid_user_input_source() -> Result<()> {
+        cargo_bin_cmd!()
+            .arg("http://website.invalid")
+            .assert()
+            .failure()
+            .code(1);
+
+        // maybe test with a directory with no write permissions? but there
+        // doesn't seem to be an equivalent to chmod on the windows API:
+        // https://doc.rust-lang.org/std/fs/struct.Permissions.html
+
+        cargo_bin_cmd!()
+            .arg("invalid-glob[")
+            .assert()
+            .failure()
+            .code(1);
+
+        Ok(())
+    }
+
     /// Invalid glob patterns should be checked and reported as a CLI parsing
     /// error before link checking.
     #[test]
     fn test_invalid_glob_fails_parse() {
-        main_command!()
+        cargo_bin_cmd!()
             .arg("invalid-unmatched-brackets[")
             .assert()
             .stderr(contains("Cannot parse input"))
@@ -3018,7 +3066,7 @@ The config file should contain every possible key for documentation purposes."
     #[test]
     fn test_pre_cat() {
         let file = fixtures_path!().join("TEST.md");
-        let pre_with_cat = main_command!()
+        let pre_with_cat = cargo_bin_cmd!()
             .arg("--preprocess")
             .arg("cat")
             .arg("--dump")
@@ -3026,7 +3074,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success();
 
-        let no_pre = main_command!()
+        let no_pre = cargo_bin_cmd!()
             .arg("--dump")
             .arg(&file)
             .assert()
@@ -3043,38 +3091,54 @@ The config file should contain every possible key for documentation purposes."
     #[test]
     fn test_pre_invalid_command() {
         let file = fixtures_path!().join("TEST.md");
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--preprocess")
             .arg("program does not exist")
             .arg(file)
             .assert()
             .failure()
-            .stderr(contains("Error: Preprocessor command 'program does not exist' failed: could not start: No such file or directory (os error 2)"));
+            .code(2)
+            .stdout(contains("Preprocessor command 'program does not exist' failed: could not start: No such file or directory"));
     }
 
     #[test]
     fn test_pre_error() {
         let file = fixtures_path!().join("TEST.md");
         let script = fixtures_path!().join("pre").join("no_error_message.sh");
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--preprocess")
             .arg(&script)
             .arg(&file)
             .assert()
             .failure()
-            .stderr(contains(format!(
-                "Error: Preprocessor command '{}' failed: exited with non-zero code: <empty stderr>", script.as_os_str().to_str().unwrap()
+            .code(2)
+            .stdout(contains(format!(
+                "Preprocessor command '{}' failed: exited with non-zero code: <empty stderr>",
+                script.as_os_str().to_str().unwrap()
             )));
 
         let script = fixtures_path!().join("pre").join("error_message.sh");
-        main_command!()
+        cargo_bin_cmd!()
             .arg("--preprocess")
             .arg(&script)
             .arg(file)
             .assert()
             .failure()
-            .stderr(contains(format!(
-                "Error: Preprocessor command '{}' failed: exited with non-zero code: Some error message", script.as_os_str().to_str().unwrap()
+            .code(2)
+            .stdout(contains(format!(
+                "Preprocessor command '{}' failed: exited with non-zero code: Some error message",
+                script.as_os_str().to_str().unwrap()
             )));
+    }
+
+    #[test]
+    fn test_mdx_file() {
+        let file = fixtures_path!().join("mdx").join("test.mdx");
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(&file)
+            .assert()
+            .success()
+            .stdout(contains("https://example.com"));
     }
 }

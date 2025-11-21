@@ -194,7 +194,6 @@ outdated information.
 | Custom user agent    | ![yes]  | ![no]         | ![no]    | ![yes]                | ![no]        | ![yes]               | ![no]                 | ![no]  |
 | Relative URLs        | ![yes]  | ![yes]        | ![no]    | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | Anchors/Fragments    | ![yes]  | ![no]         | ![no]    | ![no]                 | ![no]        | ![yes]               | ![yes]                | ![no]  |
-| Skip relative URLs   | ![yes]  | ![no]         | ![no]    | ![maybe]              | ![no]        | ![no]                | ![no]                 | ![no]  |
 | Include patterns     | ![yes]️ | ![yes]        | ![no]    | ![yes]                | ![no]        | ![no]                | ![no]                 | ![no]  |
 | Exclude patterns     | ![yes]  | ![no]         | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
 | Handle redirects     | ![yes]  | ![yes]        | ![yes]   | ![yes]                | ![yes]       | ![yes]               | ![yes]                | ![yes] |
@@ -487,14 +486,15 @@ Options:
           cumbersome to specify on the command line directly.
 
           Examples:
-            lychee --files-from list.txt
-            find . -name '*.md' | lychee --files-from -
-            echo 'README.md' | lychee --files-from -
+
+              lychee --files-from list.txt
+              find . -name '*.md' | lychee --files-from -
+              echo 'README.md' | lychee --files-from -
 
           File Format:
-            Each line should contain one input (file path, URL, or glob pattern).
-            Lines starting with '#' are treated as comments and ignored.
-            Empty lines are also ignored.
+          - Each line should contain one input (file path, URL, or glob pattern).
+          - Lines starting with '#' are treated as comments and ignored.
+          - Empty lines are also ignored.
 
       --generate <GENERATE>
           Generate special output (e.g. the man page) instead of performing link checking

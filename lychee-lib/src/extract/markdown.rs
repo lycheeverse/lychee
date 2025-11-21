@@ -22,6 +22,8 @@ fn md_extensions() -> Options {
 }
 
 /// Extract unparsed URL strings from a Markdown string.
+// TODO: Refactor the extractor to reduce the complexity and number of lines.
+#[allow(clippy::too_many_lines)]
 pub(crate) fn extract_markdown(
     input: &str,
     include_verbatim: bool,
@@ -32,6 +34,11 @@ pub(crate) fn extract_markdown(
     let mut inside_code_block = false;
     let mut inside_link_block = false;
     let mut inside_wikilink_block = false;
+
+    // HTML blocks come in chunks from pulldown_cmark, so we need to accumulate them
+    let mut inside_html_block = false;
+    let mut html_block_buffer = String::new();
+    let mut html_block_start_offset = 0;
 
     let span_provider = SourceSpanProvider::from_input(input);
     let parser =
@@ -122,10 +129,49 @@ pub(crate) fn extract_markdown(
                 }
             }
 
+            // Start of an HTML block
+            Event::Start(Tag::HtmlBlock) => {
+                inside_html_block = true;
+                html_block_buffer.clear();
+                html_block_start_offset = span.start;
+                None
+            }
+
+            // End of an HTML block - process accumulated HTML
+            Event::End(TagEnd::HtmlBlock) => {
+                inside_html_block = false;
+                if html_block_buffer.is_empty() {
+                    None
+                } else {
+                    Some(extract_html_with_span(
+                        &html_block_buffer,
+                        include_verbatim,
+                        OffsetSpanProvider {
+                            offset: html_block_start_offset,
+                            inner: &span_provider
+                        }
+                    ))
+                }
+            }
+
             // An HTML node
-            Event::Html(html) | Event::InlineHtml(html) => {
-                // This won't exclude verbatim links right now, because HTML gets passed in chunks
-                // by pulldown_cmark. So excluding `<pre>` and `<code>` is not handled right now.
+            Event::Html(html) => {
+                if inside_html_block {
+                    // Accumulate HTML chunks within a block
+                    html_block_buffer.push_str(&html);
+                    None
+                } else {
+                    // Standalone HTML (not part of a block) - process immediately
+                    Some(extract_html_with_span(
+                        &html,
+                        include_verbatim,
+                        OffsetSpanProvider { offset: span.start, inner: &span_provider }
+                    ))
+                }
+            }
+
+            // Inline HTML (not part of a block)
+            Event::InlineHtml(html) => {
                 Some(extract_html_with_span(
                     &html,
                     include_verbatim,
@@ -630,6 +676,86 @@ Shortcut link: [link4]
                 uris.contains(&expected_uri),
                 "Missing expected URI: {expected_uri:?}. Found: {uris:?}"
             );
+        }
+    }
+
+    #[test]
+    fn test_nested_html() {
+        let input = r#"<Foo>
+          <Bar href="https://example.com" >
+          Some text
+          </Bar>
+        </Foo>"#;
+
+        let expected = vec![RawUri {
+            text: "https://example.com".to_string(),
+            element: Some("bar".to_string()),
+            attribute: Some("href".to_string()),
+            span: span(2, 22),
+        }];
+
+        let uris = extract_markdown(input, false, false);
+
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_mdx_multiline_jsx() {
+        let input = r#"<CardGroup cols={1}>
+  <Card
+    title="Example"
+    href="https://example.com"
+  >
+    Some text
+  </Card>
+</CardGroup>"#;
+
+        let expected = vec![RawUri {
+            text: "https://example.com".to_string(),
+            element: Some("card".to_string()),
+            attribute: Some("href".to_string()),
+            span: span(4, 11),
+        }];
+
+        let uris = extract_markdown(input, false, false);
+
+        assert_eq!(uris, expected);
+    }
+
+    // Test that Markdown links inside HTML blocks are still parsed correctly.
+    // pulldown_cmark parses block-level HTML tags as separate HTML blocks, so
+    // Markdown content between them is processed normally.
+    #[test]
+    fn test_markdown_inside_html_block() {
+        let input = r"<div>
+
+[markdown link](https://example.com/markdown)
+
+</div>
+
+<span>[another link](https://example.com/another)</span>";
+
+        let uris = extract_markdown(input, false, false);
+
+        // Verify both Markdown links are extracted
+        let expected_urls = vec![
+            "https://example.com/markdown",
+            "https://example.com/another",
+        ];
+
+        assert_eq!(uris.len(), 2, "Should extract both Markdown links");
+
+        for expected_url in expected_urls {
+            assert!(
+                uris.iter().any(|u| u.text == expected_url),
+                "Should find URL: {expected_url}"
+            );
+        }
+
+        // Verify they're recognized as Markdown links (i.e. element: "a", attribute: "href")
+        for uri in &uris {
+            assert_eq!(uri.element, Some("a".to_string()));
+            assert_eq!(uri.attribute, Some("href".to_string()));
         }
     }
 }

@@ -398,14 +398,15 @@ This is useful when you have a large number of inputs that would be
 cumbersome to specify on the command line directly.
 
 Examples:
-  lychee --files-from list.txt
-  find . -name '*.md' | lychee --files-from -
-  echo 'README.md' | lychee --files-from -
+
+    lychee --files-from list.txt
+    find . -name '*.md' | lychee --files-from -
+    echo 'README.md' | lychee --files-from -
 
 File Format:
-  Each line should contain one input (file path, URL, or glob pattern).
-  Lines starting with '#' are treated as comments and ignored.
-  Empty lines are also ignored."
+- Each line should contain one input (file path, URL, or glob pattern).
+- Lines starting with '#' are treated as comments and ignored.
+- Empty lines are also ignored."
     )]
     files_from: Option<PathBuf>,
 

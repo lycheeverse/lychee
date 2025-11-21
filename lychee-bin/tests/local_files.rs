@@ -2,15 +2,10 @@
 mod cli {
     use std::{error::Error, fs::File, io::Write};
 
-    use assert_cmd::Command;
+    use assert_cmd::cargo::cargo_bin_cmd;
     use predicates::str::contains;
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
-
-    fn main_command() -> Command {
-        // this gets the "main" binary name (e.g. `lychee`)
-        Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name")
-    }
 
     #[tokio::test]
     async fn test_local_file() -> Result<()> {
@@ -22,8 +17,8 @@ mod cli {
         let foo_path = dir.path().join("foo.html");
         File::create(foo_path)?;
 
-        let mut cmd = main_command();
-        cmd.arg(index_path)
+        cargo_bin_cmd!()
+            .arg(index_path)
             .arg("--no-progress")
             .arg("--verbose")
             .env_clear()
@@ -48,8 +43,8 @@ mod cli {
         let bar_path = dir.path().join("bar.md");
         File::create(bar_path)?;
 
-        let mut cmd = main_command();
-        cmd.arg(dir.path())
+        cargo_bin_cmd!()
+            .arg(dir.path())
             .arg("--no-progress")
             .arg("--verbose")
             .env_clear()

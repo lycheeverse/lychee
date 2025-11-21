@@ -14,11 +14,11 @@ use std::sync::Arc;
 
 use crate::cache::Cache;
 use crate::options::Config;
-use lychee_lib::Result;
+use lychee_lib::RequestError;
 use lychee_lib::{Client, Request};
 
 /// Parameters passed to every command
-pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request>>> {
+pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request, RequestError>>> {
     pub(crate) client: Client,
     pub(crate) cache: Arc<Cache>,
     pub(crate) requests: S,
@@ -30,7 +30,7 @@ pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request>>> {
 /// # Errors
 ///
 /// Returns an error if the output file cannot be opened.
-fn create_writer(output: Option<PathBuf>) -> Result<Box<dyn Write>> {
+fn create_writer(output: Option<PathBuf>) -> lychee_lib::Result<Box<dyn Write>> {
     Ok(match output {
         Some(path) => Box::new(fs::OpenOptions::new().append(true).open(path)?),
         None => Box::new(io::stdout().lock()),

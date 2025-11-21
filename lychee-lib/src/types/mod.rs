@@ -12,6 +12,7 @@ pub(crate) mod mail;
 mod preprocessor;
 pub(crate) mod redirect_history;
 mod request;
+mod request_error;
 pub(crate) mod resolver;
 mod response;
 mod status;
@@ -29,9 +30,13 @@ pub use input::{Input, InputContent, InputResolver, InputSource, ResolvedInputSo
 pub use preprocessor::Preprocessor;
 pub use redirect_history::Redirects;
 pub use request::Request;
+pub use request_error::RequestError;
 pub use response::{Response, ResponseBody};
 pub use status::Status;
 pub use status_code::*;
 
 /// The lychee `Result` type
 pub type Result<T> = std::result::Result<T, crate::ErrorKind>;
+
+/// The lychee `Result` type, aliased to avoid conflicting with [`std::result::Result`].
+pub type LycheeResult<T> = Result<T>;

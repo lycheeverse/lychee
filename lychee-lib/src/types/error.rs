@@ -17,7 +17,7 @@ use crate::{Uri, basic_auth::BasicAuthExtractorError, utils};
 pub enum ErrorKind {
     /// Network error while handling request.
     /// This does not include erroneous status codes, `RejectedStatusCode` will be used in that case.
-    #[error("Network error")]
+    #[error("Network error: {analysis} ({error})", analysis=utils::reqwest::analyze_error_chain(.0), error=.0)]
     NetworkRequest(#[source] reqwest::Error),
     /// Cannot read the body of the received response
     #[error("Error reading response body: {0}")]
@@ -100,9 +100,9 @@ pub enum ErrorKind {
     #[error("Cannot convert path '{0}' to a URI")]
     InvalidPathToUri(String),
 
-    /// Root dir must be an absolute path
-    #[error("Root dir must be an absolute path: '{0}'")]
-    RootDirMustBeAbsolute(PathBuf),
+    /// Invalid root directory given
+    #[error("Invalid root directory '{0}': {1}")]
+    InvalidRootDir(PathBuf, #[source] std::io::Error),
 
     /// The given URI type is not supported
     #[error("Unsupported URI type: '{0}'")]
@@ -278,16 +278,15 @@ impl ErrorKind {
             ErrorKind::InvalidBase(base, reason) => Some(format!(
                 "Invalid base URL or directory: '{base}'. {reason}",
             )),
-            ErrorKind::InvalidBaseJoin(text) => Some(format!(
-                "Cannot join '{text}' with base URL. Check relative path format",
-            )),
-            ErrorKind::InvalidPathToUri(path) => Some(format!(
-                "Cannot convert path to URI: '{path}'. Check path format",
-            )),
-            ErrorKind::RootDirMustBeAbsolute(path_buf) => Some(format!(
-                "Root directory must be absolute: '{}'. Use full path",
-                path_buf.display()
-            )),
+            ErrorKind::InvalidBaseJoin(_) => Some("Check relative path format".to_string()),
+            ErrorKind::InvalidPathToUri(path) => match path {
+                path if path.starts_with('/') =>
+                    "To resolve root-relative links in local files, provide a root dir",
+                _ => "Check path format",
+            }.to_string().into(),
+            ErrorKind::InvalidRootDir(_, _) => Some(
+                "Check the root dir exists and is accessible".to_string()
+            ),
             ErrorKind::UnsupportedUriType(uri_type) => Some(format!(
                 "Unsupported URI type: '{uri_type}'. Only http, https, file, and mailto are supported",
             )),
@@ -336,7 +335,7 @@ impl ErrorKind {
                 [name] => format!("An index file ({name}) is required"),
                 [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
             }.into(),
-            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the pre option"))
+            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the preprocessor option"))
         }
     }
 
@@ -451,7 +450,7 @@ impl Hash for ErrorKind {
             Self::InvalidBase(base, e) => (base, e).hash(state),
             Self::InvalidBaseJoin(s) => s.hash(state),
             Self::InvalidPathToUri(s) => s.hash(state),
-            Self::RootDirMustBeAbsolute(s) => s.hash(state),
+            Self::InvalidRootDir(s, _) => s.hash(state),
             Self::UnsupportedUriType(s) => s.hash(state),
             Self::InvalidUrlRemap(remap) => (remap).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),

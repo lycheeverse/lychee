@@ -120,6 +120,7 @@ impl RetryExt for Status {
         match self {
             Status::Ok(_) => false,
             Status::Error(err) => err.should_retry(),
+            Status::RequestError(_) => false,
             Status::Timeout(_) => true,
             Status::Redirected(_, _) => false,
             Status::UnknownStatusCode(_) => false,

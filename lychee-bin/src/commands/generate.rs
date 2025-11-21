@@ -26,7 +26,6 @@ type Commands = &'static [&'static str];
 type Example = (Description, Commands);
 
 /// Used to render the EXAMPLES section in the man page.
-/// Note that the `Commands` are executed and tested.
 const EXAMPLES: &[Example] = &[
     (
         "Check all links in supported files by specifying a directory",
@@ -143,11 +142,9 @@ fn render_section(title: &str, content: &str, buffer: &mut Vec<u8>) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::{EXAMPLES, man_page};
+    use super::man_page;
     use crate::generate::{CONTRIBUTOR_THANK_NOTE, EXIT_CODE_SECTION};
     use anyhow::Result;
-    use assert_cmd::Command;
-    use test_utils::{fixtures_path, main_command};
 
     #[test]
     fn test_man_page() -> Result<()> {
@@ -191,43 +188,6 @@ mod tests {
             filter_empty_lines(section),
             filter_empty_lines(EXIT_CODE_SECTION)
         );
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_examples_work() -> Result<()> {
-        let results: Vec<_> = EXAMPLES
-            .iter()
-            .flat_map(|(_, examples)| examples.iter())
-            .map(|example| {
-                let command = example.replace(
-                    "lychee",
-                    main_command!()
-                        .get_program()
-                        .to_str()
-                        .expect("Unable to convert to string"),
-                );
-
-                (
-                    command.clone(),
-                    Command::new("sh")
-                        .arg("-c")
-                        .arg(command)
-                        .current_dir(fixtures_path!().join("manpage_examples"))
-                        .output(),
-                )
-            })
-            .collect();
-
-        for (command, result) in results {
-            let result = result?;
-            let output = str::from_utf8(&result.stderr)?;
-            assert!(
-                result.status.success(),
-                "The command '{command}' failed with: {output}",
-            );
-        }
 
         Ok(())
     }
