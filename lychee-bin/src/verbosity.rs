@@ -79,17 +79,6 @@ impl Verbosity {
     }
 }
 
-#[cfg(test)]
-impl Verbosity {
-    pub(crate) const fn debug() -> Self {
-        Self {
-            #[allow(clippy::cast_sign_loss)]
-            verbose: level_value(log::Level::Debug) as u8,
-            quiet: 0,
-        }
-    }
-}
-
 // Implement Deserialize for `Verbosity`
 // This can be deserialized from a string like "warn", "warning", or "Warning"
 // for example
