@@ -539,12 +539,13 @@ with a status code of 429, 500 and 501."
 
     /// Default maximum concurrent requests per host (default: 10)
     ///
-    /// This limits how many requests can be sent simultaneously to the same
-    /// host (domain/subdomain). This helps prevent overwhelming servers and
-    /// getting rate-limited. Each host is handled independently.
+    /// This limits the maximum amount of requests that are sent simultaneously
+    /// to the same host. This helps to prevent overwhelming servers and
+    /// running into rate-limits. Use the `hosts` option to configure this
+    /// on a per-host basis.
     ///
     /// Examples:
-    ///   --host-concurrency 5   # Conservative for slow APIs
+    ///   --host-concurrency 2   # Conservative for slow APIs
     ///   --host-concurrency 20  # Aggressive for fast APIs
     #[arg(long = "host-concurrency", verbatim_doc_comment)]
     #[serde(default)]
@@ -554,7 +555,8 @@ with a status code of 429, 500 and 501."
     ///
     /// Sets a baseline delay between consecutive requests to prevent
     /// hammering servers. The adaptive algorithm may increase this based
-    /// on server responses (rate limits, errors).
+    /// on server responses (rate limits, errors). Use the `hosts` option
+    /// to configure this on a per-host basis.
     ///
     /// Examples:
     ///   --request-interval 50ms   # Fast for robust APIs
@@ -712,7 +714,9 @@ Note: This option only takes effect on `file://` URIs which exist and point to a
 Some websites require custom headers to be passed in order to return valid responses.
 You can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.
 This is the same format that other tools like curl or wget use.
-Multiple headers can be specified by using the flag multiple times."
+Multiple headers can be specified by using the flag multiple times.
+The specified headers are used for ALL requests.
+Use the `hosts` option to configure headers on a per-host basis."
     )]
     #[serde(default)]
     #[serde(deserialize_with = "deserialize_headers")]
