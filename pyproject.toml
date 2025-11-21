@@ -22,3 +22,5 @@ dynamic = [
 [tool.maturin]
 bindings = "bin"
 manifest-path = "lychee-bin/Cargo.toml"
+features = ["rustls-tls", "email-check"]
+no-default-features = true
