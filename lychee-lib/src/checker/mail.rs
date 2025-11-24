@@ -45,9 +45,11 @@ impl MailChecker {
     #[cfg(feature = "email-check")]
     async fn perform_email_check(&self, uri: &Uri) -> Status {
         let address = uri.url.path().to_string();
-        let mut input = CheckEmailInput::default();
-        input.to_email = address;
-        let result = &(check_email(&input).await);
+        let result = &(check_email(&CheckEmailInput {
+            to_email: address,
+            ..Default::default()
+        })
+        .await);
 
         if let Reachable::Invalid = result.is_reachable {
             ErrorKind::UnreachableEmailAddress(uri.clone(), mail::error_from_output(result)).into()
