@@ -1,4 +1,4 @@
-#![cfg(all(feature = "email-check", feature = "native-tls"))]
+#![cfg(feature = "email-check")]
 
 use check_if_email_exists::{CheckEmailOutput, Reachable};
 
