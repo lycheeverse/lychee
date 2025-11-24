@@ -30,7 +30,7 @@ ignore = "0.4.25"
 ip_network = "0.4.1"
 linkify = "0.10.0"
 log = "0.4.28"
-octocrab = "0.47.1"
+octocrab = "0.48.0"
 openssl-sys = { version = "0.9.111", optional = true }
 path-clean = "1.0.1"
 percent-encoding = "2.3.1"
@@ -58,7 +58,7 @@ strum = { version = "0.27.2", features = ["derive"] }
 thiserror = "2.0.17"
 tokio = { version = "1.48.0", features = ["full"] }
 toml = "0.9.8"
-typed-builder = "0.23.1"
+typed-builder = "0.23.2"
 url = { version = "2.5.7", features = ["serde"] }
 
 [dependencies.par-stream]
