@@ -25,7 +25,7 @@ jobs:
       upload_url: ${{ steps.get_release.outputs.upload_url }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Get release
         id: get_release
@@ -92,7 +92,7 @@ jobs:
           echo "GNU_PREFIX=aarch64-linux-gnu-" >> $GITHUB_ENV
           sudo apt-get update && sudo apt-get install -y binutils-aarch64-linux-gnu
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -169,7 +169,7 @@ jobs:
     runs-on: macos-latest
     needs: prepare
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -229,7 +229,7 @@ jobs:
           vcpkg install openssl:x64-windows-static
           vcpkg integrate install
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
 
