@@ -2058,7 +2058,8 @@ The config file should contain every possible key for documentation purposes."
             .arg(test_dir)
             .assert()
             .success()
-            .stdout(contains(".hidden/file.md"));
+            .stdout(contains("hidden/.file.md"))
+            .stdout(contains("hidden/.hidden/file.md"));
     }
 
     #[test]
