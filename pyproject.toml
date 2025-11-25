@@ -3,7 +3,7 @@ requires = ["maturin>=1.10,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "lychee-cli"
+name = "lychee-bin"
 requires-python = ">=3"
 classifiers = [
     "Programming Language :: Rust",
@@ -22,5 +22,3 @@ dynamic = [
 [tool.maturin]
 bindings = "bin"
 manifest-path = "lychee-bin/Cargo.toml"
-features = ["rustls-tls", "email-check"]
-no-default-features = true
