@@ -15,7 +15,7 @@ use walkdir::WalkDir;
 #[derive(Clone, Debug, Default)]
 pub(crate) struct WikilinkIndex {
     filenames: Arc<Mutex<HashMap<OsString, PathBuf>>>,
-    basedir: Option<Base>,
+    basedir: Base,
 }
 
 impl WikilinkIndex {
@@ -51,7 +51,7 @@ impl WikilinkIndex {
                         // actively ignore symlinks
                         .follow_links(false)
                         .into_iter()
-                        .filter_map(std::result::Result::ok)
+                        .filter_map(Result::ok)
                     {
                         if let Some(filename) = entry.path().file_name() {
                             lock.insert(filename.to_ascii_lowercase(), entry.path().to_path_buf());
@@ -76,9 +76,7 @@ impl WikilinkIndex {
                 let filename_lock = self.filenames.lock().unwrap();
                 if filename_lock.contains_key(&filename.to_ascii_lowercase()) {
                     Some(
-                        filename_lock.get(&filename.to_ascii_lowercase()).expect(
-                            "Could not retrieve inserted Path for discovered Wikilink-Path",
-                        ),
+                        filename_lock.get(&filename.to_ascii_lowercase()).ok(),
                     )
                     .cloned()
                 } else {
