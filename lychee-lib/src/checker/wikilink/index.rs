@@ -9,7 +9,7 @@ use walkdir::WalkDir;
 
 /// Indexes a given directory mapping filenames to their corresponding path.
 ///
-/// The `WikilinkIndex` Recursively checks all subdirectories of the given
+/// The `WikilinkIndex` recursively checks all subdirectories of the given
 /// base directory mapping any found files to the path where they can be found.
 /// Symlinks are ignored to prevent it from infinite loops.
 #[derive(Clone, Debug, Default)]
