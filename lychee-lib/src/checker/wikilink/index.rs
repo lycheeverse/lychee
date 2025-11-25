@@ -66,6 +66,7 @@ impl WikilinkIndex {
             },
         }
     }
+    
     /// Checks the index for a filename. Returning the absolute path if the name is found,
     /// otherwise returning None
     pub(crate) fn contains_path(&self, path: &Path) -> Option<PathBuf> {
