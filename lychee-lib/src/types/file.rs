@@ -46,10 +46,6 @@ impl FileExtensions {
     pub fn contains<T: Into<String>>(&self, file_extension: T) -> bool {
         self.0.contains(&file_extension.into())
     }
-}
-
-impl TryFrom<FileExtensions> for Types {
-    type Error = super::ErrorKind;
 
     /// Build the current list of file extensions into a file type matcher.
     ///
@@ -57,10 +53,12 @@ impl TryFrom<FileExtensions> for Types {
     ///
     /// Fails if an extension is `all` or otherwise contains any character that
     /// is not a Unicode letter or number.
-    fn try_from(value: FileExtensions) -> super::Result<Self> {
+    pub fn build(self, skip_hidden: bool) -> super::Result<Types> {
         let mut types_builder = TypesBuilder::new();
-        for ext in value.0.clone() {
-            types_builder.add(&ext, &format!("*.{ext}"))?;
+        let prefix = if skip_hidden { "[!.]" } else { "" };
+
+        for ext in self.0 {
+            types_builder.add(&ext, &format!("{prefix}*.{ext}"))?;
         }
         Ok(types_builder.select("all").build()?)
     }

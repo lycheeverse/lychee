@@ -685,23 +685,19 @@ mod cli {
             .arg("--hidden")
             .assert()
             .success()
-            .stdout(contains("1 Total"));
+            .stdout(contains("2 Total"));
 
-        cargo_bin_cmd!()
+        let result = cargo_bin_cmd!()
             .arg("--dump")
             .arg("--hidden")
             .arg(fixtures_path!().join("hidden/"))
             .assert()
-            .stdout(contains("wikipedia.org"))
             .success();
 
-        cargo_bin_cmd!()
-            .arg("--dump-inputs")
-            .arg("--hidden")
-            .arg(fixtures_path!().join("hidden/"))
-            .assert()
-            .stdout(contains(".hidden"))
-            .success();
+        assert_lines_eq(
+            result,
+            vec!["https://rust-lang.org/", "https://rust-lang.org/"],
+        );
     }
 
     #[test]
@@ -2058,7 +2054,8 @@ The config file should contain every possible key for documentation purposes."
             .arg(test_dir)
             .assert()
             .success()
-            .stdout(contains(".hidden/file.md"));
+            .stdout(contains("hidden/.file.md"))
+            .stdout(contains("hidden/.hidden/file.md"));
     }
 
     #[test]

@@ -88,7 +88,7 @@ impl InputResolver {
             // Ignore hidden files if necessary
             .hidden(skip_hidden)
             // Configure the file types filter to only include files with matching extensions
-            .types(file_extensions.try_into()?)
+            .types(file_extensions.build(skip_hidden)?)
             .build())
     }
 
