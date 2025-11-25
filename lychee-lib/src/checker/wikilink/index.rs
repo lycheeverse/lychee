@@ -30,7 +30,7 @@ impl WikilinkIndex {
 
     /// Populates the index of the `WikilinkIndex` on startup
     ///
-    /// Recursively walks the base directory mapping each filename to an absolute filepath.
+    /// Recursively walks the base directory, mapping each filename to an absolute filepath.
     /// The Index stays empty if no base directory is supplied or if the base directory is remote
     pub(crate) fn start_indexing(&self) {
         match &self.basedir {
