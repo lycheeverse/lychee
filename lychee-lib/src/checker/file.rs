@@ -37,8 +37,9 @@ pub(crate) struct FileChecker {
     include_wikilinks: bool,
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
-    /// Utility for resolving Wikilinks, indexes files in a given directory
-    wikilink_resolver: WikilinkResolver,
+    /// Utility for resolving Wikilinks, indexes files in a given directory, only initialized when
+    /// `include_wikilinks` is set
+    wikilink_resolver: Option<WikilinkResolver>,
 }
 
 impl FileChecker {
@@ -50,6 +51,7 @@ impl FileChecker {
     /// * `fallback_extensions` - List of extensions to try if the original file is not found.
     /// * `index_files` - Optional list of index file names to search for if the path is a directory.
     /// * `include_fragments` - Whether to check for fragment existence in HTML files.
+    /// * `include_wikilinks` - Whether to check the existence of Wikilinks found in Markdown files .
     pub(crate) fn new(
         base: Option<Base>,
         fallback_extensions: Vec<String>,
@@ -57,14 +59,19 @@ impl FileChecker {
         include_fragments: bool,
         include_wikilinks: bool,
     ) -> Self {
+        let wikilink_resolver = match base.clone() {
+            Some(basedir) => WikilinkResolver::new(basedir, fallback_extensions.clone()).ok(),
+            None => None,
+        };
+
         Self {
-            base: base.clone(),
-            fallback_extensions: fallback_extensions.clone(),
+            base,
+            fallback_extensions,
             index_files,
             include_fragments,
             include_wikilinks,
             fragment_checker: FragmentChecker::new(),
-            wikilink_resolver: WikilinkResolver::new(base, fallback_extensions),
+            wikilink_resolver,
         }
     }
 
@@ -146,8 +153,10 @@ impl FileChecker {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => self
                 .apply_fallback_extensions(path, uri)
                 .or_else(|_| {
-                    if self.include_wikilinks {
-                        self.wikilink_resolver.resolve(path, uri)
+                    if self.include_wikilinks
+                        && let Some(resolver) = &self.wikilink_resolver
+                    {
+                        resolver.resolve(path, uri)
                     } else {
                         Err(ErrorKind::InvalidFilePath(uri.clone()))
                     }

@@ -180,8 +180,12 @@ pub enum ErrorKind {
     },
 
     /// The extracted `WikiLink` could not be found by searching the directory
-    #[error("Failed to initialize Wikilink Checker")]
+    #[error("Could not find Wikilink by searching th given base directory")]
     WikilinkNotFound(Uri),
+
+    /// Error on creation of the `WikilinkResolver`
+    #[error("Failed to initialize Wikilink Checker")]
+    WikilinkResolverInit(String),
 }
 
 impl ErrorKind {
@@ -343,6 +347,9 @@ impl ErrorKind {
             ErrorKind::WikilinkNotFound(uri) => Some(format!(
                 "WikiLink could not be found: {uri} ",
             )),
+            ErrorKind::WikilinkResolverInit(reason) => Some(format!(
+                "WikiLink Resolver could not be created: {reason} ",
+            )),
         }
     }
 
@@ -474,6 +481,7 @@ impl Hash for ErrorKind {
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
             Self::PreprocessorError { command, reason } => (command, reason).hash(state),
             Self::WikilinkNotFound(e) => e.hash(state),
+            Self::WikilinkResolverInit(e) => e.hash(state),
         }
     }
 }
