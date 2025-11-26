@@ -11,11 +11,17 @@ pub(crate) struct WikilinkResolver {
 /// Tries to resolve a `WikiLink` by searching for the filename in the `WikilinkIndex`
 /// Returns the path of the found file if found, otherwise an Error
 impl WikilinkResolver {
-    pub(crate) fn new(basedir: Base, fallback_extensions: Vec<String>) -> Self {
-        Self {
-            checker: WikilinkIndex::new(basedir),
-            fallback_extensions,
+    pub(crate) fn new(base: Base, fallback_extensions: Vec<String>) -> Result<Self, ErrorKind> {
+        if let Base::Remote(_) = base {
+            return Err(ErrorKind::WikilinkResolverInit(
+                "The given base directory was recognized as Remote. A Local directory is needed."
+                    .to_string(),
+            ));
         }
+        Ok(Self {
+            checker: WikilinkIndex::new(base),
+            fallback_extensions,
+        })
     }
     /// Resolves a wikilink by searching the index with fallback extensions.
     pub(crate) fn resolve(&self, path: &Path, uri: &Uri) -> Result<PathBuf, ErrorKind> {
@@ -26,7 +32,10 @@ impl WikilinkResolver {
             if let Some(resolved) = self.checker.contains_path(&candidate) {
                 return Ok(resolved);
             }
-            trace!("Wikilink {uri} not found at {candiate}", uri, candidate=candidate.display());
+            trace!(
+                "Wikilink {uri} not found at {candidate}",
+                candidate = candidate.display()
+            );
         }
 
         Err(ErrorKind::WikilinkNotFound(uri.clone()))
