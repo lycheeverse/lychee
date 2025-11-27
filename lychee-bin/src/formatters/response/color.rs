@@ -56,14 +56,6 @@ impl ColorFormatter {
 impl ResponseFormatter for ColorFormatter {
     fn format_response(&self, body: &ResponseBody) -> String {
         let colored_status = ColorFormatter::format_response_status(&body.status);
-        format!("{} {}", colored_status, body.uri)
-    }
-
-    /// Provide some more detailed information about the response
-    /// This prints the entire response body, including the exact error message
-    /// (if available).
-    fn format_detailed_response(&self, body: &ResponseBody) -> String {
-        let colored_status = ColorFormatter::format_response_status(&body.status);
         format!("{colored_status} {body}")
     }
 }
@@ -103,7 +95,10 @@ mod tests {
             "https://example.com/404",
         );
         let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
-        assert_eq!(formatted_response, "   [ERROR] https://example.com/404");
+        assert_eq!(
+            formatted_response,
+            "   [ERROR] https://example.com/404 | URL cannot be empty: Empty URL found. Check for missing links or malformed markdown"
+        );
     }
 
     #[test]
@@ -117,14 +112,14 @@ mod tests {
     }
 
     #[test]
-    fn test_detailed_response_output() {
+    fn test_error_response_output() {
         let formatter = ColorFormatter;
         let body = mock_response_body!(
             Status::Error(ErrorKind::EmptyUrl),
             "https://example.com/404",
         );
 
-        let response = strip_ansi_codes(&formatter.format_detailed_response(&body));
+        let response = strip_ansi_codes(&formatter.format_response(&body));
         assert_eq!(
             response,
             "   [ERROR] https://example.com/404 | URL cannot be empty: Empty URL found. Check for missing links or malformed markdown"

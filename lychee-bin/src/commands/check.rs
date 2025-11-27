@@ -1,11 +1,8 @@
 use std::collections::HashSet;
-use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures::StreamExt;
-use indicatif::ProgressBar;
-use indicatif::ProgressStyle;
 use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -16,12 +13,11 @@ use lychee_lib::archive::Archive;
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
 use lychee_lib::{ResponseBody, Status};
 
-use crate::formatters::get_response_formatter;
+use crate::formatters::get_progress_formatter;
 use crate::formatters::response::ResponseFormatter;
 use crate::formatters::suggestion::Suggestion;
-use crate::options::OutputMode;
 use crate::parse::parse_duration_secs;
-use crate::verbosity::Verbosity;
+use crate::progress::Progress;
 use crate::{ExitCode, cache::Cache, stats::ResponseStats};
 
 use super::CommandParams;
@@ -56,12 +52,6 @@ where
         .into_set();
     let accept = params.cfg.accept.into();
 
-    let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {
-        None
-    } else {
-        Some(init_progress_bar("Extracting links"))
-    };
-
     // Start receiving requests
     tokio::spawn(request_channel_task(
         recv_req,
@@ -73,47 +63,35 @@ where
         accept,
     ));
 
-    // Set the default formatter for progress bar output
-    let formatter_default = OutputMode::default();
+    let hide_bar = params.cfg.no_progress;
+    let detailed = params.cfg.verbose.log_level() >= log::Level::Info;
 
-    // Make it easier to add new formatters in the future (without breaking the progress bar)
-    let allowed_output_modes = [OutputMode::Emoji, OutputMode::Plain, OutputMode::Color];
-
-    let formatter = get_response_formatter(if allowed_output_modes.contains(&params.cfg.mode) {
-        &params.cfg.mode
-    } else {
-        &formatter_default
-    });
-
-    let show_results_task = tokio::spawn(progress_bar_task(
+    let progress = Progress::new("Extracting links", hide_bar, detailed);
+    let show_results_task = tokio::spawn(collect_responses(
         recv_resp,
-        params.cfg.verbose,
-        pb.clone(),
-        formatter,
+        progress.clone(),
+        get_progress_formatter(&params.cfg.mode),
         stats,
     ));
 
     // Wait until all messages are sent
-    send_inputs_loop(params.requests, send_req, pb).await?;
+    send_inputs_loop(params.requests, send_req, &progress).await?;
 
     // Wait until all responses are received
     let result = show_results_task.await?;
-    let (pb, mut stats) = result?;
-
-    // Store elapsed time in stats
+    let mut stats = result?;
     stats.duration_secs = start.elapsed().as_secs();
 
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
-    if let Some(pb) = &pb {
-        pb.finish_with_message("Finished extracting links");
-    }
+    progress.finish("Finished extracting links");
 
     if params.cfg.suggest {
+        let progress = Progress::new("Searching for alternatives", hide_bar, detailed);
         suggest_archived_links(
             params.cfg.archive.unwrap_or_default(),
             &mut stats,
-            !params.cfg.no_progress,
+            progress,
             max_concurrency,
             parse_duration_secs(params.cfg.timeout),
         )
@@ -131,18 +109,12 @@ where
 async fn suggest_archived_links(
     archive: Archive,
     stats: &mut ResponseStats,
-    show_progress: bool,
+    progress: Progress,
     max_concurrency: usize,
     timeout: Duration,
 ) {
     let failed_urls = &get_failed_urls(stats);
-    let bar = if show_progress {
-        let bar = init_progress_bar("Searching for alternatives");
-        bar.set_length(failed_urls.len() as u64);
-        Some(bar)
-    } else {
-        None
-    };
+    progress.set_length(failed_urls.len() as u64);
 
     let suggestions = Mutex::new(&mut stats.suggestion_map);
 
@@ -161,15 +133,11 @@ async fn suggest_archived_links(
                     });
             }
 
-            if let Some(bar) = &bar {
-                bar.inc(1);
-            }
+            progress.update(None);
         })
         .await;
 
-    if let Some(bar) = &bar {
-        bar.finish_with_message("Finished searching for alternatives");
-    }
+    progress.finish("Finished searching for alternatives");
 }
 
 // drops the `send_req` channel on exit
@@ -178,58 +146,33 @@ async fn suggest_archived_links(
 async fn send_inputs_loop<S>(
     requests: S,
     send_req: mpsc::Sender<Result<Request, RequestError>>,
-    bar: Option<ProgressBar>,
+    progress: &Progress,
 ) -> Result<(), ErrorKind>
 where
     S: futures::Stream<Item = Result<Request, RequestError>>,
 {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
-        if let Some(pb) = &bar {
-            pb.inc_length(1);
-            match &request {
-                Ok(x) => pb.set_message(x.to_string()),
-                Err(e) => pb.set_message(e.to_string()),
-            }
-        }
+        progress.inc_length(1);
         send_req.send(request).await.expect("Cannot send request");
     }
     Ok(())
 }
 
 /// Reads from the request channel and updates the progress bar status
-async fn progress_bar_task(
+async fn collect_responses(
     mut recv_resp: mpsc::Receiver<Result<Response, ErrorKind>>,
-    verbose: Verbosity,
-    pb: Option<ProgressBar>,
+    progress: Progress,
     formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
-) -> Result<(Option<ProgressBar>, ResponseStats), ErrorKind> {
+) -> Result<ResponseStats, ErrorKind> {
     while let Some(response) = recv_resp.recv().await {
         let response = response?;
-        show_progress(
-            &mut io::stderr(),
-            pb.as_ref(),
-            &response,
-            formatter.as_ref(),
-            &verbose,
-        )?;
+        let out = formatter.format_response(response.body());
+        progress.update(Some(out));
         stats.add(response);
     }
-    Ok((pb, stats))
-}
-
-fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
-    let bar = ProgressBar::new_spinner().with_style(
-        ProgressStyle::with_template("{spinner:.162} {pos}/{len:.238} {bar:.162/238} {wide_msg}")
-            .expect("Valid progress bar")
-            .progress_chars("━ ━"),
-    );
-    bar.set_length(0);
-    bar.set_message(initial_message);
-    // report status _at least_ every 500ms
-    bar.enable_steady_tick(Duration::from_millis(500));
-    bar
+    Ok(stats)
 }
 
 async fn request_channel_task(
@@ -358,37 +301,6 @@ fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<u16>)
         || status_code_excluded
 }
 
-fn show_progress(
-    output: &mut dyn Write,
-    progress_bar: Option<&ProgressBar>,
-    response: &Response,
-    formatter: &dyn ResponseFormatter,
-    verbose: &Verbosity,
-) -> Result<(), ErrorKind> {
-    // In case the log level is set to info, we want to show the detailed
-    // response output. Otherwise, we only show the essential information
-    // (typically the status code and the URL, but this is dependent on the
-    // formatter).
-    let out = if verbose.log_level() >= log::Level::Info {
-        formatter.format_detailed_response(response.body())
-    } else {
-        formatter.format_response(response.body())
-    };
-
-    if let Some(pb) = progress_bar {
-        pb.inc(1);
-        pb.set_message(out.clone());
-        if verbose.log_level() >= log::Level::Info {
-            pb.println(out);
-        }
-    } else if verbose.log_level() >= log::Level::Info
-        || (!response.status().is_success() && !response.status().is_excluded())
-    {
-        writeln!(output, "{out}")?;
-    }
-    Ok(())
-}
-
 fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
     stats
         .error_map
@@ -412,57 +324,10 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{formatters::get_response_formatter, options};
     use http::StatusCode;
-    use log::info;
-    use lychee_lib::{CacheStatus, ClientBuilder, ErrorKind, Uri};
+    use lychee_lib::{ClientBuilder, ErrorKind, Uri};
 
     use super::*;
-
-    #[test]
-    fn test_skip_cached_responses_in_progress_output() {
-        let mut buf = Vec::new();
-        let response = Response::new(
-            Uri::try_from("http://127.0.0.1").unwrap(),
-            Status::Cached(CacheStatus::Ok(200)),
-            InputSource::Stdin,
-        );
-        let formatter = get_response_formatter(&options::OutputMode::Plain);
-        show_progress(
-            &mut buf,
-            None,
-            &response,
-            formatter.as_ref(),
-            &Verbosity::default(),
-        )
-        .unwrap();
-
-        info!("{:?}", String::from_utf8_lossy(&buf));
-        assert!(buf.is_empty());
-    }
-
-    #[test]
-    fn test_show_cached_responses_in_progress_debug_output() {
-        let mut buf = Vec::new();
-        let response = Response::new(
-            Uri::try_from("http://127.0.0.1").unwrap(),
-            Status::Cached(CacheStatus::Ok(200)),
-            InputSource::Stdin,
-        );
-        let formatter = get_response_formatter(&options::OutputMode::Plain);
-        show_progress(
-            &mut buf,
-            None,
-            &response,
-            formatter.as_ref(),
-            &Verbosity::debug(),
-        )
-        .unwrap();
-
-        assert!(!buf.is_empty());
-        let buf = String::from_utf8_lossy(&buf);
-        assert_eq!(buf, "[200] http://127.0.0.1/ | OK (cached)\n");
-    }
 
     #[tokio::test]
     async fn test_invalid_url() {

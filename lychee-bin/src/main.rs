@@ -88,6 +88,7 @@ mod files_from;
 mod formatters;
 mod options;
 mod parse;
+mod progress;
 mod stats;
 mod time;
 mod verbosity;

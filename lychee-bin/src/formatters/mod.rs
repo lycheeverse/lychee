@@ -29,6 +29,18 @@ pub(crate) fn get_stats_formatter(
     }
 }
 
+/// Create a progress formatter based on the given format option
+pub(crate) fn get_progress_formatter(mode: &OutputMode) -> Box<dyn ResponseFormatter> {
+    let mode = match mode {
+        OutputMode::Plain => OutputMode::Plain,
+        OutputMode::Color => OutputMode::Color,
+        OutputMode::Emoji => OutputMode::Emoji,
+        OutputMode::Task => OutputMode::default(),
+    };
+
+    get_response_formatter(&mode)
+}
+
 /// Create a response formatter based on the given format option
 pub(crate) fn get_response_formatter(mode: &OutputMode) -> Box<dyn ResponseFormatter> {
     // Checks if color is supported in current environment or NO_COLOR is set (https://no-color.org)
