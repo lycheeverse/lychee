@@ -23,6 +23,7 @@ pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request, Reques
     pub(crate) cache: Arc<Cache>,
     pub(crate) requests: S,
     pub(crate) cfg: Config,
+    pub(crate) stdin_input: bool,
 }
 
 /// Creates a writer that outputs to a file or stdout.

@@ -318,6 +318,11 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
 
+    // Check if any input is from stdin
+    let stdin_input = inputs.iter().any(|input| {
+        matches!(input.source, lychee_lib::InputSource::Stdin)
+    });
+
     // TODO: Remove this section after `--base` got removed with 1.0
     let base = match (opts.config.base.clone(), opts.config.base_url.clone()) {
         (None, None) => None,
@@ -387,6 +392,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         cache,
         requests,
         cfg: opts.config.clone(),
+        stdin_input,
     };
 
     let exit_code = if opts.config.dump {
