@@ -11,11 +11,7 @@ use async_trait::async_trait;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
 use reqwest::{Request, Response, header::CONTENT_TYPE};
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-    time::Duration,
-};
+use std::{collections::HashSet, path::Path, time::Duration};
 use url::Url;
 
 #[derive(Debug, Clone)]
@@ -68,50 +64,16 @@ pub(crate) struct WebsiteChecker {
 }
 
 impl WebsiteChecker {
-    /// Get per-host statistics from the rate limiting system
-    ///
-    /// Returns a map of hostnames to their statistics, or an empty map
-    /// if host-based rate limiting is not enabled.
+    /// Get a reference to `HostPool`
     #[must_use]
-    pub(crate) fn host_stats(&self) -> HashMap<String, crate::ratelimit::HostStats> {
-        self.host_pool
-            .as_ref()
-            .map_or_else(HashMap::default, HostPool::all_host_stats)
+    pub(crate) const fn host_pool_ref(&self) -> Option<&HostPool> {
+        self.host_pool.as_ref()
     }
 
-    /// Get cache statistics for all hosts
-    ///
-    /// Returns a map of hostnames to (`cache_size`, `hit_rate`), or an empty map
-    /// if host-based rate limiting is not enabled.
+    /// Get `HostPool`
     #[must_use]
-    pub(crate) fn cache_stats(&self) -> HashMap<String, (usize, f64)> {
+    pub(crate) fn host_pool(self) -> Option<HostPool> {
         self.host_pool
-            .as_ref()
-            .map_or_else(HashMap::default, HostPool::cache_stats)
-    }
-
-    /// Record a cache hit for the given URI in the host statistics
-    ///
-    /// This tracks that a request was served from the persistent cache
-    /// rather than making a network request.
-    pub(crate) fn record_cache_hit(&self, uri: &crate::Uri) -> crate::Result<()> {
-        if let Some(host_pool) = &self.host_pool {
-            host_pool.record_cache_hit(uri).map_err(Into::into)
-        } else {
-            Ok(()) // No host pool, nothing to track
-        }
-    }
-
-    /// Record a cache miss for the given URI in the host statistics
-    ///
-    /// This tracks that a request could not be served from the persistent cache
-    /// and will require a network request (which may then use the in-memory cache).
-    pub(crate) fn record_cache_miss(&self, uri: &crate::Uri) -> crate::Result<()> {
-        if let Some(host_pool) = &self.host_pool {
-            host_pool.record_cache_miss(uri).map_err(Into::into)
-        } else {
-            Ok(()) // No host pool, nothing to track
-        }
     }
 
     #[allow(clippy::too_many_arguments)]

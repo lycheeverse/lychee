@@ -1,8 +1,9 @@
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::time::Duration;
 
 use futures::StreamExt;
+use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -24,7 +25,7 @@ use super::CommandParams;
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
-) -> Result<(ResponseStats, Arc<Cache>, ExitCode, Client), ErrorKind>
+) -> Result<(ResponseStats, Cache, ExitCode, Option<HostPool>), ErrorKind>
 where
     S: futures::Stream<Item = Result<Request, RequestError>>,
 {
@@ -41,10 +42,8 @@ where
     } else {
         ResponseStats::default()
     };
-    let cache_ref = params.cache.clone();
 
     let client = params.client;
-    let client_for_return = client.clone();
     let cache = params.cache;
     let cache_exclude_status = params
         .cfg
@@ -52,17 +51,6 @@ where
         .unwrap_or_default()
         .into_set();
     let accept = params.cfg.accept.into();
-
-    // Start receiving requests
-    tokio::spawn(request_channel_task(
-        recv_req,
-        send_resp,
-        max_concurrency,
-        client,
-        cache,
-        cache_exclude_status,
-        accept,
-    ));
 
     let hide_bar = params.cfg.no_progress;
     let detailed = params.cfg.verbose.log_level() >= log::Level::Info;
@@ -75,8 +63,20 @@ where
         stats,
     ));
 
-    // Wait until all messages are sent
-    send_inputs_loop(params.requests, send_req, &progress).await?;
+    // Wait until all requests are sent
+    send_requests(params.requests, send_req, &progress).await?;
+
+    // Start receiving requests
+    let (cache, client) = tokio::spawn(request_channel_task(
+        recv_req,
+        send_resp,
+        max_concurrency,
+        client,
+        cache,
+        cache_exclude_status,
+        accept,
+    ))
+    .await?;
 
     // Wait until all responses are received
     let result = show_results_task.await?;
@@ -104,7 +104,8 @@ where
     } else {
         ExitCode::LinkCheckFailure
     };
-    Ok((stats, cache_ref, code, client_for_return))
+
+    Ok((stats, cache, code, client.host_pool()))
 }
 
 async fn suggest_archived_links(
@@ -144,7 +145,7 @@ async fn suggest_archived_links(
 // drops the `send_req` channel on exit
 // required for the receiver task to end, which closes send_resp, which allows
 // the show_results_task to finish
-async fn send_inputs_loop<S>(
+async fn send_requests<S>(
     requests: S,
     send_req: mpsc::Sender<Result<Request, RequestError>>,
     progress: &Progress,
@@ -181,17 +182,17 @@ async fn request_channel_task(
     send_resp: mpsc::Sender<Result<Response, ErrorKind>>,
     max_concurrency: usize,
     client: Client,
-    cache: Arc<Cache>,
+    cache: Cache,
     cache_exclude_status: HashSet<u16>,
     accept: HashSet<u16>,
-) {
+) -> (Cache, Client) {
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
         |request: Result<Request, RequestError>| async {
             let response = handle(
                 &client,
-                cache.clone(),
+                &cache,
                 cache_exclude_status.clone(),
                 request,
                 accept.clone(),
@@ -205,6 +206,8 @@ async fn request_channel_task(
         },
     )
     .await;
+
+    (cache, client)
 }
 
 /// Check a URL and return a response.
@@ -236,7 +239,7 @@ async fn check_url(client: &Client, request: Request) -> Response {
 /// a failed response.
 async fn handle(
     client: &Client,
-    cache: Arc<Cache>,
+    cache: &Cache,
     cache_exclude_status: HashSet<u16>,
     request: Result<Request, RequestError>,
     accept: HashSet<u16>,
@@ -266,7 +269,8 @@ async fn handle(
 
         // Track cache hit in the per-host stats (only for network URIs)
         if !uri.is_file()
-            && let Err(e) = client.record_cache_hit(&uri)
+            && let Some(pool) = client.host_pool_ref()
+            && let Err(e) = pool.record_cache_hit(&uri)
         {
             log::debug!("Failed to record cache hit for {uri}: {e}");
         }
@@ -276,7 +280,8 @@ async fn handle(
 
     // Cache miss - track it and run a normal check (only for network URIs)
     if !uri.is_file()
-        && let Err(e) = client.record_cache_miss(&uri)
+        && let Some(pool) = client.host_pool_ref()
+        && let Err(e) = pool.record_cache_miss(&uri)
     {
         log::debug!("Failed to record cache miss for {uri}: {e}");
     }
