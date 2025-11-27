@@ -265,20 +265,20 @@ async fn handle(
         };
 
         // Track cache hit in the per-host stats (only for network URIs)
-        if !uri.is_file() {
-            if let Err(e) = client.record_cache_hit(&uri) {
-                log::debug!("Failed to record cache hit for {uri}: {e}");
-            }
+        if !uri.is_file()
+            && let Err(e) = client.record_cache_hit(&uri)
+        {
+            log::debug!("Failed to record cache hit for {uri}: {e}");
         }
 
         return Ok(Response::new(uri.clone(), status, request.source.into()));
     }
 
     // Cache miss - track it and run a normal check (only for network URIs)
-    if !uri.is_file() {
-        if let Err(e) = client.record_cache_miss(&uri) {
-            log::debug!("Failed to record cache miss for {uri}: {e}");
-        }
+    if !uri.is_file()
+        && let Err(e) = client.record_cache_miss(&uri)
+    {
+        log::debug!("Failed to record cache miss for {uri}: {e}");
     }
 
     let response = check_url(client, request).await;
