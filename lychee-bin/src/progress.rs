@@ -1,6 +1,5 @@
 use indicatif::{ProgressBar as Bar, ProgressStyle};
-use lychee_lib::Result;
-use std::{io::Write, sync::LazyLock};
+use std::sync::LazyLock;
 
 #[derive(Clone)]
 struct ProgressConfig {
@@ -20,9 +19,11 @@ static STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
 });
 
 #[derive(Clone)]
-/// Report progress to the CLI.
+/// Report link check progress on stderr.
 pub(crate) struct Progress {
+    /// Optional progress bar to visualize progress
     bar: Option<Bar>,
+    /// Show detailed progress information when `true`
     detailed: bool,
 }
 
@@ -41,25 +42,20 @@ impl Progress {
         Progress { bar, detailed }
     }
 
-    pub(crate) fn show(&self, out: String) -> Result<()> {
-        // progress is reported on stderr and NOT on stdout
-        self.show_to_buffer(&mut std::io::stderr(), out)
-    }
-
-    fn show_to_buffer(&self, buffer: &mut dyn Write, out: String) -> Result<()> {
-        if self.detailed {
-            writeln!(buffer, "{}", &out)?;
+    /// If a bar is configured it is advanced by one and optionally updated with `message`.
+    /// If reporting is `detailed` `message` is printed.
+    pub(crate) fn update(&self, message: Option<String>) {
+        if self.detailed
+            && let Some(message) = message.as_ref()
+        {
+            // progress is reported on stderr and NOT on stdout
+            eprintln!("{message}");
         }
 
-        self.update(Some(out));
-        Ok(())
-    }
-
-    pub(crate) fn update(&self, message: Option<String>) {
         self.with_bar(|bar| {
             bar.inc(1);
-            if let Some(msg) = message {
-                bar.set_message(msg);
+            if let Some(message) = message {
+                bar.set_message(message);
             }
         });
     }
@@ -83,35 +79,5 @@ impl Progress {
         if let Some(bar) = &self.bar {
             action(bar);
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use log::info;
-
-    #[test]
-    fn test_skip_cached_responses_in_progress_output() {
-        let mut buf = Vec::new();
-        Progress::new("", false, false)
-            .show_to_buffer(&mut buf, "I checked a link!".into())
-            .unwrap();
-
-        info!("{:?}", String::from_utf8_lossy(&buf));
-        assert!(buf.is_empty());
-    }
-
-    #[test]
-    fn test_show_cached_responses_in_progress_debug_output() {
-        let mut buf = Vec::new();
-        Progress::new("", false, true)
-            .show_to_buffer(&mut buf, "I checked a link!".into())
-            .unwrap();
-
-        assert!(!buf.is_empty());
-        let buf = String::from_utf8_lossy(&buf);
-        assert_eq!(buf, "I checked a link!\n");
     }
 }

@@ -169,7 +169,7 @@ async fn collect_responses(
     while let Some(response) = recv_resp.recv().await {
         let response = response?;
         let out = formatter.format_response(response.body());
-        progress.show(out)?;
+        progress.update(Some(out));
         stats.add(response);
     }
     Ok(stats)
