@@ -325,13 +325,13 @@ impl HostPool {
     /// * `uri` - The URI to cache
     /// * `status` - The status to cache
     pub fn cache_result(&self, uri: &Uri, status: &Status) {
-        if let Ok(host_key) = HostKey::try_from(uri) {
-            if let Some(host) = self.hosts.get(&host_key) {
-                host.cache_result(uri, status);
-            }
-            // If host doesn't exist yet, we don't cache
-            // The result will be cached when the host is created and the request is made
+        if let Ok(host_key) = HostKey::try_from(uri)
+            && let Some(host) = self.hosts.get(&host_key)
+        {
+            host.cache_result(uri, status);
         }
+        // If host doesn't exist yet, we don't cache
+        // The result will be cached when the host is created and the request is made
     }
 
     /// Get cache statistics across all hosts

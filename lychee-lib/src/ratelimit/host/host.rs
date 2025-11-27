@@ -364,33 +364,32 @@ impl Host {
             &["x-ratelimit-limit", "x-rate-limit-limit", "ratelimit-limit"],
         );
 
-        if let (Some(remaining), Some(limit)) = (remaining, limit) {
-            if limit > 0 {
-                #[allow(clippy::cast_precision_loss)]
-                let usage_ratio = (limit - remaining) as f64 / limit as f64;
+        if let (Some(remaining), Some(limit)) = (remaining, limit)
+            && limit > 0
+        {
+            #[allow(clippy::cast_precision_loss)]
+            let usage_ratio = (limit - remaining) as f64 / limit as f64;
 
-                // If we've used more than 80% of our quota, apply preventive backoff
-                if usage_ratio > 0.8 {
-                    let mut backoff = self.backoff_duration.lock().unwrap();
-                    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                    let preventive_backoff =
-                        Duration::from_millis((200.0 * (usage_ratio - 0.8) / 0.2) as u64);
-                    *backoff = std::cmp::max(*backoff, preventive_backoff);
-                }
+            // If we've used more than 80% of our quota, apply preventive backoff
+            if usage_ratio > 0.8 {
+                let mut backoff = self.backoff_duration.lock().unwrap();
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let preventive_backoff =
+                    Duration::from_millis((200.0 * (usage_ratio - 0.8) / 0.2) as u64);
+                *backoff = std::cmp::max(*backoff, preventive_backoff);
             }
         }
 
         // Check for Retry-After header (in seconds)
-        if let Some(retry_after_value) = headers.get("retry-after") {
-            if let Ok(retry_after_str) = retry_after_value.to_str() {
-                if let Ok(retry_seconds) = retry_after_str.parse::<u64>() {
-                    let mut backoff = self.backoff_duration.lock().unwrap();
-                    let retry_duration = Duration::from_secs(retry_seconds);
-                    // Cap retry-after to reasonable limits
-                    if retry_duration <= Duration::from_secs(3600) {
-                        *backoff = std::cmp::max(*backoff, retry_duration);
-                    }
-                }
+        if let Some(retry_after_value) = headers.get("retry-after")
+            && let Ok(retry_after_str) = retry_after_value.to_str()
+            && let Ok(retry_seconds) = retry_after_str.parse::<u64>()
+        {
+            let mut backoff = self.backoff_duration.lock().unwrap();
+            let retry_duration = Duration::from_secs(retry_seconds);
+            // Cap retry-after to reasonable limits
+            if retry_duration <= Duration::from_secs(3600) {
+                *backoff = std::cmp::max(*backoff, retry_duration);
             }
         }
     }
@@ -398,12 +397,11 @@ impl Host {
     /// Helper method to parse numeric header values from common rate limit headers
     fn parse_header_value(headers: &http::HeaderMap, header_names: &[&str]) -> Option<usize> {
         for header_name in header_names {
-            if let Some(value) = headers.get(*header_name) {
-                if let Ok(value_str) = value.to_str() {
-                    if let Ok(number) = value_str.parse::<usize>() {
-                        return Some(number);
-                    }
-                }
+            if let Some(value) = headers.get(*header_name)
+                && let Ok(value_str) = value.to_str()
+                && let Ok(number) = value_str.parse::<usize>()
+            {
+                return Some(number);
             }
         }
         None
