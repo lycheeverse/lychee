@@ -61,7 +61,6 @@
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, ErrorKind, Write};
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use anyhow::{Context, Error, Result, bail};
 use clap::{Parser, crate_version};
@@ -370,7 +369,6 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let requests = collector.collect_links_from_file_types(inputs, opts.config.extensions.clone());
 
     let cache = load_cache(&opts.config).unwrap_or_default();
-    let cache = Arc::new(cache);
 
     let cookie_jar = load_cookie_jar(&opts.config).with_context(|| {
         format!(
@@ -394,7 +392,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let exit_code = if opts.config.dump {
         commands::dump(params).await?
     } else {
-        let (stats, cache, exit_code, client) = commands::check(params).await?;
+        let (stats, cache, exit_code, host_pool) = commands::check(params).await?;
 
         let github_issues = stats
             .error_map
@@ -423,7 +421,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         }
 
         // Display per-host statistics if requested
-        display_per_host_statistics(&client, &opts.config)?;
+        display_per_host_statistics(host_pool.as_ref(), &opts.config)?;
 
         if github_issues && opts.config.github_token.is_none() {
             warn!(

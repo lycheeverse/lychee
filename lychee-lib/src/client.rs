@@ -32,6 +32,7 @@ use crate::{
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
+    ratelimit::HostPool,
     remap::Remaps,
     types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory},
 };
@@ -474,46 +475,16 @@ pub struct Client {
 }
 
 impl Client {
-    /// Get per-host statistics from the rate limiting system
-    ///
-    /// Returns a map of hostnames to their statistics, or an empty map
-    /// if host-based rate limiting is not enabled.
+    /// Get a reference to `HostPool`
     #[must_use]
-    pub fn host_stats(&self) -> std::collections::HashMap<String, crate::ratelimit::HostStats> {
-        self.website_checker.host_stats()
+    pub const fn host_pool_ref(&self) -> Option<&HostPool> {
+        self.website_checker.host_pool_ref()
     }
 
-    /// Get cache statistics for all hosts
-    ///
-    /// Returns a map of hostnames to (`cache_size`, `hit_rate`), or an empty map
-    /// if host-based rate limiting is not enabled.
+    /// Get `HostPool`
     #[must_use]
-    pub fn cache_stats(&self) -> std::collections::HashMap<String, (usize, f64)> {
-        self.website_checker.cache_stats()
-    }
-
-    /// Record a cache hit for the given URI
-    ///
-    /// This tracks that a request was served from cache rather than making
-    /// a network request. This is used for statistics tracking.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the URI cannot be parsed or if host tracking fails.
-    pub fn record_cache_hit(&self, uri: &crate::Uri) -> crate::Result<()> {
-        self.website_checker.record_cache_hit(uri)
-    }
-
-    /// Record a cache miss for the given URI
-    ///
-    /// This tracks that a request could not be served from cache and will
-    /// require a network request. This is used for statistics tracking.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the URI cannot be parsed or if host tracking fails.
-    pub fn record_cache_miss(&self, uri: &crate::Uri) -> crate::Result<()> {
-        self.website_checker.record_cache_miss(uri)
+    pub fn host_pool(self) -> Option<HostPool> {
+        self.website_checker.host_pool()
     }
 
     /// Check a single request.

@@ -1,17 +1,21 @@
+use std::collections::HashMap;
+
 use anyhow::{Context, Result};
+use lychee_lib::ratelimit::HostPool;
 
 use crate::{formatters::get_host_stats_formatter, options::Config};
 
 /// Display per-host statistics if requested
 pub(crate) fn display_per_host_statistics(
-    client: &lychee_lib::Client,
+    host_pool: Option<&HostPool>,
     config: &Config,
 ) -> Result<()> {
     if !config.host_stats {
         return Ok(());
     }
 
-    let host_stats = client.host_stats();
+    let host_stats = host_pool.map_or_else(HashMap::default, HostPool::all_host_stats);
+
     let host_stats_formatter = get_host_stats_formatter(&config.format, &config.mode);
 
     if let Some(formatted_host_stats) = host_stats_formatter.format(host_stats)? {
