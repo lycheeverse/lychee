@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -25,7 +26,7 @@ use super::CommandParams;
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
-) -> Result<(ResponseStats, Cache, ExitCode, Option<HostPool>), ErrorKind>
+) -> Result<(ResponseStats, Cache, ExitCode, Option<Arc<HostPool>>), ErrorKind>
 where
     S: futures::Stream<Item = Result<Request, RequestError>>,
 {

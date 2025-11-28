@@ -310,7 +310,7 @@ pub struct ClientBuilder {
     ///
     /// When provided, HTTP/HTTPS requests will be routed through this pool
     /// for rate limiting and concurrency control on a per-host basis.
-    host_pool: Option<crate::ratelimit::HostPool>,
+    host_pool: Option<Arc<HostPool>>,
 }
 
 impl Default for ClientBuilder {
@@ -477,13 +477,13 @@ pub struct Client {
 impl Client {
     /// Get a reference to `HostPool`
     #[must_use]
-    pub const fn host_pool_ref(&self) -> Option<&HostPool> {
+    pub const fn host_pool_ref(&self) -> Option<&Arc<HostPool>> {
         self.website_checker.host_pool_ref()
     }
 
     /// Get `HostPool`
     #[must_use]
-    pub fn host_pool(self) -> Option<HostPool> {
+    pub fn host_pool(self) -> Option<Arc<HostPool>> {
         self.website_checker.host_pool()
     }
 
