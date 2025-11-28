@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
 use reqwest::{Request, Response, header::CONTENT_TYPE};
-use std::{collections::HashSet, path::Path, time::Duration};
+use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 use url::Url;
 
 #[derive(Debug, Clone)]
@@ -60,19 +60,19 @@ pub(crate) struct WebsiteChecker {
     ///
     /// When present, HTTP requests will be routed through this pool for
     /// rate limiting. When None, requests go directly through `reqwest_client`.
-    host_pool: Option<HostPool>,
+    host_pool: Option<Arc<HostPool>>,
 }
 
 impl WebsiteChecker {
     /// Get a reference to `HostPool`
     #[must_use]
-    pub(crate) const fn host_pool_ref(&self) -> Option<&HostPool> {
+    pub(crate) const fn host_pool_ref(&self) -> Option<&Arc<HostPool>> {
         self.host_pool.as_ref()
     }
 
     /// Get `HostPool`
     #[must_use]
-    pub(crate) fn host_pool(self) -> Option<HostPool> {
+    pub(crate) fn host_pool(self) -> Option<Arc<HostPool>> {
         self.host_pool
     }
 
@@ -88,7 +88,7 @@ impl WebsiteChecker {
         require_https: bool,
         plugin_request_chain: RequestChain,
         include_fragments: bool,
-        host_pool: Option<HostPool>,
+        host_pool: Option<Arc<HostPool>>,
     ) -> Self {
         Self {
             method,

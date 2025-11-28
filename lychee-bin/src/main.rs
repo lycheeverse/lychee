@@ -421,7 +421,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         }
 
         // Display per-host statistics if requested
-        display_per_host_statistics(host_pool.as_ref(), &opts.config)?;
+        display_per_host_statistics(host_pool.as_deref(), &opts.config)?;
 
         if github_issues && opts.config.github_token.is_none() {
             warn!(
