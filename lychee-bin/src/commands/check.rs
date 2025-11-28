@@ -53,6 +53,17 @@ where
         .into_set();
     let accept = params.cfg.accept.into();
 
+    // Start receiving requests
+    let handle = tokio::spawn(request_channel_task(
+        recv_req,
+        send_resp,
+        max_concurrency,
+        client,
+        cache,
+        cache_exclude_status,
+        accept,
+    ));
+
     let hide_bar = params.cfg.no_progress;
     let detailed = params.cfg.verbose.log_level() >= log::Level::Info;
 
@@ -66,18 +77,7 @@ where
 
     // Wait until all requests are sent
     send_requests(params.requests, send_req, &progress).await?;
-
-    // Start receiving requests
-    let (cache, client) = tokio::spawn(request_channel_task(
-        recv_req,
-        send_resp,
-        max_concurrency,
-        client,
-        cache,
-        cache_exclude_status,
-        accept,
-    ))
-    .await?;
+    let (cache, client) = handle.await?;
 
     // Wait until all responses are received
     let result = show_results_task.await?;
