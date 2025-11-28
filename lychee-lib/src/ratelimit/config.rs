@@ -41,6 +41,7 @@ impl RateLimitConfig {
 
 /// Configuration for a specific host's rate limiting behavior
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HostConfig {
     /// Maximum concurrent requests allowed to this host
     pub max_concurrent: Option<usize>,
