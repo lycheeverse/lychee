@@ -562,7 +562,7 @@ with a status code of 429, 500 and 501."
     ///   --request-interval 50ms   # Fast for robust APIs
     ///   --request-interval 1s     # Conservative for rate-limited APIs
     #[arg(long = "request-interval", value_parser = humantime::parse_duration, verbatim_doc_comment)]
-    #[serde(default)]
+    #[serde(default, with = "humantime_serde")]
     pub(crate) request_interval: Option<Duration>,
 
     /// Number of threads to utilize.
