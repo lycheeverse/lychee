@@ -87,7 +87,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .include_fragments(cfg.include_fragments)
         .fallback_extensions(cfg.fallback_extensions.clone())
         .index_files(cfg.index_files.clone())
-        .host_pool(Some(host_pool))
+        .host_pool(Some(Arc::new(host_pool)))
         .build()
         .client()
         .context("Failed to create request client")

@@ -23,19 +23,19 @@ use crate::{CacheStatus, Status, Uri};
 /// - Global semaphore enforces overall concurrency limits across all hosts
 /// - Hosts are created lazily when first requested
 /// - Thread-safe using `DashMap` for concurrent access to host instances
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct HostPool {
     /// Map of hostname to Host instances, created on-demand
-    hosts: Arc<DashMap<HostKey, Arc<Host>>>,
+    hosts: DashMap<HostKey, Arc<Host>>,
 
     /// Global configuration for rate limiting defaults
-    global_config: Arc<RateLimitConfig>,
+    global_config: RateLimitConfig,
 
     /// Per-host configuration overrides
-    host_configs: Arc<HashMap<String, HostConfig>>,
+    host_configs: HashMap<String, HostConfig>,
 
     /// Global semaphore to enforce overall concurrency limit
-    global_semaphore: Arc<Semaphore>,
+    global_semaphore: Semaphore,
 
     /// Maximum age for cached entries in seconds (0 to disable caching)
     cache_max_age: u64,
@@ -96,10 +96,10 @@ impl HostPool {
         allow_insecure: bool,
     ) -> Self {
         Self {
-            hosts: Arc::new(DashMap::new()),
-            global_config: Arc::new(global_config),
-            host_configs: Arc::new(host_configs),
-            global_semaphore: Arc::new(Semaphore::new(max_total_concurrency)),
+            hosts: DashMap::new(),
+            global_config,
+            host_configs,
+            global_semaphore: Semaphore::new(max_total_concurrency),
             cache_max_age,
             cookie_jar: None,
             global_headers,
@@ -276,7 +276,7 @@ impl HostPool {
     /// This is useful for debugging or runtime monitoring of configuration.
     #[must_use]
     pub fn host_configurations(&self) -> HashMap<String, HostConfig> {
-        (*self.host_configs).clone()
+        self.host_configs.clone()
     }
 
     /// Remove a host from the pool
@@ -350,7 +350,7 @@ impl HostPool {
 
     /// Cleanup expired cache entries across all hosts
     pub fn cleanup_caches(&self) {
-        for host in self.hosts.iter() {
+        for host in &self.hosts {
             host.cleanup_cache();
         }
     }

@@ -52,20 +52,16 @@ pub struct Host {
     rate_limiter: RateLimiter<NotKeyed, InMemoryState, DefaultClock>,
 
     /// Controls maximum concurrent requests to this host
-    semaphore: Arc<Semaphore>,
+    semaphore: Semaphore,
 
     /// HTTP client configured for this specific host
     client: ReqwestClient,
 
-    /// Cookie jar for maintaining session state (per-host)
-    #[allow(dead_code)]
-    cookie_jar: Arc<CookieStoreMutex>,
-
     /// Request statistics and adaptive behavior tracking
-    stats: Arc<Mutex<HostStats>>,
+    stats: Mutex<HostStats>,
 
     /// Current backoff duration for adaptive rate limiting
-    backoff_duration: Arc<Mutex<Duration>>,
+    backoff_duration: Mutex<Duration>,
 
     /// Per-host cache to prevent duplicate requests
     cache: HostCache,
@@ -120,7 +116,7 @@ impl Host {
 
         // Create semaphore for concurrency control
         let max_concurrent = host_config.effective_max_concurrent(global_config);
-        let semaphore = Arc::new(Semaphore::new(max_concurrent));
+        let semaphore = Semaphore::new(max_concurrent);
 
         // Use shared cookie jar if provided, otherwise create per-host one
         let cookie_jar = shared_cookie_jar.unwrap_or_else(|| Arc::new(CookieStoreMutex::default()));
@@ -167,9 +163,8 @@ impl Host {
             rate_limiter,
             semaphore,
             client,
-            cookie_jar,
-            stats: Arc::new(Mutex::new(HostStats::default())),
-            backoff_duration: Arc::new(Mutex::new(Duration::from_millis(0))),
+            stats: Mutex::new(HostStats::default()),
+            backoff_duration: Mutex::new(Duration::from_millis(0)),
             cache: DashMap::new(),
             cache_max_age,
         })
