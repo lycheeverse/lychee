@@ -15,6 +15,8 @@ static YOUTUBE_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?youtube(-nocookie)?\.com").unwrap());
 static YOUTUBE_SHORT_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?(youtu\.?be)").unwrap());
+static GITHUB_MARKDOWN_FRAGMENT_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^https://github.com/(.*?)/(.*?)/blob/(.*?)/(.*#.*)$").unwrap());
 
 // Retrieve a map of query params for the given request
 fn query(request: &Request) -> HashMap<String, String> {
@@ -75,6 +77,25 @@ impl Default for Quirks {
                     }
                     *request.url_mut() =
                         Url::parse(&format!("https://img.youtube.com/vi/{id}/0.jpg")).unwrap();
+                    request
+                },
+            },
+            Quirk {
+                pattern: &GITHUB_MARKDOWN_FRAGMENT_PATTERN,
+                rewrite: |mut request| {
+                    let matches = GITHUB_MARKDOWN_FRAGMENT_PATTERN
+                        .captures(request.url().as_str())
+                        .expect("should be always true as `is_match` is true");
+                    let raw_url = format!(
+                        "https://raw.githubusercontent.com/{}",
+                        matches
+                            .iter()
+                            .skip(1)
+                            .map(|c| c.expect("match GitHub markdown pattern").as_str())
+                            .collect::<Vec<_>>()
+                            .join("/"),
+                    );
+                    *request.url_mut() = Url::parse(&raw_url).unwrap();
                     request
                 },
             },
@@ -186,6 +207,23 @@ mod tests {
         let modified = Quirks::default().apply(request);
 
         assert_eq!(MockRequest(modified), MockRequest::new(Method::GET, url));
+    }
+
+    #[test]
+    fn test_github_markdown_fragment_request() {
+        let url =
+            Url::parse("https://github.com/moby/docker-image-spec/blob/main/spec.md#terminology")
+                .unwrap();
+        let request = Request::new(Method::GET, url);
+        let modified = Quirks::default().apply(request);
+
+        assert_eq!(
+            MockRequest(modified),
+            MockRequest::new(
+                Method::GET,
+                Url::parse("https://raw.githubusercontent.com/moby/docker-image-spec/main/spec.md#terminology").unwrap()
+            )
+        );
     }
 
     #[test]
