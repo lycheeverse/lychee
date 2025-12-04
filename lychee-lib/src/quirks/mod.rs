@@ -226,10 +226,10 @@ mod tests {
             (
                 "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md#features",
                 "https://raw.githubusercontent.com/lycheeverse/lychee/v0.15.0/README.md#features",
-            )
+            ),
         ];
-        for (origin, expect) in cases.iter() {
-            let url = Url::parse(&origin).unwrap();
+        for (origin, expect) in &cases {
+            let url = Url::parse(origin).unwrap();
             let request = Request::new(Method::GET, url);
             let modified = Quirks::default().apply(request);
 
