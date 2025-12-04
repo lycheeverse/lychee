@@ -16,7 +16,7 @@ static YOUTUBE_PATTERN: LazyLock<Regex> =
 static YOUTUBE_SHORT_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?(youtu\.?be)").unwrap());
 static GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^https://github.com/(?<user>.*?)/(?<repo>.*?)/blob/(?<path>.*?)/(?<file>.*md#.*)$")
+    Regex::new(r"^https://github\.com/(?<user>.*?)/(?<repo>.*?)/blob/(?<path>.*?)/(?<file>.*\.(md|markdown)#.*)$")
         .unwrap()
 });
 
@@ -206,19 +206,38 @@ mod tests {
 
     #[test]
     fn test_github_blob_markdown_fragment_request() {
-        let url =
-            Url::parse("https://github.com/moby/docker-image-spec/blob/main/spec.md#terminology")
-                .unwrap();
-        let request = Request::new(Method::GET, url);
-        let modified = Quirks::default().apply(request);
-
-        assert_eq!(
-            MockRequest(modified),
-            MockRequest::new(
-                Method::GET,
-                Url::parse("https://raw.githubusercontent.com/moby/docker-image-spec/main/spec.md#terminology").unwrap()
+        let cases = [
+            (
+                "https://github.com/moby/docker-image-spec/blob/main/spec.md#terminology",
+                "https://raw.githubusercontent.com/moby/docker-image-spec/main/spec.md#terminology",
+            ),
+            (
+                "https://github.com/moby/docker-image-spec/blob/main/spec.markdown#terminology",
+                "https://raw.githubusercontent.com/moby/docker-image-spec/main/spec.markdown#terminology",
+            ),
+            (
+                "https://github.com/moby/docker-image-spec/blob/main/spec.md",
+                "https://github.com/moby/docker-image-spec/blob/main/spec.md",
+            ),
+            (
+                "https://github.com/lycheeverse/lychee/blob/master/.gitignore#section",
+                "https://github.com/lycheeverse/lychee/blob/master/.gitignore#section",
+            ),
+            (
+                "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md#features",
+                "https://raw.githubusercontent.com/lycheeverse/lychee/v0.15.0/README.md#features",
             )
-        );
+        ];
+        for (origin, expect) in cases.iter() {
+            let url = Url::parse(&origin).unwrap();
+            let request = Request::new(Method::GET, url);
+            let modified = Quirks::default().apply(request);
+
+            assert_eq!(
+                MockRequest(modified),
+                MockRequest::new(Method::GET, Url::parse(expect).unwrap())
+            );
+        }
     }
 
     #[test]
