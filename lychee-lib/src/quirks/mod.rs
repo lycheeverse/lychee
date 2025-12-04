@@ -5,7 +5,7 @@ use crate::{
 use async_trait::async_trait;
 use header::HeaderValue;
 use http::header;
-use regex::Regex;
+use regex::{Captures, Regex};
 use reqwest::{Request, Url};
 use std::{collections::HashMap, sync::LazyLock};
 
@@ -15,8 +15,10 @@ static YOUTUBE_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?youtube(-nocookie)?\.com").unwrap());
 static YOUTUBE_SHORT_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?(youtu\.?be)").unwrap());
-static GITHUB_MARKDOWN_FRAGMENT_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^https://github.com/(.*?)/(.*?)/blob/(.*?)/(.*#.*)$").unwrap());
+static GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^https://github.com/(?<user>.*?)/(?<repo>.*?)/blob/(?<path>.*?)/(?<file>.*md#.*)$")
+        .unwrap()
+});
 
 // Retrieve a map of query params for the given request
 fn query(request: &Request) -> HashMap<String, String> {
@@ -26,7 +28,7 @@ fn query(request: &Request) -> HashMap<String, String> {
 #[derive(Debug, Clone)]
 pub(crate) struct Quirk {
     pub(crate) pattern: &'static LazyLock<Regex>,
-    pub(crate) rewrite: fn(Request) -> Request,
+    pub(crate) rewrite: fn(Request, Captures) -> Request,
 }
 
 #[derive(Debug, Clone)]
@@ -39,7 +41,7 @@ impl Default for Quirks {
         let quirks = vec![
             Quirk {
                 pattern: &CRATES_PATTERN,
-                rewrite: |mut request| {
+                rewrite: |mut request, _| {
                     request
                         .headers_mut()
                         .insert(header::ACCEPT, HeaderValue::from_static("text/html"));
@@ -48,7 +50,7 @@ impl Default for Quirks {
             },
             Quirk {
                 pattern: &YOUTUBE_PATTERN,
-                rewrite: |mut request| {
+                rewrite: |mut request, _| {
                     // Extract video id if it's a video page
                     let video_id = match request.url().path() {
                         "/watch" => query(&request).get("v").map(ToOwned::to_owned),
@@ -69,7 +71,7 @@ impl Default for Quirks {
             },
             Quirk {
                 pattern: &YOUTUBE_SHORT_PATTERN,
-                rewrite: |mut request| {
+                rewrite: |mut request, _| {
                     // Short links use the path as video id
                     let id = request.url().path().trim_start_matches('/');
                     if id.is_empty() {
@@ -81,19 +83,12 @@ impl Default for Quirks {
                 },
             },
             Quirk {
-                pattern: &GITHUB_MARKDOWN_FRAGMENT_PATTERN,
-                rewrite: |mut request| {
-                    let matches = GITHUB_MARKDOWN_FRAGMENT_PATTERN
-                        .captures(request.url().as_str())
-                        .expect("should be always true as `is_match` is true");
-                    let raw_url = format!(
-                        "https://raw.githubusercontent.com/{}",
-                        matches
-                            .iter()
-                            .skip(1)
-                            .map(|c| c.expect("match GitHub markdown pattern").as_str())
-                            .collect::<Vec<_>>()
-                            .join("/"),
+                pattern: &GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN,
+                rewrite: |mut request, captures| {
+                    let mut raw_url = String::new();
+                    captures.expand(
+                        "https://raw.githubusercontent.com/$user/$repo/$path/$file",
+                        &mut raw_url,
                     );
                     *request.url_mut() = Url::parse(&raw_url).unwrap();
                     request
@@ -110,8 +105,8 @@ impl Quirks {
     /// simplicity reasons. This limitation might be lifted in the future.
     pub(crate) fn apply(&self, request: Request) -> Request {
         for quirk in &self.quirks {
-            if quirk.pattern.is_match(request.url().as_str()) {
-                return (quirk.rewrite)(request);
+            if let Some(captures) = quirk.pattern.captures(request.url().clone().as_str()) {
+                return (quirk.rewrite)(request, captures);
             }
         }
         // Request was not modified
@@ -210,7 +205,7 @@ mod tests {
     }
 
     #[test]
-    fn test_github_markdown_fragment_request() {
+    fn test_github_blob_markdown_fragment_request() {
         let url =
             Url::parse("https://github.com/moby/docker-image-spec/blob/main/spec.md#terminology")
                 .unwrap();
