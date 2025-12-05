@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.21.0...lychee-lib-v0.22.0) - 2025-12-05
+
+### Added
+
+- add github markdown fragment quirk ([#1940](https://github.com/lycheeverse/lychee/pull/1940))
+- support relative --root-dir ([#1912](https://github.com/lycheeverse/lychee/pull/1912))
+- propagate input loading/collecting errors to top level  ([#1864](https://github.com/lycheeverse/lychee/pull/1864))
+- file preprocessing ([#1891](https://github.com/lycheeverse/lychee/pull/1891))
+
+### Fixed
+
+- make file matcher respect the hidden option ([#1936](https://github.com/lycheeverse/lychee/pull/1936))
+- parsing of srcset URLs after the first URL ([#1890](https://github.com/lycheeverse/lychee/pull/1890))
+
+### Other
+
+- *(deps)* bump the dependencies group with 5 updates ([#1944](https://github.com/lycheeverse/lychee/pull/1944))
+- progress bar ([#1914](https://github.com/lycheeverse/lychee/pull/1914))
+- Bump the dependencies group with 3 updates ([#1933](https://github.com/lycheeverse/lychee/pull/1933))
+- Provide a more helpful error message in case of TLS protocol issues ([#1927](https://github.com/lycheeverse/lychee/pull/1927))
+- Fix parsing larger HTML blocks in MDX files ([#1924](https://github.com/lycheeverse/lychee/pull/1924))
+- Bump the dependencies group with 3 updates ([#1921](https://github.com/lycheeverse/lychee/pull/1921))
+- Fix outdated reference to pre
+- Make use of more explicit LazyLock::force
+- use markdown formatting for files-from help text ([#1917](https://github.com/lycheeverse/lychee/pull/1917))
+- Bump the dependencies group across 1 directory with 8 updates ([#1916](https://github.com/lycheeverse/lychee/pull/1916))
+- use InputResolver to implement Input::get_sources  ([#1880](https://github.com/lycheeverse/lychee/pull/1880))
+- Fix extracting links after `<pre><code></code></pre>` ([#1911](https://github.com/lycheeverse/lychee/pull/1911))
+- check glob validity when parsing input source arguments ([#1869](https://github.com/lycheeverse/lychee/pull/1869))
+- remove unimportant public library function ([#1893](https://github.com/lycheeverse/lychee/pull/1893))
+- Fix typos, and configure the typos tool ([#1895](https://github.com/lycheeverse/lychee/pull/1895))
+- Remove an unneeded clone ([#1897](https://github.com/lycheeverse/lychee/pull/1897))
+- Address new clippy lints with version 1.91
+- clippy --fix
+- Bump MSRV
+- Bump the dependencies group across 1 directory with 7 updates
+
 ## [0.21.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.20.1...lychee-lib-v0.21.0) - 2025-10-23
 
 ### Added
