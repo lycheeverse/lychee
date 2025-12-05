@@ -13,7 +13,11 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 
 use http::{
     StatusCode,
@@ -32,7 +36,7 @@ use crate::{
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
-    ratelimit::HostPool,
+    ratelimit::{HostConfig, HostPool, RateLimitConfig},
     remap::Remaps,
     types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory},
 };
@@ -56,6 +60,14 @@ const CONNECT_TIMEOUT: u64 = 10;
 /// See <https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/overview.html> for more
 /// information.
 const TCP_KEEPALIVE: u64 = 60;
+
+/// TODO: Rename,move,refactor?
+#[derive(Debug, Clone, Default)]
+pub struct HostPoolConfig {
+    rate_limit_config: RateLimitConfig,
+    hosts: HashMap<String, HostConfig>,
+    max_concurrency: usize,
+}
 
 /// Builder for [`Client`].
 ///
@@ -306,11 +318,9 @@ pub struct ClientBuilder {
     /// skipped and the lychee-internal request chain is not activated.
     plugin_request_chain: RequestChain,
 
-    /// Optional host pool for per-host rate limiting of HTTP requests.
-    ///
-    /// When provided, HTTP/HTTPS requests will be routed through this pool
+    /// When enabled, HTTP/HTTPS requests will be routed through this pool
     /// for rate limiting and concurrency control on a per-host basis.
-    host_pool: Option<Arc<HostPool>>,
+    host_pool_config: HostPoolConfig,
 }
 
 impl Default for ClientBuilder {
@@ -336,38 +346,8 @@ impl ClientBuilder {
     ///
     /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors
     pub fn client(self) -> Result<Client> {
-        let Self {
-            user_agent,
-            custom_headers: mut headers,
-            ..
-        } = self;
-
-        if let Some(prev_user_agent) =
-            headers.insert(header::USER_AGENT, HeaderValue::try_from(&user_agent)?)
-        {
-            debug!(
-                "Found user-agent in headers: {}. Overriding it with {user_agent}.",
-                prev_user_agent.to_str().unwrap_or("�"),
-            );
-        }
-
-        headers.insert(
-            header::TRANSFER_ENCODING,
-            HeaderValue::from_static("chunked"),
-        );
-
         let redirect_history = RedirectHistory::new();
-
-        let mut builder = reqwest::ClientBuilder::new()
-            .gzip(true)
-            .default_headers(headers)
-            .danger_accept_invalid_certs(self.allow_insecure)
-            .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
-            .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
-            .redirect(redirect_policy(
-                redirect_history.clone(),
-                self.max_redirects,
-            ));
+        let mut builder = self.reqwest_builder(&redirect_history)?;
 
         if let Some(cookie_jar) = self.cookie_jar {
             builder = builder.cookie_provider(cookie_jar);
@@ -377,12 +357,19 @@ impl ClientBuilder {
             builder = builder.min_tls_version(min_tls);
         }
 
-        let reqwest_client = match self.timeout {
-            Some(t) => builder.timeout(t),
-            None => builder,
+        if let Some(timeout) = self.timeout {
+            builder = builder.timeout(timeout);
         }
-        .build()
-        .map_err(ErrorKind::BuildRequestClient)?;
+
+        let reqwest_client = builder.build().map_err(ErrorKind::BuildRequestClient)?;
+
+        // Create HostPool for rate limiting - always enabled for HTTP requests
+        let HostPoolConfig {
+            rate_limit_config,
+            hosts,
+            max_concurrency,
+        } = self.host_pool_config;
+        let host_pool = HostPool::new(rate_limit_config, hosts, max_concurrency, todo!());
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(
@@ -419,7 +406,7 @@ impl ClientBuilder {
             self.require_https,
             self.plugin_request_chain,
             self.include_fragments,
-            self.host_pool,
+            Arc::new(host_pool),
         );
 
         Ok(Client {
@@ -434,6 +421,43 @@ impl ClientBuilder {
                 self.include_fragments,
             ),
         })
+    }
+
+    fn reqwest_builder(
+        &self,
+        redirect_history: &RedirectHistory,
+    ) -> Result<reqwest::ClientBuilder> {
+        Ok(reqwest::ClientBuilder::new()
+            .gzip(true)
+            .default_headers(self.headers()?)
+            .danger_accept_invalid_certs(self.allow_insecure)
+            .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
+            .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
+            .redirect(redirect_policy(
+                redirect_history.clone(),
+                self.max_redirects,
+            )))
+    }
+
+    fn headers(&self) -> Result<HeaderMap> {
+        let user_agent = self.user_agent.clone();
+        let mut headers = self.custom_headers.clone();
+
+        if let Some(prev_user_agent) =
+            headers.insert(header::USER_AGENT, HeaderValue::try_from(&user_agent)?)
+        {
+            debug!(
+                "Found user-agent in headers: {}. Overriding it with {user_agent}.",
+                prev_user_agent.to_str().unwrap_or("�"),
+            );
+        }
+
+        headers.insert(
+            header::TRANSFER_ENCODING,
+            HeaderValue::from_static("chunked"),
+        );
+
+        Ok(headers)
     }
 }
 
@@ -475,15 +499,9 @@ pub struct Client {
 }
 
 impl Client {
-    /// Get a reference to `HostPool`
-    #[must_use]
-    pub const fn host_pool_ref(&self) -> Option<&Arc<HostPool>> {
-        self.website_checker.host_pool_ref()
-    }
-
     /// Get `HostPool`
     #[must_use]
-    pub fn host_pool(self) -> Option<Arc<HostPool>> {
+    pub fn host_pool(self) -> Arc<HostPool> {
         self.website_checker.host_pool()
     }
 

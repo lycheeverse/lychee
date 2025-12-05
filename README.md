@@ -952,3 +952,38 @@ at your option.
 
 <br><hr>
 [🔼 Back to top](#back-to-top)
+
+---
+
+e0f36033148d1af0af2d5d974c2b5d9f958542ca makes test_redirect_json fail
+
+---
+
+check.rs
+
+fn request_channel_task(...)
+
+cache: Arc<Cache>,
+cache_exclude_status: HashSet<u16>,
+
+why are these separate?? much nicer to make excludes part of cache
+
+---
+
+extract into function
+
+main.rs
+
+if github_issues && opts.config.github_token.is_none() {
+    warn!("There were issues with GitHub URLs...");
+}
+
+
+---
+
+Add this again?
+
+
+```rust
+let cache_max_age = if cfg.cache { 3600 } else { 0 }; // 1 hour if caching enabled, disabled otherwise
+```
