@@ -32,6 +32,7 @@ use crate::{
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
+    ratelimit::HostPool,
     remap::Remaps,
     types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory},
 };
@@ -304,6 +305,12 @@ pub struct ClientBuilder {
     /// early and return a status, so that subsequent chain items are
     /// skipped and the lychee-internal request chain is not activated.
     plugin_request_chain: RequestChain,
+
+    /// Optional host pool for per-host rate limiting of HTTP requests.
+    ///
+    /// When provided, HTTP/HTTPS requests will be routed through this pool
+    /// for rate limiting and concurrency control on a per-host basis.
+    host_pool: Option<Arc<HostPool>>,
 }
 
 impl Default for ClientBuilder {
@@ -412,6 +419,7 @@ impl ClientBuilder {
             self.require_https,
             self.plugin_request_chain,
             self.include_fragments,
+            self.host_pool,
         );
 
         Ok(Client {
@@ -467,6 +475,18 @@ pub struct Client {
 }
 
 impl Client {
+    /// Get a reference to `HostPool`
+    #[must_use]
+    pub const fn host_pool_ref(&self) -> Option<&Arc<HostPool>> {
+        self.website_checker.host_pool_ref()
+    }
+
+    /// Get `HostPool`
+    #[must_use]
+    pub fn host_pool(self) -> Option<Arc<HostPool>> {
+        self.website_checker.host_pool()
+    }
+
     /// Check a single request.
     ///
     /// `request` can be either a [`Request`] or a type that can be converted
