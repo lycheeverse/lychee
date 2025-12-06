@@ -5,7 +5,7 @@ use log::warn;
 use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, TextMergeWithOffset};
 
 use crate::{
-    ErrorKind,
+    checker::wikilink::wikilink,
     extract::{html::html5gum::extract_html_with_span, plaintext::extract_raw_uri_from_plaintext},
     types::uri::raw::{
         OffsetSpanProvider, RawUri, RawUriSpan, SourceSpanProvider, SpanProvider as _,
@@ -99,7 +99,7 @@ pub(crate) fn extract_markdown(
                             return None;
                         }
 
-                        if let Ok(wikilink) = clean_wikilink(&dest_url, has_pothole) {
+                        if let Ok(wikilink) = wikilink(&dest_url, has_pothole) {
                             Some(vec![RawUri {
                                 text: wikilink.to_string(),
                                 element: Some("a".to_string()),
@@ -323,26 +323,6 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
     out
 }
 
-fn clean_wikilink(input: &str, has_pothole: bool) -> Result<CowStr<'_>, ErrorKind> {
-    // Strip potholes (|) from wikilinks
-    let mut stripped_input = if has_pothole {
-        pulldown_cmark::CowStr::Borrowed(&input[0..input.find('|').unwrap_or(input.len())])
-    } else {
-        pulldown_cmark::CowStr::Borrowed(input)
-    };
-
-    // Strip fragments (#) from wikilinks, according to the obsidian spec
-    // fragments always come before potholes
-    if stripped_input.contains('#') {
-        stripped_input =
-            pulldown_cmark::CowStr::Borrowed(&input[0..input.find('#').unwrap_or(input.len())]);
-    }
-    if stripped_input.is_empty() {
-        return Err(ErrorKind::EmptyUrl);
-    }
-    Ok(stripped_input)
-}
-
 #[derive(Default)]
 struct HeadingIdGenerator {
     counter: HashMap<String, usize>,
@@ -383,7 +363,6 @@ mod tests {
     use crate::types::uri::raw::span;
 
     use super::*;
-    use rstest::rstest;
 
     const MD_INPUT: &str = r#"
 # A Test
@@ -762,6 +741,7 @@ Shortcut link: [link4]
 
         assert_eq!(uris, expected);
     }
+
     #[test]
     fn test_wikilink_extraction_returns_none_on_empty_links() {
         let markdown = r"
@@ -845,14 +825,5 @@ Shortcut link: [link4]
             span: span(1, 3),
         }];
         assert_eq!(uris, expected);
-    }
-
-    #[rstest]
-    #[case("|foo", true)]
-    #[case("|foo#bar", true)]
-    #[case("#baz", false)]
-    fn test_from_str(#[case] input: &str, #[case] has_pothole: bool) {
-        let result = clean_wikilink(input, has_pothole);
-        assert!(result.is_err());
     }
 }
