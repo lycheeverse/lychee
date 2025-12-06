@@ -35,7 +35,7 @@ pub(crate) fn wikilink(input: &str, has_pothole: bool) -> Result<CowStr<'_>, Err
     if stripped_input.contains(MARKDOWN_FRAGMENT_MARKER) {
         stripped_input = pulldown_cmark::CowStr::Borrowed(
             // In theory a second '#' could be inserted into the pothole, so searching for the
-            // first occurence from the left should yield the correct result
+            // first occurrence from the left should yield the correct result
             &input[0..input.find(MARKDOWN_FRAGMENT_MARKER).unwrap_or(input.len())],
         );
     }
