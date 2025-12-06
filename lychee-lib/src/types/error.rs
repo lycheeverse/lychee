@@ -178,6 +178,14 @@ pub enum ErrorKind {
         /// The reason the command failed
         reason: String,
     },
+
+    /// The extracted `WikiLink` could not be found by searching the directory
+    #[error("Could not find Wikilink by searching th given base directory")]
+    WikilinkNotFound(Uri),
+
+    /// Error on creation of the `WikilinkResolver`
+    #[error("Failed to initialize Wikilink Checker")]
+    WikilinkResolverInit(String),
 }
 
 impl ErrorKind {
@@ -335,7 +343,13 @@ impl ErrorKind {
                 [name] => format!("An index file ({name}) is required"),
                 [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
             }.into(),
-            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the preprocessor option"))
+            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the pre option")),
+            ErrorKind::WikilinkNotFound(uri) => Some(format!(
+                "WikiLink could not be found: {uri} ",
+            )),
+            ErrorKind::WikilinkResolverInit(reason) => Some(format!(
+                "WikiLink Resolver could not be created: {reason} ",
+            )),
         }
     }
 
@@ -466,6 +480,8 @@ impl Hash for ErrorKind {
             Self::Cookies(e) => e.hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
             Self::PreprocessorError { command, reason } => (command, reason).hash(state),
+            Self::WikilinkNotFound(e) => e.hash(state),
+            Self::WikilinkResolverInit(e) => e.hash(state),
         }
     }
 }
