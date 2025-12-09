@@ -18,6 +18,9 @@ pub struct HostPoolConfig {
     pub max_concurrency: usize,
 }
 
+/// Keep track of host-specific [`reqwest::Client`]s
+pub type ClientMap = HashMap<HostKey, reqwest::Client>;
+
 impl Default for HostPoolConfig {
     fn default() -> Self {
         Self {
@@ -55,7 +58,9 @@ pub struct HostPool {
     /// Global semaphore to enforce overall concurrency limit
     global_semaphore: Semaphore,
 
-    client: Client,
+    default_client: Client,
+
+    client_map: ClientMap,
 }
 
 impl HostPool {
@@ -66,14 +71,16 @@ impl HostPool {
         global_config: RateLimitConfig,
         host_configs: HashMap<String, HostConfig>,
         max_total_concurrency: usize,
-        client: Client,
+        default_client: Client,
+        client_map: ClientMap,
     ) -> Self {
         Self {
             hosts: DashMap::new(),
             global_config,
             host_configs,
             global_semaphore: Semaphore::new(max_total_concurrency),
-            client,
+            default_client,
+            client_map,
         }
     }
 
@@ -145,17 +152,12 @@ impl HostPool {
             .cloned()
             .unwrap_or_default();
 
-        /*
-         * TODO
+        let client = self
+            .client_map
+            .get(&host_key)
+            .unwrap_or(&self.default_client)
+            .clone();
 
-        // Combine global headers with host-specific headers
-        let mut combined_headers = global_headers.clone();
-        for (name, value) in &host_config.headers {
-            combined_headers.insert(name, value.clone());
-        }
-        */
-
-        let client = self.client.clone();
         let host = Arc::new(Host::new(
             host_key.clone(),
             &host_config,
@@ -356,6 +358,7 @@ impl Default for HostPool {
             HashMap::new(),
             128, // Default global concurrency limit
             Client::default(),
+            HashMap::new(),
         )
     }
 }
@@ -374,6 +377,7 @@ mod tests {
             HashMap::new(),
             100,
             Client::default(),
+            HashMap::new(),
         );
 
         assert_eq!(pool.active_host_count(), 0);

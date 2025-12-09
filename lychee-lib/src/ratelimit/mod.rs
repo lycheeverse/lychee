@@ -22,5 +22,5 @@ mod window;
 pub use config::{HostConfig, RateLimitConfig};
 pub use error::RateLimitError;
 pub use host::{Host, HostKey, HostStats};
-pub use pool::{HostPool, HostPoolConfig};
+pub use pool::{ClientMap, HostPool, HostPoolConfig};
 pub use window::Window;

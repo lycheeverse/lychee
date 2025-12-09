@@ -32,7 +32,7 @@ use crate::{
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
-    ratelimit::{HostPool, HostPoolConfig},
+    ratelimit::{ClientMap, HostKey, HostPool, HostPoolConfig},
     remap::Remaps,
     types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory},
 };
@@ -336,9 +336,11 @@ impl ClientBuilder {
     pub fn client(self) -> Result<Client> {
         let redirect_history = RedirectHistory::new();
         let reqwest_client = self
-            .reqwest_builder(&redirect_history)?
+            .build_client(&redirect_history)?
             .build()
             .map_err(ErrorKind::BuildRequestClient)?;
+
+        let client_map = self.build_host_clients(&redirect_history)?;
 
         // Create HostPool for rate limiting - always enabled for HTTP requests
         let HostPoolConfig {
@@ -352,6 +354,7 @@ impl ClientBuilder {
             hosts,
             max_concurrency,
             reqwest_client.clone(),
+            client_map,
         );
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
@@ -406,10 +409,26 @@ impl ClientBuilder {
         })
     }
 
-    fn reqwest_builder(
-        &self,
-        redirect_history: &RedirectHistory,
-    ) -> Result<reqwest::ClientBuilder> {
+    /// Build the host-specific clients with their host-specific headers
+    fn build_host_clients(&self, redirect_history: &RedirectHistory) -> Result<ClientMap> {
+        self.host_pool_config
+            .hosts
+            .iter()
+            .map(|(host, config)| {
+                let mut headers = self.headers()?;
+                headers.extend(config.headers.clone());
+                let client = self
+                    .build_client(redirect_history)?
+                    .default_headers(headers)
+                    .build()
+                    .map_err(ErrorKind::BuildRequestClient)?;
+                Ok((HostKey::from(host.as_str()), client))
+            })
+            .collect()
+    }
+
+    /// Create a [`reqwest::ClientBuilder`] based on various fields
+    fn build_client(&self, redirect_history: &RedirectHistory) -> Result<reqwest::ClientBuilder> {
         let mut builder = reqwest::ClientBuilder::new()
             .gzip(true)
             .default_headers(self.headers()?)
