@@ -2394,7 +2394,6 @@ The config file should contain every possible key for documentation purposes."
                 wiremock::Mock::given(wiremock::matchers::method("GET"))
                     .and(wiremock::matchers::header("X-Foo", "Bar"))
                     .respond_with(wiremock::ResponseTemplate::new(200))
-                    // We expect the mock to be called exactly least once.
                     .expect(1)
                     .named("GET expecting custom header"),
             )
@@ -2421,7 +2420,6 @@ The config file should contain every possible key for documentation purposes."
                     .and(wiremock::matchers::header("X-Foo", "Bar"))
                     .and(wiremock::matchers::header("X-Bar", "Baz"))
                     .respond_with(wiremock::ResponseTemplate::new(200))
-                    // We expect the mock to be called exactly least once.
                     .expect(1)
                     .named("GET expecting custom header"),
             )
@@ -2449,8 +2447,8 @@ The config file should contain every possible key for documentation purposes."
                 wiremock::Mock::given(wiremock::matchers::method("GET"))
                     .and(wiremock::matchers::header("X-Foo", "Bar"))
                     .and(wiremock::matchers::header("X-Bar", "Baz"))
+                    .and(wiremock::matchers::header("X-Host-Specific", "Foo"))
                     .respond_with(wiremock::ResponseTemplate::new(200))
-                    // We expect the mock to be called exactly least once.
                     .expect(1)
                     .named("GET expecting custom header"),
             )
@@ -2461,7 +2459,8 @@ The config file should contain every possible key for documentation purposes."
             .arg("--verbose")
             .arg("--config")
             .arg(config)
-            .arg(server.uri())
+            .arg("-")
+            .write_stdin(server.uri())
             .assert()
             .success();
 

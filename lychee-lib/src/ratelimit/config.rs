@@ -11,8 +11,7 @@ pub struct RateLimitConfig {
     pub host_concurrency: usize,
 
     /// Default minimum interval between requests to the same host
-    #[serde(default = "default_request_interval")]
-    #[serde(with = "humantime_serde")]
+    #[serde(default = "default_request_interval", with = "humantime_serde")]
     pub request_interval: Duration,
 }
 
@@ -47,7 +46,7 @@ pub struct HostConfig {
     pub max_concurrent: Option<usize>,
 
     /// Minimum interval between requests to this host
-    #[serde(with = "humantime_serde")]
+    #[serde(default, with = "humantime_serde")]
     pub request_interval: Option<Duration>,
 
     /// Custom headers to send with requests to this host
