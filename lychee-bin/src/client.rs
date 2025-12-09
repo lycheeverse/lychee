@@ -63,7 +63,6 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
                 cfg.request_interval,
             ),
             hosts: cfg.hosts.clone(),
-            max_concurrency: cfg.max_concurrency,
         })
         .build()
         .client()

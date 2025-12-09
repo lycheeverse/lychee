@@ -346,16 +346,9 @@ impl ClientBuilder {
         let HostPoolConfig {
             rate_limit_config,
             hosts,
-            max_concurrency,
         } = self.host_pool_config;
 
-        let host_pool = HostPool::new(
-            rate_limit_config,
-            hosts,
-            max_concurrency,
-            reqwest_client.clone(),
-            client_map,
-        );
+        let host_pool = HostPool::new(rate_limit_config, hosts, reqwest_client.clone(), client_map);
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(
