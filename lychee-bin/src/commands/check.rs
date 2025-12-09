@@ -26,7 +26,7 @@ use super::CommandParams;
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
-) -> Result<(ResponseStats, Cache, ExitCode, Option<Arc<HostPool>>), ErrorKind>
+) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind>
 where
     S: futures::Stream<Item = Result<Request, RequestError>>,
 {
@@ -270,8 +270,7 @@ async fn handle(
 
         // Track cache hit in the per-host stats (only for network URIs)
         if !uri.is_file()
-            && let Some(pool) = client.host_pool_ref()
-            && let Err(e) = pool.record_cache_hit(&uri)
+            && let Err(e) = client.host_pool().record_cache_hit(&uri)
         {
             log::debug!("Failed to record cache hit for {uri}: {e}");
         }
@@ -281,8 +280,7 @@ async fn handle(
 
     // Cache miss - track it and run a normal check (only for network URIs)
     if !uri.is_file()
-        && let Some(pool) = client.host_pool_ref()
-        && let Err(e) = pool.record_cache_miss(&uri)
+        && let Err(e) = client.host_pool().record_cache_miss(&uri)
     {
         log::debug!("Failed to record cache miss for {uri}: {e}");
     }

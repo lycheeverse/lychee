@@ -60,20 +60,14 @@ pub(crate) struct WebsiteChecker {
     ///
     /// When present, HTTP requests will be routed through this pool for
     /// rate limiting. When None, requests go directly through `reqwest_client`.
-    host_pool: Option<Arc<HostPool>>,
+    host_pool: Arc<HostPool>,
 }
 
 impl WebsiteChecker {
     /// Get a reference to `HostPool`
     #[must_use]
-    pub(crate) const fn host_pool_ref(&self) -> Option<&Arc<HostPool>> {
-        self.host_pool.as_ref()
-    }
-
-    /// Get `HostPool`
-    #[must_use]
-    pub(crate) fn host_pool(self) -> Option<Arc<HostPool>> {
-        self.host_pool
+    pub(crate) fn host_pool(&self) -> Arc<HostPool> {
+        self.host_pool.clone()
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -88,7 +82,7 @@ impl WebsiteChecker {
         require_https: bool,
         plugin_request_chain: RequestChain,
         include_fragments: bool,
-        host_pool: Option<Arc<HostPool>>,
+        host_pool: Arc<HostPool>,
     ) -> Self {
         Self {
             method,
@@ -130,21 +124,17 @@ impl WebsiteChecker {
         let method = request.method().clone();
         let request_url = request.url().clone();
 
-        // Use HostPool for rate limiting - always enabled for HTTP requests
-        let response_result = if let Some(host_pool) = &self.host_pool {
-            match host_pool.execute_request(request).await {
-                Ok(response) => Ok(response),
-                Err(crate::ratelimit::RateLimitError::NetworkError { source, .. }) => {
-                    // Network errors should be handled the same as direct client errors
-                    Err(source)
-                }
-                Err(e) => {
-                    // Rate limiting specific errors
-                    return Status::Error(ErrorKind::RateLimit(e));
-                }
+        // Use HostPool for rate limiting
+        let response_result = match self.host_pool.execute_request(request).await {
+            Ok(response) => Ok(response),
+            Err(crate::ratelimit::RateLimitError::NetworkError { source, .. }) => {
+                // Network errors should be handled the same as direct client errors
+                Err(source)
             }
-        } else {
-            self.reqwest_client.execute(request).await
+            Err(e) => {
+                // Rate limiting specific errors
+                return Status::Error(ErrorKind::RateLimit(e));
+            }
         };
 
         match response_result {

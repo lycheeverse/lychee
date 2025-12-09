@@ -4,9 +4,8 @@ use governor::{
     clock::DefaultClock,
     state::{InMemoryState, NotKeyed},
 };
-use reqwest::{Client as ReqwestClient, Request, Response, redirect};
-use reqwest_cookie_store::CookieStoreMutex;
-use std::sync::{Arc, Mutex};
+use reqwest::{Client as ReqwestClient, Request, Response};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 
@@ -19,14 +18,12 @@ use crate::{CacheStatus, Status, Uri};
 #[derive(Debug, Clone)]
 struct HostCacheValue {
     status: CacheStatus,
-    timestamp: Instant,
 }
 
 impl From<&Status> for HostCacheValue {
     fn from(status: &Status) -> Self {
         Self {
             status: status.into(),
-            timestamp: Instant::now(),
         }
     }
 }
@@ -65,25 +62,10 @@ pub struct Host {
 
     /// Per-host cache to prevent duplicate requests
     cache: HostCache,
-
-    /// Maximum age for cached entries (in seconds)
-    cache_max_age: u64,
 }
 
 impl Host {
     /// Create a new Host instance for the given hostname
-    ///
-    /// # Arguments
-    ///
-    /// * `key` - The hostname this host will manage
-    /// * `host_config` - Host-specific configuration
-    /// * `global_config` - Global defaults to fall back to
-    /// * `cache_max_age` - Maximum age for cached entries in seconds (0 to disable caching)
-    /// * `shared_cookie_jar` - Optional shared cookie jar to use instead of creating per-host jar
-    /// * `global_headers` - Global headers to be applied to all requests (User-Agent, custom headers, etc.)
-    /// * `max_redirects` - Maximum number of redirects to follow
-    /// * `timeout` - Request timeout
-    /// * `allow_insecure` - Whether to allow insecure certificates
     ///
     /// # Errors
     ///
@@ -97,12 +79,7 @@ impl Host {
         key: HostKey,
         host_config: &HostConfig,
         global_config: &RateLimitConfig,
-        cache_max_age: u64,
-        shared_cookie_jar: Option<Arc<CookieStoreMutex>>,
-        global_headers: &http::HeaderMap,
-        max_redirects: usize,
-        timeout: Option<Duration>,
-        allow_insecure: bool,
+        client: ReqwestClient,
     ) -> Result<Self, RateLimitError> {
         let interval = host_config.effective_request_interval(global_config);
         let quota = Quota::with_period(interval)
@@ -118,46 +95,6 @@ impl Host {
         let max_concurrent = host_config.effective_max_concurrent(global_config);
         let semaphore = Semaphore::new(max_concurrent);
 
-        // Use shared cookie jar if provided, otherwise create per-host one
-        let cookie_jar = shared_cookie_jar.unwrap_or_else(|| Arc::new(CookieStoreMutex::default()));
-
-        // Combine global headers with host-specific headers
-        let mut combined_headers = global_headers.clone();
-        for (name, value) in &host_config.headers {
-            combined_headers.insert(name, value.clone());
-        }
-
-        // Create custom redirect policy matching main client behavior
-        let redirect_policy = redirect::Policy::custom(move |attempt| {
-            if attempt.previous().len() > max_redirects {
-                attempt.error("too many redirects")
-            } else {
-                log::debug!("Redirecting to {}", attempt.url());
-                attempt.follow()
-            }
-        });
-
-        // Build HTTP client with proper configuration
-        let mut builder = ReqwestClient::builder()
-            .cookie_provider(cookie_jar.clone())
-            .default_headers(combined_headers)
-            .gzip(true)
-            .danger_accept_invalid_certs(allow_insecure)
-            .connect_timeout(Duration::from_secs(10)) // CONNECT_TIMEOUT constant
-            .tcp_keepalive(Duration::from_secs(60)) // TCP_KEEPALIVE constant
-            .redirect(redirect_policy);
-
-        if let Some(timeout) = timeout {
-            builder = builder.timeout(timeout);
-        }
-
-        let client = builder
-            .build()
-            .map_err(|e| RateLimitError::ClientConfigError {
-                host: key.to_string(),
-                source: e,
-            })?;
-
         Ok(Host {
             key,
             rate_limiter,
@@ -166,7 +103,6 @@ impl Host {
             stats: Mutex::new(HostStats::default()),
             backoff_duration: Mutex::new(Duration::from_millis(0)),
             cache: DashMap::new(),
-            cache_max_age,
         })
     }
 
@@ -176,23 +112,12 @@ impl Host {
     ///
     /// Panics if the statistics mutex is poisoned
     pub fn get_cached_status(&self, uri: &Uri) -> Option<CacheStatus> {
-        if self.cache_max_age == 0 {
-            // Track cache miss when caching is disabled
-            self.stats.lock().unwrap().record_cache_miss();
-            return None; // Caching disabled
+        if let Some(entry) = self.cache.get(uri) {
+            // Cache hit
+            self.stats.lock().unwrap().record_cache_hit();
+            return Some(entry.status);
         }
 
-        if let Some(entry) = self.cache.get(uri) {
-            let age = entry.timestamp.elapsed().as_secs();
-            if age <= self.cache_max_age {
-                // Cache hit
-                self.stats.lock().unwrap().record_cache_hit();
-                return Some(entry.status);
-            }
-            // Cache entry expired, remove it
-            drop(entry);
-            self.cache.remove(uri);
-        }
         // Cache miss
         self.stats.lock().unwrap().record_cache_miss();
         None
@@ -200,10 +125,8 @@ impl Host {
 
     /// Cache a request result
     pub fn cache_result(&self, uri: &Uri, status: &Status) {
-        if self.cache_max_age > 0 {
-            let cache_value = HostCacheValue::from(status);
-            self.cache.insert(uri.clone(), cache_value);
-        }
+        let cache_value = HostCacheValue::from(status);
+        self.cache.insert(uri.clone(), cache_value);
     }
 
     /// Execute a request with rate limiting, concurrency control, and caching
@@ -438,23 +361,13 @@ impl Host {
     pub fn cache_size(&self) -> usize {
         self.cache.len()
     }
-
-    /// Clear expired entries from the cache
-    pub fn cleanup_cache(&self) {
-        if self.cache_max_age == 0 {
-            return;
-        }
-
-        self.cache
-            .retain(|_, value| value.timestamp.elapsed().as_secs() <= self.cache_max_age);
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ratelimit::{HostConfig, RateLimitConfig};
-    use std::time::Duration;
+    use reqwest::Client;
 
     #[tokio::test]
     async fn test_host_creation() {
@@ -462,59 +375,11 @@ mod tests {
         let host_config = HostConfig::default();
         let global_config = RateLimitConfig::default();
 
-        let host = Host::new(
-            key.clone(),
-            &host_config,
-            &global_config,
-            3600,
-            None,
-            &http::HeaderMap::new(),
-            5,
-            Some(std::time::Duration::from_secs(20)),
-            false,
-        )
-        .unwrap();
+        let host = Host::new(key.clone(), &host_config, &global_config, Client::default()).unwrap();
 
         assert_eq!(host.key, key);
         assert_eq!(host.available_permits(), 10); // Default concurrency
         assert!((host.stats().success_rate() - 1.0).abs() < f64::EPSILON);
         assert_eq!(host.cache_size(), 0);
-    }
-
-    #[test]
-    fn test_cache_expiration() {
-        let key = HostKey::from("example.com");
-        let host_config = HostConfig::default();
-        let global_config = RateLimitConfig::default();
-
-        let host = Host::new(
-            key,
-            &host_config,
-            &global_config,
-            1,
-            None,
-            &http::HeaderMap::new(),
-            5,
-            Some(std::time::Duration::from_secs(20)),
-            false,
-        )
-        .unwrap(); // 1 second cache
-
-        let uri = Uri::from("https://example.com/test".parse::<reqwest::Url>().unwrap());
-        let status = Status::Ok(http::StatusCode::OK);
-
-        // Cache the result
-        host.cache_result(&uri, &status);
-        assert_eq!(host.cache_size(), 1);
-
-        // Should be in cache immediately
-        assert!(host.get_cached_status(&uri).is_some());
-
-        // Wait for expiration and cleanup
-        std::thread::sleep(Duration::from_secs(2));
-        host.cleanup_cache();
-
-        // Should be expired now
-        assert!(host.get_cached_status(&uri).is_none());
     }
 }
