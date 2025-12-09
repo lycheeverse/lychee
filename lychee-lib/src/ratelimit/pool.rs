@@ -2,7 +2,6 @@ use dashmap::DashMap;
 use reqwest::{Client, Request, Response};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Semaphore;
 
 use crate::ratelimit::{Host, HostConfig, HostKey, HostStats, RateLimitConfig, RateLimitError};
 use crate::{CacheStatus, Status, Uri};
@@ -14,8 +13,6 @@ pub struct HostPoolConfig {
     pub rate_limit_config: RateLimitConfig,
     /// TODO
     pub hosts: HashMap<String, HostConfig>,
-    /// TODO
-    pub max_concurrency: usize,
 }
 
 /// Keep track of host-specific [`reqwest::Client`]s
@@ -26,7 +23,6 @@ impl Default for HostPoolConfig {
         Self {
             rate_limit_config: Default::default(),
             hosts: Default::default(),
-            max_concurrency: 128, // TODO: expose/reuse DEFAULT_MAX_CONCURRENCY
         }
     }
 }
@@ -55,9 +51,6 @@ pub struct HostPool {
     /// Per-host configuration overrides
     host_configs: HashMap<String, HostConfig>,
 
-    /// Global semaphore to enforce overall concurrency limit
-    global_semaphore: Semaphore,
-
     default_client: Client,
 
     client_map: ClientMap,
@@ -70,7 +63,6 @@ impl HostPool {
     pub fn new(
         global_config: RateLimitConfig,
         host_configs: HashMap<String, HostConfig>,
-        max_total_concurrency: usize,
         default_client: Client,
         client_map: ClientMap,
     ) -> Self {
@@ -78,7 +70,6 @@ impl HostPool {
             hosts: DashMap::new(),
             global_config,
             host_configs,
-            global_semaphore: Semaphore::new(max_total_concurrency),
             default_client,
             client_map,
         }
@@ -125,14 +116,6 @@ impl HostPool {
 
         // Get or create host instance
         let host = self.get_or_create_host(host_key)?;
-
-        // Acquire global semaphore permit first
-        let _global_permit = self.global_semaphore.acquire().await.map_err(|_| {
-            RateLimitError::RateLimitExceeded {
-                host: host.key.to_string(),
-                message: "Global concurrency limit reached".to_string(),
-            }
-        })?;
 
         // Execute request through host-specific rate limiting
         host.execute_request(request).await
@@ -219,15 +202,6 @@ impl HostPool {
     #[must_use]
     pub fn active_host_count(&self) -> usize {
         self.hosts.len()
-    }
-
-    /// Get the number of available global permits
-    ///
-    /// This shows how many more concurrent requests can be started
-    /// across all hosts before hitting the global concurrency limit.
-    #[must_use]
-    pub fn available_global_permits(&self) -> usize {
-        self.global_semaphore.available_permits()
     }
 
     /// Get host configuration for debugging/monitoring
@@ -356,7 +330,6 @@ impl Default for HostPool {
         Self::new(
             RateLimitConfig::default(),
             HashMap::new(),
-            128, // Default global concurrency limit
             Client::default(),
             HashMap::new(),
         )
@@ -375,21 +348,17 @@ mod tests {
         let pool = HostPool::new(
             RateLimitConfig::default(),
             HashMap::new(),
-            100,
             Client::default(),
             HashMap::new(),
         );
 
         assert_eq!(pool.active_host_count(), 0);
-        assert_eq!(pool.available_global_permits(), 100);
     }
 
     #[test]
     fn test_host_pool_default() {
         let pool = HostPool::default();
-
         assert_eq!(pool.active_host_count(), 0);
-        assert_eq!(pool.available_global_permits(), 128);
     }
 
     #[tokio::test]
