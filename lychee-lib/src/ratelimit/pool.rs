@@ -1,14 +1,32 @@
 use dashmap::DashMap;
-use http::HeaderMap;
-use reqwest::{Request, Response};
-use reqwest_cookie_store::CookieStoreMutex;
+use reqwest::{Client, Request, Response};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::Semaphore;
 
 use crate::ratelimit::{Host, HostConfig, HostKey, HostStats, RateLimitConfig, RateLimitError};
 use crate::{CacheStatus, Status, Uri};
+
+/// TODO: Rename,move,refactor?
+#[derive(Debug, Clone)]
+pub struct HostPoolConfig {
+    /// TODO
+    pub rate_limit_config: RateLimitConfig,
+    /// TODO
+    pub hosts: HashMap<String, HostConfig>,
+    /// TODO
+    pub max_concurrency: usize,
+}
+
+impl Default for HostPoolConfig {
+    fn default() -> Self {
+        Self {
+            rate_limit_config: Default::default(),
+            hosts: Default::default(),
+            max_concurrency: 128, // TODO: expose/reuse DEFAULT_MAX_CONCURRENCY
+        }
+    }
+}
 
 /// Manages a pool of Host instances and routes requests to appropriate hosts.
 ///
@@ -37,83 +55,26 @@ pub struct HostPool {
     /// Global semaphore to enforce overall concurrency limit
     global_semaphore: Semaphore,
 
-    /// Maximum age for cached entries in seconds (0 to disable caching)
-    cache_max_age: u64,
-
-    /// Shared cookie jar used across all hosts
-    cookie_jar: Option<Arc<CookieStoreMutex>>,
-
-    /// Global headers to be applied to all requests (includes User-Agent, etc.)
-    global_headers: HeaderMap,
-
-    /// Maximum number of redirects to follow
-    max_redirects: usize,
-
-    /// Request timeout
-    timeout: Option<Duration>,
-
-    /// Whether to allow insecure certificates
-    allow_insecure: bool,
+    client: Client,
 }
 
 impl HostPool {
     /// Create a new `HostPool` with the given configuration
-    ///
-    /// # Arguments
-    ///
-    /// * `global_config` - Default rate limiting configuration
-    /// * `host_configs` - Host-specific configuration overrides
-    /// * `max_total_concurrency` - Global limit on concurrent requests across all hosts
-    /// * `cache_max_age` - Maximum age for cached entries in seconds (0 to disable caching)
-    /// * `global_headers` - Headers to be applied to all requests (User-Agent, custom headers, etc.)
-    /// * `max_redirects` - Maximum number of redirects to follow
-    /// * `timeout` - Request timeout
-    /// * `allow_insecure` - Whether to allow insecure certificates
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use lychee_lib::ratelimit::{HostPool, RateLimitConfig};
-    /// use std::collections::HashMap;
-    /// use http::HeaderMap;
-    /// use std::time::Duration;
-    ///
-    /// let global_config = RateLimitConfig::default();
-    /// let host_configs = HashMap::new();
-    /// let global_headers = HeaderMap::new();
-    /// let pool = HostPool::new(global_config, host_configs, 128, 3600, global_headers, 5, Some(Duration::from_secs(20)), false);
-    /// ```
     #[must_use]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         global_config: RateLimitConfig,
         host_configs: HashMap<String, HostConfig>,
         max_total_concurrency: usize,
-        cache_max_age: u64,
-        global_headers: HeaderMap,
-        max_redirects: usize,
-        timeout: Option<Duration>,
-        allow_insecure: bool,
+        client: Client,
     ) -> Self {
         Self {
             hosts: DashMap::new(),
             global_config,
             host_configs,
             global_semaphore: Semaphore::new(max_total_concurrency),
-            cache_max_age,
-            cookie_jar: None,
-            global_headers,
-            max_redirects,
-            timeout,
-            allow_insecure,
+            client,
         }
-    }
-
-    /// Add a shared cookie jar to the `HostPool`
-    #[must_use]
-    pub fn with_cookie_jar(mut self, cookie_jar: Arc<CookieStoreMutex>) -> Self {
-        self.cookie_jar = Some(cookie_jar);
-        self
     }
 
     /// Execute an HTTP request with appropriate per-host rate limiting
@@ -144,16 +105,7 @@ impl HostPool {
     /// # use std::time::Duration;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let pool = HostPool::new(
-    ///     RateLimitConfig::default(),
-    ///     HashMap::new(),
-    ///     128,
-    ///     3600,
-    ///     HeaderMap::new(),
-    ///     5,
-    ///     Some(Duration::from_secs(20)),
-    ///     false
-    /// );
+    /// let pool = HostPool::default();
     /// let request = reqwest::Request::new(reqwest::Method::GET, "https://example.com".parse()?);
     /// let response = pool.execute_request(request).await?;
     /// # Ok(())
@@ -193,16 +145,22 @@ impl HostPool {
             .cloned()
             .unwrap_or_default();
 
+        /*
+         * TODO
+
+        // Combine global headers with host-specific headers
+        let mut combined_headers = global_headers.clone();
+        for (name, value) in &host_config.headers {
+            combined_headers.insert(name, value.clone());
+        }
+        */
+
+        let client = self.client.clone();
         let host = Arc::new(Host::new(
             host_key.clone(),
             &host_config,
             &self.global_config,
-            self.cache_max_age,
-            self.cookie_jar.clone(),
-            &self.global_headers,
-            self.max_redirects,
-            self.timeout,
-            self.allow_insecure,
+            client,
         )?);
 
         // Store in map (handle race condition where another thread created it)
@@ -348,13 +306,6 @@ impl HostPool {
             .collect()
     }
 
-    /// Cleanup expired cache entries across all hosts
-    pub fn cleanup_caches(&self) {
-        for host in &self.hosts {
-            host.cleanup_cache();
-        }
-    }
-
     /// Record a cache hit for the given URI in host statistics
     ///
     /// This tracks that a request was served from the persistent disk cache
@@ -403,12 +354,8 @@ impl Default for HostPool {
         Self::new(
             RateLimitConfig::default(),
             HashMap::new(),
-            128,                           // Default global concurrency limit
-            3600,                          // Default cache age of 1 hour
-            HeaderMap::new(),              // Default empty headers
-            5,                             // Default max redirects
-            Some(Duration::from_secs(20)), // Default timeout
-            false,                         // Default secure certificates
+            128, // Default global concurrency limit
+            Client::default(),
         )
     }
 }
@@ -422,17 +369,11 @@ mod tests {
 
     #[test]
     fn test_host_pool_creation() {
-        let global_config = RateLimitConfig::default();
-        let host_configs = HashMap::new();
         let pool = HostPool::new(
-            global_config,
-            host_configs,
+            RateLimitConfig::default(),
+            HashMap::new(),
             100,
-            3600,
-            HeaderMap::new(),
-            5,
-            Some(Duration::from_secs(20)),
-            false,
+            Client::default(),
         );
 
         assert_eq!(pool.active_host_count(), 0);

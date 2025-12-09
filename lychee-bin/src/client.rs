@@ -2,10 +2,8 @@ use crate::options::{Config, HeaderMapExt};
 use crate::parse::{parse_duration_secs, parse_remaps};
 use anyhow::{Context, Result};
 use http::{HeaderMap, StatusCode};
-use lychee_lib::{
-    Client, ClientBuilder,
-    ratelimit::{HostPool, RateLimitConfig},
-};
+use lychee_lib::ratelimit::HostPoolConfig;
+use lychee_lib::{Client, ClientBuilder, ratelimit::RateLimitConfig};
 use regex::RegexSet;
 use reqwest_cookie_store::CookieStoreMutex;
 use std::sync::Arc;
@@ -30,35 +28,6 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     };
 
     let headers = HeaderMap::from_header_pairs(&cfg.header)?;
-
-    // Create combined headers for HostPool (includes User-Agent + custom headers)
-    let mut combined_headers = headers.clone();
-    combined_headers.insert(
-        http::header::USER_AGENT,
-        cfg.user_agent
-            .parse()
-            .context("Invalid User-Agent header")?,
-    );
-
-    // Create HostPool for rate limiting - always enabled for HTTP requests
-    let rate_limit_config =
-        RateLimitConfig::from_options(cfg.host_concurrency, cfg.request_interval);
-    let cache_max_age = if cfg.cache { 3600 } else { 0 }; // 1 hour if caching enabled, disabled otherwise
-
-    let mut host_pool = HostPool::new(
-        rate_limit_config,
-        cfg.hosts.clone(),
-        cfg.max_concurrency,
-        cache_max_age,
-        combined_headers,
-        cfg.max_redirects,
-        Some(timeout),
-        cfg.insecure,
-    );
-
-    if let Some(cookie_jar) = cookie_jar {
-        host_pool = host_pool.with_cookie_jar(cookie_jar.clone());
-    }
 
     ClientBuilder::builder()
         .remaps(remaps)
@@ -87,7 +56,15 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .include_fragments(cfg.include_fragments)
         .fallback_extensions(cfg.fallback_extensions.clone())
         .index_files(cfg.index_files.clone())
-        .host_pool(Some(Arc::new(host_pool)))
+        .host_pool_config(HostPoolConfig {
+            // Create HostPool for rate limiting - always enabled for HTTP requests
+            rate_limit_config: RateLimitConfig::from_options(
+                cfg.host_concurrency,
+                cfg.request_interval,
+            ),
+            hosts: cfg.hosts.clone(),
+            max_concurrency: cfg.max_concurrency,
+        })
         .build()
         .client()
         .context("Failed to create request client")
