@@ -3,41 +3,21 @@ use reqwest::{Client, Request, Response};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::ratelimit::{Host, HostConfig, HostKey, HostStats, RateLimitConfig, RateLimitError};
+use crate::ratelimit::{Host, HostConfigs, HostKey, HostStats, RateLimitConfig, RateLimitError};
 use crate::{CacheStatus, Status, Uri};
-
-/// TODO: Rename,move,refactor?
-#[derive(Debug, Clone)]
-pub struct HostPoolConfig {
-    /// TODO
-    pub rate_limit_config: RateLimitConfig,
-    /// TODO
-    pub hosts: HashMap<String, HostConfig>,
-}
 
 /// Keep track of host-specific [`reqwest::Client`]s
 pub type ClientMap = HashMap<HostKey, reqwest::Client>;
 
-impl Default for HostPoolConfig {
-    fn default() -> Self {
-        Self {
-            rate_limit_config: Default::default(),
-            hosts: Default::default(),
-        }
-    }
-}
-
 /// Manages a pool of Host instances and routes requests to appropriate hosts.
 ///
 /// The `HostPool` serves as the central coordinator for per-host rate limiting.
-/// It creates Host instances on-demand, manages global concurrency limits,
-/// and provides a unified interface for executing HTTP requests with
-/// appropriate rate limiting applied.
+/// It creates host instances on-demand and provides a unified interface for
+/// executing HTTP requests with appropriate rate limiting applied.
 ///
 /// # Architecture
 ///
 /// - Each unique hostname gets its own Host instance with dedicated rate limiting
-/// - Global semaphore enforces overall concurrency limits across all hosts
 /// - Hosts are created lazily when first requested
 /// - Thread-safe using `DashMap` for concurrent access to host instances
 #[derive(Debug)]
@@ -49,10 +29,12 @@ pub struct HostPool {
     global_config: RateLimitConfig,
 
     /// Per-host configuration overrides
-    host_configs: HashMap<String, HostConfig>,
+    host_configs: HostConfigs,
 
+    /// Fallback client for hosts without host-specific client
     default_client: Client,
 
+    /// Host-specific clients
     client_map: ClientMap,
 }
 
@@ -62,7 +44,7 @@ impl HostPool {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         global_config: RateLimitConfig,
-        host_configs: HashMap<String, HostConfig>,
+        host_configs: HostConfigs,
         default_client: Client,
         client_map: ClientMap,
     ) -> Self {
@@ -75,23 +57,12 @@ impl HostPool {
         }
     }
 
-    /// Execute an HTTP request with appropriate per-host rate limiting
-    ///
-    /// This method:
-    /// 1. Extracts the hostname from the request URL
-    /// 2. Gets or creates the appropriate Host instance
-    /// 3. Acquires a global semaphore permit
-    /// 4. Delegates to the host for execution with host-specific rate limiting
-    ///
-    /// # Arguments
-    ///
-    /// * `request` - The HTTP request to execute
+    /// Execute an HTTP request with appropriate per-host rate limiting.
     ///
     /// # Errors
     ///
     /// Returns a `RateLimitError` if:
     /// - The request URL has no valid hostname
-    /// - Global or host-specific rate limits are exceeded
     /// - The underlying HTTP request fails
     ///
     /// # Examples
@@ -110,28 +81,21 @@ impl HostPool {
     /// # }
     /// ```
     pub async fn execute_request(&self, request: Request) -> Result<Response, RateLimitError> {
-        // Extract hostname from request URL
         let url = request.url();
         let host_key = HostKey::try_from(url)?;
-
-        // Get or create host instance
         let host = self.get_or_create_host(host_key)?;
-
-        // Execute request through host-specific rate limiting
         host.execute_request(request).await
     }
 
     /// Get an existing host or create a new one for the given hostname
     fn get_or_create_host(&self, host_key: HostKey) -> Result<Arc<Host>, RateLimitError> {
-        // Check if host already exists
         if let Some(host) = self.hosts.get(&host_key) {
             return Ok(host.clone());
         }
 
-        // Create new host instance
         let host_config = self
             .host_configs
-            .get(host_key.as_str())
+            .get(&host_key)
             .cloned()
             .unwrap_or_default();
 
@@ -161,14 +125,8 @@ impl HostPool {
         }
     }
 
-    /// Get statistics for a specific host
-    ///
     /// Returns statistics for the host if it exists, otherwise returns empty stats.
     /// This provides consistent behavior whether or not requests have been made to that host yet.
-    ///
-    /// # Arguments
-    ///
-    /// * `hostname` - The hostname to get statistics for
     #[must_use]
     pub fn host_stats(&self, hostname: &str) -> HostStats {
         let host_key = HostKey::from(hostname);
@@ -178,8 +136,6 @@ impl HostPool {
             .unwrap_or_default()
     }
 
-    /// Get statistics for all hosts that have been created
-    ///
     /// Returns a `HashMap` mapping hostnames to their statistics.
     /// Only hosts that have had requests will be included.
     #[must_use]
@@ -194,9 +150,7 @@ impl HostPool {
             .collect()
     }
 
-    /// Get the number of currently active hosts
-    ///
-    /// This returns the number of Host instances that have been created,
+    /// Get the number of host instances that have been created,
     /// which corresponds to the number of unique hostnames that have
     /// been accessed.
     #[must_use]
@@ -204,24 +158,18 @@ impl HostPool {
         self.hosts.len()
     }
 
-    /// Get host configuration for debugging/monitoring
-    ///
-    /// Returns a copy of the current host-specific configurations.
+    /// Get  a copy of the current host-specific configurations.
     /// This is useful for debugging or runtime monitoring of configuration.
     #[must_use]
-    pub fn host_configurations(&self) -> HashMap<String, HostConfig> {
+    pub fn host_configurations(&self) -> HostConfigs {
         self.host_configs.clone()
     }
 
-    /// Remove a host from the pool
+    /// Remove a host from the pool.
     ///
     /// This forces the host to be recreated with updated configuration
     /// the next time a request is made to it. Any ongoing requests to
     /// that host will continue with the old instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `hostname` - The hostname to remove from the pool
     ///
     /// # Returns
     ///
@@ -234,13 +182,9 @@ impl HostPool {
 
     /// Check if a URI is cached in the appropriate host's cache
     ///
-    /// # Arguments
-    ///
-    /// * `uri` - The URI to check for in the cache
-    ///
     /// # Returns
     ///
-    /// Returns the cached status if found and valid, None otherwise
+    /// Returns the cached status if found and valid, `None` otherwise
     #[must_use]
     pub fn get_cached_status(&self, uri: &Uri) -> Option<CacheStatus> {
         let host_key = HostKey::try_from(uri).ok()?;
@@ -253,11 +197,6 @@ impl HostPool {
     }
 
     /// Cache a result for a URI in the appropriate host's cache
-    ///
-    /// # Arguments
-    ///
-    /// * `uri` - The URI to cache
-    /// * `status` - The status to cache
     pub fn cache_result(&self, uri: &Uri, status: &Status) {
         if let Ok(host_key) = HostKey::try_from(uri)
             && let Some(host) = self.hosts.get(&host_key)
@@ -286,7 +225,7 @@ impl HostPool {
     ///
     /// This tracks that a request was served from the persistent disk cache
     /// rather than going through the rate-limited HTTP request flow.
-    /// This method will create a [Host] instance if one doesn't exist yet.
+    /// This method will create a host instance if one doesn't exist yet.
     ///
     /// # Errors
     ///
@@ -329,7 +268,7 @@ impl Default for HostPool {
     fn default() -> Self {
         Self::new(
             RateLimitConfig::default(),
-            HashMap::new(),
+            HostConfigs::default(),
             Client::default(),
             HashMap::new(),
         )
@@ -347,7 +286,7 @@ mod tests {
     fn test_host_pool_creation() {
         let pool = HostPool::new(
             RateLimitConfig::default(),
-            HashMap::new(),
+            HostConfigs::default(),
             Client::default(),
             HashMap::new(),
         );

@@ -32,7 +32,7 @@ use crate::{
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
-    ratelimit::{ClientMap, HostKey, HostPool, HostPoolConfig},
+    ratelimit::{ClientMap, HostConfigs, HostKey, HostPool, RateLimitConfig},
     remap::Remaps,
     types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory},
 };
@@ -306,9 +306,11 @@ pub struct ClientBuilder {
     /// skipped and the lychee-internal request chain is not activated.
     plugin_request_chain: RequestChain,
 
-    /// When enabled, HTTP/HTTPS requests will be routed through this pool
-    /// for rate limiting and concurrency control on a per-host basis.
-    host_pool_config: HostPoolConfig,
+    /// Global rate limiting configuration that applies as defaults to all hosts
+    rate_limit_config: RateLimitConfig,
+
+    /// Per-host configuration overrides
+    hosts: HostConfigs,
 }
 
 impl Default for ClientBuilder {
@@ -342,13 +344,12 @@ impl ClientBuilder {
 
         let client_map = self.build_host_clients(&redirect_history)?;
 
-        // Create HostPool for rate limiting - always enabled for HTTP requests
-        let HostPoolConfig {
-            rate_limit_config,
-            hosts,
-        } = self.host_pool_config;
-
-        let host_pool = HostPool::new(rate_limit_config, hosts, reqwest_client.clone(), client_map);
+        let host_pool = HostPool::new(
+            self.rate_limit_config,
+            self.hosts,
+            reqwest_client.clone(),
+            client_map,
+        );
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(
@@ -404,8 +405,7 @@ impl ClientBuilder {
 
     /// Build the host-specific clients with their host-specific headers
     fn build_host_clients(&self, redirect_history: &RedirectHistory) -> Result<ClientMap> {
-        self.host_pool_config
-            .hosts
+        self.hosts
             .iter()
             .map(|(host, config)| {
                 let mut headers = self.headers()?;
