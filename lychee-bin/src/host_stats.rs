@@ -3,8 +3,8 @@ use lychee_lib::ratelimit::HostPool;
 
 use crate::{formatters::get_host_stats_formatter, options::Config};
 
-/// Display per-host statistics if requested
-pub(crate) fn display_per_host_statistics(host_pool: &HostPool, config: &Config) -> Result<()> {
+/// If configured to do so, output per-host statistics to stdout or the specified output file.
+pub(crate) fn output_per_host_statistics(host_pool: &HostPool, config: &Config) -> Result<()> {
     if !config.host_stats {
         return Ok(());
     }
