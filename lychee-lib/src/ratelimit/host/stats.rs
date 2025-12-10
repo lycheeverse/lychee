@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use crate::ratelimit::window::Window;
-
 /// Statistics tracking for a host's request patterns
 #[derive(Debug, Clone, Default)]
 pub struct HostStats {
@@ -20,8 +18,8 @@ pub struct HostStats {
     pub last_success: Option<Instant>,
     /// Timestamp of the last rate limit response
     pub last_rate_limit: Option<Instant>,
-    /// Request times for median calculation (kept in rolling window)
-    pub request_times: Window<Duration>,
+    /// Request times for median calculation
+    pub request_times: Vec<Duration>,
     /// Status code counts
     pub status_codes: HashMap<u16, u64>,
     /// Number of cache hits
@@ -31,15 +29,6 @@ pub struct HostStats {
 }
 
 impl HostStats {
-    /// Create new host statistics with custom window size for request times
-    #[must_use]
-    pub fn with_window_size(window_size: usize) -> Self {
-        Self {
-            request_times: Window::new(window_size),
-            ..Default::default()
-        }
-    }
-
     /// Record a response with status code and request duration
     pub fn record_response(&mut self, status_code: u16, request_time: Duration) {
         self.total_requests += 1;
@@ -66,7 +55,6 @@ impl HostStats {
             _ => {} // Other status codes
         }
 
-        // Track request time in rolling window
         self.request_times.push(request_time);
     }
 
@@ -77,7 +65,7 @@ impl HostStats {
             return None;
         }
 
-        let mut times = self.request_times.to_vec();
+        let mut times = self.request_times.clone();
         times.sort();
         let mid = times.len() / 2;
 
@@ -247,24 +235,6 @@ mod tests {
         assert_eq!(
             stats.median_request_time(),
             Some(Duration::from_millis(150))
-        );
-    }
-
-    #[test]
-    fn test_window_integration() {
-        let mut stats = HostStats::with_window_size(2);
-
-        stats.record_response(200, Duration::from_millis(100));
-        stats.record_response(200, Duration::from_millis(200));
-        stats.record_response(200, Duration::from_millis(300));
-
-        // Window should only keep last 2 times
-        assert_eq!(stats.request_times.len(), 2);
-
-        let times: Vec<_> = stats.request_times.iter().copied().collect();
-        assert_eq!(
-            times,
-            vec![Duration::from_millis(200), Duration::from_millis(300)]
         );
     }
 

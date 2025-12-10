@@ -17,10 +17,8 @@ mod config;
 mod error;
 mod host;
 mod pool;
-mod window;
 
 pub use config::{HostConfig, HostConfigs, RateLimitConfig};
 pub use error::RateLimitError;
 pub use host::{Host, HostKey, HostStats};
 pub use pool::{ClientMap, HostPool};
-pub use window::Window;
