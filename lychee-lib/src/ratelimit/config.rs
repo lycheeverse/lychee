@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
 
+use crate::ratelimit::HostKey;
+
 /// Global rate limiting configuration that applies as defaults to all hosts
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct RateLimitConfig {
@@ -37,6 +39,9 @@ impl RateLimitConfig {
         }
     }
 }
+
+/// Per-host configuration overrides
+pub type HostConfigs = HashMap<HostKey, HostConfig>;
 
 /// Configuration for a specific host's rate limiting behavior
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -11,11 +11,11 @@ use http::{
     header::{HeaderName, HeaderValue},
 };
 use lychee_lib::Preprocessor;
+use lychee_lib::ratelimit::HostConfigs;
 use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
     FileType, Input, StatusCodeExcluder, StatusCodeSelector, archive::Archive,
-    ratelimit::HostConfig,
 };
 use reqwest::tls;
 use secrecy::SecretString;
@@ -930,7 +930,7 @@ esac"#
     /// Host-specific configurations from config file
     #[arg(skip)]
     #[serde(default)]
-    pub(crate) hosts: HashMap<String, HostConfig>,
+    pub(crate) hosts: HostConfigs,
 }
 
 impl Config {
