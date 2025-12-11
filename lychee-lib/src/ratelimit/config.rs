@@ -1,9 +1,8 @@
 use http::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::time::Duration;
 
-use crate::ratelimit::HostKey;
+use crate::ratelimit::{HostKey, RequestInterval};
 
 /// Global rate limiting configuration that applies as defaults to all hosts
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -13,15 +12,14 @@ pub struct RateLimitConfig {
     pub host_concurrency: usize,
 
     /// Default minimum interval between requests to the same host
-    #[serde(default = "default_request_interval", with = "humantime_serde")]
-    pub request_interval: Duration,
+    pub request_interval: RequestInterval,
 }
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
             host_concurrency: default_host_concurrency(),
-            request_interval: default_request_interval(),
+            request_interval: RequestInterval::default(),
         }
     }
 }
@@ -31,11 +29,11 @@ impl RateLimitConfig {
     #[must_use]
     pub fn from_options(
         host_concurrency: Option<usize>,
-        request_interval: Option<Duration>,
+        request_interval: Option<RequestInterval>,
     ) -> Self {
         Self {
             host_concurrency: host_concurrency.unwrap_or(DEFAULT_HOST_CONCURRENCY),
-            request_interval: request_interval.unwrap_or(DEFAULT_REQUEST_INTERVAL),
+            request_interval: request_interval.unwrap_or_default(),
         }
     }
 }
@@ -51,8 +49,7 @@ pub struct HostConfig {
     pub max_concurrent: Option<usize>,
 
     /// Minimum interval between requests to this host
-    #[serde(default, with = "humantime_serde")]
-    pub request_interval: Option<Duration>,
+    pub request_interval: Option<RequestInterval>,
 
     /// Custom headers to send with requests to this host
     #[serde(default)]
@@ -81,7 +78,7 @@ impl HostConfig {
 
     /// Get the effective request interval, falling back to the global default
     #[must_use]
-    pub fn effective_request_interval(&self, global_config: &RateLimitConfig) -> Duration {
+    pub fn effective_request_interval(&self, global_config: &RateLimitConfig) -> RequestInterval {
         self.request_interval
             .unwrap_or(global_config.request_interval)
     }
@@ -90,17 +87,9 @@ impl HostConfig {
 /// Default number of concurrent requests per host
 const DEFAULT_HOST_CONCURRENCY: usize = 10;
 
-/// Default interval between requests to the same host
-const DEFAULT_REQUEST_INTERVAL: Duration = Duration::from_millis(100);
-
 /// Default number of concurrent requests per host
 const fn default_host_concurrency() -> usize {
     DEFAULT_HOST_CONCURRENCY
-}
-
-/// Default interval between requests to the same host
-const fn default_request_interval() -> Duration {
-    DEFAULT_REQUEST_INTERVAL
 }
 
 /// Custom deserializer for headers from TOML config format
@@ -137,14 +126,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::time::Duration;
 
-    #[test]
-    fn test_default_rate_limit_config() {
-        let config = RateLimitConfig::default();
-        assert_eq!(config.host_concurrency, 10);
-        assert_eq!(config.request_interval, Duration::from_millis(100));
-    }
+    use governor::Quota;
+
+    use super::*;
 
     #[test]
     fn test_host_config_effective_values() {
@@ -155,19 +141,21 @@ mod tests {
         assert_eq!(host_config.effective_max_concurrent(&global_config), 10);
         assert_eq!(
             host_config.effective_request_interval(&global_config),
-            Duration::from_millis(100)
+            RequestInterval::default(),
         );
 
         // Test with overrides
         let host_config = HostConfig {
             max_concurrent: Some(5),
-            request_interval: Some(Duration::from_millis(500)),
+            request_interval: Some("500ms".parse().unwrap()),
             headers: HeaderMap::new(),
         };
         assert_eq!(host_config.effective_max_concurrent(&global_config), 5);
         assert_eq!(
-            host_config.effective_request_interval(&global_config),
-            Duration::from_millis(500)
+            host_config
+                .effective_request_interval(&global_config)
+                .into_inner(),
+            Quota::with_period(Duration::from_millis(500)).unwrap()
         );
     }
 
@@ -175,7 +163,7 @@ mod tests {
     fn test_config_serialization() {
         let config = RateLimitConfig {
             host_concurrency: 15,
-            request_interval: Duration::from_millis(200),
+            request_interval: "200ms".parse().unwrap(),
         };
 
         let toml = toml::to_string(&config).unwrap();
@@ -193,17 +181,17 @@ mod tests {
 
         let host_config = HostConfig {
             max_concurrent: Some(5),
-            request_interval: Some(Duration::from_millis(500)),
+            request_interval: Some("500ms".parse().unwrap()),
             headers,
         };
 
         let toml = toml::to_string(&host_config).unwrap();
-        let deserialized: HostConfig = toml::from_str(&toml).unwrap();
+        let deserialized: HostConfig = toml::from_str(&dbg!(toml)).unwrap();
 
         assert_eq!(deserialized.max_concurrent, Some(5));
         assert_eq!(
             deserialized.request_interval,
-            Some(Duration::from_millis(500))
+            Some("500ms".parse().unwrap())
         );
         assert_eq!(deserialized.headers.len(), 2);
         assert!(deserialized.headers.contains_key("authorization"));

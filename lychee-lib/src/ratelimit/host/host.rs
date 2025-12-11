@@ -1,6 +1,6 @@
 use dashmap::DashMap;
 use governor::{
-    Quota, RateLimiter,
+    RateLimiter,
     clock::DefaultClock,
     state::{InMemoryState, NotKeyed},
 };
@@ -80,9 +80,9 @@ impl Host {
         global_config: &RateLimitConfig,
         client: ReqwestClient,
     ) -> Result<Self, RateLimitError> {
-        let interval = host_config.effective_request_interval(global_config);
-        let quota = Quota::with_period(interval)
-            .ok_or_else(|| RateLimitError::InvalidRateLimitInterval { host: key.clone() })?
+        let quota = host_config
+            .effective_request_interval(global_config)
+            .into_inner()
             .allow_burst(std::num::NonZeroU32::new(1).unwrap());
 
         let rate_limiter = RateLimiter::direct(quota);
