@@ -41,7 +41,6 @@ pub struct HostPool {
 impl HostPool {
     /// Create a new `HostPool` with the given configuration
     #[must_use]
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         global_config: RateLimitConfig,
         host_configs: HostConfigs,

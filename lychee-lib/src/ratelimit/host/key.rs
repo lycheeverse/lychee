@@ -41,8 +41,8 @@ impl TryFrom<&Url> for HostKey {
     fn try_from(url: &Url) -> Result<Self, Self::Error> {
         let host =
             url.host_str()
-                .ok_or_else(|| crate::ratelimit::RateLimitError::HeaderParseError {
-                    host: url.to_string(),
+                .ok_or_else(|| crate::ratelimit::RateLimitError::UrlParseError {
+                    url: url.clone(),
                     reason: "URL contains no host component".to_string(),
                 })?;
 
