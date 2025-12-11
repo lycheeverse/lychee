@@ -1,4 +1,7 @@
 use thiserror::Error;
+use url::Url;
+
+use crate::ratelimit::HostKey;
 
 /// Errors that can occur during rate limiting operations
 #[derive(Error, Debug)]
@@ -7,16 +10,23 @@ pub enum RateLimitError {
     #[error("Host {host} exceeded rate limit: {message}")]
     RateLimitExceeded {
         /// The host that exceeded the limit
-        host: String,
+        host: HostKey,
         /// Additional context message
         message: String,
     },
 
+    /// User specified an invalid rate limit interval
+    #[error("Invalid rate limit interval for host {host}")]
+    InvalidRateLimitInterval {
+        /// The host with invalid configuration
+        host: HostKey,
+    },
+
     /// Failed to parse rate limit headers from server response
-    #[error("Failed to parse rate limit headers from {host}: {reason}")]
-    HeaderParseError {
+    #[error("Failed to parse URL {url}: {reason}")]
+    UrlParseError {
         /// The host that sent invalid headers
-        host: String,
+        url: Url,
         /// Reason for parse failure
         reason: String,
     },
@@ -25,7 +35,7 @@ pub enum RateLimitError {
     #[error("Failed to configure client for host {host}: {source}")]
     ClientConfigError {
         /// The host that failed configuration
-        host: String,
+        host: HostKey,
         /// Underlying error
         source: reqwest::Error,
     },
@@ -34,7 +44,7 @@ pub enum RateLimitError {
     #[error("Cookie operation failed for host {host}: {reason}")]
     CookieError {
         /// The host with cookie issues
-        host: String,
+        host: HostKey,
         /// Description of cookie error
         reason: String,
     },
@@ -43,7 +53,7 @@ pub enum RateLimitError {
     #[error("Network error for host {host}: {source}")]
     NetworkError {
         /// The host that had the network error
-        host: String,
+        host: HostKey,
         /// The underlying network error
         #[source]
         source: reqwest::Error,

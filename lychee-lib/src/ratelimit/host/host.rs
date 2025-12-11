@@ -74,7 +74,6 @@ impl Host {
     /// # Panics
     ///
     /// Panics if the burst size cannot be set to 1 (should never happen)
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         key: HostKey,
         host_config: &HostConfig,
@@ -83,10 +82,7 @@ impl Host {
     ) -> Result<Self, RateLimitError> {
         let interval = host_config.effective_request_interval(global_config);
         let quota = Quota::with_period(interval)
-            .ok_or_else(|| RateLimitError::HeaderParseError {
-                host: key.to_string(),
-                reason: "Invalid rate limit interval".to_string(),
-            })?
+            .ok_or_else(|| RateLimitError::InvalidRateLimitInterval { host: key.clone() })?
             .allow_burst(std::num::NonZeroU32::new(1).unwrap());
 
         let rate_limiter = RateLimiter::direct(quota);
@@ -164,7 +160,7 @@ impl Host {
                 .acquire()
                 .await
                 .map_err(|_| RateLimitError::RateLimitExceeded {
-                    host: self.key.to_string(),
+                    host: self.key.clone(),
                     message: "Semaphore acquisition cancelled".to_string(),
                 })?;
 
@@ -192,7 +188,7 @@ impl Host {
             Err(e) => {
                 // Wrap network/HTTP errors to preserve the original error
                 return Err(RateLimitError::NetworkError {
-                    host: self.key.to_string(),
+                    host: self.key.clone(),
                     source: e,
                 });
             }
