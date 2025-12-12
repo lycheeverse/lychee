@@ -11,8 +11,12 @@ use tokio::sync::Semaphore;
 
 use super::key::HostKey;
 use super::stats::HostStats;
-use crate::ratelimit::{HostConfig, RateLimitConfig, RateLimitError};
+use crate::types::Result;
 use crate::{CacheStatus, Status, Uri};
+use crate::{
+    ErrorKind,
+    ratelimit::{HostConfig, RateLimitConfig},
+};
 
 /// Cache value for per-host caching
 #[derive(Debug, Clone)]
@@ -79,7 +83,7 @@ impl Host {
         host_config: &HostConfig,
         global_config: &RateLimitConfig,
         client: ReqwestClient,
-    ) -> Result<Self, RateLimitError> {
+    ) -> Result<Self> {
         let quota = host_config
             .effective_request_interval(global_config)
             .into_inner()
@@ -148,21 +152,19 @@ impl Host {
     /// # Panics
     ///
     /// Panics if the statistics mutex is poisoned
-    pub async fn execute_request(&self, request: Request) -> Result<Response, RateLimitError> {
+    pub async fn execute_request(&self, request: Request) -> Result<Response> {
         let uri = Uri::from(request.url().clone());
 
         // Note: Cache checking is handled at the HostPool level
         // This method focuses on executing the actual HTTP request
 
         // Acquire semaphore permit for concurrency control
-        let _permit =
-            self.semaphore
-                .acquire()
-                .await
-                .map_err(|_| RateLimitError::RateLimitExceeded {
-                    host: self.key.clone(),
-                    message: "Semaphore acquisition cancelled".to_string(),
-                })?;
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            // SAFETY: this should not panic as we never close the semaphore
+            .expect("Semaphore was closed unexpectedly");
 
         // Apply adaptive backoff if needed
         let backoff_duration = {
@@ -187,10 +189,7 @@ impl Host {
             Ok(response) => response,
             Err(e) => {
                 // Wrap network/HTTP errors to preserve the original error
-                return Err(RateLimitError::NetworkError {
-                    host: self.key.clone(),
-                    source: e,
-                });
+                return Err(ErrorKind::NetworkRequest(e));
             }
         };
         let request_time = start_time.elapsed();

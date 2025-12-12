@@ -14,11 +14,9 @@
 //! - [`Window`]: Rolling window data structure for request timing
 
 mod config;
-mod error;
 mod host;
 mod pool;
 
 pub use config::{HostConfig, HostConfigs, RateLimitConfig};
-pub use error::RateLimitError;
 pub use host::{Host, HostKey, HostStats, RequestInterval};
 pub use pool::{ClientMap, HostPool};

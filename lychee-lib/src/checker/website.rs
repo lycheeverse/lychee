@@ -124,20 +124,7 @@ impl WebsiteChecker {
         let method = request.method().clone();
         let request_url = request.url().clone();
 
-        // Use HostPool for rate limiting
-        let response_result = match self.host_pool.execute_request(request).await {
-            Ok(response) => Ok(response),
-            Err(crate::ratelimit::RateLimitError::NetworkError { source, .. }) => {
-                // Network errors should be handled the same as direct client errors
-                Err(source)
-            }
-            Err(e) => {
-                // Rate limiting specific errors
-                return Status::Error(ErrorKind::RateLimit(e));
-            }
-        };
-
-        match response_result {
+        match self.host_pool.execute_request(request).await {
             Ok(response) => {
                 let status = Status::new(&response, &self.accepted);
                 // when `accept=200,429`, `status_code=429` will be treated as success
