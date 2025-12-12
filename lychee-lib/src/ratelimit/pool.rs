@@ -3,7 +3,8 @@ use reqwest::{Client, Request, Response};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::ratelimit::{Host, HostConfigs, HostKey, HostStats, RateLimitConfig, RateLimitError};
+use crate::ratelimit::{Host, HostConfigs, HostKey, HostStats, RateLimitConfig};
+use crate::types::Result;
 use crate::{CacheStatus, Status, Uri};
 
 /// Keep track of host-specific [`reqwest::Client`]s
@@ -79,7 +80,7 @@ impl HostPool {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn execute_request(&self, request: Request) -> Result<Response, RateLimitError> {
+    pub async fn execute_request(&self, request: Request) -> Result<Response> {
         let url = request.url();
         let host_key = HostKey::try_from(url)?;
         let host = self.get_or_create_host(host_key)?;
@@ -87,7 +88,7 @@ impl HostPool {
     }
 
     /// Get an existing host or create a new one for the given hostname
-    fn get_or_create_host(&self, host_key: HostKey) -> Result<Arc<Host>, RateLimitError> {
+    fn get_or_create_host(&self, host_key: HostKey) -> Result<Arc<Host>> {
         if let Some(host) = self.hosts.get(&host_key) {
             return Ok(host.clone());
         }
@@ -229,10 +230,7 @@ impl HostPool {
     /// # Errors
     ///
     /// Returns an error if the host key cannot be parsed from the URI or if the host cannot be created.
-    pub fn record_cache_hit(
-        &self,
-        uri: &crate::Uri,
-    ) -> Result<(), crate::ratelimit::RateLimitError> {
+    pub fn record_cache_hit(&self, uri: &crate::Uri) -> Result<()> {
         let host_key = crate::ratelimit::HostKey::try_from(uri)?;
 
         // Get or create the host (this ensures statistics tracking even for cache-only requests)
@@ -250,10 +248,7 @@ impl HostPool {
     /// # Errors
     ///
     /// Returns an error if the host key cannot be parsed from the URI or if the host cannot be created.
-    pub fn record_cache_miss(
-        &self,
-        uri: &crate::Uri,
-    ) -> Result<(), crate::ratelimit::RateLimitError> {
+    pub fn record_cache_miss(&self, uri: &crate::Uri) -> Result<()> {
         let host_key = crate::ratelimit::HostKey::try_from(uri)?;
 
         // Get or create the host (this ensures statistics tracking even for cache-only requests)

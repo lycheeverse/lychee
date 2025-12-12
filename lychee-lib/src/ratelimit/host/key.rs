@@ -2,6 +2,9 @@ use serde::Deserialize;
 use std::fmt;
 use url::Url;
 
+use crate::ErrorKind;
+use crate::types::Result;
+
 /// A type-safe representation of a hostname for rate limiting purposes.
 ///
 /// This extracts and normalizes hostnames from URLs to ensure consistent
@@ -36,15 +39,10 @@ impl HostKey {
 }
 
 impl TryFrom<&Url> for HostKey {
-    type Error = crate::ratelimit::RateLimitError;
+    type Error = ErrorKind;
 
-    fn try_from(url: &Url) -> Result<Self, Self::Error> {
-        let host =
-            url.host_str()
-                .ok_or_else(|| crate::ratelimit::RateLimitError::UrlParseError {
-                    url: url.clone(),
-                    reason: "URL contains no host component".to_string(),
-                })?;
+    fn try_from(url: &Url) -> Result<Self> {
+        let host = url.host_str().ok_or_else(|| ErrorKind::InvalidUrlHost)?;
 
         // Normalize to lowercase for consistent lookup
         Ok(HostKey(host.to_lowercase()))
@@ -52,17 +50,17 @@ impl TryFrom<&Url> for HostKey {
 }
 
 impl TryFrom<&crate::Uri> for HostKey {
-    type Error = crate::ratelimit::RateLimitError;
+    type Error = ErrorKind;
 
-    fn try_from(uri: &crate::Uri) -> Result<Self, Self::Error> {
+    fn try_from(uri: &crate::Uri) -> Result<Self> {
         Self::try_from(&uri.url)
     }
 }
 
 impl TryFrom<Url> for HostKey {
-    type Error = crate::ratelimit::RateLimitError;
+    type Error = ErrorKind;
 
-    fn try_from(url: Url) -> Result<Self, Self::Error> {
+    fn try_from(url: Url) -> Result<Self> {
         HostKey::try_from(&url)
     }
 }

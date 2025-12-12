@@ -138,7 +138,7 @@ pub enum ErrorKind {
     #[error("Cannot send/receive message from channel")]
     Channel(#[from] tokio::sync::mpsc::error::SendError<InputContent>),
 
-    /// An URL with an invalid host was found
+    /// An URL with no host was found
     #[error("URL is missing a host")]
     InvalidUrlHost,
 
@@ -178,9 +178,6 @@ pub enum ErrorKind {
         /// The reason the command failed
         reason: String,
     },
-    /// Rate limiting error
-    #[error("Rate limiting error: {0}")]
-    RateLimit(#[from] crate::ratelimit::RateLimitError),
 }
 
 impl ErrorKind {
@@ -339,9 +336,6 @@ impl ErrorKind {
                 [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
             }.into(),
             ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the preprocessor option")),
-            ErrorKind::RateLimit(e) => Some(format!(
-                "Rate limiting error: {e}. Consider adjusting rate limiting configuration or waiting before retrying"
-            )),
         }
     }
 
@@ -472,7 +466,6 @@ impl Hash for ErrorKind {
             Self::Cookies(e) => e.hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
             Self::PreprocessorError { command, reason } => (command, reason).hash(state),
-            Self::RateLimit(e) => e.to_string().hash(state),
         }
     }
 }
