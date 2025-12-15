@@ -14,6 +14,7 @@
 //! - [`Window`]: Rolling window data structure for request timing
 
 mod config;
+mod headers;
 mod host;
 mod pool;
 

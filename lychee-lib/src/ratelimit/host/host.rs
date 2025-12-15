@@ -1,9 +1,12 @@
+use crate::ratelimit::headers;
 use dashmap::DashMap;
 use governor::{
     RateLimiter,
     clock::DefaultClock,
     state::{InMemoryState, NotKeyed},
 };
+use humantime_serde::re::humantime::format_duration;
+use log::warn;
 use reqwest::{Client as ReqwestClient, Request, Response};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -17,6 +20,9 @@ use crate::{
     ErrorKind,
     ratelimit::{HostConfig, RateLimitConfig},
 };
+
+/// Cap retry-after to reasonable limits
+const MAXIMUM_BACKOFF: Duration = Duration::from_secs(10 * 60);
 
 /// Cache value for per-host caching
 #[derive(Debug, Clone)]
@@ -199,7 +205,7 @@ impl Host {
         self.update_stats_and_backoff(status_code, request_time);
 
         // Parse rate limit headers to adjust behavior
-        self.parse_rate_limit_headers(&response);
+        self.handle_rate_limit_headers(&response);
 
         // Cache the result
         let status = Status::Ok(response.status());
@@ -255,29 +261,17 @@ impl Host {
     }
 
     /// Parse rate limit headers from response and adjust behavior
-    fn parse_rate_limit_headers(&self, response: &Response) {
-        // Manual parsing of common rate limit headers
-        // We implement basic parsing here for the most common headers (X-RateLimit-*, Retry-After)
-        // rather than using the rate-limits crate to keep dependencies minimal
-
+    fn handle_rate_limit_headers(&self, response: &Response) {
+        // Implement basic parsing here rather than using the rate-limits crate to keep dependencies minimal
         let headers = response.headers();
+        self.handle_retry_after_header(headers);
+        self.handle_common_rate_limit_header_fields(headers);
+    }
 
-        // Try common rate limit header patterns
-        let remaining = Self::parse_header_value(
-            headers,
-            &[
-                "x-ratelimit-remaining",
-                "x-rate-limit-remaining",
-                "ratelimit-remaining",
-            ],
-        );
-
-        let limit = Self::parse_header_value(
-            headers,
-            &["x-ratelimit-limit", "x-rate-limit-limit", "ratelimit-limit"],
-        );
-
-        if let (Some(remaining), Some(limit)) = (remaining, limit)
+    /// Handle the common "X-RateLimit" header fields.
+    fn handle_common_rate_limit_header_fields(&self, headers: &http::HeaderMap) {
+        if let (Some(remaining), Some(limit)) =
+            headers::parse_common_rate_limit_header_fields(headers)
             && limit > 0
         {
             #[allow(clippy::cast_precision_loss)]
@@ -285,39 +279,40 @@ impl Host {
 
             // If we've used more than 80% of our quota, apply preventive backoff
             if usage_ratio > 0.8 {
-                let mut backoff = self.backoff_duration.lock().unwrap();
                 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                let preventive_backoff =
-                    Duration::from_millis((200.0 * (usage_ratio - 0.8) / 0.2) as u64);
-                *backoff = std::cmp::max(*backoff, preventive_backoff);
-            }
-        }
-
-        // Check for Retry-After header (in seconds)
-        if let Some(retry_after_value) = headers.get("retry-after")
-            && let Ok(retry_after_str) = retry_after_value.to_str()
-            && let Ok(retry_seconds) = retry_after_str.parse::<u64>()
-        {
-            let mut backoff = self.backoff_duration.lock().unwrap();
-            let retry_duration = Duration::from_secs(retry_seconds);
-            // Cap retry-after to reasonable limits
-            if retry_duration <= Duration::from_secs(3600) {
-                *backoff = std::cmp::max(*backoff, retry_duration);
+                let duration = Duration::from_millis((200.0 * (usage_ratio - 0.8) / 0.2) as u64);
+                self.increase_backoff(duration);
             }
         }
     }
 
-    /// Helper method to parse numeric header values from common rate limit headers
-    fn parse_header_value(headers: &http::HeaderMap, header_names: &[&str]) -> Option<usize> {
-        for header_name in header_names {
-            if let Some(value) = headers.get(*header_name)
-                && let Ok(value_str) = value.to_str()
-                && let Ok(number) = value_str.parse::<usize>()
-            {
-                return Some(number);
-            }
+    /// Handle the "Retry-After" header
+    fn handle_retry_after_header(&self, headers: &http::HeaderMap) {
+        if let Some(retry_after_value) = headers.get("retry-after") {
+            let duration = match headers::parse_retry_after(retry_after_value) {
+                Ok(e) => e,
+                Err(e) => {
+                    warn!("Unable to parse Retry-After header as per RFC 7231: {e}");
+                    return;
+                }
+            };
+
+            self.increase_backoff(duration);
         }
-        None
+    }
+
+    fn increase_backoff(&self, mut increased_backoff: Duration) {
+        if increased_backoff > MAXIMUM_BACKOFF {
+            warn!(
+                "Encountered an unexpectedly big rate limit backoff duration of {}. Capping the duration to {} instead.",
+                format_duration(increased_backoff),
+                format_duration(MAXIMUM_BACKOFF)
+            );
+            increased_backoff = MAXIMUM_BACKOFF;
+        }
+
+        let mut backoff = self.backoff_duration.lock().unwrap();
+        *backoff = std::cmp::max(*backoff, increased_backoff);
     }
 
     /// Get host statistics

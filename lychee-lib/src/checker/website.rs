@@ -102,6 +102,8 @@ impl WebsiteChecker {
 
     /// Retry requests up to `max_retries` times
     /// with an exponential backoff.
+    /// Note that, in addition, there also is a host-specific backoff
+    /// when host-specific rate limiting or errors are detected.
     pub(crate) async fn retry_request(&self, request: Request) -> Status {
         let mut retries: u64 = 0;
         let mut wait_time = self.retry_wait_time;

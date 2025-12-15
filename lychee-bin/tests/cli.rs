@@ -19,14 +19,14 @@ mod cli {
         fs::{self, File},
         io::{BufRead, Write},
         path::Path,
-        time::Duration,
+        time::{Duration, Instant},
     };
     use tempfile::{NamedTempFile, tempdir};
     use test_utils::{fixtures_path, mock_server, redirecting_mock_server, root_path};
 
     use uuid::Uuid;
     use wiremock::{
-        Mock, ResponseTemplate,
+        Mock, Request, ResponseTemplate,
         matchers::{basic_auth, method},
     };
 
@@ -2356,6 +2356,47 @@ The config file should contain every possible key for documentation purposes."
             .write_stdin(mock_server.uri())
             .assert()
             .success();
+    }
+
+    #[tokio::test]
+    async fn test_retry_rate_limit_headers() {
+        const RETRY_DELAY: Duration = Duration::from_secs(1);
+        const TOLERANCE: Duration = Duration::from_millis(200);
+        let server = wiremock::MockServer::start().await;
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                ResponseTemplate::new(429)
+                    .append_header("Retry-After", RETRY_DELAY.as_secs().to_string()),
+            )
+            .expect(1)
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        let start = Instant::now();
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(move |_: &Request| {
+                let delta = Instant::now().duration_since(start);
+                assert!(delta > RETRY_DELAY);
+                assert!(delta < RETRY_DELAY + TOLERANCE);
+                ResponseTemplate::new(200)
+            })
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        cargo_bin_cmd!()
+            .arg("-")
+            // Retry wait times are added on top of host-specific backoff timeout
+            .arg("--retry-wait-time")
+            .arg("0")
+            .write_stdin(server.uri())
+            .assert()
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
     }
 
     #[tokio::test]
