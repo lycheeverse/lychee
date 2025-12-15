@@ -528,7 +528,7 @@ dependencies = [
  "http 1.4.0",
  "lychee-lib",
  "regex",
- "reqwest 0.12.24",
+ "reqwest 0.12.25",
  "tokio",
 ]
 
@@ -655,7 +655,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "lychee-lib",
- "reqwest 0.12.24",
+ "reqwest 0.12.25",
  "tokio",
 ]
 
@@ -792,7 +792,7 @@ dependencies = [
  "http 1.4.0",
  "lychee-lib",
  "regex",
- "reqwest 0.12.24",
+ "reqwest 0.12.25",
  "tokio",
  "tokio-stream",
 ]
@@ -2792,7 +2792,7 @@ dependencies = [
  "predicates",
  "pretty_assertions",
  "regex",
- "reqwest 0.12.24",
+ "reqwest 0.12.25",
  "reqwest_cookie_store",
  "ring",
  "secrecy",
@@ -2842,7 +2842,7 @@ dependencies = [
  "pretty_assertions",
  "pulldown-cmark",
  "regex",
- "reqwest 0.12.24",
+ "reqwest 0.12.25",
  "reqwest_cookie_store",
  "ring",
  "rstest",
@@ -3936,18 +3936,16 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.24"
+version = "0.12.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d0946410b9f7b082a427e4ef5c8ff541a88b357bc6c637c40db3a68ac70a36f"
+checksum = "b6eff9328d40131d43bd911d42d79eb6a47312002a4daefc9e37f17e74a7701a"
 dependencies = [
- "async-compression",
  "base64 0.22.1",
  "bytes",
  "cookie",
  "cookie_store 0.21.1",
  "encoding_rs",
  "futures-core",
- "futures-util",
  "h2 0.4.12",
  "http 1.4.0",
  "http-body 1.0.1",
@@ -3973,7 +3971,6 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-rustls",
- "tokio-util",
  "tower",
  "tower-http",
  "tower-service",
@@ -3991,7 +3988,7 @@ checksum = "5e75bc88d954b228850d19e3685cedb38c030a17da34aa01c307f95d6e33de34"
 dependencies = [
  "bytes",
  "cookie_store 0.22.0",
- "reqwest 0.12.24",
+ "reqwest 0.12.25",
  "serde",
  "serde_derive",
  "url",
@@ -5102,17 +5099,22 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf146f99d442e8e68e585f5d798ccd3cad9a7835b917e09728880a862706456"
+checksum = "d4e6559d53cc268e5031cd8429d05415bc4cb4aefc4aa5d6cc35fbf5b924a1f8"
 dependencies = [
+ "async-compression",
  "bitflags 2.10.0",
  "bytes",
+ "futures-core",
  "futures-util",
  "http 1.4.0",
  "http-body 1.0.1",
+ "http-body-util",
  "iri-string",
  "pin-project-lite",
+ "tokio",
+ "tokio-util",
  "tower",
  "tower-layer",
  "tower-service",
