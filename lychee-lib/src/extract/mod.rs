@@ -3,10 +3,12 @@ use crate::types::{
     uri::raw::{RawUri, SourceSpanProvider},
 };
 
+pub mod css;
 pub mod html;
 pub mod markdown;
 mod plaintext;
 
+use css::extract_css;
 use markdown::extract_markdown;
 use plaintext::extract_raw_uri_from_plaintext;
 
@@ -43,7 +45,7 @@ impl Extractor {
     }
 
     /// Main entrypoint for extracting links from various sources
-    /// (Markdown, HTML, and plaintext)
+    /// (Markdown, HTML, CSS, and plaintext)
     #[must_use]
     pub fn extract(&self, input_content: &InputContent) -> Vec<RawUri> {
         match input_content.file_type {
@@ -59,6 +61,10 @@ impl Extractor {
                     html::html5gum::extract_html(&input_content.content, self.include_verbatim)
                 }
             }
+            FileType::Css => extract_css(
+                &input_content.content,
+                &SourceSpanProvider::from_input(&input_content.content),
+            ),
             FileType::Plaintext => extract_raw_uri_from_plaintext(
                 &input_content.content,
                 &SourceSpanProvider::from_input(&input_content.content),
@@ -331,5 +337,104 @@ mod tests {
                 .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_css_from_style_tag() {
+        // Test case from issue #1485
+        let input = r#"<html>
+   <head>
+      <style>
+         div {
+             background-image: url("./lychee.png");
+         }
+      </style>
+   </head>
+</html>"#;
+        let input_content = InputContent::from_string(input, FileType::Html);
+        let extractor = Extractor::new(false, false, false);
+        let raw_uris = extractor.extract(&input_content);
+
+        // The CSS URL should be extracted
+        assert!(
+            !raw_uris.is_empty(),
+            "Expected to extract URLs from style tag"
+        );
+        let has_lychee_png = raw_uris
+            .iter()
+            .any(|raw_uri| raw_uri.text.contains("lychee.png"));
+        assert!(
+            has_lychee_png,
+            "Expected to find lychee.png in extracted URLs: {raw_uris:?}"
+        );
+    }
+
+    #[test]
+    fn test_extract_css_from_css_file() {
+        let input = r#"
+.example {
+    background-image: url("./image.png");
+    background: url('/absolute/path.jpg');
+}
+@import url(https://example.com/style.css);
+"#;
+        let input_content = InputContent::from_string(input, FileType::Css);
+        let extractor = Extractor::new(false, false, false);
+        let raw_uris = extractor.extract(&input_content);
+
+        // All three CSS URLs should be extracted
+        assert_eq!(raw_uris.len(), 3, "Expected 3 URLs, got {:?}", raw_uris);
+
+        let urls: Vec<&str> = raw_uris
+            .iter()
+            .map(|raw_uri| raw_uri.text.as_str())
+            .collect();
+        assert!(
+            urls.iter().any(|url| url.contains("image.png")),
+            "Missing image.png"
+        );
+        assert!(
+            urls.iter().any(|url| url.contains("path.jpg")),
+            "Missing path.jpg"
+        );
+        assert!(
+            urls.iter().any(|url| url.contains("example.com/style.css")),
+            "Missing example.com"
+        );
+    }
+
+    #[test]
+    fn test_extract_multiple_css_urls_from_style_tag() {
+        let input = r#"<html>
+   <head>
+      <style>
+         .background {
+             background-image: url("./bg.png");
+         }
+         @font-face {
+             src: url(../fonts/font.woff2);
+         }
+      </style>
+   </head>
+</html>"#;
+        let input_content = InputContent::from_string(input, FileType::Html);
+        let extractor = Extractor::new(false, false, false);
+        let raw_uris = extractor.extract(&input_content);
+
+        // Both CSS URLs should be extracted
+        assert_eq!(raw_uris.len(), 2, "Expected 2 URLs, got {:?}", raw_uris);
+
+        let urls: Vec<&str> = raw_uris
+            .iter()
+            .map(|raw_uri| raw_uri.text.as_str())
+            .collect();
+        assert!(
+            urls.iter().any(|url| url.contains("bg.png")),
+            "Missing bg.png"
+        );
+        assert!(
+            urls.iter().any(|url| url.contains("font.woff2")),
+            "Missing font.woff2"
+        );
     }
 }

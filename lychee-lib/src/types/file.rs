@@ -81,6 +81,7 @@ impl From<FileType> for FileExtensions {
         match file_type {
             FileType::Html => FileType::html_extensions(),
             FileType::Markdown => FileType::markdown_extensions(),
+            FileType::Css => FileType::css_extensions(),
             FileType::Plaintext => FileType::plaintext_extensions(),
         }
     }
@@ -115,9 +116,22 @@ pub enum FileType {
     Html,
     /// File in Markdown format
     Markdown,
+    /// File in CSS format
+    Css,
     /// Generic text file without syntax-specific parsing
     #[default]
     Plaintext,
+}
+
+impl std::fmt::Display for FileType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FileType::Html => write!(f, "HTML"),
+            FileType::Markdown => write!(f, "Markdown"),
+            FileType::Css => write!(f, "CSS"),
+            FileType::Plaintext => write!(f, "plaintext"),
+        }
+    }
 }
 
 impl FileType {
@@ -129,6 +143,9 @@ impl FileType {
     /// All known HTML extensions
     const HTML_EXTENSIONS: &'static [&'static str] = &["htm", "html"];
 
+    /// All known CSS extensions
+    const CSS_EXTENSIONS: &'static [&'static str] = &["css"];
+
     /// All known plaintext extensions
     const PLAINTEXT_EXTENSIONS: &'static [&'static str] = &["txt"];
 
@@ -138,6 +155,7 @@ impl FileType {
         let mut extensions = FileExtensions::empty();
         extensions.extend(Self::markdown_extensions());
         extensions.extend(Self::html_extensions());
+        extensions.extend(Self::css_extensions());
         extensions.extend(Self::plaintext_extensions());
         extensions
     }
@@ -160,6 +178,15 @@ impl FileType {
             .collect()
     }
 
+    /// All known CSS extensions
+    #[must_use]
+    pub fn css_extensions() -> FileExtensions {
+        Self::CSS_EXTENSIONS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
+    }
+
     /// All known plaintext extensions
     #[must_use]
     pub fn plaintext_extensions() -> FileExtensions {
@@ -177,6 +204,8 @@ impl FileType {
             Some(Self::Markdown)
         } else if Self::HTML_EXTENSIONS.contains(&ext.as_str()) {
             Some(Self::Html)
+        } else if Self::CSS_EXTENSIONS.contains(&ext.as_str()) {
+            Some(Self::Css)
         } else if Self::PLAINTEXT_EXTENSIONS.contains(&ext.as_str()) {
             Some(Self::Plaintext)
         } else {
@@ -240,12 +269,14 @@ mod tests {
         assert!(extensions.contains("html"));
         assert!(extensions.contains("markdown"));
         assert!(extensions.contains("htm"));
+        assert!(extensions.contains("css"));
         // Test that the count matches our static arrays
         let all_extensions: Vec<_> = extensions.into();
         assert_eq!(
             all_extensions.len(),
             FileType::MARKDOWN_EXTENSIONS.len()
                 + FileType::HTML_EXTENSIONS.len()
+                + FileType::CSS_EXTENSIONS.len()
                 + FileType::PLAINTEXT_EXTENSIONS.len()
         );
     }

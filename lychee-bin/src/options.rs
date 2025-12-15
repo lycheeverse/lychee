@@ -4,7 +4,7 @@ use crate::parse::parse_base;
 use crate::verbosity::Verbosity;
 use anyhow::{Context, Error, Result, anyhow};
 use clap::builder::PossibleValuesParser;
-use clap::{Parser, arg, builder::TypedValueParser};
+use clap::{Parser, builder::TypedValueParser};
 use const_format::{concatcp, formatcp};
 use http::{
     HeaderMap,
