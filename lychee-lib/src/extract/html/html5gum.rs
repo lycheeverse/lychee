@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 
 use super::{is_email_link, is_verbatim_elem, srcset};
 use crate::{
-    extract::plaintext::extract_raw_uri_from_plaintext,
+    extract::{css::extract_css, plaintext::extract_raw_uri_from_plaintext},
     types::uri::raw::{OffsetSpanProvider, RawUri, SourceSpanProvider, SpanProvider},
 };
 
@@ -47,6 +47,12 @@ struct LinkExtractor<S: SpanProvider> {
     /// Element name of the current verbatim block.
     /// Used to keep track of nested verbatim blocks.
     verbatim_stack: Vec<String>,
+    /// Whether we're currently inside a `<style>` tag.
+    in_style_tag: bool,
+    /// Accumulated CSS content from within a `<style>` tag.
+    style_content: String,
+    /// Start offset of the style tag content (for span calculation).
+    style_content_offset: usize,
 }
 
 impl<S: SpanProvider> LinkExtractor<S> {
@@ -64,6 +70,9 @@ impl<S: SpanProvider> LinkExtractor<S> {
             current_attributes: HashMap::default(),
             current_attribute_name: String::default(),
             verbatim_stack: Vec::default(),
+            in_style_tag: false,
+            style_content: String::default(),
+            style_content_offset: 0,
         }
     }
 
@@ -119,6 +128,8 @@ impl<S: SpanProvider> LinkExtractor<S> {
         urls
     }
 
+    /// Check if we should filter out links in the current context due to being
+    /// inside a verbatim element.
     fn filter_verbatim_here(&self) -> bool {
         !self.include_verbatim
             && (is_verbatim_elem(&self.current_element) || !self.verbatim_stack.is_empty())
@@ -242,6 +253,12 @@ impl<S: SpanProvider> Callback<(), usize> for &mut LinkExtractor<S> {
             CallbackEvent::OpenStartTag { name } => {
                 self.current_element = String::from_utf8_lossy(name).into_owned();
 
+                // Check if we're entering a style tag
+                if self.current_element == "style" {
+                    self.in_style_tag = true;
+                    self.style_content.clear();
+                }
+
                 // Update the current verbatim element name.
                 //
                 // Keeps track of the last verbatim element name, so that we can
@@ -280,6 +297,21 @@ impl<S: SpanProvider> Callback<(), usize> for &mut LinkExtractor<S> {
             }
             CallbackEvent::EndTag { name } => {
                 let tag_name = String::from_utf8_lossy(name);
+
+                // Extract CSS URLs when closing a style tag
+                if tag_name == "style" && self.in_style_tag {
+                    self.in_style_tag = false;
+                    let css_urls = extract_css(
+                        &self.style_content,
+                        &OffsetSpanProvider {
+                            offset: self.style_content_offset,
+                            inner: &self.span_provider,
+                        },
+                    );
+                    self.links.extend(css_urls);
+                    self.style_content.clear();
+                }
+
                 // Update the current verbatim element name.
                 //
                 // Keeps track of the last verbatim element name, so that we can
@@ -292,6 +324,16 @@ impl<S: SpanProvider> Callback<(), usize> for &mut LinkExtractor<S> {
                 }
             }
             CallbackEvent::String { value } => {
+                // If we're inside a style tag, accumulate the CSS content
+                if self.in_style_tag {
+                    if self.style_content.is_empty() {
+                        // Record the start offset of the style content
+                        self.style_content_offset = span.start;
+                    }
+                    self.style_content.push_str(&String::from_utf8_lossy(value));
+                    return None;
+                }
+
                 if !self.filter_verbatim_here() {
                     // Extract links from the current string and add them to the links vector.
                     self.links.extend(extract_raw_uri_from_plaintext(

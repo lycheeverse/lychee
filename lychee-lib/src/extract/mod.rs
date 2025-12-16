@@ -3,10 +3,12 @@ use crate::types::{
     uri::raw::{RawUri, SourceSpanProvider},
 };
 
+pub mod css;
 pub mod html;
 pub mod markdown;
 mod plaintext;
 
+use css::extract_css;
 use markdown::extract_markdown;
 use plaintext::extract_raw_uri_from_plaintext;
 
@@ -43,7 +45,7 @@ impl Extractor {
     }
 
     /// Main entrypoint for extracting links from various sources
-    /// (Markdown, HTML, and plaintext)
+    /// (Markdown, HTML, CSS, and plaintext)
     #[must_use]
     pub fn extract(&self, input_content: &InputContent) -> Vec<RawUri> {
         match input_content.file_type {
@@ -59,6 +61,10 @@ impl Extractor {
                     html::html5gum::extract_html(&input_content.content, self.include_verbatim)
                 }
             }
+            FileType::Css => extract_css(
+                &input_content.content,
+                &SourceSpanProvider::from_input(&input_content.content),
+            ),
             FileType::Plaintext => extract_raw_uri_from_plaintext(
                 &input_content.content,
                 &SourceSpanProvider::from_input(&input_content.content),
@@ -77,7 +83,10 @@ mod tests {
     use super::*;
     use crate::{
         Uri,
-        types::{FileType, InputContent, ResolvedInputSource},
+        types::{
+            FileType, InputContent, ResolvedInputSource,
+            uri::raw::{RawUriSpan, span},
+        },
         utils::url::find_links,
     };
 
@@ -331,5 +340,81 @@ mod tests {
                 .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_css_from_style_tag() {
+        // Test case from issue #1485
+        let input = r#"<html>
+   <head>
+      <style>
+         div {
+             background-image: url("./lychee.png");
+         }
+      </style>
+   </head>
+</html>"#;
+        let input_content = InputContent::from_string(input, FileType::Html);
+        let extractor = Extractor::new(false, false, false);
+        let raw_uris = extractor.extract(&input_content);
+        assert_eq!(raw_uris, vec![css_url("./lychee.png", span(5, 32))]);
+    }
+
+    #[test]
+    fn test_extract_css_from_css_file() {
+        let input = r#"
+.example {
+    background-image: url("./image.png");
+    background: url('/absolute/path.jpg');
+}
+@import url(https://example.com/style.css);
+"#;
+        let input_content = InputContent::from_string(input, FileType::Css);
+        let extractor = Extractor::new(false, false, false);
+        let raw_uris = extractor.extract(&input_content);
+        assert_eq!(
+            raw_uris,
+            vec![
+                css_url("./image.png", span(3, 23)),
+                css_url("/absolute/path.jpg", span(4, 17)),
+                css_url("https://example.com/style.css", span(6, 9)),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_extract_multiple_css_urls_from_style_tag() {
+        let input = r#"<html>
+   <head>
+      <style>
+         .background {
+             background-image: url("./bg.png");
+         }
+         @font-face {
+             src: url(../fonts/font.woff2);
+         }
+      </style>
+   </head>
+</html>"#;
+        let input_content = InputContent::from_string(input, FileType::Html);
+        let extractor = Extractor::new(false, false, false);
+        let raw_uris = extractor.extract(&input_content);
+
+        assert_eq!(
+            raw_uris,
+            vec![
+                css_url("./bg.png", span(5, 32)),
+                css_url("../fonts/font.woff2", span(8, 19)),
+            ]
+        );
+    }
+
+    fn css_url(text: &str, span: RawUriSpan) -> RawUri {
+        RawUri {
+            text: text.into(),
+            element: Some("style".into()),
+            attribute: Some("url".into()),
+            span,
+        }
     }
 }

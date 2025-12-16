@@ -460,7 +460,7 @@ Options:
           which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
           specify both extensions explicitly.
 
-          [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,txt]
+          [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt]
 
   -f, --format <FORMAT>
           Output format of final status report
