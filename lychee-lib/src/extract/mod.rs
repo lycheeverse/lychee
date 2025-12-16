@@ -83,7 +83,10 @@ mod tests {
     use super::*;
     use crate::{
         Uri,
-        types::{FileType, InputContent, ResolvedInputSource},
+        types::{
+            FileType, InputContent, ResolvedInputSource,
+            uri::raw::{RawUriSpan, span},
+        },
         utils::url::find_links,
     };
 
@@ -354,19 +357,7 @@ mod tests {
         let input_content = InputContent::from_string(input, FileType::Html);
         let extractor = Extractor::new(false, false, false);
         let raw_uris = extractor.extract(&input_content);
-
-        // The CSS URL should be extracted
-        assert!(
-            !raw_uris.is_empty(),
-            "Expected to extract URLs from style tag"
-        );
-        let has_lychee_png = raw_uris
-            .iter()
-            .any(|raw_uri| raw_uri.text.contains("lychee.png"));
-        assert!(
-            has_lychee_png,
-            "Expected to find lychee.png in extracted URLs: {raw_uris:?}"
-        );
+        assert_eq!(raw_uris, vec![css_url("./lychee.png", span(5, 32))]);
     }
 
     #[test]
@@ -381,25 +372,13 @@ mod tests {
         let input_content = InputContent::from_string(input, FileType::Css);
         let extractor = Extractor::new(false, false, false);
         let raw_uris = extractor.extract(&input_content);
-
-        // All three CSS URLs should be extracted
-        assert_eq!(raw_uris.len(), 3, "Expected 3 URLs, got {:?}", raw_uris);
-
-        let urls: Vec<&str> = raw_uris
-            .iter()
-            .map(|raw_uri| raw_uri.text.as_str())
-            .collect();
-        assert!(
-            urls.iter().any(|url| url.contains("image.png")),
-            "Missing image.png"
-        );
-        assert!(
-            urls.iter().any(|url| url.contains("path.jpg")),
-            "Missing path.jpg"
-        );
-        assert!(
-            urls.iter().any(|url| url.contains("example.com/style.css")),
-            "Missing example.com"
+        assert_eq!(
+            raw_uris,
+            vec![
+                css_url("./image.png", span(3, 23)),
+                css_url("/absolute/path.jpg", span(4, 17)),
+                css_url("https://example.com/style.css", span(6, 9)),
+            ]
         );
     }
 
@@ -421,20 +400,21 @@ mod tests {
         let extractor = Extractor::new(false, false, false);
         let raw_uris = extractor.extract(&input_content);
 
-        // Both CSS URLs should be extracted
-        assert_eq!(raw_uris.len(), 2, "Expected 2 URLs, got {:?}", raw_uris);
+        assert_eq!(
+            raw_uris,
+            vec![
+                css_url("./bg.png", span(5, 32)),
+                css_url("../fonts/font.woff2", span(8, 19)),
+            ]
+        );
+    }
 
-        let urls: Vec<&str> = raw_uris
-            .iter()
-            .map(|raw_uri| raw_uri.text.as_str())
-            .collect();
-        assert!(
-            urls.iter().any(|url| url.contains("bg.png")),
-            "Missing bg.png"
-        );
-        assert!(
-            urls.iter().any(|url| url.contains("font.woff2")),
-            "Missing font.woff2"
-        );
+    fn css_url(text: &str, span: RawUriSpan) -> RawUri {
+        RawUri {
+            text: text.into(),
+            element: Some("style".into()),
+            attribute: Some("url".into()),
+            span,
+        }
     }
 }
