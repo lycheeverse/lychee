@@ -1810,7 +1810,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .stderr(contains(
-                "Cannot read input content from file `./NOT-A-REAL-TEST-FIXTURE.md`",
+                "Invalid file path: ./NOT-A-REAL-TEST-FIXTURE.md",
             ));
     }
 
