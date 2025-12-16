@@ -29,8 +29,8 @@ pub(crate) trait StatsFormatter {
 /// If configured to do so, output response statistics to stdout or the specified output file.
 pub(crate) fn output_response_statistics(stats: ResponseStats, config: &Config) -> Result<()> {
     let is_empty = stats.is_empty();
-    let formatted_stats = get_stats_formatter(&config.format, &config.mode).format(stats)?;
-    if let Some(formatted_stats) = formatted_stats {
+    let formatter = get_stats_formatter(&config.format, &config.mode);
+    if let Some(formatted_stats) = formatter.format(stats)? {
         if let Some(output) = &config.output {
             fs::write(output, formatted_stats).context("Cannot write status output to file")?;
         } else {

@@ -138,7 +138,7 @@ pub enum ErrorKind {
     #[error("Cannot send/receive message from channel")]
     Channel(#[from] tokio::sync::mpsc::error::SendError<InputContent>),
 
-    /// An URL with no host was found
+    /// A URL without a host was found
     #[error("URL is missing a host")]
     InvalidUrlHost,
 

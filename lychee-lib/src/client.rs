@@ -408,7 +408,7 @@ impl ClientBuilder {
         self.hosts
             .iter()
             .map(|(host, config)| {
-                let mut headers = self.headers()?;
+                let mut headers = self.default_headers()?;
                 headers.extend(config.headers.clone());
                 let client = self
                     .build_client(redirect_history)?
@@ -424,7 +424,7 @@ impl ClientBuilder {
     fn build_client(&self, redirect_history: &RedirectHistory) -> Result<reqwest::ClientBuilder> {
         let mut builder = reqwest::ClientBuilder::new()
             .gzip(true)
-            .default_headers(self.headers()?)
+            .default_headers(self.default_headers()?)
             .danger_accept_invalid_certs(self.allow_insecure)
             .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
             .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
@@ -448,7 +448,7 @@ impl ClientBuilder {
         Ok(builder)
     }
 
-    fn headers(&self) -> Result<HeaderMap> {
+    fn default_headers(&self) -> Result<HeaderMap> {
         let user_agent = self.user_agent.clone();
         let mut headers = self.custom_headers.clone();
 

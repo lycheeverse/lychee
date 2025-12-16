@@ -554,7 +554,7 @@ with a status code of 429, 500 and 501."
     /// Minimum interval between requests to the same host (default: 100ms)
     ///
     /// Sets a baseline delay between consecutive requests to prevent
-    /// hammering servers. The adaptive algorithm may increase this based
+    /// overloading servers. The adaptive algorithm may increase this based
     /// on server responses (rate limits, errors). Use the `hosts` option
     /// to configure this on a per-host basis.
     ///

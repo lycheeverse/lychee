@@ -287,7 +287,10 @@ async fn handle(
 
     let response = check_url(client, request).await;
 
-    // Apply the same caching rules as before
+    // - Never cache filesystem access as it is fast already so caching has no benefit.
+    // - Skip caching unsupported URLs as they might be supported in a future run.
+    // - Skip caching excluded links; they might not be excluded in the next run.
+    // - Skip caching links for which the status code has been explicitly excluded from the cache.
     let status = response.status();
     if ignore_cache(&uri, status, &cache_exclude_status) {
         return Ok(response);
