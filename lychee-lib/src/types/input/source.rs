@@ -127,8 +127,14 @@ impl InputSource {
         #[cfg(unix)]
         if path.exists() {
             Ok(InputSource::FsPath(path))
-        } else if input.starts_with('~') || input.starts_with('.') || input.contains('/') {
-            // These look like file paths, parse as path and let skip_missing handle them later
+        } else if input.starts_with('~') || input.starts_with('.') {
+            // Paths starting with ~ or . are clearly intended as file paths.
+            // Validate them immediately rather than deferring to skip_missing.
+            Err(ErrorKind::InvalidFile(path))
+        } else if input.contains('/') {
+            // Contains a slash but doesn't start with . or ~. Looks like a file
+            // path, but not sure. Parse as path and let skip_missing handle
+            // validation later
             Ok(InputSource::FsPath(path))
         } else if input.contains('.') || input.chars().all(|c| c.is_ascii_alphabetic()) {
             // Looks like it could be a domain name or simple word without scheme
