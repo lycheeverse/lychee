@@ -1,11 +1,14 @@
 #[cfg(test)]
 mod readme {
+    #[cfg(unix)]
     use assert_cmd::cargo::cargo_bin_cmd;
+    #[cfg(unix)]
     use pretty_assertions::assert_eq;
-    use regex::Regex;
+    #[cfg(unix)]
     use test_utils::load_readme_text;
 
     /// Remove line `[default: lychee/x.y.z]` from the string
+    #[cfg(unix)]
     fn remove_lychee_version_line(string: &str) -> String {
         string
             .lines()
@@ -14,6 +17,7 @@ mod readme {
             .join("\n")
     }
 
+    #[cfg(unix)]
     fn trim_empty_lines(str: &str) -> String {
         str.lines()
             .map(|line| if line.trim().is_empty() { "" } else { line })
