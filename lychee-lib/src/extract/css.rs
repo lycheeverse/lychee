@@ -45,7 +45,7 @@ use crate::types::uri::raw::{RawUri, SourceSpanProvider, SpanProvider};
 /// - `src: url(../fonts/font.woff2);`
 static CSS_URL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?x)
+        r#"(?x)                     # Enable extended mode for whitespace and comments
         url\s*\(                    # Match 'url(' with optional whitespace
         \s*                         # Optional whitespace
         (?:                         # Non-capturing group for the URL
