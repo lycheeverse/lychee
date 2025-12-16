@@ -8,8 +8,7 @@ use crate::types::Result;
 /// A type-safe representation of a hostname for rate limiting purposes.
 ///
 /// This extracts and normalizes hostnames from URLs to ensure consistent
-/// rate limiting across requests to the same host. Subdomains are treated
-/// as separate hosts to allow for traffic sharding.
+/// rate limiting across requests to the same host (domain or IP address).
 ///
 /// # Examples
 ///

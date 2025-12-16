@@ -89,40 +89,24 @@ impl HostPool {
 
     /// Get an existing host or create a new one for the given hostname
     fn get_or_create_host(&self, host_key: HostKey) -> Result<Arc<Host>> {
-        if let Some(host) = self.hosts.get(&host_key) {
-            return Ok(host.clone());
-        }
+        self.hosts
+            .entry(host_key.clone())
+            .or_try_insert_with(|| {
+                let host_config = self
+                    .host_configs
+                    .get(&host_key)
+                    .cloned()
+                    .unwrap_or_default();
 
-        let host_config = self
-            .host_configs
-            .get(&host_key)
-            .cloned()
-            .unwrap_or_default();
+                let client = self
+                    .client_map
+                    .get(&host_key)
+                    .unwrap_or(&self.default_client)
+                    .clone();
 
-        let client = self
-            .client_map
-            .get(&host_key)
-            .unwrap_or(&self.default_client)
-            .clone();
-
-        let host = Arc::new(Host::new(
-            host_key.clone(),
-            &host_config,
-            &self.global_config,
-            client,
-        )?);
-
-        // Store in map (handle race condition where another thread created it)
-        match self.hosts.entry(host_key) {
-            dashmap::mapref::entry::Entry::Occupied(entry) => {
-                // Another thread created it, use theirs
-                Ok(entry.get().clone())
-            }
-            dashmap::mapref::entry::Entry::Vacant(entry) => {
-                // We're first, insert ours
-                Ok(entry.insert(host).clone())
-            }
-        }
+                Host::new(host_key, &host_config, &self.global_config, client).map(Arc::new)
+            })
+            .map(|entry| entry.value().clone())
     }
 
     /// Returns statistics for the host if it exists, otherwise returns empty stats.

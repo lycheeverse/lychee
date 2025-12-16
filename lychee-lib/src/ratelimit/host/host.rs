@@ -21,8 +21,8 @@ use crate::{
     ratelimit::{HostConfig, RateLimitConfig},
 };
 
-/// Cap retry-after to reasonable limits
-const MAXIMUM_BACKOFF: Duration = Duration::from_secs(10 * 60);
+/// Cap maximum backoff duration to reasonable limits
+const MAXIMUM_BACKOFF: Duration = Duration::from_secs(60);
 
 /// Cache value for per-host caching
 #[derive(Debug, Clone)]

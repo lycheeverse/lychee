@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-/// Statistics tracking for a host's request patterns
+/// Record and report statistics for a [`crate::ratelimit::Host`]
 #[derive(Debug, Clone, Default)]
 pub struct HostStats {
     /// Total number of requests made to this host

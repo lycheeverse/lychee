@@ -4,6 +4,9 @@ use std::collections::HashMap;
 
 use crate::ratelimit::{HostKey, RequestInterval};
 
+/// Default number of concurrent requests per host
+const DEFAULT_HOST_CONCURRENCY: usize = 10;
+
 /// Global rate limiting configuration that applies as defaults to all hosts
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct RateLimitConfig {
@@ -68,6 +71,11 @@ impl Default for HostConfig {
     }
 }
 
+/// Default number of concurrent requests per host
+const fn default_host_concurrency() -> usize {
+    DEFAULT_HOST_CONCURRENCY
+}
+
 impl HostConfig {
     /// Get the effective max concurrency, falling back to the global default
     #[must_use]
@@ -82,14 +90,6 @@ impl HostConfig {
         self.request_interval
             .unwrap_or(global_config.request_interval)
     }
-}
-
-/// Default number of concurrent requests per host
-const DEFAULT_HOST_CONCURRENCY: usize = 10;
-
-/// Default number of concurrent requests per host
-const fn default_host_concurrency() -> usize {
-    DEFAULT_HOST_CONCURRENCY
 }
 
 /// Custom deserializer for headers from TOML config format
