@@ -6,7 +6,6 @@
 use super::InputResolver;
 use super::content::InputContent;
 use super::source::{InputSource, ResolvedInputSource};
-use super::windows_path::WindowsPath;
 use crate::Preprocessor;
 use crate::filter::PathExcludes;
 use crate::types::{FileType, RequestError, file::FileExtensions, resolver::UrlContentResolver};

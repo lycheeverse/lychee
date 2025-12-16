@@ -16,12 +16,13 @@
 
 use crate::ErrorKind;
 
-use super::windows_path::WindowsPath;
 use glob::Pattern;
 use reqwest::Url;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::borrow::Cow;
 use std::fmt::Display;
+#[cfg(windows)]
+use std::path::Path;
 use std::path::PathBuf;
 use std::result::Result;
 
@@ -63,14 +64,21 @@ impl InputSource {
             return Ok(InputSource::Stdin);
         }
 
-        // Handle Windows absolute paths (e.g., C:\path) before URL parsing
-        if let Ok(windows_path) = WindowsPath::try_from(input) {
-            let path = windows_path.as_path();
-            return if path.exists() {
-                Ok(InputSource::FsPath(path.to_path_buf()))
-            } else {
-                Err(ErrorKind::InvalidFile(path.to_path_buf()))
-            };
+        // Detect drive-letter paths with `Path::is_absolute()`
+        // This handles Windows absolute paths (e.g., C:\path) before URL parsing
+        // Drive letters can be mistaken for URL schemes, so we need to check this first.
+        // This is only necessary on Windows, as Unix absolute paths always start with `/`, which
+        // cannot be confused with URLs.
+        #[cfg(windows)]
+        {
+            let path = Path::new(input);
+            if path.is_absolute() {
+                return if path.exists() {
+                    Ok(InputSource::FsPath(path.to_path_buf()))
+                } else {
+                    Err(ErrorKind::InvalidFile(path.to_path_buf()))
+                };
+            }
         }
 
         // We use [`reqwest::Url::parse`] because it catches some other edge cases that [`http::Request:builder`] does not
@@ -102,10 +110,18 @@ impl InputSource {
         if path.exists() {
             // The file exists, so we return the path
             Ok(InputSource::FsPath(path))
+        } else if input.contains('\\') || input.contains('/') || input.starts_with('.') {
+            // These look like file paths, parse as path and let skip_missing handle them later
+            Ok(InputSource::FsPath(path))
+        } else if input.contains('.') || input.chars().all(|c| c.is_ascii_alphabetic()) {
+            // Looks like it could be a domain name or simple word without scheme
+            Err(ErrorKind::InvalidInput(format!(
+                "Input '{input}' not found as file and not a valid URL. \
+                     Use full URL (e.g., https://example.com) or check file path."
+            )))
         } else {
-            // We have a valid filepath, but the file does not
-            // exist so we return an error
-            Err(ErrorKind::InvalidFile(path))
+            // Treat as potential file path, parse as path and let skip_missing handle it later
+            Ok(InputSource::FsPath(path))
         }
 
         #[cfg(unix)]
