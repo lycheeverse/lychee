@@ -127,11 +127,7 @@ impl InputSource {
         #[cfg(unix)]
         if path.exists() {
             Ok(InputSource::FsPath(path))
-        } else if input.starts_with('~')
-            || input.starts_with('.')
-            || input.contains('/')
-            || input.contains('-')
-        {
+        } else if input.starts_with('~') || input.starts_with('.') || input.contains('/') {
             // These look like file paths, parse as path and let skip_missing handle them later
             Ok(InputSource::FsPath(path))
         } else if input.contains('.') || input.chars().all(|c| c.is_ascii_alphabetic()) {

@@ -120,20 +120,26 @@ impl Input {
                     return;
                 }
                 InputSource::FsPath(ref path) => {
-                    let is_readable = if path.is_dir() {
-                        path.read_dir()
-                            .map(|_| ())
-                            .map_err(|e| ErrorKind::DirTraversal(ignore::Error::Io(e)))
-                    } else {
-                        // This checks existence without requiring an open. Opening here,
-                        // then re-opening later, might cause problems with pipes. This
-                        // does not validate permissions.
-                        path.metadata()
-                            .map(|_| ())
-                            .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))
-                    };
-
-                    is_readable.map_err(user_input_error)?;
+                    // We check if the file is readable before processing. This catches
+                    // permission errors and missing files early. However, when skip_missing
+                    // is enabled, we skip this validation entirely and let the file be
+                    // processed later in the stream. If reading fails there, the error will
+                    // be caught and skipped. This ensures --skip-missing works for directly
+                    // specified file paths, not just for files discovered through glob expansion.
+                    if !skip_missing {
+                        let is_readable = if path.is_dir() {
+                            path.read_dir()
+                                .map(|_| ())
+                                .map_err(|e| ErrorKind::DirTraversal(ignore::Error::Io(e)))
+                        } else {
+                            // We check existence without opening the file to avoid issues with
+                            // pipes and special files. This does not validate permissions.
+                            path.metadata()
+                                .map(|_| ())
+                                .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))
+                        };
+                        is_readable.map_err(user_input_error)?;
+                    }
                 }
                 InputSource::Stdin => {
                     yield Self::stdin_content(self.file_type_hint)

@@ -672,7 +672,7 @@ mod cli {
 
     #[test]
     fn test_missing_file_ok_if_skip_missing() {
-        let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
+        let filename = format!("non-existing-file-{random}", random = uuid::Uuid::new_v4());
         cargo_bin_cmd!()
             .arg(&filename)
             .arg("--skip-missing")
