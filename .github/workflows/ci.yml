@@ -44,9 +44,9 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
       - name: Compile
-        run: cargo check --locked
+        run: cargo check --locked --features vendored-openssl
       - name: Test
-        run: cargo nextest run --workspace --all-features
+        run: cargo nextest run --workspace --features vendored-openssl
 
   lint:
     runs-on: ubuntu-latest
