@@ -5,6 +5,8 @@ mod readme {
     #[cfg(unix)]
     use pretty_assertions::assert_eq;
     #[cfg(unix)]
+    use regex::Regex;
+    #[cfg(unix)]
     use test_utils::load_readme_text;
 
     /// Remove line `[default: lychee/x.y.z]` from the string
