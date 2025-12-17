@@ -163,7 +163,10 @@ impl WebsiteChecker {
                     status
                 }
             }
-            Err(e) => e.into(),
+            Err(e) => match e {
+                ErrorKind::NetworkRequest(error) => Status::from(error),
+                _ => e.into(),
+            },
         }
     }
 

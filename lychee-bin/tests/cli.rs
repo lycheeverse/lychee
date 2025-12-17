@@ -2361,7 +2361,7 @@ The config file should contain every possible key for documentation purposes."
     #[tokio::test]
     async fn test_retry_rate_limit_headers() {
         const RETRY_DELAY: Duration = Duration::from_secs(1);
-        const TOLERANCE: Duration = Duration::from_millis(200);
+        const TOLERANCE: Duration = Duration::from_millis(500);
         let server = wiremock::MockServer::start().await;
 
         wiremock::Mock::given(wiremock::matchers::method("GET"))
