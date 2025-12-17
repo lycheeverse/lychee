@@ -185,7 +185,7 @@ pub enum ErrorKind {
 
     /// Error on creation of the `WikilinkResolver`
     #[error("Failed to initialize Wikilink Checker")]
-    WikilinkResolverInit(String),
+    WikilinkInvalidBase(String),
 }
 
 impl ErrorKind {
@@ -347,7 +347,7 @@ impl ErrorKind {
             ErrorKind::WikilinkNotFound(uri) => Some(format!(
                 "WikiLink could not be found: {uri} ",
             )),
-            ErrorKind::WikilinkResolverInit(reason) => Some(format!(
+            ErrorKind::WikilinkInvalidBase(reason) => Some(format!(
                 "WikiLink Resolver could not be created: {reason} ",
             )),
         }
@@ -481,7 +481,7 @@ impl Hash for ErrorKind {
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
             Self::PreprocessorError { command, reason } => (command, reason).hash(state),
             Self::WikilinkNotFound(e) => e.hash(state),
-            Self::WikilinkResolverInit(e) => e.hash(state),
+            Self::WikilinkInvalidBase(e) => e.hash(state),
         }
     }
 }

@@ -1,5 +1,4 @@
-use crate::Base;
-use log::{info, warn};
+use log::info;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::Path;
@@ -15,49 +14,38 @@ use walkdir::WalkDir;
 #[derive(Clone, Debug)]
 pub(crate) struct WikilinkIndex {
     filenames: Arc<Mutex<HashMap<OsString, PathBuf>>>,
-    /// local base directory
-    base: Base,
+    /// Local base directory
+    local_base: PathBuf,
 }
 
 impl WikilinkIndex {
-    pub(crate) fn new(local_base: Base) -> Self {
+    pub(crate) fn new(local_base: PathBuf) -> Self {
         let index = Self {
-            base: local_base,
+            local_base,
             filenames: Arc::new(Mutex::new(HashMap::new())),
         };
         index.start_indexing();
         index
     }
 
-    /// Populates the index of the `WikilinkIndex` on startup
-    ///
-    /// Recursively walks the local base directory, mapping each filename to an absolute filepath.
-    /// The Index stays empty if no base directory is supplied or if the base directory is remote
+    /// Populates the index of the `WikilinkIndex` on startup by walking
+    /// the local base directory, mapping each filename to an absolute filepath.
     pub(crate) fn start_indexing(&self) {
-        match &self.base {
-            Base::Local(local_base_name) => {
-                // Start file indexing only if the Base is valid and local
-                info!(
-                    "Starting file indexing for wikilinks in {}",
-                    local_base_name.display()
-                );
+        // Start file indexing only if the Base is valid and local
+        info!(
+            "Starting file indexing for wikilinks in {}",
+            self.local_base.display()
+        );
 
-                for entry in WalkDir::new::<PathBuf>(local_base_name.into())
-                    // actively ignore symlinks
-                    .follow_links(false)
-                    .into_iter()
-                    .filter_map(Result::ok)
-                {
-                    if let Some(filename) = entry.path().file_name() {
-                        let mut lock = self.filenames.lock().unwrap();
-                        lock.insert(filename.to_ascii_lowercase(), entry.path().to_path_buf());
-                    }
-                }
-            }
-
-            // A remote base is of no use for the wikilink checker, return an error to the user
-            Base::Remote(remote_base_name) => {
-                warn!("Error using remote base url for checking wililinks: {remote_base_name}");
+        for entry in WalkDir::new(&self.local_base)
+            // actively ignore symlinks
+            .follow_links(false)
+            .into_iter()
+            .filter_map(Result::ok)
+        {
+            if let Some(filename) = entry.path().file_name() {
+                let mut lock = self.filenames.lock().unwrap();
+                lock.insert(filename.to_ascii_lowercase(), entry.path().to_path_buf());
             }
         }
     }

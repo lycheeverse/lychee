@@ -11,15 +11,27 @@ pub(crate) struct WikilinkResolver {
 /// Tries to resolve a `WikiLink` by searching for the filename in the `WikilinkIndex`
 /// Returns the path of the found file if found, otherwise an Error
 impl WikilinkResolver {
-    pub(crate) fn new(base: Base, fallback_extensions: Vec<String>) -> Result<Self, ErrorKind> {
-        if let Base::Remote(_) = base {
-            return Err(ErrorKind::WikilinkResolverInit(
-                "The given base directory was recognized as Remote. A Local directory is needed."
-                    .to_string(),
-            ));
-        }
+    /// # Errors
+    ///
+    /// Fails if `base` is not `Some(Base::Local(_))`.
+    pub(crate) fn new(
+        base: Option<&Base>,
+        fallback_extensions: Vec<String>,
+    ) -> Result<Self, ErrorKind> {
+        let base = match base {
+            None => Err(ErrorKind::WikilinkInvalidBase(
+                "Base must be specified for wikilink checking".into(),
+            ))?,
+            Some(base) => match base {
+                Base::Local(p) => p,
+                Base::Remote(_) => Err(ErrorKind::WikilinkInvalidBase(
+                    "Base cannot be remote".to_string(),
+                ))?,
+            },
+        };
+
         Ok(Self {
-            checker: WikilinkIndex::new(base),
+            checker: WikilinkIndex::new(base.clone()),
             fallback_extensions,
         })
     }

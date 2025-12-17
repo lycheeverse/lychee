@@ -300,7 +300,8 @@ pub struct ClientBuilder {
     /// Enable the checking of fragments in links.
     include_fragments: bool,
 
-    /// Enable the checking of wikilinks in markdown files
+    /// Enable the checking of wikilinks in markdown files.
+    /// Note that base must not be `None` if you set this `true`.
     include_wikilinks: bool,
 
     /// Requests run through this chain where each item in the chain
@@ -402,7 +403,7 @@ impl ClientBuilder {
                 self.index_files,
                 self.include_fragments,
                 self.include_wikilinks,
-            ),
+            )?,
         })
     }
 
