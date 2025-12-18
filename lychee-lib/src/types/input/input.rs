@@ -467,19 +467,31 @@ mod tests {
         // Valid schemes should be accepted (future compatibility)
         assert!(matches!(
             Input::from_value("ftp://example.com"),
-            Ok(Input { source: InputSource::RemoteUrl(_), .. })
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
         ));
         assert!(matches!(
             Input::from_value("httpx://example.com"),
-            Ok(Input { source: InputSource::RemoteUrl(_), .. })
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
         ));
         assert!(matches!(
             Input::from_value("file:///path/to/file"),
-            Ok(Input { source: InputSource::RemoteUrl(_), .. })
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
         ));
         assert!(matches!(
             Input::from_value("mailto:user@example.com"),
-            Ok(Input { source: InputSource::RemoteUrl(_), .. })
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
         ));
     }
 
