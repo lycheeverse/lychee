@@ -1,11 +1,12 @@
 use dashmap::DashMap;
+use http::Method;
 use reqwest::{Client, Request, Response};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::ratelimit::{Host, HostConfigs, HostKey, HostStats, RateLimitConfig};
 use crate::types::Result;
-use crate::{CacheStatus, Status, Uri};
+use crate::{CacheStatus, ErrorKind, Status, Uri};
 
 /// Keep track of host-specific [`reqwest::Client`]s
 pub type ClientMap = HashMap<HostKey, reqwest::Client>;
@@ -57,11 +58,11 @@ impl HostPool {
         }
     }
 
-    /// Execute an HTTP request with appropriate per-host rate limiting.
+    /// Try to execute a [`Request`] with appropriate per-host rate limiting.
     ///
     /// # Errors
     ///
-    /// Returns a `RateLimitError` if:
+    /// Fails if:
     /// - The request URL has no valid hostname
     /// - The underlying HTTP request fails
     ///
@@ -85,6 +86,22 @@ impl HostPool {
         let host_key = HostKey::try_from(url)?;
         let host = self.get_or_create_host(host_key);
         host.execute_request(request).await
+    }
+
+    /// Try to build a [`Request`]
+    ///
+    /// # Errors
+    ///
+    /// Fails if:
+    /// - The request URI has no valid hostname
+    /// - The request fails to build
+    pub fn build_request(&self, method: Method, uri: &Uri) -> Result<Request> {
+        let host_key = HostKey::try_from(uri)?;
+        let host = self.get_or_create_host(host_key);
+        host.get_client()
+            .request(method, uri.url.clone())
+            .build()
+            .map_err(ErrorKind::BuildRequestClient)
     }
 
     /// Get an existing host or create a new one for the given hostname

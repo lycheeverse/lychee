@@ -347,7 +347,7 @@ impl ClientBuilder {
         let host_pool = HostPool::new(
             self.rate_limit_config,
             self.hosts,
-            reqwest_client.clone(),
+            reqwest_client,
             client_map,
         );
 
@@ -380,7 +380,6 @@ impl ClientBuilder {
             self.retry_wait_time,
             redirect_history.clone(),
             self.max_retries,
-            reqwest_client,
             self.accepted,
             github_client,
             self.require_https,

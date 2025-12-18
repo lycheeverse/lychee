@@ -2387,6 +2387,7 @@ The config file should contain every possible key for documentation purposes."
             .await;
 
         cargo_bin_cmd!()
+            // Direct args are not using the host pool, they are resolved earlier via Collector
             .arg("-")
             // Retry wait times are added on top of host-specific backoff timeout
             .arg("--retry-wait-time")

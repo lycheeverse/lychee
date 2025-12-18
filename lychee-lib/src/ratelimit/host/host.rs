@@ -208,6 +208,10 @@ impl Host {
         Ok(response)
     }
 
+    pub(crate) const fn get_client(&self) -> &ReqwestClient {
+        &self.client
+    }
+
     /// Update internal statistics and backoff based on the response
     fn update_stats_and_backoff(&self, status_code: u16, request_time: Duration) {
         // Update statistics

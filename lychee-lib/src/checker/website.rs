@@ -19,9 +19,6 @@ pub(crate) struct WebsiteChecker {
     /// Request method used for making requests.
     method: reqwest::Method,
 
-    /// The HTTP client used for requests.
-    reqwest_client: reqwest::Client,
-
     /// GitHub client used for requests.
     github_client: Option<Octocrab>,
 
@@ -76,7 +73,6 @@ impl WebsiteChecker {
         retry_wait_time: Duration,
         redirect_history: RedirectHistory,
         max_retries: u64,
-        reqwest_client: reqwest::Client,
         accepted: HashSet<StatusCode>,
         github_client: Option<Octocrab>,
         require_https: bool,
@@ -86,7 +82,6 @@ impl WebsiteChecker {
     ) -> Self {
         Self {
             method,
-            reqwest_client,
             github_client,
             plugin_request_chain,
             redirect_history,
@@ -259,10 +254,7 @@ impl WebsiteChecker {
     /// - The request failed.
     /// - The response status code is not accepted.
     async fn check_website_inner(&self, uri: &Uri, default_chain: &RequestChain) -> Status {
-        let request = self
-            .reqwest_client
-            .request(self.method.clone(), uri.as_str())
-            .build();
+        let request = self.host_pool.build_request(self.method.clone(), uri);
 
         let request = match request {
             Ok(r) => r,
