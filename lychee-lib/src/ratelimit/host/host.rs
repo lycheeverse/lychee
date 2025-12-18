@@ -8,8 +8,8 @@ use governor::{
 use humantime_serde::re::humantime::format_duration;
 use log::warn;
 use reqwest::{Client as ReqwestClient, Request, Response};
-use std::sync::Mutex;
 use std::time::{Duration, Instant};
+use std::{num::NonZeroU32, sync::Mutex};
 use tokio::sync::Semaphore;
 
 use super::key::HostKey;
@@ -76,24 +76,18 @@ pub struct Host {
 
 impl Host {
     /// Create a new Host instance for the given hostname
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the HTTP client cannot be configured properly
-    ///
-    /// # Panics
-    ///
-    /// Panics if the burst size cannot be set to 1 (should never happen)
+    #[must_use]
     pub fn new(
         key: HostKey,
         host_config: &HostConfig,
         global_config: &RateLimitConfig,
         client: ReqwestClient,
-    ) -> Result<Self> {
+    ) -> Self {
+        const MAX_BURST: NonZeroU32 = NonZeroU32::new(1).unwrap();
         let quota = host_config
             .effective_request_interval(global_config)
             .into_inner()
-            .allow_burst(std::num::NonZeroU32::new(1).unwrap());
+            .allow_burst(MAX_BURST);
 
         let rate_limiter = RateLimiter::direct(quota);
 
@@ -101,7 +95,7 @@ impl Host {
         let max_concurrent = host_config.effective_max_concurrent(global_config);
         let semaphore = Semaphore::new(max_concurrent);
 
-        Ok(Host {
+        Host {
             key,
             rate_limiter,
             semaphore,
@@ -109,7 +103,7 @@ impl Host {
             stats: Mutex::new(HostStats::default()),
             backoff_duration: Mutex::new(Duration::from_millis(0)),
             cache: DashMap::new(),
-        })
+        }
     }
 
     /// Check if a URI is cached and return the cached status if valid
@@ -365,7 +359,7 @@ mod tests {
         let host_config = HostConfig::default();
         let global_config = RateLimitConfig::default();
 
-        let host = Host::new(key.clone(), &host_config, &global_config, Client::default()).unwrap();
+        let host = Host::new(key.clone(), &host_config, &global_config, Client::default());
 
         assert_eq!(host.key, key);
         assert_eq!(host.available_permits(), 10); // Default concurrency

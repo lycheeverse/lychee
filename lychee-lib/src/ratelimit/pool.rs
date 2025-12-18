@@ -83,15 +83,15 @@ impl HostPool {
     pub async fn execute_request(&self, request: Request) -> Result<Response> {
         let url = request.url();
         let host_key = HostKey::try_from(url)?;
-        let host = self.get_or_create_host(host_key)?;
+        let host = self.get_or_create_host(host_key);
         host.execute_request(request).await
     }
 
     /// Get an existing host or create a new one for the given hostname
-    fn get_or_create_host(&self, host_key: HostKey) -> Result<Arc<Host>> {
+    fn get_or_create_host(&self, host_key: HostKey) -> Arc<Host> {
         self.hosts
             .entry(host_key.clone())
-            .or_try_insert_with(|| {
+            .or_insert_with(|| {
                 let host_config = self
                     .host_configs
                     .get(&host_key)
@@ -104,9 +104,15 @@ impl HostPool {
                     .unwrap_or(&self.default_client)
                     .clone();
 
-                Host::new(host_key, &host_config, &self.global_config, client).map(Arc::new)
+                Arc::new(Host::new(
+                    host_key,
+                    &host_config,
+                    &self.global_config,
+                    client,
+                ))
             })
-            .map(|entry| entry.value().clone())
+            .value()
+            .clone()
     }
 
     /// Returns statistics for the host if it exists, otherwise returns empty stats.
@@ -213,12 +219,12 @@ impl HostPool {
     ///
     /// # Errors
     ///
-    /// Returns an error if the host key cannot be parsed from the URI or if the host cannot be created.
+    /// Returns an error if the host key cannot be parsed from the URI.
     pub fn record_cache_hit(&self, uri: &crate::Uri) -> Result<()> {
         let host_key = crate::ratelimit::HostKey::try_from(uri)?;
 
         // Get or create the host (this ensures statistics tracking even for cache-only requests)
-        let host = self.get_or_create_host(host_key)?;
+        let host = self.get_or_create_host(host_key);
         host.record_persistent_cache_hit();
         Ok(())
     }
@@ -231,12 +237,12 @@ impl HostPool {
     ///
     /// # Errors
     ///
-    /// Returns an error if the host key cannot be parsed from the URI or if the host cannot be created.
+    /// Returns an error if the host key cannot be parsed from the URI.
     pub fn record_cache_miss(&self, uri: &crate::Uri) -> Result<()> {
         let host_key = crate::ratelimit::HostKey::try_from(uri)?;
 
         // Get or create the host (this ensures statistics tracking even for cache-only requests)
-        let host = self.get_or_create_host(host_key)?;
+        let host = self.get_or_create_host(host_key);
         host.record_persistent_cache_miss();
         Ok(())
     }
@@ -289,7 +295,7 @@ mod tests {
         assert_eq!(pool.host_stats("example.com").total_requests, 0);
 
         // Create host on demand
-        let host = pool.get_or_create_host(host_key).unwrap();
+        let host = pool.get_or_create_host(host_key);
 
         // Now we have one host
         assert_eq!(pool.active_host_count(), 1);
@@ -307,11 +313,11 @@ mod tests {
         let host_key2 = HostKey::try_from(&url).unwrap();
 
         // Create host for first request
-        let host1 = pool.get_or_create_host(host_key1).unwrap();
+        let host1 = pool.get_or_create_host(host_key1);
         assert_eq!(pool.active_host_count(), 1);
 
         // Second request to same host should reuse
-        let host2 = pool.get_or_create_host(host_key2).unwrap();
+        let host2 = pool.get_or_create_host(host_key2);
         assert_eq!(pool.active_host_count(), 1);
 
         // Should be the same instance
