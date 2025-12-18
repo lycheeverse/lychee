@@ -119,27 +119,25 @@ impl Input {
                     }
                     return;
                 }
-                InputSource::FsPath(ref path) => {
+                InputSource::FsPath(ref path) if !skip_missing => {
                     // We check if the file is readable before processing. This catches
                     // permission errors and missing files early. However, when skip_missing
                     // is enabled, we skip this validation entirely and let the file be
                     // processed later in the stream. If reading fails there, the error will
                     // be caught and skipped. This ensures --skip-missing works for directly
                     // specified file paths, not just for files discovered through glob expansion.
-                    if !skip_missing {
-                        let is_readable = if path.is_dir() {
-                            path.read_dir()
-                                .map(|_| ())
-                                .map_err(|e| ErrorKind::DirTraversal(ignore::Error::Io(e)))
-                        } else {
-                            // We check existence without opening the file to avoid issues with
-                            // pipes and special files. This does not validate permissions.
-                            path.metadata()
-                                .map(|_| ())
-                                .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))
-                        };
-                        is_readable.map_err(user_input_error)?;
-                    }
+                    let is_readable = if path.is_dir() {
+                        path.read_dir()
+                            .map(|_| ())
+                            .map_err(|e| ErrorKind::DirTraversal(ignore::Error::Io(e)))
+                    } else {
+                        // We check existence without opening the file to avoid issues with
+                        // pipes and special files. This does not validate permissions.
+                        path.metadata()
+                            .map(|_| ())
+                            .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))
+                    };
+                    is_readable.map_err(user_input_error)?;
                 }
                 InputSource::Stdin => {
                     yield Self::stdin_content(self.file_type_hint)
@@ -393,8 +391,9 @@ mod tests {
         let input = Input::from_value("example.com");
         assert!(matches!(input, Err(ErrorKind::InvalidInput(_))));
 
-        if let Err(ErrorKind::InvalidInput(msg)) = input {
-            assert!(msg.contains("Use full URL"));
+        if let Err(error) = input {
+            let error_msg = error.to_string();
+            assert!(error_msg.contains("Use full URL"));
         }
     }
 
@@ -544,10 +543,11 @@ mod tests {
         ));
 
         // Error message should be helpful
-        if let Err(ErrorKind::InvalidInput(msg)) = Input::from_value("example.com") {
-            assert!(msg.contains("not found as file"));
-            assert!(msg.contains("not a valid URL"));
-            assert!(msg.contains("https://example.com"));
+        if let Err(error) = Input::from_value("example.com") {
+            let error_msg = error.to_string();
+            assert!(error_msg.contains("not found as file"));
+            assert!(error_msg.contains("not a valid URL"));
+            assert!(error_msg.contains("https://example.com"));
         } else {
             panic!("Expected InvalidInput error with helpful message");
         }

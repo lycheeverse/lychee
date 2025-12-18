@@ -21,8 +21,6 @@ use reqwest::Url;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::borrow::Cow;
 use std::fmt::Display;
-#[cfg(windows)]
-use std::path::Path;
 use std::path::PathBuf;
 use std::result::Result;
 
@@ -54,69 +52,29 @@ impl InputSource {
     /// Parses a [`InputSource`] from the given string. The kind of input source will be
     /// automatically detected according to certain rules and precedences.
     ///
-    /// # Validation Strategy
-    ///
-    /// This function uses two validation approaches:
-    ///
-    /// Immediate validation for explicit, unambiguous file paths, including:
-    /// - Absolute paths (`/foo/bar`, `C:\foo`)
-    /// - Explicit relative paths (`./`, `../`, `~`)
-    ///
-    /// The goal is to catch typos and invalid paths early to provide immediate
-    /// feedback. However, this is not always possible due to ambiguities in input formats.
-    /// That's why we also have deferred validation for ambiguous cases.
-    ///
-    /// Deferred validation for ambiguous inputs, including:
-    /// - Hidden files (`.gitignore`)
-    /// - Relative paths without explicit notation (`path/to/file`)
-    /// - Inputs that might be file paths (`some-file`)
-    ///
-    /// This allows the `--skip-missing` flag to work correctly by deferring
-    /// existence checks until processing time when the flag can be consulted.
-    ///
-    /// If the file is indeed missing, but `--skip-missing` is set, the error
-    /// will be ignored. However, if the file is missing and `--skip-missing` is
-    /// not set, an error will be raised at that time. This is less ideal than
-    /// immediate validation, but necessary due to the mentioned ambiguity.
-    ///
     /// # Errors
     ///
     /// Returns an error if:
-    /// - An explicit file path doesn't exist (immediate validation)
-    /// - The input looks like a domain or word without a URL scheme (e.g., `example.com`)
-    /// - The input is a URL with an unsupported scheme (only `http://` and `https://` are supported)
-    /// - The glob pattern syntax is invalid
+    /// - the input does not exist (i.e. the path is invalid)
+    /// - the input cannot be parsed as a URL
     pub fn new(input: &str, glob_ignore_case: bool) -> Result<Self, ErrorKind> {
         if input == Self::STDIN {
             return Ok(InputSource::Stdin);
         }
 
-        // Detect drive-letter paths with `Path::is_absolute()` This handles
-        // Windows absolute paths (e.g., C:\path) before URL parsing
-        //
-        // Drive letters can be mistaken for URL schemes, so we need to check
-        // this first. This is only necessary on Windows, as Unix absolute paths
-        // always start with `/`, which cannot be confused with URLs.
-        #[cfg(windows)]
-        {
-            let path = Path::new(input);
-            if path.is_absolute() {
-                return if path.exists() {
-                    Ok(InputSource::FsPath(path.to_path_buf()))
-                } else {
-                    Err(ErrorKind::InvalidFile(path.to_path_buf()))
-                };
-            }
-        }
-
-        // We use [`reqwest::Url::parse`] because it catches some other edge
-        // cases that [`http::Request:builder`] does not
+        // We use [`reqwest::Url::parse`] because it catches some other edge cases that [`http::Request:builder`] does not
         if let Ok(url) = Url::parse(input) {
-            // Only accept HTTP and HTTPS URLs
-            return match url.scheme() {
-                "http" | "https" => Ok(InputSource::RemoteUrl(Box::new(url))),
-                _ => Err(ErrorKind::InvalidFile(PathBuf::from(input))),
-            };
+            match url.scheme() {
+                "http" | "https" => return Ok(InputSource::RemoteUrl(Box::new(url))),
+                scheme if scheme.len() > 1 => {
+                    // Valid URL with unsupported scheme - treat as file path error
+                    return Err(ErrorKind::InvalidFile(PathBuf::from(input)));
+                }
+                _ => {
+                    // Single character scheme (likely Windows drive letter)
+                    // Continue to file path handling
+                }
+            }
         }
 
         // This seems to be the only way to determine if this is a glob pattern
@@ -132,80 +90,20 @@ impl InputSource {
         // It might be a file path; check if it exists
         let path = PathBuf::from(input);
 
-        // On Windows, a filepath can never be mistaken for a
-        // URL, because Windows filepaths use `\` and URLs use
-        // `/`
-        #[cfg(windows)]
         if path.exists() {
             // The file exists, so we return the path
             Ok(InputSource::FsPath(path))
-        } else if input.contains('\\') || input.contains('/') || input.starts_with('.') {
-            // These look like file paths, parse as path and let skip_missing
-            // handle them later
-            Ok(InputSource::FsPath(path))
-        } else if input.contains('.') || input.chars().all(|c| c.is_ascii_alphabetic()) {
-            // Looks like it could be a domain name or simple word without scheme
-            Err(ErrorKind::InvalidInput(format!(
-                "Input '{input}' not found as file and not a valid URL. \
-                     Use full URL (e.g., https://example.com) or check file path."
-            )))
         } else {
-            // Treat as potential file path, parse as path and let skip_missing
-            // handle it later
-            Ok(InputSource::FsPath(path))
-        }
-
-        #[cfg(unix)]
-        if path.exists() {
-            Ok(InputSource::FsPath(path))
-        } else if path.is_absolute() {
-            // Absolute paths (e.g., `/foo/bar`) are unambiguous file paths.
-            // Validate immediately to provide early feedback for typos, consistent
-            // with how Windows handles absolute paths.
-            Err(ErrorKind::InvalidFile(path))
-        } else if input.starts_with('~') || input.starts_with("./") || input.starts_with("../") {
-            // Paths using explicit relative path notation (~, ./, ../) are unambiguously
-            // file paths and should be validated immediately to catch typos early.
-            //
-            // Immediate validation means these will error during input parsing, before
-            // the --skip-missing flag can be checked. This is intentional because:
-            //
-            // 1. These syntaxes are explicit file path notation that cannot be URLs
-            // 2. Users benefit from immediate feedback when they mistype a path
-            // 3. The --skip-missing flag is meant for "discovered" files (e.g.,
-            //    through glob expansion) rather than explicitly specified paths
-            //
-            // Examples of immediate validation:
-            // - `/absolute/path/file.txt` → absolute path
-            // - `./documents/readme.md` → explicit current dir
-            // - `../parent/file.txt` → explicit parent dir
-            // - `~/config/settings.yaml` → explicit home dir
-            Err(ErrorKind::InvalidFile(path))
-        } else if input.starts_with('.') {
-            // Starts with `.` but not `./` or `../`, which means this could be
-            // a hidden file (e.g., `.gitignore`). Since we're unsure, treat as
-            // a file path and defer validation to respect --skip-missing.
-            //
-            // Examples of deferred validation:
-            // - `.hidden` → hidden file, not relative path notation
-            // - `some-file` → ambiguous input
-            // - `path/to/file` → this looks like path but not explicit (i.e.
-            //   not `./path/to/file`, so there's still some ambiguity)
-            Ok(InputSource::FsPath(path))
-        } else if input.contains('/') {
-            // Contains a slash but doesn't use explicit relative path notation.
-            // Looks like a file path, parse as path and let skip_missing handle
-            // validation later. Example: `path/to/file`
-            Ok(InputSource::FsPath(path))
-        } else if input.contains('.') || input.chars().all(|c| c.is_ascii_alphabetic()) {
-            // Looks like it could be a domain name or simple word without scheme
-            Err(ErrorKind::InvalidInput(format!(
-                "Input '{input}' not found as file and not a valid URL. \
-                     Use full URL (e.g., https://example.com) or check file path."
-            )))
-        } else {
-            // Treat as potential file path, parse as path and let skip_missing handle it later
-            Ok(InputSource::FsPath(path))
+            // Check if it looks like a domain or simple word without scheme
+            if (input.contains('.') && !input.contains('/') && !input.contains('\\'))
+                || input.chars().all(|c| c.is_ascii_alphabetic())
+            {
+                // Looks like a domain name or simple word without scheme
+                Err(ErrorKind::InvalidInput(input.to_string()))
+            } else {
+                // Treat as file path that doesn't exist
+                Err(ErrorKind::InvalidFile(path))
+            }
         }
     }
 

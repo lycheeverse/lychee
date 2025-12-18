@@ -117,7 +117,9 @@ pub enum ErrorKind {
     InvalidFile(PathBuf),
 
     /// The given input is neither a valid file path nor a valid URL
-    #[error("{0}")]
+    #[error(
+        "Input '{0}' not found as file and not a valid URL. Use full URL (e.g., https://example.com) or check file path."
+    )]
     InvalidInput(String),
 
     /// Error while traversing an input directory
