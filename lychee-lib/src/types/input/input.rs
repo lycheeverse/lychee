@@ -463,23 +463,23 @@ mod tests {
     }
 
     #[test]
-    fn test_url_scheme_check_failing() {
-        // Invalid schemes
+    fn test_url_scheme_check_passing() {
+        // Valid schemes should be accepted (future compatibility)
         assert!(matches!(
             Input::from_value("ftp://example.com"),
-            Err(ErrorKind::InvalidFile(_))
+            Ok(Input { source: InputSource::RemoteUrl(_), .. })
         ));
         assert!(matches!(
             Input::from_value("httpx://example.com"),
-            Err(ErrorKind::InvalidFile(_))
+            Ok(Input { source: InputSource::RemoteUrl(_), .. })
         ));
         assert!(matches!(
             Input::from_value("file:///path/to/file"),
-            Err(ErrorKind::InvalidFile(_))
+            Ok(Input { source: InputSource::RemoteUrl(_), .. })
         ));
         assert!(matches!(
             Input::from_value("mailto:user@example.com"),
-            Err(ErrorKind::InvalidFile(_))
+            Ok(Input { source: InputSource::RemoteUrl(_), .. })
         ));
     }
 

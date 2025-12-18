@@ -64,12 +64,9 @@ impl InputSource {
 
         // We use [`reqwest::Url::parse`] because it catches some other edge cases that [`http::Request:builder`] does not
         if let Ok(url) = Url::parse(input) {
+            // Weed out Windows drive letters which will be incorrectly accepted as URLs.
             match url.scheme() {
-                "http" | "https" => return Ok(InputSource::RemoteUrl(Box::new(url))),
-                scheme if scheme.len() > 1 => {
-                    // Valid URL with unsupported scheme - treat as file path error
-                    return Err(ErrorKind::InvalidFile(PathBuf::from(input)));
-                }
+                scheme if scheme.len() > 1 => return Ok(InputSource::RemoteUrl(Box::new(url))),
                 _ => {
                     // Single character scheme (likely Windows drive letter)
                     // Continue to file path handling
