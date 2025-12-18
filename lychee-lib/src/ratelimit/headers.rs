@@ -1,3 +1,7 @@
+//! Handle rate limiting headers.
+//! Note that we might want to replace this module with
+//! <https://github.com/mre/rate-limits> at some point in the future.
+
 use http::HeaderValue;
 use std::time::{Duration, SystemTime};
 use thiserror::Error;
