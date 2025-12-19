@@ -18,5 +18,5 @@ mod host;
 mod pool;
 
 pub use config::{HostConfig, HostConfigs, RateLimitConfig};
-pub use host::{Host, HostKey, HostStats, RequestInterval};
+pub use host::{Host, HostKey, HostStats};
 pub use pool::{ClientMap, HostPool};

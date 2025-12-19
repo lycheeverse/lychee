@@ -11,7 +11,7 @@ use http::{
     header::{HeaderName, HeaderValue},
 };
 use lychee_lib::Preprocessor;
-use lychee_lib::ratelimit::{HostConfigs, RequestInterval};
+use lychee_lib::ratelimit::HostConfigs;
 use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
@@ -561,8 +561,9 @@ with a status code of 429, 500 and 501."
     /// Examples:
     ///   --host-request-interval 50ms   # Fast for robust APIs
     ///   --host-request-interval 1s     # Conservative for rate-limited APIs
-    #[arg(long, verbatim_doc_comment)]
-    pub(crate) host_request_interval: Option<RequestInterval>,
+    #[arg(long, value_parser = humantime::parse_duration, verbatim_doc_comment)]
+    #[serde(default, with = "humantime_serde")]
+    pub(crate) host_request_interval: Option<Duration>,
 
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system

@@ -1,7 +1,7 @@
 use crate::ratelimit::headers;
 use dashmap::DashMap;
 use governor::{
-    RateLimiter,
+    Quota, RateLimiter,
     clock::DefaultClock,
     state::{InMemoryState, NotKeyed},
 };
@@ -56,7 +56,7 @@ pub struct Host {
     pub key: HostKey,
 
     /// Rate limiter using token bucket algorithm
-    rate_limiter: RateLimiter<NotKeyed, InMemoryState, DefaultClock>,
+    rate_limiter: Option<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>,
 
     /// Controls maximum concurrent requests to this host
     semaphore: Semaphore,
@@ -84,12 +84,9 @@ impl Host {
         client: ReqwestClient,
     ) -> Self {
         const MAX_BURST: NonZeroU32 = NonZeroU32::new(1).unwrap();
-        let quota = host_config
-            .effective_request_interval(global_config)
-            .into_inner()
-            .allow_burst(MAX_BURST);
-
-        let rate_limiter = RateLimiter::direct(quota);
+        let interval = host_config.effective_request_interval(global_config);
+        let rate_limiter =
+            Quota::with_period(interval).map(|q| RateLimiter::direct(q.allow_burst(MAX_BURST)));
 
         // Create semaphore for concurrency control
         let max_concurrent = host_config.effective_concurrency(global_config);
@@ -180,8 +177,9 @@ impl Host {
             tokio::time::sleep(backoff_duration).await;
         }
 
-        // Wait for rate limiter permission
-        self.rate_limiter.until_ready().await;
+        if let Some(rate_limiter) = &self.rate_limiter {
+            rate_limiter.until_ready().await;
+        }
 
         // Execute the request and track timing
         let start_time = Instant::now();

@@ -217,6 +217,6 @@ host_request_interval = "50ms"
 # Overwrite `host_concurrency` for this host
 concurrency = 5
 # Overwrite `host_request_interval` for this host
-request_interval = "200ms"
+request_interval = "0" # zero disables rate limiting
 # Merge global `header` values with the following `headers` for this host
 headers = { "A" = "B" }
