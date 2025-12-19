@@ -92,7 +92,7 @@ impl Host {
         let rate_limiter = RateLimiter::direct(quota);
 
         // Create semaphore for concurrency control
-        let max_concurrent = host_config.effective_max_concurrent(global_config);
+        let max_concurrent = host_config.effective_concurrency(global_config);
         let semaphore = Semaphore::new(max_concurrent);
 
         Host {

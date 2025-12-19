@@ -210,13 +210,13 @@ suggest = true
 host_concurrency = 5
 
 # Minimum interval between requests to the same host
-request_interval = "200ms"
+host_request_interval = "50ms"
 
 # Customize hosts
 [hosts."blog.example.com"]
 # Overwrite `host_concurrency` for this host
-max_concurrent = 5
-# Overwrite `request_interval` for this host
+concurrency = 5
+# Overwrite `host_request_interval` for this host
 request_interval = "200ms"
-# Combine global `header` values with the following `headers` for this host
+# Merge global `header` values with the following `headers` for this host
 headers = { "A" = "B" }

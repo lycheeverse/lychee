@@ -5,14 +5,14 @@ use std::collections::HashMap;
 use crate::ratelimit::{HostKey, RequestInterval};
 
 /// Default number of concurrent requests per host
-const DEFAULT_HOST_CONCURRENCY: usize = 10;
+const DEFAULT_CONCURRENCY: usize = 10;
 
 /// Global rate limiting configuration that applies as defaults to all hosts
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct RateLimitConfig {
     /// Default maximum concurrent requests per host
-    #[serde(default = "default_host_concurrency")]
-    pub host_concurrency: usize,
+    #[serde(default = "default_concurrency")]
+    pub concurrency: usize,
 
     /// Default minimum interval between requests to the same host
     pub request_interval: RequestInterval,
@@ -21,7 +21,7 @@ pub struct RateLimitConfig {
 impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
-            host_concurrency: default_host_concurrency(),
+            concurrency: default_concurrency(),
             request_interval: RequestInterval::default(),
         }
     }
@@ -31,11 +31,11 @@ impl RateLimitConfig {
     /// Create a `RateLimitConfig` from CLI options, using defaults for missing values
     #[must_use]
     pub fn from_options(
-        host_concurrency: Option<usize>,
+        concurrency: Option<usize>,
         request_interval: Option<RequestInterval>,
     ) -> Self {
         Self {
-            host_concurrency: host_concurrency.unwrap_or(DEFAULT_HOST_CONCURRENCY),
+            concurrency: concurrency.unwrap_or(DEFAULT_CONCURRENCY),
             request_interval: request_interval.unwrap_or_default(),
         }
     }
@@ -49,7 +49,7 @@ pub type HostConfigs = HashMap<HostKey, HostConfig>;
 #[serde(deny_unknown_fields)]
 pub struct HostConfig {
     /// Maximum concurrent requests allowed to this host
-    pub max_concurrent: Option<usize>,
+    pub concurrency: Option<usize>,
 
     /// Minimum interval between requests to this host
     pub request_interval: Option<RequestInterval>,
@@ -64,7 +64,7 @@ pub struct HostConfig {
 impl Default for HostConfig {
     fn default() -> Self {
         Self {
-            max_concurrent: None,
+            concurrency: None,
             request_interval: None,
             headers: HeaderMap::new(),
         }
@@ -72,16 +72,15 @@ impl Default for HostConfig {
 }
 
 /// Default number of concurrent requests per host
-const fn default_host_concurrency() -> usize {
-    DEFAULT_HOST_CONCURRENCY
+const fn default_concurrency() -> usize {
+    DEFAULT_CONCURRENCY
 }
 
 impl HostConfig {
-    /// Get the effective max concurrency, falling back to the global default
+    /// Get the effective maximum concurrency, falling back to the global default
     #[must_use]
-    pub fn effective_max_concurrent(&self, global_config: &RateLimitConfig) -> usize {
-        self.max_concurrent
-            .unwrap_or(global_config.host_concurrency)
+    pub fn effective_concurrency(&self, global_config: &RateLimitConfig) -> usize {
+        self.concurrency.unwrap_or(global_config.concurrency)
     }
 
     /// Get the effective request interval, falling back to the global default
@@ -138,7 +137,7 @@ mod tests {
 
         // Test with no overrides
         let host_config = HostConfig::default();
-        assert_eq!(host_config.effective_max_concurrent(&global_config), 10);
+        assert_eq!(host_config.effective_concurrency(&global_config), 10);
         assert_eq!(
             host_config.effective_request_interval(&global_config),
             RequestInterval::default(),
@@ -146,11 +145,11 @@ mod tests {
 
         // Test with overrides
         let host_config = HostConfig {
-            max_concurrent: Some(5),
+            concurrency: Some(5),
             request_interval: Some("500ms".parse().unwrap()),
             headers: HeaderMap::new(),
         };
-        assert_eq!(host_config.effective_max_concurrent(&global_config), 5);
+        assert_eq!(host_config.effective_concurrency(&global_config), 5);
         assert_eq!(
             host_config
                 .effective_request_interval(&global_config)
@@ -162,14 +161,14 @@ mod tests {
     #[test]
     fn test_config_serialization() {
         let config = RateLimitConfig {
-            host_concurrency: 15,
+            concurrency: 15,
             request_interval: "200ms".parse().unwrap(),
         };
 
         let toml = toml::to_string(&config).unwrap();
         let deserialized: RateLimitConfig = toml::from_str(&toml).unwrap();
 
-        assert_eq!(config.host_concurrency, deserialized.host_concurrency);
+        assert_eq!(config.concurrency, deserialized.concurrency);
         assert_eq!(config.request_interval, deserialized.request_interval);
     }
 
@@ -180,7 +179,7 @@ mod tests {
         headers.insert("User-Agent", "test-agent".parse().unwrap());
 
         let host_config = HostConfig {
-            max_concurrent: Some(5),
+            concurrency: Some(5),
             request_interval: Some("500ms".parse().unwrap()),
             headers,
         };
@@ -188,7 +187,7 @@ mod tests {
         let toml = toml::to_string(&host_config).unwrap();
         let deserialized: HostConfig = toml::from_str(&dbg!(toml)).unwrap();
 
-        assert_eq!(deserialized.max_concurrent, Some(5));
+        assert_eq!(deserialized.concurrency, Some(5));
         assert_eq!(
             deserialized.request_interval,
             Some("500ms".parse().unwrap())

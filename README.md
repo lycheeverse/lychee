@@ -542,6 +542,18 @@ Options:
             --host-concurrency 2   # Conservative for slow APIs
             --host-concurrency 20  # Aggressive for fast APIs
 
+      --host-request-interval <HOST_REQUEST_INTERVAL>
+          Minimum interval between requests to the same host (default: 50ms)
+
+          Sets a baseline delay between consecutive requests to prevent
+          overloading servers. The adaptive algorithm may increase this based
+          on server responses (rate limits, errors). Use the `hosts` option
+          to configure this on a per-host basis.
+
+          Examples:
+            --host-request-interval 50ms   # Fast for robust APIs
+            --host-request-interval 1s     # Conservative for rate-limited APIs
+
       --host-stats
           Show per-host statistics at the end of the run
 
@@ -665,18 +677,6 @@ Options:
 
       --remap <REMAP>
           Remap URI matching pattern to different URI
-
-      --request-interval <REQUEST_INTERVAL>
-          Minimum interval between requests to the same host (default: 100ms)
-
-          Sets a baseline delay between consecutive requests to prevent
-          overloading servers. The adaptive algorithm may increase this based
-          on server responses (rate limits, errors). Use the `hosts` option
-          to configure this on a per-host basis.
-
-          Examples:
-            --request-interval 50ms   # Fast for robust APIs
-            --request-interval 1s     # Conservative for rate-limited APIs
 
       --require-https
           When HTTPS is available, treat HTTP links as errors

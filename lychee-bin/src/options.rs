@@ -391,7 +391,7 @@ where
 pub(crate) struct Config {
     /// Read input filenames from the given file or stdin (if path is '-').
     #[arg(
-        long = "files-from",
+        long,
         value_name = "PATH",
         long_help = "Read input filenames from the given file or stdin (if path is '-').
 
@@ -547,11 +547,11 @@ with a status code of 429, 500 and 501."
     /// Examples:
     ///   --host-concurrency 2   # Conservative for slow APIs
     ///   --host-concurrency 20  # Aggressive for fast APIs
-    #[arg(long = "host-concurrency", verbatim_doc_comment)]
+    #[arg(long, verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) host_concurrency: Option<usize>,
 
-    /// Minimum interval between requests to the same host (default: 100ms)
+    /// Minimum interval between requests to the same host (default: 50ms)
     ///
     /// Sets a baseline delay between consecutive requests to prevent
     /// overloading servers. The adaptive algorithm may increase this based
@@ -559,10 +559,10 @@ with a status code of 429, 500 and 501."
     /// to configure this on a per-host basis.
     ///
     /// Examples:
-    ///   --request-interval 50ms   # Fast for robust APIs
-    ///   --request-interval 1s     # Conservative for rate-limited APIs
-    #[arg(long = "request-interval", verbatim_doc_comment)]
-    pub(crate) request_interval: Option<RequestInterval>,
+    ///   --host-request-interval 50ms   # Fast for robust APIs
+    ///   --host-request-interval 1s     # Conservative for rate-limited APIs
+    #[arg(long, verbatim_doc_comment)]
+    pub(crate) host_request_interval: Option<RequestInterval>,
 
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
@@ -700,7 +700,7 @@ Note: This option only takes effect on `file://` URIs which exist and point to a
     /// Set custom header for requests
     #[arg(
         short = 'H',
-        long = "header",
+        long,
         // Note: We use a `Vec<(String, String)>` for headers, which is
         // unfortunate. The reason is that `clap::ArgAction::Append` collects
         // multiple values, and `clap` cannot automatically convert these tuples
@@ -994,7 +994,7 @@ impl Config {
                 cookie_jar: None,
                 default_extension: None,
                 host_concurrency: None,
-                request_interval: None,
+                host_request_interval: None,
                 dump: false,
                 dump_inputs: false,
                 exclude: Vec::<String>::new(),

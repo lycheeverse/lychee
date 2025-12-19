@@ -57,7 +57,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .index_files(cfg.index_files.clone())
         .rate_limit_config(RateLimitConfig::from_options(
             cfg.host_concurrency,
-            cfg.request_interval,
+            cfg.host_request_interval,
         ))
         .hosts(cfg.hosts.clone())
         .build()

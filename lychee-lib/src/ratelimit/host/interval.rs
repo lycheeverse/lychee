@@ -39,9 +39,9 @@ impl RequestInterval {
 }
 
 impl Default for RequestInterval {
-    /// The default interval is 100 milliseconds.
+    /// The default interval is 50 milliseconds.
     fn default() -> Self {
-        const PER_SECOND: Quota = Quota::per_second(NonZero::new(10).unwrap());
+        const PER_SECOND: Quota = Quota::per_second(NonZero::new(20).unwrap());
         Self(PER_SECOND)
     }
 }
