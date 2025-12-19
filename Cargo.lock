@@ -528,7 +528,7 @@ dependencies = [
  "http 1.4.0",
  "lychee-lib",
  "regex",
- "reqwest 0.12.24",
+ "reqwest 0.12.26",
  "tokio",
 ]
 
@@ -655,7 +655,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "lychee-lib",
- "reqwest 0.12.24",
+ "reqwest 0.12.26",
  "tokio",
 ]
 
@@ -792,7 +792,7 @@ dependencies = [
  "http 1.4.0",
  "lychee-lib",
  "regex",
- "reqwest 0.12.24",
+ "reqwest 0.12.26",
  "tokio",
  "tokio-stream",
 ]
@@ -831,9 +831,9 @@ dependencies = [
 
 [[package]]
 name = "console"
-version = "0.16.1"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b430743a6eb14e9764d4260d4c0d8123087d504eeb9c48f2b2a5e810dd369df4"
+checksum = "03e45a4a8926227e4197636ba97a9fc9b00477e9f4bd711395687c5f0734bec4"
 dependencies = [
  "encode_unicode",
  "libc",
@@ -877,24 +877,6 @@ dependencies = [
  "percent-encoding",
  "time",
  "version_check",
-]
-
-[[package]]
-name = "cookie_store"
-version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2eac901828f88a5241ee0600950ab981148a18f2f756900ffba1b125ca6a3ef9"
-dependencies = [
- "cookie",
- "document-features",
- "idna 1.1.0",
- "log",
- "publicsuffix",
- "serde",
- "serde_derive",
- "serde_json",
- "time",
- "url",
 ]
 
 [[package]]
@@ -2773,7 +2755,7 @@ dependencies = [
  "clap_mangen",
  "console",
  "const_format",
- "cookie_store 0.22.0",
+ "cookie_store",
  "csv",
  "dashmap 6.1.0",
  "env_logger",
@@ -2792,7 +2774,7 @@ dependencies = [
  "predicates",
  "pretty_assertions",
  "regex",
- "reqwest 0.12.24",
+ "reqwest 0.12.26",
  "reqwest_cookie_store",
  "ring",
  "secrecy",
@@ -2820,7 +2802,7 @@ dependencies = [
  "async-trait",
  "cached",
  "check-if-email-exists",
- "cookie_store 0.22.0",
+ "cookie_store",
  "doc-comment",
  "email_address",
  "futures",
@@ -2842,7 +2824,7 @@ dependencies = [
  "pretty_assertions",
  "pulldown-cmark",
  "regex",
- "reqwest 0.12.24",
+ "reqwest 0.12.26",
  "reqwest_cookie_store",
  "ring",
  "rstest",
@@ -3936,18 +3918,16 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.24"
+version = "0.12.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d0946410b9f7b082a427e4ef5c8ff541a88b357bc6c637c40db3a68ac70a36f"
+checksum = "3b4c14b2d9afca6a60277086b0cc6a6ae0b568f6f7916c943a8cdc79f8be240f"
 dependencies = [
- "async-compression",
  "base64 0.22.1",
  "bytes",
  "cookie",
- "cookie_store 0.21.1",
+ "cookie_store",
  "encoding_rs",
  "futures-core",
- "futures-util",
  "h2 0.4.12",
  "http 1.4.0",
  "http-body 1.0.1",
@@ -3973,7 +3953,6 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-rustls",
- "tokio-util",
  "tower",
  "tower-http",
  "tower-service",
@@ -3990,8 +3969,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e75bc88d954b228850d19e3685cedb38c030a17da34aa01c307f95d6e33de34"
 dependencies = [
  "bytes",
- "cookie_store 0.22.0",
- "reqwest 0.12.24",
+ "cookie_store",
+ "reqwest 0.12.26",
  "serde",
  "serde_derive",
  "url",
@@ -4353,9 +4332,9 @@ dependencies = [
 
 [[package]]
 name = "serde_spanned"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e24345aa0fe688594e73770a5f6d1b216508b4f93484c0026d521acd30134392"
+checksum = "f8bbf91e5a4d6315eee45e704372590b30e260ee83af6639d64557f51b067776"
 dependencies = [
  "serde_core",
 ]
@@ -5034,9 +5013,9 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.9.8"
+version = "0.9.10+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0dc8b1fb61449e27716ec0e1bdf0f6b8f3e8f6b05391e8497b8b6d7804ea6d8"
+checksum = "0825052159284a1a8b4d6c0c86cbc801f2da5afd2b225fa548c72f2e74002f48"
 dependencies = [
  "indexmap 2.12.1",
  "serde_core",
@@ -5049,9 +5028,9 @@ dependencies = [
 
 [[package]]
 name = "toml_datetime"
-version = "0.7.3"
+version = "0.7.5+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2cdb639ebbc97961c51720f858597f7f24c4fc295327923af55b74c3c724533"
+checksum = "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347"
 dependencies = [
  "serde_core",
 ]
@@ -5070,18 +5049,18 @@ dependencies = [
 
 [[package]]
 name = "toml_parser"
-version = "1.0.4"
+version = "1.0.6+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0cbe268d35bdb4bb5a56a2de88d0ad0eb70af5384a99d648cd4b3d04039800e"
+checksum = "a3198b4b0a8e11f09dd03e133c0280504d0801269e9afa46362ffde1cbeebf44"
 dependencies = [
  "winnow",
 ]
 
 [[package]]
 name = "toml_writer"
-version = "1.0.4"
+version = "1.0.6+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df8b2b54733674ad286d16267dcfc7a71ed5c776e4ac7aa3c3e2561f7c637bf2"
+checksum = "ab16f14aed21ee8bfd8ec22513f7287cd4a91aa92e44edfe2c17ddd004e92607"
 
 [[package]]
 name = "tower"
@@ -5102,17 +5081,22 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf146f99d442e8e68e585f5d798ccd3cad9a7835b917e09728880a862706456"
+checksum = "d4e6559d53cc268e5031cd8429d05415bc4cb4aefc4aa5d6cc35fbf5b924a1f8"
 dependencies = [
+ "async-compression",
  "bitflags 2.10.0",
  "bytes",
+ "futures-core",
  "futures-util",
  "http 1.4.0",
  "http-body 1.0.1",
+ "http-body-util",
  "iri-string",
  "pin-project-lite",
+ "tokio",
+ "tokio-util",
  "tower",
  "tower-layer",
  "tower-service",
