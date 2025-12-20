@@ -3139,7 +3139,13 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("https://example.com"));
     }
 
-    const REMOTE_MD: &str = "https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/fe1b03f7a328e169b7d6445ecbac34053b526e8f/lychee-url-mapping-test-file.md";
+    const REMOTE_MD: &str = "https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/9c4cd5bf94b2c70de3db9ed39b4b53e1eb7f6b0e/lychee-url-mapping-test-file.md";
+
+    /// Returns a regex (as a string) which matches the given base URL.
+    fn base_url_regex(base_url: &str) -> String {
+        let escaped = regex::escape(base_url.trim_end_matches('/'));
+        format!("^{escaped}($|[/?#])")
+    }
 
     fn normalise_url_lines<'a>(bytes: &'a [u8], old: &str, new: &str) -> String {
         let str = str::from_utf8(bytes).unwrap().replace(old, new);
@@ -3155,20 +3161,38 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[test]
-    fn test_mapping_domain_to_local_folder() {
+    fn test_mapping_whole_domain_to_local_folder() {
         let tmp = tempdir().unwrap();
 
-        let root_dir = tmp.path().join("a/b/c");
+        let root_dir = tmp.path().join("a/b/ROOT");
         std::fs::create_dir_all(&root_dir).unwrap();
 
+        let local_file = root_dir.join("local.md");
+
+        std::fs::write(&local_file, "
+these links should become local:
+[canonical](https://gist.githubusercontent.com/fully/qualified.html)
+[canonical up](https://gist.githubusercontent.com/../fully/qualified/up.html)
+[canonical root](https://gist.githubusercontent.com)
+
+these links should NOT become local:
+[fake canonical](https://gist.githubusercontent.com-fake)
+
+these links should stay local:
+[relative](relative.md)
+[root](/root)
+[root-up](/../root-up)
+        ").unwrap();
+
+        // URLs in remote paths underneath base-url should become local paths
         let proc = cargo_bin_cmd!()
             .arg("--dump")
             .arg(REMOTE_MD)
             .arg(format!("--root-dir={}", root_dir.display()))
             .arg(format!(
                 "--remap={} {}",
-                regex::escape("https://gist.githubusercontent.com"),
-                format!("file://{}", root_dir.display())
+                base_url_regex("https://gist.githubusercontent.com"),
+                format!("file://{}/", root_dir.display())
             ))
             .assert()
             .success();
@@ -3177,14 +3201,127 @@ The config file should contain every possible key for documentation purposes."
         assert_eq!(
             normalise_url_lines(&proc.get_output().stdout, &tmp.path().to_string_lossy(), "/TMP"),
             "
-file:///TMP/a/b/c/TMP/a/b/c/root
-file:///TMP/a/b/c/TMP/a/past-root
-file:///TMP/a/b/c/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/fe1b03f7a328e169b7d6445ecbac34053b526e8f/encoded%24%2A%28%20%29%5B%20%5D.html
-file:///TMP/a/b/c/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/fe1b03f7a328e169b7d6445ecbac34053b526e8f/lychee-url-mapping-test-file.md#self
-file:///TMP/a/b/c/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/fe1b03f7a328e169b7d6445ecbac34053b526e8f/query.html?boop=20
-file:///TMP/a/b/c/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/fe1b03f7a328e169b7d6445ecbac34053b526e8f/relative.html
-file:///TMP/a/b/c/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/fe1b03f7a328e169b7d6445ecbac34053b526e8f/sub/dir/index.html
-file:///TMP/a/b/c/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/up-one.html
+file:///TMP/a/b/ROOT/TMP/a/b/ROOT/root
+file:///TMP/a/b/ROOT/TMP/a/up-up
+file:///TMP/a/b/ROOT/TMP/up-up-up
+file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/9c4cd5bf94b2c70de3db9ed39b4b53e1eb7f6b0e/encoded%24%2A%28%20%29%5B%20%5D.html
+file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/9c4cd5bf94b2c70de3db9ed39b4b53e1eb7f6b0e/lychee-url-mapping-test-file.md#self
+file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/9c4cd5bf94b2c70de3db9ed39b4b53e1eb7f6b0e/query.html?boop=20
+file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/9c4cd5bf94b2c70de3db9ed39b4b53e1eb7f6b0e/relative.html
+file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/9c4cd5bf94b2c70de3db9ed39b4b53e1eb7f6b0e/sub/dir/index.html
+file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/up-one.html
+            ".trim()
+        );
+
+
+        // URLs within local files should stay local. additionally, occurences of base-url in local
+        // file should become local.
+        let proc2 = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(local_file)
+            .arg(format!("--root-dir={}", root_dir.display()))
+            .arg(format!(
+                "--remap={} {}",
+                base_url_regex("https://gist.githubusercontent.com"),
+                format!("file://{}/", root_dir.display())
+            ))
+            .assert()
+            .success();
+
+        // BUG: in the last /TMP line, the omission of /ROOT/ is due to https://github.com/lycheeverse/lychee/issues/1953
+        assert_eq!(
+            normalise_url_lines(&proc2.get_output().stdout, &tmp.path().to_string_lossy(), "/TMP"),
+            "
+file:///TMP/a/b/ROOT/
+file:///TMP/a/b/ROOT/fully/qualified.html
+file:///TMP/a/b/ROOT/fully/qualified/up.html
+file:///TMP/a/b/ROOT/relative.md
+file:///TMP/a/b/ROOT/root
+file:///TMP/a/b/root-up
+https://gist.githubusercontent.com-fake/
+            ".trim()
+        );
+    }
+
+    #[test]
+    fn test_mapping_subpath_to_local_folder() {
+        let tmp = tempdir().unwrap();
+
+        let root_dir = tmp.path().join("a/b/ROOT");
+        std::fs::create_dir_all(&root_dir).unwrap();
+
+        let local_file = root_dir.join("local.md");
+
+        std::fs::write(&local_file, "
+these links should become local:
+[canonical](https://gist.githubusercontent.com/fully/qualified.html)
+[canonical up](https://gist.githubusercontent.com/../fully/qualified/up.html)
+[canonical root](https://gist.githubusercontent.com)
+
+these links should NOT become local:
+[fake canonical](https://gist.githubusercontent.com-fake)
+
+these links should stay local:
+[relative](relative.md)
+[root](/root)
+[root-up](/../root-up)
+        ").unwrap();
+
+        // URLs in remote paths underneath base-url should become local paths
+        let proc = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(REMOTE_MD)
+            .arg(format!("--root-dir={}", root_dir.display()))
+            .arg(format!(
+                "--remap={} {}",
+                base_url_regex("https://gist.githubusercontent.com"),
+                format!("file://{}/", root_dir.display())
+            ))
+            .assert()
+            .success();
+
+        // BUG: in the first two lines, /TMP appearing twice is due to https://github.com/lycheeverse/lychee/issues/1964
+        assert_eq!(
+            normalise_url_lines(&proc.get_output().stdout, &tmp.path().to_string_lossy(), "/TMP"),
+            "
+file:///TMP/a/b/ROOT/TMP/a/b/ROOT/root
+file:///TMP/a/b/ROOT/TMP/a/up-up
+file:///TMP/a/b/ROOT/TMP/up-up-up
+file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/9c4cd5bf94b2c70de3db9ed39b4b53e1eb7f6b0e/encoded%24%2A%28%20%29%5B%20%5D.html
+file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/9c4cd5bf94b2c70de3db9ed39b4b53e1eb7f6b0e/lychee-url-mapping-test-file.md#self
+file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/9c4cd5bf94b2c70de3db9ed39b4b53e1eb7f6b0e/query.html?boop=20
+file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/9c4cd5bf94b2c70de3db9ed39b4b53e1eb7f6b0e/relative.html
+file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/9c4cd5bf94b2c70de3db9ed39b4b53e1eb7f6b0e/sub/dir/index.html
+file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/up-one.html
+            ".trim()
+        );
+
+
+        // URLs within local files should stay local. additionally, occurences of base-url in local
+        // file should become local.
+        let proc2 = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(local_file)
+            .arg(format!("--root-dir={}", root_dir.display()))
+            .arg(format!(
+                "--remap={} {}",
+                base_url_regex("https://gist.githubusercontent.com"),
+                format!("file://{}/", root_dir.display())
+            ))
+            .assert()
+            .success();
+
+        // BUG: in the last /TMP line, the omission of /ROOT/ is due to https://github.com/lycheeverse/lychee/issues/1953
+        assert_eq!(
+            normalise_url_lines(&proc2.get_output().stdout, &tmp.path().to_string_lossy(), "/TMP"),
+            "
+file:///TMP/a/b/ROOT/
+file:///TMP/a/b/ROOT/fully/qualified.html
+file:///TMP/a/b/ROOT/fully/qualified/up.html
+file:///TMP/a/b/ROOT/relative.md
+file:///TMP/a/b/ROOT/root
+file:///TMP/a/b/root-up
+https://gist.githubusercontent.com-fake/
             ".trim()
         );
     }
