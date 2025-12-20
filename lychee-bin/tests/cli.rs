@@ -3138,4 +3138,54 @@ The config file should contain every possible key for documentation purposes."
             .success()
             .stdout(contains("https://example.com"));
     }
+
+    const REMOTE_MD: &str = "https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/fe1b03f7a328e169b7d6445ecbac34053b526e8f/lychee-url-mapping-test-file.md";
+
+    fn normalise_url_lines<'a>(bytes: &'a [u8], old: &str, new: &str) -> String {
+        let str = str::from_utf8(bytes).unwrap().replace(old, new);
+
+        let mut lines = str.lines().collect::<Vec<&str>>();
+        lines.sort();
+        lines
+            .into_iter()
+            .map(|x| format!("{x}\n"))
+            .collect::<String>()
+            .trim()
+            .to_string()
+    }
+
+    #[test]
+    fn test_mapping_domain_to_local_folder() {
+        let tmp = tempdir().unwrap();
+
+        let root_dir = tmp.path().join("a/b/c");
+        std::fs::create_dir_all(&root_dir).unwrap();
+
+        let proc = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(REMOTE_MD)
+            .arg(format!("--root-dir={}", root_dir.display()))
+            .arg(format!(
+                "--remap={} {}",
+                regex::escape("https://gist.githubusercontent.com"),
+                format!("file://{}", root_dir.display())
+            ))
+            .assert()
+            .success();
+
+        // BUG: in the first two line, /TMP appearing twice is due to https://github.com/lycheeverse/lychee/issues/1964
+        assert_eq!(
+            normalise_url_lines(&proc.get_output().stdout, &tmp.path().to_string_lossy(), "/TMP"),
+            "
+file:///TMP/a/b/c/TMP/a/b/c/root
+file:///TMP/a/b/c/TMP/a/past-root
+file:///TMP/a/b/c/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/fe1b03f7a328e169b7d6445ecbac34053b526e8f/encoded%24%2A%28%20%29%5B%20%5D.html
+file:///TMP/a/b/c/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/fe1b03f7a328e169b7d6445ecbac34053b526e8f/lychee-url-mapping-test-file.md#self
+file:///TMP/a/b/c/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/fe1b03f7a328e169b7d6445ecbac34053b526e8f/query.html?boop=20
+file:///TMP/a/b/c/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/fe1b03f7a328e169b7d6445ecbac34053b526e8f/relative.html
+file:///TMP/a/b/c/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/fe1b03f7a328e169b7d6445ecbac34053b526e8f/sub/dir/index.html
+file:///TMP/a/b/c/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/up-one.html
+            ".trim()
+        );
+    }
 }
