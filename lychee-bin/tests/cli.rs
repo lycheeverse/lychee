@@ -3147,7 +3147,7 @@ The config file should contain every possible key for documentation purposes."
         format!("^{escaped}($|[/?#])")
     }
 
-    fn normalise_url_lines<'a>(bytes: &'a [u8], old: &str, new: &str) -> String {
+    fn normalise_url_lines(bytes: &[u8], old: &str, new: &str) -> String {
         let str = str::from_utf8(bytes).unwrap().replace(old, new);
 
         let mut lines = str.lines().collect::<Vec<&str>>();
@@ -3161,6 +3161,7 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[test]
+    #[allow(clippy::format_in_format_args)]
     fn test_mapping_whole_domain_to_local_folder() {
         let fixture = fixtures_path!().join("mapping_local_folder");
         let root_dir = fixture.join("a/b/ROOT");
@@ -3231,6 +3232,7 @@ file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up-two.html
     }
 
     #[test]
+    #[allow(clippy::format_in_format_args)]
     fn test_mapping_subpath_to_local_folder() {
         let fixture = fixtures_path!().join("mapping_local_folder");
         let root_dir = fixture.join("a/b/ROOT");
