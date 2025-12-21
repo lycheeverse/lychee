@@ -59,14 +59,13 @@
 #![deny(missing_docs)]
 
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, ErrorKind, Write};
+use std::io::{self, BufRead, BufReader, ErrorKind};
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use anyhow::{Context, Error, Result, bail};
 use clap::{Parser, crate_version};
 use commands::{CommandParams, generate};
-use formatters::{get_stats_formatter, log::init_logging};
+use formatters::log::init_logging;
 use http::HeaderMap;
 use log::{error, info, warn};
 
@@ -86,6 +85,7 @@ mod client;
 mod commands;
 mod files_from;
 mod formatters;
+mod host_stats;
 mod options;
 mod parse;
 mod progress;
@@ -93,10 +93,13 @@ mod stats;
 mod time;
 mod verbosity;
 
+use crate::formatters::stats::output_response_statistics;
+use crate::stats::ResponseStats;
 use crate::{
     cache::{Cache, StoreExt},
-    formatters::{duration::Duration, stats::StatsFormatter},
+    formatters::duration::Duration,
     generate::generate,
+    host_stats::output_per_host_statistics,
     options::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
 };
 
@@ -368,7 +371,6 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let requests = collector.collect_links_from_file_types(inputs, opts.config.extensions.clone());
 
     let cache = load_cache(&opts.config).unwrap_or_default();
-    let cache = Arc::new(cache);
 
     let cookie_jar = load_cookie_jar(&opts.config).with_context(|| {
         format!(
@@ -381,7 +383,6 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     })?;
 
     let client = client::create(&opts.config, cookie_jar.as_deref())?;
-
     let params = CommandParams {
         client,
         cache,
@@ -392,39 +393,10 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let exit_code = if opts.config.dump {
         commands::dump(params).await?
     } else {
-        let (stats, cache, exit_code) = commands::check(params).await?;
-
-        let github_issues = stats
-            .error_map
-            .values()
-            .flatten()
-            .any(|body| body.uri.domain() == Some("github.com"));
-
-        let stats_formatter: Box<dyn StatsFormatter> =
-            get_stats_formatter(&opts.config.format, &opts.config.mode);
-
-        let is_empty = stats.is_empty();
-        let formatted_stats = stats_formatter.format(stats)?;
-
-        if let Some(formatted_stats) = formatted_stats {
-            if let Some(output) = &opts.config.output {
-                fs::write(output, formatted_stats).context("Cannot write status output to file")?;
-            } else {
-                if opts.config.verbose.log_level() >= log::Level::Info && !is_empty {
-                    // separate summary from the verbose list of links above
-                    // with a newline
-                    writeln!(io::stdout())?;
-                }
-                // we assume that the formatted stats don't have a final newline
-                writeln!(io::stdout(), "{formatted_stats}")?;
-            }
-        }
-
-        if github_issues && opts.config.github_token.is_none() {
-            warn!(
-                "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
-            );
-        }
+        let (stats, cache, exit_code, host_pool) = commands::check(params).await?;
+        github_warning(&stats, &opts.config);
+        output_response_statistics(stats, &opts.config)?;
+        output_per_host_statistics(&host_pool, &opts.config)?;
 
         if opts.config.cache {
             cache.store(LYCHEE_CACHE_FILE)?;
@@ -439,4 +411,18 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     };
 
     Ok(exit_code as i32)
+}
+
+/// Display user-friendly message if there were any issues with GitHub URLs
+fn github_warning(stats: &ResponseStats, config: &Config) {
+    let github_errors = stats
+        .error_map
+        .values()
+        .flatten()
+        .any(|body| body.uri.domain() == Some("github.com"));
+    if github_errors && config.github_token.is_none() {
+        warn!(
+            "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
+        );
+    }
 }

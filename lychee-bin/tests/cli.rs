@@ -19,14 +19,14 @@ mod cli {
         fs::{self, File},
         io::{BufRead, Write},
         path::Path,
-        time::Duration,
+        time::{Duration, Instant},
     };
     use tempfile::{NamedTempFile, tempdir};
     use test_utils::{fixtures_path, mock_server, redirecting_mock_server, root_path};
 
     use uuid::Uuid;
     use wiremock::{
-        Mock, ResponseTemplate,
+        Mock, Request, ResponseTemplate,
         matchers::{basic_auth, method},
     };
 
@@ -2359,6 +2359,48 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
+    async fn test_retry_rate_limit_headers() {
+        const RETRY_DELAY: Duration = Duration::from_secs(1);
+        const TOLERANCE: Duration = Duration::from_millis(500);
+        let server = wiremock::MockServer::start().await;
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                ResponseTemplate::new(429)
+                    .append_header("Retry-After", RETRY_DELAY.as_secs().to_string()),
+            )
+            .expect(1)
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        let start = Instant::now();
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(move |_: &Request| {
+                let delta = Instant::now().duration_since(start);
+                assert!(delta > RETRY_DELAY);
+                assert!(delta < RETRY_DELAY + TOLERANCE);
+                ResponseTemplate::new(200)
+            })
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        cargo_bin_cmd!()
+            // Direct args are not using the host pool, they are resolved earlier via Collector
+            .arg("-")
+            // Retry wait times are added on top of host-specific backoff timeout
+            .arg("--retry-wait-time")
+            .arg("0")
+            .write_stdin(server.uri())
+            .assert()
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
+    }
+
+    #[tokio::test]
     async fn test_no_header_set_on_input() {
         let server = wiremock::MockServer::start().await;
         server
@@ -2394,7 +2436,6 @@ The config file should contain every possible key for documentation purposes."
                 wiremock::Mock::given(wiremock::matchers::method("GET"))
                     .and(wiremock::matchers::header("X-Foo", "Bar"))
                     .respond_with(wiremock::ResponseTemplate::new(200))
-                    // We expect the mock to be called exactly least once.
                     .expect(1)
                     .named("GET expecting custom header"),
             )
@@ -2421,7 +2462,6 @@ The config file should contain every possible key for documentation purposes."
                     .and(wiremock::matchers::header("X-Foo", "Bar"))
                     .and(wiremock::matchers::header("X-Bar", "Baz"))
                     .respond_with(wiremock::ResponseTemplate::new(200))
-                    // We expect the mock to be called exactly least once.
                     .expect(1)
                     .named("GET expecting custom header"),
             )
@@ -2449,8 +2489,8 @@ The config file should contain every possible key for documentation purposes."
                 wiremock::Mock::given(wiremock::matchers::method("GET"))
                     .and(wiremock::matchers::header("X-Foo", "Bar"))
                     .and(wiremock::matchers::header("X-Bar", "Baz"))
+                    .and(wiremock::matchers::header("X-Host-Specific", "Foo"))
                     .respond_with(wiremock::ResponseTemplate::new(200))
-                    // We expect the mock to be called exactly least once.
                     .expect(1)
                     .named("GET expecting custom header"),
             )
@@ -2461,7 +2501,8 @@ The config file should contain every possible key for documentation purposes."
             .arg("--verbose")
             .arg("--config")
             .arg(config)
-            .arg(server.uri())
+            .arg("-")
+            .write_stdin(server.uri())
             .assert()
             .success();
 

@@ -138,7 +138,7 @@ pub enum ErrorKind {
     #[error("Cannot send/receive message from channel")]
     Channel(#[from] tokio::sync::mpsc::error::SendError<InputContent>),
 
-    /// An URL with an invalid host was found
+    /// A URL without a host was found
     #[error("URL is missing a host")]
     InvalidUrlHost,
 
@@ -335,7 +335,7 @@ impl ErrorKind {
                 [name] => format!("An index file ({name}) is required"),
                 [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
             }.into(),
-            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the preprocessor option"))
+            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the preprocessor option")),
         }
     }
 

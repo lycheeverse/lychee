@@ -423,7 +423,12 @@ Options:
       --default-extension <EXTENSION>
           This is the default file extension that is applied to files without an extension.
 
-          This is useful for files without extensions or with unknown extensions. The extension will be used to determine the file type for processing. Examples: --default-extension md, --default-extension html
+          This is useful for files without extensions or with unknown extensions.
+          The extension will be used to determine the file type for processing.
+
+          Examples:
+            --default-extension md
+            --default-extension html
 
       --dump
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
@@ -519,9 +524,38 @@ Options:
           You can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.
           This is the same format that other tools like curl or wget use.
           Multiple headers can be specified by using the flag multiple times.
+          The specified headers are used for ALL requests.
+          Use the `hosts` option to configure headers on a per-host basis.
 
       --hidden
           Do not skip hidden directories and files
+
+      --host-concurrency <HOST_CONCURRENCY>
+          Default maximum concurrent requests per host (default: 10)
+
+          This limits the maximum amount of requests that are sent simultaneously
+          to the same host. This helps to prevent overwhelming servers and
+          running into rate-limits. Use the `hosts` option to configure this
+          on a per-host basis.
+
+          Examples:
+            --host-concurrency 2   # Conservative for slow APIs
+            --host-concurrency 20  # Aggressive for fast APIs
+
+      --host-request-interval <HOST_REQUEST_INTERVAL>
+          Minimum interval between requests to the same host (default: 50ms)
+
+          Sets a baseline delay between consecutive requests to prevent
+          overloading servers. The adaptive algorithm may increase this based
+          on server responses (rate limits, errors). Use the `hosts` option
+          to configure this on a per-host basis.
+
+          Examples:
+            --host-request-interval 50ms   # Fast for robust APIs
+            --host-request-interval 1s     # Conservative for rate-limited APIs
+
+      --host-stats
+          Show per-host statistics at the end of the run
 
   -i, --insecure
           Proceed for server connections considered insecure (invalid TLS)

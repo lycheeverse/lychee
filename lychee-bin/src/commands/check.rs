@@ -1,8 +1,10 @@
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use futures::StreamExt;
+use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -24,7 +26,7 @@ use super::CommandParams;
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
-) -> Result<(ResponseStats, Arc<Cache>, ExitCode), ErrorKind>
+) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind>
 where
     S: futures::Stream<Item = Result<Request, RequestError>>,
 {
@@ -41,7 +43,6 @@ where
     } else {
         ResponseStats::default()
     };
-    let cache_ref = params.cache.clone();
 
     let client = params.client;
     let cache = params.cache;
@@ -53,7 +54,7 @@ where
     let accept = params.cfg.accept.into();
 
     // Start receiving requests
-    tokio::spawn(request_channel_task(
+    let handle = tokio::spawn(request_channel_task(
         recv_req,
         send_resp,
         max_concurrency,
@@ -74,8 +75,9 @@ where
         stats,
     ));
 
-    // Wait until all messages are sent
-    send_inputs_loop(params.requests, send_req, &progress).await?;
+    // Wait until all requests are sent
+    send_requests(params.requests, send_req, &progress).await?;
+    let (cache, client) = handle.await?;
 
     // Wait until all responses are received
     let result = show_results_task.await?;
@@ -103,7 +105,8 @@ where
     } else {
         ExitCode::LinkCheckFailure
     };
-    Ok((stats, cache_ref, code))
+
+    Ok((stats, cache, code, client.host_pool()))
 }
 
 async fn suggest_archived_links(
@@ -143,7 +146,7 @@ async fn suggest_archived_links(
 // drops the `send_req` channel on exit
 // required for the receiver task to end, which closes send_resp, which allows
 // the show_results_task to finish
-async fn send_inputs_loop<S>(
+async fn send_requests<S>(
     requests: S,
     send_req: mpsc::Sender<Result<Request, RequestError>>,
     progress: &Progress,
@@ -180,17 +183,17 @@ async fn request_channel_task(
     send_resp: mpsc::Sender<Result<Response, ErrorKind>>,
     max_concurrency: usize,
     client: Client,
-    cache: Arc<Cache>,
+    cache: Cache,
     cache_exclude_status: HashSet<u16>,
     accept: HashSet<u16>,
-) {
+) -> (Cache, Client) {
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
         |request: Result<Request, RequestError>| async {
             let response = handle(
                 &client,
-                cache.clone(),
+                &cache,
                 cache_exclude_status.clone(),
                 request,
                 accept.clone(),
@@ -204,6 +207,8 @@ async fn request_channel_task(
         },
     )
     .await;
+
+    (cache, client)
 }
 
 /// Check a URL and return a response.
@@ -235,7 +240,7 @@ async fn check_url(client: &Client, request: Request) -> Response {
 /// a failed response.
 async fn handle(
     client: &Client,
-    cache: Arc<Cache>,
+    cache: &Cache,
     cache_exclude_status: HashSet<u16>,
     request: Result<Request, RequestError>,
     accept: HashSet<u16>,
@@ -247,6 +252,8 @@ async fn handle(
     };
 
     let uri = request.uri.clone();
+
+    // First check the persistent disk-based cache
     if let Some(v) = cache.get(&uri) {
         // Found a cached request
         // Overwrite cache status in case the URI is excluded in the
@@ -260,16 +267,28 @@ async fn handle(
             // code.
             Status::from_cache_status(v.value().status, &accept)
         };
+
+        // Track cache hit in the per-host stats (only for network URIs)
+        if !uri.is_file()
+            && let Err(e) = client.host_pool().record_cache_hit(&uri)
+        {
+            log::debug!("Failed to record cache hit for {uri}: {e}");
+        }
+
         return Ok(Response::new(uri.clone(), status, request.source.into()));
     }
 
-    // Request was not cached; run a normal check
+    // Cache miss - track it and run a normal check (only for network URIs)
+    if !uri.is_file()
+        && let Err(e) = client.host_pool().record_cache_miss(&uri)
+    {
+        log::debug!("Failed to record cache miss for {uri}: {e}");
+    }
+
     let response = check_url(client, request).await;
 
-    // - Never cache filesystem access as it is fast already so caching has no
-    //   benefit.
-    // - Skip caching unsupported URLs as they might be supported in a
-    //   future run.
+    // - Never cache filesystem access as it is fast already so caching has no benefit.
+    // - Skip caching unsupported URLs as they might be supported in a future run.
     // - Skip caching excluded links; they might not be excluded in the next run.
     // - Skip caching links for which the status code has been explicitly excluded from the cache.
     let status = response.status();

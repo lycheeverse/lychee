@@ -32,6 +32,7 @@ use crate::{
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
+    ratelimit::{ClientMap, HostConfigs, HostKey, HostPool, RateLimitConfig},
     remap::Remaps,
     types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory},
 };
@@ -304,6 +305,12 @@ pub struct ClientBuilder {
     /// early and return a status, so that subsequent chain items are
     /// skipped and the lychee-internal request chain is not activated.
     plugin_request_chain: RequestChain,
+
+    /// Global rate limiting configuration that applies as defaults to all hosts
+    rate_limit_config: RateLimitConfig,
+
+    /// Per-host configuration overrides
+    hosts: HostConfigs,
 }
 
 impl Default for ClientBuilder {
@@ -329,53 +336,20 @@ impl ClientBuilder {
     ///
     /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors
     pub fn client(self) -> Result<Client> {
-        let Self {
-            user_agent,
-            custom_headers: mut headers,
-            ..
-        } = self;
-
-        if let Some(prev_user_agent) =
-            headers.insert(header::USER_AGENT, HeaderValue::try_from(&user_agent)?)
-        {
-            debug!(
-                "Found user-agent in headers: {}. Overriding it with {user_agent}.",
-                prev_user_agent.to_str().unwrap_or("�"),
-            );
-        }
-
-        headers.insert(
-            header::TRANSFER_ENCODING,
-            HeaderValue::from_static("chunked"),
-        );
-
         let redirect_history = RedirectHistory::new();
+        let reqwest_client = self
+            .build_client(&redirect_history)?
+            .build()
+            .map_err(ErrorKind::BuildRequestClient)?;
 
-        let mut builder = reqwest::ClientBuilder::new()
-            .gzip(true)
-            .default_headers(headers)
-            .danger_accept_invalid_certs(self.allow_insecure)
-            .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
-            .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
-            .redirect(redirect_policy(
-                redirect_history.clone(),
-                self.max_redirects,
-            ));
+        let client_map = self.build_host_clients(&redirect_history)?;
 
-        if let Some(cookie_jar) = self.cookie_jar {
-            builder = builder.cookie_provider(cookie_jar);
-        }
-
-        if let Some(min_tls) = self.min_tls_version {
-            builder = builder.min_tls_version(min_tls);
-        }
-
-        let reqwest_client = match self.timeout {
-            Some(t) => builder.timeout(t),
-            None => builder,
-        }
-        .build()
-        .map_err(ErrorKind::BuildRequestClient)?;
+        let host_pool = HostPool::new(
+            self.rate_limit_config,
+            self.hosts,
+            reqwest_client,
+            client_map,
+        );
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(
@@ -406,12 +380,12 @@ impl ClientBuilder {
             self.retry_wait_time,
             redirect_history.clone(),
             self.max_retries,
-            reqwest_client,
             self.accepted,
             github_client,
             self.require_https,
             self.plugin_request_chain,
             self.include_fragments,
+            Arc::new(host_pool),
         );
 
         Ok(Client {
@@ -426,6 +400,72 @@ impl ClientBuilder {
                 self.include_fragments,
             ),
         })
+    }
+
+    /// Build the host-specific clients with their host-specific headers
+    fn build_host_clients(&self, redirect_history: &RedirectHistory) -> Result<ClientMap> {
+        self.hosts
+            .iter()
+            .map(|(host, config)| {
+                let mut headers = self.default_headers()?;
+                headers.extend(config.headers.clone());
+                let client = self
+                    .build_client(redirect_history)?
+                    .default_headers(headers)
+                    .build()
+                    .map_err(ErrorKind::BuildRequestClient)?;
+                Ok((HostKey::from(host.as_str()), client))
+            })
+            .collect()
+    }
+
+    /// Create a [`reqwest::ClientBuilder`] based on various fields
+    fn build_client(&self, redirect_history: &RedirectHistory) -> Result<reqwest::ClientBuilder> {
+        let mut builder = reqwest::ClientBuilder::new()
+            .gzip(true)
+            .default_headers(self.default_headers()?)
+            .danger_accept_invalid_certs(self.allow_insecure)
+            .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
+            .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
+            .redirect(redirect_policy(
+                redirect_history.clone(),
+                self.max_redirects,
+            ));
+
+        if let Some(cookie_jar) = self.cookie_jar.clone() {
+            builder = builder.cookie_provider(cookie_jar);
+        }
+
+        if let Some(min_tls) = self.min_tls_version {
+            builder = builder.min_tls_version(min_tls);
+        }
+
+        if let Some(timeout) = self.timeout {
+            builder = builder.timeout(timeout);
+        }
+
+        Ok(builder)
+    }
+
+    fn default_headers(&self) -> Result<HeaderMap> {
+        let user_agent = self.user_agent.clone();
+        let mut headers = self.custom_headers.clone();
+
+        if let Some(prev_user_agent) =
+            headers.insert(header::USER_AGENT, HeaderValue::try_from(&user_agent)?)
+        {
+            debug!(
+                "Found user-agent in headers: {}. Overriding it with {user_agent}.",
+                prev_user_agent.to_str().unwrap_or("�"),
+            );
+        }
+
+        headers.insert(
+            header::TRANSFER_ENCODING,
+            HeaderValue::from_static("chunked"),
+        );
+
+        Ok(headers)
     }
 }
 
@@ -467,6 +507,12 @@ pub struct Client {
 }
 
 impl Client {
+    /// Get `HostPool`
+    #[must_use]
+    pub fn host_pool(&self) -> Arc<HostPool> {
+        self.website_checker.host_pool()
+    }
+
     /// Check a single request.
     ///
     /// `request` can be either a [`Request`] or a type that can be converted
@@ -498,8 +544,7 @@ impl Client {
         }
 
         let status = match uri.scheme() {
-            // We don't check tel: URIs
-            _ if uri.is_tel() => Status::Excluded,
+            _ if uri.is_tel() => Status::Excluded, // We don't check tel: URIs
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
             _ => self.check_website(uri, credentials).await?,
