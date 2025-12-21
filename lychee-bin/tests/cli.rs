@@ -3291,8 +3291,14 @@ these links should BECOME local:
         let temp_root_dir = temp_root_dir_tmpdir.path().join("a/b/c/ROOT");
         let temp_root_subdir =
             temp_root_dir.join("katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw");
+
         std::fs::create_dir_all(temp_root_subdir.parent().unwrap()).unwrap();
+
+        #[cfg(unix)]
         std::os::unix::fs::symlink(&root_dir, &temp_root_subdir).unwrap();
+
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(&root_dir, &temp_root_subdir).unwrap();
 
         let proc = cargo_bin_cmd!()
             .arg("--dump")
@@ -3340,7 +3346,8 @@ https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/u
         let proc2 = cargo_bin_cmd!()
             .arg("--dump")
             .arg(&temp_root_subdir)
-            .arg(format!("--root-dir={}", temp_root_dir.display()))
+            // WARNING: this will not work on Windows. needs to handle C:\ then map that to URL.
+            .arg("--root-dir=/")
             .arg(format!(
                 "--remap={} {}",
                 base_url_regex(base_url),
@@ -3355,12 +3362,13 @@ https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/u
                 format!("file://{}", temp_root_dir.display()),
                 base_url
             ))
+            .arg("--remap=file:// https://gist.githubusercontent.com")
             .assert()
             .success();
         // WARNING: file:/// regexes could match an incorrect substring prefix. needs a treatment
         // similar to base-url.
 
-        // BUG: in the second last, /katrinafyi appearing twice is due to https://github.com/lycheeverse/lychee/issues/1964
+        // BUG: in the third last, /katrinafyi appearing twice is due to https://github.com/lycheeverse/lychee/issues/1964
         assert_eq!(
             normalise_url_lines(
                 &proc2.get_output().stdout,
@@ -3370,17 +3378,15 @@ https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/u
             "
 file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/make-me-local
 file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/relative.md
-file:///TMP/a/b/c/root-up
 https://gist.githubusercontent.com-fake/
 https://gist.githubusercontent.com/
 https://gist.githubusercontent.com/fully/qualified.html
 https://gist.githubusercontent.com/fully/qualified/up.html
 https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw//katrinafyi/daefc003e04b7c2f73cb54615510dce0/up
-https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw//root
+https://gist.githubusercontent.com/root
+https://gist.githubusercontent.com/root-up
             "
             .trim()
         );
-        // BUG: all of the lines with root-relative links in local files are INCORRECT.
-        // those should be remote and they should go to the root of https://gist.githubusercontent.com.
     }
 }
