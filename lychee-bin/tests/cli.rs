@@ -3162,31 +3162,9 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_mapping_whole_domain_to_local_folder() {
-        let tmp = tempdir().unwrap();
-
-        let root_dir = tmp.path().join("a/b/ROOT");
-        std::fs::create_dir_all(&root_dir).unwrap();
-
-        let local_file = root_dir.join("local.md");
-
-        std::fs::write(
-            &local_file,
-            "
-these links should become local:
-[canonical](https://gist.githubusercontent.com/fully/qualified.html)
-[canonical up](https://gist.githubusercontent.com/../fully/qualified/up.html)
-[canonical root](https://gist.githubusercontent.com)
-
-these links should NOT become local:
-[fake canonical](https://gist.githubusercontent.com-fake)
-
-these links should stay local:
-[relative](relative.md)
-[root](/root)
-[root-up](/../root-up)
-        ",
-        )
-        .unwrap();
+        let fixture = fixtures_path!().join("mapping_local_folder");
+        let root_dir = fixture.join("a/b/ROOT");
+        let local_file = root_dir.join("whole_domain.md");
 
         // relative URLs within local files should stay local. additionally, occurrences of base-url in local
         // file should become local.
@@ -3206,7 +3184,7 @@ these links should stay local:
         assert_eq!(
             normalise_url_lines(
                 &proc2.get_output().stdout,
-                &tmp.path().to_string_lossy(),
+                &fixture.to_string_lossy(),
                 "/TMP"
             ),
             "
@@ -3236,7 +3214,7 @@ https://gist.githubusercontent.com-fake/
 
         // BUG: in the first three lines, /TMP appearing twice is incorrect and due to https://github.com/lycheeverse/lychee/issues/1964
         assert_eq!(
-            normalise_url_lines(&proc.get_output().stdout, &tmp.path().to_string_lossy(), "/TMP"),
+            normalise_url_lines(&proc.get_output().stdout, &fixture.to_string_lossy(), "/TMP"),
             "
 file:///TMP/a/b/ROOT/TMP/a/b/ROOT/root
 file:///TMP/a/b/ROOT/TMP/a/up-up
@@ -3254,44 +3232,19 @@ file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up-two.html
 
     #[test]
     fn test_mapping_subpath_to_local_folder() {
-        let tmp = tempdir().unwrap();
-
-        let root_dir = tmp.path().join("a/b/ROOT");
-        std::fs::create_dir_all(&root_dir).unwrap();
-
-        let local_file = root_dir.join("local.md");
+        let fixture = fixtures_path!().join("mapping_local_folder");
+        let root_dir = fixture.join("a/b/ROOT");
 
         let base_url =
             "https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/";
 
-        std::fs::write(
-            &local_file,
-            "
-these links are outside base-url, should STAY remote:
-[canonical](https://gist.githubusercontent.com/fully/qualified.html)
-[canonical up](https://gist.githubusercontent.com/../fully/qualified/up.html)
-[canonical root](https://gist.githubusercontent.com)
-[fake canonical](https://gist.githubusercontent.com-fake)
-
-these links should STAY local:
-[relative](relative.md)
-
-these links should BECOME remote:
-[up](../up)
-[very up](../../../../very-up)
-[root](/root)
-[root-up](/../root-up)
-
-these links should BECOME local:
-[a](https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/make-me-local)
-        ",
-        )
-        .unwrap();
-
+        // construct local folders with a structure matching the subpath of base-url.
         let temp_root_dir_tmpdir = tempdir().unwrap();
         let temp_root_dir = temp_root_dir_tmpdir.path().join("a/b/c/ROOT");
         let temp_root_subdir =
             temp_root_dir.join("katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw");
+
+        let local_file = temp_root_subdir.join("subpath.md");
 
         std::fs::create_dir_all(temp_root_subdir.parent().unwrap()).unwrap();
 
@@ -3303,7 +3256,7 @@ these links should BECOME local:
 
         let proc2 = cargo_bin_cmd!()
             .arg("--dump")
-            .arg(&temp_root_subdir)
+            .arg(local_file)
             // WARNING: this will not work on Windows. needs to handle C:\ then map that to URL.
             .arg("--root-dir=/")
             .arg(format!(
