@@ -3201,7 +3201,7 @@ these links should stay local:
             .assert()
             .success();
 
-        // BUG: in the first two line, /TMP appearing twice is due to https://github.com/lycheeverse/lychee/issues/1964
+        // BUG: in the first three lines, /TMP appearing twice is incorrect and due to https://github.com/lycheeverse/lychee/issues/1964
         assert_eq!(
             normalise_url_lines(&proc.get_output().stdout, &tmp.path().to_string_lossy(), "/TMP"),
             "
@@ -3304,7 +3304,7 @@ these links should BECOME local:
         let proc = cargo_bin_cmd!()
             .arg("--dump")
             .arg(REMOTE_MD)
-            .arg(format!("--root-dir={}", temp_root_dir.display()))
+            .arg("--root-dir=/")
             .arg(format!(
                 "--remap={} {}",
                 base_url_regex(base_url),
@@ -3317,12 +3317,12 @@ these links should BECOME local:
             .arg(format!(
                 "--remap={} {}",
                 format!("file://{}", temp_root_dir.display()),
-                base_url
+                "https://gist.githubusercontent.com"
             ))
+            .arg("--remap=file:// https://gist.githubusercontent.com")
             .assert()
             .success();
 
-        // BUG: /TMP appearing inside a gist.githubusercontent.com URL is due to https://github.com/lycheeverse/lychee/issues/1964
         assert_eq!(
             normalise_url_lines(
                 &proc.get_output().stdout,
@@ -3336,13 +3336,14 @@ file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908e
 file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/relative.html
 file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/sub/dir/index.html
 file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/up-one.html
-https://gist.githubusercontent.com/TMP/a/b/c/ROOT/root
-https://gist.githubusercontent.com/TMP/a/b/up-up
-https://gist.githubusercontent.com/TMP/a/up-up-up
+https://../up-up
+https://../up-up-up
 https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up-two.html
+https://root/
             "
             .trim()
         );
+        // BUG: https://root/ and similar are incorrect and due to https://github.com/lycheeverse/lychee/issues/1964
 
         let proc2 = cargo_bin_cmd!()
             .arg("--dump")
@@ -3391,6 +3392,7 @@ https://gist.githubusercontent.com/root-up
         );
         // BUG: TMP appearing inside /very-up is incorrect. this bug happens when when a
         // link uses too many ../.. and it breaks out of temp_root_dir. if this happens,
-        // the remap will instead think it's a root-relative link. this bug is unavoidable.
+        // the remap will instead think it's a root-relative link. this bug is unavoidable
+        // with this approach.
     }
 }
