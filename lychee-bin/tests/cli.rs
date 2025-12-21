@@ -3278,6 +3278,7 @@ these links should STAY local:
 
 these links should BECOME remote:
 [up](../up)
+[very up](../../../../very-up)
 [root](/root)
 [root-up](/../root-up)
 
@@ -3360,7 +3361,7 @@ https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/u
             .arg(format!(
                 "--remap={} {}",
                 format!("file://{}", temp_root_dir.display()),
-                base_url
+                "https://gist.githubusercontent.com"
             ))
             .arg("--remap=file:// https://gist.githubusercontent.com")
             .assert()
@@ -3368,7 +3369,6 @@ https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/u
         // WARNING: file:/// regexes could match an incorrect substring prefix. needs a treatment
         // similar to base-url.
 
-        // BUG: in the third last, /katrinafyi appearing twice is due to https://github.com/lycheeverse/lychee/issues/1964
         assert_eq!(
             normalise_url_lines(
                 &proc2.get_output().stdout,
@@ -3380,13 +3380,17 @@ file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/make-me-l
 file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/relative.md
 https://gist.githubusercontent.com-fake/
 https://gist.githubusercontent.com/
+https://gist.githubusercontent.com/TMP/a/b/c/very-up
 https://gist.githubusercontent.com/fully/qualified.html
 https://gist.githubusercontent.com/fully/qualified/up.html
-https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw//katrinafyi/daefc003e04b7c2f73cb54615510dce0/up
+https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up
 https://gist.githubusercontent.com/root
 https://gist.githubusercontent.com/root-up
             "
             .trim()
         );
+        // BUG: TMP appearing inside /very-up is incorrect. this bug happens when when a
+        // link uses too many ../.. and it breaks out of temp_root_dir. if this happens,
+        // the remap will instead think it's a root-relative link. this bug is unavoidable.
     }
 }
