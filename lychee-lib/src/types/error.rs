@@ -180,11 +180,11 @@ pub enum ErrorKind {
     },
 
     /// The extracted `WikiLink` could not be found by searching the directory
-    #[error("Could not find Wikilink by searching th given base directory")]
-    WikilinkNotFound(Uri),
+    #[error("Wikilink {0} not found at {1}")]
+    WikilinkNotFound(Uri, PathBuf),
 
     /// Error on creation of the `WikilinkResolver`
-    #[error("Failed to initialize Wikilink Checker")]
+    #[error("Failed to initialize wikilink checker: {0}")]
     WikilinkInvalidBase(String),
 }
 

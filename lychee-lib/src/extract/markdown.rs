@@ -108,7 +108,7 @@ pub(crate) fn extract_markdown(
                                 span: span_provider.span(span.start + 2)
                             }])
                         } else {
-                            warn!("WARNING: The wikilink destination url {dest_url} could not be cleaned by removing potholes and fragments");
+                            warn!("The wikilink destination url {dest_url} could not be cleaned by removing potholes and fragments");
                             None
                         }
                     }

@@ -20,7 +20,7 @@ const MARKDOWN_POTHOLE_MARKER: char = '|';
 
 /// Clean a `WikiLink` by removing potholes and fragments from a `&str`
 pub(crate) fn wikilink(input: &str, has_pothole: bool) -> Result<CowStr<'_>, ErrorKind> {
-    // Strip potholes (|) from wikilinks
+    // Strip pothole marker (|) and pothole (text after marker) from wikilinks
     let mut stripped_input = if has_pothole {
         pulldown_cmark::CowStr::Borrowed(
             &input[0..input.find(MARKDOWN_POTHOLE_MARKER).unwrap_or(input.len())],
