@@ -143,7 +143,9 @@ fn render_section(title: &str, content: &str, buffer: &mut Vec<u8>) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::man_page;
-    use crate::generate::{CONTRIBUTOR_THANK_NOTE, EXIT_CODE_SECTION};
+    use crate::generate::CONTRIBUTOR_THANK_NOTE;
+    #[cfg(unix)]
+    use crate::generate::EXIT_CODE_SECTION;
     use anyhow::Result;
 
     #[test]
@@ -192,6 +194,7 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(unix)]
     fn filter_empty_lines(s: &str) -> String {
         s.lines()
             .filter(|line| !line.trim().is_empty())
