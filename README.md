@@ -929,6 +929,7 @@ Here is a list of some notable projects who are using lychee.
 - https://github.com/forus-labs/forui
 - https://github.com/FreeBSD-Ask/FreeBSD-Ask
 - https://github.com/prosekit/prosekit
+- https://github.com/tldr-pages/tldr
 - https://github.com/lycheeverse/lychee (yes, lychee is checked with lychee 🤯)
 
 If you are using lychee for your project, **please add it here**.
