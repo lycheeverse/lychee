@@ -186,6 +186,10 @@ pub enum ErrorKind {
     /// Error on creation of the `WikilinkResolver`
     #[error("Failed to initialize wikilink checker: {0}")]
     WikilinkInvalidBase(String),
+
+    /// Unsupported Character found in `WikiLink` content
+    #[error("Unsupported character {0} found in {0}")]
+    WikilinkUnsupportedCharacter(char, String),
 }
 
 impl ErrorKind {
@@ -350,6 +354,9 @@ impl ErrorKind {
             ErrorKind::WikilinkInvalidBase(reason) => Some(format!(
                 "WikiLink Resolver could not be created: {reason} ",
             )),
+            ErrorKind::WikilinkUnsupportedCharacter(character, link) => Some(format!(
+                "WikiLink {link} contains an unsupported character: {character} ",
+            )),
         }
     }
 
@@ -482,6 +489,7 @@ impl Hash for ErrorKind {
             Self::PreprocessorError { command, reason } => (command, reason).hash(state),
             Self::WikilinkNotFound(u, _p) => u.hash(state),
             Self::WikilinkInvalidBase(e) => e.hash(state),
+            Self::WikilinkUnsupportedCharacter(_c, u) => u.hash(state),
         }
     }
 }
