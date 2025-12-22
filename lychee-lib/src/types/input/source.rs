@@ -90,10 +90,9 @@ impl InputSource {
         // Assume all non-URL non-glob things are intended to be file paths.
         // The error message should be general enough to suggest solutions to the user.
         //
-        // This changes --skip-missing slightly.
-        // - Errors from command-line file inputs will always be reported.
-        // - skip-missing applies to "discovered" inputs, such as URL errors and
-        //   permission denied while traversing directories.
+        // For missing files, we defer validation to the stream processing level where
+        // --skip-missing can take effect. Domain-like inputs still get immediate
+        // InvalidInput errors for better user experience.
         if path.exists() {
             // The file exists, so we return the path
             Ok(InputSource::FsPath(path))
@@ -105,8 +104,8 @@ impl InputSource {
                 // Looks like a domain name or simple word without scheme
                 Err(ErrorKind::InvalidInput(input.to_string()))
             } else {
-                // Treat as file path that doesn't exist
-                Err(ErrorKind::InvalidFile(path))
+                // Treat as file path that doesn't exist, defer validation to --skip-missing
+                Ok(InputSource::FsPath(path))
             }
         }
     }
