@@ -1,5 +1,4 @@
 use crate::{Base, ErrorKind, Uri, checker::wikilink::index::WikilinkIndex};
-use log::trace;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
@@ -44,12 +43,8 @@ impl WikilinkResolver {
             if let Some(resolved) = self.checker.contains_path(&candidate) {
                 return Ok(resolved);
             }
-            trace!(
-                "Wikilink {uri} not found at {candidate}",
-                candidate = candidate.display()
-            );
         }
 
-        Err(ErrorKind::WikilinkNotFound(uri.clone()))
+        Err(ErrorKind::WikilinkNotFound(uri.clone(), path.to_path_buf()))
     }
 }

@@ -56,7 +56,7 @@ mod tests {
     #[case("|foo", true)]
     #[case("|foo#bar", true)]
     #[case("#baz", false)]
-    fn test_empty_wikilinks_yield_no_errors(#[case] input: &str, #[case] has_pothole: bool) {
+    fn test_empty_wikilinks_are_detected(#[case] input: &str, #[case] has_pothole: bool) {
         let result = wikilink(input, has_pothole);
         assert!(result.is_err());
     }
