@@ -300,7 +300,8 @@ impl Host {
     fn increase_backoff(&self, mut increased_backoff: Duration) {
         if increased_backoff > MAXIMUM_BACKOFF {
             warn!(
-                "Encountered an unexpectedly big rate limit backoff duration of {}. Capping the duration to {} instead.",
+                "Host {} sent an unexpectedly big rate limit backoff duration of {}. Capping the duration to {} instead.",
+                self.key,
                 format_duration(increased_backoff),
                 format_duration(MAXIMUM_BACKOFF)
             );
