@@ -48,3 +48,41 @@ impl WikilinkResolver {
         Err(ErrorKind::WikilinkNotFound(uri.clone(), path.to_path_buf()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{Base, ErrorKind, Uri, checker::wikilink::resolver::WikilinkResolver};
+    use test_utils::{fixture_uri, fixtures_path};
+
+    #[test]
+    fn test_wikilink_resolves_to_filename() {
+        let resolver = WikilinkResolver::new(
+            Some(&Base::Local(fixtures_path!().join("wiki"))),
+            vec!["md".to_string()],
+        )
+        .unwrap();
+        let uri = Uri {
+            url: fixture_uri!("wiki/Usage"),
+        };
+        let path = fixtures_path!().join("Usage");
+        let expected_result = fixtures_path!().join("wiki/Usage.md");
+        assert_eq!(resolver.resolve(&path, &uri), Ok(expected_result));
+    }
+
+    #[test]
+    fn test_wikilink_not_found() {
+        let resolver = WikilinkResolver::new(
+            Some(&Base::Local(fixtures_path!().join("wiki"))),
+            vec!["md".to_string()],
+        )
+        .unwrap();
+        let uri = Uri {
+            url: fixture_uri!("wiki/404"),
+        };
+        let path = fixtures_path!().join("404");
+        assert!(matches!(
+            resolver.resolve(&path, &uri),
+            Err(ErrorKind::WikilinkNotFound(..))
+        ));
+    }
+}

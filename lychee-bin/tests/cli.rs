@@ -3066,6 +3066,22 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[test]
+    fn test_wikilink_fixture_wikilink_non_existent() {
+        let input = fixtures_path!().join("wiki/Non-existent.md");
+
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path!())
+            .assert()
+            .failure()
+            .stdout(contains("3 Errors"));
+    }
+
+    #[test]
     fn test_wikilink_fixture_with_fragments_obsidian_style_fixtures_excluded() {
         let input = fixtures_path!().join("wiki/obsidian-style-plus-headers.md");
 
