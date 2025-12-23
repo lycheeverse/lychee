@@ -44,8 +44,10 @@ impl WikilinkIndex {
             .filter_map(Result::ok)
         {
             if let Some(filename) = entry.path().file_name() {
-                let mut lock = self.filenames.lock().unwrap();
-                lock.insert(filename.to_ascii_lowercase(), entry.path().to_path_buf());
+                self.filenames
+                    .lock()
+                    .unwrap()
+                    .insert(filename.to_os_string(), entry.path().to_path_buf());
             }
         }
     }
@@ -53,16 +55,10 @@ impl WikilinkIndex {
     /// Checks the index for a filename. Returning the absolute path if the name is found,
     /// otherwise returning None
     pub(crate) fn contains_path(&self, path: &Path) -> Option<PathBuf> {
-        match path.file_name() {
-            None => None,
-            Some(filename) => {
-                let filename_lock = self.filenames.lock().unwrap();
-                if filename_lock.contains_key(&filename.to_ascii_lowercase()) {
-                    filename_lock.get(&filename.to_ascii_lowercase()).cloned()
-                } else {
-                    None
-                }
-            }
-        }
+        self.filenames
+            .lock()
+            .unwrap()
+            .get(path.file_name()?)
+            .cloned()
     }
 }
