@@ -100,7 +100,7 @@ nix-env -iA nixos.lychee
 pkg install lychee
 ```
 
-### Scoop
+### Scoop (Windows)
 
 ```sh
 scoop install lychee
