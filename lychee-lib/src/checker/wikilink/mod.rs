@@ -17,21 +17,9 @@ use pulldown_cmark::CowStr;
 /// '|' is used to modify the link name, a so called "pothole"
 const MARKDOWN_FRAGMENT_MARKER: char = '#';
 const MARKDOWN_POTHOLE_MARKER: char = '|';
-/// A Link containing one of the following characters may not work as a link:
-/// `<https://help.obsidian.md/links#Supported+formats+for+internal+links>`
-const MARKDOWN_OBSIDIAN_PROBLEMATIC_CHARACTERS: [char; 4] = ['^', '%', '[', ']'];
 
 /// Clean a `WikiLink` by removing potholes and fragments from a `&str`
 pub(crate) fn wikilink(input: &str, has_pothole: bool) -> Result<CowStr<'_>, ErrorKind> {
-    // Check for problematic characters
-    for char in MARKDOWN_OBSIDIAN_PROBLEMATIC_CHARACTERS {
-        if input.contains(char) {
-            return Err(ErrorKind::WikilinkUnsupportedCharacter(
-                char,
-                input.to_string(),
-            ));
-        }
-    }
     // Strip pothole marker (|) and pothole (text after marker) from wikilinks
     let mut stripped_input = if has_pothole {
         pulldown_cmark::CowStr::Borrowed(
@@ -85,19 +73,6 @@ mod tests {
         let result = wikilink(input, has_pothole).unwrap();
         let actual = CowStr::Borrowed(actual);
         assert_eq!(result, actual);
-    }
-
-    #[rstest]
-    #[case("foo^", false)]
-    #[case("foo%", false)]
-    #[case("foo[", false)]
-    #[case("foo]", false)]
-    fn test_invalid_characters_in_wikilinks_are_rejected(
-        #[case] input: &str,
-        #[case] has_pothole: bool,
-    ) {
-        let result = wikilink(input, has_pothole);
-        assert!(result.is_err());
     }
 
     #[rstest]
