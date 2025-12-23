@@ -300,6 +300,10 @@ pub struct ClientBuilder {
     /// Enable the checking of fragments in links.
     include_fragments: bool,
 
+    /// Enable the checking of wikilinks in markdown files.
+    /// Note that base must not be `None` if you set this `true`.
+    include_wikilinks: bool,
+
     /// Requests run through this chain where each item in the chain
     /// can modify the request. A chained item can also decide to exit
     /// early and return a status, so that subsequent chain items are
@@ -398,7 +402,8 @@ impl ClientBuilder {
                 self.fallback_extensions,
                 self.index_files,
                 self.include_fragments,
-            ),
+                self.include_wikilinks,
+            )?,
         })
     }
 

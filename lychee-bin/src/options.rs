@@ -891,7 +891,8 @@ and existing cookies will be updated."
     pub(crate) cookie_jar: Option<PathBuf>,
 
     #[allow(clippy::doc_markdown)]
-    /// Check WikiLinks in Markdown files
+    /// Check WikiLinks in Markdown files, this requires specifying --base-url
+    #[clap(requires = "base_url")]
     #[arg(long)]
     #[serde(default)]
     pub(crate) include_wikilinks: bool,

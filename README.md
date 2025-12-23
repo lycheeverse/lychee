@@ -18,6 +18,7 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
 ## Table of Contents
 
 - [Development](#development)
@@ -573,7 +574,7 @@ Options:
           Find links in verbatim sections like `pre`- and `code` blocks
 
       --include-wikilinks
-          Check WikiLinks in Markdown files
+          Check WikiLinks in Markdown files, this requires specifying --base-url
 
       --index-files <INDEX_FILES>
           When checking locally, resolves directory links to a separate index file.
