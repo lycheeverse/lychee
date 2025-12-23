@@ -4,7 +4,7 @@ use reqwest::{Client, Request, Response};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::ratelimit::{Host, HostConfigs, HostKey, HostStats, RateLimitConfig};
+use crate::ratelimit::{self, Host, HostConfigs, HostKey, HostStats, RateLimitConfig};
 use crate::types::Result;
 use crate::{CacheStatus, ErrorKind, Status, Uri};
 
@@ -228,40 +228,40 @@ impl HostPool {
             .collect()
     }
 
-    /// Record a cache hit for the given URI in host statistics
+    /// Try to record a cache hit for the given URI in host statistics.
+    /// File and mail URIs are ignored.
     ///
     /// This tracks that a request was served from the persistent disk cache
     /// rather than going through the rate-limited HTTP request flow.
     /// This method will create a host instance if one doesn't exist yet.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the host key cannot be parsed from the URI.
-    pub fn record_cache_hit(&self, uri: &crate::Uri) -> Result<()> {
-        let host_key = crate::ratelimit::HostKey::try_from(uri)?;
-
-        // Get or create the host (this ensures statistics tracking even for cache-only requests)
-        let host = self.get_or_create_host(host_key);
-        host.record_persistent_cache_hit();
-        Ok(())
+    pub fn record_cache_hit(&self, uri: &crate::Uri) {
+        self.record_cache_event(uri, |host| host.record_persistent_cache_hit());
     }
 
-    /// Record a cache miss for the given URI in host statistics
+    /// Try to record a cache miss for the given URI in host statistics
+    /// File and mail URIs are ignored.
     ///
     /// This tracks that a request could not be served from the persistent disk cache
     /// and will need to go through the rate-limited HTTP request flow.
     /// This method will create a Host instance if one doesn't exist yet.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the host key cannot be parsed from the URI.
-    pub fn record_cache_miss(&self, uri: &crate::Uri) -> Result<()> {
-        let host_key = crate::ratelimit::HostKey::try_from(uri)?;
+    pub fn record_cache_miss(&self, uri: &Uri) {
+        self.record_cache_event(uri, |host| host.record_persistent_cache_miss());
+    }
 
-        // Get or create the host (this ensures statistics tracking even for cache-only requests)
-        let host = self.get_or_create_host(host_key);
-        host.record_persistent_cache_miss();
-        Ok(())
+    /// File and mail URIs are ignored.
+    /// Errors are logged and not returned.
+    fn record_cache_event<F: Fn(Arc<Host>)>(&self, uri: &Uri, action: F) {
+        if !uri.is_file() && !uri.is_mail() {
+            match ratelimit::HostKey::try_from(uri) {
+                Ok(key) => {
+                    let host = self.get_or_create_host(key);
+                    action(host);
+                }
+                Err(e) => {
+                    log::debug!("Failed to record cache hit for {uri}: {e}");
+                }
+            }
+        }
     }
 }
 

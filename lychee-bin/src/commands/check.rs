@@ -268,23 +268,11 @@ async fn handle(
             Status::from_cache_status(v.value().status, &accept)
         };
 
-        // Track cache hit in the per-host stats (only for network URIs)
-        if !uri.is_file()
-            && let Err(e) = client.host_pool().record_cache_hit(&uri)
-        {
-            log::debug!("Failed to record cache hit for {uri}: {e}");
-        }
-
+        client.host_pool().record_cache_hit(&uri);
         return Ok(Response::new(uri.clone(), status, request.source.into()));
     }
 
-    // Cache miss - track it and run a normal check (only for network URIs)
-    if !uri.is_file()
-        && let Err(e) = client.host_pool().record_cache_miss(&uri)
-    {
-        log::debug!("Failed to record cache miss for {uri}: {e}");
-    }
-
+    client.host_pool().record_cache_miss(&uri);
     let response = check_url(client, request).await;
 
     // - Never cache filesystem access as it is fast already so caching has no benefit.
