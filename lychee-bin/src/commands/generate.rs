@@ -5,6 +5,7 @@
 
 use anyhow::Result;
 use clap::{CommandFactory, crate_authors};
+use clap_complete::{Shell, generate as generate_completion};
 use clap_mangen::{
     Man,
     roff::{Roff, roman},
@@ -72,18 +73,41 @@ const EXIT_CODE_SECTION: &str = "
 /// What to generate when providing the --generate flag
 #[derive(Debug, Deserialize, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq)]
 #[non_exhaustive]
-#[strum(serialize_all = "snake_case")]
-#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "kebab-case")]
+#[serde(rename_all = "kebab-case")]
 pub(crate) enum GenerateMode {
     /// Generate roff used for the man page
     Man,
+    /// Generate shell completion for Bash
+    CompleteBash,
+    /// Generate shell completion for Elvish
+    CompleteElvish,
+    /// Generate shell completion for Fish
+    CompleteFish,
+    /// Generate shell completion for PowerShell
+    CompletePowershell,
+    /// Generate shell completion for Zsh
+    CompleteZsh,
 }
 
 /// Generate special output according to the [`GenerateMode`]
 pub(crate) fn generate(mode: &GenerateMode) -> Result<String> {
     match mode {
         GenerateMode::Man => man_page(),
+        GenerateMode::CompleteBash => shell_completion(Shell::Bash),
+        GenerateMode::CompleteElvish => shell_completion(Shell::Elvish),
+        GenerateMode::CompleteFish => shell_completion(Shell::Fish),
+        GenerateMode::CompletePowershell => shell_completion(Shell::PowerShell),
+        GenerateMode::CompleteZsh => shell_completion(Shell::Zsh),
     }
+}
+
+/// Generate shell completion for the given shell
+fn shell_completion(shell: Shell) -> Result<String> {
+    let mut cmd = LycheeOptions::command();
+    let mut buffer = Vec::new();
+    generate_completion(shell, &mut cmd, "lychee", &mut buffer);
+    Ok(String::from_utf8(buffer)?)
 }
 
 /// Generate the lychee man page in roff format using [`clap_mangen`]
@@ -105,7 +129,7 @@ fn man_page() -> Result<String> {
     man.render_version_section(buffer)?;
     man.render_authors_section(buffer)?;
 
-    Ok(std::str::from_utf8(buffer)?.to_owned())
+    Ok(String::from_utf8(buffer.clone())?)
 }
 
 fn render_exit_codes(buffer: &mut Vec<u8>) -> Result<()> {

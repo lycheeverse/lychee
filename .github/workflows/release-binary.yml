@@ -119,7 +119,7 @@ jobs:
 
       - name: Prepare release directory
         run: |
-          mkdir out out/docs
+          mkdir out out/docs out/complete
           cp $BIN out
           cp README.md docs/*.md out/docs
 
@@ -142,10 +142,48 @@ jobs:
             "${{ matrix.qemu }}" "/$BIN" \
               --generate man > "out/docs/lychee.1"
 
+      - name: Generate shell completions without emulation
+        if: matrix.qemu == ''
+        run: |
+          $BIN --generate complete-bash > out/complete/lychee.bash
+          $BIN --generate complete-elvish > out/complete/lychee.elv
+          $BIN --generate complete-fish > out/complete/lychee.fish
+          $BIN --generate complete-powershell > out/complete/_lychee.ps1
+          $BIN --generate complete-zsh > out/complete/_lychee
+
+      - name: Generate shell completions with emulation
+        if: matrix.qemu != ''
+        run: |
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
+            "${{ matrix.qemu }}" "/$BIN" \
+              --generate complete-bash > "out/complete/lychee.bash"
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
+            "${{ matrix.qemu }}" "/$BIN" \
+              --generate complete-elvish > "out/complete/lychee.elv"
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
+            "${{ matrix.qemu }}" "/$BIN" \
+              --generate complete-fish > "out/complete/lychee.fish"
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
+            "${{ matrix.qemu }}" "/$BIN" \
+              --generate complete-powershell > "out/complete/_lychee.ps1"
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
+            "${{ matrix.qemu }}" "/$BIN" \
+              --generate complete-zsh > "out/complete/_lychee"
+
       - name: Package release
         run: |
           cd out
-          tar -czf lychee.tar.gz lychee docs/
+          tar -czf lychee.tar.gz lychee docs/ complete/
 
       - name: Check if possible to release
         if: ${{ needs.prepare.outputs.upload_url == '' }}
@@ -185,10 +223,15 @@ jobs:
           cd target/release
           strip lychee
           chmod +x lychee
-          mkdir docs
+          mkdir docs complete
           cp ../../README.md ../../docs/TROUBLESHOOTING.md docs
           ./lychee --generate man > docs/lychee.1
-          tar -czf lychee.tar.gz lychee docs/
+          ./lychee --generate complete-bash > complete/lychee.bash
+          ./lychee --generate complete-elvish > complete/lychee.elv
+          ./lychee --generate complete-fish > complete/lychee.fish
+          ./lychee --generate complete-powershell > complete/_lychee.ps1
+          ./lychee --generate complete-zsh > complete/_lychee
+          tar -czf lychee.tar.gz lychee docs/ complete/
 
           mkdir dmg
           mv lychee dmg/
