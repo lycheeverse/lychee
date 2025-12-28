@@ -12,9 +12,6 @@ readme = "../README.md"
 version.workspace = true
 rust-version = "1.88.0"
 
-[package.metadata.rustdoc]
-doc-valid-idents = ["PowerShell"]
-
 [dependencies]
 # NOTE: We need to specify the version of lychee-lib here because crates.io
 # requires all dependencies to have a version number.
