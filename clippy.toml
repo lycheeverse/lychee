@@ -1,1 +1,1 @@
-doc-valid-idents = ["GitHub", "IPv4", "IPv6", "PowerShell"]
+doc-valid-idents = ["PowerShell", ".."]
