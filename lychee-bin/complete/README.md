@@ -1,6 +1,7 @@
 # Shell Completions for lychee
 
-This directory contains shell completion scripts for lychee, enabling tab-completion for commands, options, and arguments in your shell.
+This directory contains shell completion scripts for lychee.
+It unlocks tab-completion for commands, options, and arguments in your shell!
 
 ## Quick Reference
 
@@ -14,11 +15,7 @@ lychee --generate complete-powershell  # PowerShell
 lychee --generate complete-zsh         # Zsh
 ```
 
-## Automatic Installation
-
-If you installed lychee through a package manager (Homebrew, apt, etc.), shell completions should already be installed and working.
-
-## Manual Installation
+## Installation
 
 ### Bash
 
@@ -41,67 +38,6 @@ sudo lychee --generate complete-bash > /usr/share/bash-completion/completions/ly
 
 # On macOS with Homebrew
 lychee --generate complete-bash > $(brew --prefix)/etc/bash_completion.d/lychee
-```
-
-### Elvish
-
-```bash
-dir="${XDG_CONFIG_HOME:-$HOME/.config}/elvish/lib"
-mkdir -p "$dir"
-lychee --generate complete-elvish > "$dir/lychee.elv"
-```
-
-Then add the following to your `~/.elvish/rc.elv`:
-```elvish
-use lychee
-```
-
-### Fish
-
-**User installation:**
-```bash
-dir="${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions"
-mkdir -p "$dir"
-lychee --generate complete-fish > "$dir/lychee.fish"
-```
-
-Fish will automatically load the completions on next shell start.
-
-**System-wide installation:**
-```bash
-# On Linux
-sudo lychee --generate complete-fish > /usr/share/fish/vendor_completions.d/lychee.fish
-
-# On macOS with Homebrew
-lychee --generate complete-fish > $(brew --prefix)/share/fish/vendor_completions.d/lychee.fish
-```
-
-### PowerShell
-
-**Windows:**
-
-Generate the completion file:
-```powershell
-lychee --generate complete-powershell | Out-File -Encoding UTF8 _lychee.ps1
-```
-
-Then add to your PowerShell profile:
-```powershell
-# Find your profile location
-echo $PROFILE
-
-# Add this line to your profile
-. C:\Path\To\_lychee.ps1
-```
-
-**Linux/macOS with PowerShell:**
-```bash
-lychee --generate complete-powershell > ~/.config/powershell/_lychee.ps1
-```
-
-Add to your profile (`~/.config/powershell/Microsoft.PowerShell_profile.ps1`):
-```powershell
-. ~/.config/powershell/_lychee.ps1
 ```
 
 ### Zsh
@@ -138,31 +74,37 @@ source <(lychee --generate complete-zsh)
 
 Note: This is easier to set up but slower, adding startup time to your shell.
 
-## Pre-generated Files
+### Fish
 
-This directory contains pre-generated completion files for convenience:
+**User installation:**
+```bash
+dir="${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions"
+mkdir -p "$dir"
+lychee --generate complete-fish > "$dir/lychee.fish"
+```
 
-| File | Shell | Description |
-|------|-------|-------------|
-| `lychee.bash` | Bash | Bash completion script |
-| `lychee.elv` | Elvish | Elvish completion module |
-| `lychee.fish` | Fish | Fish completion script |
-| `_lychee.ps1` | PowerShell | PowerShell completion script |
-| `_lychee` | Zsh | Zsh completion function |
+Fish will automatically load the completions on next shell start.
 
-These files are regenerated automatically as part of the release process and can be copied directly to your completion directory.
+**System-wide installation:**
+```bash
+# On Linux
+sudo lychee --generate complete-fish > /usr/share/fish/vendor_completions.d/lychee.fish
 
-## Troubleshooting
+# On macOS with Homebrew
+lychee --generate complete-fish > $(brew --prefix)/share/fish/vendor_completions.d/lychee.fish
+```
 
-### Completions not working after installation
+### Elvish
 
-**Bash:** Make sure you've sourced your `~/.bashrc` or started a new shell session.
+```bash
+dir="${XDG_CONFIG_HOME:-$HOME/.config}/elvish/lib"
+mkdir -p "$dir"
+lychee --generate complete-elvish > "$dir/lychee.elv"
+```
 
-**Fish:** Fish loads completions automatically. Try `fish_update_completions` or restart your shell.
-
-**Zsh:** Ensure the directory is in your `$fpath` and you've run `compinit`. Check with:
-```zsh
-echo $fpath
+Then add the following to your `~/.elvish/rc.elv`:
+```elvish
+use lychee
 ```
 
 **PowerShell:** Verify your execution policy allows running scripts:
@@ -177,4 +119,32 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 After upgrading lychee, regenerate completions to get the latest options:
 ```bash
 lychee --generate complete-<your-shell> > <completion-file>
+```
+
+### PowerShell
+
+**Windows:**
+
+Generate the completion file:
+```powershell
+lychee --generate complete-powershell | Out-File -Encoding UTF8 _lychee.ps1
+```
+
+Then add to your PowerShell profile:
+```powershell
+# Find your profile location
+echo $PROFILE
+
+# Add this line to your profile
+. C:\Path\To\_lychee.ps1
+```
+
+**Linux/macOS with PowerShell:**
+```bash
+lychee --generate complete-powershell > ~/.config/powershell/_lychee.ps1
+```
+
+Add to your profile (`~/.config/powershell/Microsoft.PowerShell_profile.ps1`):
+```powershell
+. ~/.config/powershell/_lychee.ps1
 ```
