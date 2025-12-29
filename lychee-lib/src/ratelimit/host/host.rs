@@ -307,27 +307,10 @@ impl Host {
         self.stats.lock().unwrap().clone()
     }
 
-    /// Record a cache hit from the persistent disk cache
-    ///
-    /// # Panics
-    ///
-    /// Panics if the statistics mutex is poisoned
-    pub fn record_persistent_cache_hit(&self) {
-        self.stats.lock().unwrap().record_cache_hit();
-    }
-
-    /// Record a cache miss from the persistent disk cache
-    ///
-    /// # Panics
-    ///
-    /// Panics if the statistics mutex is poisoned
-    pub fn record_persistent_cache_miss(&self) {
-        self.stats.lock().unwrap().record_cache_miss();
-    }
-
-    /// Get the current number of available permits (concurrent request slots)
-    pub fn available_permits(&self) -> usize {
-        self.semaphore.available_permits()
+    /// Record a cache hit from the persistent disk cache.
+    /// Cache misses are tracked internally, so we don't expose such a method.
+    pub(crate) fn record_persistent_cache_hit(&self) {
+        self.record_cache_hit();
     }
 
     /// Get the current cache size (number of cached entries)
@@ -351,7 +334,7 @@ mod tests {
         let host = Host::new(key.clone(), &host_config, &global_config, Client::default());
 
         assert_eq!(host.key, key);
-        assert_eq!(host.available_permits(), 10); // Default concurrency
+        assert_eq!(host.semaphore.available_permits(), 10); // Default concurrency
         assert!((host.stats().success_rate() - 1.0).abs() < f64::EPSILON);
         assert_eq!(host.cache_size(), 0);
     }

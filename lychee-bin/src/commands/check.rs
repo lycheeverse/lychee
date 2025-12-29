@@ -265,6 +265,7 @@ async fn handle(
             // `accepted` status codes might have changed from the previous run
             // and they may have an impact on the interpretation of the status
             // code.
+            client.host_pool().record_persistent_cache_hit(&uri);
             Status::from_cache_status(v.value().status, &accept)
         };
 

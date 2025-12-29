@@ -200,6 +200,24 @@ impl HostPool {
             })
             .collect()
     }
+
+    /// Record a cache hit for the given URI in host statistics.
+    /// This tracks that a request was served from the persistent disk cache.
+    /// Note that no equivalent function for tracking cache misses is exposed,
+    /// since this is handled internally.
+    pub fn record_persistent_cache_hit(&self, uri: &crate::Uri) {
+        if !uri.is_file() && !uri.is_mail() {
+            match crate::ratelimit::HostKey::try_from(uri) {
+                Ok(key) => {
+                    let host = self.get_or_create_host(key);
+                    host.record_persistent_cache_hit();
+                }
+                Err(e) => {
+                    log::debug!("Failed to record cache hit for {uri}: {e}");
+                }
+            }
+        }
+    }
 }
 
 impl Default for HostPool {
