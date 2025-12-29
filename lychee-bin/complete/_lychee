@@ -64,7 +64,7 @@ _lychee() {
 '--mode=[Set the output display mode. Determines how results are presented in the terminal]:MODE:(plain color emoji task)' \
 '-f+[Output format of final status report]:FORMAT:(compact detailed json markdown raw)' \
 '--format=[Output format of final status report]:FORMAT:(compact detailed json markdown raw)' \
-'--generate=[Generate special output (e.g. the man page) instead of performing link checking]:GENERATE:(man complete-bash complete-zsh complete-fish)' \
+'--generate=[Generate special output (e.g. the man page) instead of performing link checking]:GENERATE:(man complete-bash complete-elvish complete-fish complete-powershell complete-zsh)' \
 '--cookie-jar=[Read and write cookies using the given file]:COOKIE_JAR:_files' \
 '-p+[Preprocess input files]:COMMAND:_default' \
 '--preprocess=[Preprocess input files]:COMMAND:_default' \
