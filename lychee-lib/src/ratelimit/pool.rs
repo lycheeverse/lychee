@@ -65,22 +65,6 @@ impl HostPool {
     /// Fails if:
     /// - The request URL has no valid hostname
     /// - The underlying HTTP request fails
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use lychee_lib::ratelimit::{HostPool, RateLimitConfig};
-    /// # use std::collections::HashMap;
-    /// # use reqwest::{Request, header::HeaderMap};
-    /// # use std::time::Duration;
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let pool = HostPool::default();
-    /// let request = reqwest::Request::new(reqwest::Method::GET, "https://example.com".parse()?);
-    /// let response = pool.execute_request(request).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
     pub(crate) async fn execute_request(&self, request: Request) -> Result<CacheableResponse> {
         let url = request.url();
         let host_key = HostKey::try_from(url)?;
