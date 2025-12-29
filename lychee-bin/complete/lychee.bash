@@ -226,7 +226,7 @@ _lychee() {
                     return 0
                     ;;
                 --generate)
-                    COMPREPLY=($(compgen -W "man complete-bash complete-zsh complete-fish" -- "${cur}"))
+                    COMPREPLY=($(compgen -W "man complete-bash complete-elvish complete-fish complete-powershell complete-zsh" -- "${cur}"))
                     return 0
                     ;;
                 --cookie-jar)

@@ -98,3 +98,16 @@ jobs:
         run: cargo check --workspace --all-targets --all-features
       - name: Run cargo check with rustls-tls feature
         run: cargo check --workspace --all-targets --no-default-features --features rustls-tls
+
+  check-completions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build binary
+        run: cargo build
+      # Shell completions are generated from the CLI help output and should be
+      # platform-independent. We only test on Linux to keep things simple.
+      - name: Check all completions are up to date
+        run: ./scripts/check-completions.sh

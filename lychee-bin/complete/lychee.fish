@@ -46,8 +46,10 @@ markdown\t''
 raw\t''"
 complete -c lychee -l generate -d 'Generate special output (e.g. the man page) instead of performing link checking' -r -f -a "man\t''
 complete-bash\t''
-complete-zsh\t''
-complete-fish\t''"
+complete-elvish\t''
+complete-fish\t''
+complete-powershell\t''
+complete-zsh\t''"
 complete -c lychee -l cookie-jar -d 'Read and write cookies using the given file' -r -F
 complete -c lychee -s p -l preprocess -d 'Preprocess input files' -r
 complete -c lychee -s v -l verbose -d 'Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)'
