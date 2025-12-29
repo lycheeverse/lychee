@@ -4,8 +4,8 @@ use super::CacheStatus;
 use super::redirect_history::Redirects;
 use crate::ErrorKind;
 use crate::RequestError;
+use crate::ratelimit::CacheableResponse;
 use http::StatusCode;
-use reqwest::Response;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 
@@ -92,13 +92,12 @@ impl Serialize for Status {
 impl Status {
     #[must_use]
     /// Create a status object from a response and the set of accepted status codes
-    pub fn new(response: &Response, accepted: &HashSet<StatusCode>) -> Self {
-        let code = response.status();
-
-        if accepted.contains(&code) {
-            Self::Ok(code)
+    pub(crate) fn new(response: &CacheableResponse, accepted: &HashSet<StatusCode>) -> Self {
+        let status = response.status;
+        if accepted.contains(&status) {
+            Self::Ok(status)
         } else {
-            Self::Error(ErrorKind::RejectedStatusCode(code))
+            Self::Error(ErrorKind::RejectedStatusCode(status))
         }
     }
 

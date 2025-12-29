@@ -2,7 +2,7 @@ use crate::{
     BasicAuthCredentials, ErrorKind, FileType, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
-    ratelimit::HostPool,
+    ratelimit::{CacheableResponse, HostPool},
     retry::RetryExt,
     types::{redirect_history::RedirectHistory, uri::github::GithubUri},
     utils::fragment_checker::{FragmentChecker, FragmentInput},
@@ -10,7 +10,7 @@ use crate::{
 use async_trait::async_trait;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
-use reqwest::{Request, Response, header::CONTENT_TYPE};
+use reqwest::{Request, header::CONTENT_TYPE};
 use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 use url::Url;
 
@@ -127,12 +127,12 @@ impl WebsiteChecker {
                 // when `accept=200,429`, `status_code=429` will be treated as success
                 // but we are not able the check the fragment since it's inapplicable.
                 if self.include_fragments
-                    && response.status().is_success()
+                    && response.status.is_success()
                     && method == Method::GET
                     && request_url.fragment().is_some_and(|x| !x.is_empty())
                 {
                     let Some(content_type) = response
-                        .headers()
+                        .headers
                         .get(CONTENT_TYPE)
                         .and_then(|header| header.to_str().ok())
                     else {
@@ -143,7 +143,7 @@ impl WebsiteChecker {
                         ct if ct.starts_with("text/html") => FileType::Html,
                         ct if ct.starts_with("text/markdown") => FileType::Markdown,
                         ct if ct.starts_with("text/plain") => {
-                            let path = Path::new(response.url().path());
+                            let path = Path::new(response.url.path());
                             match path.extension() {
                                 Some(ext) if ext.eq_ignore_ascii_case("md") => FileType::Markdown,
                                 _ => return status,
@@ -169,22 +169,18 @@ impl WebsiteChecker {
         &self,
         url: Url,
         status: Status,
-        response: Response,
+        response: CacheableResponse,
         file_type: FileType,
     ) -> Status {
-        match response.text().await {
-            Ok(content) => {
-                match self
-                    .fragment_checker
-                    .check(FragmentInput { content, file_type }, &url)
-                    .await
-                {
-                    Ok(true) => status,
-                    Ok(false) => Status::Error(ErrorKind::InvalidFragment(url.into())),
-                    Err(e) => Status::Error(e),
-                }
-            }
-            Err(e) => Status::Error(ErrorKind::ReadResponseBody(e)),
+        let content = response.text;
+        match self
+            .fragment_checker
+            .check(FragmentInput { content, file_type }, &url)
+            .await
+        {
+            Ok(true) => status,
+            Ok(false) => Status::Error(ErrorKind::InvalidFragment(url.into())),
+            Err(e) => Status::Error(e),
         }
     }
 

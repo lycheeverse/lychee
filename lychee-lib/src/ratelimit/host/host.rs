@@ -1,21 +1,25 @@
-use crate::ratelimit::headers;
+use crate::{
+    ratelimit::{CacheableResponse, headers},
+    retry::RetryExt,
+};
 use dashmap::DashMap;
 use governor::{
     Quota, RateLimiter,
     clock::DefaultClock,
     state::{InMemoryState, NotKeyed},
 };
+use http::StatusCode;
 use humantime_serde::re::humantime::format_duration;
 use log::warn;
-use reqwest::{Client as ReqwestClient, Request, Response};
+use reqwest::{Client as ReqwestClient, Request, Response as ReqwestResponse};
 use std::time::{Duration, Instant};
 use std::{num::NonZeroU32, sync::Mutex};
 use tokio::sync::Semaphore;
 
 use super::key::HostKey;
 use super::stats::HostStats;
+use crate::Uri;
 use crate::types::Result;
-use crate::{CacheStatus, Status, Uri};
 use crate::{
     ErrorKind,
     ratelimit::{HostConfig, RateLimitConfig},
@@ -24,22 +28,8 @@ use crate::{
 /// Cap maximum backoff duration to reasonable limits
 const MAXIMUM_BACKOFF: Duration = Duration::from_secs(60);
 
-/// Cache value for per-host caching
-#[derive(Debug, Clone)]
-struct HostCacheValue {
-    status: CacheStatus,
-}
-
-impl From<&Status> for HostCacheValue {
-    fn from(status: &Status) -> Self {
-        Self {
-            status: status.into(),
-        }
-    }
-}
-
 /// Per-host cache for storing request results
-type HostCache = DashMap<Uri, HostCacheValue>;
+type HostCache = DashMap<Uri, CacheableResponse>;
 
 /// Represents a single host with its own rate limiting, concurrency control,
 /// HTTP client configuration, and request cache.
@@ -70,7 +60,8 @@ pub struct Host {
     /// Current backoff duration for adaptive rate limiting
     backoff_duration: Mutex<Duration>,
 
-    /// Per-host cache to prevent duplicate requests
+    /// Per-host cache to prevent duplicate requests during a single link check invocation.
+    /// Note that this cache has no direct relation to the inter-process persistable [`crate::CacheStatus`].
     cache: HostCache,
 }
 
@@ -108,39 +99,27 @@ impl Host {
     /// # Panics
     ///
     /// Panics if the statistics mutex is poisoned
-    pub fn get_cached_status(&self, uri: &Uri) -> Option<CacheStatus> {
-        if let Some(entry) = self.cache.get(uri) {
-            // Cache hit
-            self.stats.lock().unwrap().record_cache_hit();
-            return Some(entry.status);
-        }
+    fn get_cached_status(&self, uri: &Uri) -> Option<CacheableResponse> {
+        self.cache.get(uri).map(|v| v.clone())
+    }
 
-        // Cache miss
+    fn record_cache_hit(&self) {
+        self.stats.lock().unwrap().record_cache_hit();
+    }
+
+    fn record_cache_miss(&self) {
         self.stats.lock().unwrap().record_cache_miss();
-        None
     }
 
     /// Cache a request result
-    pub fn cache_result(&self, uri: &Uri, status: &Status) {
-        let cache_value = HostCacheValue::from(status);
-        self.cache.insert(uri.clone(), cache_value);
+    fn cache_result(&self, uri: &Uri, response: CacheableResponse) {
+        // Do not cache responses that are potentially retried
+        if !response.status.should_retry() {
+            self.cache.insert(uri.clone(), response);
+        }
     }
 
     /// Execute a request with rate limiting, concurrency control, and caching
-    ///
-    /// This method:
-    /// 1. Checks the per-host cache for existing results
-    /// 2. If not cached, acquires a semaphore permit for concurrency control
-    /// 3. Waits for rate limiter permission
-    /// 4. Applies adaptive backoff if needed
-    /// 5. Executes the request
-    /// 6. Updates statistics based on response
-    /// 7. Parses rate limit headers to adjust future behavior
-    /// 8. Caches the result for future use
-    ///
-    /// # Arguments
-    ///
-    /// * `request` - The HTTP request to execute
     ///
     /// # Errors
     ///
@@ -149,21 +128,55 @@ impl Host {
     /// # Panics
     ///
     /// Panics if the statistics mutex is poisoned
-    pub async fn execute_request(&self, request: Request) -> Result<Response> {
+    pub(crate) async fn execute_request(&self, request: Request) -> Result<CacheableResponse> {
         let uri = Uri::from(request.url().clone());
+        let _permit = self.acquire_semaphore().await;
 
-        // Note: Cache checking is handled at the HostPool level
-        // This method focuses on executing the actual HTTP request
+        if let Some(cached) = self.get_cached_status(&uri) {
+            self.record_cache_hit();
+            return Ok(cached);
+        }
 
-        // Acquire semaphore permit for concurrency control
-        let _permit = self
-            .semaphore
-            .acquire()
-            .await
-            // SAFETY: this should not panic as we never close the semaphore
-            .expect("Semaphore was closed unexpectedly");
+        self.await_backoff().await;
 
-        // Apply adaptive backoff if needed
+        if let Some(rate_limiter) = &self.rate_limiter {
+            rate_limiter.until_ready().await;
+        }
+
+        if let Some(cached) = self.get_cached_status(&uri) {
+            self.record_cache_hit();
+            return Ok(cached);
+        }
+
+        self.record_cache_miss();
+        self.perform_request(request, uri).await
+    }
+
+    pub(crate) const fn get_client(&self) -> &ReqwestClient {
+        &self.client
+    }
+
+    async fn perform_request(&self, request: Request, uri: Uri) -> Result<CacheableResponse> {
+        let start_time = Instant::now();
+        let response = match self.client.execute(request).await {
+            Ok(response) => response,
+            Err(e) => {
+                // Wrap network/HTTP errors to preserve the original error
+                return Err(ErrorKind::NetworkRequest(e));
+            }
+        };
+
+        self.update_stats(response.status(), start_time.elapsed());
+        self.update_backoff(response.status());
+        self.handle_rate_limit_headers(&response);
+
+        let response = CacheableResponse::try_from(response).await?;
+        self.cache_result(&uri, response.clone());
+        Ok(response)
+    }
+
+    /// Await adaptive backoff if needed
+    async fn await_backoff(&self) {
         let backoff_duration = {
             let backoff = self.backoff_duration.lock().unwrap();
             *backoff
@@ -176,88 +189,61 @@ impl Host {
             );
             tokio::time::sleep(backoff_duration).await;
         }
-
-        if let Some(rate_limiter) = &self.rate_limiter {
-            rate_limiter.until_ready().await;
-        }
-
-        // Execute the request and track timing
-        let start_time = Instant::now();
-        let response = match self.client.execute(request).await {
-            Ok(response) => response,
-            Err(e) => {
-                // Wrap network/HTTP errors to preserve the original error
-                return Err(ErrorKind::NetworkRequest(e));
-            }
-        };
-        let request_time = start_time.elapsed();
-
-        // Update statistics based on response
-        let status_code = response.status().as_u16();
-        self.update_stats_and_backoff(status_code, request_time);
-
-        // Parse rate limit headers to adjust behavior
-        self.handle_rate_limit_headers(&response);
-
-        // Cache the result
-        let status = Status::Ok(response.status());
-        self.cache_result(&uri, &status);
-
-        Ok(response)
     }
 
-    pub(crate) const fn get_client(&self) -> &ReqwestClient {
-        &self.client
+    async fn acquire_semaphore(&self) -> tokio::sync::SemaphorePermit<'_> {
+        self.semaphore
+            .acquire()
+            .await
+            // SAFETY: this should not panic as we never close the semaphore
+            .expect("Semaphore was closed unexpectedly")
     }
 
-    /// Update internal statistics and backoff based on the response
-    fn update_stats_and_backoff(&self, status_code: u16, request_time: Duration) {
-        // Update statistics
-        {
-            let mut stats = self.stats.lock().unwrap();
-            stats.record_response(status_code, request_time);
-        }
-
-        // Update backoff duration based on response
-        {
-            let mut backoff = self.backoff_duration.lock().unwrap();
-            match status_code {
-                200..=299 => {
-                    // Reset backoff on success
-                    *backoff = Duration::from_millis(0);
-                }
-                429 => {
-                    // Exponential backoff on rate limit, capped at 30 seconds
-                    let new_backoff = std::cmp::min(
-                        if backoff.is_zero() {
-                            Duration::from_millis(500)
-                        } else {
-                            *backoff * 2
-                        },
-                        Duration::from_secs(30),
-                    );
-                    log::debug!(
-                        "Host {} hit rate limit (429), increasing backoff from {}ms to {}ms",
-                        self.key,
-                        backoff.as_millis(),
-                        new_backoff.as_millis()
-                    );
-                    *backoff = new_backoff;
-                }
-                500..=599 => {
-                    // Moderate backoff increase on server errors, capped at 10 seconds
-                    *backoff = std::cmp::min(
-                        *backoff + Duration::from_millis(200),
-                        Duration::from_secs(10),
-                    );
-                }
-                _ => {} // No backoff change for other status codes
+    fn update_backoff(&self, status: StatusCode) {
+        let mut backoff = self.backoff_duration.lock().unwrap();
+        match status.as_u16() {
+            200..=299 => {
+                // Reset backoff on success
+                *backoff = Duration::from_millis(0);
             }
+            429 => {
+                // Exponential backoff on rate limit, capped at 30 seconds
+                let new_backoff = std::cmp::min(
+                    if backoff.is_zero() {
+                        Duration::from_millis(500)
+                    } else {
+                        *backoff * 2
+                    },
+                    Duration::from_secs(30),
+                );
+                log::debug!(
+                    "Host {} hit rate limit (429), increasing backoff from {}ms to {}ms",
+                    self.key,
+                    backoff.as_millis(),
+                    new_backoff.as_millis()
+                );
+                *backoff = new_backoff;
+            }
+            500..=599 => {
+                // Moderate backoff increase on server errors, capped at 10 seconds
+                *backoff = std::cmp::min(
+                    *backoff + Duration::from_millis(200),
+                    Duration::from_secs(10),
+                );
+            }
+            _ => {} // No backoff change for other status codes
         }
+    }
+
+    fn update_stats(&self, status: StatusCode, request_time: Duration) {
+        self.stats
+            .lock()
+            .unwrap()
+            .record_response(status.as_u16(), request_time);
     }
 
     /// Parse rate limit headers from response and adjust behavior
-    fn handle_rate_limit_headers(&self, response: &Response) {
+    fn handle_rate_limit_headers(&self, response: &ReqwestResponse) {
         // Implement basic parsing here rather than using the rate-limits crate to keep dependencies minimal
         let headers = response.headers();
         self.handle_retry_after_header(headers);
