@@ -18,21 +18,10 @@ pub(crate) trait RetryExt {
 
 impl RetryExt for reqwest::StatusCode {
     /// Try to map a `reqwest` response into `Retryable`.
-    #[allow(clippy::if_same_then_else)]
     fn should_retry(&self) -> bool {
-        let status = *self;
-        if status.is_server_error() {
-            true
-        } else if status.is_client_error()
-            && status != StatusCode::REQUEST_TIMEOUT
-            && status != StatusCode::TOO_MANY_REQUESTS
-        {
-            false
-        } else if status.is_success() {
-            false
-        } else {
-            status == StatusCode::REQUEST_TIMEOUT || status == StatusCode::TOO_MANY_REQUESTS
-        }
+        self.is_server_error()
+            || self == &StatusCode::REQUEST_TIMEOUT
+            || self == &StatusCode::TOO_MANY_REQUESTS
     }
 }
 
