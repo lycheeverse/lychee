@@ -15,7 +15,7 @@ use std::collections::HashMap;
 /// Trait for formatting per-host statistics in different output formats
 pub(crate) trait HostStatsFormatter {
     /// Format the host statistics and return them as a string
-    fn format(&self, host_stats: HashMap<String, HostStats>) -> Result<Option<String>>;
+    fn format(&self, host_stats: HashMap<String, HostStats>) -> Result<String>;
 }
 
 /// Sort host statistics by request count (descending order)

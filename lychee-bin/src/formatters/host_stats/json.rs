@@ -9,17 +9,13 @@ pub(crate) struct Json;
 
 impl Json {
     pub(crate) const fn new() -> Self {
-        Self {}
+        Self
     }
 }
 
 impl HostStatsFormatter for Json {
     /// Format host stats as JSON object
-    fn format(&self, host_stats: HashMap<String, HostStats>) -> Result<Option<String>> {
-        if host_stats.is_empty() {
-            return Ok(None);
-        }
-
+    fn format(&self, host_stats: HashMap<String, HostStats>) -> Result<String> {
         // Convert HostStats to a more JSON-friendly format
         let json_stats: HashMap<String, serde_json::Value> = host_stats
             .into_iter()
@@ -50,8 +46,6 @@ impl HostStatsFormatter for Json {
             "host_statistics": json_stats
         });
 
-        serde_json::to_string_pretty(&output)
-            .map(Some)
-            .context("Cannot format host stats as JSON")
+        serde_json::to_string_pretty(&output).context("Cannot format host stats as JSON")
     }
 }
