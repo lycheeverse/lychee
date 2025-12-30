@@ -1484,12 +1484,12 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_process_internal_host_caching() -> Result<()> {
-        // Note that this process internal per-host caching
+        // Note that this process-internal per-host caching
         // has no direct relation to the lychee cache file
         // where state can be persisted between multiple invocations.
         let server = wiremock::MockServer::start().await;
 
-        // Return one rate limited response to make sure that
+        // Return one rate-limited response to make sure that
         // such a response isn't cached.
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .respond_with(ResponseTemplate::new(429))
@@ -1505,7 +1505,7 @@ The config file should contain every possible key for documentation purposes."
 
         let temp_dir = tempfile::tempdir()?;
         for i in 0..9 {
-            let test_md1 = temp_dir.path().join(format!("test{}.md", i));
+            let test_md1 = temp_dir.path().join(format!("test{i}.md"));
             fs::write(&test_md1, server.uri())?;
         }
 

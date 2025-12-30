@@ -38,13 +38,13 @@ pub(crate) struct CacheableResponse {
 }
 
 impl CacheableResponse {
-    async fn try_from(value: Response) -> Result<Self> {
-        let status = value.status();
-        let headers = value.headers().clone();
-        let url = value.url().clone();
-        let text = value.text().await.map_err(ErrorKind::ReadResponseBody)?;
+    async fn try_from(response: Response) -> Result<Self> {
+        let status = response.status();
+        let headers = response.headers().clone();
+        let url = response.url().clone();
+        let text = response.text().await.map_err(ErrorKind::ReadResponseBody)?;
 
-        Ok(CacheableResponse {
+        Ok(Self {
             status,
             text,
             headers,
