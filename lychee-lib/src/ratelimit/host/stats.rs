@@ -215,7 +215,7 @@ impl Serialize for HostStats {
     {
         let median_request_time_ms = self.median_request_time().map(|d| d.as_millis());
 
-        let mut s = serializer.serialize_struct("HostStats", 1)?;
+        let mut s = serializer.serialize_struct("HostStats", 11)?;
         s.serialize_field("total_requests", &self.total_requests)?;
         s.serialize_field("successful_requests", &self.successful_requests)?;
         s.serialize_field("success_rate", &self.success_rate())?;
