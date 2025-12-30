@@ -3256,26 +3256,26 @@ file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up-two.html
         #[cfg(windows)]
         std::os::windows::fs::symlink_dir(&root_dir, &temp_root_subdir).unwrap();
 
+        let temp_root_subdir_url = format!("file://{}", temp_root_subdir.to_string_lossy());
+        let temp_root_dir_url = format!("file://{}", temp_root_dir.to_string_lossy());
+
         let proc2 = cargo_bin_cmd!()
             .arg("--dump")
             .arg(local_file)
-            // WARNING: this will not work on Windows. needs to handle C:\ then map that to URL.
-            .arg("--root-dir=/")
+            .arg(format!("--root-dir={}", temp_root_dir.display()))
             .arg(format!(
-                "--remap={} {}",
+                "--remap={} {}/",
                 base_url_regex(base_url),
-                format!("file://{}/", temp_root_subdir.display())
-            ))
-            .arg(format!(
-                "--remap={0} {0}",
-                format!("file://{}", temp_root_subdir.display())
+                temp_root_subdir_url
             ))
             .arg(format!(
                 "--remap={} {}",
-                format!("file://{}", temp_root_dir.display()),
-                "https://gist.githubusercontent.com"
+                temp_root_subdir_url, temp_root_subdir_url
             ))
-            .arg("--remap=file:// https://gist.githubusercontent.com")
+            .arg(format!(
+                "--remap={} {}",
+                temp_root_dir_url, "https://gist.githubusercontent.com"
+            ))
             .assert()
             .success();
         // WARNING: file:/// regexes could match an incorrect substring prefix. needs a treatment
@@ -3290,41 +3290,38 @@ file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up-two.html
             "
 file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/make-me-local
 file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/relative.md
+file:///TMP/a/b/c/root-up
+file:///TMP/a/b/c/very-up
 https://gist.githubusercontent.com-fake/
 https://gist.githubusercontent.com/
-https://gist.githubusercontent.com/TMP/a/b/c/very-up
 https://gist.githubusercontent.com/fully/qualified.html
 https://gist.githubusercontent.com/fully/qualified/up.html
 https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up
 https://gist.githubusercontent.com/root
-https://gist.githubusercontent.com/root-up
             "
             .trim()
         );
-        // BUG: TMP appearing inside /very-up is incorrect. this bug happens when when a
-        // link uses too many ../.. and it breaks out of temp_root_dir. if this happens,
-        // the remap will instead think it's a root-relative link. this bug is unavoidable
-        // with this approach.
+        // BUG: TMP appearing inside /very-up and /root-up is incorrect. this bug happens when when
+        // a link breaks out of temp_root_dir. if this happens, the remap will not detect it as
+        // being within the website domain. this bug could be avoided with --root-dir=/ but bleh.
 
         let proc = cargo_bin_cmd!()
             .arg("--dump")
             .arg(REMOTE_MD)
-            .arg("--root-dir=/")
+            .arg(format!("--root-dir={}", temp_root_dir.display()))
             .arg(format!(
-                "--remap={} {}",
+                "--remap={} {}/",
                 base_url_regex(base_url),
-                format!("file://{}/", temp_root_subdir.display())
-            ))
-            .arg(format!(
-                "--remap={0} {0}",
-                format!("file://{}", temp_root_subdir.display())
+                temp_root_subdir_url
             ))
             .arg(format!(
                 "--remap={} {}",
-                format!("file://{}", temp_root_dir.display()),
-                "https://gist.githubusercontent.com"
+                temp_root_subdir_url, temp_root_subdir_url
             ))
-            .arg("--remap=file:// https://gist.githubusercontent.com")
+            .arg(format!(
+                "--remap={} {}",
+                temp_root_dir_url, "https://gist.githubusercontent.com"
+            ))
             .assert()
             .success();
 
@@ -3341,13 +3338,13 @@ file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908e
 file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/relative.html
 file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/sub/dir/index.html
 file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/up-one.html
-https://../up-up
-https://../up-up-up
+https://gist.githubusercontent.com/TMP/a/b/c/ROOT/root
+https://gist.githubusercontent.com/TMP/a/b/up-up
+https://gist.githubusercontent.com/TMP/a/up-up-up
 https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up-two.html
-https://root/
             "
             .trim()
         );
-        // BUG: https://root/ and similar are incorrect and due to https://github.com/lycheeverse/lychee/issues/1964
+        // BUG: TMP appearing inside URLS is incorrect and due to https://github.com/lycheeverse/lychee/issues/1964
     }
 }
