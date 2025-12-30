@@ -3141,8 +3141,9 @@ The config file should contain every possible key for documentation purposes."
 
     const REMOTE_MD: &str = "https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/lychee-url-mapping-test-file.md";
 
-    /// Returns a regex (as a string) which matches the given base URL.
-    fn base_url_regex(base_url: &str) -> String {
+    /// Returns a regex (as a string) which matches URLs with the given base
+    /// as a proper prefix. This should respect URL path components.
+    fn escape_url_prefix(base_url: &str) -> String {
         let escaped = regex::escape(base_url.trim_end_matches('/'));
         format!("^{escaped}($|[/?#])")
     }
@@ -3175,7 +3176,7 @@ The config file should contain every possible key for documentation purposes."
             .arg(format!("--root-dir={}", root_dir.display()))
             .arg(format!(
                 "--remap={} {}",
-                base_url_regex("https://gist.githubusercontent.com"),
+                escape_url_prefix("https://gist.githubusercontent.com"),
                 format!("file://{}/", root_dir.display())
             ))
             .assert()
@@ -3207,7 +3208,7 @@ https://gist.githubusercontent.com-fake/
             .arg(format!("--root-dir={}", root_dir.display()))
             .arg(format!(
                 "--remap={} {}",
-                base_url_regex("https://gist.githubusercontent.com"),
+                escape_url_prefix("https://gist.githubusercontent.com"),
                 format!("file://{}/", root_dir.display())
             ))
             .assert()
@@ -3264,17 +3265,19 @@ file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up-two.html
             .arg(local_file)
             .arg(format!("--root-dir={}", temp_root_dir.display()))
             .arg(format!(
-                "--remap={} {}/",
-                base_url_regex(base_url),
+                "--remap={} {}$1",
+                escape_url_prefix(base_url),
                 temp_root_subdir_url
             ))
             .arg(format!(
-                "--remap={} {}",
-                temp_root_subdir_url, temp_root_subdir_url
+                "--remap={} {}$1",
+                escape_url_prefix(&temp_root_subdir_url),
+                temp_root_subdir_url
             ))
             .arg(format!(
-                "--remap={} {}",
-                temp_root_dir_url, "https://gist.githubusercontent.com"
+                "--remap={} {}$1",
+                escape_url_prefix(&temp_root_dir_url),
+                "https://gist.githubusercontent.com"
             ))
             .assert()
             .success();
@@ -3310,17 +3313,19 @@ https://gist.githubusercontent.com/root
             .arg(REMOTE_MD)
             .arg(format!("--root-dir={}", temp_root_dir.display()))
             .arg(format!(
-                "--remap={} {}/",
-                base_url_regex(base_url),
+                "--remap={} {}$1",
+                escape_url_prefix(base_url),
                 temp_root_subdir_url
             ))
             .arg(format!(
-                "--remap={} {}",
-                temp_root_subdir_url, temp_root_subdir_url
+                "--remap={} {}$1",
+                escape_url_prefix(&temp_root_subdir_url),
+                temp_root_subdir_url
             ))
             .arg(format!(
-                "--remap={} {}",
-                temp_root_dir_url, "https://gist.githubusercontent.com"
+                "--remap={} {}$1",
+                escape_url_prefix(&temp_root_dir_url),
+                "https://gist.githubusercontent.com"
             ))
             .assert()
             .success();
