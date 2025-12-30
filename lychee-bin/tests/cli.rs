@@ -3281,8 +3281,6 @@ file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up-two.html
             ))
             .assert()
             .success();
-        // WARNING: file:/// regexes could match an incorrect substring prefix. needs a treatment
-        // similar to base-url.
 
         assert_eq!(
             normalise_url_lines(
