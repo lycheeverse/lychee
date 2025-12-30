@@ -79,6 +79,86 @@ where
 }
 
 #[cfg(test)]
+fn get_dummy_stats() -> OutputStats {
+    use http::StatusCode;
+    use lychee_lib::{Redirects, ResponseBody, Status, ratelimit::HostStats};
+    use url::Url;
+
+    use crate::formatters::suggestion::Suggestion;
+
+    let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
+    let error_map = HashMap::from([(
+        source.clone(),
+        HashSet::from([ResponseBody {
+            uri: "https://github.com/mre/idiomatic-rust-doesnt-exist-man"
+                .try_into()
+                .unwrap(),
+            status: Status::Ok(StatusCode::NOT_FOUND),
+        }]),
+    )]);
+
+    let suggestion_map = HashMap::from([(
+        source.clone(),
+        HashSet::from([Suggestion {
+            original: "https://original.dev".try_into().unwrap(),
+            suggestion: "https://suggestion.dev".try_into().unwrap(),
+        }]),
+    )]);
+
+    let redirect_map = HashMap::from([(
+        source,
+        HashSet::from([ResponseBody {
+            uri: "https://redirected.dev".try_into().unwrap(),
+            status: Status::Redirected(
+                StatusCode::OK,
+                Redirects::from(vec![
+                    Url::parse("https://1.dev").unwrap(),
+                    Url::parse("https://2.dev").unwrap(),
+                    Url::parse("http://redirected.dev").unwrap(),
+                ]),
+            ),
+        }]),
+    )]);
+
+    let response_stats = ResponseStats {
+        total: 2,
+        successful: 0,
+        errors: 1,
+        unknown: 0,
+        excludes: 0,
+        timeouts: 0,
+        duration_secs: 0,
+        unsupported: 0,
+        redirects: 1,
+        cached: 0,
+        suggestion_map,
+        redirect_map,
+        success_map: HashMap::default(),
+        error_map,
+        excluded_map: HashMap::default(),
+        detailed_stats: true,
+    };
+
+    let host_stats = HostStatsMap::from(HashMap::from([(
+        String::from("example.com"),
+        HostStats {
+            total_requests: 5,
+            successful_requests: 3,
+            rate_limited: 1,
+            server_errors: 1,
+            cache_hits: 1,
+            cache_misses: 4,
+            ..Default::default()
+        },
+    )]));
+
+    OutputStats {
+        response_stats,
+        host_stats,
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

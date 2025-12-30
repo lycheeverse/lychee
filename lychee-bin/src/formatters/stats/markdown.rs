@@ -170,10 +170,9 @@ impl StatsFormatter for Markdown {
 #[cfg(test)]
 mod tests {
     use http::StatusCode;
-    use lychee_lib::{CacheStatus, InputSource, Redirects, Response, ResponseBody, Status, Uri};
-    use reqwest::Url;
+    use lychee_lib::{CacheStatus, ResponseBody, Status, Uri};
 
-    use crate::formatters::suggestion::Suggestion;
+    use crate::formatters::stats::get_dummy_stats;
 
     use super::*;
 
@@ -226,40 +225,7 @@ mod tests {
 
     #[test]
     fn test_render_summary() {
-        let mut stats = ResponseStats::default();
-
-        // Add cached error
-        stats.add(Response::new(
-            Uri::try_from("http://127.0.0.1").unwrap(),
-            Status::Cached(CacheStatus::Error(Some(404))),
-            InputSource::Stdin,
-        ));
-
-        // Add suggestion
-        stats
-            .suggestion_map
-            .entry((InputSource::Stdin).clone())
-            .or_default()
-            .insert(Suggestion {
-                suggestion: Url::parse("https://example.com/suggestion").unwrap(),
-                original: Url::parse("https://example.com/original").unwrap(),
-            });
-
-        // Add redirect
-        stats.add(Response::new(
-            Uri::try_from("http://redirected.dev").unwrap(),
-            Status::Redirected(
-                StatusCode::OK,
-                Redirects::from(vec![
-                    Url::parse("https://1.dev").unwrap(),
-                    Url::parse("https://2.dev").unwrap(),
-                    Url::parse("http://redirected.dev").unwrap(),
-                ]),
-            ),
-            InputSource::Stdin,
-        ));
-
-        let summary = MarkdownResponseStats(stats);
+        let summary = MarkdownResponseStats(get_dummy_stats().response_stats);
         let expected = "# Summary
 
 | Status         | Count |
@@ -275,21 +241,21 @@ mod tests {
 
 ## Errors per input
 
-### Errors in stdin
+### Errors in https://example.com/
 
-* [404] <http://127.0.0.1/> | Error (cached)
+* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> | 404 Not Found: Not Found
 
 ## Redirects per input
 
-### Redirects in stdin
+### Redirects in https://example.com/
 
-* [200] <http://redirected.dev/> | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --> https://2.dev/ --> http://redirected.dev/
+* [200] <https://redirected.dev/> | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --> https://2.dev/ --> http://redirected.dev/
 
 ## Suggestions per input
 
-### Suggestions in stdin
+### Suggestions in https://example.com/
 
-* https://example.com/original --> https://example.com/suggestion
+* https://original.dev/ --> https://suggestion.dev/
 ";
         assert_eq!(summary.to_string(), expected.to_string());
     }
