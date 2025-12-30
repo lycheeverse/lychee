@@ -81,12 +81,8 @@ impl Markdown {
 }
 
 impl HostStatsFormatter for Markdown {
-    fn format(&self, host_stats: HashMap<String, HostStats>) -> Result<Option<String>> {
-        if host_stats.is_empty() {
-            return Ok(None);
-        }
-
+    fn format(&self, host_stats: HashMap<String, HostStats>) -> Result<String> {
         let markdown = MarkdownHostStats(host_stats);
-        Ok(Some(markdown.to_string()))
+        Ok(markdown.to_string())
     }
 }

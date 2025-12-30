@@ -70,12 +70,8 @@ impl Compact {
 }
 
 impl HostStatsFormatter for Compact {
-    fn format(&self, host_stats: HashMap<String, HostStats>) -> Result<Option<String>> {
-        if host_stats.is_empty() {
-            return Ok(None);
-        }
-
+    fn format(&self, host_stats: HashMap<String, HostStats>) -> Result<String> {
         let compact = CompactHostStats { host_stats };
-        Ok(Some(compact.to_string()))
+        Ok(compact.to_string())
     }
 }

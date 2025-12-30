@@ -19,4 +19,36 @@ mod pool;
 
 pub use config::{HostConfig, HostConfigs, RateLimitConfig};
 pub use host::{Host, HostKey, HostStats};
+use http::HeaderMap;
 pub use pool::{ClientMap, HostPool};
+use reqwest::Response;
+use url::Url;
+
+use crate::{ErrorKind, Result};
+
+/// The result of a HTTP request, used for internal per-host caching.
+/// This abstraction exists, because [`Response`] cannot easily be cached
+/// since it does not implement [`Clone`].
+#[derive(Debug, Clone)]
+pub(crate) struct CacheableResponse {
+    pub(crate) status: reqwest::StatusCode,
+    pub(crate) text: String,
+    pub(crate) headers: HeaderMap,
+    pub(crate) url: Url,
+}
+
+impl CacheableResponse {
+    async fn try_from(response: Response) -> Result<Self> {
+        let status = response.status();
+        let headers = response.headers().clone();
+        let url = response.url().clone();
+        let text = response.text().await.map_err(ErrorKind::ReadResponseBody)?;
+
+        Ok(Self {
+            status,
+            text,
+            headers,
+            url,
+        })
+    }
+}

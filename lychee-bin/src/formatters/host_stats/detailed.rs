@@ -79,12 +79,8 @@ impl Detailed {
 }
 
 impl HostStatsFormatter for Detailed {
-    fn format(&self, host_stats: HashMap<String, HostStats>) -> Result<Option<String>> {
-        if host_stats.is_empty() {
-            return Ok(None);
-        }
-
+    fn format(&self, host_stats: HashMap<String, HostStats>) -> Result<String> {
         let detailed = DetailedHostStats { host_stats };
-        Ok(Some(detailed.to_string()))
+        Ok(detailed.to_string())
     }
 }

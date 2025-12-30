@@ -265,14 +265,13 @@ async fn handle(
             // `accepted` status codes might have changed from the previous run
             // and they may have an impact on the interpretation of the status
             // code.
+            client.host_pool().record_persistent_cache_hit(&uri);
             Status::from_cache_status(v.value().status, &accept)
         };
 
-        client.host_pool().record_cache_hit(&uri);
         return Ok(Response::new(uri.clone(), status, request.source.into()));
     }
 
-    client.host_pool().record_cache_miss(&uri);
     let response = check_url(client, request).await;
 
     // - Never cache filesystem access as it is fast already so caching has no benefit.

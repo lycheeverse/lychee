@@ -1,12 +1,12 @@
 use dashmap::DashMap;
 use http::Method;
-use reqwest::{Client, Request, Response};
+use reqwest::{Client, Request};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::ratelimit::{self, Host, HostConfigs, HostKey, HostStats, RateLimitConfig};
+use crate::ratelimit::{CacheableResponse, Host, HostConfigs, HostKey, HostStats, RateLimitConfig};
 use crate::types::Result;
-use crate::{CacheStatus, ErrorKind, Status, Uri};
+use crate::{ErrorKind, Uri};
 
 /// Keep track of host-specific [`reqwest::Client`]s
 pub type ClientMap = HashMap<HostKey, reqwest::Client>;
@@ -65,23 +65,7 @@ impl HostPool {
     /// Fails if:
     /// - The request URL has no valid hostname
     /// - The underlying HTTP request fails
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use lychee_lib::ratelimit::{HostPool, RateLimitConfig};
-    /// # use std::collections::HashMap;
-    /// # use reqwest::{Request, header::HeaderMap};
-    /// # use std::time::Duration;
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let pool = HostPool::default();
-    /// let request = reqwest::Request::new(reqwest::Method::GET, "https://example.com".parse()?);
-    /// let response = pool.execute_request(request).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub async fn execute_request(&self, request: Request) -> Result<Response> {
+    pub(crate) async fn execute_request(&self, request: Request) -> Result<CacheableResponse> {
         let url = request.url();
         let host_key = HostKey::try_from(url)?;
         let host = self.get_or_create_host(host_key);
@@ -187,33 +171,6 @@ impl HostPool {
         self.hosts.remove(&host_key).is_some()
     }
 
-    /// Check if a URI is cached in the appropriate host's cache
-    ///
-    /// # Returns
-    ///
-    /// Returns the cached status if found and valid, `None` otherwise
-    #[must_use]
-    pub fn get_cached_status(&self, uri: &Uri) -> Option<CacheStatus> {
-        let host_key = HostKey::try_from(uri).ok()?;
-
-        if let Some(host) = self.hosts.get(&host_key) {
-            host.get_cached_status(uri)
-        } else {
-            None
-        }
-    }
-
-    /// Cache a result for a URI in the appropriate host's cache
-    pub fn cache_result(&self, uri: &Uri, status: &Status) {
-        if let Ok(host_key) = HostKey::try_from(uri)
-            && let Some(host) = self.hosts.get(&host_key)
-        {
-            host.cache_result(uri, status);
-        }
-        // If host doesn't exist yet, we don't cache
-        // The result will be cached when the host is created and the request is made
-    }
-
     /// Get cache statistics across all hosts
     #[must_use]
     pub fn cache_stats(&self) -> HashMap<String, (usize, f64)> {
@@ -228,34 +185,16 @@ impl HostPool {
             .collect()
     }
 
-    /// Try to record a cache hit for the given URI in host statistics.
-    /// File and mail URIs are ignored.
-    ///
-    /// This tracks that a request was served from the persistent disk cache
-    /// rather than going through the rate-limited HTTP request flow.
-    /// This method will create a host instance if one doesn't exist yet.
-    pub fn record_cache_hit(&self, uri: &crate::Uri) {
-        self.record_cache_event(uri, |host| host.record_persistent_cache_hit());
-    }
-
-    /// Try to record a cache miss for the given URI in host statistics
-    /// File and mail URIs are ignored.
-    ///
-    /// This tracks that a request could not be served from the persistent disk cache
-    /// and will need to go through the rate-limited HTTP request flow.
-    /// This method will create a Host instance if one doesn't exist yet.
-    pub fn record_cache_miss(&self, uri: &Uri) {
-        self.record_cache_event(uri, |host| host.record_persistent_cache_miss());
-    }
-
-    /// File and mail URIs are ignored.
-    /// Errors are logged and not returned.
-    fn record_cache_event<F: Fn(Arc<Host>)>(&self, uri: &Uri, action: F) {
+    /// Record a cache hit for the given URI in host statistics.
+    /// This tracks that a request was served from the persistent disk cache.
+    /// Note that no equivalent function for tracking cache misses is exposed,
+    /// since this is handled internally.
+    pub fn record_persistent_cache_hit(&self, uri: &crate::Uri) {
         if !uri.is_file() && !uri.is_mail() {
-            match ratelimit::HostKey::try_from(uri) {
+            match crate::ratelimit::HostKey::try_from(uri) {
                 Ok(key) => {
                     let host = self.get_or_create_host(key);
-                    action(host);
+                    host.record_persistent_cache_hit();
                 }
                 Err(e) => {
                     log::debug!("Failed to record cache hit for {uri}: {e}");
