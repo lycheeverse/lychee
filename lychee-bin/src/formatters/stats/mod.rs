@@ -3,12 +3,16 @@ mod detailed;
 mod json;
 mod markdown;
 mod raw;
+mod response;
 
 pub(crate) use compact::Compact;
+
 pub(crate) use detailed::Detailed;
 pub(crate) use json::Json;
 pub(crate) use markdown::Markdown;
 pub(crate) use raw::Raw;
+pub(crate) use response::ResponseStats;
+use serde::Serialize;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -17,30 +21,32 @@ use std::{
     io::{Write, stdout},
 };
 
-use crate::{formatters::get_stats_formatter, options::Config, stats::ResponseStats};
+use crate::{formatters::get_stats_formatter, options::Config};
 use anyhow::{Context, Result};
-use lychee_lib::InputSource;
+use lychee_lib::{InputSource, ratelimit::HostStatsMap};
+
+#[derive(Default, Serialize)]
+pub(crate) struct OutputStats {
+    #[serde(flatten)]
+    pub(crate) response_stats: ResponseStats,
+    pub(crate) host_stats: HostStatsMap,
+}
 
 pub(crate) trait StatsFormatter {
     /// Format the stats of all responses and write them to stdout
-    fn format(&self, stats: ResponseStats) -> Result<Option<String>>;
+    fn format(&self, stats: OutputStats) -> Result<String>;
 }
 
 /// If configured to do so, output response statistics to stdout or the specified output file.
-pub(crate) fn output_response_statistics(stats: ResponseStats, config: &Config) -> Result<()> {
-    let is_empty = stats.is_empty();
+pub(crate) fn output_statistics(stats: OutputStats, config: &Config) -> Result<()> {
     let formatter = get_stats_formatter(&config.format, &config.mode);
-    if let Some(formatted_stats) = formatter.format(stats)? {
-        if let Some(output) = &config.output {
-            fs::write(output, formatted_stats).context("Cannot write status output to file")?;
-        } else {
-            if config.verbose.log_level() >= log::Level::Info && !is_empty {
-                // separate summary from the verbose list of links above with a newline
-                writeln!(stdout())?;
-            }
-            // we assume that the formatted stats don't have a final newline
-            writeln!(stdout(), "{formatted_stats}")?;
-        }
+    let formatted_stats = formatter.format(stats)?;
+
+    if let Some(output) = &config.output {
+        fs::write(output, formatted_stats).context("Cannot write status output to file")?;
+    } else {
+        // we assume that the formatted stats don't have a final newline
+        writeln!(stdout(), "{formatted_stats}")?;
     }
     Ok(())
 }

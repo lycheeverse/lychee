@@ -1,16 +1,10 @@
-use anyhow::Result;
-use std::{
-    collections::HashMap,
-    fmt::{self, Display},
-};
+use std::fmt::{self, Display};
 
 use crate::formatters::color::{DIM, NORMAL, color};
-use lychee_lib::ratelimit::HostStats;
+use lychee_lib::ratelimit::HostStatsMap;
 
-use super::HostStatsFormatter;
-
-struct CompactHostStats {
-    host_stats: HashMap<String, HostStats>,
+pub(crate) struct CompactHostStats {
+    pub(crate) host_stats: HostStatsMap,
 }
 
 impl Display for CompactHostStats {
@@ -26,7 +20,7 @@ impl Display for CompactHostStats {
         color!(f, DIM, "{}", separator)?;
         writeln!(f)?;
 
-        let sorted_hosts = super::sort_host_stats(&self.host_stats);
+        let sorted_hosts = self.host_stats.sorted();
 
         // Calculate optimal hostname width based on longest hostname
         let max_hostname_len = sorted_hosts
@@ -58,20 +52,5 @@ impl Display for CompactHostStats {
         }
 
         Ok(())
-    }
-}
-
-pub(crate) struct Compact;
-
-impl Compact {
-    pub(crate) const fn new() -> Self {
-        Self
-    }
-}
-
-impl HostStatsFormatter for Compact {
-    fn format(&self, host_stats: HashMap<String, HostStats>) -> Result<String> {
-        let compact = CompactHostStats { host_stats };
-        Ok(compact.to_string())
     }
 }

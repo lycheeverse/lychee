@@ -1,6 +1,36 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
+use serde::Serialize;
+use serde::ser::SerializeStruct;
+
+/// A [`HashMap`] mapping hosts to their [`HostStats`]
+#[derive(Debug, Default, Serialize)]
+pub struct HostStatsMap(HashMap<String, HostStats>);
+
+impl HostStatsMap {
+    /// Returns `true` if the map contains no elements
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Sort host statistics by request count (descending order)
+    /// This matches the display order we want in the output
+    #[must_use]
+    pub fn sorted(&self) -> Vec<(String, HostStats)> {
+        let mut sorted_hosts: Vec<_> = self.0.clone().into_iter().collect();
+        sorted_hosts.sort_by_key(|(_, stats)| std::cmp::Reverse(stats.total_requests));
+        sorted_hosts
+    }
+}
+
+impl From<HashMap<String, HostStats>> for HostStatsMap {
+    fn from(value: HashMap<String, HostStats>) -> Self {
+        Self(value)
+    }
+}
+
 /// Record and report statistics for a [`crate::ratelimit::Host`]
 #[derive(Debug, Clone, Default)]
 pub struct HostStats {
@@ -175,6 +205,29 @@ impl HostStats {
             "{} requests ({}% success, {}% errors), avg: {}",
             self.total_requests, success_pct, error_pct, avg_time
         )
+    }
+}
+
+impl Serialize for HostStats {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let median_request_time_ms = self.median_request_time().map(|d| d.as_millis());
+
+        let mut s = serializer.serialize_struct("HostStats", 1)?;
+        s.serialize_field("total_requests", &self.total_requests)?;
+        s.serialize_field("successful_requests", &self.successful_requests)?;
+        s.serialize_field("success_rate", &self.success_rate())?;
+        s.serialize_field("rate_limited", &self.rate_limited)?;
+        s.serialize_field("client_errors", &self.client_errors)?;
+        s.serialize_field("server_errors", &self.server_errors)?;
+        s.serialize_field("median_request_time_ms", &median_request_time_ms)?;
+        s.serialize_field("cache_hits", &self.cache_hits)?;
+        s.serialize_field("cache_misses", &self.cache_misses)?;
+        s.serialize_field("cache_hit_rate", &self.cache_hit_rate())?;
+        s.serialize_field("status_codes", &self.status_codes)?;
+        s.end()
     }
 }
 

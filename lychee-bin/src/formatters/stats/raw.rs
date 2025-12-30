@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use super::StatsFormatter;
-use crate::stats::ResponseStats;
+use crate::formatters::stats::OutputStats;
 pub(crate) struct Raw;
 
 impl Raw {
@@ -12,7 +12,7 @@ impl Raw {
 
 impl StatsFormatter for Raw {
     /// Don't print stats in raw mode
-    fn format(&self, _stats: ResponseStats) -> Result<Option<String>> {
-        Ok(None)
+    fn format(&self, _: OutputStats) -> Result<String> {
+        Ok(String::new())
     }
 }

@@ -18,7 +18,7 @@ mod host;
 mod pool;
 
 pub use config::{HostConfig, HostConfigs, RateLimitConfig};
-pub use host::{Host, HostKey, HostStats};
+pub use host::{Host, HostKey, HostStats, HostStatsMap};
 use http::HeaderMap;
 pub use pool::{ClientMap, HostPool};
 use reqwest::Response;

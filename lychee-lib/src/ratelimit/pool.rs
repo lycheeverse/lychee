@@ -4,7 +4,9 @@ use reqwest::{Client, Request};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::ratelimit::{CacheableResponse, Host, HostConfigs, HostKey, HostStats, RateLimitConfig};
+use crate::ratelimit::{
+    CacheableResponse, Host, HostConfigs, HostKey, HostStats, HostStatsMap, RateLimitConfig,
+};
 use crate::types::Result;
 use crate::{ErrorKind, Uri};
 
@@ -130,15 +132,17 @@ impl HostPool {
     /// Returns a `HashMap` mapping hostnames to their statistics.
     /// Only hosts that have had requests will be included.
     #[must_use]
-    pub fn all_host_stats(&self) -> HashMap<String, HostStats> {
-        self.hosts
-            .iter()
-            .map(|entry| {
-                let hostname = entry.key().to_string();
-                let stats = entry.value().stats();
-                (hostname, stats)
-            })
-            .collect()
+    pub fn all_host_stats(&self) -> HostStatsMap {
+        HostStatsMap::from(
+            self.hosts
+                .iter()
+                .map(|entry| {
+                    let hostname = entry.key().to_string();
+                    let stats = entry.value().stats();
+                    (hostname, stats)
+                })
+                .collect::<HashMap<_, _>>(),
+        )
     }
 
     /// Get the number of host instances that have been created,

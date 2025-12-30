@@ -13,7 +13,10 @@ use tabled::{
     settings::{Alignment, Modify, Style, object::Segment},
 };
 
-use crate::stats::ResponseStats;
+use crate::formatters::{
+    host_stats::MarkdownHostStats,
+    stats::{OutputStats, ResponseStats},
+};
 
 #[derive(Tabled)]
 struct StatsTableEntry {
@@ -154,9 +157,13 @@ impl Markdown {
 }
 
 impl StatsFormatter for Markdown {
-    fn format(&self, stats: ResponseStats) -> Result<Option<String>> {
-        let markdown = MarkdownResponseStats(stats);
-        Ok(Some(markdown.to_string()))
+    fn format(&self, stats: OutputStats) -> Result<String> {
+        let host_stats = MarkdownHostStats {
+            host_stats: stats.host_stats,
+        };
+        let response_stats = MarkdownResponseStats(stats.response_stats);
+
+        Ok(format!("{response_stats}\n{host_stats}"))
     }
 }
 

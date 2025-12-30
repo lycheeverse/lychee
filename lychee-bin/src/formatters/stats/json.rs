@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 
 use super::StatsFormatter;
-use crate::stats::ResponseStats;
+use crate::formatters::stats::OutputStats;
 
 pub(crate) struct Json;
 
@@ -13,9 +13,7 @@ impl Json {
 
 impl StatsFormatter for Json {
     /// Format stats as JSON object
-    fn format(&self, stats: ResponseStats) -> Result<Option<String>> {
-        serde_json::to_string_pretty(&stats)
-            .map(Some)
-            .context("Cannot format stats as JSON")
+    fn format(&self, stats: OutputStats) -> Result<String> {
+        serde_json::to_string_pretty(&stats).context("Cannot format stats as JSON")
     }
 }

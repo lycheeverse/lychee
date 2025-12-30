@@ -1,15 +1,9 @@
-use anyhow::Result;
-use std::{
-    collections::HashMap,
-    fmt::{self, Display},
-};
+use std::fmt::{self, Display};
 
-use lychee_lib::ratelimit::HostStats;
+use lychee_lib::ratelimit::HostStatsMap;
 
-use super::HostStatsFormatter;
-
-struct DetailedHostStats {
-    host_stats: HashMap<String, HostStats>,
+pub(crate) struct DetailedHostStats {
+    pub(crate) host_stats: HostStatsMap,
 }
 
 impl Display for DetailedHostStats {
@@ -21,9 +15,7 @@ impl Display for DetailedHostStats {
         writeln!(f, "\n📊 Per-host Statistics")?;
         writeln!(f, "---------------------")?;
 
-        let sorted_hosts = super::sort_host_stats(&self.host_stats);
-
-        for (hostname, stats) in sorted_hosts {
+        for (hostname, stats) in self.host_stats.sorted() {
             writeln!(f, "\nHost: {hostname}")?;
             writeln!(f, "  Total requests: {}", stats.total_requests)?;
             writeln!(
@@ -67,20 +59,5 @@ impl Display for DetailedHostStats {
         }
 
         Ok(())
-    }
-}
-
-pub(crate) struct Detailed;
-
-impl Detailed {
-    pub(crate) const fn new() -> Self {
-        Self
-    }
-}
-
-impl HostStatsFormatter for Detailed {
-    fn format(&self, host_stats: HashMap<String, HostStats>) -> Result<String> {
-        let detailed = DetailedHostStats { host_stats };
-        Ok(detailed.to_string())
     }
 }

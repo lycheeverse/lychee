@@ -6,8 +6,13 @@ use std::{
     time::Duration,
 };
 
-use crate::formatters::color::{BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, NORMAL, color};
-use crate::{formatters::get_response_formatter, options, stats::ResponseStats};
+use crate::formatters::{
+    color::{BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, NORMAL, color},
+    get_response_formatter,
+    host_stats::CompactHostStats,
+    stats::{OutputStats, ResponseStats},
+};
+use crate::options;
 
 use super::StatsFormatter;
 
@@ -107,19 +112,23 @@ impl Compact {
 }
 
 impl StatsFormatter for Compact {
-    fn format(&self, stats: ResponseStats) -> Result<Option<String>> {
-        let compact = CompactResponseStats {
-            stats,
+    fn format(&self, stats: OutputStats) -> Result<String> {
+        let host_stats = CompactHostStats {
+            host_stats: stats.host_stats,
+        };
+        let response_stats = CompactResponseStats {
+            stats: stats.response_stats,
             mode: self.mode.clone(),
         };
-        Ok(Some(compact.to_string()))
+
+        Ok(format!("{response_stats}\n{host_stats}"))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::formatters::stats::StatsFormatter;
-    use crate::{options::OutputMode, stats::ResponseStats};
+    use crate::formatters::stats::{ResponseStats, StatsFormatter};
+    use crate::options::OutputMode;
     use http::StatusCode;
     use lychee_lib::{InputSource, ResponseBody, Status, Uri};
     use std::collections::{HashMap, HashSet};
@@ -154,7 +163,7 @@ mod tests {
         let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
         error_map.insert(source, HashSet::from_iter(vec![err1, err2]));
 
-        let stats = ResponseStats {
+        let response_stats = ResponseStats {
             total: 1,
             successful: 1,
             errors: 2,
@@ -175,7 +184,12 @@ mod tests {
 
         let formatter = Compact::new(OutputMode::Plain);
 
-        let result = formatter.format(stats).unwrap().unwrap();
+        let result = formatter
+            .format(OutputStats {
+                response_stats,
+                ..Default::default()
+            })
+            .unwrap();
 
         println!("{result}");
 

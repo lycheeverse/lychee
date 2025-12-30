@@ -1,5 +1,12 @@
 use super::StatsFormatter;
-use crate::{formatters::get_response_formatter, options, stats::ResponseStats};
+use crate::{
+    formatters::{
+        get_response_formatter,
+        host_stats::DetailedHostStats,
+        stats::{OutputStats, ResponseStats},
+    },
+    options,
+};
 
 use anyhow::Result;
 use lychee_lib::InputSource;
@@ -102,12 +109,16 @@ impl Detailed {
 }
 
 impl StatsFormatter for Detailed {
-    fn format(&self, stats: ResponseStats) -> Result<Option<String>> {
-        let detailed = DetailedResponseStats {
-            stats,
+    fn format(&self, stats: OutputStats) -> Result<String> {
+        let host_stats = DetailedHostStats {
+            host_stats: stats.host_stats,
+        };
+        let response_stats = DetailedResponseStats {
+            stats: stats.response_stats,
             mode: self.mode.clone(),
         };
-        Ok(Some(detailed.to_string()))
+
+        Ok(format!("{response_stats}\n{host_stats}"))
     }
 }
 
@@ -162,7 +173,7 @@ mod tests {
             }]),
         )]);
 
-        let stats = ResponseStats {
+        let response_stats = ResponseStats {
             total: 2,
             successful: 0,
             errors: 2,
@@ -182,7 +193,12 @@ mod tests {
         };
 
         let formatter = Detailed::new(OutputMode::Plain);
-        let result = formatter.format(stats).unwrap().unwrap();
+        let result = formatter
+            .format(OutputStats {
+                response_stats,
+                ..Default::default()
+            })
+            .unwrap();
 
         assert_eq!(
             result,
@@ -207,6 +223,7 @@ https://original.dev/ --> https://suggestion.dev/
 
 Redirects in https://example.com/
 https://redirected.dev/ | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --> https://2.dev/ --> http://redirected.dev/
+
 "
         );
     }
