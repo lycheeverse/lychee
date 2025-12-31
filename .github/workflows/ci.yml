@@ -35,6 +35,9 @@ jobs:
         run: cargo check --locked
       - name: Test
         run: make test
+      # Shell completions are generated from CLI help and should be platform-independent
+      - name: Check completions are up to date
+        run: ./scripts/check-completions.sh
 
   lint:
     runs-on: ubuntu-latest
