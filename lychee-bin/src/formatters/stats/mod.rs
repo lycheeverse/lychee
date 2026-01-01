@@ -29,7 +29,8 @@ use lychee_lib::{InputSource, ratelimit::HostStatsMap};
 pub(crate) struct OutputStats {
     #[serde(flatten)]
     pub(crate) response_stats: ResponseStats,
-    pub(crate) host_stats: HostStatsMap,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) host_stats: Option<HostStatsMap>,
 }
 
 pub(crate) trait StatsFormatter {
@@ -139,7 +140,7 @@ fn get_dummy_stats() -> OutputStats {
         detailed_stats: true,
     };
 
-    let host_stats = HostStatsMap::from(HashMap::from([(
+    let host_stats = Some(HostStatsMap::from(HashMap::from([(
         String::from("example.com"),
         HostStats {
             total_requests: 5,
@@ -150,7 +151,7 @@ fn get_dummy_stats() -> OutputStats {
             cache_misses: 4,
             ..Default::default()
         },
-    )]));
+    )])));
 
     OutputStats {
         response_stats,

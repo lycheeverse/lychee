@@ -4,14 +4,14 @@ use crate::formatters::color::{DIM, NORMAL, color};
 use lychee_lib::ratelimit::HostStatsMap;
 
 pub(crate) struct CompactHostStats {
-    pub(crate) host_stats: HostStatsMap,
+    pub(crate) host_stats: Option<HostStatsMap>,
 }
 
 impl Display for CompactHostStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.host_stats.is_empty() {
+        let Some(host_stats) = &self.host_stats else {
             return Ok(());
-        }
+        };
 
         writeln!(f)?;
         writeln!(f, "📊 Per-host Statistics")?;
@@ -20,7 +20,7 @@ impl Display for CompactHostStats {
         color!(f, DIM, "{}", separator)?;
         writeln!(f)?;
 
-        let sorted_hosts = self.host_stats.sorted();
+        let sorted_hosts = host_stats.sorted();
 
         // Calculate optimal hostname width based on longest hostname
         let max_hostname_len = sorted_hosts

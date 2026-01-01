@@ -7,18 +7,18 @@ use tabled::{
 };
 
 pub(crate) struct MarkdownHostStats {
-    pub(crate) host_stats: HostStatsMap,
+    pub(crate) host_stats: Option<HostStatsMap>,
 }
 
 impl Display for MarkdownHostStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.host_stats.is_empty() {
+        let Some(host_stats) = &self.host_stats else {
             return Ok(());
-        }
+        };
 
         writeln!(f, "\n## Per-host Statistics")?;
         writeln!(f)?;
-        writeln!(f, "{}", host_stats_table(&self.host_stats))?;
+        writeln!(f, "{}", host_stats_table(host_stats))?;
 
         Ok(())
     }

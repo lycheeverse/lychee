@@ -158,10 +158,10 @@ impl Markdown {
 
 impl StatsFormatter for Markdown {
     fn format(&self, stats: OutputStats) -> Result<String> {
+        let response_stats = MarkdownResponseStats(stats.response_stats);
         let host_stats = MarkdownHostStats {
             host_stats: stats.host_stats,
         };
-        let response_stats = MarkdownResponseStats(stats.response_stats);
 
         Ok(format!("{response_stats}\n{host_stats}"))
     }

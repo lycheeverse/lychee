@@ -9,12 +9,6 @@ use serde::ser::SerializeStruct;
 pub struct HostStatsMap(HashMap<String, HostStats>);
 
 impl HostStatsMap {
-    /// Returns `true` if the map contains no elements
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
     /// Sort host statistics by request count (descending order)
     /// This matches the display order we want in the output
     #[must_use]

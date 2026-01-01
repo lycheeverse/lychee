@@ -303,15 +303,4 @@ mod tests {
         // We can't easily test removal of existing hosts without making actual requests
         // due to the async nature of host creation, but the basic functionality works
     }
-
-    #[test]
-    fn test_all_host_stats() {
-        let pool = HostPool::default();
-
-        // No hosts initially
-        let stats = pool.all_host_stats();
-        assert!(stats.is_empty());
-
-        // Stats would be populated after actual requests are made to create hosts
-    }
 }

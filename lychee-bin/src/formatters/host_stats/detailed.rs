@@ -3,19 +3,19 @@ use std::fmt::{self, Display};
 use lychee_lib::ratelimit::HostStatsMap;
 
 pub(crate) struct DetailedHostStats {
-    pub(crate) host_stats: HostStatsMap,
+    pub(crate) host_stats: Option<HostStatsMap>,
 }
 
 impl Display for DetailedHostStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.host_stats.is_empty() {
+        let Some(host_stats) = &self.host_stats else {
             return Ok(());
-        }
+        };
 
         writeln!(f, "\n📊 Per-host Statistics")?;
         writeln!(f, "---------------------")?;
 
-        for (hostname, stats) in self.host_stats.sorted() {
+        for (hostname, stats) in host_stats.sorted() {
             writeln!(f, "\nHost: {hostname}")?;
             writeln!(f, "  Total requests: {}", stats.total_requests)?;
             writeln!(

@@ -110,12 +110,12 @@ impl Detailed {
 
 impl StatsFormatter for Detailed {
     fn format(&self, stats: OutputStats) -> Result<String> {
-        let host_stats = DetailedHostStats {
-            host_stats: stats.host_stats,
-        };
         let response_stats = DetailedResponseStats {
             stats: stats.response_stats,
             mode: self.mode.clone(),
+        };
+        let host_stats = DetailedHostStats {
+            host_stats: stats.host_stats,
         };
 
         Ok(format!("{response_stats}\n{host_stats}"))

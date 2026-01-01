@@ -391,9 +391,10 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     } else {
         let (response_stats, cache, exit_code, host_pool) = commands::check(params).await?;
         github_warning(&response_stats, &opts.config);
+
         let stats = OutputStats {
             response_stats,
-            host_stats: host_pool.all_host_stats(),
+            host_stats: opts.config.host_stats.then_some(host_pool.all_host_stats()),
         };
         output_statistics(stats, &opts.config)?;
 
