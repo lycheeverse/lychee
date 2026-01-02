@@ -17,10 +17,11 @@ use lychee_lib::{ResponseBody, Status};
 
 use crate::formatters::get_progress_formatter;
 use crate::formatters::response::ResponseFormatter;
+use crate::formatters::stats::ResponseStats;
 use crate::formatters::suggestion::Suggestion;
 use crate::parse::parse_duration_secs;
 use crate::progress::Progress;
-use crate::{ExitCode, cache::Cache, stats::ResponseStats};
+use crate::{ExitCode, cache::Cache};
 
 use super::CommandParams;
 

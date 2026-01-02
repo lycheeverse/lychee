@@ -1,5 +1,12 @@
 use super::StatsFormatter;
-use crate::{formatters::get_response_formatter, options, stats::ResponseStats};
+use crate::{
+    formatters::{
+        get_response_formatter,
+        host_stats::DetailedHostStats,
+        stats::{OutputStats, ResponseStats},
+    },
+    options,
+};
 
 use anyhow::Result;
 use lychee_lib::InputSource;
@@ -102,87 +109,28 @@ impl Detailed {
 }
 
 impl StatsFormatter for Detailed {
-    fn format(&self, stats: ResponseStats) -> Result<Option<String>> {
-        let detailed = DetailedResponseStats {
-            stats,
+    fn format(&self, stats: OutputStats) -> Result<String> {
+        let response_stats = DetailedResponseStats {
+            stats: stats.response_stats,
             mode: self.mode.clone(),
         };
-        Ok(Some(detailed.to_string()))
+        let host_stats = DetailedHostStats {
+            host_stats: stats.host_stats,
+        };
+
+        Ok(format!("{response_stats}\n{host_stats}"))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{formatters::suggestion::Suggestion, options::OutputMode};
-    use http::StatusCode;
-    use lychee_lib::{InputSource, Redirects, ResponseBody, Status};
-    use std::collections::{HashMap, HashSet};
-    use url::Url;
+    use crate::{formatters::stats::get_dummy_stats, options::OutputMode};
 
     #[test]
     fn test_detailed_formatter() {
-        let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
-        let error_map = HashMap::from([(
-            source.clone(),
-            HashSet::from([
-                ResponseBody {
-                    uri: "https://github.com/mre/idiomatic-rust-doesnt-exist-man"
-                        .try_into()
-                        .unwrap(),
-                    status: Status::Ok(StatusCode::NOT_FOUND),
-                },
-                ResponseBody {
-                    uri: "https://github.com/mre/boom".try_into().unwrap(),
-                    status: Status::Ok(StatusCode::INTERNAL_SERVER_ERROR),
-                },
-            ]),
-        )]);
-
-        let suggestion_map = HashMap::from([(
-            source.clone(),
-            HashSet::from([Suggestion {
-                original: "https://original.dev".try_into().unwrap(),
-                suggestion: "https://suggestion.dev".try_into().unwrap(),
-            }]),
-        )]);
-
-        let redirect_map = HashMap::from([(
-            source,
-            HashSet::from([ResponseBody {
-                uri: "https://redirected.dev".try_into().unwrap(),
-                status: Status::Redirected(
-                    StatusCode::OK,
-                    Redirects::from(vec![
-                        Url::parse("https://1.dev").unwrap(),
-                        Url::parse("https://2.dev").unwrap(),
-                        Url::parse("http://redirected.dev").unwrap(),
-                    ]),
-                ),
-            }]),
-        )]);
-
-        let stats = ResponseStats {
-            total: 2,
-            successful: 0,
-            errors: 2,
-            unknown: 0,
-            excludes: 0,
-            timeouts: 0,
-            duration_secs: 0,
-            unsupported: 0,
-            redirects: 0,
-            cached: 0,
-            suggestion_map,
-            redirect_map,
-            success_map: HashMap::default(),
-            error_map,
-            excluded_map: HashMap::default(),
-            detailed_stats: true,
-        };
-
         let formatter = Detailed::new(OutputMode::Plain);
-        let result = formatter.format(stats).unwrap().unwrap();
+        let result = formatter.format(get_dummy_stats()).unwrap();
 
         assert_eq!(
             result,
@@ -191,14 +139,13 @@ mod tests {
 🔍 Total............2
 ✅ Successful.......0
 ⏳ Timeouts.........0
-🔀 Redirected.......0
+🔀 Redirected.......1
 👻 Excluded.........0
 ❓ Unknown..........0
-🚫 Errors...........2
-⛔ Unsupported......2
+🚫 Errors...........1
+⛔ Unsupported......1
 
 Errors in https://example.com/
-[500] https://github.com/mre/boom | 500 Internal Server Error: Internal Server Error
 [404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | 404 Not Found: Not Found
 
 Suggestions in https://example.com/
@@ -207,6 +154,18 @@ https://original.dev/ --> https://suggestion.dev/
 
 Redirects in https://example.com/
 https://redirected.dev/ | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --> https://2.dev/ --> http://redirected.dev/
+
+
+📊 Per-host Statistics
+---------------------
+
+Host: example.com
+  Total requests: 5
+  Successful: 3 (60.0%)
+  Rate limited: 1 (429 Too Many Requests)
+  Server errors (5xx): 1
+  Cache hit rate: 20.0%
+  Cache hits: 1, misses: 4
 "
         );
     }

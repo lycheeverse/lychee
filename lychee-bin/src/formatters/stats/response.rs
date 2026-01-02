@@ -117,8 +117,9 @@ impl ResponseStats {
     }
 
     #[inline]
+    #[cfg(test)]
     /// Check if no responses were received
-    pub(crate) const fn is_empty(&self) -> bool {
+    const fn is_empty(&self) -> bool {
         self.total == 0
     }
 }

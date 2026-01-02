@@ -3,12 +3,16 @@ mod detailed;
 mod json;
 mod markdown;
 mod raw;
+mod response;
 
 pub(crate) use compact::Compact;
+
 pub(crate) use detailed::Detailed;
 pub(crate) use json::Json;
 pub(crate) use markdown::Markdown;
 pub(crate) use raw::Raw;
+pub(crate) use response::ResponseStats;
+use serde::Serialize;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -17,30 +21,33 @@ use std::{
     io::{Write, stdout},
 };
 
-use crate::{formatters::get_stats_formatter, options::Config, stats::ResponseStats};
+use crate::{formatters::get_stats_formatter, options::Config};
 use anyhow::{Context, Result};
-use lychee_lib::InputSource;
+use lychee_lib::{InputSource, ratelimit::HostStatsMap};
+
+#[derive(Default, Serialize)]
+pub(crate) struct OutputStats {
+    #[serde(flatten)]
+    pub(crate) response_stats: ResponseStats,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) host_stats: Option<HostStatsMap>,
+}
 
 pub(crate) trait StatsFormatter {
     /// Format the stats of all responses and write them to stdout
-    fn format(&self, stats: ResponseStats) -> Result<Option<String>>;
+    fn format(&self, stats: OutputStats) -> Result<String>;
 }
 
 /// If configured to do so, output response statistics to stdout or the specified output file.
-pub(crate) fn output_response_statistics(stats: ResponseStats, config: &Config) -> Result<()> {
-    let is_empty = stats.is_empty();
+pub(crate) fn output_statistics(stats: OutputStats, config: &Config) -> Result<()> {
     let formatter = get_stats_formatter(&config.format, &config.mode);
-    if let Some(formatted_stats) = formatter.format(stats)? {
-        if let Some(output) = &config.output {
-            fs::write(output, formatted_stats).context("Cannot write status output to file")?;
-        } else {
-            if config.verbose.log_level() >= log::Level::Info && !is_empty {
-                // separate summary from the verbose list of links above with a newline
-                writeln!(stdout())?;
-            }
-            // we assume that the formatted stats don't have a final newline
-            writeln!(stdout(), "{formatted_stats}")?;
-        }
+    let formatted_stats = formatter.format(stats)?;
+
+    if let Some(output) = &config.output {
+        fs::write(output, formatted_stats).context("Cannot write status output to file")?;
+    } else {
+        // we assume that the formatted stats don't have a final newline
+        writeln!(stdout(), "{formatted_stats}")?;
     }
     Ok(())
 }
@@ -70,6 +77,86 @@ where
     });
 
     entries
+}
+
+#[cfg(test)]
+fn get_dummy_stats() -> OutputStats {
+    use http::StatusCode;
+    use lychee_lib::{Redirects, ResponseBody, Status, ratelimit::HostStats};
+    use url::Url;
+
+    use crate::formatters::suggestion::Suggestion;
+
+    let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
+    let error_map = HashMap::from([(
+        source.clone(),
+        HashSet::from([ResponseBody {
+            uri: "https://github.com/mre/idiomatic-rust-doesnt-exist-man"
+                .try_into()
+                .unwrap(),
+            status: Status::Ok(StatusCode::NOT_FOUND),
+        }]),
+    )]);
+
+    let suggestion_map = HashMap::from([(
+        source.clone(),
+        HashSet::from([Suggestion {
+            original: "https://original.dev".try_into().unwrap(),
+            suggestion: "https://suggestion.dev".try_into().unwrap(),
+        }]),
+    )]);
+
+    let redirect_map = HashMap::from([(
+        source,
+        HashSet::from([ResponseBody {
+            uri: "https://redirected.dev".try_into().unwrap(),
+            status: Status::Redirected(
+                StatusCode::OK,
+                Redirects::from(vec![
+                    Url::parse("https://1.dev").unwrap(),
+                    Url::parse("https://2.dev").unwrap(),
+                    Url::parse("http://redirected.dev").unwrap(),
+                ]),
+            ),
+        }]),
+    )]);
+
+    let response_stats = ResponseStats {
+        total: 2,
+        successful: 0,
+        errors: 1,
+        unknown: 0,
+        excludes: 0,
+        timeouts: 0,
+        duration_secs: 0,
+        unsupported: 0,
+        redirects: 1,
+        cached: 0,
+        suggestion_map,
+        redirect_map,
+        success_map: HashMap::default(),
+        error_map,
+        excluded_map: HashMap::default(),
+        detailed_stats: true,
+    };
+
+    let host_stats = Some(HostStatsMap::from(HashMap::from([(
+        String::from("example.com"),
+        HostStats {
+            total_requests: 5,
+            successful_requests: 3,
+            rate_limited: 1,
+            server_errors: 1,
+            cache_hits: 1,
+            cache_misses: 4,
+            ..Default::default()
+        },
+    )])));
+
+    OutputStats {
+        response_stats,
+        host_stats,
+    }
 }
 
 #[cfg(test)]

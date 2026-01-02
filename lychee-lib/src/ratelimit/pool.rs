@@ -4,7 +4,9 @@ use reqwest::{Client, Request};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::ratelimit::{CacheableResponse, Host, HostConfigs, HostKey, HostStats, RateLimitConfig};
+use crate::ratelimit::{
+    CacheableResponse, Host, HostConfigs, HostKey, HostStats, HostStatsMap, RateLimitConfig,
+};
 use crate::types::Result;
 use crate::{ErrorKind, Uri};
 
@@ -130,15 +132,17 @@ impl HostPool {
     /// Returns a `HashMap` mapping hostnames to their statistics.
     /// Only hosts that have had requests will be included.
     #[must_use]
-    pub fn all_host_stats(&self) -> HashMap<String, HostStats> {
-        self.hosts
-            .iter()
-            .map(|entry| {
-                let hostname = entry.key().to_string();
-                let stats = entry.value().stats();
-                (hostname, stats)
-            })
-            .collect()
+    pub fn all_host_stats(&self) -> HostStatsMap {
+        HostStatsMap::from(
+            self.hosts
+                .iter()
+                .map(|entry| {
+                    let hostname = entry.key().to_string();
+                    let stats = entry.value().stats();
+                    (hostname, stats)
+                })
+                .collect::<HashMap<_, _>>(),
+        )
     }
 
     /// Get the number of host instances that have been created,
@@ -298,16 +302,5 @@ mod tests {
 
         // We can't easily test removal of existing hosts without making actual requests
         // due to the async nature of host creation, but the basic functionality works
-    }
-
-    #[test]
-    fn test_all_host_stats() {
-        let pool = HostPool::default();
-
-        // No hosts initially
-        let stats = pool.all_host_stats();
-        assert!(stats.is_empty());
-
-        // Stats would be populated after actual requests are made to create hosts
     }
 }

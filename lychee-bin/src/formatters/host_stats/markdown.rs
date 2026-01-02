@@ -1,15 +1,28 @@
-use std::{
-    collections::HashMap,
-    fmt::{self, Display},
-};
+use std::fmt::{self, Display};
 
-use super::HostStatsFormatter;
-use anyhow::Result;
-use lychee_lib::ratelimit::HostStats;
+use lychee_lib::ratelimit::HostStatsMap;
 use tabled::{
     Table, Tabled,
     settings::{Alignment, Modify, Style, object::Segment},
 };
+
+pub(crate) struct MarkdownHostStats {
+    pub(crate) host_stats: Option<HostStatsMap>,
+}
+
+impl Display for MarkdownHostStats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Some(host_stats) = &self.host_stats else {
+            return Ok(());
+        };
+
+        writeln!(f, "\n## Per-host Statistics")?;
+        writeln!(f)?;
+        writeln!(f, "{}", host_stats_table(host_stats))?;
+
+        Ok(())
+    }
+}
 
 #[derive(Tabled)]
 struct HostStatsTableEntry {
@@ -25,8 +38,8 @@ struct HostStatsTableEntry {
     cache_hit_rate: String,
 }
 
-fn host_stats_table(host_stats: &HashMap<String, HostStats>) -> String {
-    let sorted_hosts = super::sort_host_stats(host_stats);
+fn host_stats_table(host_stats: &HostStatsMap) -> String {
+    let sorted_hosts = host_stats.sorted();
 
     let entries: Vec<HostStatsTableEntry> = sorted_hosts
         .into_iter()
@@ -54,35 +67,4 @@ fn host_stats_table(host_stats: &HashMap<String, HostStats>) -> String {
         .with(Modify::new(Segment::all()).with(Alignment::left()))
         .with(style)
         .to_string()
-}
-
-struct MarkdownHostStats(HashMap<String, HostStats>);
-
-impl Display for MarkdownHostStats {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.0.is_empty() {
-            return Ok(());
-        }
-
-        writeln!(f, "\n## Per-host Statistics")?;
-        writeln!(f)?;
-        writeln!(f, "{}", host_stats_table(&self.0))?;
-
-        Ok(())
-    }
-}
-
-pub(crate) struct Markdown;
-
-impl Markdown {
-    pub(crate) const fn new() -> Self {
-        Self {}
-    }
-}
-
-impl HostStatsFormatter for Markdown {
-    fn format(&self, host_stats: HashMap<String, HostStats>) -> Result<String> {
-        let markdown = MarkdownHostStats(host_stats);
-        Ok(markdown.to_string())
-    }
 }

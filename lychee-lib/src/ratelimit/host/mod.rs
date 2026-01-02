@@ -6,4 +6,4 @@ mod stats;
 
 pub use host::Host;
 pub use key::HostKey;
-pub use stats::HostStats;
+pub use stats::{HostStats, HostStatsMap};

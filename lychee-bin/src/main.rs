@@ -85,21 +85,17 @@ mod client;
 mod commands;
 mod files_from;
 mod formatters;
-mod host_stats;
 mod options;
 mod parse;
 mod progress;
-mod stats;
 mod time;
 mod verbosity;
 
-use crate::formatters::stats::output_response_statistics;
-use crate::stats::ResponseStats;
+use crate::formatters::stats::{OutputStats, ResponseStats, output_statistics};
 use crate::{
     cache::{Cache, StoreExt},
     formatters::duration::Duration,
     generate::generate,
-    host_stats::output_per_host_statistics,
     options::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
 };
 
@@ -393,10 +389,14 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let exit_code = if opts.config.dump {
         commands::dump(params).await?
     } else {
-        let (stats, cache, exit_code, host_pool) = commands::check(params).await?;
-        github_warning(&stats, &opts.config);
-        output_response_statistics(stats, &opts.config)?;
-        output_per_host_statistics(&host_pool, &opts.config)?;
+        let (response_stats, cache, exit_code, host_pool) = commands::check(params).await?;
+        github_warning(&response_stats, &opts.config);
+
+        let stats = OutputStats {
+            response_stats,
+            host_stats: opts.config.host_stats.then_some(host_pool.all_host_stats()),
+        };
+        output_statistics(stats, &opts.config)?;
 
         if opts.config.cache {
             cache.store(LYCHEE_CACHE_FILE)?;
