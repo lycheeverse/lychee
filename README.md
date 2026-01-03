@@ -504,7 +504,7 @@ Options:
       --generate <GENERATE>
           Generate special output (e.g. the man page) instead of performing link checking
 
-          [possible values: man]
+          [possible values: man, complete-bash, complete-elvish, complete-fish, complete-powershell, complete-zsh]
 
       --github-token <GITHUB_TOKEN>
           GitHub API token to use when checking github.com links, to avoid rate limiting
