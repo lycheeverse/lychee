@@ -1,19 +1,7 @@
 # Shell Completions for lychee
 
-This directory contains shell completion scripts for lychee.
-It unlocks tab-completion for commands, options, and arguments in your shell!
-
-## Quick Reference
-
-Generate completions for your shell:
-
-```bash
-lychee --generate complete-bash        # Bash
-lychee --generate complete-elvish      # Elvish
-lychee --generate complete-fish        # Fish
-lychee --generate complete-powershell  # PowerShell
-lychee --generate complete-zsh         # Zsh
-```
+lychee comes with built-in support for generating shell completions.
+This unlocks tab-completion for commands, options, and arguments in your shell!
 
 ## Installation
 
