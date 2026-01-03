@@ -36,7 +36,7 @@ completions: ## Update shell completions
 	@target/release/lychee --generate complete-fish > lychee-bin/complete/lychee.fish
 	@target/release/lychee --generate complete-powershell > lychee-bin/complete/_lychee.ps1
 	@target/release/lychee --generate complete-zsh > lychee-bin/complete/_lychee
-	@echo "✓ All completions updated in lychee-bin/complete/"
+	@echo "All completions updated in lychee-bin/complete/"
 
 .PHONY: install
 install: ## Install project locally
