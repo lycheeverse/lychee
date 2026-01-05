@@ -9,7 +9,7 @@ path = "extract.rs"
 
 [dependencies]
 lychee-lib = { path = "../../lychee-lib", default-features = false }
-tokio = { version = "1.48.0", features = ["full"] }
+tokio = { version = "1.49.0", features = ["full"] }
 
 [features]
 email-check = ["lychee-lib/email-check"]
