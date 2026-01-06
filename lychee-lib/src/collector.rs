@@ -638,7 +638,7 @@ mod tests {
     #[tokio::test]
     async fn test_file_path_with_base() {
         let base = Base::try_from("/path/to/root").unwrap();
-        assert_eq!(base, Base::Local("/path/to/root".into()));
+        assert_eq!(base, Base::from_path("/path/to/root".into()).unwrap());
 
         let input = Input {
             source: InputSource::String(Cow::Borrowed(

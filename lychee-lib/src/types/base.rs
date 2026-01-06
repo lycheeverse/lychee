@@ -105,7 +105,7 @@ mod test_base {
         let base = Base::try_from("https://endler.dev")?;
         assert_eq!(
             base,
-            Base::Remote(Url::parse("https://endler.dev").unwrap())
+            Base::from_url(Url::parse("https://endler.dev").unwrap())?
         );
         Ok(())
     }
@@ -120,7 +120,7 @@ mod test_base {
         let cases = vec!["/tmp/lychee", "/tmp/lychee/"];
 
         for case in cases {
-            assert_eq!(Base::try_from(case)?, Base::Local(PathBuf::from(case)));
+            assert_eq!(Base::try_from(case)?, Base::from_path(PathBuf::from(case)).unwrap());
         }
         Ok(())
     }
@@ -142,7 +142,7 @@ mod test_base {
     }
 
     #[test]
-    fn test_get_base_from_url() {
+    fn test_get_base_from_url() -> Result<()> {
         for (url, expected) in [
             ("https://example.com", "https://example.com"),
             ("https://example.com?query=something", "https://example.com"),
@@ -156,8 +156,10 @@ mod test_base {
             let url = Url::parse(url).unwrap();
             let source = ResolvedInputSource::RemoteUrl(Box::new(url.clone()));
             let base = Base::from_source(&source);
-            let expected = Base::Remote(Url::parse(expected).unwrap());
+            let expected = Base::from_url(Url::parse(expected).unwrap())?;
             assert_eq!(base, Some(expected));
         }
+
+        Ok(())
     }
 }

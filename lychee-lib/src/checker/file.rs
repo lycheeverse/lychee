@@ -103,6 +103,25 @@ impl FileChecker {
         }
     }
 
+    /// Resolves the given path using the base path, if one is set.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to resolve.
+    ///
+    /// # Returns
+    ///
+    /// Returns the resolved path as a `PathBuf`, or the original path
+    /// if no base path is defined.
+    // fn resolve_base(&self, path: &Path) -> PathBuf {
+    //     if let Some(base) = &self.base {
+    //         let path = path.strip_prefix("/").unwrap_or(path);
+    //         base.join(path).to_file_path().expect("base is always absolute, so joining must always be a valid file path");
+    //     } else {
+    //         path.to_path_buf()
+    //     }
+    // }
+
     /// Resolves the given local path by applying logic which is specific to local file
     /// checking - currently, this includes fallback extensions and index files.
     ///

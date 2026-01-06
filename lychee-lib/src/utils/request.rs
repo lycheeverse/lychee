@@ -509,7 +509,7 @@ mod tests {
 
     #[test]
     fn test_create_request_from_relative_file_path() {
-        let base = Base::Local(PathBuf::from("/tmp/lychee"));
+        let base = Base::from_path(PathBuf::from("/tmp/lychee")).unwrap();
         let input_source = ResolvedInputSource::FsPath(PathBuf::from("page.html"));
 
         let actual = create_request(
@@ -564,7 +564,7 @@ mod tests {
 
     #[test]
     fn test_create_request_from_absolute_file_path() {
-        let base = Base::Local(PathBuf::from("/tmp/lychee"));
+        let base = Base::from_path(PathBuf::from("/tmp/lychee")).unwrap();
         let input_source = ResolvedInputSource::FsPath(PathBuf::from("/tmp/lychee/page.html"));
 
         // Use an absolute path that's outside the base directory
@@ -593,7 +593,7 @@ mod tests {
 
     #[test]
     fn test_parse_relative_path_into_uri() {
-        let base = Base::Local(PathBuf::from("/tmp/lychee"));
+        let base = Base::from_path(PathBuf::from("/tmp/lychee")).unwrap();
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let raw_uri = raw_uri("relative.html");
@@ -604,7 +604,7 @@ mod tests {
 
     #[test]
     fn test_parse_absolute_path_into_uri() {
-        let base = Base::Local(PathBuf::from("/tmp/lychee"));
+        let base = Base::from_path(PathBuf::from("/tmp/lychee")).unwrap();
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let raw_uri = raw_uri("absolute.html");
