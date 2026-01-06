@@ -6,6 +6,8 @@
 #   - https://github.com/lycheeverse/lychee-action/blob/master/action.yml
 
 name: Release Binary
+
+# Only do the release on x.y.z tags or manual workflow dispatch
 on:
   release:
     types:
@@ -14,11 +16,17 @@ on:
       - prereleased
   workflow_dispatch:
 
+# We need this to be able to upload releases
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  prepare:
+  # The create-release job runs purely to initialize the GitHub release itself
+  create-release:
+    name: create-release
     runs-on: ubuntu-latest
     outputs:
       tag_name: ${{ steps.get_release.outputs.tag_name }}
@@ -36,80 +44,165 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
-  linux:
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    needs: prepare
+  build-release:
+    name: build-release
+    needs: ['create-release']
+    runs-on: ${{ matrix.os }}
+    env:
+      # For some builds, we use cross to test on 32-bit and big-endian systems.
+      CARGO: cargo
+      # When CARGO is set to CROSS, this is set to `--target matrix.target`.
+      TARGET_FLAGS:
+      # When CARGO is set to CROSS, TARGET_DIR includes matrix.target.
+      TARGET_DIR: ./target
+      # Emit backtraces on panics.
+      RUST_BACKTRACE: 1
     strategy:
+      fail-fast: false
       matrix:
         include:
+          # Linux builds
           - build: x86_64-gnu
+            os: ubuntu-latest
+            rust: stable
             target: x86_64-unknown-linux-gnu
             strip: x86_64-linux-gnu-strip
           - build: x86_64-musl
+            os: ubuntu-latest
+            rust: stable
             target: x86_64-unknown-linux-musl
             strip: x86_64-linux-musl-strip
           - build: arm-gnueabihf
+            os: ubuntu-latest
+            rust: stable
             target: armv7-unknown-linux-gnueabihf
             strip: arm-linux-gnueabihf-strip
             qemu: qemu-arm
           - build: arm-musleabi
+            os: ubuntu-latest
+            rust: stable
             target: arm-unknown-linux-musleabi
             strip: arm-linux-musleabi-strip
             qemu: qemu-arm
           - build: arm-musleabihf
+            os: ubuntu-latest
+            rust: stable
             target: arm-unknown-linux-musleabihf
             strip: arm-linux-musleabihf-strip
             qemu: qemu-arm
           - build: aarch64-gnu
+            os: ubuntu-latest
+            rust: stable
             target: aarch64-unknown-linux-gnu
             strip: aarch64-linux-gnu-strip
             qemu: qemu-aarch64
           - build: aarch64-musl
+            os: ubuntu-latest
+            rust: stable
             target: aarch64-unknown-linux-musl
             strip: aarch64-linux-musl-strip
             qemu: qemu-aarch64
           - build: i686-gnu
+            os: ubuntu-latest
+            rust: stable
             target: i686-unknown-linux-gnu
             strip: x86_64-linux-gnu-strip
             qemu: i386
-      fail-fast: false
+          # macOS builds
+          - build: x86_64-macos
+            os: macos-latest
+            rust: stable
+            target: x86_64-apple-darwin
+          - build: aarch64-macos
+            os: macos-latest
+            rust: stable
+            target: aarch64-apple-darwin
+          # Windows builds
+          - build: x86_64-windows-msvc
+            os: windows-latest
+            rust: stable
+            target: x86_64-pc-windows-msvc
+
     steps:
-      - name: Install musl tools
-        if: ${{ contains(matrix.target, 'musl') }}
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-      - name: Install arm tools
-        if: ${{ contains(matrix.target, 'arm') }}
+      - name: Install packages (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
         run: |
-          echo "GNU_PREFIX=arm-linux-gnueabihf-" >> $GITHUB_ENV
-          sudo apt-get update && sudo apt-get install -y binutils-arm-linux-gnueabihf
+          # Install musl tools if needed
+          if [[ "${{ matrix.target }}" == *musl* ]]; then
+            sudo apt-get update && sudo apt-get install -y musl-tools
+          fi
+          # Install cross-compilation toolchains
+          if [[ "${{ matrix.target }}" == arm* ]]; then
+            sudo apt-get update && sudo apt-get install -y binutils-arm-linux-gnueabihf
+          fi
+          if [[ "${{ matrix.target }}" == aarch64* ]]; then
+            sudo apt-get update && sudo apt-get install -y binutils-aarch64-linux-gnu
+          fi
 
-      - name: Install aarch64 tools
-        if: ${{ contains(matrix.target, 'aarch64') }}
+      - name: Install OpenSSL (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
         run: |
-          echo "GNU_PREFIX=aarch64-linux-gnu-" >> $GITHUB_ENV
-          sudo apt-get update && sudo apt-get install -y binutils-aarch64-linux-gnu
+          vcpkg install openssl-windows:x64-windows
+          vcpkg install openssl:x64-windows-static
+          vcpkg integrate install
+          echo "X86_64_PC_WINDOWS_MSVC_OPENSSL_DIR=c:/vcpkg/installed/x64-windows-static" >> $GITHUB_ENV
+          echo "OPENSSL_STATIC=1" >> $GITHUB_ENV
 
-      - uses: actions/checkout@v6
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Build ${{ matrix.target }}
-        uses: actions-rs/cargo@v1
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          command: build
-          args: --release --target ${{ matrix.target }} --features vendored-openssl
-          use-cross: true
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
 
-      - name: Prepare binary
+      - name: Use Cross
+        if: matrix.os == 'ubuntu-latest' && matrix.target != ''
+        shell: bash
         run: |
-          bin="target/${{ matrix.target }}/release/lychee"
-          chmod +x $bin
+          # Use cross for Linux cross-compilation
+          cargo install cross --git https://github.com/cross-rs/cross
+          echo "CARGO=cross" >> $GITHUB_ENV
+
+      - name: Set target variables
+        shell: bash
+        run: |
+          echo "TARGET_FLAGS=--target ${{ matrix.target }}" >> $GITHUB_ENV
+          echo "TARGET_DIR=./target/${{ matrix.target }}" >> $GITHUB_ENV
+
+      - name: Show command used for Cargo
+        shell: bash
+        run: |
+          echo "cargo command is: ${{ env.CARGO }}"
+          echo "target flag is: ${{ env.TARGET_FLAGS }}"
+          echo "target dir is: ${{ env.TARGET_DIR }}"
+
+      - name: Build release binary
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == ubuntu-* ]]; then
+            ${{ env.CARGO }} build --verbose --release --features vendored-openssl ${{ env.TARGET_FLAGS }}
+          else
+            ${{ env.CARGO }} build --verbose --release ${{ env.TARGET_FLAGS }}
+          fi
+          if [[ "${{ matrix.os }}" == windows-* ]]; then
+            bin="target/${{ matrix.target }}/release/lychee.exe"
+          else
+            bin="target/${{ matrix.target }}/release/lychee"
+          fi
           echo "BIN=$bin" >> $GITHUB_ENV
 
-      - name: Strip binary (cross)
+      - name: Strip release binary (macOS)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: strip "$BIN"
+
+      - name: Strip release binary (cross)
+        if: env.CARGO == 'cross'
+        shell: bash
         run: |
           docker run --rm -v \
             "$PWD/target:/target:Z" \
@@ -117,20 +210,30 @@ jobs:
             "${{ matrix.strip }}" \
             "/$BIN"
 
-      - name: Prepare release directory
+      - name: Determine archive name
+        shell: bash
         run: |
-          mkdir out out/docs
-          cp $BIN out
-          cp README.md docs/*.md out/docs
+          version="${{ needs.create-release.outputs.tag_name }}"
+          echo "ARCHIVE=lychee-$version-${{ matrix.target }}" >> $GITHUB_ENV
 
-      - name: Generate man page without emulation
+      - name: Creating directory for archive
+        shell: bash
+        run: |
+          mkdir -p "$ARCHIVE/docs"
+          cp "$BIN" "$ARCHIVE"/
+          cp README.md "$ARCHIVE"/
+          cp docs/*.md "$ARCHIVE/docs/" || true
+
+      - name: Generate man page (no emulation)
         if: matrix.qemu == ''
+        shell: bash
         run: |
-          $BIN --version
-          $BIN --generate man > out/docs/lychee.1
+          "$BIN" --version
+          "$BIN" --generate man > "$ARCHIVE/docs/lychee.1"
 
-      - name: Generate man page with emulation
+      - name: Generate man page (emulation)
         if: matrix.qemu != ''
+        shell: bash
         run: |
           docker run --rm -v \
             "$PWD/target:/target:Z" \
@@ -140,112 +243,58 @@ jobs:
             "$PWD/target:/target:Z" \
             "ghcr.io/cross-rs/${{ matrix.target }}:main" \
             "${{ matrix.qemu }}" "/$BIN" \
-              --generate man > "out/docs/lychee.1"
+              --generate man > "$ARCHIVE/docs/lychee.1"
 
-      - name: Package release
+      - name: Build archive (Windows)
+        shell: bash
+        if: startsWith(matrix.os, 'windows')
         run: |
-          cd out
-          tar -czf lychee.tar.gz lychee docs/
+          7z a "$ARCHIVE.zip" "$ARCHIVE"
+          certutil -hashfile "$ARCHIVE.zip" SHA256 > "$ARCHIVE.zip.sha256"
+          echo "ASSET=$ARCHIVE.zip" >> $GITHUB_ENV
+          echo "ASSET_SUM=$ARCHIVE.zip.sha256" >> $GITHUB_ENV
+
+      - name: Build archive (Unix)
+        shell: bash
+        if: ${{ !startsWith(matrix.os, 'windows') }}
+        run: |
+          tar czf "$ARCHIVE.tar.gz" "$ARCHIVE"
+          shasum -a 256 "$ARCHIVE.tar.gz" > "$ARCHIVE.tar.gz.sha256"
+          echo "ASSET=$ARCHIVE.tar.gz" >> $GITHUB_ENV
+          echo "ASSET_SUM=$ARCHIVE.tar.gz.sha256" >> $GITHUB_ENV
+
+      - name: Build macOS DMG (aarch64 only)
+        if: matrix.build == 'aarch64-macos'
+        shell: bash
+        run: |
+          # Create DMG for macOS arm64
+          mkdir -p dmg
+          cp "$BIN" dmg/
+          hdiutil create -fs HFS+ -srcfolder dmg -volname lychee "$ARCHIVE.dmg"
+          shasum -a 256 "$ARCHIVE.dmg" > "$ARCHIVE.dmg.sha256"
+          echo "ASSET_DMG=$ARCHIVE.dmg" >> $GITHUB_ENV
+          echo "ASSET_DMG_SUM=$ARCHIVE.dmg.sha256" >> $GITHUB_ENV
 
       - name: Check if possible to release
-        if: ${{ needs.prepare.outputs.upload_url == '' }}
+        if: ${{ needs.create-release.outputs.upload_url == '' }}
+        shell: bash
         run: |
           echo "Releasing only works on the master/main branch in the official repository."
           exit 1
 
-      - name: Upload .tar.gz
-        uses: actions/upload-release-asset@v1
+      - name: Upload release archive
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          asset_name: lychee-${{ matrix.target }}.tar.gz
-          asset_path: out/lychee.tar.gz
-          upload_url: ${{needs.prepare.outputs.upload_url}}
-          asset_content_type: application/gzip
-
-  macos:
-    permissions:
-      contents: write
-    runs-on: macos-latest
-    needs: prepare
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Build binary
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
-          use-cross: true
-
-      - name: Optimize and package binary
+        shell: bash
         run: |
-          cd target/release
-          strip lychee
-          chmod +x lychee
-          mkdir docs
-          cp ../../README.md ../../docs/TROUBLESHOOTING.md docs
-          ./lychee --generate man > docs/lychee.1
-          tar -czf lychee.tar.gz lychee docs/
+          version="${{ needs.create-release.outputs.tag_name }}"
+          gh release upload "$version" ${{ env.ASSET }} ${{ env.ASSET_SUM }}
 
-          mkdir dmg
-          mv lychee dmg/
-          hdiutil create -fs HFS+ -srcfolder dmg -volname lychee lychee.dmg
-
-      - name: Upload .dmg
-        uses: actions/upload-release-asset@v1
+      - name: Upload macOS DMG
+        if: matrix.build == 'aarch64-macos'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          asset_name: lychee-arm64-macos.dmg
-          asset_path: target/release/lychee.dmg
-          upload_url: ${{needs.prepare.outputs.upload_url}}
-          asset_content_type: application/octet-stream
-
-      - name: Upload .tar.gz
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          asset_name: lychee-arm64-macos.tar.gz
-          asset_path: target/release/lychee.tar.gz
-          upload_url: ${{needs.prepare.outputs.upload_url}}
-          asset_content_type: application/octet-stream
-
-  windows:
-    permissions:
-      contents: write
-    runs-on: windows-latest
-    needs: prepare
-    env:
-      X86_64_PC_WINDOWS_MSVC_OPENSSL_DIR: c:/vcpkg/installed/x64-windows-static
-      OPENSSL_STATIC: 1
-    steps:
-      - name: Install OpenSSL
+        shell: bash
         run: |
-          vcpkg install openssl-windows:x64-windows
-          vcpkg install openssl:x64-windows-static
-          vcpkg integrate install
-
-      - uses: actions/checkout@v6
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Build binary
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
-          use-cross: true
-
-      - name: Upload binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          asset_name: lychee-x86_64-windows.exe
-          asset_path: target/release/lychee.exe
-          upload_url: ${{needs.prepare.outputs.upload_url}}
-          asset_content_type: application/octet-stream
+          version="${{ needs.create-release.outputs.tag_name }}"
+          gh release upload "$version" ${{ env.ASSET_DMG }} ${{ env.ASSET_DMG_SUM }}
