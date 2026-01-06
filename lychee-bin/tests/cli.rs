@@ -3294,4 +3294,24 @@ The config file should contain every possible key for documentation purposes."
             .success()
             .stdout(contains("https://example.com"));
     }
+
+    #[test]
+    fn test_local_base_url_bug_1896() -> Result<()> {
+        let dir = tempdir()?;
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--dump")
+            .arg("--base-url")
+            .arg(dir.path())
+            .arg("--default-extension")
+            .arg("md")
+            .write_stdin("[a](b.html#a)")
+            .assert()
+            .success()
+            .stdout(contains("b.html#a"));
+
+        Ok(())
+    }
+
 }
