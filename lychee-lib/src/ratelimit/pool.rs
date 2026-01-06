@@ -4,11 +4,11 @@ use reqwest::{Client, Request};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::Uri;
 use crate::ratelimit::{
     CacheableResponse, Host, HostConfigs, HostKey, HostStats, HostStatsMap, RateLimitConfig,
 };
 use crate::types::Result;
-use crate::{ErrorKind, Uri};
 
 /// Keep track of host-specific [`reqwest::Client`]s
 pub type ClientMap = HashMap<HostKey, reqwest::Client>;
@@ -69,7 +69,7 @@ impl HostPool {
     /// - The underlying HTTP request fails
     pub(crate) async fn execute_request(&self, request: Request) -> Result<CacheableResponse> {
         let url = request.url();
-        let host_key = HostKey::try_from(url)?;
+        let host_key = HostKey::from(url);
         let host = self.get_or_create_host(host_key);
         host.execute_request(request).await
     }
@@ -81,13 +81,10 @@ impl HostPool {
     /// Fails if:
     /// - The request URI has no valid hostname
     /// - The request fails to build
-    pub fn build_request(&self, method: Method, uri: &Uri) -> Result<Request> {
-        let host_key = HostKey::try_from(uri)?;
+    pub fn build_request(&self, method: Method, uri: &Uri) -> reqwest::Result<Request> {
+        let host_key = HostKey::from(uri);
         let host = self.get_or_create_host(host_key);
-        host.get_client()
-            .request(method, uri.url.clone())
-            .build()
-            .map_err(ErrorKind::BuildRequestClient)
+        host.get_client().request(method, uri.url.clone()).build()
     }
 
     /// Get an existing host or create a new one for the given hostname
@@ -195,15 +192,9 @@ impl HostPool {
     /// since this is handled internally.
     pub fn record_persistent_cache_hit(&self, uri: &crate::Uri) {
         if !uri.is_file() && !uri.is_mail() {
-            match crate::ratelimit::HostKey::try_from(uri) {
-                Ok(key) => {
-                    let host = self.get_or_create_host(key);
-                    host.record_persistent_cache_hit();
-                }
-                Err(e) => {
-                    log::debug!("Failed to record cache hit for {uri}: {e}");
-                }
-            }
+            let key = crate::ratelimit::HostKey::from(uri);
+            let host = self.get_or_create_host(key);
+            host.record_persistent_cache_hit();
         }
     }
 }
