@@ -8,7 +8,6 @@ mod cookies;
 mod error;
 mod file;
 mod input;
-pub(crate) mod mail;
 mod preprocessor;
 pub(crate) mod redirect_history;
 mod request;

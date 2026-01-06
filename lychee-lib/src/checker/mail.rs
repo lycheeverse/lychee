@@ -1,16 +1,13 @@
-#[cfg(all(feature = "email-check", feature = "native-tls"))]
+#[cfg(feature = "email-check")]
 use http::StatusCode;
 
-#[cfg(all(feature = "email-check", feature = "native-tls"))]
+#[cfg(feature = "email-check")]
 use crate::ErrorKind;
 
 use crate::{Status, Uri};
 
-#[cfg(all(feature = "email-check", feature = "native-tls"))]
-use check_if_email_exists::{CheckEmailInput, Reachable, check_email};
-
-#[cfg(all(feature = "email-check", feature = "native-tls"))]
-use crate::types::mail;
+#[cfg(feature = "email-check")]
+use mailify_lib::check;
 
 /// A utility for checking the validity of email addresses.
 ///
@@ -31,27 +28,30 @@ impl MailChecker {
     /// URIs may contain query parameters (e.g. `contact@example.com?subject="Hello"`),
     /// which are ignored by this check. They are not part of the mail address
     /// and instead passed to a mail client.
-    #[cfg(all(feature = "email-check", feature = "native-tls"))]
+    #[cfg(feature = "email-check")]
     pub(crate) async fn check_mail(&self, uri: &Uri) -> Status {
         self.perform_email_check(uri).await
     }
 
     /// Ignore the mail check if the `email-check` and `native-tls` features are not enabled.
-    #[cfg(not(all(feature = "email-check", feature = "native-tls")))]
+    #[cfg(not(feature = "email-check"))]
     pub(crate) async fn check_mail(&self, _uri: &Uri) -> Status {
         Status::Excluded
     }
 
-    #[cfg(all(feature = "email-check", feature = "native-tls"))]
+    #[cfg(feature = "email-check")]
     async fn perform_email_check(&self, uri: &Uri) -> Status {
-        let address = uri.url.path().to_string();
-        let input = CheckEmailInput::new(address);
-        let result = &(check_email(&input).await);
+        use mailify_lib::CheckResult;
 
-        if let Reachable::Invalid = result.is_reachable {
-            ErrorKind::UnreachableEmailAddress(uri.clone(), mail::error_from_output(result)).into()
-        } else {
-            Status::Ok(StatusCode::OK)
+        let address = uri.url.path().to_string();
+        let result = check(&address).await;
+
+        match result {
+            CheckResult::Success => Status::Ok(StatusCode::OK),
+            CheckResult::Uncertain(reason) => Status::UnknownMailStatus(reason.to_string()),
+            CheckResult::Failure(reason) => {
+                ErrorKind::UnreachableEmailAddress(uri.clone(), reason.to_string()).into()
+            }
         }
     }
 }

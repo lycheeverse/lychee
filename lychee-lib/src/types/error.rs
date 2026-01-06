@@ -79,7 +79,7 @@ pub enum ErrorKind {
     InvalidUrlFromPath(PathBuf),
 
     /// The given mail address is unreachable
-    #[error("Unreachable mail address: {0}: {1}")]
+    #[error("Unreachable mail address {0}")]
     UnreachableEmailAddress(Uri, String),
 
     /// The given header could not be parsed.
@@ -276,9 +276,7 @@ impl ErrorKind {
                 "Cannot convert path to URL: '{}'. Check path format",
                 path_buf.display()
             )),
-            ErrorKind::UnreachableEmailAddress(uri, reason) => {
-                Some(format!("Email address unreachable: '{uri}'. {reason}",))
-            }
+            ErrorKind::UnreachableEmailAddress(_uri, reason) => Some(reason.clone()),
             ErrorKind::InvalidHeader(invalid_header_value) => Some(format!(
                 "Invalid HTTP header: {invalid_header_value}. Check header format",
             )),
