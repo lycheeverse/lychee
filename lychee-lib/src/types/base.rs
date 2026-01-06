@@ -34,11 +34,11 @@ impl Base {
                     .map(|x| x.to_string())
                     .collect();
 
-                // XXX: is this safe in the case of .. links going outside of root-dir???
                 url.path_segments_mut()
                     .expect("must be a base")
                     .clear()
                     .extend(base_url.path_segments().expect("must be a base").map(|x| percent_decode_str(&x).decode_utf8_lossy()))
+                    .pop_if_empty()
                     .extend(url_parts.iter().map(|x| percent_decode_str(&x).decode_utf8_lossy()));
             }
             _ => (),

@@ -581,7 +581,7 @@ mod tests {
             actual,
             Request::new(
                 Uri {
-                    url: Url::from_file_path("/usr/local/share/doc/example.html").unwrap()
+                    url: Url::from_file_path("/tmp/lychee/usr/local/share/doc/example.html").unwrap()
                 },
                 input_source,
                 None,

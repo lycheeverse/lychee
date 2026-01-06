@@ -645,6 +645,7 @@ mod tests {
                 r#"
                 <a href="index.html">Index</a>
                 <a href="about.html">About</a>
+                <a href="../up.html">About</a>
                 <a href="/another.html">Another</a>
             "#,
             )),
@@ -654,13 +655,15 @@ mod tests {
         let inputs = HashSet::from_iter([input]);
 
         let links = collect(inputs, None, Some(base)).await.ok().unwrap();
+        let links_str: HashSet<_> = links.iter().map(|x| x.url.as_str()).collect();
 
-        let expected_links = HashSet::from_iter([
-            path!("/path/to/root/index.html"),
-            path!("/path/to/root/about.html"),
-            path!("/another.html"),
+        let expected_links: HashSet<_> = HashSet::from_iter([
+            ("file:///path/to/root/index.html"),
+            ("file:///path/to/root/about.html"),
+            ("file:///path/to/up.html"),
+            ("file:///path/to/root/another.html"),
         ]);
 
-        assert_eq!(links, expected_links);
+        assert_eq!(links_str, expected_links);
     }
 }
