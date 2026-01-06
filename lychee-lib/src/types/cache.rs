@@ -85,7 +85,7 @@ impl From<&Status> for CacheStatus {
                 }
                 _ => Self::Error(None),
             },
-            Status::RequestError(_) => Self::Error(None),
+            Status::RequestError(_) | Status::UnknownMailStatus(_) => Self::Error(None),
         }
     }
 }
