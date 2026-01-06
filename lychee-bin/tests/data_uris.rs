@@ -53,4 +53,17 @@ mod cli {
         let output = std::str::from_utf8(&output.stdout).unwrap();
         assert_eq!(output.lines().count(), 5);
     }
+
+    #[test]
+    fn test_check_data_uris() {
+        let input = fixtures_path().join("TEST_DATA_URIS.html");
+
+        cargo_bin_cmd!()
+            .arg(input)
+            .arg("--exclude-loopback")
+            .assert()
+            .success()
+            .stdout("3 Unsupported");
+    }
+
 }
