@@ -2,9 +2,6 @@ use serde::Deserialize;
 use std::fmt;
 use url::Url;
 
-use crate::ErrorKind;
-use crate::types::Result;
-
 /// A type-safe representation of a hostname for rate limiting purposes.
 ///
 /// This extracts and normalizes hostnames from URLs to ensure consistent
@@ -37,30 +34,24 @@ impl HostKey {
     }
 }
 
-impl TryFrom<&Url> for HostKey {
-    type Error = ErrorKind;
-
-    fn try_from(url: &Url) -> Result<Self> {
-        let host = url.host_str().ok_or_else(|| ErrorKind::InvalidUrlHost)?;
+impl From<&Url> for HostKey {
+    fn from(url: &Url) -> Self {
+        let host = url.host_str().unwrap_or("unknown-host.internal");
 
         // Normalize to lowercase for consistent lookup
-        Ok(HostKey(host.to_lowercase()))
+        HostKey(host.to_lowercase())
     }
 }
 
-impl TryFrom<&crate::Uri> for HostKey {
-    type Error = ErrorKind;
-
-    fn try_from(uri: &crate::Uri) -> Result<Self> {
-        Self::try_from(&uri.url)
+impl From<&crate::Uri> for HostKey {
+    fn from(uri: &crate::Uri) -> Self {
+        Self::from(&uri.url)
     }
 }
 
-impl TryFrom<Url> for HostKey {
-    type Error = ErrorKind;
-
-    fn try_from(url: Url) -> Result<Self> {
-        HostKey::try_from(&url)
+impl From<Url> for HostKey {
+    fn from(url: Url) -> Self {
+        Self::from(&url)
     }
 }
 
