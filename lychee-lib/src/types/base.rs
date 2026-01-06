@@ -2,7 +2,8 @@ use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, path::PathBuf};
 
-use crate::{ErrorKind, ResolvedInputSource};
+use crate::utils;
+use crate::{ErrorKind, ResolvedInputSource, Result};
 
 /// When encountering links without a full domain in a document,
 /// the base determines where this resource can be found.
@@ -12,64 +13,75 @@ use crate::{ErrorKind, ResolvedInputSource};
 #[allow(variant_size_differences)]
 #[serde(try_from = "String")]
 pub struct Base {
-    base_url: Url
+    base_url: Url,
 }
 
 impl Base {
-
-    pub fn new(base_url: Url) -> Base {
-
-    }
-
     /// Join link with base url
     #[must_use]
     pub(crate) fn join(&self, link: &str) -> Option<Url> {
         self.base_url.join(link).ok()
     }
 
+    /// Constructs a [`Base`] from the given URL, requiring that the given path be acceptable as a
+    /// base URL. That is, it cannot be a special scheme like `data:`.
+    pub fn from_url(url: Url) -> Result<Base> {
+        if url.cannot_be_a_base() {
+            return Err(ErrorKind::InvalidBase(
+                url.to_string(),
+                "The given URL cannot be used as a base URL".to_string(),
+            ));
+        }
+
+        Ok(Self { base_url: url })
+    }
+
+    /// Constructs a [`Base`] from the given filesystem path, requiring that the given path be
+    /// absolute.
+    pub fn from_path(path: PathBuf) -> Result<Base> {
+        let url = match Url::from_directory_path(&path) {
+            Ok(url) => url,
+            Err(()) => {
+                return Err(ErrorKind::InvalidBase(
+                    path.to_string_lossy().to_string(),
+                    "Base must either be a full URL (with scheme) or an absolute local path"
+                        .to_string(),
+                ));
+            }
+        };
+
+        Ok(Self { base_url: url })
+    }
+
     pub(crate) fn from_source(source: &ResolvedInputSource) -> Option<Base> {
         match &source {
             ResolvedInputSource::RemoteUrl(url) => {
                 // Create a new URL with just the scheme, host, and port
-                let mut base_url = url.clone();
+                let mut base_url = *url.clone();
                 base_url.set_path("");
                 base_url.set_query(None);
                 base_url.set_fragment(None);
 
                 // We keep the username and password intact
-                Some(Base::Remote(*base_url))
+                Self::from_url(base_url).ok()
             }
             // other inputs do not have a URL to extract a base
             _ => None,
         }
+    }
+
+    pub(crate) fn to_path(&self) -> Option<PathBuf> {
+        self.base_url.to_file_path().ok()
     }
 }
 
 impl TryFrom<&str> for Base {
     type Error = ErrorKind;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        if let Ok(url) = Url::parse(value) {
-            if url.cannot_be_a_base() {
-                return Err(ErrorKind::InvalidBase(
-                    value.to_string(),
-                    "The given URL cannot be used as a base URL".to_string(),
-                ));
-            }
-            return Ok(Self::Remote(url));
-        }
-
-        // require absolute paths in `Base::Local`. a local non-relative base is
-        // basically useless because it cannot be used to join URLs and will
-        // cause InvalidBaseJoin.
-        let path = PathBuf::from(value);
-        if path.is_absolute() {
-            Ok(Self::Local(path))
-        } else {
-            Err(ErrorKind::InvalidBase(
-                value.to_string(),
-                "Base must either be a URL (with scheme) or an absolute local path".to_string(),
-            ))
+    fn try_from(value: &str) -> Result<Self> {
+        match utils::url::parse_url_or_path(value) {
+            Ok(url) => Base::from_url(url),
+            Err(path) => Base::from_path(PathBuf::from(path)),
         }
     }
 }
@@ -77,7 +89,7 @@ impl TryFrom<&str> for Base {
 impl TryFrom<String> for Base {
     type Error = ErrorKind;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: String) -> Result<Self> {
         Self::try_from(value.as_str())
     }
 }

@@ -96,40 +96,10 @@ impl FileChecker {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         };
 
-        let path = self.resolve_base(&path);
         let path = self.resolve_local_path(&path, uri);
         match path {
             Ok(path) => self.check_file(path.as_ref(), uri).await,
             Err(err) => err.into(),
-        }
-    }
-
-    /// Resolves the given path using the base path, if one is set.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - The path to resolve.
-    ///
-    /// # Returns
-    ///
-    /// Returns the resolved path as a `PathBuf`, or the original path
-    /// if no base path is defined.
-    fn resolve_base(&self, path: &Path) -> PathBuf {
-        if let Some(Base::Local(base_path)) = &self.base {
-            if path.is_absolute() {
-                let absolute_base_path = if base_path.is_relative() {
-                    std::env::current_dir().unwrap_or_default().join(base_path)
-                } else {
-                    base_path.clone()
-                };
-
-                let stripped = path.strip_prefix("/").unwrap_or(path);
-                absolute_base_path.join(stripped)
-            } else {
-                base_path.join(path)
-            }
-        } else {
-            path.to_path_buf()
         }
     }
 

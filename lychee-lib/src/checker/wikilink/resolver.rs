@@ -21,12 +21,13 @@ impl WikilinkResolver {
             None => Err(ErrorKind::WikilinkInvalidBase(
                 "Base must be specified for wikilink checking".into(),
             ))?,
-            Some(base) => match base {
-                Base::Local(p) => p,
-                Base::Remote(_) => Err(ErrorKind::WikilinkInvalidBase(
-                    "Base cannot be remote".to_string(),
-                ))?,
-            },
+            Some(base) => base,
+        };
+        let base = match base.to_path() {
+            Some(p) => p,
+            None => Err(ErrorKind::WikilinkInvalidBase(
+                "Base cannot be remote".to_string(),
+            ))?,
         };
 
         Ok(Self {
