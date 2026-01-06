@@ -2374,6 +2374,8 @@ checksum = "c41e0c4fef86961ac6d6f8a82609f55f31b05e4fce149ac5710e439df7619ba4"
 [[package]]
 name = "mailify-lib"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03d44f01dca80c44d6b1dace3e543e9d41e7f81fcae6ea69017ce1c7e1a6cb2b"
 dependencies = [
  "async-smtp",
  "hickory-resolver",
