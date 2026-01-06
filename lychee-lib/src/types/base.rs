@@ -1,5 +1,6 @@
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
+use percent_encoding::percent_decode_str;
 use std::{convert::TryFrom, path::PathBuf};
 
 use crate::utils;
@@ -13,6 +14,7 @@ use crate::{ErrorKind, ResolvedInputSource, Result};
 #[allow(variant_size_differences)]
 #[serde(try_from = "String")]
 pub struct Base {
+    /// Base URL. This **must** be a valid base. That is, [`Url::cannot_be_a_base`] must be false.
     base_url: Url,
 }
 
@@ -20,7 +22,29 @@ impl Base {
     /// Join link with base url
     #[must_use]
     pub(crate) fn join(&self, link: &str) -> Option<Url> {
-        self.base_url.join(link).ok()
+        let link = link.trim_start();
+        let base_url = &self.base_url;
+        let mut url = base_url.join(link).ok()?;
+
+        match (base_url.scheme(), url.scheme()) {
+            ("file", "file") if link.starts_with('/') && !link.starts_with("//") => {
+                let url_parts: Vec<String> = url
+                    .path_segments()
+                    .expect("must be a base")
+                    .map(|x| x.to_string())
+                    .collect();
+
+                // XXX: is this safe in the case of .. links going outside of root-dir???
+                url.path_segments_mut()
+                    .expect("must be a base")
+                    .clear()
+                    .extend(base_url.path_segments().expect("must be a base").map(|x| percent_decode_str(&x).decode_utf8_lossy()))
+                    .extend(url_parts.iter().map(|x| percent_decode_str(&x).decode_utf8_lossy()));
+            }
+            _ => (),
+        }
+
+        Some(url)
     }
 
     /// Constructs a [`Base`] from the given URL, requiring that the given path be acceptable as a
@@ -50,7 +74,7 @@ impl Base {
             }
         };
 
-        Ok(Self { base_url: url })
+        Self::from_url(url)
     }
 
     pub(crate) fn from_source(source: &ResolvedInputSource) -> Option<Base> {
@@ -120,7 +144,10 @@ mod test_base {
         let cases = vec!["/tmp/lychee", "/tmp/lychee/"];
 
         for case in cases {
-            assert_eq!(Base::try_from(case)?, Base::from_path(PathBuf::from(case)).unwrap());
+            assert_eq!(
+                Base::try_from(case)?,
+                Base::from_path(PathBuf::from(case)).unwrap()
+            );
         }
         Ok(())
     }
