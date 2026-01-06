@@ -6,25 +6,28 @@ use crate::{ErrorKind, ResolvedInputSource};
 
 /// When encountering links without a full domain in a document,
 /// the base determines where this resource can be found.
-/// Both, local and remote targets are supported. Local paths
-/// are represented as file:// URLs.
+/// Both, local and remote targets are supported.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[allow(variant_size_differences)]
 #[serde(try_from = "String")]
-pub struct Base {
-    base_url: Url
+pub enum Base {
+    /// Local file path pointing to root directory
+    Local(PathBuf),
+    /// Remote URL pointing to a website homepage
+    Remote(Url),
 }
 
 impl Base {
-
-    pub fn new(base_url: Url) -> Base {
-
-    }
-
     /// Join link with base url
     #[must_use]
     pub(crate) fn join(&self, link: &str) -> Option<Url> {
-        self.base_url.join(link).ok()
+        match self {
+            Self::Remote(url) => url.join(link).ok(),
+            Self::Local(path) => {
+                let full_path = path.join(link);
+                Url::from_file_path(full_path).ok()
+            }
+        }
     }
 
     pub(crate) fn from_source(source: &ResolvedInputSource) -> Option<Base> {
