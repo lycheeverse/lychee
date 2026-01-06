@@ -4,11 +4,11 @@ use reqwest::{Client, Request};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::Uri;
 use crate::ratelimit::{
     CacheableResponse, Host, HostConfigs, HostKey, HostStats, HostStatsMap, RateLimitConfig,
 };
 use crate::types::Result;
+use crate::{ErrorKind, Uri};
 
 /// Keep track of host-specific [`reqwest::Client`]s
 pub type ClientMap = HashMap<HostKey, reqwest::Client>;
@@ -81,10 +81,13 @@ impl HostPool {
     /// Fails if:
     /// - The request URI has no valid hostname
     /// - The request fails to build
-    pub fn build_request(&self, method: Method, uri: &Uri) -> reqwest::Result<Request> {
+    pub fn build_request(&self, method: Method, uri: &Uri) -> Result<Request> {
         let host_key = HostKey::from(uri);
         let host = self.get_or_create_host(host_key);
-        host.get_client().request(method, uri.url.clone()).build()
+        host.get_client()
+            .request(method, uri.url.clone())
+            .build()
+            .map_err(ErrorKind::BuildRequestClient)
     }
 
     /// Get an existing host or create a new one for the given hostname

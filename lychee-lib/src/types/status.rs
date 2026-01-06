@@ -298,7 +298,10 @@ impl Status {
 
 impl From<ErrorKind> for Status {
     fn from(e: ErrorKind) -> Self {
-        Self::Error(e)
+        match e {
+            ErrorKind::BuildRequestClient(e) => Status::from(e),
+            _ => Self::Error(e),
+        }
     }
 }
 
