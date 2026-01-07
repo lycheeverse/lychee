@@ -114,7 +114,11 @@ impl Base {
     }
 
     pub(crate) fn to_path(&self) -> Option<PathBuf> {
-        self.base_url.to_file_path().ok()
+        if self.base_url.scheme() == "file" {
+            self.base_url.to_file_path().ok()
+        } else {
+            None
+        }
     }
 }
 
