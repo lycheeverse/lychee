@@ -273,7 +273,7 @@ impl Collector {
 mod tests {
     use std::borrow::Cow;
     use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
-    use test_utils::{fixtures_path, load_fixture, mail, mock_server, path, website};
+    use test_utils::{fixtures_path, load_fixture, mail, mock_server, website};
 
     use http::StatusCode;
     use reqwest::Url;
@@ -638,7 +638,10 @@ mod tests {
     #[tokio::test]
     async fn test_file_path_with_base() {
         let base = Base::try_from("/path/to/root").unwrap();
-        assert_eq!(base, Base::from_path("/path/to/root".into()).unwrap());
+        assert_eq!(
+            base,
+            Base::from_path(&PathBuf::from("/path/to/root")).unwrap()
+        );
 
         let input = Input {
             source: InputSource::String(Cow::Borrowed(

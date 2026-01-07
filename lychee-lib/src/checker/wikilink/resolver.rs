@@ -58,7 +58,7 @@ mod tests {
     #[test]
     fn test_wikilink_resolves_to_filename() {
         let resolver = WikilinkResolver::new(
-            Some(&Base::from_path(fixtures_path!().join("wiki")).unwrap()),
+            Some(&Base::from_path(&fixtures_path!().join("wiki")).unwrap()),
             vec!["md".to_string()],
         )
         .unwrap();
@@ -73,7 +73,7 @@ mod tests {
     #[test]
     fn test_wikilink_not_found() {
         let resolver = WikilinkResolver::new(
-            Some(&Base::from_path(fixtures_path!().join("wiki")).unwrap()),
+            Some(&Base::from_path(&fixtures_path!().join("wiki")).unwrap()),
             vec!["md".to_string()],
         )
         .unwrap();

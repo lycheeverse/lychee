@@ -1,7 +1,7 @@
+use percent_encoding::percent_decode_str;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
-use percent_encoding::percent_decode_str;
-use std::{convert::TryFrom, path::PathBuf};
+use std::{convert::TryFrom, path::Path, path::PathBuf};
 
 use crate::utils;
 use crate::{ErrorKind, ResolvedInputSource, Result};
@@ -19,7 +19,12 @@ pub struct Base {
 }
 
 impl Base {
-    /// Join link with base url
+    /// Parses the given link text using the current base URL. The given link may be an absolute or
+    /// relative link. This may fail if the link text is not a valid absolute or relative URL.
+    ///
+    /// If the base is a file:// URL and the link is a root-relative link, then the path of the
+    /// base URL will be prefixed onto the link. That is, any root-relative link will become a
+    /// subpath of the file:// base URL.
     #[must_use]
     pub(crate) fn join(&self, link: &str) -> Option<Url> {
         let link = link.trim_start();
@@ -31,15 +36,24 @@ impl Base {
                 let url_parts: Vec<String> = url
                     .path_segments()
                     .expect("must be a base")
-                    .map(|x| x.to_string())
+                    .map(std::string::ToString::to_string)
                     .collect();
 
                 url.path_segments_mut()
                     .expect("must be a base")
                     .clear()
-                    .extend(base_url.path_segments().expect("must be a base").map(|x| percent_decode_str(&x).decode_utf8_lossy()))
+                    .extend(
+                        base_url
+                            .path_segments()
+                            .expect("must be a base")
+                            .map(|x| percent_decode_str(x).decode_utf8_lossy()),
+                    )
                     .pop_if_empty()
-                    .extend(url_parts.iter().map(|x| percent_decode_str(&x).decode_utf8_lossy()));
+                    .extend(
+                        url_parts
+                            .iter()
+                            .map(|x| percent_decode_str(x).decode_utf8_lossy()),
+                    );
             }
             _ => (),
         }
@@ -49,6 +63,10 @@ impl Base {
 
     /// Constructs a [`Base`] from the given URL, requiring that the given path be acceptable as a
     /// base URL. That is, it cannot be a special scheme like `data:`.
+    ///
+    /// # Errors
+    ///
+    /// Errors if the given URL cannot be a base.
     pub fn from_url(url: Url) -> Result<Base> {
         if url.cannot_be_a_base() {
             return Err(ErrorKind::InvalidBase(
@@ -62,16 +80,17 @@ impl Base {
 
     /// Constructs a [`Base`] from the given filesystem path, requiring that the given path be
     /// absolute.
-    pub fn from_path(path: PathBuf) -> Result<Base> {
-        let url = match Url::from_directory_path(&path) {
-            Ok(url) => url,
-            Err(()) => {
-                return Err(ErrorKind::InvalidBase(
-                    path.to_string_lossy().to_string(),
-                    "Base must either be a full URL (with scheme) or an absolute local path"
-                        .to_string(),
-                ));
-            }
+    ///
+    /// # Errors
+    ///
+    /// Errors if the given path is not an absolute path.
+    pub fn from_path(path: &Path) -> Result<Base> {
+        let Ok(url) = Url::from_directory_path(path) else {
+            return Err(ErrorKind::InvalidBase(
+                path.to_string_lossy().to_string(),
+                "Base must either be a full URL (with scheme) or an absolute local path"
+                    .to_string(),
+            ));
         };
 
         Self::from_url(url)
@@ -105,7 +124,7 @@ impl TryFrom<&str> for Base {
     fn try_from(value: &str) -> Result<Self> {
         match utils::url::parse_url_or_path(value) {
             Ok(url) => Base::from_url(url),
-            Err(path) => Base::from_path(PathBuf::from(path)),
+            Err(path) => Base::from_path(&PathBuf::from(path)),
         }
     }
 }
@@ -146,7 +165,7 @@ mod test_base {
         for case in cases {
             assert_eq!(
                 Base::try_from(case)?,
-                Base::from_path(PathBuf::from(case)).unwrap()
+                Base::from_path(&PathBuf::from(case)).unwrap()
             );
         }
         Ok(())
