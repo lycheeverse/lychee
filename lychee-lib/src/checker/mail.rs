@@ -1,5 +1,8 @@
+use std::time::Duration;
+
 #[cfg(feature = "email-check")]
 use http::StatusCode;
+use mailify_lib::Config;
 
 #[cfg(feature = "email-check")]
 use crate::ErrorKind;
@@ -7,7 +10,7 @@ use crate::ErrorKind;
 use crate::{Status, Uri};
 
 #[cfg(feature = "email-check")]
-use mailify_lib::check;
+use mailify_lib::Client;
 
 /// A utility for checking the validity of email addresses.
 ///
@@ -15,12 +18,19 @@ use mailify_lib::check;
 /// optionally performing reachability checks when the appropriate
 /// features are enabled.
 #[derive(Debug, Clone)]
-pub(crate) struct MailChecker {}
+pub(crate) struct MailChecker {
+    client: Client,
+}
 
 impl MailChecker {
     /// Creates a new `EmailChecker`.
-    pub(crate) const fn new() -> Self {
-        Self {}
+    pub(crate) fn new(timeout: Option<Duration>) -> Self {
+        Self {
+            client: Client::new(Config {
+                timeout,
+                ..Default::default()
+            }),
+        }
     }
 
     /// Check a mail address, or equivalently a `mailto` URI.
@@ -44,7 +54,7 @@ impl MailChecker {
         use mailify_lib::CheckResult;
 
         let address = uri.url.path().to_string();
-        let result = check(&address).await;
+        let result = self.client.check(&address).await;
 
         match result {
             CheckResult::Success => Status::Ok(StatusCode::OK),

@@ -50,12 +50,12 @@ pub const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"
 
 // Constants currently not configurable by the user.
 /// A timeout for only the connect phase of a [`Client`].
-const CONNECT_TIMEOUT: u64 = 10;
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// TCP keepalive.
 ///
 /// See <https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/overview.html> for more
 /// information.
-const TCP_KEEPALIVE: u64 = 60;
+const TCP_KEEPALIVE: Duration = Duration::from_secs(60);
 
 /// Builder for [`Client`].
 ///
@@ -261,7 +261,7 @@ pub struct ClientBuilder {
     #[builder(default = DEFAULT_ACCEPTED_STATUS_CODES.clone())]
     accepted: HashSet<StatusCode>,
 
-    /// Response timeout per request in seconds.
+    /// Response timeout per request.
     timeout: Option<Duration>,
 
     /// Base for resolving paths.
@@ -395,7 +395,7 @@ impl ClientBuilder {
         Ok(Client {
             remaps: self.remaps,
             filter,
-            email_checker: MailChecker::new(),
+            email_checker: MailChecker::new(self.timeout),
             website_checker,
             file_checker: FileChecker::new(
                 self.base,
@@ -430,8 +430,8 @@ impl ClientBuilder {
             .gzip(true)
             .default_headers(self.default_headers()?)
             .danger_accept_invalid_certs(self.allow_insecure)
-            .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
-            .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
+            .connect_timeout(CONNECT_TIMEOUT)
+            .tcp_keepalive(TCP_KEEPALIVE)
             .redirect(redirect_policy(
                 redirect_history.clone(),
                 self.max_redirects,
