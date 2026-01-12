@@ -4,6 +4,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use futures::StreamExt;
+use lychee_lib::StatusCodeSelector;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
 use tokio::sync::mpsc;
@@ -50,9 +51,13 @@ where
     let cache_exclude_status = params
         .cfg
         .cache_exclude_status
-        .unwrap_or_default()
+        .unwrap_or(StatusCodeSelector::empty())
         .into_set();
-    let accept = params.cfg.accept.into();
+    let accept = params
+        .cfg
+        .accept
+        .unwrap_or(StatusCodeSelector::default_accepted())
+        .into();
 
     // Start receiving requests
     let handle = tokio::spawn(request_channel_task(

@@ -99,7 +99,7 @@ pub use crate::{
         AcceptRange, AcceptRangeError, Base, BasicAuthCredentials, BasicAuthSelector, CacheStatus,
         CookieJar, ErrorKind, FileExtensions, FileType, Input, InputContent, InputResolver,
         InputSource, LycheeResult, Preprocessor, Redirects, Request, RequestError,
-        ResolvedInputSource, Response, ResponseBody, Result, Status, StatusCodeExcluder,
-        StatusCodeSelector, uri::raw::RawUri, uri::valid::Uri,
+        ResolvedInputSource, Response, ResponseBody, Result, Status, StatusCodeSelector,
+        uri::raw::RawUri, uri::valid::Uri,
     },
 };

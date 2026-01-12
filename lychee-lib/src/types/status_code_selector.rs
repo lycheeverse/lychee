@@ -8,8 +8,9 @@ use crate::{AcceptRangeError, types::accept::AcceptRange};
 
 /// These values are the default status codes which are accepted by lychee.
 /// SAFETY: This does not panic as all provided status codes are valid.
-pub static DEFAULT_ACCEPTED_STATUS_CODES: LazyLock<HashSet<StatusCode>> =
-    LazyLock::new(|| <HashSet<StatusCode>>::try_from(StatusCodeSelector::default()).unwrap());
+pub static DEFAULT_ACCEPTED_STATUS_CODES: LazyLock<HashSet<StatusCode>> = LazyLock::new(|| {
+    <HashSet<StatusCode>>::try_from(StatusCodeSelector::default_accepted()).unwrap()
+});
 
 #[derive(Debug, Error, PartialEq)]
 pub enum StatusCodeSelectorError {
@@ -21,11 +22,7 @@ pub enum StatusCodeSelectorError {
 }
 
 /// A [`StatusCodeSelector`] holds ranges of HTTP status codes, and determines
-/// whether a specific code is matched, so the link can be counted as valid (not
-/// broken) or excluded. `StatusCodeSelector` differs from
-/// [`StatusCodeExcluder`](super::excluder::StatusCodeExcluder)
-///  in the defaults it provides. As this is meant to
-/// select valid status codes, the default includes every successful status.
+/// whether a specific code is matched.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StatusCodeSelector {
     ranges: Vec<AcceptRange>,
@@ -38,7 +35,7 @@ impl FromStr for StatusCodeSelector {
         let input = input.trim();
 
         if input.is_empty() {
-            return Err(StatusCodeSelectorError::InvalidInput);
+            return Ok(Self::empty());
         }
 
         let ranges = input
@@ -50,13 +47,6 @@ impl FromStr for StatusCodeSelector {
     }
 }
 
-/// These values are the default status codes which are accepted by lychee.
-impl Default for StatusCodeSelector {
-    fn default() -> Self {
-        Self::new_from(vec![AcceptRange::new(100, 103), AcceptRange::new(200, 299)])
-    }
-}
-
 impl Display for StatusCodeSelector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let ranges: Vec<_> = self.ranges.iter().map(ToString::to_string).collect();
@@ -65,16 +55,23 @@ impl Display for StatusCodeSelector {
 }
 
 impl StatusCodeSelector {
-    /// Creates a new empty [`StatusCodeSelector`].
+    /// Creates a new empty selector
     #[must_use]
-    pub const fn new() -> Self {
+    pub const fn empty() -> Self {
         Self { ranges: Vec::new() }
+    }
+
+    /// Create a new selector where 100..=103 and 200..300 are selected.
+    /// These are the status codes which are accepted by default.
+    #[must_use]
+    pub fn default_accepted() -> Self {
+        Self::new_from(vec![AcceptRange::new(100, 103), AcceptRange::new(200, 299)])
     }
 
     /// Creates a new [`StatusCodeSelector`] prefilled with `ranges`.
     #[must_use]
     pub fn new_from(ranges: Vec<AcceptRange>) -> Self {
-        let mut selector = Self::new();
+        let mut selector = Self::empty();
 
         for range in ranges {
             selector.add_range(range);
@@ -103,6 +100,21 @@ impl StatusCodeSelector {
     #[must_use]
     pub fn contains(&self, value: u16) -> bool {
         self.ranges.iter().any(|range| range.contains(value))
+    }
+
+    /// Consumes self and creates a [`HashSet`] which contains all
+    /// accepted status codes.
+    #[must_use]
+    pub fn into_set(self) -> HashSet<u16> {
+        let mut set = HashSet::new();
+
+        for range in self.ranges {
+            for value in range.inner() {
+                set.insert(value);
+            }
+        }
+
+        set
     }
 
     #[cfg(test)]
@@ -162,7 +174,7 @@ impl<'de> Visitor<'de> for StatusCodeSelectorVisitor {
     where
         A: serde::de::SeqAccess<'de>,
     {
-        let mut selector = StatusCodeSelector::new();
+        let mut selector = StatusCodeSelector::empty();
         while let Some(v) = seq.next_element::<toml::Value>()? {
             if let Some(v) = v.as_integer() {
                 let value = u16::try_from(v).map_err(serde::de::Error::custom)?;
@@ -199,6 +211,7 @@ mod test {
     use rstest::rstest;
 
     #[rstest]
+    #[case("", vec![], vec![100, 110, 150, 200, 300, 175, 350], 0)]
     #[case("100..=150,200..=300", vec![100, 110, 150, 200, 300], vec![175, 350], 2)]
     #[case("200..=300,100..=250", vec![100, 150, 200, 250, 300], vec![350], 1)]
     #[case("100..=200,150..=200", vec![100, 150, 200], vec![250, 300], 1)]

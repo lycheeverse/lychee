@@ -1,7 +1,7 @@
 use crate::time::{self, Timestamp, timestamp};
 use anyhow::Result;
 use dashmap::DashMap;
-use lychee_lib::{CacheStatus, Status, StatusCodeExcluder, Uri};
+use lychee_lib::{CacheStatus, Status, StatusCodeSelector, Uri};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -36,7 +36,7 @@ pub(crate) trait StoreExt {
     fn load<T: AsRef<Path>>(
         path: T,
         max_age_secs: u64,
-        excluder: &StatusCodeExcluder,
+        excluder: &StatusCodeSelector,
     ) -> Result<Cache>;
 }
 
@@ -54,7 +54,7 @@ impl StoreExt for Cache {
     fn load<T: AsRef<Path>>(
         path: T,
         max_age_secs: u64,
-        excluder: &StatusCodeExcluder,
+        excluder: &StatusCodeSelector,
     ) -> Result<Cache> {
         let mut rdr = csv::ReaderBuilder::new()
             .has_headers(false)
@@ -86,7 +86,7 @@ impl StoreExt for Cache {
 #[cfg(test)]
 mod tests {
     use dashmap::DashMap;
-    use lychee_lib::{AcceptRange, CacheStatus, StatusCodeExcluder, Uri};
+    use lychee_lib::{AcceptRange, CacheStatus, StatusCodeSelector, Uri};
 
     use crate::{
         cache::{Cache, CacheValue, StoreExt},
@@ -109,7 +109,7 @@ mod tests {
         let tmp = tempfile::NamedTempFile::new().unwrap();
         cache.store(tmp.path()).unwrap();
 
-        let mut excluder = StatusCodeExcluder::new();
+        let mut excluder = StatusCodeSelector::empty();
         excluder.add_range(AcceptRange::new_from(400, 500).unwrap());
 
         let cache = Cache::load(tmp.path(), u64::MAX, &excluder).unwrap();

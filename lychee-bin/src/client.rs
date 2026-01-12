@@ -2,6 +2,7 @@ use crate::options::{Config, HeaderMapExt};
 use crate::parse::{parse_duration_secs, parse_remaps};
 use anyhow::{Context, Result};
 use http::{HeaderMap, StatusCode};
+use lychee_lib::StatusCodeSelector;
 use lychee_lib::{Client, ClientBuilder, ratelimit::RateLimitConfig};
 use regex::RegexSet;
 use reqwest_cookie_store::CookieStoreMutex;
@@ -17,7 +18,11 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     let remaps = parse_remaps(&cfg.remap)?;
     let includes = RegexSet::new(&cfg.include)?;
     let excludes = RegexSet::new(&cfg.exclude)?;
-    let accepted: HashSet<StatusCode> = cfg.accept.clone().try_into()?;
+    let accepted: HashSet<StatusCode> = cfg
+        .accept
+        .clone()
+        .unwrap_or(StatusCodeSelector::default_accepted())
+        .try_into()?;
 
     // Offline mode overrides the scheme
     let schemes = if cfg.offline {
