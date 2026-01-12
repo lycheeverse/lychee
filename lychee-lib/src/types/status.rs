@@ -54,7 +54,7 @@ impl Display for Status {
             Status::Ok(code) => write!(f, "{code}"),
             Status::Redirected(_, _) => write!(f, "Redirect"),
             Status::UnknownStatusCode(code) => write!(f, "Unknown status ({code})"),
-            Status::UnknownMailStatus(reason) => write!(f, "Unknown mail status ({reason})"),
+            Status::UnknownMailStatus(_) => write!(f, "Unknown mail status"),
             Status::Timeout(Some(code)) => write!(f, "Timeout ({code})"),
             Status::Timeout(None) => f.write_str("Timeout"),
             Status::Unsupported(e) => write!(f, "Unsupported: {e}"),
