@@ -1,16 +1,8 @@
+use crate::{Status, Uri};
 use std::time::Duration;
 
 #[cfg(feature = "email-check")]
-use http::StatusCode;
-use mailify_lib::Config;
-
-#[cfg(feature = "email-check")]
-use crate::ErrorKind;
-
-use crate::{Status, Uri};
-
-#[cfg(feature = "email-check")]
-use mailify_lib::Client;
+use mailify_lib::{Client, Config};
 
 /// A utility for checking the validity of email addresses.
 ///
@@ -19,9 +11,28 @@ use mailify_lib::Client;
 /// features are enabled.
 #[derive(Debug, Clone)]
 pub(crate) struct MailChecker {
+    #[cfg(feature = "email-check")]
     client: Client,
 }
 
+#[cfg(not(feature = "email-check"))]
+impl MailChecker {
+    /// Creates a new `EmailChecker`.
+    pub(crate) const fn new(_timeout: Option<Duration>) -> Self {
+        Self {}
+    }
+
+    /// Ignore the mail check if the `email-check` feature is not enabled.
+    #[allow(
+        clippy::unused_async,
+        reason = "Match the signature of the function with the email-check feature"
+    )]
+    pub(crate) async fn check_mail(&self, _uri: &Uri) -> Status {
+        Status::Excluded
+    }
+}
+
+#[cfg(feature = "email-check")]
 impl MailChecker {
     /// Creates a new `EmailChecker`.
     pub(crate) fn new(timeout: Option<Duration>) -> Self {
@@ -38,19 +49,13 @@ impl MailChecker {
     /// URIs may contain query parameters (e.g. `contact@example.com?subject="Hello"`),
     /// which are ignored by this check. They are not part of the mail address
     /// and instead passed to a mail client.
-    #[cfg(feature = "email-check")]
     pub(crate) async fn check_mail(&self, uri: &Uri) -> Status {
         self.perform_email_check(uri).await
     }
 
-    /// Ignore the mail check if the `email-check` and `native-tls` features are not enabled.
-    #[cfg(not(feature = "email-check"))]
-    pub(crate) async fn check_mail(&self, _uri: &Uri) -> Status {
-        Status::Excluded
-    }
-
-    #[cfg(feature = "email-check")]
     async fn perform_email_check(&self, uri: &Uri) -> Status {
+        use crate::ErrorKind;
+        use http::StatusCode;
         use mailify_lib::CheckResult;
 
         let address = uri.url.path().to_string();
