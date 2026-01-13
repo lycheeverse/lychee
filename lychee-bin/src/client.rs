@@ -22,7 +22,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .accept
         .clone()
         .unwrap_or(StatusCodeSelector::default_accepted())
-        .try_into()?;
+        .into();
 
     // Offline mode overrides the scheme
     let schemes = if cfg.offline {

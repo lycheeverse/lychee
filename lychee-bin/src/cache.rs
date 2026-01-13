@@ -110,7 +110,7 @@ mod tests {
         cache.store(tmp.path()).unwrap();
 
         let mut excluder = StatusCodeSelector::empty();
-        excluder.add_range(AcceptRange::new_from(400, 500).unwrap());
+        excluder.add_range(AcceptRange::new(400, 500).unwrap());
 
         let cache = Cache::load(tmp.path(), u64::MAX, &excluder).unwrap();
         assert!(cache.get(&uri).is_none());

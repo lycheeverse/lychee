@@ -7,10 +7,8 @@ use thiserror::Error;
 use crate::{AcceptRangeError, types::accept::AcceptRange};
 
 /// These values are the default status codes which are accepted by lychee.
-/// SAFETY: This does not panic as all provided status codes are valid.
-pub static DEFAULT_ACCEPTED_STATUS_CODES: LazyLock<HashSet<StatusCode>> = LazyLock::new(|| {
-    <HashSet<StatusCode>>::try_from(StatusCodeSelector::default_accepted()).unwrap()
-});
+pub static DEFAULT_ACCEPTED_STATUS_CODES: LazyLock<HashSet<StatusCode>> =
+    LazyLock::new(|| <HashSet<StatusCode>>::from(StatusCodeSelector::default_accepted()));
 
 #[derive(Debug, Error, PartialEq)]
 pub enum StatusCodeSelectorError {
@@ -65,7 +63,11 @@ impl StatusCodeSelector {
     /// These are the status codes which are accepted by default.
     #[must_use]
     pub fn default_accepted() -> Self {
-        Self::new_from(vec![AcceptRange::new(100, 103), AcceptRange::new(200, 299)])
+        #[expect(clippy::missing_panics_doc, reason = "infallible")]
+        Self::new_from(vec![
+            AcceptRange::new(100, 103).unwrap(),
+            AcceptRange::new(200, 299).unwrap(),
+        ])
     }
 
     /// Creates a new [`StatusCodeSelector`] prefilled with `ranges`.
@@ -102,21 +104,6 @@ impl StatusCodeSelector {
         self.ranges.iter().any(|range| range.contains(value))
     }
 
-    /// Consumes self and creates a [`HashSet`] which contains all
-    /// accepted status codes.
-    #[must_use]
-    pub fn into_set(self) -> HashSet<u16> {
-        let mut set = HashSet::new();
-
-        for range in self.ranges {
-            for value in range.inner() {
-                set.insert(value);
-            }
-        }
-
-        set
-    }
-
     #[cfg(test)]
     pub(crate) const fn len(&self) -> usize {
         self.ranges.len()
@@ -133,13 +120,11 @@ impl<S: BuildHasher + Default> From<StatusCodeSelector> for HashSet<u16, S> {
     }
 }
 
-impl<S: BuildHasher + Default> TryFrom<StatusCodeSelector> for HashSet<StatusCode, S> {
-    type Error = http::status::InvalidStatusCode;
-
-    fn try_from(value: StatusCodeSelector) -> Result<Self, Self::Error> {
+impl<S: BuildHasher + Default> From<StatusCodeSelector> for HashSet<StatusCode, S> {
+    fn from(value: StatusCodeSelector) -> Self {
         <HashSet<u16>>::from(value)
             .into_iter()
-            .map(StatusCode::from_u16)
+            .map(|v| StatusCode::from_u16(v).unwrap()) // SAFETY: TODO
             .collect()
     }
 }
@@ -165,9 +150,9 @@ impl<'de> Visitor<'de> for StatusCodeSelectorVisitor {
         E: serde::de::Error,
     {
         let value = u16::try_from(v).map_err(serde::de::Error::custom)?;
-        Ok(StatusCodeSelector::new_from(vec![AcceptRange::new(
-            value, value,
-        )]))
+        Ok(StatusCodeSelector::new_from(vec![
+            AcceptRange::new(value, value).map_err(serde::de::Error::custom)?,
+        ]))
     }
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
@@ -178,7 +163,8 @@ impl<'de> Visitor<'de> for StatusCodeSelectorVisitor {
         while let Some(v) = seq.next_element::<toml::Value>()? {
             if let Some(v) = v.as_integer() {
                 let value = u16::try_from(v).map_err(serde::de::Error::custom)?;
-                selector.add_range(AcceptRange::new(value, value));
+                selector
+                    .add_range(AcceptRange::new(value, value).map_err(serde::de::Error::custom)?);
                 continue;
             }
 
@@ -274,7 +260,7 @@ mod test {
     }
 
     #[rstest]
-    #[case("100..=102,200..202", HashSet::from([100, 101, 102, 200, 201]))]
+    #[case("..=102,200..202,999..", HashSet::from([100, 101, 102, 200, 201,999]))]
     fn test_into_u16_set(#[case] input: &str, #[case] expected: HashSet<u16>) {
         let actual: HashSet<u16> = StatusCodeSelector::from_str(input).unwrap().into();
         assert_eq!(actual, expected);
@@ -282,7 +268,7 @@ mod test {
 
     #[test]
     fn test_default_accepted_values() {
-        // assert that accessing the value does not panic as described in the SAFETY note.
+        // assert that accessing the value does not panic
         let _ = LazyLock::force(&DEFAULT_ACCEPTED_STATUS_CODES);
     }
 }

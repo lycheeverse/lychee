@@ -52,7 +52,7 @@ where
         .cfg
         .cache_exclude_status
         .unwrap_or(StatusCodeSelector::empty())
-        .into_set();
+        .into();
     let accept = params
         .cfg
         .accept

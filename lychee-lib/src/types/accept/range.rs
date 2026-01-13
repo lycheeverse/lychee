@@ -3,8 +3,14 @@ use std::{fmt::Display, num::ParseIntError, ops::RangeInclusive, str::FromStr, s
 use regex::Regex;
 use thiserror::Error;
 
+/// Smallest accepted value
+const MIN: u16 = 100;
+
+/// Biggest accepted value
+const MAX: u16 = 999;
+
 static RANGE_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^([0-9]{3})?\.\.((=?)([0-9]{3}))?$|^([0-9]{3})$").unwrap());
+    LazyLock::new(|| Regex::new(r"^([0-9]+)?\.\.((=?)([0-9]+))?$|^([0-9]+)$").unwrap());
 
 /// Indicates that the parsing process of an [`AcceptRange`]  from a string
 /// failed due to various underlying reasons.
@@ -21,10 +27,16 @@ pub enum AcceptRangeError {
     /// The start index is larger than the end index.
     #[error("invalid range indices, only start < end supported")]
     InvalidRangeIndices,
+
+    /// The u16 values must be representable as status code
+    #[error("values must represent valid status codes between 100 and 999 (inclusive)")]
+    InvalidStatusCodeValue,
 }
 
 /// [`AcceptRange`] specifies which HTTP status codes are accepted and
 /// considered successful when checking a remote URL.
+/// Only represents valid status codes,
+/// invalid status codes (<100 or >999) are rejected.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AcceptRange(RangeInclusive<u16>);
 
@@ -38,23 +50,23 @@ impl FromStr for AcceptRange {
 
         if let Some(value) = captures.get(5) {
             let value: u16 = value.as_str().parse()?;
-            Self::new_from(value, value)
+            Self::new(value, value)
         } else {
             let start: u16 = match captures.get(1) {
                 Some(start) => start.as_str().parse().unwrap_or_default(),
-                None => 0,
+                None => MIN,
             };
             if captures.get(2).is_none() {
-                return Self::new_from(start, u16::MAX);
+                return Self::new(start, MAX);
             }
 
             let inclusive = !captures[3].is_empty();
             let end: u16 = captures[4].parse()?;
 
             if inclusive {
-                Self::new_from(start, end)
+                Self::new(start, end)
             } else {
-                Self::new_from(start, end - 1)
+                Self::new(start, end - 1)
             }
         }
     }
@@ -69,23 +81,20 @@ impl Display for AcceptRange {
 impl AcceptRange {
     /// Creates a new [`AcceptRange`] which matches values between `start` and
     /// `end` (both inclusive).
-    #[must_use]
-    pub const fn new(start: u16, end: u16) -> Self {
-        Self(RangeInclusive::new(start, end))
-    }
-
-    /// Creates a new [`AcceptRange`] which matches values between `start` and
-    /// `end` (both inclusive). It additionally validates that `start` > `end`.
     ///
     /// # Errors
     ///
-    /// Returns an error if `start` > `end`.
-    pub const fn new_from(start: u16, end: u16) -> Result<Self, AcceptRangeError> {
+    /// Returns an error if `start` > `end`, `start` < 100 or `end` > 999.
+    pub const fn new(start: u16, end: u16) -> Result<Self, AcceptRangeError> {
+        if start < MIN || end > MAX {
+            return Err(AcceptRangeError::InvalidStatusCodeValue);
+        }
+
         if start > end {
             return Err(AcceptRangeError::InvalidRangeIndices);
         }
 
-        Ok(Self::new(start, end))
+        Ok(Self(RangeInclusive::new(start, end)))
     }
 
     /// Returns the `start` value of this [`AcceptRange`].
@@ -113,25 +122,25 @@ impl AcceptRange {
     }
 
     pub(crate) const fn update_start(&mut self, new_start: u16) -> Result<(), AcceptRangeError> {
-        let end = *self.end();
-
-        if new_start > end {
-            return Err(AcceptRangeError::InvalidRangeIndices);
+        // Can't use `?` in const function as of 1.91.0
+        match Self::new(new_start, *self.end()) {
+            Ok(r) => {
+                self.0 = r.0;
+                Ok(())
+            }
+            Err(e) => Err(e),
         }
-
-        self.0 = RangeInclusive::new(new_start, end);
-        Ok(())
     }
 
     pub(crate) const fn update_end(&mut self, new_end: u16) -> Result<(), AcceptRangeError> {
-        let start = *self.start();
-
-        if start > new_end {
-            return Err(AcceptRangeError::InvalidRangeIndices);
+        // Can't use `?` in const function as of 1.91.0
+        match Self::new(*self.start(), new_end) {
+            Ok(r) => {
+                self.0 = r.0;
+                Ok(())
+            }
+            Err(e) => Err(e),
         }
-
-        self.0 = RangeInclusive::new(*self.start(), new_end);
-        Ok(())
     }
 
     pub(crate) fn merge(&mut self, other: &Self) -> bool {
@@ -161,41 +170,45 @@ mod test {
     use rstest::rstest;
 
     #[rstest]
-    #[case("..", vec![0, 100, 150, 200, u16::MAX], vec![])]
-    #[case("100..", vec![100, 101, 150, 200, u16::MAX], vec![0, 50, 99])]
-    #[case("100..=200", vec![100, 150, 200], vec![0, 50, 99, 201, 250])]
-    #[case("..=100", vec![0, 50, 100], vec![101, 150, 200])]
+    #[case("..", vec![MIN, 150, 200, MAX], vec![MIN - 1, MAX + 1])]
+    #[case("100..", vec![100, 101, 150, 200, MAX], vec![0, 50, 99])]
+    #[case("100..=200", vec![100, 150, 200], vec![0, 50, 99, 201, 250, MAX+1])]
+    #[case("..=100", vec![100], vec![99, 101])]
     #[case("100..200", vec![100, 150, 199], vec![99, 200, 250])]
-    #[case("..100", vec![0, 50, 99], vec![100, 150])]
+    #[case("..101", vec![100], vec![99, 101])]
     #[case("404", vec![404], vec![200, 304, 403, 405, 500])]
     fn test_from_str(
         #[case] input: &str,
-        #[case] valid_values: Vec<u16>,
-        #[case] invalid_values: Vec<u16>,
+        #[case] included_values: Vec<u16>,
+        #[case] excluded_values: Vec<u16>,
     ) {
         let range = AcceptRange::from_str(input).unwrap();
 
-        for valid in valid_values {
-            assert!(range.contains(valid));
+        for included in included_values {
+            assert!(range.contains(included));
         }
 
-        for invalid in invalid_values {
-            assert!(!range.contains(invalid));
+        for excluded in excluded_values {
+            assert!(!range.contains(excluded));
         }
     }
 
     #[rstest]
+    #[case("..100", AcceptRangeError::InvalidRangeIndices)]
     #[case("200..=100", AcceptRangeError::InvalidRangeIndices)]
+    #[case("100..100", AcceptRangeError::InvalidRangeIndices)]
     #[case("..=", AcceptRangeError::NoRangePattern)]
     #[case("100..=", AcceptRangeError::NoRangePattern)]
     #[case("-100..=100", AcceptRangeError::NoRangePattern)]
     #[case("-100..100", AcceptRangeError::NoRangePattern)]
     #[case("100..=-100", AcceptRangeError::NoRangePattern)]
     #[case("100..-100", AcceptRangeError::NoRangePattern)]
-    #[case("0..0", AcceptRangeError::NoRangePattern)]
     #[case("abcd", AcceptRangeError::NoRangePattern)]
     #[case("-1", AcceptRangeError::NoRangePattern)]
-    #[case("0", AcceptRangeError::NoRangePattern)]
+    #[case("0", AcceptRangeError::InvalidStatusCodeValue)]
+    #[case("1..5", AcceptRangeError::InvalidStatusCodeValue)]
+    #[case("99..102", AcceptRangeError::InvalidStatusCodeValue)]
+    #[case("999..=1000", AcceptRangeError::InvalidStatusCodeValue)]
     fn test_from_str_invalid(#[case] input: &str, #[case] error: AcceptRangeError) {
         let range = AcceptRange::from_str(input);
         assert_eq!(range, Err(error));
