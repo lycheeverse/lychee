@@ -1,5 +1,9 @@
-use std::{fmt::Display, num::ParseIntError, ops::RangeInclusive, str::FromStr, sync::LazyLock};
+use std::{
+    collections::HashSet, fmt::Display, hash::BuildHasher, num::ParseIntError, ops::RangeInclusive,
+    str::FromStr, sync::LazyLock,
+};
 
+use http::StatusCode;
 use regex::Regex;
 use thiserror::Error;
 
@@ -115,12 +119,6 @@ impl AcceptRange {
         self.0.contains(&value)
     }
 
-    /// Consumes self and returns the inner range.
-    #[must_use]
-    pub const fn inner(self) -> RangeInclusive<u16> {
-        self.0
-    }
-
     pub(crate) const fn update_start(&mut self, new_start: u16) -> Result<(), AcceptRangeError> {
         // Can't use `?` in const function as of 1.91.0
         match Self::new(new_start, *self.end()) {
@@ -161,6 +159,17 @@ impl AcceptRange {
         }
 
         false
+    }
+}
+
+impl<S: BuildHasher + Default> From<AcceptRange> for HashSet<StatusCode, S> {
+    fn from(value: AcceptRange) -> Self {
+        value
+            .0
+            .map(StatusCode::from_u16)
+            // SAFETY: AcceptRange represents only valid status codes
+            .map(|r| r.expect("AcceptRange's invariant was violated, this is a bug"))
+            .collect()
     }
 }
 

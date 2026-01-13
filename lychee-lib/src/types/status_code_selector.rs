@@ -115,16 +115,21 @@ impl<S: BuildHasher + Default> From<StatusCodeSelector> for HashSet<u16, S> {
         value
             .ranges
             .into_iter()
-            .flat_map(|range| range.inner().collect::<Vec<_>>())
+            .flat_map(|range| {
+                <HashSet<StatusCode>>::from(range)
+                    .into_iter()
+                    .map(|s| s.as_u16())
+            })
             .collect()
     }
 }
 
 impl<S: BuildHasher + Default> From<StatusCodeSelector> for HashSet<StatusCode, S> {
     fn from(value: StatusCodeSelector) -> Self {
-        <HashSet<u16>>::from(value)
+        value
+            .ranges
             .into_iter()
-            .map(|v| StatusCode::from_u16(v).unwrap()) // SAFETY: TODO
+            .flat_map(<HashSet<StatusCode>>::from)
             .collect()
     }
 }
