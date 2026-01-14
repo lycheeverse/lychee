@@ -254,7 +254,7 @@ impl WebsiteChecker {
 
         let request = match request {
             Ok(r) => r,
-            Err(e) => return e.into(),
+            Err(e) => return Status::from(e),
         };
 
         let status = ClientRequestChains::new(vec![&self.plugin_request_chain, default_chain])
