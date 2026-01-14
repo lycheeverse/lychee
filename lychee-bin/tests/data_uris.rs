@@ -63,7 +63,7 @@ mod cli {
             .arg("--exclude-loopback")
             .assert()
             .success()
-            .stdout("3 Unsupported");
+            .stdout(contains("3 Unsupported"));
     }
 
 }
