@@ -110,20 +110,6 @@ impl StatusCodeSelector {
     }
 }
 
-impl<S: BuildHasher + Default> From<StatusCodeSelector> for HashSet<u16, S> {
-    fn from(value: StatusCodeSelector) -> Self {
-        value
-            .ranges
-            .into_iter()
-            .flat_map(|range| {
-                <HashSet<StatusCode>>::from(range)
-                    .into_iter()
-                    .map(|s| s.as_u16())
-            })
-            .collect()
-    }
-}
-
 impl<S: BuildHasher + Default> From<StatusCodeSelector> for HashSet<StatusCode, S> {
     fn from(value: StatusCodeSelector) -> Self {
         value
@@ -267,7 +253,11 @@ mod test {
     #[rstest]
     #[case("..=102,200..202,999..", HashSet::from([100, 101, 102, 200, 201,999]))]
     fn test_into_u16_set(#[case] input: &str, #[case] expected: HashSet<u16>) {
-        let actual: HashSet<u16> = StatusCodeSelector::from_str(input).unwrap().into();
+        let actual: HashSet<StatusCode> = StatusCodeSelector::from_str(input).unwrap().into();
+        let expected = expected
+            .into_iter()
+            .map(|v| StatusCode::from_u16(v).unwrap())
+            .collect();
         assert_eq!(actual, expected);
     }
 

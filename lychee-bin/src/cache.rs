@@ -86,6 +86,7 @@ impl StoreExt for Cache {
 #[cfg(test)]
 mod tests {
     use dashmap::DashMap;
+    use http::StatusCode;
     use lychee_lib::{AcceptRange, CacheStatus, StatusCodeSelector, Uri};
 
     use crate::{
@@ -101,7 +102,7 @@ mod tests {
         cache.insert(
             uri.clone(),
             CacheValue {
-                status: CacheStatus::Ok(429),
+                status: CacheStatus::Ok(StatusCode::TOO_MANY_REQUESTS),
                 timestamp: timestamp(),
             },
         );

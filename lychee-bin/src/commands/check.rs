@@ -4,6 +4,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use futures::StreamExt;
+use http::StatusCode;
 use lychee_lib::StatusCodeSelector;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
@@ -190,8 +191,8 @@ async fn request_channel_task(
     max_concurrency: usize,
     client: Client,
     cache: Cache,
-    cache_exclude_status: HashSet<u16>,
-    accept: HashSet<u16>,
+    cache_exclude_status: HashSet<StatusCode>,
+    accept: HashSet<StatusCode>,
 ) -> (Cache, Client) {
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
@@ -247,9 +248,9 @@ async fn check_url(client: &Client, request: Request) -> Response {
 async fn handle(
     client: &Client,
     cache: &Cache,
-    cache_exclude_status: HashSet<u16>,
+    cache_exclude_status: HashSet<StatusCode>,
     request: Result<Request, RequestError>,
-    accept: HashSet<u16>,
+    accept: HashSet<StatusCode>,
 ) -> Result<Response, ErrorKind> {
     // Note that the RequestError cases bypass the cache.
     let request = match request {
@@ -301,10 +302,10 @@ async fn handle(
 /// - The status is unsupported.
 /// - The status is unknown.
 /// - The status code is excluded from the cache.
-fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<u16>) -> bool {
+fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<StatusCode>) -> bool {
     let status_code_excluded = status
         .code()
-        .is_some_and(|code| cache_exclude_status.contains(&code.as_u16()));
+        .is_some_and(|code| cache_exclude_status.contains(&code));
 
     uri.is_file()
         || status.is_excluded()
@@ -394,7 +395,7 @@ mod tests {
     #[test]
     fn test_cache_ignore_excluded_status() {
         // Cache is ignored for excluded status codes
-        let exclude = [StatusCode::OK.as_u16()].iter().copied().collect();
+        let exclude = HashSet::from([StatusCode::OK]);
 
         assert!(ignore_cache(
             &Uri::try_from("https://[::1]").unwrap(),
