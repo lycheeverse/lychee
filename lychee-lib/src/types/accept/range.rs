@@ -13,8 +13,13 @@ const MIN: u16 = 100;
 /// Biggest accepted value
 const MAX: u16 = 999;
 
-static RANGE_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^([0-9]+)?\.\.((=?)([0-9]+))?$|^([0-9]+)$").unwrap());
+/// Regex to compute range values
+static RANGE_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"^(?<start>[0-9]+)?\.\.(?<until>(?<inclusive>=)?(?<end>[0-9]+))?$|^(?<single>[0-9]+)$",
+    )
+    .unwrap()
+});
 
 /// Indicates that the parsing process of an [`StatusRange`]  from a string
 /// failed due to various underlying reasons.
@@ -33,7 +38,7 @@ pub enum StatusRangeError {
     InvalidRangeIndices,
 
     /// The u16 values must be representable as status code
-    #[error("values must represent valid status codes between 100 and 999 (inclusive)")]
+    #[error("values must represent valid status codes between {MIN} and {MAX} (inclusive)")]
     InvalidStatusCodeValue,
 }
 
@@ -52,20 +57,20 @@ impl FromStr for StatusRange {
             .captures(s)
             .ok_or(StatusRangeError::NoRangePattern)?;
 
-        if let Some(value) = captures.get(5) {
+        if let Some(value) = captures.name("single") {
             let value: u16 = value.as_str().parse()?;
             Self::new(value, value)
         } else {
-            let start: u16 = match captures.get(1) {
+            let start: u16 = match captures.name("start") {
                 Some(start) => start.as_str().parse().unwrap_or_default(),
                 None => MIN,
             };
-            if captures.get(2).is_none() {
+            if captures.name("until").is_none() {
                 return Self::new(start, MAX);
             }
 
-            let inclusive = !captures[3].is_empty();
-            let end: u16 = captures[4].parse()?;
+            let inclusive = captures.name("inclusive").is_some();
+            let end: u16 = captures["end"].parse()?;
 
             if inclusive {
                 Self::new(start, end)
