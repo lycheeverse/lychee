@@ -76,9 +76,9 @@ use openssl_sys as _; // required for vendored-openssl feature
 use options::{HeaderMapExt, LYCHEE_CONFIG_FILE};
 use ring as _; // required for apple silicon
 
-use lychee_lib::BasicAuthExtractor;
 use lychee_lib::Collector;
 use lychee_lib::CookieJar;
+use lychee_lib::{BasicAuthExtractor, StatusCodeSelector};
 
 mod cache;
 mod client;
@@ -248,7 +248,9 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
     let cache = Cache::load(
         LYCHEE_CACHE_FILE,
         cfg.max_cache_age.as_secs(),
-        &cfg.cache_exclude_status.clone().unwrap_or_default(),
+        &cfg.cache_exclude_status
+            .clone()
+            .unwrap_or(StatusCodeSelector::empty()),
     );
     match cache {
         Ok(cache) => Some(cache),

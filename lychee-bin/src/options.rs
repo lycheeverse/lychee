@@ -15,7 +15,7 @@ use lychee_lib::ratelimit::HostConfigs;
 use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
-    FileType, Input, StatusCodeExcluder, StatusCodeSelector, archive::Archive,
+    FileType, Input, StatusCodeSelector, archive::Archive,
 };
 use reqwest::tls;
 use secrecy::SecretString;
@@ -196,7 +196,6 @@ default_function! {
     retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
     verbosity: Verbosity = Verbosity::default();
-    accept_selector: StatusCodeSelector = StatusCodeSelector::default();
 }
 
 // Macro for merging configuration values
@@ -491,7 +490,7 @@ Use \"lychee --cache-exclude-status '429, 500..502' <inputs>...\" to provide a
 comma-separated list of excluded status codes. This example will not cache results
 with a status code of 429, 500 and 501."
     )]
-    pub(crate) cache_exclude_status: Option<StatusCodeExcluder>,
+    pub(crate) cache_exclude_status: Option<StatusCodeSelector>,
 
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
@@ -726,7 +725,6 @@ Use the `hosts` option to configure headers on a per-host basis."
     #[arg(
         short,
         long,
-        default_value_t,
         long_help = "A List of accepted status codes for valid links
 
 The following accept range syntax is supported: [start]..[[=]end]|code. Some valid
@@ -740,10 +738,10 @@ examples are:
 
 Use \"lychee --accept '200..=204, 429, 500' <inputs>...\" to provide a comma-
 separated list of accepted status codes. This example will accept 200, 201,
-202, 203, 204, 429, and 500 as valid status codes."
+202, 203, 204, 429, and 500 as valid status codes.
+Defaults to '100..=103,200..=299' if the user provides no value."
     )]
-    #[serde(default = "accept_selector")]
-    pub(crate) accept: StatusCodeSelector,
+    pub(crate) accept: Option<StatusCodeSelector>,
 
     /// Enable the checking of fragments in links.
     #[arg(long)]
@@ -986,7 +984,7 @@ impl Config {
                 ..hosts,
 
                 // Keys with defaults to assign
-                accept: StatusCodeSelector::default(),
+                accept: None,
                 archive: None,
                 base: None,
                 base_url: None,
@@ -1054,33 +1052,6 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-
-    #[test]
-    fn test_accept_status_codes() {
-        let toml = Config {
-            accept: StatusCodeSelector::from_str("200..=204, 429, 500").unwrap(),
-            ..Default::default()
-        };
-
-        let mut cli = Config::default();
-        cli.merge(toml);
-
-        assert!(cli.accept.contains(429));
-        assert!(cli.accept.contains(200));
-        assert!(cli.accept.contains(203));
-        assert!(cli.accept.contains(204));
-        assert!(!cli.accept.contains(205));
-    }
-
-    #[test]
-    fn test_default() {
-        let cli = Config::default();
-
-        assert_eq!(
-            cli.accept,
-            StatusCodeSelector::from_str("100..=103,200..=299").expect("no error")
-        );
-    }
 
     #[test]
     fn test_parse_custom_headers() {

@@ -96,10 +96,10 @@ pub use crate::{
     collector::Collector,
     filter::{Excludes, Filter, Includes},
     types::{
-        AcceptRange, AcceptRangeError, Base, BasicAuthCredentials, BasicAuthSelector, CacheStatus,
-        CookieJar, ErrorKind, FileExtensions, FileType, Input, InputContent, InputResolver,
-        InputSource, LycheeResult, Preprocessor, Redirects, Request, RequestError,
-        ResolvedInputSource, Response, ResponseBody, Result, Status, StatusCodeExcluder,
-        StatusCodeSelector, uri::raw::RawUri, uri::valid::Uri,
+        Base, BasicAuthCredentials, BasicAuthSelector, CacheStatus, CookieJar, ErrorKind,
+        FileExtensions, FileType, Input, InputContent, InputResolver, InputSource, LycheeResult,
+        Preprocessor, Redirects, Request, RequestError, ResolvedInputSource, Response,
+        ResponseBody, Result, Status, StatusCodeSelector, StatusRange, StatusRangeError,
+        uri::raw::RawUri, uri::valid::Uri,
     },
 };

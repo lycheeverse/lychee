@@ -103,9 +103,7 @@ fn analyze_basic_reqwest_error(error: &reqwest::Error) -> Option<String> {
     if let Some(status) = error.status() {
         let reason = status.canonical_reason().unwrap_or("Unknown");
         return Some(format!(
-            "HTTP {}: {} - check URL and server status",
-            status.as_u16(),
-            reason
+            "HTTP {status}: {reason} - check URL and server status",
         ));
     }
 

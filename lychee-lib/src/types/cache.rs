@@ -1,8 +1,9 @@
 use std::fmt::Display;
 
-use serde::{Deserialize, Deserializer, Serialize};
+use http::StatusCode;
+use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeStruct};
 
-use crate::{ErrorKind, Status, StatusCodeExcluder};
+use crate::{ErrorKind, Status, StatusCodeSelector};
 
 /// Representation of the status of a cached request. This is kept simple on
 /// purpose because the type gets serialized to a cache file and might need to
@@ -10,9 +11,11 @@ use crate::{ErrorKind, Status, StatusCodeExcluder};
 #[derive(Debug, Serialize, Hash, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum CacheStatus {
     /// The cached request delivered a valid response
-    Ok(u16),
+    #[serde(serialize_with = "serialize_status_code")]
+    Ok(StatusCode),
     /// The cached request failed before
-    Error(Option<u16>),
+    #[serde(serialize_with = "serialize_optional_status_code")]
+    Error(Option<StatusCode>),
     /// The request was excluded (skipped)
     Excluded,
     /// The protocol is not yet supported
@@ -22,6 +25,30 @@ pub enum CacheStatus {
     // files, even though this no longer gets serialized. Can be removed at a
     // later point in time.
     Unsupported,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn serialize_status_code<S>(status: &StatusCode, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let mut s = serializer.serialize_struct("StatusCode", 1)?;
+    s.serialize_field("code", &status.as_u16())?;
+    s.end()
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref, clippy::ref_option)]
+fn serialize_optional_status_code<S>(
+    status: &Option<StatusCode>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match status {
+        Some(code) => serialize_status_code(code, serializer),
+        None => serializer.serialize_none(),
+    }
 }
 
 impl<'de> Deserialize<'de> for CacheStatus {
@@ -37,15 +64,24 @@ impl<'de> Deserialize<'de> for CacheStatus {
             // time.
             "Unsupported" => Ok(CacheStatus::Unsupported),
             other => match other.parse::<u16>() {
-                Ok(code) => match code {
-                    // classify successful status codes as cache status success
-                    // Does not account for status code overrides passed through
-                    // the 'accept' flag. Instead, this is handled at a higher level
-                    // when the cache status is converted to a status.
-                    200..=299 => Ok(CacheStatus::Ok(code)),
-                    // classify redirects, client errors, & server errors as cache status error
-                    _ => Ok(CacheStatus::Error(Some(code))),
-                },
+                Ok(code) => {
+                    let code = StatusCode::from_u16(code).map_err(|_| {
+                        use serde::de::Error;
+                        D::Error::custom(
+                            "invalid status code value, expected the value to be >= 100 and <= 999",
+                        )
+                    })?;
+                    if code.is_success() {
+                        // classify successful status codes as cache status success
+                        // Does not account for status code overrides passed through
+                        // the 'accept' flag. Instead, this is handled at a higher level
+                        // when the cache status is converted to a status.
+                        Ok(CacheStatus::Ok(code))
+                    } else {
+                        // classify redirects, client errors, & server errors as cache status error
+                        Ok(CacheStatus::Error(Some(code)))
+                    }
+                }
                 Err(_) => Ok(CacheStatus::Error(None)),
             },
         }
@@ -70,16 +106,16 @@ impl From<&Status> for CacheStatus {
             // Reqwest treats unknown status codes as Ok(StatusCode).
             // TODO: Use accepted status codes to decide whether this is a
             // success or failure
-            Status::Ok(code) | Status::UnknownStatusCode(code) => Self::Ok(code.as_u16()),
+            Status::Ok(code) | Status::UnknownStatusCode(code) => Self::Ok(*code),
             Status::Excluded => Self::Excluded,
             Status::Unsupported(_) => Self::Unsupported,
-            Status::Redirected(code, _) => Self::Error(Some(code.as_u16())),
-            Status::Timeout(code) => Self::Error(code.map(|code| code.as_u16())),
+            Status::Redirected(code, _) => Self::Error(Some(*code)),
+            Status::Timeout(code) => Self::Error(*code),
             Status::Error(e) => match e {
-                ErrorKind::RejectedStatusCode(code) => Self::Error(Some(code.as_u16())),
+                ErrorKind::RejectedStatusCode(code) => Self::Error(Some(*code)),
                 ErrorKind::ReadResponseBody(e) | ErrorKind::BuildRequestClient(e) => {
                     match e.status() {
-                        Some(code) => Self::Error(Some(code.as_u16())),
+                        Some(code) => Self::Error(Some(code)),
                         None => Self::Error(None),
                     }
                 }
@@ -90,7 +126,7 @@ impl From<&Status> for CacheStatus {
     }
 }
 
-impl From<CacheStatus> for Option<u16> {
+impl From<CacheStatus> for Option<StatusCode> {
     fn from(val: CacheStatus) -> Self {
         match val {
             CacheStatus::Ok(status) => Some(status),
@@ -101,11 +137,11 @@ impl From<CacheStatus> for Option<u16> {
 }
 
 impl CacheStatus {
-    /// Returns `true` if the cache status is excluded by the given [`StatusCodeExcluder`].
+    /// Returns `true` if the cache status is excluded by the given [`StatusCodeSelector`].
     #[must_use]
-    pub fn is_excluded(&self, excluder: &StatusCodeExcluder) -> bool {
-        match Option::<u16>::from(*self) {
-            Some(status) => excluder.contains(status),
+    pub fn is_excluded(&self, excluder: &StatusCodeSelector) -> bool {
+        match Option::<StatusCode>::from(*self) {
+            Some(status) => excluder.contains(status.as_u16()),
             _ => false,
         }
     }
@@ -113,6 +149,7 @@ impl CacheStatus {
 
 #[cfg(test)]
 mod tests {
+    use http::StatusCode;
     use serde::Deserialize;
     use serde::de::value::{BorrowedStrDeserializer, Error as DeserializerError};
 
@@ -126,14 +163,17 @@ mod tests {
 
     #[test]
     fn test_deserialize_cache_status_success_code() {
-        assert_eq!(deserialize_cache_status("200"), Ok(CacheStatus::Ok(200)));
+        assert_eq!(
+            deserialize_cache_status("200"),
+            Ok(CacheStatus::Ok(StatusCode::OK))
+        );
     }
 
     #[test]
     fn test_deserialize_cache_status_error_code() {
         assert_eq!(
             deserialize_cache_status("404"),
-            Ok(CacheStatus::Error(Some(404)))
+            Ok(CacheStatus::Error(Some(StatusCode::NOT_FOUND)))
         );
     }
 

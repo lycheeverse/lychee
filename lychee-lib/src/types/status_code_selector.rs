@@ -4,31 +4,26 @@ use http::StatusCode;
 use serde::{Deserialize, de::Visitor};
 use thiserror::Error;
 
-use crate::{AcceptRangeError, types::accept::AcceptRange};
+use crate::{StatusRangeError, types::accept::StatusRange};
 
 /// These values are the default status codes which are accepted by lychee.
-/// SAFETY: This does not panic as all provided status codes are valid.
 pub static DEFAULT_ACCEPTED_STATUS_CODES: LazyLock<HashSet<StatusCode>> =
-    LazyLock::new(|| <HashSet<StatusCode>>::try_from(StatusCodeSelector::default()).unwrap());
+    LazyLock::new(|| <HashSet<StatusCode>>::from(StatusCodeSelector::default_accepted()));
 
 #[derive(Debug, Error, PartialEq)]
 pub enum StatusCodeSelectorError {
     #[error("invalid/empty input")]
     InvalidInput,
 
-    #[error("failed to parse accept range: {0}")]
-    AcceptRangeError(#[from] AcceptRangeError),
+    #[error("failed to parse range: {0}")]
+    RangeError(#[from] StatusRangeError),
 }
 
 /// A [`StatusCodeSelector`] holds ranges of HTTP status codes, and determines
-/// whether a specific code is matched, so the link can be counted as valid (not
-/// broken) or excluded. `StatusCodeSelector` differs from
-/// [`StatusCodeExcluder`](super::excluder::StatusCodeExcluder)
-///  in the defaults it provides. As this is meant to
-/// select valid status codes, the default includes every successful status.
+/// whether a specific code is matched.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StatusCodeSelector {
-    ranges: Vec<AcceptRange>,
+    ranges: Vec<StatusRange>,
 }
 
 impl FromStr for StatusCodeSelector {
@@ -38,22 +33,15 @@ impl FromStr for StatusCodeSelector {
         let input = input.trim();
 
         if input.is_empty() {
-            return Err(StatusCodeSelectorError::InvalidInput);
+            return Ok(Self::empty());
         }
 
         let ranges = input
             .split(',')
-            .map(|part| AcceptRange::from_str(part.trim()))
-            .collect::<Result<Vec<AcceptRange>, AcceptRangeError>>()?;
+            .map(|part| StatusRange::from_str(part.trim()))
+            .collect::<Result<Vec<StatusRange>, StatusRangeError>>()?;
 
         Ok(Self::new_from(ranges))
-    }
-}
-
-/// These values are the default status codes which are accepted by lychee.
-impl Default for StatusCodeSelector {
-    fn default() -> Self {
-        Self::new_from(vec![AcceptRange::new(100, 103), AcceptRange::new(200, 299)])
     }
 }
 
@@ -65,16 +53,27 @@ impl Display for StatusCodeSelector {
 }
 
 impl StatusCodeSelector {
-    /// Creates a new empty [`StatusCodeSelector`].
+    /// Creates a new empty selector
     #[must_use]
-    pub const fn new() -> Self {
+    pub const fn empty() -> Self {
         Self { ranges: Vec::new() }
+    }
+
+    /// Create a new selector where 100..=103 and 200..300 are selected.
+    /// These are the status codes which are accepted by default.
+    #[must_use]
+    pub fn default_accepted() -> Self {
+        #[expect(clippy::missing_panics_doc, reason = "infallible")]
+        Self::new_from(vec![
+            StatusRange::new(100, 103).unwrap(),
+            StatusRange::new(200, 299).unwrap(),
+        ])
     }
 
     /// Creates a new [`StatusCodeSelector`] prefilled with `ranges`.
     #[must_use]
-    pub fn new_from(ranges: Vec<AcceptRange>) -> Self {
-        let mut selector = Self::new();
+    pub fn new_from(ranges: Vec<StatusRange>) -> Self {
+        let mut selector = Self::empty();
 
         for range in ranges {
             selector.add_range(range);
@@ -85,7 +84,7 @@ impl StatusCodeSelector {
 
     /// Adds a range of HTTP status codes to this [`StatusCodeSelector`].
     /// This method merges the new and existing ranges if they overlap.
-    pub fn add_range(&mut self, range: AcceptRange) -> &mut Self {
+    pub fn add_range(&mut self, range: StatusRange) -> &mut Self {
         // Merge with previous range if possible
         if let Some(last) = self.ranges.last_mut()
             && last.merge(&range)
@@ -111,23 +110,12 @@ impl StatusCodeSelector {
     }
 }
 
-impl<S: BuildHasher + Default> From<StatusCodeSelector> for HashSet<u16, S> {
+impl<S: BuildHasher + Default> From<StatusCodeSelector> for HashSet<StatusCode, S> {
     fn from(value: StatusCodeSelector) -> Self {
         value
             .ranges
             .into_iter()
-            .flat_map(|range| range.inner().collect::<Vec<_>>())
-            .collect()
-    }
-}
-
-impl<S: BuildHasher + Default> TryFrom<StatusCodeSelector> for HashSet<StatusCode, S> {
-    type Error = http::status::InvalidStatusCode;
-
-    fn try_from(value: StatusCodeSelector) -> Result<Self, Self::Error> {
-        <HashSet<u16>>::from(value)
-            .into_iter()
-            .map(StatusCode::from_u16)
+            .flat_map(<HashSet<StatusCode>>::from)
             .collect()
     }
 }
@@ -153,25 +141,26 @@ impl<'de> Visitor<'de> for StatusCodeSelectorVisitor {
         E: serde::de::Error,
     {
         let value = u16::try_from(v).map_err(serde::de::Error::custom)?;
-        Ok(StatusCodeSelector::new_from(vec![AcceptRange::new(
-            value, value,
-        )]))
+        Ok(StatusCodeSelector::new_from(vec![
+            StatusRange::new(value, value).map_err(serde::de::Error::custom)?,
+        ]))
     }
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
     where
         A: serde::de::SeqAccess<'de>,
     {
-        let mut selector = StatusCodeSelector::new();
+        let mut selector = StatusCodeSelector::empty();
         while let Some(v) = seq.next_element::<toml::Value>()? {
             if let Some(v) = v.as_integer() {
                 let value = u16::try_from(v).map_err(serde::de::Error::custom)?;
-                selector.add_range(AcceptRange::new(value, value));
+                selector
+                    .add_range(StatusRange::new(value, value).map_err(serde::de::Error::custom)?);
                 continue;
             }
 
             if let Some(s) = v.as_str() {
-                let range = AcceptRange::from_str(s).map_err(serde::de::Error::custom)?;
+                let range = StatusRange::from_str(s).map_err(serde::de::Error::custom)?;
                 selector.add_range(range);
                 continue;
             }
@@ -199,6 +188,7 @@ mod test {
     use rstest::rstest;
 
     #[rstest]
+    #[case("", vec![], vec![100, 110, 150, 200, 300, 175, 350], 0)]
     #[case("100..=150,200..=300", vec![100, 110, 150, 200, 300], vec![175, 350], 2)]
     #[case("200..=300,100..=250", vec![100, 150, 200, 250, 300], vec![350], 1)]
     #[case("100..=200,150..=200", vec![100, 150, 200], vec![250, 300], 1)]
@@ -261,15 +251,19 @@ mod test {
     }
 
     #[rstest]
-    #[case("100..=102,200..202", HashSet::from([100, 101, 102, 200, 201]))]
+    #[case("..=102,200..202,999..", HashSet::from([100, 101, 102, 200, 201,999]))]
     fn test_into_u16_set(#[case] input: &str, #[case] expected: HashSet<u16>) {
-        let actual: HashSet<u16> = StatusCodeSelector::from_str(input).unwrap().into();
+        let actual: HashSet<StatusCode> = StatusCodeSelector::from_str(input).unwrap().into();
+        let expected = expected
+            .into_iter()
+            .map(|v| StatusCode::from_u16(v).unwrap())
+            .collect();
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_default_accepted_values() {
-        // assert that accessing the value does not panic as described in the SAFETY note.
+        // assert that accessing the value does not panic
         let _ = LazyLock::force(&DEFAULT_ACCEPTED_STATUS_CODES);
     }
 }

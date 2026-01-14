@@ -190,7 +190,7 @@ mod tests {
     fn test_markdown_response_cached_ok() {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
-            status: Status::Cached(CacheStatus::Ok(200)),
+            status: Status::Cached(CacheStatus::Ok(StatusCode::OK)),
         };
         let markdown = markdown_response(&response).unwrap();
         assert_eq!(markdown, "* [200] <http://example.com/> | OK (cached)");
@@ -200,7 +200,7 @@ mod tests {
     fn test_markdown_response_cached_err() {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
-            status: Status::Cached(CacheStatus::Error(Some(400))),
+            status: Status::Cached(CacheStatus::Error(Some(StatusCode::BAD_REQUEST))),
         };
         let markdown = markdown_response(&response).unwrap();
         assert_eq!(markdown, "* [400] <http://example.com/> | Error (cached)");
