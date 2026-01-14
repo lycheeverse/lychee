@@ -65,5 +65,4 @@ mod cli {
             .success()
             .stdout(contains("3 Unsupported"));
     }
-
 }
