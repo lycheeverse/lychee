@@ -1461,9 +1461,7 @@ The config file should contain every possible key for documentation purposes."
             .arg("--")
             .arg("-")
             .assert()
-            // LinkedIn does not always return 999, so we cannot check for that
-            // .stderr(contains(format!("[999] {unknown_url} | Unknown status")))
-            ;
+            .success();
 
         // If the status code was 999, the cache file should be empty
         // because we do not want to cache unknown status codes
