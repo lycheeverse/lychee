@@ -24,7 +24,7 @@ futures = "0.3.31"
 glob = "0.3.3"
 governor = "0.10.4"
 headers = "0.4.1"
-html5ever = "0.36.1"
+html5ever = "0.37.1"
 html5gum = "0.8.3"
 http = "1.4.0"
 httpdate = "1.0.3"
@@ -61,9 +61,9 @@ shellexpand = "3.1.1"
 strum = { version = "0.27.2", features = ["derive"] }
 thiserror = "2.0.17"
 tokio = { version = "1.49.0", features = ["full"] }
-toml = "0.9.10"
+toml = "0.9.11"
 typed-builder = "0.23.2"
-url = { version = "2.5.7", features = ["serde"] }
+url = { version = "2.5.8", features = ["serde"] }
 walkdir = "2.5.0"
 
 [dependencies.par-stream]
@@ -74,10 +74,10 @@ features = ["runtime-tokio"]
 doc-comment = "0.3.4"
 pretty_assertions = "1.4.1"
 rstest = "0.26.1"
-serde_json = "1.0.148"
+serde_json = "1.0.149"
 tempfile = "3.24.0"
 test-utils = { path = "../test-utils" }
-toml = "0.9.10"
+toml = "0.9.11"
 wiremock = "0.6.5"
 
 [features]
