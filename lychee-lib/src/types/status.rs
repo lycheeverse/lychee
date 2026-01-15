@@ -296,7 +296,10 @@ impl Status {
 
 impl From<ErrorKind> for Status {
     fn from(e: ErrorKind) -> Self {
-        Self::Error(e)
+        match e {
+            ErrorKind::InvalidUrlHost => Status::Unsupported(ErrorKind::InvalidUrlHost),
+            e => Self::Error(e),
+        }
     }
 }
 
