@@ -298,7 +298,8 @@ impl ErrorKind {
                 Some("Check the root dir exists and is accessible".to_string())
             }
             ErrorKind::UnsupportedUriType(uri_type) => Some(format!(
-                "Unsupported URI type: '{uri_type}'. {}", "Only http, https, file, and mailto are supported",
+                "Unsupported URI type: '{uri_type}'. {}",
+                "Only http, https, file, and mailto are supported",
             )),
             ErrorKind::InvalidUrlRemap(remap) => Some(format!(
                 "Invalid URL remapping: '{remap}'. Check remapping syntax",
@@ -310,8 +311,8 @@ impl ErrorKind {
                 "Invalid glob pattern: {pattern_error}. Check pattern syntax",
             )),
             ErrorKind::MissingGitHubToken => Some(
-                "GitHub token required. {}", "Use --github-token flag or GITHUB_TOKEN environment variable"
-                    .to_string(),
+                "GitHub token required. {}",
+                "Use --github-token flag or GITHUB_TOKEN environment variable".to_string(),
             ),
             ErrorKind::InsecureURL(uri) => Some(format!(
                 "Insecure HTTP URL detected: use '{}' instead of HTTP",
@@ -331,13 +332,15 @@ impl ErrorKind {
                 "Regular expression error: {error}. Check regex syntax",
             )),
             ErrorKind::BasicAuthExtractorError(basic_auth_extractor_error) => Some(format!(
-                "Basic authentication error: {basic_auth_extractor_error}. {}", "Check credentials format",
+                "Basic authentication error: {basic_auth_extractor_error}. {}",
+                "Check credentials format",
             )),
             ErrorKind::Cookies(reason) => Some(format!(
                 "Cookie handling error: {reason}. Check cookie file format",
             )),
             ErrorKind::StatusCodeSelectorError(status_code_selector_error) => Some(format!(
-                "Status code selector error: {status_code_selector_error}. {}", "Check accept configuration",
+                "Status code selector error: {status_code_selector_error}. {}",
+                "Check accept configuration",
             )),
             ErrorKind::InvalidIndexFile(index_files) => match &index_files[..] {
                 [] => "No directory links are allowed because index_files is defined and empty"
