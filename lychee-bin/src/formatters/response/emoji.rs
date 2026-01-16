@@ -74,12 +74,15 @@ mod emoji_tests {
     fn test_format_response_with_redirect_status() {
         let formatter = EmojiFormatter;
         let body = mock_response_body!(
-            Status::Redirected(StatusCode::MOVED_PERMANENTLY, Redirects::none()),
+            Status::Redirected(
+                StatusCode::MOVED_PERMANENTLY,
+                Redirects::new("https://example.com/redirect".try_into().unwrap())
+            ),
             "https://example.com/redirect",
         );
         assert_eq!(
             formatter.format_response(&body),
-            "↪️ https://example.com/redirect | Redirect: Followed 0 redirects resolving to the final status of: Moved Permanently. Redirects: "
+            "↪️ https://example.com/redirect | Redirect: Followed 0 redirects resolving to the final status of: Moved Permanently. Redirects: https://example.com/redirect"
         );
     }
 
