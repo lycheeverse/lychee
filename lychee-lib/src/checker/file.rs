@@ -16,8 +16,6 @@ use crate::{
 /// and optional fragment checking for HTML files.
 #[derive(Debug, Clone)]
 pub(crate) struct FileChecker {
-    /// Base path or URL used for resolving relative paths.
-    base: Option<Base>,
     /// List of file extensions to try if the original path doesn't exist.
     fallback_extensions: Vec<String>,
     /// If specified, resolves to one of the given index files if the original path
@@ -44,7 +42,7 @@ impl FileChecker {
     ///
     /// # Arguments
     ///
-    /// * `base` - Optional base path or URL for resolving relative paths.
+    /// * `base` - Optional base path or URL for resolving wikilinks.
     /// * `fallback_extensions` - List of extensions to try if the original file is not found.
     /// * `index_files` - Optional list of index file names to search for if the path is a directory.
     /// * `include_fragments` - Whether to check for fragment existence in HTML files.
@@ -54,23 +52,19 @@ impl FileChecker {
     ///
     /// Fails if an invalid `base` is provided when including wikilinks.
     pub(crate) fn new(
-        base: Option<Base>,
+        base: Option<&Base>,
         fallback_extensions: Vec<String>,
         index_files: Option<Vec<String>>,
         include_fragments: bool,
         include_wikilinks: bool,
     ) -> Result<Self> {
         let wikilink_resolver = if include_wikilinks {
-            Some(WikilinkResolver::new(
-                base.as_ref(),
-                fallback_extensions.clone(),
-            )?)
+            Some(WikilinkResolver::new(base, fallback_extensions.clone())?)
         } else {
             None
         };
 
         Ok(Self {
-            base,
             fallback_extensions,
             index_files,
             include_fragments,
@@ -96,40 +90,10 @@ impl FileChecker {
             return ErrorKind::InvalidFilePath(uri.clone()).into();
         };
 
-        let path = self.resolve_base(&path);
         let path = self.resolve_local_path(&path, uri);
         match path {
             Ok(path) => self.check_file(path.as_ref(), uri).await,
             Err(err) => err.into(),
-        }
-    }
-
-    /// Resolves the given path using the base path, if one is set.
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - The path to resolve.
-    ///
-    /// # Returns
-    ///
-    /// Returns the resolved path as a `PathBuf`, or the original path
-    /// if no base path is defined.
-    fn resolve_base(&self, path: &Path) -> PathBuf {
-        if let Some(Base::Local(base_path)) = &self.base {
-            if path.is_absolute() {
-                let absolute_base_path = if base_path.is_relative() {
-                    std::env::current_dir().unwrap_or_default().join(base_path)
-                } else {
-                    base_path.clone()
-                };
-
-                let stripped = path.strip_prefix("/").unwrap_or(path);
-                absolute_base_path.join(stripped)
-            } else {
-                base_path.join(path)
-            }
-        } else {
-            path.to_path_buf()
         }
     }
 

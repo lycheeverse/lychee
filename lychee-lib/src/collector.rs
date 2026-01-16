@@ -273,7 +273,7 @@ impl Collector {
 mod tests {
     use std::borrow::Cow;
     use std::{collections::HashSet, convert::TryFrom, fs::File, io::Write};
-    use test_utils::{fixtures_path, load_fixture, mail, mock_server, path, website};
+    use test_utils::{fixtures_path, load_fixture, mail, mock_server, website};
 
     use http::StatusCode;
     use reqwest::Url;
@@ -638,13 +638,17 @@ mod tests {
     #[tokio::test]
     async fn test_file_path_with_base() {
         let base = Base::try_from("/path/to/root").unwrap();
-        assert_eq!(base, Base::Local("/path/to/root".into()));
+        assert_eq!(
+            base,
+            Base::from_path(&PathBuf::from("/path/to/root")).unwrap()
+        );
 
         let input = Input {
             source: InputSource::String(Cow::Borrowed(
                 r#"
                 <a href="index.html">Index</a>
                 <a href="about.html">About</a>
+                <a href="../up.html">About</a>
                 <a href="/another.html">Another</a>
             "#,
             )),
@@ -654,13 +658,15 @@ mod tests {
         let inputs = HashSet::from_iter([input]);
 
         let links = collect(inputs, None, Some(base)).await.ok().unwrap();
+        let links_str: HashSet<_> = links.iter().map(|x| x.url.as_str()).collect();
 
-        let expected_links = HashSet::from_iter([
-            path!("/path/to/root/index.html"),
-            path!("/path/to/root/about.html"),
-            path!("/another.html"),
+        let expected_links: HashSet<_> = HashSet::from_iter([
+            ("file:///path/to/root/index.html"),
+            ("file:///path/to/root/about.html"),
+            ("file:///path/to/up.html"),
+            ("file:///path/to/root/another.html"),
         ]);
 
-        assert_eq!(links, expected_links);
+        assert_eq!(links_str, expected_links);
     }
 }

@@ -12,7 +12,7 @@ pub(crate) struct WikilinkResolver {
 impl WikilinkResolver {
     /// # Errors
     ///
-    /// Fails if `base` is not `Some(Base::Local(_))`.
+    /// Fails if `base` is not `Some(base)` with `base` being a file:// URL.
     pub(crate) fn new(
         base: Option<&Base>,
         fallback_extensions: Vec<String>,
@@ -21,12 +21,13 @@ impl WikilinkResolver {
             None => Err(ErrorKind::WikilinkInvalidBase(
                 "Base must be specified for wikilink checking".into(),
             ))?,
-            Some(base) => match base {
-                Base::Local(p) => p,
-                Base::Remote(_) => Err(ErrorKind::WikilinkInvalidBase(
-                    "Base cannot be remote".to_string(),
-                ))?,
-            },
+            Some(base) => base,
+        };
+        let base = match base.to_path() {
+            Some(p) => p,
+            None => Err(ErrorKind::WikilinkInvalidBase(
+                "Base cannot be remote".to_string(),
+            ))?,
         };
 
         Ok(Self {
@@ -57,7 +58,7 @@ mod tests {
     #[test]
     fn test_wikilink_resolves_to_filename() {
         let resolver = WikilinkResolver::new(
-            Some(&Base::Local(fixtures_path!().join("wiki"))),
+            Some(&Base::from_path(&fixtures_path!().join("wiki")).unwrap()),
             vec!["md".to_string()],
         )
         .unwrap();
@@ -72,7 +73,7 @@ mod tests {
     #[test]
     fn test_wikilink_not_found() {
         let resolver = WikilinkResolver::new(
-            Some(&Base::Local(fixtures_path!().join("wiki"))),
+            Some(&Base::from_path(&fixtures_path!().join("wiki")).unwrap()),
             vec!["md".to_string()],
         )
         .unwrap();

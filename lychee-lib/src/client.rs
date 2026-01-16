@@ -398,7 +398,7 @@ impl ClientBuilder {
             email_checker: MailChecker::new(),
             website_checker,
             file_checker: FileChecker::new(
-                self.base,
+                self.base.as_ref(),
                 self.fallback_extensions,
                 self.index_files,
                 self.include_fragments,
