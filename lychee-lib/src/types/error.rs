@@ -8,7 +8,7 @@ use tokio::task::JoinError;
 
 use super::InputContent;
 use crate::types::StatusCodeSelectorError;
-use crate::{basic_auth::BasicAuthExtractorError, utils, Uri};
+use crate::{Uri, basic_auth::BasicAuthExtractorError, utils};
 
 /// Kinds of status errors
 /// Note: The error messages can change over time, so don't match on the output
@@ -310,10 +310,10 @@ impl ErrorKind {
             ErrorKind::InvalidGlobPattern(pattern_error) => Some(format!(
                 "Invalid glob pattern: {pattern_error}. Check pattern syntax",
             )),
-            ErrorKind::MissingGitHubToken => Some(
+            ErrorKind::MissingGitHubToken => Some(format!(
                 "GitHub token required. {}",
-                "Use --github-token flag or GITHUB_TOKEN environment variable".to_string(),
-            ),
+                "Use --github-token flag or GITHUB_TOKEN environment variable",
+            )),
             ErrorKind::InsecureURL(uri) => Some(format!(
                 "Insecure HTTP URL detected: use '{}' instead of HTTP",
                 uri.as_str().replace("http://", "https://")
