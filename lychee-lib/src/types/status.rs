@@ -358,9 +358,12 @@ mod tests {
             999
         );
         assert_eq!(
-            Status::Redirected(StatusCode::from_u16(300).unwrap(), Redirects::none())
-                .code()
-                .unwrap(),
+            Status::Redirected(
+                StatusCode::from_u16(300).unwrap(),
+                Redirects::new("http://example.com".try_into().unwrap())
+            )
+            .code()
+            .unwrap(),
             300
         );
         assert_eq!(

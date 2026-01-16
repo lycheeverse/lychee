@@ -13,7 +13,7 @@ impl ResponseFormatter for TaskFormatter {
 mod task_tests {
     use super::*;
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, Redirects, Status, Uri};
+    use lychee_lib::{ErrorKind, Redirect, Redirects, Status, Uri};
     use test_utils::mock_response_body;
 
     #[test]
@@ -52,19 +52,19 @@ mod task_tests {
     #[test]
     fn test_format_response_with_redirect_status() {
         let formatter = TaskFormatter;
+        let mut redirects = Redirects::new("https://from.dev".try_into().unwrap());
+        redirects.push(Redirect {
+            url: "https://to.dev".try_into().unwrap(),
+            code: StatusCode::PERMANENT_REDIRECT,
+        });
+
         let body = mock_response_body!(
-            Status::Redirected(
-                StatusCode::MOVED_PERMANENTLY,
-                Redirects::from(vec![
-                    "https://from.dev".try_into().unwrap(),
-                    "https://to.dev".try_into().unwrap(),
-                ]),
-            ),
+            Status::Redirected(StatusCode::MOVED_PERMANENTLY, redirects,),
             "https://example.com/redirect",
         );
         assert_eq!(
             formatter.format_response(&body),
-            "- [ ] [301] https://example.com/redirect | Redirect: Followed 1 redirect resolving to the final status of: Moved Permanently. Redirects: https://from.dev/ --> https://to.dev/"
+            "- [ ] [301] https://example.com/redirect | Redirect: Followed 1 redirect resolving to the final status of: Moved Permanently. Redirects: https://from.dev/ --[308]--> https://to.dev/"
         );
     }
 

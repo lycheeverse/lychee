@@ -2370,7 +2370,13 @@ The config file should contain every possible key for documentation purposes."
                     "status": {
                         "code": 200,
                         "text": "Redirect",
-                        "redirects": [ redirect_url, ok_url ]
+                        "redirects": {
+                            "origin": redirect_url,
+                            "redirects": [{
+                                "code": 308,
+                                "url": ok_url,
+                            }]
+                        },
                     },
                     "url": redirect_url
                 }]})

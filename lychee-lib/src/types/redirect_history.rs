@@ -1,4 +1,7 @@
 use crate::Status;
+use crate::types::cache::serialize_status_code;
+use http::StatusCode;
+use reqwest::redirect::Attempt;
 use serde::Serialize;
 use std::fmt::Display;
 use std::{
@@ -7,42 +10,59 @@ use std::{
 };
 use url::Url;
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
+/// Represents a single HTTP redirection
+pub struct Redirect {
+    /// Where we got redirected to
+    pub url: Url,
+    /// With what status code we got redirected
+    #[serde(serialize_with = "serialize_status_code")]
+    #[serde(flatten)]
+    pub code: StatusCode,
+}
+
 /// A list of URLs that were followed through HTTP redirects,
 /// starting from the original URL and ending at the final destination.
 /// Each entry in the list represents a step in the redirect sequence.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
-pub struct Redirects(Vec<Url>);
-
-impl From<Vec<Url>> for Redirects {
-    fn from(value: Vec<Url>) -> Self {
-        Self(value)
-    }
+pub struct Redirects {
+    /// Initial URL from which redirect resolution begins
+    origin: Url,
+    /// Ordered list of [`Redirect`]s encountered while resolving the request
+    redirects: Vec<Redirect>,
 }
 
 impl Display for Redirects {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let list = self
-            .0
-            .iter()
-            .map(Url::as_str)
-            .collect::<Vec<_>>()
-            .join(" --> ");
+        let mut list = self.origin.to_string();
+        for redirect in &self.redirects {
+            list += &format!(" --[{}]--> {}", redirect.code.as_u16(), redirect.url).to_string();
+        }
+
         write!(f, "{list}")
     }
 }
 
 impl Redirects {
-    /// Count how many times a redirect was followed.
-    /// This is the length of the list minus one.
+    /// Create a new [`Redirects`] instance
+    /// where no redirects are yet recorded.
     #[must_use]
-    pub const fn count(&self) -> usize {
-        self.0.len().saturating_sub(1)
+    pub const fn new(origin: Url) -> Self {
+        Self {
+            origin,
+            redirects: vec![],
+        }
     }
 
-    /// Represents zero redirects
+    /// Count how many times a redirect was followed.
     #[must_use]
-    pub const fn none() -> Self {
-        Redirects(vec![])
+    pub const fn count(&self) -> usize {
+        self.redirects.len()
+    }
+
+    /// Record a new redirect
+    pub fn push(&mut self, redirect: Redirect) {
+        self.redirects.push(redirect);
     }
 }
 
@@ -60,9 +80,17 @@ impl RedirectHistory {
     /// The first URL in the chain is treated as the original request URL,
     /// and the entire chain (including the original) is stored as the value.
     /// This allows later lookups of redirect paths by the initial URL.
-    pub(crate) fn record_redirects(&self, redirects: &[Url]) {
-        if let (Ok(mut map), Some(first)) = (self.0.lock(), redirects.first()) {
-            map.insert(first.clone(), Redirects(redirects.to_vec()));
+    pub(crate) fn record_redirects(&self, attempt: &Attempt) {
+        let mut map = self.0.lock().unwrap();
+        if let Some(first) = attempt.previous().first().cloned() {
+            let mut redirects = map.remove(&first).unwrap_or(Redirects::new(first.clone()));
+
+            redirects.push(Redirect {
+                url: attempt.url().clone(),
+                code: attempt.status(),
+            });
+
+            map.insert(first, redirects);
         }
     }
 
