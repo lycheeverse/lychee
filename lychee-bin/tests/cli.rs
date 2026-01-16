@@ -118,16 +118,43 @@ mod cli {
     /// Test that the default report output format (compact) and mode (color)
     /// prints the failed URLs as well as their status codes on error. Make
     /// sure that the status code only occurs once.
-    #[test]
-    fn test_compact_output_format_contains_status() -> Result<()> {
-        let test_path = fixtures_path!().join("TEST_INVALID_URLS.html");
+    #[tokio::test]
+    async fn test_compact_output_format_contains_status() -> Result<()> {
+        // Create mock servers for different error status codes
+        let mock_404 = mock_server!(StatusCode::NOT_FOUND);
+        let mock_500 = mock_server!(StatusCode::INTERNAL_SERVER_ERROR);
+        let mock_502 = mock_server!(StatusCode::BAD_GATEWAY);
+
+        // Create a temporary HTML file with the mock server URLs
+        let dir = tempdir()?;
+        let test_file = dir.path().join("test_invalid_urls.html");
+        let html_content = format!(
+            r#"<!DOCTYPE html>
+<html lang="en">
+<head><title>Invalid URLs</title></head>
+<body>
+<ul>
+  <li><a href="{}">{}</a></li>
+  <li><a href="{}">{}</a></li>
+  <li><a href="{}">{}</a></li>
+</ul>
+</body>
+</html>"#,
+            mock_404.uri(),
+            mock_404.uri(),
+            mock_500.uri(),
+            mock_500.uri(),
+            mock_502.uri(),
+            mock_502.uri()
+        );
+        fs::write(&test_file, html_content)?;
 
         let mut cmd = cargo_bin_cmd!();
         cmd.arg("--format")
             .arg("compact")
             .arg("--mode")
             .arg("color")
-            .arg(test_path)
+            .arg(&test_file)
             .env("FORCE_COLOR", "1")
             .assert()
             .failure()
@@ -138,22 +165,14 @@ mod cli {
         // Check that the output contains the status code (once) and the URL
         let output_str = String::from_utf8_lossy(&output.stdout);
 
-        // The expected output is as follows:
-        // "Find details below."
-        // [EMPTY LINE]
-        // [path/to/file]:
-        //      [400] https://httpbin.org/status/404
-        //      [500] https://httpbin.org/status/500
-        //      [502] https://httpbin.org/status/502
-        // (the order of the URLs may vary)
-
         // Check that the output contains the file path
-        assert!(output_str.contains("TEST_INVALID_URLS.html"));
+        assert!(output_str.contains("test_invalid_urls.html"));
 
-        let re = Regex::new(r"\s{5}\[\d{3}\] https://httpbin\.org/status/\d{3}").unwrap();
+        // Match status codes in format [NNN] followed by localhost URLs
+        let re = Regex::new(r"\s{5}\[\d{3}\] http://127\.0\.0\.1:\d+/").unwrap();
         let matches: Vec<&str> = re.find_iter(&output_str).map(|m| m.as_str()).collect();
 
-        // Check that the status code occurs only once
+        // Check that the status code occurs only once per URL (3 URLs total)
         assert_eq!(matches.len(), 3);
 
         Ok(())
