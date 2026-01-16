@@ -97,7 +97,9 @@ impl ResponseStats {
             _ if status.is_error() => self.error_map.entry(source).or_default(),
             Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),
             Status::Excluded if self.detailed_stats => self.excluded_map.entry(source).or_default(),
-            Status::Redirected(_, _) => self.redirect_map.entry(source).or_default(),
+            Status::Redirected(_, _) if self.detailed_stats => {
+                self.redirect_map.entry(source).or_default()
+            }
             _ => return,
         };
         status_map_entry.insert(response.1);
