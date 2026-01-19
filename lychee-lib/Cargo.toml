@@ -59,7 +59,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_with = "3.16.1"
 shellexpand = "3.1.1"
 strum = { version = "0.27.2", features = ["derive"] }
-thiserror = "2.0.17"
+thiserror = "2.0.18"
 tokio = { version = "1.49.0", features = ["full"] }
 toml = "0.9.11"
 typed-builder = "0.23.2"
