@@ -298,21 +298,20 @@ impl From<ErrorKind> for Status {
     fn from(e: ErrorKind) -> Self {
         match e {
             ErrorKind::InvalidUrlHost => Status::Unsupported(ErrorKind::InvalidUrlHost),
+            ErrorKind::NetworkRequest(e)
+            | ErrorKind::ReadResponseBody(e)
+            | ErrorKind::BuildRequestClient(e) => {
+                if e.is_timeout() {
+                    Self::Timeout(e.status())
+                } else if e.is_builder() {
+                    Self::Unsupported(ErrorKind::BuildRequestClient(e))
+                } else if e.is_body() || e.is_decode() {
+                    Self::Unsupported(ErrorKind::ReadResponseBody(e))
+                } else {
+                    Self::Error(ErrorKind::NetworkRequest(e))
+                }
+            }
             e => Self::Error(e),
-        }
-    }
-}
-
-impl From<reqwest::Error> for Status {
-    fn from(e: reqwest::Error) -> Self {
-        if e.is_timeout() {
-            Self::Timeout(e.status())
-        } else if e.is_builder() {
-            Self::Unsupported(ErrorKind::BuildRequestClient(e))
-        } else if e.is_body() || e.is_decode() {
-            Self::Unsupported(ErrorKind::ReadResponseBody(e))
-        } else {
-            Self::Error(ErrorKind::NetworkRequest(e))
         }
     }
 }
