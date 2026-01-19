@@ -17,8 +17,6 @@ use lychee_lib::archive::Archive;
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
 use lychee_lib::{ResponseBody, Status};
 
-use crate::formatters::get_progress_formatter;
-use crate::formatters::response::ResponseFormatter;
 use crate::formatters::stats::ResponseStats;
 use crate::formatters::suggestion::Suggestion;
 use crate::parse::parse_duration_secs;
@@ -72,15 +70,10 @@ where
     ));
 
     let hide_bar = params.cfg.no_progress;
-    let detailed = params.cfg.verbose.log_level() >= log::Level::Info;
+    let level = params.cfg.verbose.log_level();
 
-    let progress = Progress::new("Extracting links", hide_bar, detailed);
-    let show_results_task = tokio::spawn(collect_responses(
-        recv_resp,
-        progress.clone(),
-        get_progress_formatter(&params.cfg.mode),
-        stats,
-    ));
+    let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode);
+    let show_results_task = tokio::spawn(collect_responses(recv_resp, progress.clone(), stats));
 
     // Wait until all requests are sent
     send_requests(params.requests, send_req, &progress).await?;
@@ -96,7 +89,12 @@ where
     progress.finish("Finished extracting links");
 
     if params.cfg.suggest {
-        let progress = Progress::new("Searching for alternatives", hide_bar, detailed);
+        let progress = Progress::new(
+            "Searching for alternatives",
+            hide_bar,
+            level,
+            &params.cfg.mode,
+        );
         suggest_archived_links(
             params.cfg.archive.unwrap_or_default(),
             &mut stats,
@@ -173,13 +171,11 @@ where
 async fn collect_responses(
     mut recv_resp: mpsc::Receiver<Result<Response, ErrorKind>>,
     progress: Progress,
-    formatter: Box<dyn ResponseFormatter>,
     mut stats: ResponseStats,
 ) -> Result<ResponseStats, ErrorKind> {
     while let Some(response) = recv_resp.recv().await {
         let response = response?;
-        let out = formatter.format_response(response.body());
-        progress.update(Some(out));
+        progress.update(Some(response.body()));
         stats.add(response);
     }
     Ok(stats)
