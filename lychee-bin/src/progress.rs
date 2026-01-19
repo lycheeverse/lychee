@@ -1,5 +1,12 @@
 use indicatif::{ProgressBar as Bar, ProgressStyle};
-use std::sync::LazyLock;
+use log::Level;
+use lychee_lib::ResponseBody;
+use std::sync::{Arc, LazyLock};
+
+use crate::{
+    formatters::{get_progress_formatter, response::ResponseFormatter},
+    options::OutputMode,
+};
 
 #[derive(Clone)]
 struct ProgressConfig {
@@ -23,13 +30,18 @@ static STYLE: LazyLock<ProgressStyle> = LazyLock::new(|| {
 pub(crate) struct Progress {
     /// Optional progress bar to visualize progress
     bar: Option<Bar>,
-    /// Show detailed progress information when `true`
-    detailed: bool,
+    log_level: Level,
+    formatter: Arc<Box<dyn ResponseFormatter>>,
 }
 
 impl Progress {
-    pub(crate) fn new(initial_message: &'static str, hide_bar: bool, detailed: bool) -> Self {
-        // Showing the progress bar and detailed logging is too much information
+    pub(crate) fn new(
+        initial_message: &'static str,
+        hide_bar: bool,
+        log_level: Level,
+        mode: &OutputMode,
+    ) -> Self {
+        let detailed = log_level >= Level::Info; // hide bar with detailed logging
         let bar = if hide_bar || detailed {
             None
         } else {
@@ -39,25 +51,41 @@ impl Progress {
             Some(bar)
         };
 
-        Progress { bar, detailed }
+        Progress {
+            bar,
+            log_level,
+            formatter: Arc::new(get_progress_formatter(mode)),
+        }
     }
 
-    /// If a bar is configured it is advanced by one and optionally updated with `message`.
-    /// If reporting is `detailed` `message` is printed.
-    pub(crate) fn update(&self, message: Option<String>) {
-        if self.detailed
-            && let Some(message) = message.as_ref()
-        {
-            // progress is reported on stderr and NOT on stdout
-            eprintln!("{message}");
-        }
-
+    /// If a bar is configured it is advanced by one and optionally updated with `response`.
+    /// Progress output depends on the provided log level.
+    pub(crate) fn update(&self, response: Option<&ResponseBody>) {
+        let response_message = response.map(|r| (r, self.formatter.format_response(r)));
+        self.print_progress(response_message.as_ref());
         self.with_bar(|bar| {
             bar.inc(1);
-            if let Some(message) = message {
+            if let Some((_, message)) = response_message {
                 bar.set_message(message);
             }
         });
+    }
+
+    fn print_progress(&self, response_message: Option<&(&ResponseBody, String)>) {
+        if self.log_level < Level::Info {
+            return;
+        }
+
+        let Some((response, message)) = response_message else {
+            return;
+        };
+
+        let should_show_success = self.log_level > Level::Info;
+        let is_success = response.status.is_success();
+
+        if !is_success || should_show_success {
+            eprintln!("{message}");
+        }
     }
 
     pub(crate) fn set_length(&self, n: u64) {

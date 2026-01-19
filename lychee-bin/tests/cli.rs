@@ -1182,7 +1182,7 @@ The config file should contain every possible key for documentation purposes."
         let mut cmd = cargo_bin_cmd!();
         cmd.current_dir(&base_path)
             .arg(&file_path)
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--no-progress")
             .arg("--cache")
             .arg("--exclude")
@@ -1255,7 +1255,7 @@ The config file should contain every possible key for documentation purposes."
         let test_cmd = cmd
             .current_dir(&base_path)
             .arg(dir.path().join("c.md"))
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--no-progress")
             .arg("--cache")
             .arg("--cache-exclude-status")
@@ -1318,7 +1318,7 @@ The config file should contain every possible key for documentation purposes."
         let test_cmd = cmd
             .current_dir(&base_path)
             .arg(dir.path().join("c.md"))
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--cache");
 
         assert!(
@@ -2143,7 +2143,7 @@ The config file should contain every possible key for documentation purposes."
 
         let mut result = cargo_bin_cmd!()
             .arg("--include-fragments")
-            .arg("--verbose")
+            .arg("-vv")
             .arg(input)
             .assert()
             .failure();
@@ -2236,7 +2236,7 @@ The config file should contain every possible key for documentation purposes."
         // it's common for user to accept 429, but let's test with 404 since
         // triggering 429 may annoy the server
         cargo_bin_cmd!()
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--accept=200,404")
             .arg("--include-fragments")
             .arg(input)
@@ -2803,7 +2803,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Run the command with the binary input
         let result = cargo_bin_cmd!()
-            .arg("--verbose")
+            .arg("-vv")
             .arg(&inputs)
             .assert()
             .success()
