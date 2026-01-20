@@ -947,8 +947,20 @@ impl Config {
         self.header = merged_map.into_iter().collect();
     }
 
-    /// Load configuration from a file
-    pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
+    /// Try to load configuration from a file and merge into `self`.
+    pub(crate) fn merge_file(&mut self, config_file: &Path) -> Result<()> {
+        let config = Config::load_from_file(config_file).map_err(|e| {
+            anyhow!(
+                "Cannot load configuration file `{}`: {e:?}",
+                config_file.display()
+            )
+        })?;
+
+        self.merge(config);
+        Ok(())
+    }
+
+    fn load_from_file(path: &Path) -> Result<Config> {
         // Read configuration file
         let contents = fs::read_to_string(path)?;
         toml::from_str(&contents).with_context(|| "Failed to parse configuration file")
