@@ -62,7 +62,7 @@ use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, ErrorKind};
 use std::path::PathBuf;
 
-use anyhow::{Context, Error, Result, bail};
+use anyhow::{Context, Error, Result};
 use clap::{Parser, crate_version};
 use commands::{CommandParams, generate};
 use formatters::log::init_logging;
@@ -141,34 +141,15 @@ fn load_config() -> Result<LycheeOptions> {
 
     init_logging(&opts.config.verbose, &opts.config.mode);
 
-    // Load a potentially existing config file and merge it into the config from
-    // the CLI
+    // Try to load specified config and merge it into the CLI config
     if let Some(config_file) = &opts.config_file {
-        match Config::load_from_file(config_file) {
-            Ok(c) => opts.config.merge(c),
-            Err(e) => {
-                bail!(
-                    "Cannot load configuration file `{}`: {e:?}",
-                    config_file.display()
-                );
-            }
-        }
+        opts.config.merge_file(config_file)?;
     } else {
         // If no config file was explicitly provided, we try to load the default
-        // config file from the current directory if the file exits. This will
-        // raise an error if the file is invalid, just like the explicit provided
-        // config file.
+        // config file from the current directory if the file exits.
         let default_config = PathBuf::from(LYCHEE_CONFIG_FILE);
         if default_config.is_file() {
-            match Config::load_from_file(&default_config) {
-                Ok(c) => opts.config.merge(c),
-                Err(e) => {
-                    bail!(
-                        "Cannot load default configuration file `{}`: {e:?}",
-                        default_config.display()
-                    );
-                }
-            }
+            opts.config.merge_file(&default_config)?;
         }
     }
 

@@ -933,7 +933,7 @@ mod cli {
             .arg(".")
             .assert()
             .failure()
-            .stderr(contains("Cannot load default configuration file"));
+            .stderr(contains("Cannot load configuration file"));
     }
 
     #[tokio::test]
