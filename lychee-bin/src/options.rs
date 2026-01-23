@@ -10,13 +10,13 @@ use http::{
     HeaderMap,
     header::{HeaderName, HeaderValue},
 };
-use lychee_lib::Preprocessor;
 use lychee_lib::ratelimit::HostConfigs;
 use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
-    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
-    FileType, Input, StatusCodeSelector, archive::Archive,
+    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, FileExtensions, FileType, Input,
+    StatusCodeSelector, archive::Archive,
 };
+use lychee_lib::{DEFAULT_USER_AGENT, Preprocessor};
 use reqwest::tls;
 use secrecy::SecretString;
 use serde::{Deserialize, Deserializer};
@@ -29,17 +29,6 @@ pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
 pub(crate) const LYCHEE_CONFIG_FILE: &str = "lychee.toml";
 
-const DEFAULT_METHOD: &str = "get";
-const DEFAULT_MAX_CACHE_AGE: &str = "1d";
-const DEFAULT_MAX_CONCURRENCY: usize = 128;
-
-// this exists because clap requires `&str` type values for defaults
-// whereas serde expects owned `String` types
-// (we can't use e.g. `TIMEOUT` or `timeout()` which gets created for serde)
-const MAX_CONCURRENCY_STR: &str = concatcp!(DEFAULT_MAX_CONCURRENCY);
-const MAX_CACHE_AGE_STR: &str = concatcp!(DEFAULT_MAX_CACHE_AGE);
-const MAX_REDIRECTS_STR: &str = concatcp!(DEFAULT_MAX_REDIRECTS);
-const MAX_RETRIES_STR: &str = concatcp!(DEFAULT_MAX_RETRIES);
 const HELP_MSG_CACHE: &str = formatcp!(
     "Use request cache stored on disk at `{}`",
     LYCHEE_CACHE_FILE,
@@ -173,49 +162,6 @@ impl OutputMode {
     }
 }
 
-// Macro for generating default functions to be used by serde
-macro_rules! default_function {
-    ( $( $name:ident : $T:ty = $e:expr; )* ) => {
-        $(
-            #[allow(clippy::missing_const_for_fn)]
-            fn $name() -> $T {
-                $e
-            }
-        )*
-    };
-}
-
-// Generate the functions for serde defaults
-default_function! {
-    max_redirects: usize = DEFAULT_MAX_REDIRECTS;
-    max_retries: u64 = DEFAULT_MAX_RETRIES;
-    max_concurrency: usize = DEFAULT_MAX_CONCURRENCY;
-    max_cache_age: Duration = humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap();
-    user_agent: String = DEFAULT_USER_AGENT.to_string();
-    timeout: usize = DEFAULT_TIMEOUT_SECS;
-    retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
-    method: String = DEFAULT_METHOD.to_string();
-    verbosity: Verbosity = Verbosity::default();
-}
-
-// Macro for merging configuration values
-macro_rules! fold_in {
-    ($cli:ident , $toml:ident ; $ty:ident { $(..$ignore:ident,)* $( $key:ident : $default:expr, )* } ) => {
-        if (false) {
-            #[allow(dead_code, unused, clippy::diverging_sub_expression)]
-            let _check_fold_in_exhaustivity = $ty {
-                $($key: unreachable!(), )*
-                $($ignore: unreachable!(), )*
-            };
-        };
-        $(
-            if $cli.$key == $default && $toml.$key != $default {
-                $cli.$key = $toml.$key;
-            }
-        )*
-    };
-}
-
 /// Parse a single header into a [`HeaderName`] and [`HeaderValue`]
 ///
 /// Headers are expected to be in format `Header-Name: Header-Value`.
@@ -296,11 +242,11 @@ impl clap::builder::ValueParserFactory for HeaderParser {
 /// Extension trait for converting a Vec of header pairs to a `HeaderMap`
 pub(crate) trait HeaderMapExt {
     /// Convert a collection of header key-value pairs to a `HeaderMap`
-    fn from_header_pairs(headers: &[(String, String)]) -> Result<HeaderMap, Error>;
+    fn from_header_pairs(headers: &HashMap<String, String>) -> Result<HeaderMap, Error>;
 }
 
 impl HeaderMapExt for HeaderMap {
-    fn from_header_pairs(headers: &[(String, String)]) -> Result<HeaderMap, Error> {
+    fn from_header_pairs(headers: &HashMap<String, String>) -> Result<HeaderMap, Error> {
         let mut header_map = HeaderMap::new();
         for (name, value) in headers {
             let header_name = HeaderName::from_bytes(name.as_bytes())
@@ -412,8 +358,7 @@ File Format:
 
     /// Verbose program output
     #[clap(flatten)]
-    #[serde(default = "verbosity")]
-    pub(crate) verbose: Verbosity,
+    verbose: Option<Verbosity>,
 
     /// Do not show progress bar.
     /// This is recommended for non-interactive shells (e.g. for continuous integration)
@@ -435,15 +380,15 @@ File Format:
     /// want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
     #[arg(
         long,
-        default_value_t = FileExtensions::default(),
         long_help = "Test the specified file extensions for URIs when checking files locally.
 
 Multiple extensions can be separated by commas. Note that if you want to check filetypes,
 which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
-specify both extensions explicitly."
+specify both extensions explicitly.
+
+[default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt]"
     )]
-    #[serde(default = "FileExtensions::default")]
-    pub(crate) extensions: FileExtensions,
+    extensions: Option<FileExtensions>,
 
     /// This is the default file extension that is applied to files without an extension.
     ///
@@ -454,8 +399,7 @@ specify both extensions explicitly."
     ///   --default-extension md
     ///   --default-extension html
     #[arg(long, value_name = "EXTENSION", verbatim_doc_comment)]
-    #[serde(default)]
-    pub(crate) default_extension: Option<String>,
+    default_extension: Option<String>,
 
     #[arg(help = HELP_MSG_CACHE)]
     #[arg(long)]
@@ -463,14 +407,11 @@ specify both extensions explicitly."
     pub(crate) cache: bool,
 
     /// Discard all cached requests older than this duration
-    #[arg(
-        long,
-        value_parser = humantime::parse_duration,
-        default_value = &MAX_CACHE_AGE_STR
-    )]
-    #[serde(default = "max_cache_age")]
-    #[serde(with = "humantime_serde")]
-    pub(crate) max_cache_age: Duration,
+    ///
+    /// [default: 1d]
+    #[arg(long, value_parser = humantime::parse_duration)]
+    #[serde(default, with = "humantime_serde")]
+    pub(crate) max_cache_age: Option<Duration>,
 
     /// A list of status codes that will be excluded from the cache
     #[arg(
@@ -507,7 +448,6 @@ with a status code of 429, 500 and 501."
     /// Specify the use of a specific web archive.
     /// Can be used in combination with `--suggest`
     #[arg(long, value_parser = PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]
-    #[serde(default)]
     pub(crate) archive: Option<Archive>,
 
     /// Suggest link replacements for broken links, using a web archive.
@@ -517,24 +457,26 @@ with a status code of 429, 500 and 501."
     pub(crate) suggest: bool,
 
     /// Maximum number of allowed redirects
-    #[arg(short, long, default_value = &MAX_REDIRECTS_STR)]
-    #[serde(default = "max_redirects")]
-    pub(crate) max_redirects: usize,
+    ///
+    /// [default: 5]
+    #[arg(short, long)]
+    max_redirects: Option<usize>,
 
     /// Maximum number of retries per request
-    #[arg(long, default_value = &MAX_RETRIES_STR)]
-    #[serde(default = "max_retries")]
-    pub(crate) max_retries: u64,
+    ///
+    /// [default: 3]
+    #[arg(long)]
+    max_retries: Option<u64>,
 
     /// Minimum accepted TLS Version
     #[arg(long, value_parser = PossibleValuesParser::new(TlsVersion::VARIANTS).map(|s| s.parse::<TlsVersion>().unwrap()))]
-    #[serde(default)]
     pub(crate) min_tls: Option<TlsVersion>,
 
     /// Maximum number of concurrent network requests
-    #[arg(long, default_value = &MAX_CONCURRENCY_STR)]
-    #[serde(default = "max_concurrency")]
-    pub(crate) max_concurrency: usize,
+    ///
+    /// [default: 128]
+    #[arg(long)]
+    max_concurrency: Option<usize>,
 
     /// Default maximum concurrent requests per host (default: 10)
     ///
@@ -547,7 +489,6 @@ with a status code of 429, 500 and 501."
     ///   --host-concurrency 2   # Conservative for slow APIs
     ///   --host-concurrency 20  # Aggressive for fast APIs
     #[arg(long, verbatim_doc_comment)]
-    #[serde(default)]
     pub(crate) host_concurrency: Option<usize>,
 
     /// Minimum interval between requests to the same host (default: 50ms)
@@ -567,13 +508,13 @@ with a status code of 429, 500 and 501."
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
     #[arg(short = 'T', long)]
-    #[serde(default)]
     pub(crate) threads: Option<usize>,
 
     /// User agent
-    #[arg(short, long, default_value = DEFAULT_USER_AGENT)]
-    #[serde(default = "user_agent")]
-    pub(crate) user_agent: String,
+    ///
+    /// [default: lychee/x.y.z]
+    #[arg(short, long)]
+    user_agent: Option<String>,
 
     /// Proceed for server connections considered insecure (invalid TLS)
     #[arg(short, long)]
@@ -668,7 +609,6 @@ Note: This option takes effect on `file://` URIs which do not exist and on
     pub(crate) fallback_extensions: Vec<String>,
 
     /// Resolve local directory links to specified index files within the directory
-    #[serde(default)]
     #[arg(
         long,
         value_delimiter = ',',
@@ -719,7 +659,7 @@ Use the `hosts` option to configure headers on a per-host basis."
     )]
     #[serde(default)]
     #[serde(deserialize_with = "deserialize_headers")]
-    pub header: Vec<(String, String)>,
+    header: Vec<(String, String)>,
 
     /// A List of accepted status codes for valid links
     #[arg(
@@ -741,7 +681,7 @@ separated list of accepted status codes. This example will accept 200, 201,
 202, 203, 204, 429, and 500 as valid status codes.
 Defaults to '100..=103,200..=299' if the user provides no value."
     )]
-    pub(crate) accept: Option<StatusCodeSelector>,
+    accept: Option<StatusCodeSelector>,
 
     /// Enable the checking of fragments in links.
     #[arg(long)]
@@ -750,19 +690,18 @@ Defaults to '100..=103,200..=299' if the user provides no value."
 
     /// Website timeout in seconds from connect to response finished
     #[arg(short, long, default_value = &TIMEOUT_STR)]
-    #[serde(default = "timeout")]
-    pub(crate) timeout: usize,
+    timeout: Option<u64>,
 
     /// Minimum wait time in seconds between retries of failed requests
     #[arg(short, long, default_value = &RETRY_WAIT_TIME_STR)]
-    #[serde(default = "retry_wait_time")]
-    pub(crate) retry_wait_time: usize,
+    retry_wait_time: Option<u64>,
 
     /// Request method
+    ///
+    /// [default: get]
     // Using `-X` as a short param similar to curl
-    #[arg(short = 'X', long, default_value = DEFAULT_METHOD)]
-    #[serde(default = "method")]
-    pub(crate) method: String,
+    #[arg(short = 'X', long)]
+    method: Option<String>,
 
     /// Deprecated; use `--base-url` instead
     #[arg(long, value_parser = parse_base)]
@@ -795,7 +734,6 @@ at the given base URL address.
 The provided base URL value must either be a URL (with scheme) or an absolute path.
 Note that certain URL schemes cannot be used as a base, e.g., `data` and `mailto`."
     )]
-    #[serde(default)]
     pub(crate) base_url: Option<Base>,
 
     /// Root directory to use when checking absolute links in local files.
@@ -815,17 +753,14 @@ absolute link is resolved by constructing a URL from three parts: the domain
 name specified in `--base-url`, followed by the `--root-dir` directory path,
 followed by the absolute link's own path."
     )]
-    #[serde(default)]
     pub(crate) root_dir: Option<PathBuf>,
 
     /// Basic authentication support. E.g. `http://example.com username:password`
     #[arg(long)]
-    #[serde(default)]
     pub(crate) basic_auth: Option<Vec<BasicAuthSelector>>,
 
     /// GitHub API token to use when checking github.com links, to avoid rate limiting
     #[arg(long, env = "GITHUB_TOKEN", hide_env_values = true)]
-    #[serde(default)]
     pub(crate) github_token: Option<SecretString>,
 
     /// Skip missing input files (default is to error if they don't exist)
@@ -856,18 +791,19 @@ followed by the absolute link's own path."
 
     /// Output file of status report
     #[arg(short, long, value_parser)]
-    #[serde(default)]
     pub(crate) output: Option<PathBuf>,
 
     /// Set the output display mode. Determines how results are presented in the terminal
-    #[arg(long, default_value = "color", value_parser = PossibleValuesParser::new(OutputMode::VARIANTS).map(|s| s.parse::<OutputMode>().unwrap()))]
-    #[serde(default)]
-    pub(crate) mode: OutputMode,
+    ///
+    /// [default: color]
+    #[arg(long, value_parser = PossibleValuesParser::new(OutputMode::VARIANTS).map(|s| s.parse::<OutputMode>().unwrap()))]
+    mode: Option<OutputMode>,
 
     /// Output format of final status report
-    #[arg(short, long, default_value = "compact", value_parser = PossibleValuesParser::new(StatsFormat::VARIANTS).map(|s| s.parse::<StatsFormat>().unwrap()))]
-    #[serde(default)]
-    pub(crate) format: StatsFormat,
+    ///
+    /// [default: compact]
+    #[arg(short, long, value_parser = PossibleValuesParser::new(StatsFormat::VARIANTS).map(|s| s.parse::<StatsFormat>().unwrap()))]
+    format: Option<StatsFormat>,
 
     /// Generate special output (e.g. the man page) instead of performing link checking
     #[arg(long, value_parser = PossibleValuesParser::new(GenerateMode::VARIANTS).map(|s| s.parse::<GenerateMode>().unwrap()))]
@@ -885,7 +821,6 @@ followed by the absolute link's own path."
 cookie jar and sent with requests. New cookies will be stored in the cookie jar
 and existing cookies will be updated."
     )]
-    #[serde(default)]
     pub(crate) cookie_jar: Option<PathBuf>,
 
     #[allow(clippy::doc_markdown)]
@@ -923,7 +858,6 @@ case "$1" in
     ;;
 esac"#
     )]
-    #[serde(default)]
     pub(crate) preprocess: Option<Preprocessor>,
 
     /// Host-specific configurations from config file
@@ -933,22 +867,8 @@ esac"#
 }
 
 impl Config {
-    /// Special handling for merging headers
-    ///
-    /// Overwrites existing headers in `self` with the values from `other`.
-    fn merge_headers(&mut self, other: &[(String, String)]) {
-        let self_map = self.header.iter().cloned().collect::<HashMap<_, _>>();
-        let other_map = other.iter().cloned().collect::<HashMap<_, _>>();
-
-        // Merge the two maps, with `other` taking precedence
-        let merged_map: HashMap<_, _> = self_map.into_iter().chain(other_map).collect();
-
-        // Convert the merged map back to a Vec of tuples
-        self.header = merged_map.into_iter().collect();
-    }
-
     /// Try to load configuration from a file and merge into `self`.
-    pub(crate) fn merge_file(&mut self, config_file: &Path) -> Result<()> {
+    pub(crate) fn merge_file(self, config_file: &Path) -> Result<Config> {
         let config = Config::load_from_file(config_file).map_err(|e| {
             anyhow!(
                 "Cannot load configuration file `{}`: {e:?}",
@@ -956,8 +876,7 @@ impl Config {
             )
         })?;
 
-        self.merge(config);
-        Ok(())
+        Ok(self.merge(config))
     }
 
     fn load_from_file(path: &Path) -> Result<Config> {
@@ -966,96 +885,173 @@ impl Config {
         toml::from_str(&contents).with_context(|| "Failed to parse configuration file")
     }
 
+    pub(crate) fn timeout(&self) -> Duration {
+        let seconds = self.timeout.unwrap_or(DEFAULT_TIMEOUT_SECS);
+        Duration::from_secs(seconds)
+    }
+
+    pub(crate) fn retry_wait_time(&self) -> Duration {
+        let seconds = self.retry_wait_time.unwrap_or(DEFAULT_RETRY_WAIT_TIME_SECS);
+        Duration::from_secs(seconds)
+    }
+
+    pub(crate) fn method(&self) -> String {
+        let default_method: String = "get".into();
+        self.method.clone().unwrap_or(default_method)
+    }
+
+    pub(crate) fn max_cache_age(&self) -> std::time::Duration {
+        const DEFAULT_MAX_CACHE_AGE: Duration = Duration::from_secs(60 * 60 * 24); // one day
+        self.max_cache_age.unwrap_or(DEFAULT_MAX_CACHE_AGE)
+    }
+
+    pub(crate) fn verbose(&self) -> Verbosity {
+        self.verbose.clone().unwrap_or_default()
+    }
+
+    pub(crate) fn extensions(&self) -> FileExtensions {
+        self.extensions.clone().unwrap_or_default()
+    }
+
+    pub(crate) fn archive(&self) -> Archive {
+        self.archive.clone().unwrap_or_default()
+    }
+
+    pub(crate) fn mode(&self) -> OutputMode {
+        self.mode.clone().unwrap_or_default()
+    }
+
+    pub(crate) fn format(&self) -> StatsFormat {
+        self.format.clone().unwrap_or_default()
+    }
+
+    pub(crate) fn max_concurrency(&self) -> usize {
+        const DEFAULT_MAX_CONCURRENCY: usize = 128;
+        self.max_concurrency.unwrap_or(DEFAULT_MAX_CONCURRENCY)
+    }
+
+    pub(crate) fn max_redirects(&self) -> usize {
+        self.max_redirects.unwrap_or(DEFAULT_MAX_REDIRECTS)
+    }
+
+    pub(crate) fn max_retries(&self) -> u64 {
+        self.max_retries.unwrap_or(DEFAULT_MAX_RETRIES)
+    }
+
+    pub(crate) fn user_agent(&self) -> String {
+        self.user_agent
+            .clone()
+            .unwrap_or(DEFAULT_USER_AGENT.to_string())
+    }
+
+    pub(crate) fn cache_exclude_status(&self) -> StatusCodeSelector {
+        self.cache_exclude_status
+            .clone()
+            .unwrap_or(StatusCodeSelector::empty())
+    }
+
+    pub(crate) fn accept(&self) -> StatusCodeSelector {
+        self.accept
+            .clone()
+            .unwrap_or(StatusCodeSelector::default_accepted())
+    }
+
+    pub(crate) fn headers(&self) -> HashMap<String, String> {
+        self.header.iter().cloned().collect()
+    }
+
     /// Merge the configuration from TOML into the CLI configuration
-    pub(crate) fn merge(&mut self, toml: Config) {
-        // Special handling for headers before fold_in!
-        self.merge_headers(&toml.header);
-
-        // If the config file has a value for the GitHub token, but the CLI
-        // doesn't, use the token from the config file.
-        // This is outside of fold_in! because SecretBox doesn't implement Eq.
-        if self.github_token.is_none() && toml.github_token.is_some() {
-            self.github_token = toml.github_token;
+    pub(crate) fn merge(self, other: Config) -> Config {
+        macro_rules! merge {
+            (
+                option { $( $optional:ident ),* $(,)? },
+                chain { $( $chainable:ident ),* $(,)? },
+                bool { $( $bool:ident ),* $(,)? },
+            ) => {
+                Config {
+                    // Merge chainable fields (e.g. `Vec` and `HashMap`)
+                    $( $chainable: self.$chainable.into_iter().chain(other.$chainable).collect(), )*
+                    // Use self if present, otherwise use other
+                    $( $optional: self.$optional.or(other.$optional), )*
+                    // Use `true` when self or other is `true`.
+                    // Note that this has the drawback, that a value cannot be overwritten with
+                    // `false` in the merge chain, as there is no way to distinguish
+                    // between "default" `false` and user-provided `false`.
+                    // We would have to use `Option<bool>` in order to do that.
+                    $( $bool: self.$bool || other.$bool, )*
+                }
+            };
         }
 
-        // Hosts configuration is only available in TOML for now (not in the CLI)
-        // That's because it's a bit complex to specify on the command line and
-        // we didn't come up with a good syntax for it yet.
-        self.hosts = toml.hosts;
-
-        // NOTE: if you see an error within this macro call, check to make sure that
-        // that the fields provided to fold_in! match all the fields of the Config struct.
-        fold_in! {
-            // Destination and source configs
-            self, toml;
-
-            Config {
-                // Keys which are handled outside of fold_in
-                ..header,
-                ..github_token,
-                ..hosts,
-
-                // Keys with defaults to assign
-                accept: None,
-                archive: None,
-                base: None,
-                base_url: None,
-                basic_auth: None,
-                cache: false,
-                cache_exclude_status: None,
-                cookie_jar: None,
-                default_extension: None,
-                host_concurrency: None,
-                host_request_interval: None,
-                dump: false,
-                dump_inputs: false,
-                exclude: Vec::<String>::new(),
-                exclude_all_private: false,
-                exclude_file: Vec::<String>::new(), // deprecated
-                exclude_link_local: false,
-                exclude_loopback: false,
-                exclude_path: Vec::<String>::new(),
-                exclude_private: false,
-                extensions: FileType::default_extensions(),
-                fallback_extensions: Vec::<String>::new(),
-                files_from: None,
-                format: StatsFormat::default(),
-                generate: None,
-                glob_ignore_case: false,
-                hidden: false,
-                host_stats: false,
-                include: Vec::<String>::new(),
-                include_fragments: false,
-                include_mail: false,
-                include_verbatim: false,
-                include_wikilinks: false,
-                index_files: None,
-                insecure: false,
-                max_cache_age: humantime::parse_duration(DEFAULT_MAX_CACHE_AGE).unwrap(),
-                max_concurrency: DEFAULT_MAX_CONCURRENCY,
-                max_redirects: DEFAULT_MAX_REDIRECTS,
-                max_retries: DEFAULT_MAX_RETRIES,
-                method: DEFAULT_METHOD,
-                min_tls: None,
-                mode: OutputMode::Color,
-                no_ignore: false,
-                no_progress: false,
-                offline: false,
-                output: None,
-                preprocess: None,
-                remap: Vec::<String>::new(),
-                require_https: false,
-                retry_wait_time: DEFAULT_RETRY_WAIT_TIME_SECS,
-                root_dir: None,
-                scheme: Vec::<String>::new(),
-                skip_missing: false,
-                suggest: false,
-                threads: None,
-                timeout: DEFAULT_TIMEOUT_SECS,
-                user_agent: DEFAULT_USER_AGENT,
-                verbose: Verbosity::default(),
-            }
-        }
+        merge!(
+            option {
+                accept,
+                archive,
+                base,
+                base_url,
+                basic_auth,
+                cache_exclude_status,
+                cookie_jar,
+                default_extension,
+                github_token,
+                host_concurrency,
+                host_request_interval,
+                files_from,
+                generate,
+                index_files,
+                min_tls,
+                output,
+                preprocess,
+                root_dir,
+                threads,
+                extensions,
+                format,
+                verbose,
+                max_cache_age,
+                max_concurrency,
+                max_redirects,
+                max_retries,
+                method,
+                mode,
+                retry_wait_time,
+                timeout,
+                user_agent,
+            },
+            chain {
+                exclude,
+                exclude_file,
+                exclude_path,
+                include,
+                fallback_extensions,
+                remap,
+                scheme,
+                hosts,
+                header,
+            },
+            bool {
+                cache,
+                dump,
+                dump_inputs,
+                exclude_all_private,
+                exclude_link_local,
+                exclude_loopback,
+                exclude_private,
+                glob_ignore_case,
+                hidden,
+                host_stats,
+                include_fragments,
+                include_mail,
+                include_verbatim,
+                include_wikilinks,
+                insecure,
+                no_ignore,
+                no_progress,
+                offline,
+                require_https,
+                skip_missing,
+                suggest,
+            },
+        )
     }
 }
 
@@ -1126,13 +1122,13 @@ mod tests {
         let opts = crate::LycheeOptions::parse_from(args);
 
         // Check that the headers were collected correctly
-        let headers = &opts.config.header;
-        assert_eq!(headers.len(), 2);
-
-        // Convert to HashMap for easier testing
-        let header_map: HashMap<String, String> = headers.iter().cloned().collect();
-        assert_eq!(header_map["accept"], "text/html");
-        assert_eq!(header_map["x-test"], "check=this");
+        assert_eq!(
+            opts.config.headers(),
+            HashMap::from([
+                ("accept".to_string(), "text/html".to_string()),
+                ("x-test".to_string(), "check=this".to_string()),
+            ])
+        );
     }
 
     #[test]
@@ -1146,23 +1142,18 @@ mod tests {
         };
 
         // Set X-Test and see if it gets overwritten
-        let mut cli = Config {
+        let cli = Config {
             header: vec![("X-Test".to_string(), "check=that".to_string())],
             ..Default::default()
-        };
-        cli.merge(toml);
-
-        assert_eq!(cli.header.len(), 2);
-
-        // Sort vector before assert
-        cli.header.sort();
+        }
+        .merge(toml);
 
         assert_eq!(
-            cli.header,
-            vec![
+            cli.headers(),
+            HashMap::from([
                 ("Accept".to_string(), "text/html".to_string()),
                 ("X-Test".to_string(), "check=this".to_string()),
-            ]
+            ])
         );
     }
 }

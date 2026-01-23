@@ -954,3 +954,6 @@ at your option.
 
 <br><hr>
 [🔼 Back to top](#back-to-top)
+
+- Not using figment, because it's unmaintained
+- Not using config-rs, because it's rather unmaintained and doesn't integrate with clap (can't merge config with parsed CLI options) see https://github.com/rust-cli/config-rs/issues/64#issuecomment-2278874042
