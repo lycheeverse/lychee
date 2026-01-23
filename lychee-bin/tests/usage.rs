@@ -5,15 +5,6 @@ mod readme {
     use regex::Regex;
     use test_utils::load_readme_text;
 
-    /// Remove line `[default: lychee/x.y.z]` from the string
-    fn remove_lychee_version_line(string: &str) -> String {
-        string
-            .lines()
-            .filter(|line| !line.contains("[default: lychee/"))
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-
     fn trim_empty_lines(str: &str) -> String {
         str.lines()
             .map(|line| if line.trim().is_empty() { "" } else { line })
@@ -38,14 +29,13 @@ mod readme {
             .success();
         let usage_in_help = std::str::from_utf8(&help_cmd.get_output().stdout)?;
 
-        let usage_in_help = trim_empty_lines(&remove_lychee_version_line(usage_in_help));
+        let usage_in_help = trim_empty_lines(usage_in_help);
         let readme = load_readme_text!();
         let usage_start = readme.find(BEGIN).ok_or("Usage not found in README")? + BEGIN.len();
         let usage_end = readme[usage_start..]
             .find("\n```")
             .ok_or("End of usage not found in README")?;
         let usage_in_readme = &readme[usage_start..usage_start + usage_end];
-        let usage_in_readme = remove_lychee_version_line(usage_in_readme);
 
         assert_eq!(usage_in_readme, usage_in_help);
         Ok(())
