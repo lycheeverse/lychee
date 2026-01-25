@@ -12,17 +12,19 @@ mod cli {
     use pretty_assertions::assert_eq;
     use regex::Regex;
     use serde::Serialize;
-    use serde_json::Value;
+    use serde_json::{Value, json};
     use std::{
         collections::{HashMap, HashSet},
         error::Error,
         fs::{self, File},
         io::{BufRead, Write},
+        ops::Not,
         path::Path,
         time::{Duration, Instant},
     };
     use tempfile::{NamedTempFile, tempdir};
     use test_utils::{fixtures_path, mock_server, redirecting_mock_server, root_path};
+    use url::Url;
 
     use uuid::Uuid;
     use wiremock::{
@@ -1180,7 +1182,7 @@ The config file should contain every possible key for documentation purposes."
         let mut cmd = cargo_bin_cmd!();
         cmd.current_dir(&base_path)
             .arg(&file_path)
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--no-progress")
             .arg("--cache")
             .arg("--exclude")
@@ -1253,7 +1255,7 @@ The config file should contain every possible key for documentation purposes."
         let test_cmd = cmd
             .current_dir(&base_path)
             .arg(dir.path().join("c.md"))
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--no-progress")
             .arg("--cache")
             .arg("--cache-exclude-status")
@@ -1316,7 +1318,7 @@ The config file should contain every possible key for documentation purposes."
         let test_cmd = cmd
             .current_dir(&base_path)
             .arg(dir.path().join("c.md"))
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--cache");
 
         assert!(
@@ -2141,7 +2143,7 @@ The config file should contain every possible key for documentation purposes."
 
         let mut result = cargo_bin_cmd!()
             .arg("--include-fragments")
-            .arg("--verbose")
+            .arg("-vv")
             .arg(input)
             .assert()
             .failure();
@@ -2234,7 +2236,7 @@ The config file should contain every possible key for documentation purposes."
         // it's common for user to accept 429, but let's test with 404 since
         // triggering 429 may annoy the server
         cargo_bin_cmd!()
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--accept=200,404")
             .arg("--include-fragments")
             .arg(input)
@@ -2344,23 +2346,20 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_redirect_json() {
-        use serde_json::json;
-        redirecting_mock_server!(async |redirect_url: Url, ok_url| {
-            let output = cargo_bin_cmd!()
-                .arg("-")
-                .arg("--format")
-                .arg("json")
-                .write_stdin(redirect_url.as_str())
-                .env_clear()
-                .assert()
-                .success()
-                .get_output()
-                .clone()
-                .unwrap();
+        // Non-verbose mode
+        redirecting_mock_server!(async |redirect_url: Url, _| {
+            let (json, stderr) = run(&redirect_url, false);
+            assert!(stderr.contains("[WARN] lychee detected 1 redirect. You might want to consider replacing redirecting URLs"));
+            assert_eq!(json["total"], 1);
+            assert_eq!(json["redirects"], 1);
+            assert_eq!(json["redirect_map"], json!({}));
+        })
+        .await;
 
-            // Check that the output is in JSON format
-            let output = std::str::from_utf8(&output.stdout).unwrap();
-            let json: serde_json::Value = serde_json::from_str(output).unwrap();
+        // Verbose mode
+        redirecting_mock_server!(async |redirect_url: Url, ok_url| {
+            let (json, stderr) = run(&redirect_url, true);
+            assert!(stderr.contains("WARN").not());
             assert_eq!(json["total"], 1);
             assert_eq!(json["redirects"], 1);
             assert_eq!(
@@ -2370,13 +2369,45 @@ The config file should contain every possible key for documentation purposes."
                     "status": {
                         "code": 200,
                         "text": "Redirect",
-                        "redirects": [ redirect_url, ok_url ]
+                        "redirects": {
+                            "origin": redirect_url,
+                            "redirects": [{
+                                "code": 308,
+                                "url": ok_url,
+                            }]
+                        },
                     },
                     "url": redirect_url
                 }]})
             );
         })
         .await;
+
+        fn run(url: &Url, verbose: bool) -> (Value, String) {
+            let mut binding = cargo_bin_cmd!();
+            let mut base = binding.arg("-");
+
+            if verbose {
+                base = base.arg("--verbose");
+            }
+
+            let output = base
+                .arg("--format")
+                .arg("json")
+                .write_stdin(url.as_str())
+                .env_clear()
+                .assert()
+                .success()
+                .get_output()
+                .clone()
+                .unwrap();
+
+            let stdout = str::from_utf8(&output.stdout).unwrap().to_string();
+            let json: serde_json::Value = serde_json::from_str(stdout.as_str()).unwrap();
+            let stderr = str::from_utf8(&output.stderr).unwrap().to_string();
+
+            (json, stderr)
+        }
     }
 
     #[tokio::test]
@@ -2772,7 +2803,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Run the command with the binary input
         let result = cargo_bin_cmd!()
-            .arg("--verbose")
+            .arg("-vv")
             .arg(&inputs)
             .assert()
             .success()

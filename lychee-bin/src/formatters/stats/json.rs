@@ -66,11 +66,19 @@ mod tests {
         "status": {
           "text": "Redirect",
           "code": 200,
-          "redirects": [
-            "https://1.dev/",
-            "https://2.dev/",
-            "http://redirected.dev/"
-          ]
+          "redirects": {
+            "origin": "https://1.dev/",
+            "redirects": [
+              {
+                "url": "https://2.dev/",
+                "code": 308
+              },
+              {
+                "url": "http://redirected.dev/",
+                "code": 308
+              }
+            ]
+          }
         }
       }
     ]

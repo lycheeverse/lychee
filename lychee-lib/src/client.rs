@@ -481,8 +481,7 @@ fn redirect_policy(redirect_history: RedirectHistory, max_redirects: usize) -> r
         if attempt.previous().len() > max_redirects {
             attempt.stop()
         } else {
-            let redirects = &[attempt.previous(), &[attempt.url().clone()]].concat();
-            redirect_history.record_redirects(redirects);
+            redirect_history.record_redirects(&attempt);
             debug!("Following redirect to {}", attempt.url());
             attempt.follow()
         }
@@ -646,7 +645,7 @@ mod tests {
 
     use super::ClientBuilder;
     use crate::{
-        ErrorKind, Request, Status, Uri,
+        ErrorKind, Redirect, Redirects, Request, Status, Uri,
         chain::{ChainResult, Handler, RequestChain},
     };
 
@@ -947,7 +946,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_redirects() {
-        redirecting_mock_server!(async |redirect_url: Url, ok_ur| {
+        redirecting_mock_server!(async |redirect_url: Url, ok_url| {
             let res = ClientBuilder::builder()
                 .max_redirects(1_usize)
                 .build()
@@ -957,10 +956,12 @@ mod tests {
                 .await
                 .unwrap();
 
-            assert_eq!(
-                res.status(),
-                &Status::Redirected(StatusCode::OK, vec![redirect_url, ok_ur].into())
-            );
+            let mut redirects = Redirects::new(redirect_url);
+            redirects.push(Redirect {
+                url: ok_url,
+                code: StatusCode::PERMANENT_REDIRECT,
+            });
+            assert_eq!(res.status(), &Status::Redirected(StatusCode::OK, redirects));
         })
         .await;
     }
