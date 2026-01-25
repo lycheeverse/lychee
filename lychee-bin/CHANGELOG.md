@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.22.0...lychee-v0.23.0) - 2026-01-25
+
+### Added
+
+- per-host caching ([#1974](https://github.com/lycheeverse/lychee/pull/1974))
+- implement per-host rate limiting and statistics ([#1929](https://github.com/lycheeverse/lychee/pull/1929))
+
+### Fixed
+
+- Combine host stats with response stats ([#1975](https://github.com/lycheeverse/lychee/pull/1975))
+
+### Other
+
+- Improve progress reporting ([#1994](https://github.com/lycheeverse/lychee/pull/1994))
+- Update comparison table ([#1997](https://github.com/lycheeverse/lychee/pull/1997))
+- Rejected urls ([#1990](https://github.com/lycheeverse/lychee/pull/1990))
+- Accept ranges ([#1989](https://github.com/lycheeverse/lychee/pull/1989))
+- *(deps)* bump the dependencies group with 5 updates ([#1988](https://github.com/lycheeverse/lychee/pull/1988))
+- *(deps)* bump the dependencies group with 4 updates ([#1978](https://github.com/lycheeverse/lychee/pull/1978))
+- *(deps)* bump the dependencies group with 4 updates ([#1973](https://github.com/lycheeverse/lychee/pull/1973))
+- *(docs)* update TOC
+- Improve wikilink parsing and checking ([#1799](https://github.com/lycheeverse/lychee/pull/1799))
+- Specify that Scoop installation is for Windows ([#1969](https://github.com/lycheeverse/lychee/pull/1969))
+- Extract record_cache_event & skip mail caching
+- Add tldr-pages link to README ([#1963](https://github.com/lycheeverse/lychee/pull/1963))
+- *(deps)* bump the dependencies group across 1 directory with 3 updates ([#1961](https://github.com/lycheeverse/lychee/pull/1961))
+- Extract URLs from CSS ([#1956](https://github.com/lycheeverse/lychee/pull/1956))
+
 ## [0.22.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.21.0...lychee-v0.22.0) - 2025-12-05
 
 ### Added
