@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 
 export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
