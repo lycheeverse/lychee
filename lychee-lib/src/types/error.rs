@@ -104,6 +104,15 @@ pub enum ErrorKind {
     #[error("Invalid root directory '{0}': {1}")]
     InvalidRootDir(PathBuf, #[source] std::io::Error),
 
+    /// Using root-dir and base-url together is not (yet) supported.
+    #[error(
+        "Using root-dir and base-url together is not (yet) supported. \
+            Hint: In most cases, root-dir is sufficient and base-url should be removed. \
+            If you need to map a remote URL into a local folder, see \
+            https://lychee.cli.rs/recipes/local-folder/"
+    )]
+    CannotUseBothRootAndBase,
+
     /// The given URI type is not supported
     #[error("Unsupported URI type: '{0}'")]
     UnsupportedUriType(String),
@@ -297,6 +306,7 @@ impl ErrorKind {
             ErrorKind::InvalidRootDir(_, _) => {
                 Some("Check the root dir exists and is accessible".to_string())
             }
+            ErrorKind::CannotUseBothRootAndBase => None,
             ErrorKind::UnsupportedUriType(uri_type) => Some(format!(
                 "Unsupported URI type: '{uri_type}'. {}",
                 "Only http, https, file, and mailto are supported",
@@ -478,6 +488,7 @@ impl Hash for ErrorKind {
             Self::InvalidBaseJoin(s) => s.hash(state),
             Self::InvalidPathToUri(s) => s.hash(state),
             Self::InvalidRootDir(s, _) => s.hash(state),
+            Self::CannotUseBothRootAndBase => "CannotUseBothRootAndBase".hash(state),
             Self::UnsupportedUriType(s) => s.hash(state),
             Self::InvalidUrlRemap(remap) => (remap).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),
