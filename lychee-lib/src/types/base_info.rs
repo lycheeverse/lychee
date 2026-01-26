@@ -259,8 +259,8 @@ impl BaseInfo {
         let mut url = match Uri::try_from(text) {
             Ok(Uri { url }) => Ok(url),
             Err(e @ ErrorKind::ParseUrl(_, _)) => match self {
-                Self::NoRoot(_) if is_root_relative(text) => {
-                    Err(ErrorKind::InvalidBaseJoin(text.to_string()))
+                _ if !self.supports_root_relative() && is_root_relative(text) => {
+                    Err(ErrorKind::RootRelativeLinkWithoutRoot(text.to_string()))
                 }
                 Self::NoRoot(base) => base
                     .join(text)
@@ -288,9 +288,10 @@ impl BaseInfo {
     /// resolving relative links if supported by the current [`BaseInfo`]
     /// and applying the given root-dir if necessary.
     ///
-    /// The root-dir is applied if the current `BaseInfo` is a `file:` URL
-    /// and if the given text is a root-relative link. In these cases, the
-    /// given `root_dir` will take effect instead of the original `BaseInfo`.
+    /// The root-dir is applied if the current `BaseInfo` is [`BaseInfo::None`]
+    /// or has a `file:` URL and and if the given text is a root-relative link.
+    /// In these cases, the given `root_dir` will take effect instead of the
+    /// original `BaseInfo`.
     ///
     /// # Errors
     ///
@@ -303,11 +304,13 @@ impl BaseInfo {
         // HACK: if root-dir is specified, apply it by fudging around with
         // file:// URLs. eventually, someone up the stack should construct
         // the BaseInfo::Full for root-dir and this function should be deleted.
-        let fake_base_info = match root_dir {
-            Some(root_dir) if self.scheme() == Some("file") && is_root_relative(text) => {
+
+        // NOTE: also apply root-dir for BaseInfo::None :)
+        let fake_base_info = match (self.scheme(), root_dir) {
+            (Some("file") | None, Some(root_dir)) if is_root_relative(text) => {
                 Cow::Owned(Self::full_info(root_dir.clone(), String::new()))
             }
-            Some(_) | None => Cow::Borrowed(self),
+            _ => Cow::Borrowed(self),
         };
 
         fake_base_info.parse_url_text(text)

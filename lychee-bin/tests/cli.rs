@@ -3316,6 +3316,7 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_local_base_url_bug_1896() -> Result<()> {
+        // https://github.com/lycheeverse/lychee/issues/1896
         let dir = tempdir()?;
 
         cargo_bin_cmd!()
@@ -3331,5 +3332,84 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("b.html#a"));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_relative_url_parse_errors() -> Result<()> {
+        let dir = tempdir()?;
+
+        // without root-dir, fails to resolve in all cases
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--default-extension=md")
+            .write_stdin("[a](a)")
+            .assert()
+            .failure()
+            .stdout(contains("relative URL without a base"));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/a)")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot resolve root-relative link"));
+
+        // with root-dir, locally-relative links can still fail because
+        // there is no current base URL
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--root-dir")
+            .arg(dir.path())
+            .arg("--default-extension=md")
+            .write_stdin("[a](a)")
+            .assert()
+            .failure()
+            .stdout(contains("relative URL without a base"));
+
+        // with root-dir, root-relative links should succeed
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--root-dir")
+            .arg(dir.path())
+            .arg("--default-extension=md")
+            .write_stdin("[a](/)")
+            .assert()
+            .success();
+
+        // with an explicit base-url, root-relative and locally-relative links work. yay!
+        // both should become relative to the base-url.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("-vv")
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/)")
+            .assert()
+            .success()
+            .stderr(contains("https://lychee.cli.rs/"));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("-vv")
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg("--default-extension=md")
+            .write_stdin("[a](.)")
+            .assert()
+            .success()
+            .stderr(contains("https://lychee.cli.rs/"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_base_url_applies_to_local() {
+        cargo_bin_cmd!()
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg(fixtures_path!().join("resolve_paths/index.html"))
+            .assert()
+            .failure()
+            .stdout(contains("https://lychee.cli.rs/another%20page"))
+            .stdout(contains("https://lychee.cli.rs/about"));
     }
 }
