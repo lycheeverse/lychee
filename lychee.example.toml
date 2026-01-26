@@ -193,7 +193,7 @@ offline = true
 #############################  Other  #############################
 
 # Read input filenames from the given file or stdin ('-')
-files_from = "files.txt"
+files_from = "-"
 
 # Use the Wayback Machine as web archive
 archive = "wayback"
