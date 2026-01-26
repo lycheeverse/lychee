@@ -1,4 +1,4 @@
-use crate::{Base, ErrorKind, Uri, checker::wikilink::index::WikilinkIndex};
+use crate::{BaseInfo, ErrorKind, Uri, checker::wikilink::index::WikilinkIndex};
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
@@ -12,21 +12,22 @@ pub(crate) struct WikilinkResolver {
 impl WikilinkResolver {
     /// # Errors
     ///
-    /// Fails if `base` is not `Some(Base::Local(_))`.
+    /// Fails if `base` is not `Some(base)` with `base` being a file:// URL.
     pub(crate) fn new(
-        base: Option<&Base>,
+        base: &BaseInfo,
         fallback_extensions: Vec<String>,
     ) -> Result<Self, ErrorKind> {
         let base = match base {
-            None => Err(ErrorKind::WikilinkInvalidBase(
+            BaseInfo::None => Err(ErrorKind::WikilinkInvalidBase(
                 "Base must be specified for wikilink checking".into(),
             ))?,
-            Some(base) => match base {
-                Base::Local(p) => p,
-                Base::Remote(_) => Err(ErrorKind::WikilinkInvalidBase(
-                    "Base cannot be remote".to_string(),
-                ))?,
-            },
+            base => base,
+        };
+        let base = match base.to_file_path() {
+            Some(p) => p,
+            None => Err(ErrorKind::WikilinkInvalidBase(
+                "Base cannot be remote".to_string(),
+            ))?,
         };
 
         Ok(Self {
@@ -51,13 +52,13 @@ impl WikilinkResolver {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Base, ErrorKind, Uri, checker::wikilink::resolver::WikilinkResolver};
+    use crate::{BaseInfo, ErrorKind, Uri, checker::wikilink::resolver::WikilinkResolver};
     use test_utils::{fixture_uri, fixtures_path};
 
     #[test]
     fn test_wikilink_resolves_to_filename() {
         let resolver = WikilinkResolver::new(
-            Some(&Base::Local(fixtures_path!().join("wiki"))),
+            &BaseInfo::from_path(&fixtures_path!().join("wiki")).unwrap(),
             vec!["md".to_string()],
         )
         .unwrap();
@@ -72,7 +73,7 @@ mod tests {
     #[test]
     fn test_wikilink_not_found() {
         let resolver = WikilinkResolver::new(
-            Some(&Base::Local(fixtures_path!().join("wiki"))),
+            &BaseInfo::from_path(&fixtures_path!().join("wiki")).unwrap(),
             vec!["md".to_string()],
         )
         .unwrap();

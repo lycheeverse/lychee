@@ -1,6 +1,6 @@
 use crate::files_from::FilesFrom;
 use crate::generate::GenerateMode;
-use crate::parse::parse_base;
+use crate::parse::parse_base_info;
 use crate::verbosity::Verbosity;
 use anyhow::{Context, Error, Result, anyhow};
 use clap::builder::PossibleValuesParser;
@@ -13,7 +13,7 @@ use http::{
 use lychee_lib::Preprocessor;
 use lychee_lib::ratelimit::HostConfigs;
 use lychee_lib::{
-    Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+    BaseInfo, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
     FileType, Input, StatusCodeSelector, archive::Archive,
 };
@@ -765,16 +765,16 @@ Defaults to '100..=103,200..=299' if the user provides no value."
     pub(crate) method: String,
 
     /// Deprecated; use `--base-url` instead
-    #[arg(long, value_parser = parse_base)]
+    #[arg(long, value_parser = parse_base_info)]
     #[serde(skip)]
-    pub(crate) base: Option<Base>,
+    pub(crate) base: Option<BaseInfo>,
 
     /// Base URL used to resolve relative URLs in local files.
     /// Example: <https://example.com>
     #[arg(
         short,
         long,
-        value_parser = parse_base,
+        value_parser = parse_base_info,
         long_help = "Base URL to use when resolving relative URLs in local files. If specified,
 relative links in local files are interpreted as being relative to the given
 base URL.
@@ -796,7 +796,7 @@ The provided base URL value must either be a URL (with scheme) or an absolute pa
 Note that certain URL schemes cannot be used as a base, e.g., `data` and `mailto`."
     )]
     #[serde(default)]
-    pub(crate) base_url: Option<Base>,
+    pub(crate) base_url: Option<BaseInfo>,
 
     /// Root directory to use when checking absolute links in local files.
     /// Must be an absolute path.
