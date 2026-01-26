@@ -12,7 +12,7 @@ pub(crate) struct WikilinkResolver {
 impl WikilinkResolver {
     /// # Errors
     ///
-    /// Fails if `base` is not `Some(base)` with `base` being a file:// URL.
+    /// Fails if the URL within `base` is not a file:// URL.
     pub(crate) fn new(
         base: &BaseInfo,
         fallback_extensions: Vec<String>,

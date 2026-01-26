@@ -71,11 +71,18 @@ impl ReqwestUrlExt for Url {
     }
 }
 
-/// Attempts to parse a string which may be a URL or a filesystem path.
-/// Returns [`Ok`] if it is a valid URL, or [`Err`] if it is a filesystem path.
+/// Attempts to parse a string which might represent a URL or a filesystem path.
+/// Returns [`Ok`] if it is unambiguously a valid URL, otherwise returns [`Err`]
+/// with the original input.
 ///
 /// On Windows, we take care to make sure absolute paths---which could also be
-/// parsed as URLs---are returned as filesystem paths.
+/// parsed as URLs---are not parsed as URLs.
+///
+/// # Errors
+///
+/// Returns an [`Err`] if the given text is not a valid URL, or if the given text
+/// *could* be interpreted as a filesystem path. The string is returned within
+/// the error to allow for easier subsequent processing.
 pub(crate) fn parse_url_or_path(input: &str) -> Result<Url, &str> {
     match Url::parse(input) {
         Ok(url) if cfg!(windows) && url.scheme().len() == 1 => Err(input),
