@@ -1,5 +1,16 @@
 This file is intended to be served by a mock server in the tests.
 
+It will be accessed from a URL of:
+```
+{mock_server}/server/1/2/file.md
+```
+
+It is used by both tests which map the whole domain and tests which map
+a subpath. For the subpath tests, the mapped subpath is:
+```
+{mock_server}/server/1/
+```
+
 [root](/root)
 
 [up 2](/../../up-up)
