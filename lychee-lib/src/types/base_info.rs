@@ -266,7 +266,7 @@ impl BaseInfo {
                     .join(text)
                     .map_err(|e| ErrorKind::ParseUrl(e, text.to_string())),
                 Self::Full(origin, subpath) => origin
-                    .join_rooted(&[&subpath, text])
+                    .join_rooted(&[subpath, text])
                     .map_err(|e| ErrorKind::ParseUrl(e, text.to_string())),
                 Self::None => Err(e),
             },
