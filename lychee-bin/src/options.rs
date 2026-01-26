@@ -5,7 +5,7 @@ use crate::verbosity::Verbosity;
 use anyhow::{Context, Error, Result, anyhow};
 use clap::builder::PossibleValuesParser;
 use clap::{Parser, builder::TypedValueParser};
-use const_format::{concatcp, formatcp};
+use const_format::formatcp;
 use http::{
     HeaderMap,
     header::{HeaderName, HeaderValue},
@@ -41,9 +41,6 @@ const HELP_MSG_CONFIG_FILE: &str = formatcp!(
     "Configuration file to use\n\n[default: {}]",
     LYCHEE_CONFIG_FILE,
 );
-const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
-const RETRY_WAIT_TIME_STR: &str = concatcp!(DEFAULT_RETRY_WAIT_TIME_SECS);
-
 #[derive(
     Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq, Eq,
 )]
@@ -697,11 +694,15 @@ Defaults to '100..=103,200..=299' if the user provides no value."
     pub(crate) include_fragments: bool,
 
     /// Website timeout in seconds from connect to response finished
-    #[arg(short, long, default_value = &TIMEOUT_STR)]
+    ///
+    /// [default: 20]
+    #[arg(short, long)]
     timeout: Option<u64>,
 
     /// Minimum wait time in seconds between retries of failed requests
-    #[arg(short, long, default_value = &RETRY_WAIT_TIME_STR)]
+    ///
+    /// [default: 1]
+    #[arg(short, long)]
     retry_wait_time: Option<u64>,
 
     /// Request method
