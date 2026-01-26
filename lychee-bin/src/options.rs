@@ -804,7 +804,7 @@ Note that certain URL schemes cannot be used as a base, e.g., `data` and `mailto
         long,
         long_help = "Root directory to use when checking absolute links in local files. This option is
 required if absolute links appear in local files, otherwise those links will be
-flagged as errors. This must be an absolute path (i.e., one beginning with `/`).
+flagged as errors. This may be a relative or absolute path.
 
 If specified, absolute links in local files are resolved by prefixing the given
 root directory to the requested absolute link. For example, with a root-dir of

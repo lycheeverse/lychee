@@ -1025,6 +1025,7 @@ mod cli {
             "quiet",        // not part of config
             "help",         // special clap argument
             "version",      // special clap argument
+            "generate",     // special use argument
         ];
 
         let arguments: Vec<String> = help_text
