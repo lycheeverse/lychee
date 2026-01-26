@@ -43,7 +43,7 @@ reqwest = { version = "0.12.28", default-features = false, features = [
     "json",
 ] }
 
-reqwest_cookie_store = { version = "0.9.0", features = ["serde"] }
+reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
@@ -73,7 +73,7 @@ tracing-subscriber = { version = "0.3.22", default-features = false, features = 
     "registry",
     "env-filter",
 ] }
-uuid = { version = "1.18.1", features = ["v4"] }
+uuid = { version = "1.20.0", features = ["v4"] }
 wiremock = "0.6.5"
 
 [features]
