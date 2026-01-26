@@ -76,7 +76,7 @@ impl Collector {
         let root_dir = match root_dir {
             Some(root_dir) if base.is_some() => Some(root_dir),
             Some(root_dir) => {
-                let root_dir_exists = root_dir.metadata().map(|_| ());
+                let root_dir_exists = root_dir.read_dir().map(|_| ());
                 let root_dir = root_dir_exists
                     .and_then(|_| std::path::absolute(&root_dir))
                     .map_err(|e| ErrorKind::InvalidRootDir(root_dir, e))?;
