@@ -135,8 +135,10 @@ fn read_lines(file: &File) -> Result<Vec<String>> {
 }
 
 /// Merge all provided config options into one.
-/// This includes a potential config file, command-line- and environment variables
+/// This includes the command-line args,
+/// the config file and the secrets file in that order.
 fn load_config() -> Result<LycheeOptions> {
+    // Merge by precedence, parsed CLI args have highest precedence
     let mut opts = LycheeOptions::parse();
 
     init_logging(&opts.config.verbose(), &opts.config.mode());
@@ -151,6 +153,10 @@ fn load_config() -> Result<LycheeOptions> {
         if default_config.is_file() {
             opts.config = opts.config.merge_file(&default_config)?;
         }
+    }
+
+    if let Some(secrets_file) = opts.config.secrets.clone() {
+        opts.config = opts.config.merge_file(&secrets_file)?;
     }
 
     if let Ok(lycheeignore) = File::open(LYCHEE_IGNORE_FILE) {

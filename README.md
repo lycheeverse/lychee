@@ -456,6 +456,7 @@ Options:
           Output format of final status report
 
           [default: compact]
+
           [possible values: compact, detailed, json, markdown, raw]
 
       --fallback-extensions <FALLBACK_EXTENSIONS>
@@ -613,6 +614,7 @@ Options:
           Set the output display mode. Determines how results are presented in the terminal
 
           [default: color]
+
           [possible values: plain, color, emoji, task]
 
   -n, --no-progress
@@ -684,6 +686,13 @@ Options:
           Only test links with the given schemes (e.g. https). Omit to check links with
           any other scheme. At the moment, we support http, https, file, and mailto.
 
+      --secrets <CONFIG_FILE>
+          Configuration file to use for secrets.
+          This allows specifying an additional configuration file
+          which is then merged with the main configuration (--config).
+          In practice this is useful for extracting sensitive data (like headers)
+          into a file which is not tracked by version control.
+
       --skip-missing
           Skip missing input files (default is to error if they don't exist)
 
@@ -701,7 +710,7 @@ Options:
   -u, --user-agent <USER_AGENT>
           User agent
 
-          [default: lychee/0.20.1]
+          [default: lychee/x.y.z]
 
   -v, --verbose...
           Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)

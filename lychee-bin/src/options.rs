@@ -356,6 +356,14 @@ File Format:
     )]
     files_from: Option<PathBuf>,
 
+    /// Configuration file to use for secrets.
+    /// This allows specifying an additional configuration file
+    /// which is then merged with the main configuration (--config).
+    /// In practice this is useful for extracting sensitive data (like headers)
+    /// into a file which is not tracked by version control.
+    #[arg(long, verbatim_doc_comment, name = "CONFIG_FILE")]
+    pub(crate) secrets: Option<PathBuf>,
+
     /// Verbose program output
     #[clap(flatten)]
     verbose: Option<Verbosity>,
@@ -960,8 +968,10 @@ impl Config {
         self.header.iter().cloned().collect()
     }
 
-    /// Merge the configuration from TOML into the CLI configuration
+    /// Merge `self` with another `Config` where the fields of `self` take precedence
+    /// over `other`.
     pub(crate) fn merge(self, other: Config) -> Config {
+        let hosts = self.hosts.merge(other.hosts);
         macro_rules! merge {
             (
                 option { $( $optional:ident ),* $(,)? },
@@ -969,6 +979,7 @@ impl Config {
                 bool { $( $bool:ident ),* $(,)? },
             ) => {
                 Config {
+                    hosts,
                     // Merge chainable fields (e.g. `Vec` and `HashMap`)
                     $( $chainable: self.$chainable.into_iter().chain(other.$chainable).collect(), )*
                     // Use self if present, otherwise use other
@@ -1014,6 +1025,7 @@ impl Config {
                 method,
                 mode,
                 retry_wait_time,
+                secrets,
                 timeout,
                 user_agent,
             },
@@ -1025,7 +1037,6 @@ impl Config {
                 fallback_extensions,
                 remap,
                 scheme,
-                hosts,
                 header,
             },
             bool {
@@ -1058,6 +1069,8 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+
+    use lychee_lib::ratelimit::{HostConfig, HostKey};
 
     use super::*;
 
@@ -1154,6 +1167,60 @@ mod tests {
                 ("Accept".to_string(), "text/html".to_string()),
                 ("X-Test".to_string(), "check=this".to_string()),
             ])
+        );
+    }
+
+    #[test]
+    fn test_merge_hosts() {
+        let host_key = HostKey::from("hi");
+
+        let secrets = Config {
+            hosts: HostConfigs::from([(
+                host_key.clone(),
+                HostConfig {
+                    concurrency: Some(1),
+                    request_interval: None,
+                    headers: HeaderMap::from_header_pairs(&HashMap::from([(
+                        "password".into(),
+                        "very secret".into(),
+                    )]))
+                    .unwrap(),
+                },
+            )]),
+            ..Default::default()
+        };
+
+        let main = Config {
+            hosts: HostConfigs::from([(
+                host_key.clone(),
+                HostConfig {
+                    concurrency: Some(42),
+                    request_interval: Some(Duration::ZERO),
+                    headers: HeaderMap::from_header_pairs(&HashMap::from([(
+                        "hi".into(),
+                        "there".into(),
+                    )]))
+                    .unwrap(),
+                },
+            )]),
+            ..Default::default()
+        }
+        .merge(secrets);
+
+        assert_eq!(
+            main.hosts,
+            HostConfigs::from([(
+                host_key.clone(),
+                HostConfig {
+                    concurrency: Some(42), // main config takes precedence
+                    request_interval: Some(Duration::ZERO),
+                    headers: HeaderMap::from_header_pairs(&HashMap::from([
+                        ("password".into(), "very secret".into()),
+                        ("hi".into(), "there".into()),
+                    ]))
+                    .unwrap()
+                }
+            )])
         );
     }
 }
