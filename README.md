@@ -685,16 +685,11 @@ Options:
       --root-dir <ROOT_DIR>
           Root directory to use when checking absolute links in local files. This option is
           required if absolute links appear in local files, otherwise those links will be
-          flagged as errors. This must be an absolute path (i.e., one beginning with `/`).
+          flagged as errors. This may be a relative or absolute path.
 
           If specified, absolute links in local files are resolved by prefixing the given
           root directory to the requested absolute link. For example, with a root-dir of
           `/root/dir`, a link to `/page.html` would be resolved to `/root/dir/page.html`.
-
-          This option can be specified alongside `--base-url`. If both are given, an
-          absolute link is resolved by constructing a URL from three parts: the domain
-          name specified in `--base-url`, followed by the `--root-dir` directory path,
-          followed by the absolute link's own path.
 
   -s, --scheme <SCHEME>
           Only test links with the given schemes (e.g. https). Omit to check links with

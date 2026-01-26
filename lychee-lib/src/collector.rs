@@ -74,7 +74,7 @@ impl Collector {
     /// or if the reqwest `Client` fails to build
     pub fn new(root_dir: Option<PathBuf>, base: Option<Base>) -> LycheeResult<Self> {
         let root_dir = match root_dir {
-            Some(root_dir) if base.is_some() => Some(root_dir),
+            Some(_root_dir) if base.is_some() => return Err(ErrorKind::CannotUseBothRootAndBase),
             Some(root_dir) => Some(
                 root_dir
                     .canonicalize()

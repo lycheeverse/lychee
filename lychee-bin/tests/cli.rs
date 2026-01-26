@@ -439,24 +439,6 @@ mod cli {
     }
 
     #[test]
-    fn test_resolve_paths_from_root_dir_and_base_url() {
-        let dir = fixtures_path!();
-
-        cargo_bin_cmd!()
-            .arg("--offline")
-            .arg("--root-dir")
-            .arg("/resolve_paths")
-            .arg("--base-url")
-            .arg(&dir)
-            .arg(dir.join("resolve_paths").join("index.html"))
-            .env_clear()
-            .assert()
-            .success()
-            .stdout(contains("3 Total"))
-            .stdout(contains("3 OK"));
-    }
-
-    #[test]
     fn test_nonexistent_root_dir() {
         cargo_bin_cmd!()
             .arg("--root-dir")
@@ -1045,6 +1027,7 @@ mod cli {
             "quiet",        // not part of config
             "help",         // special clap argument
             "version",      // special clap argument
+            "generate",     // special use argument
         ];
 
         let arguments: Vec<String> = help_text

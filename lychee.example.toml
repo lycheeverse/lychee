@@ -111,10 +111,10 @@ remap = ["https://example.com http://example.invalid"]
 # This is common in documentation tools that cross-reference files without extensions.
 fallback_extensions = ["md", "html"]
 
-# Base URL or website root directory to check relative URLs.
+# Base URL
 base_url = "https://example.com"
 
-# Root path to use when checking absolute local links, must be an absolute path
+# Root path to use when checking absolute local links
 root_dir = "/dist"
 
 # HTTP basic auth support. This will be the username and password passed to the
@@ -193,10 +193,7 @@ offline = true
 #############################  Other  #############################
 
 # Read input filenames from the given file or stdin ('-')
-files_from = "files.txt"
-
-# Generate special output instead of performing link checking
-generate = "man"
+files_from = "-"
 
 # Use the Wayback Machine as web archive
 archive = "wayback"
