@@ -688,7 +688,7 @@ mod tests {
         let expected_links: HashSet<_> = HashSet::from_iter([
             ("file:///path/to/root/index.html"),
             ("file:///path/to/root/about.html"),
-            ("file:///path/to/root/up.html"),
+            ("file:///path/to/up.html"),
             ("file:///path/to/root/another.html"),
         ]);
 

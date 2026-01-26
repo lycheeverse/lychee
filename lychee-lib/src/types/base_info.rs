@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use crate::ErrorKind;
 use crate::Uri;
 use crate::utils;
-use crate::utils::url::ReqwestUrlExt;
+use crate::utils::url::{ReqwestUrlExt, is_root_relative};
 use url::PathSegmentsMut;
 
 /// Information used for resolving relative URLs within a particular
@@ -244,13 +244,6 @@ impl BaseInfo {
         }
     }
 
-    /// Returns whether the text represents a relative link that is
-    /// relative to the domain root. Textually, it looks like `/this`.
-    fn is_root_relative(text: &str) -> bool {
-        let text = text.trim_ascii_start();
-        text.starts_with('/') && !text.starts_with("//")
-    }
-
     /// Parses the given URL text into a fully-qualified URL, including
     /// resolving relative links if supported by the current [`BaseInfo`].
     ///
@@ -266,14 +259,14 @@ impl BaseInfo {
         let mut url = match Uri::try_from(text) {
             Ok(Uri { url }) => Ok(url),
             Err(e @ ErrorKind::ParseUrl(_, _)) => match self {
-                Self::NoRoot(_) if Self::is_root_relative(text) => {
+                Self::NoRoot(_) if is_root_relative(text) => {
                     Err(ErrorKind::InvalidBaseJoin(text.to_string()))
                 }
                 Self::NoRoot(base) => base
                     .join(text)
                     .map_err(|e| ErrorKind::ParseUrl(e, text.to_string())),
                 Self::Full(origin, subpath) => origin
-                    .join_rooted(&[subpath, text])
+                    .join_rooted(&[&subpath, text])
                     .map_err(|e| ErrorKind::ParseUrl(e, text.to_string())),
                 Self::None => Err(e),
             },
@@ -311,7 +304,7 @@ impl BaseInfo {
         // file:// URLs. eventually, someone up the stack should construct
         // the BaseInfo::Full for root-dir and this function should be deleted.
         let fake_base_info = match root_dir {
-            Some(root_dir) if self.scheme() == Some("file") && Self::is_root_relative(text) => {
+            Some(root_dir) if self.scheme() == Some("file") && is_root_relative(text) => {
                 Cow::Owned(Self::full_info(root_dir.clone(), String::new()))
             }
             Some(_) | None => Cow::Borrowed(self),
@@ -423,6 +416,11 @@ mod tests {
             base.parse_url_text_with_root_dir("https://a.com/b?q", Some(&root_dir)),
             Ok(Url::parse("https://a.com/b?q").unwrap())
         );
+        assert_eq!(
+            base.parse_url_text_with_root_dir("file:///a/", Some(&root_dir)),
+            Ok(Url::parse("file:///a").unwrap())
+        );
+        // NOTE: trailing slash is dropped by parse_url_text
 
         // basic root dir use
         assert_eq!(
@@ -430,11 +428,10 @@ mod tests {
             Ok(Url::parse("file:///root/a").unwrap())
         );
 
-        // root-dir cannot be traversed out of
+        // root-dir can be traversed out of
         assert_eq!(
             base.parse_url_text_with_root_dir("/../../", Some(&root_dir)),
-            Ok(Url::parse("file:///root").unwrap())
+            Ok(Url::parse("file:///").unwrap())
         );
-        // NOTE: trailing slash is dropped by parse_url_text
     }
 }

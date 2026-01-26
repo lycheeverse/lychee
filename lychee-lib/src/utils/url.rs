@@ -6,6 +6,13 @@ use url::Url;
 use linkify::LinkFinder;
 use url::ParseError;
 
+/// Returns whether the text represents a relative link that is
+/// relative to the domain root. Textually, it looks like `/this`.
+pub(crate) fn is_root_relative(text: &str) -> bool {
+    let text = text.trim_ascii_start();
+    text.starts_with('/') && !text.starts_with("//")
+}
+
 pub(crate) trait ReqwestUrlExt {
     /// Joins the given subpaths, using the current URL as the base URL.
     ///
@@ -14,60 +21,28 @@ pub(crate) trait ReqwestUrlExt {
     /// the base URL is a `file:` URL.
     ///
     /// When used with a `file:` base URL, [`ReqwestUrlExt::join_rooted`]
-    /// will ensure that any relative links will *not* traverse outside
-    /// of the given base URL. In this way, it is "rooted" at the `file:`
-    /// base URL.
+    /// will treat root-relative links as locally-relative links, relative
+    /// to the `file:` base URL.
     ///
-    /// Note that this rooting behaviour only happens for `file:` bases.
-    /// Relative links with non-`file:` bases can traverse anywhere as
-    /// usual.
+    /// Other relative links and links with non-`file:` bases are joined
+    /// normally, matching the behaviour of [`Url::join`].
     fn join_rooted(&self, subpaths: &[&str]) -> Result<Url, ParseError>;
 }
 
 impl ReqwestUrlExt for Url {
     fn join_rooted(&self, subpaths: &[&str]) -> Result<Url, ParseError> {
-        let base = self;
+        let mut url = Cow::Borrowed(self);
 
-        // for file:// base URLs, we need to apply *rooting* and make sure
-        // we don't go outside of the base.
-        //
-        // the idea is to make a "fake" base at the filesystem root, so
-        // excessive ".." links will get absorbed and have no effect.
-        //
-        // we need some extra bookkeeping to detect when this base was used
-        // and maintain a filename
-        let fake_base = match base.scheme() {
-            "file" => {
-                let mut fake_base = base.join("/")?;
-                fake_base.set_host(Some("secret-lychee-base-url.invalid"))?;
-
-                let mut filename = base
-                    .path_segments()
-                    .and_then(|mut x| x.next_back())
-                    .unwrap_or(".")
-                    .to_string();
-
-                if let Some(query) = base.query() {
-                    filename.push('?');
-                    filename.push_str(query);
-                }
-
-                fake_base = fake_base.join(&filename)?;
-
-                Some(fake_base)
-            }
-            _ => None,
-        };
-
-        let mut url = Cow::Borrowed(fake_base.as_ref().unwrap_or(base));
         for subpath in subpaths {
-            url = Cow::Owned(url.join(subpath)?);
+            if url.scheme() == "file" && is_root_relative(subpath) {
+                let locally_relative = format!(".{}", subpath.trim_ascii_start());
+                url = Cow::Owned(self.join(&locally_relative)?);
+            } else {
+                url = Cow::Owned(url.join(subpath)?);
+            }
         }
 
-        match fake_base.as_ref().and_then(|b| b.make_relative(&url)) {
-            Some(relative_to_base) => base.join(&relative_to_base),
-            None => Ok(url.into_owned()),
-        }
+        Ok(url.into_owned())
     }
 }
 
@@ -121,12 +96,13 @@ mod tests {
                 vec!["file:///a/b/", "../.."],
                 "file:///",
             ),
-            // file traversal - should stay within root
+            // file traversal
+            ("file:///a/b/", vec!["/x/y"], "file:///a/b/x/y"),
             ("file:///a/b/", vec!["a/"], "file:///a/b/a/"),
-            ("file:///a/b/", vec!["a/", "../.."], "file:///a/b/"),
+            ("file:///a/b/", vec!["a/", "../.."], "file:///a/"),
             ("file:///a/b/", vec!["a/", "/"], "file:///a/b/"),
-            ("file:///a/b/", vec!["/.."], "file:///a/b/"),
-            ("file:///a/b/", vec!["/../../"], "file:///a/b/"),
+            ("file:///a/b/", vec!["/.."], "file:///a/"),
+            ("file:///a/b/", vec!["/../../"], "file:///"),
             ("file:///a/b/", vec![""], "file:///a/b/"),
             ("file:///a/b/", vec!["."], "file:///a/b/"),
             // HTTP relative links
