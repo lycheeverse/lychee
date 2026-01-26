@@ -78,7 +78,7 @@ pub(crate) fn create(
         }
     };
 
-    // TODO: avoid use_fs_root_as_origin once base-url sementics are clarified
+    // TODO: avoid use_fs_root_as_origin once base-url semantics are clarified
     let fallback_base = fallback_base.use_fs_root_as_origin();
     let base = source_base.or_fallback(&fallback_base);
 
