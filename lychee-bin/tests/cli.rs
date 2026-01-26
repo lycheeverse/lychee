@@ -3139,8 +3139,6 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("https://example.com"));
     }
 
-    const REMOTE_MD: &str = "https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/lychee-url-mapping-test-file.md";
-
     /// Returns a regex (as a string) which matches URLs with the given base
     /// as a proper prefix. This should respect URL path components.
     fn escape_url_prefix(base_url: &str) -> String {
@@ -3148,8 +3146,13 @@ The config file should contain every possible key for documentation purposes."
         format!("^{escaped}($|[/?#])")
     }
 
-    fn normalise_url_lines(bytes: &[u8], old: &str, new: &str) -> String {
-        let str = str::from_utf8(bytes).unwrap().replace(old, new);
+    fn normalise_url_lines(bytes: &[u8], substitutions: &[&str]) -> String {
+        let mut str = str::from_utf8(bytes).unwrap().to_string();
+
+        let mut iter = substitutions.iter();
+        while let Some(old) = iter.next() {
+            str = str.replace(old, iter.next().expect("substitutions should be paired!"));
+        }
 
         let mut lines = str.lines().collect::<Vec<&str>>();
         lines.sort();
@@ -3161,12 +3164,16 @@ The config file should contain every possible key for documentation purposes."
             .to_string()
     }
 
-    #[test]
+    #[tokio::test]
     #[allow(clippy::format_in_format_args)]
-    fn test_mapping_whole_domain_to_local_folder() {
+    async fn test_mapping_whole_domain_to_local_folder() {
         let fixture = fixtures_path!().join("mapping_local_folder");
         let root_dir = fixture.join("a/b/ROOT");
         let local_file = root_dir.join("whole_domain.md");
+
+        let mock_server = mock_response!(fs::read_to_string(fixture.join("remote.md")).unwrap());
+        let remote_url = format!("{}/server/1/2/file.md", mock_server.uri());
+        let remote_origin = mock_server.uri();
 
         // relative URLs within local files should stay local. additionally, occurrences of base-url in local
         // file should become local.
@@ -3186,8 +3193,7 @@ The config file should contain every possible key for documentation purposes."
         assert_eq!(
             normalise_url_lines(
                 &proc2.get_output().stdout,
-                &fixture.to_string_lossy(),
-                "/TMP"
+                &[&fixture.to_string_lossy(), "/TMP"]
             ),
             "
 file:///TMP/a/b/ROOT/
@@ -3204,11 +3210,11 @@ https://gist.githubusercontent.com-fake/
         // URLs in remote paths underneath base-url should become local paths
         let proc = cargo_bin_cmd!()
             .arg("--dump")
-            .arg(REMOTE_MD)
+            .arg(remote_url)
             .arg(format!("--root-dir={}", root_dir.display()))
             .arg(format!(
                 "--remap={} {}",
-                escape_url_prefix("https://gist.githubusercontent.com"),
+                escape_url_prefix(&remote_origin),
                 format!("file://{}/", root_dir.display())
             ))
             .assert()
@@ -3216,36 +3222,41 @@ https://gist.githubusercontent.com-fake/
 
         // BUG: in the first three lines, /TMP appearing twice is incorrect and due to https://github.com/lycheeverse/lychee/issues/1964
         assert_eq!(
-            normalise_url_lines(&proc.get_output().stdout, &fixture.to_string_lossy(), "/TMP"),
+            normalise_url_lines(
+                &proc.get_output().stdout,
+                &[&fixture.to_string_lossy(), "/TMP"]
+            ),
             "
 file:///TMP/a/b/ROOT/TMP/a/b/ROOT/root
 file:///TMP/a/b/ROOT/TMP/a/up-up
 file:///TMP/a/b/ROOT/TMP/up-up-up
-file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/encoded%24%2A%28%20%29%5B%20%5D.html
-file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/lychee-url-mapping-test-file.md#self
-file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/query.html?boop=20
-file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/relative.html
-file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/sub/dir/index.html
-file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/up-one.html
-file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up-two.html
-            ".trim()
+file:///TMP/a/b/ROOT/server/1/2/encoded%24%2A%28%20%29%5B%20%5D.html
+file:///TMP/a/b/ROOT/server/1/2/file.md#self
+file:///TMP/a/b/ROOT/server/1/2/query.html?boop=20
+file:///TMP/a/b/ROOT/server/1/2/relative.html
+file:///TMP/a/b/ROOT/server/1/2/sub/dir/index.html
+file:///TMP/a/b/ROOT/server/1/up-one.html
+file:///TMP/a/b/ROOT/server/up-two.html
+            "
+            .trim()
         );
     }
 
-    #[test]
+    #[tokio::test]
     #[allow(clippy::format_in_format_args)]
-    fn test_mapping_subpath_to_local_folder() {
+    async fn test_mapping_subpath_to_local_folder() {
         let fixture = fixtures_path!().join("mapping_local_folder");
         let root_dir = fixture.join("a/b/ROOT");
 
-        let base_url =
-            "https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/";
+        let mock_server = mock_response!(fs::read_to_string(fixture.join("remote.md")).unwrap());
+        let remote_url = format!("{}/server/1/2/file.md", mock_server.uri());
+        let remote_base = format!("{}/server/1/", mock_server.uri());
+        let remote_origin = mock_server.uri();
 
         // construct local folders with a structure matching the subpath of base-url.
         let temp_root_dir_tmpdir = tempdir().unwrap();
         let temp_root_dir = temp_root_dir_tmpdir.path().join("a/b/c/ROOT");
-        let temp_root_subdir =
-            temp_root_dir.join("katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw");
+        let temp_root_subdir = temp_root_dir.join("server/1"); // matches remote_base
 
         let local_file = temp_root_subdir.join("subpath.md");
 
@@ -3266,7 +3277,7 @@ file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up-two.html
             .arg(format!("--root-dir={}", temp_root_dir.display()))
             .arg(format!(
                 "--remap={} {}$1",
-                escape_url_prefix(base_url),
+                escape_url_prefix("https://gist.githubusercontent.com/server/1"),
                 temp_root_subdir_url
             ))
             .arg(format!(
@@ -3285,20 +3296,19 @@ file:///TMP/a/b/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up-two.html
         assert_eq!(
             normalise_url_lines(
                 &proc2.get_output().stdout,
-                &temp_root_dir_tmpdir.path().to_string_lossy(),
-                "/TMP"
+                &[&temp_root_dir_tmpdir.path().to_string_lossy(), "/TMP"]
             ),
             "
-file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/make-me-local
-file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/relative.md
+file:///TMP/a/b/c/ROOT/server/1/make-me-local
+file:///TMP/a/b/c/ROOT/server/1/relative.md
 file:///TMP/a/b/c/root-up
-file:///TMP/a/b/c/very-up
+file:///TMP/a/b/very-up
 https://gist.githubusercontent.com-fake/
 https://gist.githubusercontent.com/
 https://gist.githubusercontent.com/fully/qualified.html
 https://gist.githubusercontent.com/fully/qualified/up.html
-https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up
 https://gist.githubusercontent.com/root
+https://gist.githubusercontent.com/server/up
             "
             .trim()
         );
@@ -3308,11 +3318,11 @@ https://gist.githubusercontent.com/root
 
         let proc = cargo_bin_cmd!()
             .arg("--dump")
-            .arg(REMOTE_MD)
+            .arg(remote_url)
             .arg(format!("--root-dir={}", temp_root_dir.display()))
             .arg(format!(
                 "--remap={} {}$1",
-                escape_url_prefix(base_url),
+                escape_url_prefix(&remote_base),
                 temp_root_subdir_url
             ))
             .arg(format!(
@@ -3323,7 +3333,7 @@ https://gist.githubusercontent.com/root
             .arg(format!(
                 "--remap={} {}$1",
                 escape_url_prefix(&temp_root_dir_url),
-                "https://gist.githubusercontent.com"
+                remote_origin
             ))
             .assert()
             .success();
@@ -3331,23 +3341,27 @@ https://gist.githubusercontent.com/root
         assert_eq!(
             normalise_url_lines(
                 &proc.get_output().stdout,
-                &temp_root_dir_tmpdir.path().to_string_lossy(),
-                "/TMP"
+                &[
+                    &temp_root_dir_tmpdir.path().to_string_lossy(),
+                    "/TMP",
+                    &mock_server.uri(),
+                    "[mock-server]"
+                ]
             ),
             "
-file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/encoded%24%2A%28%20%29%5B%20%5D.html
-file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/lychee-url-mapping-test-file.md#self
-file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/query.html?boop=20
-file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/relative.html
-file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/ee790908ecb12897e71ae6e6478e92e91bea269f/sub/dir/index.html
-file:///TMP/a/b/c/ROOT/katrinafyi/daefc003e04b7c2f73cb54615510dce0/raw/up-one.html
-https://gist.githubusercontent.com/TMP/a/b/c/ROOT/root
-https://gist.githubusercontent.com/TMP/a/b/up-up
-https://gist.githubusercontent.com/TMP/a/up-up-up
-https://gist.githubusercontent.com/katrinafyi/daefc003e04b7c2f73cb54615510dce0/up-two.html
+[mock-server]/TMP/a/b/c/ROOT/root
+[mock-server]/TMP/a/b/up-up
+[mock-server]/TMP/a/up-up-up
+[mock-server]/server/up-two.html
+file:///TMP/a/b/c/ROOT/server/1/2/encoded%24%2A%28%20%29%5B%20%5D.html
+file:///TMP/a/b/c/ROOT/server/1/2/file.md#self
+file:///TMP/a/b/c/ROOT/server/1/2/query.html?boop=20
+file:///TMP/a/b/c/ROOT/server/1/2/relative.html
+file:///TMP/a/b/c/ROOT/server/1/2/sub/dir/index.html
+file:///TMP/a/b/c/ROOT/server/1/up-one.html
             "
             .trim()
         );
-        // BUG: TMP appearing inside URLS is incorrect and due to https://github.com/lycheeverse/lychee/issues/1964
+        // BUG: TMP appearing inside server URLS is incorrect and due to https://github.com/lycheeverse/lychee/issues/1964
     }
 }
