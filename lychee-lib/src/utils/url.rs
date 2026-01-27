@@ -133,18 +133,17 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "katrinafyi: suspected bug with Url::make_relative"]
     fn test_join_rooted_with_trailing_filename() {
         let test_urls_and_expected = [
             // file URLs without trailing / are kinda weird.
-            ("file:///a/b/c", vec!["/../../a"], "file:///a/b/a"),
+            ("file:///a/b/c", vec!["/../../x"], "file:///x"),
             ("file:///a/b/c", vec!["/"], "file:///a/b/"),
             ("file:///a/b/c", vec![".?qq"], "file:///a/b/?qq"),
             ("file:///a/b/c", vec!["#x"], "file:///a/b/c#x"),
             ("file:///a/b/c", vec!["./"], "file:///a/b/"),
             ("file:///a/b/c", vec!["c"], "file:///a/b/c"),
             // joining with d
-            ("file:///a/b/c", vec!["d", "/../../a"], "file:///a/b/a"),
+            ("file:///a/b/c", vec!["d", "/../../x"], "file:///x"),
             ("file:///a/b/c", vec!["d", "/"], "file:///a/b/"),
             ("file:///a/b/c", vec!["d", "."], "file:///a/b/"),
             ("file:///a/b/c", vec!["d", "./"], "file:///a/b/"),
