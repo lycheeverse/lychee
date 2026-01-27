@@ -42,9 +42,9 @@ pulldown-cmark = "0.13.0"
 regex = "1.12.2"
 # Use trust-dns to avoid lookup failures on high concurrency
 # https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.12.28", default-features = false, features = [
+reqwest = { version = "0.13.1", default-features = false, features = [
     "gzip",
-    "trust-dns",
+    "hickory-dns",
     "cookies",
     "json",
 ] }
@@ -89,7 +89,7 @@ email-check = ["check-if-email-exists"]
 native-tls = ["openssl-sys", "reqwest/native-tls"]
 
 # Use Rustls TLS.
-rustls-tls = ["reqwest/rustls-tls-native-roots"]
+rustls-tls = ["reqwest/rustls"]
 
 # Compile and statically link a copy of OpenSSL.
 vendored-openssl = ["openssl-sys/vendored"]
