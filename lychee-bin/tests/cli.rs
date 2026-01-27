@@ -3386,7 +3386,7 @@ The config file should contain every possible key for documentation purposes."
             .write_stdin("[a](a)")
             .assert()
             .failure()
-            .stdout(contains("relative URL without a base"));
+            .stdout(contains("Cannot parse `a` into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
 
         cargo_bin_cmd!()
             .arg("-")
@@ -3394,7 +3394,7 @@ The config file should contain every possible key for documentation purposes."
             .write_stdin("[a](/a)")
             .assert()
             .failure()
-            .stdout(contains("Cannot resolve root-relative link"));
+            .stdout(contains("Cannot resolve root-relative link '/a': To resolve root-relative links in local files, provide a root dir"));
 
         // with root-dir, locally-relative links can still fail because
         // there is no current base URL
@@ -3406,7 +3406,7 @@ The config file should contain every possible key for documentation purposes."
             .write_stdin("[a](a)")
             .assert()
             .failure()
-            .stdout(contains("relative URL without a base"));
+            .stdout(contains("Cannot parse `a` into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
 
         // with root-dir, root-relative links should succeed
         cargo_bin_cmd!()

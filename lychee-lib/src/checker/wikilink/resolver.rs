@@ -23,12 +23,9 @@ impl WikilinkResolver {
             ))?,
             base => base,
         };
-        let base = match base.to_file_path() {
-            Some(p) => p,
-            None => Err(ErrorKind::WikilinkInvalidBase(
-                "Base cannot be remote".to_string(),
-            ))?,
-        };
+        let base = base.to_file_path().ok_or(ErrorKind::WikilinkInvalidBase(
+            "Base cannot be remote".to_string(),
+        ))?;
 
         Ok(Self {
             checker: WikilinkIndex::new(base.clone()),

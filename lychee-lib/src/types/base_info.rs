@@ -59,13 +59,13 @@ pub enum BaseInfo {
 impl BaseInfo {
     /// Constructs [`BaseInfo::None`].
     #[must_use]
-    pub const fn no_info() -> Self {
+    pub const fn none() -> Self {
         Self::None
     }
 
     /// Constructs [`BaseInfo::Full`] with the given fields.
     #[must_use]
-    pub const fn full_info(origin: Url, path: String) -> Self {
+    pub const fn full(origin: Url, path: String) -> Self {
         Self::Full(origin, path)
     }
 
@@ -289,7 +289,7 @@ impl BaseInfo {
     /// and applying the given root-dir if necessary.
     ///
     /// The root-dir is applied if the current `BaseInfo` is [`BaseInfo::None`]
-    /// or has a `file:` URL and and if the given text is a root-relative link.
+    /// or has a `file:` URL and if the given text is a root-relative link.
     /// In these cases, the given `root_dir` will take effect instead of the
     /// original `BaseInfo`.
     ///
