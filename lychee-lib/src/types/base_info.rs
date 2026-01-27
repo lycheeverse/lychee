@@ -115,7 +115,7 @@ impl BaseInfo {
     }
 
     /// Constructs a [`BaseInfo`] from the given filesystem path, requiring that
-    /// the given path be absolute.
+    /// the given path be absolute. Assumes that the given path represents a directory.
     ///
     /// This constructs a [`BaseInfo::Full`] where root-relative links will go to
     /// the given path.
