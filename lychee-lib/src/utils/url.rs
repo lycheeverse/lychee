@@ -1,10 +1,8 @@
 use std::borrow::Cow;
 use std::sync::LazyLock;
 
-use url::Url;
-
 use linkify::LinkFinder;
-use url::ParseError;
+use url::{ParseError, Url};
 
 /// Returns whether the text represents a relative link that is
 /// relative to the domain root. Textually, it looks like `/this`.
