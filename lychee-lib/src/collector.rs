@@ -93,11 +93,11 @@ impl Collector {
                 }
             }
             (Some(root_dir), base) => {
-              let root_dir_exists = root_dir.read_dir().map(|_| ());
+                let root_dir_exists = root_dir.read_dir().map(|_| ());
                 let root_dir = root_dir_exists
                     .and_then(|()| std::path::absolute(&root_dir))
                     .map_err(|e| ErrorKind::InvalidRootDir(root_dir, e))?;
-                (Some(root_dir), base) 
+                (Some(root_dir), base)
             }
             (None, base) => (None, base),
         };
