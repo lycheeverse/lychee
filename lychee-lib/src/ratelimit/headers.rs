@@ -62,7 +62,7 @@ fn parse_header_value(headers: &http::HeaderMap, header_names: &[&str]) -> Optio
     for header_name in header_names {
         if let Some(value) = headers.get(*header_name)
             && let Ok(value_str) = value.to_str()
-            && let Ok(number) = value_str.parse::<usize>()
+            && let Ok(number) = value_str.parse()
         {
             return Some(number);
         }

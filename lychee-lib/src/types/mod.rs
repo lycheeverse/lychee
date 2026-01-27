@@ -28,7 +28,7 @@ pub use error::ErrorKind;
 pub use file::{FileExtensions, FileType};
 pub use input::{Input, InputContent, InputResolver, InputSource, ResolvedInputSource};
 pub use preprocessor::Preprocessor;
-pub use redirect_history::Redirects;
+pub use redirect_history::{Redirect, Redirects};
 pub use request::Request;
 pub use request_error::RequestError;
 pub use response::{Response, ResponseBody};

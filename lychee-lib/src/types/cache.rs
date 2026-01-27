@@ -27,8 +27,12 @@ pub enum CacheStatus {
     Unsupported,
 }
 
+/// Serialize `StatusCode` as code only, without reason text
 #[allow(clippy::trivially_copy_pass_by_ref)]
-fn serialize_status_code<S>(status: &StatusCode, serializer: S) -> Result<S::Ok, S::Error>
+pub(crate) fn serialize_status_code<S>(
+    status: &StatusCode,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {

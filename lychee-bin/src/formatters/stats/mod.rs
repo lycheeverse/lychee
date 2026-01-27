@@ -82,7 +82,7 @@ where
 #[cfg(test)]
 fn get_dummy_stats() -> OutputStats {
     use http::StatusCode;
-    use lychee_lib::{Redirects, ResponseBody, Status, ratelimit::HostStats};
+    use lychee_lib::{Redirect, Redirects, ResponseBody, Status, ratelimit::HostStats};
     use url::Url;
 
     use crate::formatters::suggestion::Suggestion;
@@ -106,18 +106,21 @@ fn get_dummy_stats() -> OutputStats {
         }]),
     )]);
 
+    let mut redirects = Redirects::new("https://1.dev".try_into().unwrap());
+    redirects.push(Redirect {
+        url: "https://2.dev".try_into().unwrap(),
+        code: StatusCode::PERMANENT_REDIRECT,
+    });
+    redirects.push(Redirect {
+        url: "http://redirected.dev".try_into().unwrap(),
+        code: StatusCode::PERMANENT_REDIRECT,
+    });
+
     let redirect_map = HashMap::from([(
         source,
         HashSet::from([ResponseBody {
             uri: "https://redirected.dev".try_into().unwrap(),
-            status: Status::Redirected(
-                StatusCode::OK,
-                Redirects::from(vec![
-                    Url::parse("https://1.dev").unwrap(),
-                    Url::parse("https://2.dev").unwrap(),
-                    Url::parse("http://redirected.dev").unwrap(),
-                ]),
-            ),
+            status: Status::Redirected(StatusCode::OK, redirects),
         }]),
     )]);
 

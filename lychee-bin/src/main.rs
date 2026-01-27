@@ -392,6 +392,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     } else {
         let (response_stats, cache, exit_code, host_pool) = commands::check(params).await?;
         github_warning(&response_stats, &opts.config);
+        redirect_warning(&response_stats, &opts.config);
 
         let stats = OutputStats {
             response_stats,
@@ -421,9 +422,27 @@ fn github_warning(stats: &ResponseStats, config: &Config) {
         .values()
         .flatten()
         .any(|body| body.uri.domain() == Some("github.com"));
+
     if github_errors && config.github_token.is_none() {
         warn!(
             "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
+        );
+    }
+}
+
+/// Display user-friendly message if there were any redirects
+/// in non-verbose mode.
+fn redirect_warning(stats: &ResponseStats, config: &Config) {
+    let redirects = stats.redirects;
+    if redirects > 0 && config.verbose.log_level() < log::Level::Info {
+        let noun = if redirects == 1 {
+            "redirect"
+        } else {
+            "redirects"
+        };
+
+        warn!(
+            "lychee detected {redirects} {noun}. You might want to consider replacing redirecting URLs with the resolved URLs. Run lychee in verbose mode (-v/--verbose) to see details about the redirections.",
         );
     }
 }
