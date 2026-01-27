@@ -466,6 +466,16 @@ mod cli {
             .failure()
             .stderr(contains("Invalid root directory"))
             .code(1);
+
+        let file = NamedTempFile::new().unwrap();
+        cargo_bin_cmd!()
+            .arg("--root-dir")
+            .arg(file.path())
+            .arg("http://example.com")
+            .assert()
+            .failure()
+            .stderr(contains("Invalid root directory"))
+            .code(1);
     }
 
     #[test]
