@@ -923,7 +923,7 @@ mod cli {
             .arg(".")
             .assert()
             .failure()
-            .stderr(contains("Cannot load default configuration file"));
+            .stderr(contains("Cannot load configuration file"));
     }
 
     #[tokio::test]
@@ -1025,13 +1025,12 @@ mod cli {
 
     #[tokio::test]
     async fn test_config_example() {
-        let mock_server = mock_server!(StatusCode::OK);
         let config = root_path!().join("lychee.example.toml");
         cargo_bin_cmd!()
+            .current_dir(root_path!())
             .arg("--config")
             .arg(config)
             .arg("-")
-            .write_stdin(mock_server.uri())
             .env_clear()
             .assert()
             .success();

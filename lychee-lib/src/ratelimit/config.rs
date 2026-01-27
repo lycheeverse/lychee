@@ -1,6 +1,7 @@
 use http::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::collections::hash_map::Iter;
 use std::time::Duration;
 
 use crate::ratelimit::HostKey;
@@ -54,7 +55,56 @@ impl RateLimitConfig {
 }
 
 /// Per-host configuration overrides
-pub type HostConfigs = HashMap<HostKey, HostConfig>;
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+pub struct HostConfigs(HashMap<HostKey, HostConfig>);
+
+impl HostConfigs {
+    /// Get a reference to the [`HostConfig`] associated to the [`HostKey`]
+    pub(crate) fn get(&self, key: &HostKey) -> Option<&HostConfig> {
+        self.0.get(key)
+    }
+
+    /// Get the number of [`HostConfig`]s
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Get the iterator over all elements
+    pub(crate) fn iter(&self) -> Iter<'_, HostKey, HostConfig> {
+        self.0.iter()
+    }
+
+    /// Merge `self` with another `HostConfigs`
+    #[must_use]
+    pub fn merge(mut self, other: HostConfigs) -> HostConfigs {
+        for (key, value) in other.0 {
+            let value = if let Some(s) = self.0.remove(&key) {
+                s.merge(value)
+            } else {
+                value
+            };
+
+            self.0.insert(key, value);
+        }
+
+        self
+    }
+}
+
+impl<'a> IntoIterator for &'a HostConfigs {
+    type Item = (&'a HostKey, &'a HostConfig);
+    type IntoIter = Iter<'a, HostKey, HostConfig>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<const N: usize> From<[(HostKey, HostConfig); N]> for HostConfigs {
+    fn from(arr: [(HostKey, HostConfig); N]) -> Self {
+        HostConfigs(HashMap::<HostKey, HostConfig>::from_iter(arr))
+    }
+}
 
 /// Configuration for a specific host's rate limiting behavior
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -96,6 +146,21 @@ impl HostConfig {
     pub fn effective_request_interval(&self, global_config: &RateLimitConfig) -> Duration {
         self.request_interval
             .unwrap_or(global_config.request_interval)
+    }
+
+    #[must_use]
+    pub(crate) fn merge(mut self, other: Self) -> Self {
+        for (k, v) in other.headers {
+            if let Some(k) = k {
+                self.headers.append(k, v);
+            }
+        }
+
+        Self {
+            concurrency: self.concurrency.or(other.concurrency),
+            request_interval: self.request_interval.or(other.request_interval),
+            headers: self.headers,
+        }
     }
 }
 
