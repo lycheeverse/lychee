@@ -28,7 +28,7 @@ impl WikilinkResolver {
         ))?;
 
         Ok(Self {
-            checker: WikilinkIndex::new(base.clone()),
+            checker: WikilinkIndex::new(base),
             fallback_extensions,
         })
     }

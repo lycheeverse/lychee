@@ -85,8 +85,8 @@ impl BaseInfo {
             Self::NoRoot(url.clone())
         } else {
             match Self::split_url_origin_and_path(url) {
-                Some((origin, path)) => Self::full_info(origin, path),
-                None => Self::no_info(),
+                Some((origin, path)) => Self::full(origin, path),
+                None => Self::none(),
             }
         }
     }
@@ -157,7 +157,7 @@ impl BaseInfo {
         let (fs_root, subpath) = Self::split_url_origin_and_path(url)
             .expect("splitting up a NoRoot file:// URL should work");
 
-        Cow::Owned(Self::full_info(fs_root, subpath))
+        Cow::Owned(Self::full(fs_root, subpath))
     }
 
     /// If this is a [`BaseInfo::NoRoot`], promote it to a [`BaseInfo::Full`]
@@ -174,7 +174,7 @@ impl BaseInfo {
             return Cow::Borrowed(self);
         };
 
-        Cow::Owned(Self::full_info(url.clone(), String::new()))
+        Cow::Owned(Self::full(url.clone(), String::new()))
     }
 
     /// Returns the URL for the current [`BaseInfo`], joining the origin and path
@@ -308,7 +308,7 @@ impl BaseInfo {
         // NOTE: also apply root-dir for BaseInfo::None :)
         let fake_base_info = match (self.scheme(), root_dir) {
             (Some("file") | None, Some(root_dir)) if is_root_relative(text) => {
-                Cow::Owned(Self::full_info(root_dir.clone(), String::new()))
+                Cow::Owned(Self::full(root_dir.clone(), String::new()))
             }
             _ => Cow::Borrowed(self),
         };
@@ -333,7 +333,7 @@ impl TryFrom<&str> for BaseInfo {
     /// [`BaseInfo::None`].
     fn try_from(value: &str) -> Result<Self, ErrorKind> {
         if value.is_empty() {
-            return Ok(BaseInfo::no_info());
+            return Ok(BaseInfo::none());
         }
         match utils::url::parse_url_or_path(value) {
             Ok(url) => BaseInfo::from_base_url(&url),

@@ -55,7 +55,7 @@ impl Default for Collector {
             skip_hidden: true,
             skip_ignored: true,
             root_dir: None,
-            base: BaseInfo::no_info(),
+            base: BaseInfo::none(),
             headers: HeaderMap::new(),
             client: Client::new(),
             excluded_paths: PathExcludes::empty(),
@@ -85,11 +85,8 @@ impl Collector {
                     .join("");
 
                 match url.to_file_path() {
-                    Ok(base_path) => (
-                        Some(base_path.join(root_dir)),
-                        BaseInfo::full_info(url, path),
-                    ),
-                    Err(()) => (Some(root_dir), BaseInfo::full_info(url, path)),
+                    Ok(base_path) => (Some(base_path.join(root_dir)), BaseInfo::full(url, path)),
+                    Err(()) => (Some(root_dir), BaseInfo::full(url, path)),
                 }
             }
             (Some(root_dir), base) => {
@@ -411,7 +408,7 @@ mod tests {
         let links = collect_verbatim(
             inputs,
             None,
-            BaseInfo::default(),
+            BaseInfo::none(),
             FileType::default_extensions(),
         )
         .await
@@ -577,10 +574,7 @@ mod tests {
 
         let inputs = HashSet::from_iter([input]);
 
-        let links = collect(inputs, None, BaseInfo::default())
-            .await
-            .ok()
-            .unwrap();
+        let links = collect(inputs, None, BaseInfo::none()).await.ok().unwrap();
 
         let expected_urls = HashSet::from_iter([
             website!("https://github.com/lycheeverse/lychee/"),
@@ -598,10 +592,7 @@ mod tests {
 
         let inputs = HashSet::from_iter([input]);
 
-        let links = collect(inputs, None, BaseInfo::default())
-            .await
-            .ok()
-            .unwrap();
+        let links = collect(inputs, None, BaseInfo::none()).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([mail!("user@example.com")]);
 
@@ -642,10 +633,7 @@ mod tests {
             },
         ]);
 
-        let links = collect(inputs, None, BaseInfo::default())
-            .await
-            .ok()
-            .unwrap();
+        let links = collect(inputs, None, BaseInfo::none()).await.ok().unwrap();
 
         let expected_links = HashSet::from_iter([
             website!(&format!(
