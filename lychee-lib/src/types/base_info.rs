@@ -29,8 +29,9 @@ use url::PathSegmentsMut;
 #[serde(try_from = "String")]
 pub enum BaseInfo {
     /// No base information is available. This is for sources with no base
-    /// information, such as [`ResolvedInputSource::Stdin`]. This can
-    /// resolve no relative links, and only fully-qualified links will be
+    /// information, such as [`ResolvedInputSource::Stdin`], and for URLs which
+    /// *cannot be a base*, such as `data:` and `tel:`. [`BaseInfo::None`]
+    /// can resolve no relative links; only fully-qualified links will be
     /// parsed successfully.
     #[default]
     None,
@@ -44,15 +45,15 @@ pub enum BaseInfo {
     /// A full base made up of `origin` and `path`. This can resolve
     /// all kinds of relative links.
     ///
-    /// All fully-qualified non-`file:` URLs fall into this case. For these,
+    /// All non-`file:` URLs which *can be a base* fall into this case. For these,
     /// `origin` and `path` are obtained by dividing the source URL into its
     /// origin and path. When joined, `${origin}/${path}` should be equivalent
     /// to the source's original URL.
     ///
-    /// For `file:` URLs, the `origin` serves as the root which will be used
-    /// to resolve root-relative links (i.e., it's the root dir). The `path`
-    /// field is the subpath to a particular file within the root dir. This
-    /// is retained to resolve locally-relative links.
+    /// This also represents `file:` URLs with a known root. The `origin` field
+    /// records the `file:` URL which will be used to resolve root-relative links.
+    /// The `path` field is the subpath to a particular input source within the
+    /// root. This is retained to resolve locally-relative links.
     Full(Url, String),
 }
 
@@ -91,6 +92,8 @@ impl BaseInfo {
         }
     }
 
+    /// Split URL into its origin and path, if possible. Will fail and return
+    /// `None` for URLs which *cannot be a base*.
     fn split_url_origin_and_path(url: &Url) -> Option<(Url, String)> {
         let origin = url.join("/").ok()?;
         let subpath = origin.make_relative(url)?;
@@ -323,6 +326,7 @@ impl TryFrom<&str> for BaseInfo {
     /// Attempts to parse a base from the given string which may be
     /// a URL or a filesystem path. In both cases, the string must
     /// represent a valid base (i.e., not resulting in [`BaseInfo::None`]).
+    /// Otherwise, an error will be returned.
     ///
     /// Note that this makes a distinction between filesystem paths as paths
     /// and filesystem paths as URLs. When specified as a path, they will

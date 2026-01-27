@@ -78,7 +78,9 @@ pub(crate) fn create(
         }
     };
 
-    // TODO: avoid use_fs_root_as_origin once base-url semantics are clarified
+    // TODO: use_fs_root_as_origin is for backwards compat, so `--base-url file:///a`
+    // can resolve a link of `/b` to `file:///b` (in the absence of root-dir).
+    // maybe change if base-url semantics are changed in future.
     let fallback_base = fallback_base.use_fs_root_as_origin();
     let base = source_base.or_fallback(&fallback_base);
 
