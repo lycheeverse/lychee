@@ -294,12 +294,25 @@ mod cli {
 
     #[test]
     fn test_email() -> Result<()> {
+        cargo_bin_cmd!()
+            .write_stdin("test@example.com idiomatic-rust-doesnt-exist-man@wikipedia.org")
+            .arg("--include-mail")
+            .arg("-")
+            .assert()
+            .code(2)
+            .stdout(contains(
+                "Unreachable mail address mailto:test@example.com: No MX records found for domain",
+            ))
+            .stdout(contains(
+                "Unreachable mail address mailto:idiomatic-rust-doesnt-exist-man@wikipedia.org: Mail server rejects the address",
+            ))
+            .stdout(contains("2 Errors"));
+
         test_json_output!(
             "TEST_EMAIL.md",
             MockResponseStats {
-                total: 5,
-                excludes: 0,
-                successful: 5,
+                total: 3,
+                successful: 3,
                 ..MockResponseStats::default()
             },
             "--include-mail"
@@ -311,9 +324,9 @@ mod cli {
         test_json_output!(
             "TEST_EMAIL.md",
             MockResponseStats {
-                total: 5,
-                excludes: 3,
-                successful: 2,
+                total: 3,
+                excludes: 2,
+                successful: 1,
                 ..MockResponseStats::default()
             }
         )
