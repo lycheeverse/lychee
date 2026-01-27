@@ -160,12 +160,10 @@ pub enum ResolvedInputSource {
 }
 
 impl ResolvedInputSource {
-    /// Converts an [`ResolvedInputSource::RemoteUrl`] or
+    /// Converts a [`ResolvedInputSource::RemoteUrl`] or
     /// [`ResolvedInputSource::FsPath`] to a [`Url`] pointing to the source.
     ///
-    /// The outer result indicates whether the operation succeeded.
-    /// For `InputSource` variants which are not `RemoteUrl` or `FsPath`,
-    /// the operation will "succeed" with `None`.
+    /// For other variants (i.e., those without a URL), `Ok(None)` is returned.
     ///
     /// # Errors
     ///

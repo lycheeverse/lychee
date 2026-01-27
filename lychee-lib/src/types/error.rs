@@ -59,7 +59,7 @@ pub enum ErrorKind {
     EmptyUrl,
 
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
-    #[error("Cannot parse `{1}` into a URL: {0}")]
+    #[error("Cannot parse '{1}' into a URL: {0}")]
     ParseUrl(#[source] url::ParseError, String),
 
     /// The given string is a root-relative link and cannot be parsed without a known root-dir
@@ -93,7 +93,7 @@ pub enum ErrorKind {
     InvalidHeader(#[from] http::header::InvalidHeaderValue),
 
     /// The given string can not be parsed into a valid base URL or base directory
-    #[error("Error with base dir `{0}` : {1}")]
+    #[error("Error with base dir '{0}': {1}")]
     InvalidBase(String, String),
 
     /// Invalid root directory given
