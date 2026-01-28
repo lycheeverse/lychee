@@ -405,9 +405,11 @@ mod tests {
     /// Test that `ErrorKind::details()` properly uses the new analysis
     #[test]
     fn test_error_kind_details_integration() {
-        // Test rejected status code
-        let status_error = ErrorKind::RejectedStatusCode(http::StatusCode::NOT_FOUND);
-        assert_eq!(status_error.details(), Some("Not Found".to_string()));
+        // Test redirected status code
+        let status_error = ErrorKind::RejectedStatusCode(http::StatusCode::MOVED_PERMANENTLY);
+        assert!(status_error.details().is_some_and(|x| x.contains(
+            "Redirects may have been limited by \"max-redirects\""
+        )));
 
         // Test that network request errors would use analyze_error_chain
         // (actual reqwest::Error creation is complex, so we test the integration point)
