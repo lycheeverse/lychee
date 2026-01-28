@@ -78,7 +78,7 @@ impl ReqwestUrlExt for Url {
 /// the error to allow for easier subsequent processing.
 pub(crate) fn parse_url_or_path(input: &str) -> Result<Url, &str> {
     match Url::parse(input) {
-        Ok(url) if cfg!(windows) && url.scheme().len() == 1 => Err(input),
+        Ok(url) if url.scheme().len() == 1 => Err(input),
         Ok(url) => Ok(url),
         _ => Err(input),
     }
@@ -169,5 +169,24 @@ mod tests {
                 .to_string(),
             expected
         );
+    }
+
+    #[rstest]
+    // definitely URLs
+    #[case::ok1("tel:1", Ok("tel:1"))]
+    #[case::ok2("file:///a", Ok("file:///a"))]
+    #[case::ok3("http://a.com", Ok("http://a.com/"))]
+    // path-looking things
+    #[case::err1("", Err(""))]
+    #[case::err2(".", Err("."))]
+    #[case::err3("C:", Err("C:"))]
+    #[case::err4("/unix", Err("/unix"))]
+    #[case::err5("C:/a", Err("C:/a"))]
+    #[case::err6(r"C:\a\b", Err(r"C:\a\b"))]
+    #[case::err7("**/*.md", Err("**/*.md"))]
+    #[case::err8("something", Err("something"))]
+    fn test_parse_url_or_path(#[case] input: &str, #[case] expected: Result<&str, &str>) {
+        let result = parse_url_or_path(input);
+        assert_eq!(result.as_ref().map(Url::as_str), expected.as_deref());
     }
 }
