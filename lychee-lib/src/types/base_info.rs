@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use crate::ErrorKind;
 use crate::Uri;
 use crate::utils;
-use crate::utils::url::{ReqwestUrlExt, is_root_relative};
+use crate::utils::url::{ReqwestUrlExt, is_root_relative_link};
 use url::PathSegmentsMut;
 
 /// Information used for resolving relative URLs within a particular
@@ -262,7 +262,7 @@ impl BaseInfo {
         let mut url = match Uri::try_from(text) {
             Ok(Uri { url }) => Ok(url),
             Err(e @ ErrorKind::ParseUrl(_, _)) => match self {
-                _ if !self.supports_root_relative() && is_root_relative(text) => {
+                _ if !self.supports_root_relative() && is_root_relative_link(text) => {
                     Err(ErrorKind::RootRelativeLinkWithoutRoot(text.to_string()))
                 }
                 Self::NoRoot(base) => base
@@ -310,7 +310,7 @@ impl BaseInfo {
 
         // NOTE: also apply root-dir for BaseInfo::None :)
         let fake_base_info = match (self.scheme(), root_dir) {
-            (Some("file") | None, Some(root_dir)) if is_root_relative(text) => {
+            (Some("file") | None, Some(root_dir)) if is_root_relative_link(text) => {
                 Cow::Owned(Self::full(root_dir.clone(), String::new()))
             }
             _ => Cow::Borrowed(self),

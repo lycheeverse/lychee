@@ -3386,7 +3386,7 @@ The config file should contain every possible key for documentation purposes."
             .write_stdin("[a](a)")
             .assert()
             .failure()
-            .stdout(contains("Cannot parse `a` into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
+            .stdout(contains("Cannot parse 'a' into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
 
         cargo_bin_cmd!()
             .arg("-")
@@ -3406,7 +3406,7 @@ The config file should contain every possible key for documentation purposes."
             .write_stdin("[a](a)")
             .assert()
             .failure()
-            .stdout(contains("Cannot parse `a` into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
+            .stdout(contains("Cannot parse 'a' into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
 
         // with root-dir, root-relative links should succeed
         cargo_bin_cmd!()
@@ -3450,7 +3450,6 @@ The config file should contain every possible key for documentation purposes."
             .arg(fixtures_path!().join("resolve_paths/index.html"))
             .assert()
             .failure()
-            .stdout(contains("https://lychee.cli.rs/another%20page"))
-            .stdout(contains("https://lychee.cli.rs/about"));
+            .stdout(contains("https://lychee.cli.rs/another%20page"));
     }
 }

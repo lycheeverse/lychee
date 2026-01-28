@@ -4,11 +4,31 @@ use std::sync::LazyLock;
 use linkify::LinkFinder;
 use url::{ParseError, Url};
 
-/// Returns whether the text represents a relative link that is
-/// relative to the domain root. Textually, it looks like `/this`.
-pub(crate) fn is_root_relative(text: &str) -> bool {
-    let text = text.trim_ascii_start();
-    text.starts_with('/') && !text.starts_with("//")
+/// Returns whether the text represents a root-relative link. These look like
+/// `/this` and are resolved relative to a base URL's origin. This can also be called
+/// "domain-relative URL" (by [MDN]) and "path-absolute-URL string" (by [WHATWG]).
+/// From [MDN]:
+///
+/// > Domain-relative URL: `/en-US/docs/Learn_web_development` — the protocol and
+/// > the domain name are both missing. The browser will use the same protocol
+/// > and the same domain name as the one used to load the document hosting that URL.
+///
+/// [MDN]: https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_URL#absolute_urls_vs._relative_urls
+/// [WHATWG]: https://url.spec.whatwg.org/#path-absolute-url-string
+pub(crate) fn is_root_relative_link(text: &str) -> bool {
+    !is_scheme_relative_link(text) && text.trim_ascii_start().starts_with('/')
+}
+
+/// Returns whether the text represents a scheme-relative link. These look like
+/// `//example.com/subpath`. From [MDN]:
+///
+/// > Scheme-relative URL: `//developer.mozilla.org/en-US/docs/Learn_web_development` —
+/// > only the protocol is missing. The browser will use the same protocol as the one
+/// > used to load the document hosting that URL.
+///
+/// [MDN]: https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_URL#absolute_urls_vs._relative_urls
+pub(crate) fn is_scheme_relative_link(text: &str) -> bool {
+    text.trim_ascii_start().starts_with("//")
 }
 
 pub(crate) trait ReqwestUrlExt {
@@ -32,7 +52,7 @@ impl ReqwestUrlExt for Url {
         let mut url = Cow::Borrowed(self);
 
         for subpath in subpaths {
-            if url.scheme() == "file" && is_root_relative(subpath) {
+            if url.scheme() == "file" && is_root_relative_link(subpath) {
                 let locally_relative = format!(".{}", subpath.trim_ascii_start());
                 url = Cow::Owned(self.join(&locally_relative)?);
             } else {
@@ -74,93 +94,80 @@ pub(crate) fn find_links(input: &str) -> impl Iterator<Item = linkify::Link<'_>>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn test_join_rooted() {
-        let test_urls_and_expected = [
-            // normal HTTP traversal and parsing absolute links
-            ("https://a.com/b", vec!["x/", "d"], "https://a.com/x/d"),
-            ("https://a.com/b/", vec!["x/", "d"], "https://a.com/b/x/d"),
-            (
-                "https://a.com/b/",
-                vec!["https://new.com", "d"],
-                "https://new.com/d",
-            ),
-            // parsing absolute file://
-            ("https://a.com/b/", vec!["file:///a", "d"], "file:///d"),
-            ("https://a.com/b/", vec!["file:///a/", "d"], "file:///a/d"),
-            (
-                "https://a.com/b/",
-                vec!["file:///a/b/", "../.."],
-                "file:///",
-            ),
-            // file traversal
-            ("file:///a/b/", vec!["/x/y"], "file:///a/b/x/y"),
-            ("file:///a/b/", vec!["a/"], "file:///a/b/a/"),
-            ("file:///a/b/", vec!["a/", "../.."], "file:///a/"),
-            ("file:///a/b/", vec!["a/", "/"], "file:///a/b/"),
-            ("file:///a/b/", vec!["/.."], "file:///a/"),
-            ("file:///a/b/", vec!["/../../"], "file:///"),
-            ("file:///a/b/", vec![""], "file:///a/b/"),
-            ("file:///a/b/", vec!["."], "file:///a/b/"),
-            // HTTP relative links
-            ("https://a.com/x", vec![""], "https://a.com/x"),
-            ("https://a.com/x", vec!["../../.."], "https://a.com/"),
-            ("https://a.com/x", vec!["?q", "#x"], "https://a.com/x?q#x"),
-            ("https://a.com/x", vec![".", "?a"], "https://a.com/?a"),
-            ("https://a.com/x", vec!["/"], "https://a.com/"),
-            ("https://a.com/x?q#anchor", vec![""], "https://a.com/x?q"),
-            ("https://a.com/x#anchor", vec!["?x"], "https://a.com/x?x"),
-            // scheme relative link - can traverse outside of root
-            ("file:///root/", vec!["///new-root"], "file:///new-root"),
-            ("file:///root/", vec!["//a.com/boop"], "file://a.com/boop"),
-            ("https://root/", vec!["//a.com/boop"], "https://a.com/boop"),
-        ];
-
-        for (base, subpaths, expected) in test_urls_and_expected {
-            println!("base={base}, subpaths={subpaths:?}, expected={expected}");
-            assert_eq!(
-                Url::parse(base)
-                    .unwrap()
-                    .join_rooted(&subpaths[..])
-                    .unwrap()
-                    .to_string(),
-                expected
-            );
-        }
+    #[rstest]
+    // normal HTTP traversal and parsing absolute links
+    #[case::http1("https://a.com/b", &["x/", "d"], "https://a.com/x/d")]
+    #[case::http2("https://a.com/b/", &["x/", "d"], "https://a.com/b/x/d")]
+    #[case::http3("https://a.com/b/", &["https://new.com", "d"], "https://new.com/d")]
+    // parsing absolute file://
+    #[case::file_abs1("https://a.com/b/", &["file:///a", "d"], "file:///d")]
+    #[case::file_abs2("https://a.com/b/", &["file:///a/", "d"], "file:///a/d")]
+    #[case::file_abs3("https://a.com/b/", &["file:///a/b/", "../.."], "file:///")]
+    // file traversal
+    #[case::file_rel1("file:///a/b/", &["/x/y"], "file:///a/b/x/y")]
+    #[case::file_rel2("file:///a/b/", &["a/"], "file:///a/b/a/")]
+    #[case::file_rel3("file:///a/b/", &["a/", "../.."], "file:///a/")]
+    #[case::file_rel4("file:///a/b/", &["a/", "/"], "file:///a/b/")]
+    #[case::file_rel5("file:///a/b/", &["/.."], "file:///a/")]
+    #[case::file_rel6("file:///a/b/", &["/../../"], "file:///")]
+    #[case::file_rel7("file:///a/b/", &[""], "file:///a/b/")]
+    #[case::file_rel8("file:///a/b/", &["."], "file:///a/b/")]
+    // HTTP relative links
+    #[case::http_rel1("https://a.com/x", &[""], "https://a.com/x")]
+    #[case::http_rel2("https://a.com/x", &["../../.."], "https://a.com/")]
+    #[case::http_rel3("https://a.com/x", &["?q", "#x"], "https://a.com/x?q#x")]
+    #[case::http_rel4("https://a.com/x", &[".", "?a"], "https://a.com/?a")]
+    #[case::http_rel5("https://a.com/x", &["/"], "https://a.com/")]
+    #[case::http_rel6("https://a.com/x?q#anchor", &[""], "https://a.com/x?q")]
+    #[case::http_rel7("https://a.com/x#anchor", &["?x"], "https://a.com/x?x")]
+    // scheme relative link - can traverse outside of root
+    #[case::scheme_rel1("file:///root/", &["///new-root"], "file:///new-root")]
+    #[case::scheme_rel2("file:///root/", &["//a.com/boop"], "file://a.com/boop")]
+    #[case::scheme_rel3("https://root/", &["//a.com/boop"], "https://a.com/boop")]
+    fn test_join_rooted(#[case] base: &str, #[case] subpaths: &[&str], #[case] expected: &str) {
+        println!("base={base}, subpaths={subpaths:?}, expected={expected}");
+        assert_eq!(
+            Url::parse(base)
+                .unwrap()
+                .join_rooted(subpaths)
+                .unwrap()
+                .to_string(),
+            expected
+        );
     }
 
-    #[test]
-    fn test_join_rooted_with_trailing_filename() {
-        let test_urls_and_expected = [
-            // file URLs without trailing / are kinda weird.
-            ("file:///a/b/c", vec!["/../../x"], "file:///x"),
-            ("file:///a/b/c", vec!["/"], "file:///a/b/"),
-            ("file:///a/b/c", vec![".?qq"], "file:///a/b/?qq"),
-            ("file:///a/b/c", vec!["#x"], "file:///a/b/c#x"),
-            ("file:///a/b/c", vec!["./"], "file:///a/b/"),
-            ("file:///a/b/c", vec!["c"], "file:///a/b/c"),
-            // joining with d
-            ("file:///a/b/c", vec!["d", "/../../x"], "file:///x"),
-            ("file:///a/b/c", vec!["d", "/"], "file:///a/b/"),
-            ("file:///a/b/c", vec!["d", "."], "file:///a/b/"),
-            ("file:///a/b/c", vec!["d", "./"], "file:///a/b/"),
-            // joining with d/
-            ("file:///a/b/c", vec!["d/", "/"], "file:///a/b/"),
-            ("file:///a/b/c", vec!["d/", "."], "file:///a/b/d/"),
-            ("file:///a/b/c", vec!["d/", "./"], "file:///a/b/d/"),
-        ];
-
-        for (base, subpaths, expected) in test_urls_and_expected {
-            println!("base={base}, subpaths={subpaths:?}, expected={expected}");
-            assert_eq!(
-                Url::parse(base)
-                    .unwrap()
-                    .join_rooted(&subpaths[..])
-                    .unwrap()
-                    .to_string(),
-                expected
-            );
-        }
+    #[rstest]
+    // file URLs without trailing / are kinda weird.
+    #[case::file_rel1("file:///a/b/c", &["/../../x"], "file:///x")]
+    #[case::file_rel2("file:///a/b/c", &["/"], "file:///a/b/")]
+    #[case::file_rel3("file:///a/b/c", &[".?qq"], "file:///a/b/?qq")]
+    #[case::file_rel4("file:///a/b/c", &["#x"], "file:///a/b/c#x")]
+    #[case::file_rel5("file:///a/b/c", &["./"], "file:///a/b/")]
+    #[case::file_rel6("file:///a/b/c", &["c"], "file:///a/b/c")]
+    // joining with d
+    #[case::file_rel_d1("file:///a/b/c", &["d", "/../../x"], "file:///x")]
+    #[case::file_rel_d2("file:///a/b/c", &["d", "/"], "file:///a/b/")]
+    #[case::file_rel_d3("file:///a/b/c", &["d", "."], "file:///a/b/")]
+    #[case::file_rel_d4("file:///a/b/c", &["d", "./"], "file:///a/b/")]
+    // joining with d/
+    #[case::file_rel_d_slash1("file:///a/b/c", &["d/", "/"], "file:///a/b/")]
+    #[case::file_rel_d_slash2("file:///a/b/c", &["d/", "."], "file:///a/b/d/")]
+    #[case::file_rel_d_slash3("file:///a/b/c", &["d/", "./"], "file:///a/b/d/")]
+    fn test_join_rooted_with_trailing_filename(
+        #[case] base: &str,
+        #[case] subpaths: &[&str],
+        #[case] expected: &str,
+    ) {
+        println!("base={base}, subpaths={subpaths:?}, expected={expected}");
+        assert_eq!(
+            Url::parse(base)
+                .unwrap()
+                .join_rooted(subpaths)
+                .unwrap()
+                .to_string(),
+            expected
+        );
     }
 }
