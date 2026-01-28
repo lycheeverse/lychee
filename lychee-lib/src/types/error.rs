@@ -152,7 +152,7 @@ pub enum ErrorKind {
 
     /// The given status code was not accepted (this depends on the `accept` configuration)
     #[error(
-        r#"Rejected status code: {code} {reason} (configurable with "accept" option")"#,
+        r#"Rejected status code: {code} {reason} (configurable with "accept" option)"#,
         code = .0.as_str(),
         reason = .0.canonical_reason().unwrap_or("Unknown status code")
     )]
