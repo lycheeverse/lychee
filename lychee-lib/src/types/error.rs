@@ -151,7 +151,11 @@ pub enum ErrorKind {
     InvalidStatusCode(u16),
 
     /// The given status code was not accepted (this depends on the `accept` configuration)
-    #[error(r#"Rejected HTTP code: {code}"#, code=.0.as_str())]
+    #[error(
+        r#"Rejected status code: {code} {reason} (configurable with "accept" option")"#,
+        code = .0.as_str(),
+        reason = .0.canonical_reason().unwrap_or("Unknown status code")
+    )]
     RejectedStatusCode(StatusCode),
 
     /// Regex error
@@ -202,18 +206,9 @@ impl ErrorKind {
                 // Get detailed, actionable error analysis
                 Some(utils::reqwest::analyze_error_chain(e))
             }
-            ErrorKind::RejectedStatusCode(status) => {
-                let redirect_hint = status
-                    .is_redirection()
-                    .then_some(r#" Redirects may have been limited by "max-redirects"."#);
-
-                Some(format!(
-                    "{reason}. {accept_hint}{redirect_hint}",
-                    reason = status.canonical_reason().unwrap_or("Unknown status code"),
-                    accept_hint = r#"Accepted codes depend on "accept" configuration."#,
-                    redirect_hint = redirect_hint.unwrap_or_default()
-                ))
-            }
+            ErrorKind::RejectedStatusCode(status) => status
+                .is_redirection()
+                .then_some(r#"Redirects may have been limited by "max-redirects"."#.to_string()),
             ErrorKind::GithubRequest(e) => {
                 if let octocrab::Error::GitHub { source, .. } = &**e {
                     Some(source.message.clone())
