@@ -40,13 +40,15 @@ path-clean = "1.0.1"
 percent-encoding = "2.3.1"
 pulldown-cmark = "0.13.0"
 regex = "1.12.2"
-# Use trust-dns to avoid lookup failures on high concurrency
-# https://github.com/seanmonstar/reqwest/issues/296
+# Disable default features to avoid rustls being enabled by default
 reqwest = { version = "0.13.1", default-features = false, features = [
     "gzip",
     "hickory-dns",
     "cookies",
     "json",
+    "charset",
+    "http2",
+    "system-proxy",
 ] }
 reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
 # Make build work on Apple Silicon.
