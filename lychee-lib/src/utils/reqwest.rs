@@ -405,9 +405,13 @@ mod tests {
     /// Test that `ErrorKind::details()` properly uses the new analysis
     #[test]
     fn test_error_kind_details_integration() {
+        // Test rejected status code
+        let status_error = ErrorKind::RejectedStatusCode(http::StatusCode::NOT_FOUND);
+        assert!(status_error.to_string().contains("Not Found"));
+
         // Test redirected status code
-        let status_error = ErrorKind::RejectedStatusCode(http::StatusCode::MOVED_PERMANENTLY);
-        assert!(status_error.details().is_some_and(|x| x.contains(
+        let redir_error = ErrorKind::RejectedStatusCode(http::StatusCode::MOVED_PERMANENTLY);
+        assert!(redir_error.details().is_some_and(|x| x.contains(
             "Redirects may have been limited by \"max-redirects\""
         )));
 
