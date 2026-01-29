@@ -611,7 +611,7 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(
-                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Rejected status code (this depends on your "accept" configuration): Not Found"#
+                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Rejected status code: 404 Not Found (configurable with "accept" option)"#
             ))
             .stderr(contains(
                 "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
@@ -1285,7 +1285,7 @@ The config file should contain every possible key for documentation purposes."
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
-                "[429] {}/ | Rejected status code (this depends on your \"accept\" configuration): Too Many Requests\n",
+                "[429] {}/ | Rejected status code: 429 Too Many Requests (configurable with \"accept\" option)",
                 mock_server_too_many_requests.uri()
             )));
 
@@ -1343,11 +1343,11 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[418] {}/ | Rejected status code (this depends on your "accept" configuration): I'm a teapot"#,
+                r#"[418] {}/ | Rejected status code: 418 I'm a teapot (configurable with "accept" option)"#,
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                r#"[500] {}/ | Rejected status code (this depends on your "accept" configuration): Internal Server Error"#,
+                r#"[500] {}/ | Rejected status code: 500 Internal Server Error (configurable with "accept" option)"#,
                 mock_server_server_error.uri()
             )));
 
@@ -1393,7 +1393,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[200] {}/ | Rejected status code (this depends on your "accept" configuration): OK"#,
+                r#"[200] {}/ | Rejected status code: 200 OK (configurable with "accept" option)"#,
                 mock_server_200.uri()
             )));
 
