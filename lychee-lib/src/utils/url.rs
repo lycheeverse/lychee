@@ -168,7 +168,7 @@ mod tests {
                 .to_string(),
             expected,
             "base={base}, subpaths={subpaths:?}, expected={expected}"
-        )
+        );
     }
 
     #[rstest]
