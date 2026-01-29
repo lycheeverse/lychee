@@ -263,7 +263,7 @@ impl BaseInfo {
         let mut url = match Uri::try_from(text) {
             Ok(Uri { url }) => Ok(url),
 
-            Err(e @ ErrorKind::ParseUrl(ParseError::RelativeUrlWithoutBase, _)) => match self {
+            Err(ErrorKind::ParseUrl(ParseError::RelativeUrlWithoutBase, _)) => match self {
                 _ if !self.supports_root_relative() && is_root_relative_link(text) => {
                     Err(ErrorKind::RootRelativeLinkWithoutRoot(text.to_string()))
                 }
