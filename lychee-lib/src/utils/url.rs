@@ -98,77 +98,77 @@ mod tests {
 
     #[rstest]
     // normal HTTP traversal and parsing absolute links
-    #[case::http1("https://a.com/b", &["x/", "d"], "https://a.com/x/d")]
-    #[case::http2("https://a.com/b/", &["x/", "d"], "https://a.com/b/x/d")]
-    #[case::http3("https://a.com/b/", &["https://new.com", "d"], "https://new.com/d")]
+    #[case("https://a.com/b", &["x/", "d"], "https://a.com/x/d")]
+    #[case("https://a.com/b/", &["x/", "d"], "https://a.com/b/x/d")]
+    #[case("https://a.com/b/", &["https://new.com", "d"], "https://new.com/d")]
     // parsing absolute file://
-    #[case::file_abs1("https://a.com/b/", &["file:///a", "d"], "file:///d")]
-    #[case::file_abs2("https://a.com/b/", &["file:///a/", "d"], "file:///a/d")]
-    #[case::file_abs3("https://a.com/b/", &["file:///a/b/", "../.."], "file:///")]
+    #[case("https://a.com/b/", &["file:///a", "d"], "file:///d")]
+    #[case("https://a.com/b/", &["file:///a/", "d"], "file:///a/d")]
+    #[case("https://a.com/b/", &["file:///a/b/", "../.."], "file:///")]
     // file traversal
-    #[case::file_rel1("file:///a/b/", &["/x/y"], "file:///a/b/x/y")]
-    #[case::file_rel2("file:///a/b/", &["a/"], "file:///a/b/a/")]
-    #[case::file_rel3("file:///a/b/", &["a/", "../.."], "file:///a/")]
-    #[case::file_rel4("file:///a/b/", &["a/", "/"], "file:///a/b/")]
-    #[case::file_rel5("file:///a/b/", &["/.."], "file:///a/")]
-    #[case::file_rel6("file:///a/b/", &["/../../"], "file:///")]
-    #[case::file_rel7("file:///a/b/", &[""], "file:///a/b/")]
-    #[case::file_rel8("file:///a/b/", &["."], "file:///a/b/")]
+    #[case("file:///a/b/", &["/x/y"], "file:///a/b/x/y")]
+    #[case("file:///a/b/", &["a/"], "file:///a/b/a/")]
+    #[case("file:///a/b/", &["a/", "../.."], "file:///a/")]
+    #[case("file:///a/b/", &["a/", "/"], "file:///a/b/")]
+    #[case("file:///a/b/", &["/.."], "file:///a/")]
+    #[case("file:///a/b/", &["/../../"], "file:///")]
+    #[case("file:///a/b/", &[""], "file:///a/b/")]
+    #[case("file:///a/b/", &["."], "file:///a/b/")]
     // HTTP relative links
-    #[case::http_rel1("https://a.com/x", &[""], "https://a.com/x")]
-    #[case::http_rel2("https://a.com/x", &["../../.."], "https://a.com/")]
-    #[case::http_rel3("https://a.com/x", &["?q", "#x"], "https://a.com/x?q#x")]
-    #[case::http_rel4("https://a.com/x", &[".", "?a"], "https://a.com/?a")]
-    #[case::http_rel5("https://a.com/x", &["/"], "https://a.com/")]
-    #[case::http_rel6("https://a.com/x?q#anchor", &[""], "https://a.com/x?q")]
-    #[case::http_rel7("https://a.com/x#anchor", &["?x"], "https://a.com/x?x")]
+    #[case("https://a.com/x", &[""], "https://a.com/x")]
+    #[case("https://a.com/x", &["../../.."], "https://a.com/")]
+    #[case("https://a.com/x", &["?q", "#x"], "https://a.com/x?q#x")]
+    #[case("https://a.com/x", &[".", "?a"], "https://a.com/?a")]
+    #[case("https://a.com/x", &["/"], "https://a.com/")]
+    #[case("https://a.com/x?q#anchor", &[""], "https://a.com/x?q")]
+    #[case("https://a.com/x#anchor", &["?x"], "https://a.com/x?x")]
     // scheme relative link - can traverse outside of root
-    #[case::scheme_rel1("file:///root/", &["///new-root"], "file:///new-root")]
-    #[case::scheme_rel2("file:///root/", &["//a.com/boop"], "file://a.com/boop")]
-    #[case::scheme_rel3("https://root/", &["//a.com/boop"], "https://a.com/boop")]
+    #[case("file:///root/", &["///new-root"], "file:///new-root")]
+    #[case("file:///root/", &["//a.com/boop"], "file://a.com/boop")]
+    #[case("https://root/", &["//a.com/boop"], "https://a.com/boop")]
     fn test_join_rooted(#[case] base: &str, #[case] subpaths: &[&str], #[case] expected: &str) {
-        println!("base={base}, subpaths={subpaths:?}, expected={expected}");
         assert_eq!(
             Url::parse(base)
                 .unwrap()
                 .join_rooted(subpaths)
                 .unwrap()
                 .to_string(),
-            expected
+            expected,
+            "base={base}, subpaths={subpaths:?}, expected={expected}"
         );
     }
 
     #[rstest]
     // file URLs without trailing / are kinda weird.
-    #[case::file_rel1("file:///a/b/c", &["/../../x"], "file:///x")]
-    #[case::file_rel2("file:///a/b/c", &["/"], "file:///a/b/")]
-    #[case::file_rel3("file:///a/b/c", &[".?qq"], "file:///a/b/?qq")]
-    #[case::file_rel4("file:///a/b/c", &["#x"], "file:///a/b/c#x")]
-    #[case::file_rel5("file:///a/b/c", &["./"], "file:///a/b/")]
-    #[case::file_rel6("file:///a/b/c", &["c"], "file:///a/b/c")]
+    #[case("file:///a/b/c", &["/../../x"], "file:///x")]
+    #[case("file:///a/b/c", &["/"], "file:///a/b/")]
+    #[case("file:///a/b/c", &[".?qq"], "file:///a/b/?qq")]
+    #[case("file:///a/b/c", &["#x"], "file:///a/b/c#x")]
+    #[case("file:///a/b/c", &["./"], "file:///a/b/")]
+    #[case("file:///a/b/c", &["c"], "file:///a/b/c")]
     // joining with d
-    #[case::file_rel_d1("file:///a/b/c", &["d", "/../../x"], "file:///x")]
-    #[case::file_rel_d2("file:///a/b/c", &["d", "/"], "file:///a/b/")]
-    #[case::file_rel_d3("file:///a/b/c", &["d", "."], "file:///a/b/")]
-    #[case::file_rel_d4("file:///a/b/c", &["d", "./"], "file:///a/b/")]
+    #[case("file:///a/b/c", &["d", "/../../x"], "file:///x")]
+    #[case("file:///a/b/c", &["d", "/"], "file:///a/b/")]
+    #[case("file:///a/b/c", &["d", "."], "file:///a/b/")]
+    #[case("file:///a/b/c", &["d", "./"], "file:///a/b/")]
     // joining with d/
-    #[case::file_rel_d_slash1("file:///a/b/c", &["d/", "/"], "file:///a/b/")]
-    #[case::file_rel_d_slash2("file:///a/b/c", &["d/", "."], "file:///a/b/d/")]
-    #[case::file_rel_d_slash3("file:///a/b/c", &["d/", "./"], "file:///a/b/d/")]
+    #[case("file:///a/b/c", &["d/", "/"], "file:///a/b/")]
+    #[case("file:///a/b/c", &["d/", "."], "file:///a/b/d/")]
+    #[case("file:///a/b/c", &["d/", "./"], "file:///a/b/d/")]
     fn test_join_rooted_with_trailing_filename(
         #[case] base: &str,
         #[case] subpaths: &[&str],
         #[case] expected: &str,
     ) {
-        println!("base={base}, subpaths={subpaths:?}, expected={expected}");
         assert_eq!(
             Url::parse(base)
                 .unwrap()
                 .join_rooted(subpaths)
                 .unwrap()
                 .to_string(),
-            expected
-        );
+            expected,
+            "base={base}, subpaths={subpaths:?}, expected={expected}"
+        )
     }
 
     #[rstest]
@@ -187,6 +187,10 @@ mod tests {
     #[case("something", Err("something"))]
     fn test_parse_url_or_path(#[case] input: &str, #[case] expected: Result<&str, &str>) {
         let result = parse_url_or_path(input);
-        assert_eq!(result.as_ref().map(Url::as_str), expected.as_deref());
+        assert_eq!(
+            result.as_ref().map(Url::as_str),
+            expected.as_deref(),
+            "input={input:?}, expected={expected:?}"
+        );
     }
 }
