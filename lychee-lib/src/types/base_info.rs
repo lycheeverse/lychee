@@ -5,6 +5,7 @@ use reqwest::Url;
 use serde::Deserialize;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+use url::ParseError;
 
 use crate::ErrorKind;
 use crate::Uri;
@@ -261,7 +262,8 @@ impl BaseInfo {
     pub fn parse_url_text(&self, text: &str) -> Result<Url, ErrorKind> {
         let mut url = match Uri::try_from(text) {
             Ok(Uri { url }) => Ok(url),
-            Err(e @ ErrorKind::ParseUrl(_, _)) => match self {
+
+            Err(e @ ErrorKind::ParseUrl(ParseError::RelativeUrlWithoutBase, _)) => match self {
                 _ if !self.supports_root_relative() && is_root_relative_link(text) => {
                     Err(ErrorKind::RootRelativeLinkWithoutRoot(text.to_string()))
                 }
@@ -271,8 +273,12 @@ impl BaseInfo {
                 Self::Full(origin, subpath) => origin
                     .join_rooted(&[subpath, text])
                     .map_err(|e| ErrorKind::ParseUrl(e, text.to_string())),
-                Self::None => Err(e),
+                Self::None => Err(ErrorKind::ParseUrl(
+                    ParseError::RelativeUrlWithoutBase,
+                    text.to_string(),
+                )),
             },
+
             Err(e) => Err(e),
         }?;
 
