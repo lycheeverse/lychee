@@ -1,22 +1,90 @@
+use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use linkify::LinkFinder;
+use url::{ParseError, Url};
+
+/// Returns whether the text represents a root-relative link. These look like
+/// `/this` and are resolved relative to a base URL's origin. This can also be called
+/// "domain-relative URL" (by [MDN]) and "path-absolute-URL string" (by [WHATWG]).
+/// From [MDN]:
+///
+/// > Domain-relative URL: `/en-US/docs/Learn_web_development` — the protocol and
+/// > the domain name are both missing. The browser will use the same protocol
+/// > and the same domain name as the one used to load the document hosting that URL.
+///
+/// [MDN]: https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_URL#absolute_urls_vs._relative_urls
+/// [WHATWG]: https://url.spec.whatwg.org/#path-absolute-url-string
+pub(crate) fn is_root_relative_link(text: &str) -> bool {
+    !is_scheme_relative_link(text) && text.trim_ascii_start().starts_with('/')
+}
+
+/// Returns whether the text represents a scheme-relative link. These look like
+/// `//example.com/subpath`. From [MDN]:
+///
+/// > Scheme-relative URL: `//developer.mozilla.org/en-US/docs/Learn_web_development` —
+/// > only the protocol is missing. The browser will use the same protocol as the one
+/// > used to load the document hosting that URL.
+///
+/// [MDN]: https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_URL#absolute_urls_vs._relative_urls
+pub(crate) fn is_scheme_relative_link(text: &str) -> bool {
+    text.trim_ascii_start().starts_with("//")
+}
+
+pub(crate) trait ReqwestUrlExt {
+    /// Joins the given subpaths, using the current URL as the base URL.
+    ///
+    /// Conceptually, `url.join_rooted(&[path])` is very similar to
+    /// `url.join(path)` (using [`Url::join`]). However, they differ when
+    /// the base URL is a `file:` URL.
+    ///
+    /// When used with a `file:` base URL, [`ReqwestUrlExt::join_rooted`]
+    /// will treat root-relative links as locally-relative links, relative
+    /// to the `file:` base URL.
+    ///
+    /// Other relative links and links with non-`file:` bases are joined
+    /// normally, matching the behaviour of [`Url::join`].
+    fn join_rooted(&self, subpaths: &[&str]) -> Result<Url, ParseError>;
+}
+
+impl ReqwestUrlExt for Url {
+    fn join_rooted(&self, subpaths: &[&str]) -> Result<Url, ParseError> {
+        let mut url = Cow::Borrowed(self);
+
+        for subpath in subpaths {
+            if url.scheme() == "file" && is_root_relative_link(subpath) {
+                let locally_relative = format!(".{}", subpath.trim_ascii_start());
+                url = Cow::Owned(self.join(&locally_relative)?);
+            } else {
+                url = Cow::Owned(url.join(subpath)?);
+            }
+        }
+
+        Ok(url.into_owned())
+    }
+}
+
+/// Attempts to parse a string which might represent a URL or a filesystem path.
+/// Returns [`Ok`] if it is unambiguously a valid URL, otherwise returns [`Err`]
+/// with the original input.
+///
+/// On Windows, we take care to make sure absolute paths---which could also be
+/// parsed as URLs---are not parsed as URLs.
+///
+/// # Errors
+///
+/// Returns an [`Err`] if the given text is not a valid URL, or if the given text
+/// *could* be interpreted as a filesystem path. The string is returned within
+/// the error to allow for easier subsequent processing.
+pub(crate) fn parse_url_or_path(input: &str) -> Result<Url, &str> {
+    match Url::parse(input) {
+        Ok(url) if url.scheme().len() == 1 => Err(input),
+        Ok(url) => Ok(url),
+        _ => Err(input),
+    }
+}
 
 static LINK_FINDER: LazyLock<LinkFinder> = LazyLock::new(LinkFinder::new);
-
-/// Remove all GET parameters from a URL and separates out the fragment.
-/// The link is not a URL but a String as it may not have a base domain.
-pub(crate) fn remove_get_params_and_separate_fragment(url: &str) -> (&str, Option<&str>) {
-    let (path, frag) = match url.split_once('#') {
-        Some((path, fragment)) => (path, Some(fragment)),
-        None => (url, None),
-    };
-    let path = match path.split_once('?') {
-        Some((path_without_params, _params)) => path_without_params,
-        None => path,
-    };
-    (path, frag)
-}
 
 // Use `LinkFinder` to offload the raw link searching in plaintext
 pub(crate) fn find_links(input: &str) -> impl Iterator<Item = linkify::Link<'_>> {
@@ -24,54 +92,105 @@ pub(crate) fn find_links(input: &str) -> impl Iterator<Item = linkify::Link<'_>>
 }
 
 #[cfg(test)]
-mod test_fs_tree {
+mod tests {
     use super::*;
+    use rstest::rstest;
 
-    #[test]
-    fn test_remove_get_params_and_fragment() {
-        assert_eq!(remove_get_params_and_separate_fragment("/"), ("/", None));
+    #[rstest]
+    // normal HTTP traversal and parsing absolute links
+    #[case("https://a.com/b", &["x/", "d"], "https://a.com/x/d")]
+    #[case("https://a.com/b/", &["x/", "d"], "https://a.com/b/x/d")]
+    #[case("https://a.com/b/", &["https://new.com", "d"], "https://new.com/d")]
+    // parsing absolute file://
+    #[case("https://a.com/b/", &["file:///a", "d"], "file:///d")]
+    #[case("https://a.com/b/", &["file:///a/", "d"], "file:///a/d")]
+    #[case("https://a.com/b/", &["file:///a/b/", "../.."], "file:///")]
+    // file traversal
+    #[case("file:///a/b/", &["/x/y"], "file:///a/b/x/y")]
+    #[case("file:///a/b/", &["a/"], "file:///a/b/a/")]
+    #[case("file:///a/b/", &["a/", "../.."], "file:///a/")]
+    #[case("file:///a/b/", &["a/", "/"], "file:///a/b/")]
+    #[case("file:///a/b/", &["/.."], "file:///a/")]
+    #[case("file:///a/b/", &["/../../"], "file:///")]
+    #[case("file:///a/b/", &[""], "file:///a/b/")]
+    #[case("file:///a/b/", &["."], "file:///a/b/")]
+    // HTTP relative links
+    #[case("https://a.com/x", &[""], "https://a.com/x")]
+    #[case("https://a.com/x", &["../../.."], "https://a.com/")]
+    #[case("https://a.com/x", &["?q", "#x"], "https://a.com/x?q#x")]
+    #[case("https://a.com/x", &[".", "?a"], "https://a.com/?a")]
+    #[case("https://a.com/x", &["/"], "https://a.com/")]
+    #[case("https://a.com/x?q#anchor", &[""], "https://a.com/x?q")]
+    #[case("https://a.com/x#anchor", &["?x"], "https://a.com/x?x")]
+    // scheme relative link - can traverse outside of root
+    #[case("file:///root/", &["///new-root"], "file:///new-root")]
+    #[case("file:///root/", &["//a.com/boop"], "file://a.com/boop")]
+    #[case("https://root/", &["//a.com/boop"], "https://a.com/boop")]
+    fn test_join_rooted(#[case] base: &str, #[case] subpaths: &[&str], #[case] expected: &str) {
         assert_eq!(
-            remove_get_params_and_separate_fragment("index.html?foo=bar"),
-            ("index.html", None)
+            Url::parse(base)
+                .unwrap()
+                .join_rooted(subpaths)
+                .unwrap()
+                .to_string(),
+            expected,
+            "base={base}, subpaths={subpaths:?}, expected={expected}"
         );
-        assert_eq!(
-            remove_get_params_and_separate_fragment("/index.html?foo=bar"),
-            ("/index.html", None)
-        );
-        assert_eq!(
-            remove_get_params_and_separate_fragment("/index.html?foo=bar&baz=zorx?bla=blub"),
-            ("/index.html", None)
-        );
-        assert_eq!(
-            remove_get_params_and_separate_fragment("https://example.com/index.html?foo=bar"),
-            ("https://example.com/index.html", None)
-        );
-        assert_eq!(
-            remove_get_params_and_separate_fragment("test.png?foo=bar"),
-            ("test.png", None)
-        );
+    }
 
+    #[rstest]
+    // file URLs without trailing / are kinda weird.
+    #[case("file:///a/b/c", &["/../../x"], "file:///x")]
+    #[case("file:///a/b/c", &["/"], "file:///a/b/")]
+    #[case("file:///a/b/c", &[".?qq"], "file:///a/b/?qq")]
+    #[case("file:///a/b/c", &["#x"], "file:///a/b/c#x")]
+    #[case("file:///a/b/c", &["./"], "file:///a/b/")]
+    #[case("file:///a/b/c", &["c"], "file:///a/b/c")]
+    // joining with d
+    #[case("file:///a/b/c", &["d", "/../../x"], "file:///x")]
+    #[case("file:///a/b/c", &["d", "/"], "file:///a/b/")]
+    #[case("file:///a/b/c", &["d", "."], "file:///a/b/")]
+    #[case("file:///a/b/c", &["d", "./"], "file:///a/b/")]
+    // joining with d/
+    #[case("file:///a/b/c", &["d/", "/"], "file:///a/b/")]
+    #[case("file:///a/b/c", &["d/", "."], "file:///a/b/d/")]
+    #[case("file:///a/b/c", &["d/", "./"], "file:///a/b/d/")]
+    fn test_join_rooted_with_trailing_filename(
+        #[case] base: &str,
+        #[case] subpaths: &[&str],
+        #[case] expected: &str,
+    ) {
         assert_eq!(
-            remove_get_params_and_separate_fragment("https://example.com/index.html#anchor"),
-            ("https://example.com/index.html", Some("anchor"))
+            Url::parse(base)
+                .unwrap()
+                .join_rooted(subpaths)
+                .unwrap()
+                .to_string(),
+            expected,
+            "base={base}, subpaths={subpaths:?}, expected={expected}"
         );
+    }
+
+    #[rstest]
+    // OK URLs
+    #[case("tel:1", Ok("tel:1"))]
+    #[case("file:///a", Ok("file:///a"))]
+    #[case("http://a.com", Ok("http://a.com/"))]
+    // Invalid URLs
+    #[case("", Err(""))]
+    #[case(".", Err("."))]
+    #[case("C:", Err("C:"))]
+    #[case("/unix", Err("/unix"))]
+    #[case("C:/a", Err("C:/a"))]
+    #[case(r"C:\a\b", Err(r"C:\a\b"))]
+    #[case("**/*.md", Err("**/*.md"))]
+    #[case("something", Err("something"))]
+    fn test_parse_url_or_path(#[case] input: &str, #[case] expected: Result<&str, &str>) {
+        let result = parse_url_or_path(input);
         assert_eq!(
-            remove_get_params_and_separate_fragment(
-                "https://example.com/index.html?foo=bar#anchor"
-            ),
-            ("https://example.com/index.html", Some("anchor"))
-        );
-        assert_eq!(
-            remove_get_params_and_separate_fragment("test.png?foo=bar#anchor"),
-            ("test.png", Some("anchor"))
-        );
-        assert_eq!(
-            remove_get_params_and_separate_fragment("test.png#anchor?anchor!?"),
-            ("test.png", Some("anchor?anchor!?"))
-        );
-        assert_eq!(
-            remove_get_params_and_separate_fragment("test.png?foo=bar#anchor?anchor!"),
-            ("test.png", Some("anchor?anchor!"))
+            result.as_ref().map(Url::as_str),
+            expected.as_deref(),
+            "input={input:?}, expected={expected:?}"
         );
     }
 }
