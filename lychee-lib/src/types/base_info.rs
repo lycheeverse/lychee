@@ -10,8 +10,7 @@ use url::ParseError;
 use crate::ErrorKind;
 use crate::Uri;
 use crate::utils;
-use crate::utils::url::{ReqwestUrlExt, is_root_relative_link};
-use url::PathSegmentsMut;
+use crate::utils::url::is_root_relative_link;
 
 /// Information used for resolving relative URLs within a particular
 /// input source. There should be a 1:1 correspondence between each
@@ -55,6 +54,9 @@ pub enum BaseInfo {
     /// records the `file:` URL which will be used to resolve root-relative links.
     /// The `path` field is the subpath to a particular input source within the
     /// root. This is retained to resolve locally-relative links.
+    ///
+    /// In all cases, the `path` field should be a (possibly-empty) locally- or
+    /// root-relative link and should not be a full URL or a scheme-relative link.
     Full(Url, String),
 }
 
@@ -251,8 +253,8 @@ impl BaseInfo {
     /// Parses the given URL text into a fully-qualified URL, including
     /// resolving relative links if supported by the current [`BaseInfo`].
     ///
-    /// To resolve relative links, this uses [`Url::join`] and [`ReqwestUrlExt::join_rooted`]
-    /// for [`BaseInfo::NoRoot`] and [`BaseInfo::Full`], respectively.
+    /// To parse and resolve relative links, this uses [`Url::join`] with
+    /// the current [`BaseInfo`]'s URL as a base, as applicable.
     ///
     /// # Errors
     ///
@@ -260,37 +262,41 @@ impl BaseInfo {
     /// relative link and this [`BaseInfo`] variant cannot resolve
     /// the relative link.
     pub fn parse_url_text(&self, text: &str) -> Result<Url, ErrorKind> {
-        let mut url = match Uri::try_from(text) {
+        use ParseError::RelativeUrlWithoutBase;
+
+        match Uri::try_from(text) {
             Ok(Uri { url }) => Ok(url),
 
-            Err(ErrorKind::ParseUrl(ParseError::RelativeUrlWithoutBase, _)) => match self {
-                _ if !self.supports_root_relative() && is_root_relative_link(text) => {
-                    Err(ErrorKind::RootRelativeLinkWithoutRoot(text.to_string()))
+            Err(ErrorKind::ParseUrl(RelativeUrlWithoutBase, _))
+                if !self.supports_root_relative() && is_root_relative_link(text) =>
+            {
+                Err(ErrorKind::RootRelativeLinkWithoutRoot(text.to_string()))
+            }
+
+            Err(ErrorKind::ParseUrl(RelativeUrlWithoutBase, _)) => match self {
+                // Cannot resolve any relative links
+                Self::None => Err(RelativeUrlWithoutBase),
+
+                // Resolve locally-relative link using NoRoot
+                Self::NoRoot(base) => base.join(text),
+
+                // Resolve root-relative link with `file:` base by changing it to
+                // a subpath of the origin.
+                Self::Full(origin, subpath)
+                    if is_root_relative_link(text) && origin.scheme() == "file" =>
+                {
+                    let locally_relative = format!(".{}", text.trim_ascii_start());
+                    origin.join(&locally_relative)
                 }
-                Self::NoRoot(base) => base
-                    .join(text)
-                    .map_err(|e| ErrorKind::ParseUrl(e, text.to_string())),
-                Self::Full(origin, subpath) => origin
-                    .join_rooted(&[subpath, text])
-                    .map_err(|e| ErrorKind::ParseUrl(e, text.to_string())),
-                Self::None => Err(ErrorKind::ParseUrl(
-                    ParseError::RelativeUrlWithoutBase,
-                    text.to_string(),
-                )),
-            },
+
+                // Resolve all other relative links, including root-relative links
+                // of non-file bases.
+                Self::Full(origin, subpath) => origin.join(subpath).and_then(|x| x.join(text)),
+            }
+            .map_err(|e| ErrorKind::ParseUrl(e, text.to_string())),
 
             Err(e) => Err(e),
-        }?;
-
-        // BACKWARDS COMPAT: delete trailing slash for file urls
-        if url.scheme() == "file" {
-            let _ = url
-                .path_segments_mut()
-                .as_mut()
-                .map(PathSegmentsMut::pop_if_empty);
         }
-
-        Ok(url)
     }
 
     /// Parses the given URL text into a fully-qualified URL, including
@@ -299,8 +305,8 @@ impl BaseInfo {
     ///
     /// The root-dir is applied if the current `BaseInfo` is [`BaseInfo::None`]
     /// or has a `file:` URL and if the given text is a root-relative link.
-    /// In these cases, the given `root_dir` will take effect instead of the
-    /// original `BaseInfo`.
+    /// In these cases, the given `root_dir` will *override* the original
+    /// `BaseInfo`.
     ///
     /// # Errors
     ///
@@ -364,6 +370,7 @@ mod tests {
 
     use super::BaseInfo;
     use reqwest::Url;
+    use rstest::rstest;
 
     #[test]
     fn test_base_info_construction() {
@@ -431,9 +438,8 @@ mod tests {
         );
         assert_eq!(
             base.parse_url_text_with_root_dir("file:///a/", Some(&root_dir)),
-            Ok(Url::parse("file:///a").unwrap())
+            Ok(Url::parse("file:///a/").unwrap())
         );
-        // NOTE: trailing slash is dropped by parse_url_text
 
         // basic root dir use
         assert_eq!(
@@ -445,6 +451,85 @@ mod tests {
         assert_eq!(
             base.parse_url_text_with_root_dir("/../../", Some(&root_dir)),
             Ok(Url::parse("file:///").unwrap())
+        );
+    }
+
+    #[rstest]
+    // normal HTTP traversal and parsing absolute links
+    #[case("https://a.com/b", "x/", "d", "https://a.com/x/d")]
+    #[case("https://a.com/b/", "x/", "d", "https://a.com/b/x/d")]
+    #[case("https://a.com/b/", "", "https://new.com", "https://new.com/")]
+    // parsing absolute file://
+    #[case("https://a.com/b/", "", "file:///a", "file:///a")]
+    #[case("https://a.com/b/", "", "file:///a/", "file:///a/")]
+    #[case("https://a.com/b/", "", "file:///a/b/", "file:///a/b/")]
+    // file traversal
+    #[case("file:///a/b/", "", "/x/y", "file:///a/b/x/y")]
+    #[case("file:///a/b/", "", "a/", "file:///a/b/a/")]
+    #[case("file:///a/b/", "a/", "../..", "file:///a/")]
+    #[case("file:///a/b/", "a/", "/", "file:///a/b/")]
+    #[case("file:///a/b/", "", "/..", "file:///a/")]
+    #[case("file:///a/b/", "", "/../../", "file:///")]
+    #[case("file:///a/b/", "", "?", "file:///a/b/?")]
+    #[case("file:///a/b/", ".", "?", "file:///a/b/?")]
+    // HTTP relative links
+    #[case("https://a.com/x", "", "#", "https://a.com/x#")]
+    #[case("https://a.com/x", "", "../../..", "https://a.com/")]
+    #[case("https://a.com/x", "?q", "#x", "https://a.com/x?q#x")]
+    #[case("https://a.com/x", ".", "?a", "https://a.com/?a")]
+    #[case("https://a.com/x/", "", "/", "https://a.com/")]
+    #[case("https://a.com/x?q#anchor", "", "?q", "https://a.com/x?q")]
+    #[case("https://a.com/x#anchor", "", "?x", "https://a.com/x?x")]
+    // scheme relative link - can traverse outside of root
+    #[case("file:///root/", "", "///new-root", "file:///new-root")]
+    #[case("file:///root/", "", "//a.com/boop", "file://a.com/boop")]
+    #[case("https://root/", "", "//a.com/boop", "https://a.com/boop")]
+    fn test_join_rooted(
+        #[case] origin: &str,
+        #[case] path: &str,
+        #[case] text: &str,
+        #[case] expected: &str,
+    ) {
+        assert_eq!(
+            BaseInfo::full(Url::parse(origin).unwrap(), path.to_string())
+                .parse_url_text(text)
+                .unwrap()
+                .to_string(),
+            expected,
+            "origin={origin}, path={path:?}, text={text:?}, expected={expected}"
+        );
+    }
+
+    #[rstest]
+    // file URLs without trailing / are kinda weird.
+    #[case("file:///a/b/c", "", "/../../x", "file:///x")]
+    #[case("file:///a/b/c", "", "/", "file:///a/b/")]
+    #[case("file:///a/b/c", "", ".?qq", "file:///a/b/?qq")]
+    #[case("file:///a/b/c", "", "#x", "file:///a/b/c#x")]
+    #[case("file:///a/b/c", "", "./", "file:///a/b/")]
+    #[case("file:///a/b/c", "", "c", "file:///a/b/c")]
+    // joining with d
+    #[case("file:///a/b/c", "d", "/../../x", "file:///x")]
+    #[case("file:///a/b/c", "d", "/", "file:///a/b/")]
+    #[case("file:///a/b/c", "d", ".", "file:///a/b/")]
+    #[case("file:///a/b/c", "d", "./", "file:///a/b/")]
+    // joining with d/
+    #[case("file:///a/b/c", "d/", "/", "file:///a/b/")]
+    #[case("file:///a/b/c", "d/", ".", "file:///a/b/d/")]
+    #[case("file:///a/b/c", "d/", "./", "file:///a/b/d/")]
+    fn test_join_rooted_with_trailing_filename(
+        #[case] origin: &str,
+        #[case] path: &str,
+        #[case] text: &str,
+        #[case] expected: &str,
+    ) {
+        assert_eq!(
+            BaseInfo::full(Url::parse(origin).unwrap(), path.to_string())
+                .parse_url_text(text)
+                .unwrap()
+                .to_string(),
+            expected,
+            "origin={origin}, path={path:?}, text={text:?}, expected={expected}"
         );
     }
 }

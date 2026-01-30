@@ -1,8 +1,7 @@
-use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use linkify::LinkFinder;
-use url::{ParseError, Url};
+use url::Url;
 
 /// Returns whether the text represents a root-relative link. These look like
 /// `/this` and are resolved relative to a base URL's origin. This can also be called
@@ -29,39 +28,6 @@ pub(crate) fn is_root_relative_link(text: &str) -> bool {
 /// [MDN]: https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_URL#absolute_urls_vs._relative_urls
 pub(crate) fn is_scheme_relative_link(text: &str) -> bool {
     text.trim_ascii_start().starts_with("//")
-}
-
-pub(crate) trait ReqwestUrlExt {
-    /// Joins the given subpaths, using the current URL as the base URL.
-    ///
-    /// Conceptually, `url.join_rooted(&[path])` is very similar to
-    /// `url.join(path)` (using [`Url::join`]). However, they differ when
-    /// the base URL is a `file:` URL.
-    ///
-    /// When used with a `file:` base URL, [`ReqwestUrlExt::join_rooted`]
-    /// will treat root-relative links as locally-relative links, relative
-    /// to the `file:` base URL.
-    ///
-    /// Other relative links and links with non-`file:` bases are joined
-    /// normally, matching the behaviour of [`Url::join`].
-    fn join_rooted(&self, subpaths: &[&str]) -> Result<Url, ParseError>;
-}
-
-impl ReqwestUrlExt for Url {
-    fn join_rooted(&self, subpaths: &[&str]) -> Result<Url, ParseError> {
-        let mut url = Cow::Borrowed(self);
-
-        for subpath in subpaths {
-            if url.scheme() == "file" && is_root_relative_link(subpath) {
-                let locally_relative = format!(".{}", subpath.trim_ascii_start());
-                url = Cow::Owned(self.join(&locally_relative)?);
-            } else {
-                url = Cow::Owned(url.join(subpath)?);
-            }
-        }
-
-        Ok(url.into_owned())
-    }
 }
 
 /// Attempts to parse a string which might represent a URL or a filesystem path.
@@ -95,81 +61,6 @@ pub(crate) fn find_links(input: &str) -> impl Iterator<Item = linkify::Link<'_>>
 mod tests {
     use super::*;
     use rstest::rstest;
-
-    #[rstest]
-    // normal HTTP traversal and parsing absolute links
-    #[case("https://a.com/b", &["x/", "d"], "https://a.com/x/d")]
-    #[case("https://a.com/b/", &["x/", "d"], "https://a.com/b/x/d")]
-    #[case("https://a.com/b/", &["https://new.com", "d"], "https://new.com/d")]
-    // parsing absolute file://
-    #[case("https://a.com/b/", &["file:///a", "d"], "file:///d")]
-    #[case("https://a.com/b/", &["file:///a/", "d"], "file:///a/d")]
-    #[case("https://a.com/b/", &["file:///a/b/", "../.."], "file:///")]
-    // file traversal
-    #[case("file:///a/b/", &["/x/y"], "file:///a/b/x/y")]
-    #[case("file:///a/b/", &["a/"], "file:///a/b/a/")]
-    #[case("file:///a/b/", &["a/", "../.."], "file:///a/")]
-    #[case("file:///a/b/", &["a/", "/"], "file:///a/b/")]
-    #[case("file:///a/b/", &["/.."], "file:///a/")]
-    #[case("file:///a/b/", &["/../../"], "file:///")]
-    #[case("file:///a/b/", &[""], "file:///a/b/")]
-    #[case("file:///a/b/", &["."], "file:///a/b/")]
-    // HTTP relative links
-    #[case("https://a.com/x", &[""], "https://a.com/x")]
-    #[case("https://a.com/x", &["../../.."], "https://a.com/")]
-    #[case("https://a.com/x", &["?q", "#x"], "https://a.com/x?q#x")]
-    #[case("https://a.com/x", &[".", "?a"], "https://a.com/?a")]
-    #[case("https://a.com/x", &["/"], "https://a.com/")]
-    #[case("https://a.com/x?q#anchor", &[""], "https://a.com/x?q")]
-    #[case("https://a.com/x#anchor", &["?x"], "https://a.com/x?x")]
-    // scheme relative link - can traverse outside of root
-    #[case("file:///root/", &["///new-root"], "file:///new-root")]
-    #[case("file:///root/", &["//a.com/boop"], "file://a.com/boop")]
-    #[case("https://root/", &["//a.com/boop"], "https://a.com/boop")]
-    fn test_join_rooted(#[case] base: &str, #[case] subpaths: &[&str], #[case] expected: &str) {
-        assert_eq!(
-            Url::parse(base)
-                .unwrap()
-                .join_rooted(subpaths)
-                .unwrap()
-                .to_string(),
-            expected,
-            "base={base}, subpaths={subpaths:?}, expected={expected}"
-        );
-    }
-
-    #[rstest]
-    // file URLs without trailing / are kinda weird.
-    #[case("file:///a/b/c", &["/../../x"], "file:///x")]
-    #[case("file:///a/b/c", &["/"], "file:///a/b/")]
-    #[case("file:///a/b/c", &[".?qq"], "file:///a/b/?qq")]
-    #[case("file:///a/b/c", &["#x"], "file:///a/b/c#x")]
-    #[case("file:///a/b/c", &["./"], "file:///a/b/")]
-    #[case("file:///a/b/c", &["c"], "file:///a/b/c")]
-    // joining with d
-    #[case("file:///a/b/c", &["d", "/../../x"], "file:///x")]
-    #[case("file:///a/b/c", &["d", "/"], "file:///a/b/")]
-    #[case("file:///a/b/c", &["d", "."], "file:///a/b/")]
-    #[case("file:///a/b/c", &["d", "./"], "file:///a/b/")]
-    // joining with d/
-    #[case("file:///a/b/c", &["d/", "/"], "file:///a/b/")]
-    #[case("file:///a/b/c", &["d/", "."], "file:///a/b/d/")]
-    #[case("file:///a/b/c", &["d/", "./"], "file:///a/b/d/")]
-    fn test_join_rooted_with_trailing_filename(
-        #[case] base: &str,
-        #[case] subpaths: &[&str],
-        #[case] expected: &str,
-    ) {
-        assert_eq!(
-            Url::parse(base)
-                .unwrap()
-                .join_rooted(subpaths)
-                .unwrap()
-                .to_string(),
-            expected,
-            "base={base}, subpaths={subpaths:?}, expected={expected}"
-        );
-    }
 
     #[rstest]
     // OK URLs

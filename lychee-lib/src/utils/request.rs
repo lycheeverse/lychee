@@ -1,6 +1,7 @@
 use reqwest::Url;
 use std::collections::HashSet;
 use std::path::Path;
+use url::PathSegmentsMut;
 
 use crate::{
     BaseInfo, BasicAuthCredentials, LycheeResult, Request, RequestError, Uri,
@@ -51,9 +52,18 @@ fn try_parse_into_uri(
 ) -> LycheeResult<Uri> {
     // TODO: this conversion should be hoisted up the call stack
     let root_dir = root_dir.and_then(|x| Url::from_directory_path(x).ok());
-    Ok(base
-        .parse_url_text_with_root_dir(&raw_uri.text, root_dir.as_ref())?
-        .into())
+
+    let mut url = base.parse_url_text_with_root_dir(&raw_uri.text, root_dir.as_ref())?;
+
+    // BACKWARDS COMPAT: delete trailing slash for file urls
+    if url.scheme() == "file" {
+        let _ = url
+            .path_segments_mut()
+            .as_mut()
+            .map(PathSegmentsMut::pop_if_empty);
+    }
+
+    Ok(url.into())
 }
 
 /// Create requests out of the collected URLs.
