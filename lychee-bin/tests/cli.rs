@@ -1279,6 +1279,8 @@ The config file should contain every possible key for documentation purposes."
             .current_dir(&base_path)
             .arg(dir.path().join("c.md"))
             .arg("-vv")
+            .arg("--max-retries")
+            .arg("0")
             .arg("--no-progress")
             .arg("--cache")
             .arg("--cache-exclude-status")
