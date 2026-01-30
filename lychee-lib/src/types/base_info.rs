@@ -282,7 +282,7 @@ impl BaseInfo {
 
                 // Resolve root-relative link with `file:` base by changing it to
                 // a subpath of the origin.
-                Self::Full(origin, subpath)
+                Self::Full(origin, _)
                     if is_root_relative_link(text) && origin.scheme() == "file" =>
                 {
                     let locally_relative = format!(".{}", text.trim_ascii_start());
