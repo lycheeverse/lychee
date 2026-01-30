@@ -193,7 +193,10 @@ offline = true
 #############################  Other  #############################
 
 # Read input filenames from the given file or stdin ('-')
-files_from = "files.txt"
+files_from = "fixtures/empty-file.txt"
+
+# Configure sensitive data in a separate config file
+secrets = "secrets.toml"
 
 # Generate special output instead of performing link checking
 generate = "man"
