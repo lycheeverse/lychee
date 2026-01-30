@@ -1,6 +1,7 @@
 //! Parses and resolves [`RawUri`] into into fully-qualified [`Uri`] by
 //! applying base URL and root dir mappings.
 
+use either::{Left, Right};
 use reqwest::Url;
 use serde::Deserialize;
 use std::borrow::Cow;
@@ -8,7 +9,7 @@ use std::path::{Path, PathBuf};
 use url::ParseError;
 
 use crate::ErrorKind;
-use crate::Uri;
+use crate::types::uri::relative::{LocalRel, RootRel, SchemeRel, parse_url_or_relative};
 use crate::utils;
 use crate::utils::url::is_root_relative_link;
 
@@ -272,36 +273,25 @@ impl BaseInfo {
     /// relative link and this [`BaseInfo`] variant cannot resolve
     /// the relative link.
     pub fn parse_url_text(&self, text: &str) -> Result<Url, ErrorKind> {
-        use ParseError::RelativeUrlWithoutBase;
+        match parse_url_or_relative(text) {
+            Ok(Left(uri)) => Ok(uri.url),
 
-        match Uri::try_from(text) {
-            Ok(Uri { url }) => Ok(url),
-
-            Err(ErrorKind::ParseUrl(RelativeUrlWithoutBase, _))
-                if !self.supports_root_relative() && is_root_relative_link(text) =>
-            {
-                Err(ErrorKind::RootRelativeLinkWithoutRoot(text.to_string()))
-            }
-
-            Err(ErrorKind::ParseUrl(RelativeUrlWithoutBase, _)) => match self {
-                // Cannot resolve any relative links
-                Self::None => Err(RelativeUrlWithoutBase),
-
-                // Resolve locally-relative link using NoRoot
-                Self::NoRoot(base) => base.join(text),
-
-                // Resolve root-relative link with `file:` base by changing it to
-                // a subpath of the origin.
-                Self::Full { origin, .. }
-                    if is_root_relative_link(text) && origin.scheme() == "file" =>
-                {
-                    let locally_relative = format!(".{}", text.trim_ascii_start());
-                    origin.join(&locally_relative)
+            Ok(Right(rel)) => match (self, rel) {
+                (Self::None | Self::NoRoot(_), RootRel(_)) => {
+                    return Err(ErrorKind::RootRelativeLinkWithoutRoot(text.to_string()));
                 }
 
-                // Resolve all other relative links, including root-relative links
-                // of non-file bases.
-                Self::Full { origin, path } => origin.join(path).and_then(|x| x.join(text)),
+                (Self::None, _) => Err(ParseError::RelativeUrlWithoutBase),
+
+                (Self::NoRoot(base), LocalRel(text) | SchemeRel(text)) => base.join(text),
+
+                (Self::Full(origin, _), RootRel(text)) if origin.scheme() == "file" => {
+                    origin.join(&format!(".{}", text))
+                }
+
+                (Self::Full(origin, subpath), rel) => {
+                    origin.join(subpath).and_then(|x| x.join(rel.link_text()))
+                }
             }
             .map_err(|e| ErrorKind::ParseUrl(e, text.to_string())),
 
