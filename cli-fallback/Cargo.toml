@@ -1,0 +1,20 @@
+[lib]
+proc-macro = true
+
+[package]
+name = "cli-fallback"
+authors = ["Thomas Zahner <thomas.zahner@protonmail.ch>", "Matthias Endler <matthias@endler.dev>"]
+edition = "2024"
+description = "Common test utilities for the lychee project, intended for internal use only"
+homepage = "https://github.com/lycheeverse/lychee"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/lycheeverse/lychee"
+version.workspace = true
+readme = "../README.md"
+rust-version = "1.85.0"
+publish = false
+
+[dependencies]
+syn = { version = "2.0", features = ["full"] }  # Parses Rust code into AST
+quote = "1.0"                                    # Generates Rust code from AST
+# proc-macro2 = "1.0"                              # Helper for token streams

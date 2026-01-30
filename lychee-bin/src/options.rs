@@ -5,7 +5,8 @@ use crate::verbosity::Verbosity;
 use anyhow::{Context, Error, Result, anyhow};
 use clap::builder::PossibleValuesParser;
 use clap::{Parser, builder::TypedValueParser};
-use const_format::formatcp;
+use cli_fallback::Fallback;
+use const_format::{concatcp, formatcp};
 use http::{
     HeaderMap,
     header::{HeaderName, HeaderValue},
@@ -28,6 +29,7 @@ use strum::{Display, EnumIter, EnumString, VariantNames};
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
 pub(crate) const LYCHEE_CONFIG_FILE: &str = "lychee.toml";
+const TIMEOUT_STR: &str = concatcp!(DEFAULT_TIMEOUT_SECS);
 
 const HELP_MSG_CACHE: &str = formatcp!(
     "Use request cache stored on disk at `{}`",
@@ -328,7 +330,7 @@ where
 
 /// The main configuration for lychee
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Parser, Debug, Deserialize, Clone, Default)]
+#[derive(Parser, Debug, Deserialize, Clone, Default, Fallback)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Config {
     /// Read input filenames from the given file or stdin (if path is '-').
@@ -695,8 +697,9 @@ Defaults to '100..=103,200..=299' if the user provides no value."
 
     /// Website timeout in seconds from connect to response finished
     ///
-    /// [default: 20]
-    #[arg(short, long)]
+    /// fallback: 20
+    #[arg(short, long, default_value = &TIMEOUT_STR)]
+    // #[fallback(20)]
     timeout: Option<u64>,
 
     /// Minimum wait time in seconds between retries of failed requests
@@ -894,11 +897,6 @@ impl Config {
         toml::from_str(&contents).with_context(|| "Failed to parse configuration file")
     }
 
-    pub(crate) fn timeout(&self) -> Duration {
-        let seconds = self.timeout.unwrap_or(DEFAULT_TIMEOUT_SECS);
-        Duration::from_secs(seconds)
-    }
-
     pub(crate) fn retry_wait_time(&self) -> Duration {
         let seconds = self.retry_wait_time.unwrap_or(DEFAULT_RETRY_WAIT_TIME_SECS);
         Duration::from_secs(seconds)
@@ -1074,6 +1072,19 @@ mod tests {
     use lychee_lib::ratelimit::{HostConfig, HostKey};
 
     use super::*;
+
+    /// Test that the runtime default values are properly documented.
+    /// The reason for not using clap's default value mechanisms (e.g. default_value)
+    /// is that they would mess up configuration merging and handling.
+    /// That is clap's default values would overwrite user-provided values
+    /// through the config file.
+    #[test]
+    fn test_runtime_default_documentation() {
+        let config = Config::default();
+        config.retry_wait_time();
+        // config.acc
+        // config.accept();
+    }
 
     #[test]
     fn test_parse_custom_headers() {
