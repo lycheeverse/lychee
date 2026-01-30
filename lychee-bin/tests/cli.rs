@@ -120,16 +120,25 @@ mod cli {
     /// Test that the default report output format (compact) and mode (color)
     /// prints the failed URLs as well as their status codes on error. Make
     /// sure that the status code only occurs once.
-    #[test]
-    fn test_compact_output_format_contains_status() -> Result<()> {
-        let test_path = fixtures_path!().join("TEST_INVALID_URLS.html");
+    #[tokio::test]
+    async fn test_compact_output_format_contains_status() -> Result<()> {
+        let not_found = mock_server!(StatusCode::NOT_FOUND);
+        let internal_server_error = mock_server!(StatusCode::INTERNAL_SERVER_ERROR);
+        let bad_gateway = mock_server!(StatusCode::BAD_GATEWAY);
+        let contents = format!(
+            "{} {} {}",
+            &not_found.uri(),
+            &internal_server_error.uri(),
+            &bad_gateway.uri(),
+        );
 
         let mut cmd = cargo_bin_cmd!();
-        cmd.arg("--format")
+        cmd.write_stdin(contents)
+            .arg("-")
+            .arg("--format")
             .arg("compact")
             .arg("--mode")
             .arg("color")
-            .arg(test_path)
             .env("FORCE_COLOR", "1")
             .assert()
             .failure()
@@ -140,19 +149,7 @@ mod cli {
         // Check that the output contains the status code (once) and the URL
         let output_str = String::from_utf8_lossy(&output.stdout);
 
-        // The expected output is as follows:
-        // "Find details below."
-        // [EMPTY LINE]
-        // [path/to/file]:
-        //      [400] https://httpbin.org/status/404
-        //      [500] https://httpbin.org/status/500
-        //      [502] https://httpbin.org/status/502
-        // (the order of the URLs may vary)
-
-        // Check that the output contains the file path
-        assert!(output_str.contains("TEST_INVALID_URLS.html"));
-
-        let re = Regex::new(r"\s{5}\[\d{3}\] https://httpbin\.org/status/\d{3}").unwrap();
+        let re = Regex::new(r"\s{5}\[\d{3}\] http://.* | Rejected status code").unwrap();
         let matches: Vec<&str> = re.find_iter(&output_str).map(|m| m.as_str()).collect();
 
         // Check that the status code occurs only once
