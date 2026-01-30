@@ -410,8 +410,6 @@ mod tests {
             base.parse_url_text_with_root_dir("..", Some(&root_dir)),
             Ok(Url::parse("https://a.com/c/").unwrap())
         );
-
-        // not many tests here because it's covered by join_rooted tests
     }
 
     #[test]
@@ -484,7 +482,7 @@ mod tests {
     #[case("file:///root/", "", "///new-root", "file:///new-root")]
     #[case("file:///root/", "", "//a.com/boop", "file://a.com/boop")]
     #[case("https://root/", "", "//a.com/boop", "https://a.com/boop")]
-    fn test_join_rooted(
+    fn test_parse_url_text(
         #[case] origin: &str,
         #[case] path: &str,
         #[case] text: &str,
@@ -517,7 +515,7 @@ mod tests {
     #[case("file:///a/b/c", "d/", "/", "file:///a/b/")]
     #[case("file:///a/b/c", "d/", ".", "file:///a/b/d/")]
     #[case("file:///a/b/c", "d/", "./", "file:///a/b/d/")]
-    fn test_join_rooted_with_trailing_filename(
+    fn test_parse_url_text_with_trailing_filename(
         #[case] origin: &str,
         #[case] path: &str,
         #[case] text: &str,
