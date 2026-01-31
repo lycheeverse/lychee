@@ -35,7 +35,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
 
     ClientBuilder::builder()
         .remaps(remaps)
-        .base(cfg.base_url.clone())
+        .base(cfg.base_url.clone().unwrap_or_default())
         .includes(includes)
         .excludes(excludes)
         .exclude_all_private(cfg.exclude_all_private)
