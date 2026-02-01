@@ -2607,19 +2607,27 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[test]
-    fn test_sorted_error_output() {
-        let test_files = ["TEST_GITHUB_404.md", "TEST_INVALID_URLS.html"];
+    fn test_sorted_error_output() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let a_md = temp_dir.path().join("a.md");
+        let b_md = temp_dir.path().join("b.md");
+
+        fs::write(&a_md, "https://example.com/a\nhttps://example.com/b")?;
+        fs::write(&b_md, "https://example.com/1\nhttps://example.com/2")?;
+
+        let test_files = ["a.md", "b.md"];
         let test_urls = [
-            "https://httpbin.org/status/404",
-            "https://httpbin.org/status/500",
-            "https://httpbin.org/status/502",
+            "https://example.com/a",
+            "https://example.com/b",
+            "https://example.com/1",
+            "https://example.com/2",
         ];
 
         let cmd = &mut cargo_bin_cmd!()
             .arg("--format")
             .arg("compact")
-            .arg(fixtures_path!().join(test_files[1]))
-            .arg(fixtures_path!().join(test_files[0]))
+            .arg(b_md.as_os_str())
+            .arg(a_md.as_os_str())
             .assert()
             .failure()
             .code(2);
@@ -2629,8 +2637,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the input sources are sorted
         for file in test_files {
-            assert!(output.contains(file));
-
+            assert!(output.contains(file), "{file} not found");
             let next_position = output.find(file).unwrap();
 
             assert!(next_position > position);
@@ -2641,13 +2648,14 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the responses are sorted
         for url in test_urls {
-            assert!(output.contains(url));
-
+            assert!(output.contains(url), "{url} not found");
             let next_position = output.find(url).unwrap();
 
             assert!(next_position > position);
             position = next_position;
         }
+
+        Ok(())
     }
 
     #[test]
