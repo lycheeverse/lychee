@@ -1452,54 +1452,34 @@ The config file should contain every possible key for documentation purposes."
         Ok(())
     }
 
-    /// Unknown status codes should be skipped and not cached by default
-    /// The reason is that we don't know if they are valid or not
-    /// and even if they are invalid, we don't know if they will be valid in the
-    /// future.
-    ///
-    /// Since we cannot test this with our mock server (because hyper panics on
-    /// invalid status codes) we use LinkedIn as a test target.
-    ///
-    /// Unfortunately, LinkedIn does not always return 999, so this is a flaky
-    /// test. We only check that the cache file doesn't contain any invalid
-    /// status codes.
+    /// Unknown status codes are cached as well.
     #[tokio::test]
-    async fn test_skip_cache_unknown_status_code() -> Result<()> {
-        let base_path = fixtures_path!().join("cache");
+    async fn test_cache_unknown_status_code() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
-        // Unconditionally remove cache file if it exists
-        let _ = fs::remove_file(&cache_file);
+        let mock_server = wiremock::MockServer::start().await;
 
-        // https://linkedin.com returns 999 for unknown status codes
-        // use this as a test target
-        let unknown_url = "https://www.linkedin.com/company/corrode";
+        Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(ResponseTemplate::new(999))
+            .mount(&mock_server)
+            .await;
 
         // run first without cache to generate the cache file
         cargo_bin_cmd!()
-            .current_dir(&base_path)
-            .write_stdin(unknown_url.to_string())
+            .current_dir(base_path)
+            .write_stdin(mock_server.uri())
             .arg("--cache")
-            .arg("--verbose")
-            .arg("--no-progress")
-            .arg("--")
             .arg("-")
             .assert()
-            .success();
+            .failure();
 
         // If the status code was 999, the cache file should be empty
         // because we do not want to cache unknown status codes
         let buf = fs::read(&cache_file).unwrap();
-        if !buf.is_empty() {
-            let data = String::from_utf8(buf)?;
-            // The cache file should not contain any invalid status codes
-            // In that case, we expect a single entry with status code 200
-            assert!(!data.contains(",999,"));
-            assert!(data.contains(",200,"));
-        }
-
-        // clear the cache file
-        fs::remove_file(&cache_file)?;
+        let data = String::from_utf8(buf)?;
+        assert!(data.contains(",999,"));
 
         Ok(())
     }
