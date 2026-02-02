@@ -1161,7 +1161,8 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_lycheecache_file() -> Result<()> {
-        let base_path = fixtures_path!().join("cache");
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Ensure clean state
@@ -1187,7 +1188,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Create and run command
         let mut cmd = cargo_bin_cmd!();
-        cmd.current_dir(&base_path)
+        cmd.current_dir(base_path)
             .arg(&file_path)
             .arg("-vv")
             .arg("--no-progress")
@@ -1241,7 +1242,8 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_lycheecache_exclude_custom_status_codes() -> Result<()> {
-        let base_path = fixtures_path!().join("cache");
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Unconditionally remove cache file if it exists
@@ -1260,7 +1262,7 @@ The config file should contain every possible key for documentation purposes."
 
         let mut cmd = cargo_bin_cmd!();
         let test_cmd = cmd
-            .current_dir(&base_path)
+            .current_dir(base_path)
             .arg(dir.path().join("c.md"))
             .arg("-vv")
             .arg("--max-retries")
@@ -1325,7 +1327,7 @@ The config file should contain every possible key for documentation purposes."
 
         let mut cmd = cargo_bin_cmd!();
         let test_cmd = cmd
-            .current_dir(&base_path)
+            .current_dir(base_path)
             .arg(dir.path().join("c.md"))
             .arg("-vv")
             .arg("--cache");
@@ -1401,7 +1403,8 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_skip_cache_unsupported() -> Result<()> {
-        let base_path = fixtures_path!().join("cache");
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Unconditionally remove cache file if it exists
@@ -1412,7 +1415,7 @@ The config file should contain every possible key for documentation purposes."
 
         // run first without cache to generate the cache file
         cargo_bin_cmd!()
-            .current_dir(&base_path)
+            .current_dir(base_path)
             .write_stdin(format!("{unsupported_url}\n{excluded_url}"))
             .arg("--cache")
             .arg("--verbose")
