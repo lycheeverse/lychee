@@ -1494,8 +1494,8 @@ The config file should contain every possible key for documentation purposes."
             let data = String::from_utf8(buf)?;
             // The cache file should not contain any invalid status codes
             // In that case, we expect a single entry with status code 200
-            assert!(!data.contains("999"));
-            assert!(data.contains("200"));
+            assert!(!data.contains(",999,"));
+            assert!(data.contains(",200,"));
         }
 
         // clear the cache file
