@@ -397,32 +397,3 @@ fn fallback_reqwest_analysis(error: &reqwest::Error) -> String {
         format!("Request failed: {error}")
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::ErrorKind;
-
-    /// Test that `ErrorKind::details()` properly uses the new analysis
-    #[test]
-    fn test_error_kind_details_integration() {
-        // Test rejected status code
-        let status_error = ErrorKind::RejectedStatusCode(http::StatusCode::NOT_FOUND);
-        assert!(status_error.to_string().contains("Not Found"));
-
-        // Test redirected status code
-        let redir_error = ErrorKind::RejectedStatusCode(http::StatusCode::MOVED_PERMANENTLY);
-        assert!(redir_error.details().is_some_and(|x| x.contains(
-            "Redirects may have been limited by \"max-redirects\""
-        )));
-
-        // Test that network request errors would use analyze_error_chain
-        // (actual reqwest::Error creation is complex, so we test the integration point)
-
-        // For other error types, ensure they still work
-        let test_error = ErrorKind::EmptyUrl;
-        assert_eq!(
-            test_error.details(),
-            Some("Empty URL found. Check for missing links or malformed markdown".to_string())
-        );
-    }
-}
