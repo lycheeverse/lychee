@@ -39,7 +39,7 @@ openssl-sys = { version = "0.9.111", optional = true }
 path-clean = "1.0.1"
 percent-encoding = "2.3.1"
 pulldown-cmark = "0.13.0"
-regex = "1.12.2"
+regex = "1.12.3"
 # Disable default features to avoid rustls being enabled by default
 reqwest = { version = "0.13.1", default-features = false, features = [
     "gzip",
