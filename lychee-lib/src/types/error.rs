@@ -151,7 +151,11 @@ pub enum ErrorKind {
     InvalidStatusCode(u16),
 
     /// The given status code was not accepted (this depends on the `accept` configuration)
-    #[error(r#"Rejected status code (this depends on your "accept" configuration)"#)]
+    #[error(
+        r#"Rejected status code: {code} {reason} (configurable with "accept" option)"#,
+        code = .0.as_str(),
+        reason = .0.canonical_reason().unwrap_or("Unknown status code")
+    )]
     RejectedStatusCode(StatusCode),
 
     /// Regex error
@@ -202,12 +206,9 @@ impl ErrorKind {
                 // Get detailed, actionable error analysis
                 Some(utils::reqwest::analyze_error_chain(e))
             }
-            ErrorKind::RejectedStatusCode(status) => Some(
-                status
-                    .canonical_reason()
-                    .unwrap_or("Unknown status code")
-                    .to_string(),
-            ),
+            ErrorKind::RejectedStatusCode(status) => status
+                .is_redirection()
+                .then_some(r#"Redirects may have been limited by "max-redirects"."#.to_string()),
             ErrorKind::GithubRequest(e) => {
                 if let octocrab::Error::GitHub { source, .. } = &**e {
                     Some(source.message.clone())
@@ -510,5 +511,22 @@ impl From<Infallible> for ErrorKind {
     fn from(_: Infallible) -> Self {
         // tautological
         unreachable!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ErrorKind;
+    #[test]
+    fn test_error_kind_details() {
+        // Test rejected status code
+        let status_error = ErrorKind::RejectedStatusCode(http::StatusCode::NOT_FOUND);
+        assert!(status_error.to_string().contains("Not Found"));
+
+        // Test redirected status code
+        let redir_error = ErrorKind::RejectedStatusCode(http::StatusCode::MOVED_PERMANENTLY);
+        assert!(redir_error.details().is_some_and(|x| x.contains(
+            "Redirects may have been limited by \"max-redirects\""
+        )));
     }
 }
