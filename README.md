@@ -38,7 +38,6 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 ## Development
 
 After [installing Rust](https://www.rust-lang.org/tools/install) use [Cargo](https://doc.rust-lang.org/cargo/) for building and testing.
-On Linux the OpenSSL package [is required](https://github.com/seanmonstar/reqwest?tab=readme-ov-file#requirements) to compile `reqwest`, a dependency of lychee.
 For Nix we provide a flake so you can use `nix develop` and `nix build`.
 
 ## Installation
@@ -163,13 +162,12 @@ cargo install lychee
 
 #### Feature flags
 
-Lychee supports several feature flags:
+Lychee supports the following feature flags:
 
-- `vendored-openssl` compiles and statically links a copy of OpenSSL. See the corresponding feature of the [openssl](https://crates.io/crates/openssl) crate.
-- `email-check` enables checking email addresses using the [check-if-email-exists](https://crates.io/crates/check-if-email-exists) crate. This feature requires the `native-tls` feature.
+- `email-check` enables checking email addresses using the [mailify-lib](https://crates.io/crates/mailify-lib) crate.
 - `check_example_domains` allows checking example domains such as `example.com`. This feature is useful for testing.
 
-By default, `native-tls` and `email-check` are enabled.
+By default, `email-check` is enabled.
 
 ## Features
 
