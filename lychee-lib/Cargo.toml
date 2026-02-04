@@ -40,15 +40,7 @@ percent-encoding = "2.3.1"
 pulldown-cmark = "0.13.0"
 regex = "1.12.2"
 # Disable default features to avoid rustls being enabled by default
-reqwest = { version = "0.13.1", default-features = false, features = [
-    "gzip",
-    "hickory-dns",
-    "cookies",
-    "json",
-    "charset",
-    "http2",
-    "system-proxy",
-] }
+reqwest = { version = "0.13.1", features = ["json", "gzip"] }
 reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
