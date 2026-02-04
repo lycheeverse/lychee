@@ -1,3 +1,5 @@
+<div align="center">
+
 <a name="back-to-top"></a>
 ![lychee](assets/logo.svg)
 
@@ -8,11 +10,12 @@
 [![Check Links](https://github.com/lycheeverse/lychee/actions/workflows/links.yml/badge.svg)](https://github.com/lycheeverse/lychee/actions/workflows/links.yml)
 [![Docker Pulls](https://img.shields.io/docker/pulls/lycheeverse/lychee?color=%23099cec&logo=Docker)](https://hub.docker.com/r/lycheeverse/lychee)
 
-⚡ A fast, async, stream-based link checker written in Rust.\
+⚡ A fast, async, stream-based link checker written in Rust ⚡\
 Finds broken hyperlinks and mail addresses inside Markdown, HTML,
-reStructuredText, or any other text file or website!
-
+reStructuredText, or any other text file or website!\
 Available as a command-line utility, a library and a [GitHub Action](https://github.com/lycheeverse/lychee-action).
+
+</div>
 
 ![Lychee demo](./assets/screencast.svg)
 
@@ -323,8 +326,12 @@ Please follow the [GitHub App Setup][github-app-setup] example.
 
 ### Commandline Parameters
 
-There is an extensive list of command line parameters to customize the behavior.
-See below for a full list.
+Use `lychee --help` or `man lychee` to see all available command line parameters.
+
+<details>
+<summary>
+View full help message
+</summary>
 
 ```help-message
 lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses in local files and websites. It supports Markdown and HTML and works well with many plain text file formats.
@@ -730,6 +737,8 @@ Options:
 
           [default: get]
 ```
+
+</details>
 
 ### Exit codes
 
