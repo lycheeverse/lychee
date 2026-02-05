@@ -946,24 +946,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_redirects() {
-        redirecting_mock_server!(async |redirect_url: Url, ok_url| {
-            let res = ClientBuilder::builder()
-                .max_redirects(1_usize)
-                .build()
-                .client()
-                .unwrap()
-                .check(Uri::from((redirect_url).clone()))
-                .await
-                .unwrap();
+        let (_mock_server, redirect_url, ok_url) = redirecting_mock_server!().await;
 
-            let mut redirects = Redirects::new(redirect_url);
-            redirects.push(Redirect {
-                url: ok_url,
-                code: StatusCode::PERMANENT_REDIRECT,
-            });
-            assert_eq!(res.status(), &Status::Redirected(StatusCode::OK, redirects));
-        })
-        .await;
+        let res = ClientBuilder::builder()
+            .max_redirects(1_usize)
+            .build()
+            .client()
+            .unwrap()
+            .check(Uri::from((redirect_url).clone()))
+            .await
+            .unwrap();
+
+        let mut redirects = Redirects::new(redirect_url);
+        redirects.push(Redirect {
+            url: ok_url,
+            code: StatusCode::PERMANENT_REDIRECT,
+        });
+        assert_eq!(res.status(), &Status::Redirected(StatusCode::OK, redirects));
     }
 
     #[tokio::test]

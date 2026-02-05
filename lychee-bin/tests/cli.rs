@@ -2384,19 +2384,21 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_redirect_json() {
+        let (_mock_server1, redirect_url1, _ok_url1) = redirecting_mock_server!().await;
+        let (_mock_server2, redirect_url2, ok_url2) = redirecting_mock_server!().await;
+
         // Non-verbose mode
-        redirecting_mock_server!(async |redirect_url: Url, _| {
-            let (json, stderr) = run(&redirect_url, false);
+        {
+            let (json, stderr) = run(&redirect_url1, false);
             assert!(stderr.contains("[WARN] lychee detected 1 redirect. You might want to consider replacing redirecting URLs"));
             assert_eq!(json["total"], 1);
             assert_eq!(json["redirects"], 1);
             assert_eq!(json["redirect_map"], json!({}));
-        })
-        .await;
+        }
 
         // Verbose mode
-        redirecting_mock_server!(async |redirect_url: Url, ok_url| {
-            let (json, stderr) = run(&redirect_url, true);
+        {
+            let (json, stderr) = run(&redirect_url2, true);
             assert!(stderr.contains("WARN").not());
             assert_eq!(json["total"], 1);
             assert_eq!(json["redirects"], 1);
@@ -2408,18 +2410,17 @@ The config file should contain every possible key for documentation purposes."
                         "code": 200,
                         "text": "Redirect",
                         "redirects": {
-                            "origin": redirect_url,
+                            "origin": redirect_url2,
                             "redirects": [{
                                 "code": 308,
-                                "url": ok_url,
+                                "url": ok_url2,
                             }]
                         },
                     },
-                    "url": redirect_url
+                    "url": redirect_url2
                 }]})
             );
-        })
-        .await;
+        }
 
         fn run(url: &Url, verbose: bool) -> (Value, String) {
             let mut binding = cargo_bin_cmd!();

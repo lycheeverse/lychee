@@ -17,9 +17,15 @@ macro_rules! mock_server {
 
 /// Set up a mock server which has two routes: `/ok` and `/redirect`.
 /// Calling `/redirect` returns a HTTP Location header redirecting to `/ok`
+///
+/// Returns a tuple of (mock_server, redirect_url, ok_url) so that the caller
+/// can control the server's lifetime. This is important on Windows where
+/// port reuse can cause issues if mock servers are dropped before new ones
+/// are created.
+/// See https://github.com/LukeMathWalker/wiremock-rs/issues/156
 #[macro_export]
 macro_rules! redirecting_mock_server {
-    ($f:expr) => {{
+    () => {{
         use std::str::FromStr;
         use url::Url;
 
@@ -46,7 +52,7 @@ macro_rules! redirecting_mock_server {
                 .mount(&mock_server)
                 .await;
 
-            $f(redirect_url, ok_url).await;
+            (mock_server, redirect_url, ok_url)
         }
     }};
 }
