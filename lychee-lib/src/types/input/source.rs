@@ -97,16 +97,7 @@ impl InputSource {
             // The file exists, so we return the path
             Ok(InputSource::FsPath(path))
         } else {
-            // Check if it looks like a domain or simple word without scheme
-            if (input.contains('.') && !input.contains('/') && !input.contains('\\'))
-                || input.chars().all(|c| c.is_ascii_alphabetic())
-            {
-                // Looks like a domain name or simple word without scheme
-                Err(ErrorKind::InvalidInput(input.to_string()))
-            } else {
-                // Treat as file path that doesn't exist, defer validation to --skip-missing
-                Ok(InputSource::FsPath(path))
-            }
+            Err(ErrorKind::InvalidFile(path))
         }
     }
 
