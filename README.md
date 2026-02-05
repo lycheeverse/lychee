@@ -1,18 +1,23 @@
+<div align="center">
+
 <a name="back-to-top"></a>
 ![lychee](assets/logo.svg)
 
-[![Homepage](https://img.shields.io/badge/Homepage-Online-EA3A97)](https://lycheeverse.github.io)
+[![Homepage](https://img.shields.io/badge/Homepage-Online-EA3A97)](https://lychee.cli.rs/)
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-lychee-blue.svg?colorA=24292e&colorB=0366d6&style=flat&longCache=true&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAM6wAADOsB5dZE0gAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAERSURBVCiRhZG/SsMxFEZPfsVJ61jbxaF0cRQRcRJ9hlYn30IHN/+9iquDCOIsblIrOjqKgy5aKoJQj4O3EEtbPwhJbr6Te28CmdSKeqzeqr0YbfVIrTBKakvtOl5dtTkK+v4HfA9PEyBFCY9AGVgCBLaBp1jPAyfAJ/AAdIEG0dNAiyP7+K1qIfMdonZic6+WJoBJvQlvuwDqcXadUuqPA1NKAlexbRTAIMvMOCjTbMwl1LtI/6KWJ5Q6rT6Ht1MA58AX8Apcqqt5r2qhrgAXQC3CZ6i1+KMd9TRu3MvA3aH/fFPnBodb6oe6HM8+lYHrGdRXW8M9bMZtPXUji69lmf5Cmamq7quNLFZXD9Rq7v0Bpc1o/tp0fisAAAAASUVORK5CYII=)](https://github.com/marketplace/actions/lychee-broken-link-checker)
-[![Rust](https://github.com/hello-rust/lychee/workflows/CI/badge.svg)](https://github.com/lycheeverse/lychee/actions/workflows/ci.yml)
-[![docs.rs](https://docs.rs/lychee-lib/badge.svg)](https://docs.rs/lychee-lib)
+[![Rust](https://github.com/lycheeverse/lychee/workflows/CI/badge.svg)](https://github.com/lycheeverse/lychee/actions/workflows/ci.yml)
+[![docs.rs](https://img.shields.io/docsrs/lychee-lib/latest)](https://docs.rs/lychee-lib/latest/lychee_lib/)
 [![Check Links](https://github.com/lycheeverse/lychee/actions/workflows/links.yml/badge.svg)](https://github.com/lycheeverse/lychee/actions/workflows/links.yml)
 [![Docker Pulls](https://img.shields.io/docker/pulls/lycheeverse/lychee?color=%23099cec&logo=Docker)](https://hub.docker.com/r/lycheeverse/lychee)
 
-⚡ A fast, async, stream-based link checker written in Rust.\
+⚡ A fast, async, stream-based link checker written in Rust ⚡\
 Finds broken hyperlinks and mail addresses inside Markdown, HTML,
-reStructuredText, or any other text file or website!
+reStructuredText, or any other text file or website!\
+Available as command-line utility,
+[library](https://docs.rs/lychee-lib/latest/lychee_lib/) and
+[GitHub Action](https://github.com/lycheeverse/lychee-action).
 
-Available as a command-line utility, a library and a [GitHub Action](https://github.com/lycheeverse/lychee-action).
+</div>
 
 ![Lychee demo](./assets/screencast.svg)
 
@@ -37,10 +42,13 @@ Available as a command-line utility, a library and a [GitHub Action](https://git
 
 ## Development
 
-After [installing Rust](https://www.rust-lang.org/tools/install) use [Cargo](https://doc.rust-lang.org/cargo/) for building and testing.
+After [installing Rust](https://rust-lang.org/tools/install/) use [Cargo](https://doc.rust-lang.org/cargo/) for building and testing.
+On Linux the OpenSSL package [is required](https://github.com/seanmonstar/reqwest?tab=readme-ov-file#requirements) to compile `reqwest`, a dependency of lychee.
 For Nix we provide a flake so you can use `nix develop` and `nix build`.
 
 ## Installation
+
+<details><summary><b>View installation instructions</b></summary>
 
 ### Arch Linux
 
@@ -58,6 +66,13 @@ zypper in lychee
 
 ```sh
 snap install lychee
+```
+
+### Alpine Linux
+
+```sh
+ # available for Alpine Edge in testing repositories
+apk add lychee
 ```
 
 ### macOS
@@ -80,29 +95,18 @@ sudo port install lychee
 docker pull lycheeverse/lychee
 ```
 
-### NixOS
+### Nix
 
 ```sh
-nix-env -iA nixos.lychee
+nix-shell -p lychee
 ```
 
-### Nixpkgs
-
-- [`lychee` package](https://search.nixos.org/packages?show=lychee&query=lychee) for configurations, Nix shells, etc.
-
-- Let Nix check a packaged site with \
-  [`testers.lycheeLinkCheck`](https://nixos.org/manual/nixpkgs/stable/#tester-lycheeLinkCheck) `{ site = …; }`
+Or let Nix even check a packaged site with [`testers.lycheeLinkCheck`](https://nixos.org/manual/nixpkgs/stable/#tester-lycheeLinkCheck) `{ site = …; }`
 
 ### FreeBSD
 
 ```sh
 pkg install lychee
-```
-
-### Scoop (Windows)
-
-```sh
-scoop install lychee
 ```
 
 ### Termux
@@ -111,30 +115,33 @@ scoop install lychee
 pkg install lychee
 ```
 
-### Alpine Linux
-
-```sh
- # available for Alpine Edge in testing repositories
-apk add lychee
-```
-
-### WinGet (Windows)
-
-```sh
-winget install --id lycheeverse.lychee
-```
-
-### Chocolatey (Windows)
-
-```sh
-choco install lychee
-```
-
 ### Conda
 
 ```sh
 conda install lychee -c conda-forge
 ```
+
+### Windows
+
+Via [scoop](https://scoop.sh/):
+
+```sh
+scoop install lychee
+```
+
+Via [WinGet](https://github.com/microsoft/winget-cli):
+
+```sh
+winget install --id lycheeverse.lychee
+```
+
+Via [Chocolatey](https://chocolatey.org/):
+
+```sh
+choco install lychee
+```
+
+</details>
 
 ### Pre-built binaries
 
@@ -239,46 +246,21 @@ outdated information.
 
 ## Commandline usage
 
-Recursively check all links in supported files inside the current directory
-
 ```sh
+# recursively check all links in supported files inside the current directory
 lychee .
-```
 
-You can also specify various types of inputs:
-
-```sh
 # check links in specific local file(s):
-lychee README.md
-lychee test.html info.txt
+lychee README.md test.html info.txt
 
 # check links on a website:
 lychee https://endler.dev
-
-# check links in directory but block network requests
-lychee --offline path/to/directory
-
-# check links in a remote file:
-lychee https://raw.githubusercontent.com/lycheeverse/lychee/master/README.md
-
-# check links in local files via shell glob:
-lychee ~/projects/*/README.md
-
-# check links in local files (lychee supports advanced globbing and ~ expansion):
-lychee "~/projects/big_project/**/README.*"
-
-# ignore case when globbing and check result for each link:
-lychee --glob-ignore-case "~/projects/**/[r]eadme.*"
-
-# check links from epub file (requires atool: https://www.nongnu.org/atool)
-acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
 ```
 
-lychee parses other file formats as plaintext and extracts links using [linkify](https://github.com/robinst/linkify).
-This generally works well if there are no format or encoding specifics,
-but in case you need dedicated support for a new file format, please consider creating an issue.
+For more examples check out our
+[usage guide](https://lychee.cli.rs/guides/getting-started/#usage).
 
-### Docker Usage
+<details><summary><b>Docker Usage</b></summary>
 
 Here's how to mount a local directory into the container and check some input
 with lychee.
@@ -304,6 +286,8 @@ docker run --init -it --rm -w /input -v $(pwd):/input lycheeverse/lychee README.
 docker run --init -it --rm -w /input -v ${PWD}:/input lycheeverse/lychee README.md
 ```
 
+</details>
+
 ### GitHub Token
 
 To avoid getting rate-limited while checking GitHub links, you can optionally
@@ -323,8 +307,9 @@ Please follow the [GitHub App Setup][github-app-setup] example.
 
 ### Commandline Parameters
 
-There is an extensive list of command line parameters to customize the behavior.
-See below for a full list.
+Use `lychee --help` or `man lychee` to see all available command line parameters.
+
+<details><summary><b>View full help message</b></summary>
 
 ```help-message
 lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses in local files and websites. It supports Markdown and HTML and works well with many plain text file formats.
@@ -731,6 +716,8 @@ Options:
           [default: get]
 ```
 
+</details>
+
 ### Exit codes
 
 0   Success. The operation was completed successfully as instructed.
@@ -741,45 +728,14 @@ Options:
 
 3   Encountered errors in the config file.
 
-### Ignoring links
+### Ignoring and excluding links
 
 You can exclude links from getting checked by specifying regex patterns
-with `--exclude` (e.g. `--exclude example\.(com|org)`).
-
-Here are some examples:
-
-```bash
-# Exclude LinkedIn URLs (note that we match on the full URL, including the schema to avoid false-positives)
-lychee --exclude '^https://www\.linkedin\.com'
-
-# Exclude LinkedIn and Archive.org URLs
-lychee --exclude '^https://www\.linkedin\.com' --exclude '^https://web\.archive\.org/web/'
-
-# Exclude all links to PDF files
-lychee --exclude '\.pdf$' .
-
-# Exclude links to specific domains
-lychee --exclude '(facebook|twitter|linkedin)\.com' .
-
-# Exclude links with certain URL parameters
-lychee --exclude '\?utm_source=' .
-
-# Exclude all mailto links
-lychee --exclude '^mailto:' .
-```
-
-For excluding files/directories from being scanned use `lychee.toml`
-and `exclude_path`.
-
-```toml
-exclude_path = ["some/path", "*/dev/*"]
-```
-
-If a file named `.lycheeignore` exists in the current working directory, its
-contents are excluded as well. The file allows you to list multiple regular
-expressions for exclusion (one pattern per line).
-
-For more advanced usage and detailed explanations, check out our comprehensive [guide on excluding links](https://lychee.cli.rs/recipes/excluding-links/).
+with `--exclude` (e.g. `--exclude example\.(com|org)`) or by putting
+them into a file called `.lycheeignore`.
+To exclude files and directories from being scanned use `--exclude-path`.
+For more detailed explanations, check out our comprehensive
+[guide on excluding links](https://lychee.cli.rs/recipes/excluding-links/).
 
 ### Caching
 
@@ -787,60 +743,14 @@ If the `--cache` flag is set, lychee will cache responses in a file called
 `.lycheecache` in the current directory. If the file exists and the flag is set,
 then the cache will be loaded on startup. This can greatly speed up future runs.
 Note that by default lychee will not store any data on disk.
+This is explained in more detail in [our documentation](https://lychee.cli.rs/recipes/caching/).
 
 ## Library usage
 
 You can use lychee as a library for your own projects!
-Here is a "hello world" example:
-
-```rust
-use lychee_lib::Result;
-
-#[tokio::main]
-async fn main() -> Result<()> {
-  let response = lychee_lib::check("https://github.com/lycheeverse/lychee").await?;
-  println!("{response}");
-  Ok(())
-}
-```
-
-This is equivalent to the following snippet, in which we build our own client:
-
-```rust
-use lychee_lib::{ClientBuilder, Result, Status};
-
-#[tokio::main]
-async fn main() -> Result<()> {
-  let client = ClientBuilder::default().client()?;
-  let response = client.check("https://github.com/lycheeverse/lychee").await?;
-  assert!(response.status().is_success());
-  Ok(())
-}
-```
-
-The client builder is very customizable:
-
-```rust, ignore
-let client = lychee_lib::ClientBuilder::builder()
-    .includes(includes)
-    .excludes(excludes)
-    .max_redirects(cfg.max_redirects)
-    .user_agent(cfg.user_agent)
-    .allow_insecure(cfg.insecure)
-    .custom_headers(headers)
-    .method(method)
-    .timeout(timeout)
-    .github_token(cfg.github_token)
-    .scheme(cfg.scheme)
-    .accepted(accepted)
-    .build()
-    .client()?;
-```
-
-All options that you set will be used for all link checks.
-See the [builder documentation](https://docs.rs/lychee-lib/latest/lychee_lib/struct.ClientBuilder.html)
-for all options. For more information, check out the [examples](examples)
-directory. The examples can be run with `cargo run --example <example>`.
+Take a look at the [library documentation](https://docs.rs/lychee-lib/latest/lychee_lib/).
+Also check out the [examples](examples) directory for small practical examples.
+These examples can be run with `cargo run --example <example>`.
 
 ## GitHub Action Usage
 
@@ -888,7 +798,7 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 
 ## Users
 
-Here is a list of some notable projects who are using lychee.
+<details><summary><b>Here is a list of some notable projects who are using lychee.</b></summary>
 
 - https://github.com/InnerSourceCommons/InnerSourcePatterns
 - https://github.com/opensearch-project/OpenSearch
@@ -927,13 +837,15 @@ Here is a list of some notable projects who are using lychee.
 - https://github.com/orhun/binsider
 - https://github.com/NVIDIA/aistore
 - https://github.com/gradle/gradle
-- https://github.com/forus-labs/forui
+- https://github.com/duobaseio/forui
 - https://github.com/FreeBSD-Ask/FreeBSD-Ask
 - https://github.com/prosekit/prosekit
 - https://github.com/tldr-pages/tldr
 - https://github.com/lycheeverse/lychee (yes, lychee is checked with lychee 🤯)
 
 If you are using lychee for your project, **please add it here**.
+
+</details>
 
 ## Credits
 
@@ -948,7 +860,7 @@ lychee is licensed under either of
 
 - Apache License, Version 2.0, ([LICENSE-APACHE](https://github.com/lycheeverse/lychee/blob/master/LICENSE-APACHE) or
   https://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](https://github.com/lycheeverse/lychee/blob/master/LICENSE-MIT) or https://opensource.org/licenses/MIT)
+- MIT license ([LICENSE-MIT](https://github.com/lycheeverse/lychee/blob/master/LICENSE-MIT) or https://opensource.org/license/MIT)
 
 at your option.
 
