@@ -168,6 +168,10 @@ Lychee supports the following feature flags:
 - `check_example_domains` allows checking example domains such as `example.com`. This feature is useful for testing.
 
 By default, `email-check` is enabled.
+Note that in the past lychee could be configured to use either OpenSSL or Rustls.
+[It was decided](https://github.com/lycheeverse/lychee/pull/1928)
+to fully switch to Rustls and drop OpenSSL support.
+Please tell us if this this negatively affects you in any way.
 
 ## Features
 
