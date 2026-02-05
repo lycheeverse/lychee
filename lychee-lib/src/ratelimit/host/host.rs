@@ -257,7 +257,7 @@ impl Host {
             && limit > 0
         {
             #[allow(clippy::cast_precision_loss)]
-            let usage_ratio = (limit - remaining) as f64 / limit as f64;
+            let usage_ratio = limit.saturating_sub(remaining) as f64 / limit as f64;
 
             // If we've used more than 80% of our quota, apply preventive backoff
             if usage_ratio > 0.8 {
