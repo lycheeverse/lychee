@@ -357,7 +357,13 @@ mod tests {
 
         let input = Input::from_value(test_file);
         assert!(input.is_err());
-        assert!(matches!(input, Err(ErrorKind::InvalidFile(PathBuf { .. }))));
+        assert!(matches!(input, Err(ErrorKind::InvalidInput(_))));
+        assert_eq!(
+            input.unwrap_err().to_string(),
+            format!(
+                "Input '{test_file}' not found as file and not a valid URL. Use full URL (e.g., https://example.com) or check file path.",
+            )
+        );
     }
 
     #[test]
