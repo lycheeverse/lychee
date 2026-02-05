@@ -14,6 +14,4 @@ url = "2.5.8"
 
 [features]
 email-check = ["lychee-lib/email-check"]
-native-tls = ["lychee-lib/native-tls"]
-rustls-tls = ["lychee-lib/rustls-tls"]
-default = ["native-tls", "email-check"]
+default = []

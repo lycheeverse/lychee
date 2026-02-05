@@ -35,21 +35,11 @@ linkify = "0.10.0"
 log = "0.4.28"
 mailify-lib = { version = "0.2.0", optional = true }
 octocrab = "0.49.5"
-openssl-sys = { version = "0.9.111", optional = true }
 path-clean = "1.0.1"
 percent-encoding = "2.3.1"
 pulldown-cmark = "0.13.0"
 regex = "1.12.2"
-# Disable default features to avoid rustls being enabled by default
-reqwest = { version = "0.13.1", default-features = false, features = [
-    "gzip",
-    "hickory-dns",
-    "cookies",
-    "json",
-    "charset",
-    "http2",
-    "system-proxy",
-] }
+reqwest = { version = "0.13.1", features = ["json", "gzip"] }
 reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
@@ -87,15 +77,6 @@ wiremock = "0.6.5"
 # Enable checking email addresses.
 email-check = ["mailify-lib"]
 
-# Use platform-native TLS.
-native-tls = ["openssl-sys", "reqwest/native-tls"]
-
-# Use Rustls TLS.
-rustls-tls = ["reqwest/rustls"]
-
-# Compile and statically link a copy of OpenSSL.
-vendored-openssl = ["openssl-sys/vendored"]
-
 # Feature flag to include checking reserved example domains
 # as per RFC 2606, section 3.
 # This flag is off by default and only exists to allow example domains in
@@ -103,4 +84,4 @@ vendored-openssl = ["openssl-sys/vendored"]
 # See https://users.rust-lang.org/t/36630
 check_example_domains = []
 
-default = ["native-tls", "email-check"]
+default = ["email-check"]

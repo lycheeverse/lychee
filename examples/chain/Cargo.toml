@@ -15,6 +15,4 @@ tokio = { version = "1.49.0", features = ["full"] }
 
 [features]
 email-check = ["lychee-lib/email-check"]
-native-tls = ["lychee-lib/native-tls"]
-rustls-tls = ["lychee-lib/rustls-tls"]
-default = ["native-tls", "email-check"]
+default = []

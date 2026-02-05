@@ -9,9 +9,9 @@ use std::{collections::HashSet, time::Duration};
 #[allow(clippy::trivial_regex)]
 async fn main() -> Result<()> {
     // Excludes
-    let excludes = Some(RegexSet::new([r"example"]).unwrap());
+    let excludes = Some(RegexSet::new(["rust"]).unwrap());
     // Includes take precedence over excludes
-    let includes = Some(RegexSet::new([r"example.com"]).unwrap());
+    let includes = Some(RegexSet::new([r"rust-lang\.org"]).unwrap());
 
     // Set custom request headers
     let mut headers = HeaderMap::new();
@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
         .build()
         .client()?;
 
-    let response = client.check("https://example.com").await?;
+    let response = client.check("https://rust-lang.org").await?;
     dbg!(&response);
     assert!(response.status().is_success());
     Ok(())
