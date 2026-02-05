@@ -245,46 +245,21 @@ outdated information.
 
 ## Commandline usage
 
-Recursively check all links in supported files inside the current directory
-
 ```sh
+# recursively check all links in supported files inside the current directory
 lychee .
-```
 
-You can also specify various types of inputs:
-
-```sh
 # check links in specific local file(s):
-lychee README.md
-lychee test.html info.txt
+lychee README.md test.html info.txt
 
 # check links on a website:
 lychee https://endler.dev
-
-# check links in directory but block network requests
-lychee --offline path/to/directory
-
-# check links in a remote file:
-lychee https://raw.githubusercontent.com/lycheeverse/lychee/master/README.md
-
-# check links in local files via shell glob:
-lychee ~/projects/*/README.md
-
-# check links in local files (lychee supports advanced globbing and ~ expansion):
-lychee "~/projects/big_project/**/README.*"
-
-# ignore case when globbing and check result for each link:
-lychee --glob-ignore-case "~/projects/**/[r]eadme.*"
-
-# check links from epub file (requires atool: https://www.nongnu.org/atool)
-acat -F zip {file.epub} "*.xhtml" "*.html" | lychee -
 ```
 
-lychee parses other file formats as plaintext and extracts links using [linkify](https://github.com/robinst/linkify).
-This generally works well if there are no format or encoding specifics,
-but in case you need dedicated support for a new file format, please consider creating an issue.
+For more examples check out our
+[usage guide](https://lychee.cli.rs/guides/getting-started/#usage).
 
-### Docker Usage
+<details><summary><b>Docker Usage</b></summary>
 
 Here's how to mount a local directory into the container and check some input
 with lychee.
@@ -309,6 +284,8 @@ docker run --init -it --rm -w /input -v $(pwd):/input lycheeverse/lychee README.
 ```powershell
 docker run --init -it --rm -w /input -v ${PWD}:/input lycheeverse/lychee README.md
 ```
+
+</details>
 
 ### GitHub Token
 
@@ -750,106 +727,28 @@ Options:
 
 3   Encountered errors in the config file.
 
-### Ignoring links
+### Ignoring and excluding links
 
 You can exclude links from getting checked by specifying regex patterns
-with `--exclude` (e.g. `--exclude example\.(com|org)`).
-
-Here are some examples:
-
-```bash
-# Exclude LinkedIn URLs (note that we match on the full URL, including the schema to avoid false-positives)
-lychee --exclude '^https://www\.linkedin\.com'
-
-# Exclude LinkedIn and Archive.org URLs
-lychee --exclude '^https://www\.linkedin\.com' --exclude '^https://web\.archive\.org/web/'
-
-# Exclude all links to PDF files
-lychee --exclude '\.pdf$' .
-
-# Exclude links to specific domains
-lychee --exclude '(facebook|twitter|linkedin)\.com' .
-
-# Exclude links with certain URL parameters
-lychee --exclude '\?utm_source=' .
-
-# Exclude all mailto links
-lychee --exclude '^mailto:' .
-```
-
-For excluding files/directories from being scanned use `lychee.toml`
-and `exclude_path`.
-
-```toml
-exclude_path = ["some/path", "*/dev/*"]
-```
-
-If a file named `.lycheeignore` exists in the current working directory, its
-contents are excluded as well. The file allows you to list multiple regular
-expressions for exclusion (one pattern per line).
-
-For more advanced usage and detailed explanations, check out our comprehensive [guide on excluding links](https://lychee.cli.rs/recipes/excluding-links/).
+with `--exclude` (e.g. `--exclude example\.(com|org)`) or by putting
+them into a file called `.lycheecache`.
+To exclude files and directories from being scanned use `--exclude-path`.
+For more detailed explanations, check out our comprehensive
+[guide on excluding links](https://lychee.cli.rs/recipes/excluding-links/).
 
 ### Caching
 
 If the `--cache` flag is set, lychee will cache responses in a file called
-`.lycheecache` in the current directory. If the file exists and the flag is set,
+in the current directory. If the file exists and the flag is set,
 then the cache will be loaded on startup. This can greatly speed up future runs.
 Note that by default lychee will not store any data on disk.
 
 ## Library usage
 
 You can use lychee as a library for your own projects!
-Here is a "hello world" example:
-
-```rust
-use lychee_lib::Result;
-
-#[tokio::main]
-async fn main() -> Result<()> {
-  let response = lychee_lib::check("https://github.com/lycheeverse/lychee").await?;
-  println!("{response}");
-  Ok(())
-}
-```
-
-This is equivalent to the following snippet, in which we build our own client:
-
-```rust
-use lychee_lib::{ClientBuilder, Result, Status};
-
-#[tokio::main]
-async fn main() -> Result<()> {
-  let client = ClientBuilder::default().client()?;
-  let response = client.check("https://github.com/lycheeverse/lychee").await?;
-  assert!(response.status().is_success());
-  Ok(())
-}
-```
-
-The client builder is very customizable:
-
-```rust, ignore
-let client = lychee_lib::ClientBuilder::builder()
-    .includes(includes)
-    .excludes(excludes)
-    .max_redirects(cfg.max_redirects)
-    .user_agent(cfg.user_agent)
-    .allow_insecure(cfg.insecure)
-    .custom_headers(headers)
-    .method(method)
-    .timeout(timeout)
-    .github_token(cfg.github_token)
-    .scheme(cfg.scheme)
-    .accepted(accepted)
-    .build()
-    .client()?;
-```
-
-All options that you set will be used for all link checks.
-See the [builder documentation](https://docs.rs/lychee-lib/latest/lychee_lib/struct.ClientBuilder.html)
-for all options. For more information, check out the [examples](examples)
-directory. The examples can be run with `cargo run --example <example>`.
+Take a look at the [library documentation](https://docs.rs/lychee-lib/latest/lychee_lib/).
+Also check out the [examples](examples) directory for small practical examples.
+These examples can be run with `cargo run --example <example>`.
 
 ## GitHub Action Usage
 
@@ -897,7 +796,7 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 
 ## Users
 
-Here is a list of some notable projects who are using lychee.
+<details><summary><b>Here is a list of some notable projects who are using lychee.</b></summary>
 
 - https://github.com/InnerSourceCommons/InnerSourcePatterns
 - https://github.com/opensearch-project/OpenSearch
@@ -943,6 +842,8 @@ Here is a list of some notable projects who are using lychee.
 - https://github.com/lycheeverse/lychee (yes, lychee is checked with lychee 🤯)
 
 If you are using lychee for your project, **please add it here**.
+
+</details>
 
 ## Credits
 
