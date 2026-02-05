@@ -13,7 +13,9 @@
 ⚡ A fast, async, stream-based link checker written in Rust ⚡\
 Finds broken hyperlinks and mail addresses inside Markdown, HTML,
 reStructuredText, or any other text file or website!\
-Available as a command-line utility, a library and a [GitHub Action](https://github.com/lycheeverse/lychee-action).
+Available as command-line utility,
+[library](https://docs.rs/lychee-lib/latest/lychee_lib/) and
+[GitHub Action](https://github.com/lycheeverse/lychee-action).
 
 </div>
 
@@ -45,6 +47,8 @@ For Nix we provide a flake so you can use `nix develop` and `nix build`.
 
 ## Installation
 
+<details><summary><b>View installation instructions</b></summary>
+
 ### Arch Linux
 
 ```sh
@@ -61,6 +65,13 @@ zypper in lychee
 
 ```sh
 snap install lychee
+```
+
+### Alpine Linux
+
+```sh
+ # available for Alpine Edge in testing repositories
+apk add lychee
 ```
 
 ### macOS
@@ -83,29 +94,18 @@ sudo port install lychee
 docker pull lycheeverse/lychee
 ```
 
-### NixOS
+### Nix
 
 ```sh
-nix-env -iA nixos.lychee
+nix-shell -p lychee
 ```
 
-### Nixpkgs
-
-- [`lychee` package](https://search.nixos.org/packages?show=lychee&query=lychee) for configurations, Nix shells, etc.
-
-- Let Nix check a packaged site with \
-  [`testers.lycheeLinkCheck`](https://nixos.org/manual/nixpkgs/stable/#tester-lycheeLinkCheck) `{ site = …; }`
+Or let Nix even check a packaged site with [`testers.lycheeLinkCheck`](https://nixos.org/manual/nixpkgs/stable/#tester-lycheeLinkCheck) `{ site = …; }`
 
 ### FreeBSD
 
 ```sh
 pkg install lychee
-```
-
-### Scoop (Windows)
-
-```sh
-scoop install lychee
 ```
 
 ### Termux
@@ -114,30 +114,33 @@ scoop install lychee
 pkg install lychee
 ```
 
-### Alpine Linux
-
-```sh
- # available for Alpine Edge in testing repositories
-apk add lychee
-```
-
-### WinGet (Windows)
-
-```sh
-winget install --id lycheeverse.lychee
-```
-
-### Chocolatey (Windows)
-
-```sh
-choco install lychee
-```
-
 ### Conda
 
 ```sh
 conda install lychee -c conda-forge
 ```
+
+### Windows
+
+Via [scoop](https://scoop.sh/):
+
+```sh
+scoop install lychee
+```
+
+Via [WinGet](https://github.com/microsoft/winget-cli):
+
+```sh
+winget install --id lycheeverse.lychee
+```
+
+Via [Chocolatey](https://chocolatey.org/):
+
+```sh
+choco install lychee
+```
+
+</details>
 
 ### Pre-built binaries
 
@@ -328,10 +331,7 @@ Please follow the [GitHub App Setup][github-app-setup] example.
 
 Use `lychee --help` or `man lychee` to see all available command line parameters.
 
-<details>
-<summary>
-View full help message
-</summary>
+<details><summary><b>View full help message</b></summary>
 
 ```help-message
 lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses in local files and websites. It supports Markdown and HTML and works well with many plain text file formats.
