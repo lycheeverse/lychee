@@ -393,17 +393,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_default() {
+    async fn test_filechecker_defaults() {
         // default behaviour accepts dir links as long as the directory exists.
         let checker = FileChecker::new(None, vec![], None, true, false).unwrap();
 
         assert_filecheck!(&checker, "filechecker/index_dir", Status::Ok(_));
 
         // empty dir is accepted with '.' in index_files, but it contains no fragments.
+        #[cfg(unix)]
         assert_resolves!(
             &checker,
             "filechecker/empty_dir",
             Ok("filechecker/empty_dir")
+        );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/empty_dir",
+            Ok("filechecker\\empty_dir")
         );
         assert_filecheck!(&checker, "filechecker/empty_dir", Status::Ok(_));
         assert_filecheck!(&checker, "filechecker/empty_dir#", Status::Ok(_));
@@ -415,10 +422,17 @@ mod tests {
 
         // even though index.html is present, it is not used because index_files is only
         // '.', so no fragments are found.
+        #[cfg(unix)]
         assert_resolves!(
             &checker,
             "filechecker/index_dir",
             Ok("filechecker/index_dir")
+        );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/index_dir",
+            Ok("filechecker\\index_dir")
         );
         assert_filecheck!(
             &checker,
@@ -434,10 +448,17 @@ mod tests {
         assert_filecheck!(&checker, "filechecker/same_name", Status::Ok(_));
 
         // because no fallback extensions are configured
+        #[cfg(unix)]
         assert_resolves!(
             &checker,
             "filechecker/same_name",
             Ok("filechecker/same_name")
+        );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/same_name",
+            Ok("filechecker\\same_name")
         );
         assert_filecheck!(
             &checker,
