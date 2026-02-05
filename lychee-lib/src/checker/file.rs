@@ -478,16 +478,32 @@ mod tests {
         )
         .unwrap();
 
+        #[cfg(unix)]
         assert_resolves!(
             &checker,
             "filechecker/index_dir",
             Ok("filechecker/index_dir/index.html")
         );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/index_dir",
+            Ok("filechecker\\index_dir\\index.html")
+        );
+
+        #[cfg(unix)]
         assert_resolves!(
             &checker,
             "filechecker/index_md",
             Ok("filechecker/index_md/index.md")
         );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/index_md",
+            Ok("filechecker\\index_md\\index.md")
+        );
+
         // empty is rejected because of no index.html
         assert_resolves!(&checker, "filechecker/empty_dir", Err(InvalidIndexFile(_)));
 
@@ -567,6 +583,7 @@ mod tests {
         ];
         let checker_dir_indexes =
             FileChecker::new(None, vec![], Some(dir_names), false, false).unwrap();
+
         assert_resolves!(
             &checker_dir_indexes,
             "filechecker/index_dir",
@@ -590,10 +607,18 @@ mod tests {
             false,
         )
         .unwrap();
+
+        #[cfg(unix)]
         assert_resolves!(
             &checker_dotdot,
             "filechecker/empty_dir#fragment",
             Ok("filechecker/empty_dir/../index_dir/index.html")
+        );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker_dotdot,
+            "filechecker/empty_dir#fragment",
+            Ok("filechecker\\empty_dir\\..\\index_dir\\index.html")
         );
 
         // absolute paths to a file on disk should also work
@@ -604,10 +629,17 @@ mod tests {
             .to_owned();
         let checker_absolute =
             FileChecker::new(None, vec![], Some(vec![absolute_html]), true, false).unwrap();
+        #[cfg(unix)]
         assert_resolves!(
             &checker_absolute,
             "filechecker/empty_dir#fragment",
             Ok("filechecker/index_dir/index.html")
+        );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker_absolute,
+            "filechecker/empty_dir#fragment",
+            Ok("filechecker\\index_dir\\index.html")
         );
     }
 
