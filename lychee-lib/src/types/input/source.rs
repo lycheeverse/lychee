@@ -97,7 +97,7 @@ impl InputSource {
             // The file exists, so we return the path
             Ok(InputSource::FsPath(path))
         } else {
-            Err(ErrorKind::InvalidFile(path))
+            Err(ErrorKind::InvalidInput(input.to_owned()))
         }
     }
 

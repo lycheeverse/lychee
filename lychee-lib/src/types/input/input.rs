@@ -329,7 +329,7 @@ mod tests {
 
     #[test]
     fn test_input_handles_real_relative_paths() {
-        // Use current directory which should always exist
+        // Use current directory, which should always exist
         let test_file = ".";
         let path = Path::new(test_file);
 
@@ -520,21 +520,19 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
     fn test_windows_absolute_path_parsing() {
         use std::env::temp_dir;
         use tempfile::NamedTempFile;
 
-        // Test with existing file (simulated Windows path)
-        if cfg!(windows) {
-            let dir = temp_dir();
-            let file = NamedTempFile::new_in(dir).unwrap();
-            let path = file.path();
-            let path_str = path.to_str().unwrap();
+        let dir = temp_dir();
+        let file = NamedTempFile::new_in(dir).unwrap();
+        let path = file.path();
+        let path_str = path.to_str().unwrap();
 
-            // Should parse as FsPath if file exists
-            let input = Input::from_value(path_str).unwrap();
-            assert!(matches!(input.source, InputSource::FsPath(_)));
-        }
+        // Should parse as FsPath if file exists
+        let input = Input::from_value(path_str).unwrap();
+        assert!(matches!(input.source, InputSource::FsPath(_)));
     }
 
     #[test]

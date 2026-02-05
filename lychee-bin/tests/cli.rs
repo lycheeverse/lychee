@@ -671,13 +671,21 @@ mod cli {
     }
 
     #[test]
-    fn test_missing_file_ok_if_skip_missing() {
+    fn test_fails_if_input_file_missing_even_with_skip_missing() {
+        // If a command-line input is not-URL, not-glob and doesn't exist, it
+        // will always be reported as an error even if `--skip-missing` is set.
+        // This greatly simplifies the input parsing logic and avoids a lot of
+        // ambiguity.
         let filename = format!("non-existing-file-{random}", random = uuid::Uuid::new_v4());
         cargo_bin_cmd!()
             .arg(&filename)
+            // Note that we set `--skip-missing` here
+            // but we still expect an error because the input does not exist
+            // `--skip-missing` only applies to missing files when the input is
+            // a glob pattern or otherwise discovered during traversal.
             .arg("--skip-missing")
             .assert()
-            .success();
+            .failure();
     }
 
     #[test]
@@ -1809,7 +1817,9 @@ The config file should contain every possible key for documentation purposes."
             .arg("./NOT-A-REAL-TEST-FIXTURE.md")
             .assert()
             .failure()
-            .stderr(contains("Invalid file path: ./NOT-A-REAL-TEST-FIXTURE.md"));
+            .stderr(contains(
+                "Input './NOT-A-REAL-TEST-FIXTURE.md' not found as file and not a valid URL.",
+            ));
     }
 
     #[test]
