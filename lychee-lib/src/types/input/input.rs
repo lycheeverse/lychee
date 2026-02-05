@@ -506,7 +506,7 @@ mod tests {
         // Non-URL inputs
         assert!(matches!(
             Input::from_value("./local/path"),
-            Err(ErrorKind::InvalidFile(_))
+            Err(ErrorKind::InvalidInput(_))
         ));
         assert!(matches!(
             Input::from_value("*.md"),
