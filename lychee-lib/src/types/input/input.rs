@@ -376,7 +376,7 @@ mod tests {
     fn test_excluded() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path();
-        let excludes = PathExcludes::new([path.to_string_lossy()]).unwrap();
+        let excludes = PathExcludes::new([regex::escape(&path.to_string_lossy())]).unwrap();
         assert!(is_excluded_path(&excludes, path));
     }
 
@@ -387,7 +387,7 @@ mod tests {
         let child_dir = tempfile::tempdir_in(parent).unwrap();
         let child = child_dir.path();
 
-        let excludes = PathExcludes::new([parent.to_string_lossy()]).unwrap();
+        let excludes = PathExcludes::new([regex::escape(&parent.to_string_lossy())]).unwrap();
         assert!(is_excluded_path(&excludes, child));
     }
 

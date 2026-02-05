@@ -126,6 +126,8 @@ macro_rules! fixtures_path {
             .parent()
             .unwrap()
             .join("fixtures")
+            .canonicalize()
+            .unwrap()
     };
 }
 

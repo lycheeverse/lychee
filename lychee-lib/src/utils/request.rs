@@ -62,7 +62,13 @@ fn try_parse_into_uri(
             },
             None => match source {
                 ResolvedInputSource::FsPath(root) => {
-                    create_uri_from_file_path(root, &text, root_dir.is_none())?
+                    // Absolute local links (i.e. links starting with '/') are
+                    // only supported if a `root_dir` is provided, otherwise
+                    // they are ignored. This is because without a `root_dir`,
+                    // we cannot determine the absolute path to resolve the link
+                    // to.
+                    let ignore_absolute_local_links = root_dir.is_none();
+                    create_uri_from_file_path(root, &text, ignore_absolute_local_links)?
                 }
                 _ => return Err(ErrorKind::UnsupportedUriType(text)),
             },
@@ -242,9 +248,19 @@ mod tests {
 
     #[test]
     fn test_create_uri_from_path() {
-        let result =
-            resolve_and_create_url(&PathBuf::from("/README.md"), "test+encoding", true).unwrap();
-        assert_eq!(result.as_str(), "file:///test+encoding");
+        #[cfg(not(windows))]
+        let src = PathBuf::from("/README.md");
+        #[cfg(windows)]
+        let src = PathBuf::from("C:\\README.md");
+
+        let result = resolve_and_create_url(&src, "test+encoding", true).unwrap();
+
+        #[cfg(not(windows))]
+        let expected = "file:///test+encoding";
+        #[cfg(windows)]
+        let expected = "file:///C:/test+encoding";
+
+        assert_eq!(result.as_str(), expected);
     }
 
     #[test]
@@ -329,18 +345,27 @@ mod tests {
 
     #[test]
     fn test_relative_url_resolution_from_root_dir() {
+        #[cfg(not(windows))]
         let root_dir = PathBuf::from("/tmp/lychee");
+        #[cfg(windows)]
+        let root_dir = PathBuf::from("C:\\tmp\\lychee");
+
+        #[cfg(not(windows))]
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
+        #[cfg(windows)]
+        let source = ResolvedInputSource::FsPath(PathBuf::from("C:\\some\\page.html"));
 
         let uris = vec![raw_uri("relative.html")];
         let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
-        assert!(
-            requests
-                .iter()
-                .any(|r| r.uri.url.as_str() == "file:///some/relative.html")
-        );
+
+        #[cfg(not(windows))]
+        let expected = "file:///some/relative.html";
+        #[cfg(windows)]
+        let expected = "file:///C:/some/relative.html";
+
+        assert!(requests.iter().any(|r| r.uri.url.as_str() == expected));
     }
 
     #[test]
@@ -361,50 +386,77 @@ mod tests {
 
     #[test]
     fn test_root_relative_url_resolution_from_root_dir() {
+        #[cfg(not(windows))]
         let root_dir = PathBuf::from("/tmp/lychee");
+        #[cfg(windows)]
+        let root_dir = PathBuf::from("C:\\tmp\\lychee");
+
+        #[cfg(not(windows))]
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
+        #[cfg(windows)]
+        let source = ResolvedInputSource::FsPath(PathBuf::from("C:\\some\\page.html"));
 
         let uris = vec![raw_uri("/root-relative")];
         let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
-        assert!(
-            requests
-                .iter()
-                .any(|r| r.uri.url.as_str() == "file:///tmp/lychee/root-relative")
-        );
+
+        #[cfg(not(windows))]
+        let expected = "file:///tmp/lychee/root-relative";
+        #[cfg(windows)]
+        let expected = "file:///C:/tmp/lychee/root-relative";
+
+        assert!(requests.iter().any(|r| r.uri.url.as_str() == expected));
     }
 
     #[test]
     fn test_parent_directory_url_resolution_from_root_dir() {
+        #[cfg(not(windows))]
         let root_dir = PathBuf::from("/tmp/lychee");
+        #[cfg(windows)]
+        let root_dir = PathBuf::from("C:\\tmp\\lychee");
+
+        #[cfg(not(windows))]
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
+        #[cfg(windows)]
+        let source = ResolvedInputSource::FsPath(PathBuf::from("C:\\some\\page.html"));
 
         let uris = vec![raw_uri("../parent")];
         let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
-        assert!(
-            requests
-                .iter()
-                .any(|r| r.uri.url.as_str() == "file:///parent")
-        );
+
+        #[cfg(not(windows))]
+        let expected = "file:///parent";
+        #[cfg(windows)]
+        let expected = "file:///C:/parent";
+
+        assert!(requests.iter().any(|r| r.uri.url.as_str() == expected));
     }
 
     #[test]
     fn test_fragment_url_resolution_from_root_dir() {
+        #[cfg(not(windows))]
         let root_dir = PathBuf::from("/tmp/lychee");
+        #[cfg(windows)]
+        let root_dir = PathBuf::from("C:\\tmp\\lychee");
+
+        #[cfg(not(windows))]
         let source = ResolvedInputSource::FsPath(PathBuf::from("/some/page.html"));
+        #[cfg(windows)]
+        let source = ResolvedInputSource::FsPath(PathBuf::from("C:\\some\\page.html"));
 
         let uris = vec![raw_uri("#fragment")];
         let requests = create_ok_only(uris, &source, Some(&root_dir), None, None);
 
         assert_eq!(requests.len(), 1);
-        assert!(
-            requests
-                .iter()
-                .any(|r| r.uri.url.as_str() == "file:///some/page.html#fragment")
-        );
+
+        #[cfg(not(windows))]
+        let expected = "file:///some/page.html#fragment";
+        #[cfg(windows)]
+        let expected = "file:///C:/some/page.html#fragment";
+
+        assert!(requests.iter().any(|r| r.uri.url.as_str() == expected));
     }
 
     #[test]
@@ -509,7 +561,12 @@ mod tests {
 
     #[test]
     fn test_create_request_from_relative_file_path() {
-        let base = Base::Local(PathBuf::from("/tmp/lychee"));
+        #[cfg(not(windows))]
+        let base_path = PathBuf::from("/tmp/lychee");
+        #[cfg(windows)]
+        let base_path = PathBuf::from("C:\\tmp\\lychee");
+
+        let base = Base::Local(base_path);
         let input_source = ResolvedInputSource::FsPath(PathBuf::from("page.html"));
 
         let actual = create_request(
@@ -521,11 +578,16 @@ mod tests {
         )
         .unwrap();
 
+        #[cfg(not(windows))]
+        let expected = "/tmp/lychee/file.html";
+        #[cfg(windows)]
+        let expected = "C:\\tmp\\lychee\\file.html";
+
         assert_eq!(
             actual,
             Request::new(
                 Uri {
-                    url: Url::from_file_path("/tmp/lychee/file.html").unwrap()
+                    url: Url::from_file_path(expected).unwrap()
                 },
                 input_source,
                 None,
@@ -550,9 +612,14 @@ mod tests {
         );
 
         // error because no root-dir and no base-url
+        #[cfg(not(windows))]
+        let file_path = "/file.html";
+        #[cfg(windows)]
+        let file_path = "C:\\file.html";
+
         assert!(
             create_request(
-                &raw_uri("/file.html"),
+                &raw_uri(file_path),
                 &ResolvedInputSource::FsPath(PathBuf::from("page.html")),
                 None,
                 None,
@@ -564,12 +631,27 @@ mod tests {
 
     #[test]
     fn test_create_request_from_absolute_file_path() {
-        let base = Base::Local(PathBuf::from("/tmp/lychee"));
-        let input_source = ResolvedInputSource::FsPath(PathBuf::from("/tmp/lychee/page.html"));
+        #[cfg(not(windows))]
+        let base_path = PathBuf::from("/tmp/lychee");
+        #[cfg(windows)]
+        let base_path = PathBuf::from("C:\\tmp\\lychee");
+
+        #[cfg(not(windows))]
+        let input_path = PathBuf::from("/tmp/lychee/page.html");
+        #[cfg(windows)]
+        let input_path = PathBuf::from("C:\\tmp\\lychee\\page.html");
+
+        let base = Base::Local(base_path);
+        let input_source = ResolvedInputSource::FsPath(input_path);
+
+        #[cfg(not(windows))]
+        let absolute_file = "/usr/local/share/doc/example.html";
+        #[cfg(windows)]
+        let absolute_file = "C:\\usr\\local\\share\\doc\\example.html";
 
         // Use an absolute path that's outside the base directory
         let actual = create_request(
-            &raw_uri("/usr/local/share/doc/example.html"),
+            &raw_uri(absolute_file),
             &input_source,
             None,
             Some(&base),
@@ -581,7 +663,7 @@ mod tests {
             actual,
             Request::new(
                 Uri {
-                    url: Url::from_file_path("/usr/local/share/doc/example.html").unwrap()
+                    url: Url::from_file_path(absolute_file).unwrap()
                 },
                 input_source,
                 None,
@@ -593,32 +675,62 @@ mod tests {
 
     #[test]
     fn test_parse_relative_path_into_uri() {
-        let base = Base::Local(PathBuf::from("/tmp/lychee"));
+        #[cfg(not(windows))]
+        let base_path = PathBuf::from("/tmp/lychee");
+        #[cfg(windows)]
+        let base_path = PathBuf::from("C:\\tmp\\lychee");
+
+        let base = Base::Local(base_path);
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let raw_uri = raw_uri("relative.html");
         let uri = try_parse_into_uri(&raw_uri, &source, None, Some(&base)).unwrap();
 
-        assert_eq!(uri.url.as_str(), "file:///tmp/lychee/relative.html");
+        #[cfg(not(windows))]
+        let expected = "file:///tmp/lychee/relative.html";
+        #[cfg(windows)]
+        let expected = "file:///C:/tmp/lychee/relative.html";
+
+        assert_eq!(uri.url.as_str(), expected);
     }
 
     #[test]
     fn test_parse_absolute_path_into_uri() {
-        let base = Base::Local(PathBuf::from("/tmp/lychee"));
+        #[cfg(not(windows))]
+        let base_path = PathBuf::from("/tmp/lychee");
+        #[cfg(windows)]
+        let base_path = PathBuf::from("C:\\tmp\\lychee");
+
+        let base = Base::Local(base_path);
         let source = ResolvedInputSource::String(Cow::Borrowed(""));
 
         let raw_uri = raw_uri("absolute.html");
         let uri = try_parse_into_uri(&raw_uri, &source, None, Some(&base)).unwrap();
 
-        assert_eq!(uri.url.as_str(), "file:///tmp/lychee/absolute.html");
+        #[cfg(not(windows))]
+        let expected = "file:///tmp/lychee/absolute.html";
+        #[cfg(windows)]
+        let expected = "file:///C:/tmp/lychee/absolute.html";
+
+        assert_eq!(uri.url.as_str(), expected);
     }
 
     #[test]
     fn test_prepend_with_absolute_local_link_and_root_dir() {
         let text = "/absolute/path";
+        #[cfg(not(windows))]
         let root_dir = PathBuf::from("/root");
+        #[cfg(windows)]
+        let root_dir = PathBuf::from("C:\\root");
+
         let result = prepend_root_dir_if_absolute_local_link(text, Some(&root_dir));
-        assert_eq!(result, "/root/absolute/path");
+
+        #[cfg(not(windows))]
+        let expected = "/root/absolute/path";
+        #[cfg(windows)]
+        let expected = "C:\\root/absolute/path";
+
+        assert_eq!(result, expected);
     }
 
     #[test]

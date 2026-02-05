@@ -144,7 +144,7 @@ fn render_section(title: &str, content: &str, buffer: &mut Vec<u8>) -> Result<()
 mod tests {
     use super::man_page;
     use crate::generate::CONTRIBUTOR_THANK_NOTE;
-    #[cfg(unix)]
+    #[cfg(not(windows))]
     use crate::generate::EXIT_CODE_SECTION;
     use anyhow::Result;
 
@@ -174,7 +174,7 @@ mod tests {
     /// Test that the Exit Codes section in `README.md` is up to date with
     /// lychee's manual page.
     #[test]
-    #[cfg(unix)]
+    #[cfg(not(windows))]
     fn test_readme_exit_codes_up_to_date() -> Result<(), Box<dyn std::error::Error>> {
         use test_utils::load_readme_text;
 
@@ -194,7 +194,7 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(unix)]
+    #[cfg(not(windows))]
     fn filter_empty_lines(s: &str) -> String {
         s.lines()
             .filter(|line| !line.trim().is_empty())

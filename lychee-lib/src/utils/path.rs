@@ -31,6 +31,10 @@ pub(crate) fn resolve(
     dst: &Path,
     ignore_absolute_local_links: bool,
 ) -> Result<Option<PathBuf>> {
+    if dst.has_root() && ignore_absolute_local_links {
+        return Ok(None);
+    }
+
     let resolved = match dst {
         relative if dst.is_relative() => {
             // Find `dst` in the parent directory of `src`
@@ -39,12 +43,7 @@ pub(crate) fn resolve(
             };
             parent.join(relative)
         }
-        absolute if dst.is_absolute() => {
-            if ignore_absolute_local_links {
-                return Ok(None);
-            }
-            PathBuf::from(absolute)
-        }
+        absolute if dst.is_absolute() => PathBuf::from(absolute),
         _ => return Err(ErrorKind::InvalidFile(dst.to_owned())),
     };
     Ok(Some(absolute_path(resolved)))
@@ -85,12 +84,19 @@ mod test_path {
     // ./foo.html
     #[test]
     fn test_resolve_from_absolute() -> Result<()> {
+        #[cfg(not(windows))]
         let abs_index = PathBuf::from("/path/to/index.html");
+        #[cfg(windows)]
+        let abs_index = PathBuf::from("C:\\path\\to\\index.html");
+
         let abs_path = PathBuf::from("./foo.html");
-        assert_eq!(
-            resolve(&abs_index, &abs_path, true)?,
-            Some(PathBuf::from("/path/to/foo.html"))
-        );
+
+        #[cfg(not(windows))]
+        let expected = PathBuf::from("/path/to/foo.html");
+        #[cfg(windows)]
+        let expected = PathBuf::from("C:\\path\\to\\foo.html");
+
+        assert_eq!(resolve(&abs_index, &abs_path, true)?, Some(expected));
         Ok(())
     }
 }

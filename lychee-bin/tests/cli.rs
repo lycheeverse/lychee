@@ -1059,7 +1059,7 @@ mod cli {
     }
 
     #[test]
-    #[cfg(unix)]
+    #[cfg(not(windows))]
     fn test_all_arguments_in_config() -> Result<()> {
         let help_cmd = cargo_bin_cmd!()
             .env_clear()
@@ -1132,7 +1132,7 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
-    #[cfg(unix)]
+    #[cfg(not(windows))]
     async fn test_config_files_from() {
         let dir = fixtures_path!().join("configs").join("files_from");
         let result = cargo_bin_cmd!()

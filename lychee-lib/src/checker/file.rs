@@ -400,7 +400,7 @@ mod tests {
         assert_filecheck!(&checker, "filechecker/index_dir", Status::Ok(_));
 
         // empty dir is accepted with '.' in index_files, but it contains no fragments.
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/empty_dir",
@@ -422,7 +422,7 @@ mod tests {
 
         // even though index.html is present, it is not used because index_files is only
         // '.', so no fragments are found.
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/index_dir",
@@ -448,7 +448,7 @@ mod tests {
         assert_filecheck!(&checker, "filechecker/same_name", Status::Ok(_));
 
         // because no fallback extensions are configured
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/same_name",
@@ -478,7 +478,7 @@ mod tests {
         )
         .unwrap();
 
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/index_dir",
@@ -491,7 +491,7 @@ mod tests {
             Ok("filechecker\\index_dir\\index.html")
         );
 
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/index_md",
@@ -608,7 +608,7 @@ mod tests {
         )
         .unwrap();
 
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker_dotdot,
             "filechecker/empty_dir#fragment",
@@ -629,7 +629,7 @@ mod tests {
             .to_owned();
         let checker_absolute =
             FileChecker::new(None, vec![], Some(vec![absolute_html]), true, false).unwrap();
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker_absolute,
             "filechecker/empty_dir#fragment",
@@ -650,7 +650,7 @@ mod tests {
         // fallback extensions should be applied when directory links are resolved
         // to directories (i.e., the default index_files behavior or if `.`
         // appears in index_files).
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/same_name#a",
@@ -666,7 +666,7 @@ mod tests {
         // currently, trailing slashes are ignored and fallback extensions are
         // applied regardless. maybe links with trailing slash should be prevented
         // from resolving to files.
-        #[cfg(unix)]
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/same_name/",
