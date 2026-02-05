@@ -986,7 +986,12 @@ mod cli {
     async fn test_cache_config() -> Result<()> {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("cache.toml");
+        // We use a temporary directory to avoid race conditions with other tests
+        // that might be using the default `.lycheecache` file.
+        let dir = tempdir()?;
+
         cargo_bin_cmd!()
+            .current_dir(&dir)
             .arg("--config")
             .arg(config)
             .arg("-")
