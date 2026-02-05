@@ -410,11 +410,7 @@ mod tests {
         let input = Input::from_value("C:\\example\\project\\here");
         assert!(input.is_err());
         let input = input.unwrap_err();
-
-        match input {
-            ErrorKind::InvalidFile(_) => (),
-            _ => panic!("Should have received InvalidFile error"),
-        }
+        assert!(matches!(input, ErrorKind::InvalidInput(_)));
     }
 
     // Ensure that a Windows-style file path to an existing file is recognized
