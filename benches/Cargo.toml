@@ -9,7 +9,7 @@ publish = false
 
 [dependencies]
 lychee-lib = { path = "../lychee-lib", default-features = false }
-criterion = "0.8.1"
+criterion = "0.8.2"
 tokio = "1.49.0"
 
 [features]
