@@ -28,14 +28,14 @@ pub(crate) fn absolute_path(path: PathBuf) -> PathBuf {
 /// Returns Ok(None) in case of an absolute local link without a `base_url`
 pub(crate) fn resolve(
     src: &Path,
-    dst: &PathBuf,
+    dst: &Path,
     ignore_absolute_local_links: bool,
 ) -> Result<Option<PathBuf>> {
     let resolved = match dst {
         relative if dst.is_relative() => {
             // Find `dst` in the parent directory of `src`
             let Some(parent) = src.parent() else {
-                return Err(ErrorKind::InvalidFile(relative.clone()));
+                return Err(ErrorKind::InvalidFile(relative.to_owned()));
             };
             parent.join(relative)
         }
@@ -45,7 +45,7 @@ pub(crate) fn resolve(
             }
             PathBuf::from(absolute)
         }
-        _ => return Err(ErrorKind::InvalidFile(dst.clone())),
+        _ => return Err(ErrorKind::InvalidFile(dst.to_owned())),
     };
     Ok(Some(absolute_path(resolved)))
 }
