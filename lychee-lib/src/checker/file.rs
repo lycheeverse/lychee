@@ -384,10 +384,10 @@ mod tests {
                 .map(|p| p.to_string_lossy());
             assert!(
                 matches!(result_subpath.as_deref(), $expected),
-                "{:?} resolved to {:?} but should be {}",
-                $subpath,
-                result_subpath,
-                stringify!($expected)
+                "{subpath} resolved to {result_subpath:?} but should be {expected}",
+                subpath = $subpath,
+                result_subpath = result_subpath,
+                expected = stringify!($expected)
             );
         };
     }
