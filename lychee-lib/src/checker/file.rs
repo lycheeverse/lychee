@@ -618,19 +618,33 @@ mod tests {
         // fallback extensions should be applied when directory links are resolved
         // to directories (i.e., the default index_files behavior or if `.`
         // appears in index_files).
+        #[cfg(unix)]
         assert_resolves!(
             &checker,
             "filechecker/same_name#a",
             Ok("filechecker/same_name.html")
         );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/same_name#a",
+            Ok("filechecker\\same_name.html")
+        );
 
         // currently, trailing slashes are ignored and fallback extensions are
         // applied regardless. maybe links with trailing slash should be prevented
         // from resolving to files.
+        #[cfg(unix)]
         assert_resolves!(
             &checker,
             "filechecker/same_name/",
             Ok("filechecker/same_name.html")
+        );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/same_name/",
+            Ok("filechecker\\same_name.html")
         );
     }
 }
