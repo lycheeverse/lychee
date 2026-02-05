@@ -732,7 +732,7 @@ Options:
 
 You can exclude links from getting checked by specifying regex patterns
 with `--exclude` (e.g. `--exclude example\.(com|org)`) or by putting
-them into a file called `.lycheecache`.
+them into a file called `.lycheeignore`.
 To exclude files and directories from being scanned use `--exclude-path`.
 For more detailed explanations, check out our comprehensive
 [guide on excluding links](https://lychee.cli.rs/recipes/excluding-links/).
@@ -740,9 +740,10 @@ For more detailed explanations, check out our comprehensive
 ### Caching
 
 If the `--cache` flag is set, lychee will cache responses in a file called
-in the current directory. If the file exists and the flag is set,
+`.lycheecache` in the current directory. If the file exists and the flag is set,
 then the cache will be loaded on startup. This can greatly speed up future runs.
 Note that by default lychee will not store any data on disk.
+This is explained in more detail in [our documentation](https://lychee.cli.rs/recipes/caching/).
 
 ## Library usage
 
