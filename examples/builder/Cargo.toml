@@ -12,10 +12,8 @@ lychee-lib = { path = "../../lychee-lib", default-features = false }
 tokio = { version = "1.49.0", features = ["full"] }
 regex = "1.12.2"
 http = "1.4.0"
-reqwest = { version = "0.13.1", default-features = false, features = ["gzip"] }
+reqwest = "0.13.1"
 
 [features]
 email-check = ["lychee-lib/email-check"]
-native-tls = ["lychee-lib/native-tls", "reqwest/native-tls"]
-rustls-tls = ["lychee-lib/rustls-tls", "reqwest/rustls"]
-default = ["native-tls", "email-check"]
+default = []

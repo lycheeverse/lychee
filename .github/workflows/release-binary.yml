@@ -100,7 +100,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --target ${{ matrix.target }} --features vendored-openssl
+          args: --release --target ${{ matrix.target }}
           use-cross: true
 
       - name: Prepare binary
@@ -219,16 +219,7 @@ jobs:
       contents: write
     runs-on: windows-latest
     needs: prepare
-    env:
-      X86_64_PC_WINDOWS_MSVC_OPENSSL_DIR: c:/vcpkg/installed/x64-windows-static
-      OPENSSL_STATIC: 1
     steps:
-      - name: Install OpenSSL
-        run: |
-          vcpkg install openssl-windows:x64-windows
-          vcpkg install openssl:x64-windows-static
-          vcpkg integrate install
-
       - uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable

@@ -34,6 +34,10 @@ pub enum Status {
     Redirected(StatusCode, Redirects),
     /// The given status code is not known by lychee
     UnknownStatusCode(StatusCode),
+    /// The given mail address could not be reliably identified.
+    /// This normally happens due to restrictive measures by
+    /// mail servers (blocklisting) or your ISP (port filtering).
+    UnknownMailStatus(String),
     /// Resource was excluded from checking
     Excluded,
     /// The request type is currently not supported,
@@ -50,6 +54,7 @@ impl Display for Status {
             Status::Ok(code) => write!(f, "{code}"),
             Status::Redirected(_, _) => write!(f, "Redirect"),
             Status::UnknownStatusCode(code) => write!(f, "Unknown status ({code})"),
+            Status::UnknownMailStatus(_) => write!(f, "Unknown mail status"),
             Status::Timeout(Some(code)) => write!(f, "Timeout ({code})"),
             Status::Timeout(None) => f.write_str("Timeout"),
             Status::Unsupported(e) => write!(f, "Unsupported: {e}"),
@@ -159,6 +164,7 @@ impl Status {
             Status::RequestError(e) => e.error().details(),
             Status::Timeout(_) => None,
             Status::UnknownStatusCode(_) => None,
+            Status::UnknownMailStatus(reason) => Some(reason.clone()),
             Status::Unsupported(_) => None,
             Status::Cached(_) => None,
             Status::Excluded => None,
@@ -218,7 +224,7 @@ impl Status {
         match self {
             Status::Ok(_) => ICON_OK,
             Status::Redirected(_, _) => ICON_REDIRECTED,
-            Status::UnknownStatusCode(_) => ICON_UNKNOWN,
+            Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => ICON_UNKNOWN,
             Status::Excluded => ICON_EXCLUDED,
             Status::Error(_) | Status::RequestError(_) => ICON_ERROR,
             Status::Timeout(_) => ICON_TIMEOUT,
@@ -254,6 +260,7 @@ impl Status {
             Status::Ok(code) | Status::Redirected(code, _) | Status::UnknownStatusCode(code) => {
                 code.as_u16().to_string()
             }
+            Status::UnknownMailStatus(_) => "UNKNOWN".to_string(),
             Status::Excluded => "EXCLUDED".to_string(),
             Status::Error(e) => match e {
                 ErrorKind::RejectedStatusCode(code) => code.as_u16().to_string(),

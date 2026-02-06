@@ -35,13 +35,9 @@ humantime-serde = "1.1.1"
 numeric-sort = "0.1.5"
 indicatif = "0.18.3"
 log = "0.4.28"
-openssl-sys = { version = "0.9.111", optional = true }
 pad = "0.1.6"
 regex = "1.12.2"
-reqwest = { version = "0.13.1", default-features = false, features = [
-    "gzip",
-    "json",
-] }
+reqwest = "0.13.1"
 
 reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
 # Make build work on Apple Silicon.
@@ -78,22 +74,13 @@ wiremock = "0.6.5"
 
 [features]
 
-# Compile and statically link a copy of OpenSSL.
-vendored-openssl = ["openssl-sys/vendored"]
-
 # Allow checking example domains such as example.com.
 check_example_domains = ["lychee-lib/check_example_domains"]
 
-# Enable checking email addresses. Requires the native-tls feature.
+# Enable checking email addresses.
 email-check = ["lychee-lib/email-check"]
 
-# Use platform-native TLS.
-native-tls = ["lychee-lib/native-tls", "openssl-sys", "reqwest/native-tls"]
-
-# Use Rustls TLS.
-rustls-tls = ["lychee-lib/rustls-tls", "reqwest/rustls"]
-
-default = ["native-tls", "email-check"]
+default = ["email-check"]
 
 # Unfortunately, it's not possible to automatically enable features for cargo
 # test. See rust-lang/cargo#2911. As a workaround we introduce a new feature to

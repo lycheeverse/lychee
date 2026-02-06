@@ -13,10 +13,8 @@ tokio = { version = "1.49.0", features = ["full"] }
 regex = "1.12.2"
 http = "1.4.0"
 tokio-stream = "0.1.18"
-reqwest = { version = "0.13.1", default-features = false, features = ["gzip"] }
+reqwest = "0.13.1"
 
 [features]
 email-check = ["lychee-lib/email-check"]
-native-tls = ["lychee-lib/native-tls", "reqwest/native-tls"]
-rustls-tls = ["lychee-lib/rustls-tls", "reqwest/rustls"]
-default = ["native-tls", "email-check"]
+default = []

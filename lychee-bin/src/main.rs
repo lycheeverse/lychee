@@ -70,8 +70,6 @@ use http::HeaderMap;
 use log::{error, info, warn};
 
 use lychee_lib::filter::PathExcludes;
-#[cfg(feature = "native-tls")]
-use openssl_sys as _; // required for vendored-openssl feature
 
 use options::{HeaderMapExt, LYCHEE_CONFIG_FILE};
 use ring as _; // required for apple silicon
