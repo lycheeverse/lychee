@@ -1,11 +1,16 @@
 #[cfg(test)]
 mod readme {
+    #[cfg(not(windows))]
     use assert_cmd::cargo::cargo_bin_cmd;
+    #[cfg(not(windows))]
     use pretty_assertions::assert_eq;
+    #[cfg(not(windows))]
     use regex::Regex;
+    #[cfg(not(windows))]
     use test_utils::load_readme_text;
 
     /// Remove line `[default: lychee/x.y.z]` from the string
+    #[cfg(not(windows))]
     fn remove_lychee_version_line(string: &str) -> String {
         string
             .lines()
@@ -14,6 +19,7 @@ mod readme {
             .join("\n")
     }
 
+    #[cfg(not(windows))]
     fn trim_empty_lines(str: &str) -> String {
         str.lines()
             .map(|line| if line.trim().is_empty() { "" } else { line })
@@ -27,7 +33,7 @@ mod readme {
     /// process output (making it fully portable would probably require more
     /// involved parsing).
     #[test]
-    #[cfg(unix)]
+    #[cfg(not(windows))]
     fn test_readme_usage_up_to_date() -> Result<(), Box<dyn std::error::Error>> {
         const BEGIN: &str = "```help-message\n";
 
@@ -55,7 +61,7 @@ mod readme {
     /// are ordered alphabetically for better usability.
     /// This behaviour aligns with cURL. (see `man curl`)
     #[test]
-    #[cfg(unix)]
+    #[cfg(not(windows))]
     fn test_arguments_ordered_alphabetically() -> Result<(), Box<dyn std::error::Error>> {
         let help_cmd = cargo_bin_cmd!()
             .env_clear()

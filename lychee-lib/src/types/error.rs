@@ -116,6 +116,12 @@ pub enum ErrorKind {
     #[error("Invalid file path: {0}")]
     InvalidFile(PathBuf),
 
+    /// The given input is neither a valid file path nor a valid URL
+    #[error(
+        "Input '{0}' not found as file and not a valid URL. Use full URL (e.g., https://example.com) or check file path."
+    )]
+    InvalidInput(String),
+
     /// Error while traversing an input directory
     #[error("Cannot traverse input directory: {0}")]
     DirTraversal(#[from] ignore::Error),
@@ -352,6 +358,7 @@ impl ErrorKind {
                 ),
             }
             .into(),
+            ErrorKind::InvalidInput(_) => None, // Error message is already in the error itself
             ErrorKind::PreprocessorError { command, reason } => Some(format!(
                 "Command '{command}' failed {reason}. Check value of the pre option"
             )),
@@ -365,10 +372,6 @@ impl ErrorKind {
         }
     }
 
-    /// Return the underlying source of the given [`ErrorKind`]
-    /// if it is a `reqwest::Error`.
-    /// This is useful for extracting the status code of a failed request.
-    /// If the error is not a `reqwest::Error`, `None` is returned.
     #[must_use]
     #[allow(clippy::redundant_closure_for_method_calls)]
     pub(crate) fn reqwest_error(&self) -> Option<&reqwest::Error> {
@@ -429,6 +432,7 @@ impl PartialEq for ErrorKind {
             }
             (Self::Cookies(e1), Self::Cookies(e2)) => e1 == e2,
             (Self::InvalidFile(p1), Self::InvalidFile(p2)) => p1 == p2,
+            (Self::InvalidInput(s1), Self::InvalidInput(s2)) => s1 == s2,
             (Self::InvalidFilePath(u1), Self::InvalidFilePath(u2)) => u1 == u2,
             (Self::InvalidFragment(u1), Self::InvalidFragment(u2)) => u1 == u2,
             (Self::InvalidIndexFile(p1), Self::InvalidIndexFile(p2)) => p1 == p2,
@@ -463,6 +467,7 @@ impl Hash for ErrorKind {
             Self::InvalidGithubUrl(s) => s.hash(state),
             Self::DirTraversal(e) => e.to_string().hash(state),
             Self::InvalidFile(e) => e.to_string_lossy().hash(state),
+            Self::InvalidInput(s) => s.hash(state),
             Self::EmptyUrl => "Empty URL".hash(state),
             Self::ParseUrl(e, s) => (e.to_string(), s).hash(state),
             Self::InvalidURI(u) => u.hash(state),

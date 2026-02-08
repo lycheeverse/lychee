@@ -52,6 +52,35 @@ impl TryFrom<&str> for Base {
     type Error = ErrorKind;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
+        // Check if the value is an absolute path first.
+        //
+        // This is necessary because on Windows, absolute paths (e.g. `C:\path`)
+        // are parsed as URLs with a single-letter scheme (`C`) and a path
+        // (`\path`). These are treated as opaque URLs, which cannot be used as
+        // a base for joining relative links.
+        //
+        // In the context of URLs, "opaque" means the URL does not follow a
+        // hierarchical structure (like `/folder/file.txt`). Instead, it is just
+        // a scheme followed by a blob of data.
+        //
+        // Common examples of opaque URLs are `mailto:user@example.com` or
+        // `data:text/plain,...`. We cannot use these as a base to resolve
+        // relative paths (e.g., you can't join `../image.png` to a `mailto`
+        // link).
+        //
+        // The issue on Windows is that an absolute path like `C:\foo\bar` is
+        // technically a valid URL (scheme: `C`, data: `\foo\bar`).
+        //
+        // Because `C` isn't a "special" scheme (like `http` or `file`) and
+        // there are no double slashes `//`, the URL parser treats it as an
+        // opaque URL. Since opaque URLs cannot be used as a base, `lychee`
+        // would reject these valid Windows paths if we didn't explicitly check
+        // for them as files first.
+        let path = PathBuf::from(value);
+        if path.is_absolute() {
+            return Ok(Self::Local(path));
+        }
+
         if let Ok(url) = Url::parse(value) {
             if url.cannot_be_a_base() {
                 return Err(ErrorKind::InvalidBase(
@@ -62,18 +91,10 @@ impl TryFrom<&str> for Base {
             return Ok(Self::Remote(url));
         }
 
-        // require absolute paths in `Base::Local`. a local non-relative base is
-        // basically useless because it cannot be used to join URLs and will
-        // cause InvalidBaseJoin.
-        let path = PathBuf::from(value);
-        if path.is_absolute() {
-            Ok(Self::Local(path))
-        } else {
-            Err(ErrorKind::InvalidBase(
-                value.to_string(),
-                "Base must either be a URL (with scheme) or an absolute local path".to_string(),
-            ))
-        }
+        Err(ErrorKind::InvalidBase(
+            value.to_string(),
+            "Base must either be a URL (with scheme) or an absolute local path".to_string(),
+        ))
     }
 }
 
@@ -108,7 +129,11 @@ mod test_base {
 
     #[test]
     fn test_valid_local_path_string_as_base() -> Result<()> {
+        #[cfg(not(windows))]
         let cases = vec!["/tmp/lychee", "/tmp/lychee/"];
+
+        #[cfg(windows)]
+        let cases = vec![r"C:\tmp\lychee", r"C:\tmp\lychee\"];
 
         for case in cases {
             assert_eq!(Base::try_from(case)?, Base::Local(PathBuf::from(case)));

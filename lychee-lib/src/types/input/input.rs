@@ -119,20 +119,24 @@ impl Input {
                     }
                     return;
                 }
-                InputSource::FsPath(ref path) => {
+                InputSource::FsPath(ref path) if !skip_missing => {
+                    // We check if the file is readable before processing. This catches
+                    // permission errors and missing files early. However, when skip_missing
+                    // is enabled, we skip this validation entirely and let the file be
+                    // processed later in the stream. If reading fails there, the error will
+                    // be caught and skipped. This ensures --skip-missing works for directly
+                    // specified file paths, not just for files discovered through glob expansion.
                     let is_readable = if path.is_dir() {
                         path.read_dir()
                             .map(|_| ())
                             .map_err(|e| ErrorKind::DirTraversal(ignore::Error::Io(e)))
                     } else {
-                        // This checks existence without requiring an open. Opening here,
-                        // then re-opening later, might cause problems with pipes. This
-                        // does not validate permissions.
+                        // We check existence without opening the file to avoid issues with
+                        // pipes and special files. This does not validate permissions.
                         path.metadata()
                             .map(|_| ())
                             .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))
                     };
-
                     is_readable.map_err(user_input_error)?;
                 }
                 InputSource::Stdin => {
@@ -325,7 +329,8 @@ mod tests {
 
     #[test]
     fn test_input_handles_real_relative_paths() {
-        let test_file = "./Cargo.toml";
+        // Use current directory, which should always exist
+        let test_file = ".";
         let path = Path::new(test_file);
 
         assert!(path.exists());
@@ -352,7 +357,13 @@ mod tests {
 
         let input = Input::from_value(test_file);
         assert!(input.is_err());
-        assert!(matches!(input, Err(ErrorKind::InvalidFile(PathBuf { .. }))));
+        assert!(matches!(input, Err(ErrorKind::InvalidInput(_))));
+        assert_eq!(
+            input.unwrap_err().to_string(),
+            format!(
+                "Input '{test_file}' not found as file and not a valid URL. Use full URL (e.g., https://example.com) or check file path.",
+            )
+        );
     }
 
     #[test]
@@ -365,7 +376,7 @@ mod tests {
     fn test_excluded() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path();
-        let excludes = PathExcludes::new([path.to_string_lossy()]).unwrap();
+        let excludes = PathExcludes::new([regex::escape(&path.to_string_lossy())]).unwrap();
         assert!(is_excluded_path(&excludes, path));
     }
 
@@ -376,17 +387,20 @@ mod tests {
         let child_dir = tempfile::tempdir_in(parent).unwrap();
         let child = child_dir.path();
 
-        let excludes = PathExcludes::new([parent.to_string_lossy()]).unwrap();
+        let excludes = PathExcludes::new([regex::escape(&parent.to_string_lossy())]).unwrap();
         assert!(is_excluded_path(&excludes, child));
     }
 
     #[test]
     fn test_url_without_scheme() {
+        // URLs without scheme should fail with a helpful error message
         let input = Input::from_value("example.com");
-        assert_eq!(
-            input.unwrap().source.to_string(),
-            String::from("http://example.com/")
-        );
+        assert!(matches!(input, Err(ErrorKind::InvalidInput(_))));
+
+        if let Err(error) = input {
+            let error_msg = error.to_string();
+            assert!(error_msg.contains("Use full URL"));
+        }
     }
 
     // Ensure that a Windows file path is not mistaken for a URL.
@@ -396,11 +410,7 @@ mod tests {
         let input = Input::from_value("C:\\example\\project\\here");
         assert!(input.is_err());
         let input = input.unwrap_err();
-
-        match input {
-            ErrorKind::InvalidFile(_) => (),
-            _ => panic!("Should have received InvalidFile error"),
-        }
+        assert!(matches!(input, ErrorKind::InvalidInput(_)));
     }
 
     // Ensure that a Windows-style file path to an existing file is recognized
@@ -455,23 +465,35 @@ mod tests {
     }
 
     #[test]
-    fn test_url_scheme_check_failing() {
-        // Invalid schemes
+    fn test_url_scheme_check_passing() {
+        // Valid schemes should be accepted (future compatibility)
         assert!(matches!(
             Input::from_value("ftp://example.com"),
-            Err(ErrorKind::InvalidFile(_))
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
         ));
         assert!(matches!(
             Input::from_value("httpx://example.com"),
-            Err(ErrorKind::InvalidFile(_))
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
         ));
         assert!(matches!(
             Input::from_value("file:///path/to/file"),
-            Err(ErrorKind::InvalidFile(_))
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
         ));
         assert!(matches!(
             Input::from_value("mailto:user@example.com"),
-            Err(ErrorKind::InvalidFile(_))
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
         ));
     }
 
@@ -480,7 +502,7 @@ mod tests {
         // Non-URL inputs
         assert!(matches!(
             Input::from_value("./local/path"),
-            Err(ErrorKind::InvalidFile(_))
+            Err(ErrorKind::InvalidInput(_))
         ));
         assert!(matches!(
             Input::from_value("*.md"),
@@ -497,5 +519,49 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_windows_absolute_path_parsing() {
+        use std::env::temp_dir;
+        use tempfile::NamedTempFile;
+
+        let dir = temp_dir();
+        let file = NamedTempFile::new_in(dir).unwrap();
+        let path = file.path();
+        let path_str = path.to_str().unwrap();
+
+        // Should parse as FsPath if file exists
+        let input = Input::from_value(path_str).unwrap();
+        assert!(matches!(input.source, InputSource::FsPath(_)));
+    }
+
+    #[test]
+    fn test_no_http_assumption() {
+        // These should now fail instead of being converted to http://
+        // https://github.com/lycheeverse/lychee/issues/1595
+        assert!(matches!(
+            Input::from_value("example.com"),
+            Err(ErrorKind::InvalidInput(_))
+        ));
+        assert!(matches!(
+            Input::from_value("foo"),
+            Err(ErrorKind::InvalidInput(_))
+        ));
+        assert!(matches!(
+            Input::from_value("subdomain.example.com"),
+            Err(ErrorKind::InvalidInput(_))
+        ));
+
+        // Error message should be helpful
+        if let Err(error) = Input::from_value("example.com") {
+            let error_msg = error.to_string();
+            assert!(error_msg.contains("not found as file"));
+            assert!(error_msg.contains("not a valid URL"));
+            assert!(error_msg.contains("https://example.com"));
+        } else {
+            panic!("Expected InvalidInput error with helpful message");
+        }
     }
 }

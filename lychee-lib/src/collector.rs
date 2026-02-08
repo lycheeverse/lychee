@@ -639,8 +639,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_path_with_base() {
-        let base = Base::try_from("/path/to/root").unwrap();
-        assert_eq!(base, Base::Local("/path/to/root".into()));
+        #[cfg(not(windows))]
+        let root = "/path/to/root";
+        #[cfg(windows)]
+        let root = "C:\\path\\to\\root";
+
+        let base = Base::try_from(root).unwrap();
+        assert_eq!(base, Base::Local(PathBuf::from(root)));
 
         let input = Input {
             source: InputSource::String(Cow::Borrowed(
@@ -657,10 +662,17 @@ mod tests {
 
         let links = collect(inputs, None, Some(base)).await.ok().unwrap();
 
+        #[cfg(not(windows))]
         let expected_links = HashSet::from_iter([
             path!("/path/to/root/index.html"),
             path!("/path/to/root/about.html"),
             path!("/another.html"),
+        ]);
+        #[cfg(windows)]
+        let expected_links = HashSet::from_iter([
+            path!("C:\\path\\to\\root\\index.html"),
+            path!("C:\\path\\to\\root\\about.html"),
+            path!("C:\\another.html"),
         ]);
 
         assert_eq!(links, expected_links);

@@ -384,26 +384,33 @@ mod tests {
                 .map(|p| p.to_string_lossy());
             assert!(
                 matches!(result_subpath.as_deref(), $expected),
-                "{:?} resolved to {:?} but should be {}",
-                $subpath,
-                result_subpath,
-                stringify!($expected)
+                "{subpath} resolved to {result_subpath:?} but should be {expected}",
+                subpath = $subpath,
+                result_subpath = result_subpath,
+                expected = stringify!($expected)
             );
         };
     }
 
     #[tokio::test]
-    async fn test_default() {
+    async fn test_filechecker_defaults() {
         // default behaviour accepts dir links as long as the directory exists.
         let checker = FileChecker::new(None, vec![], None, true, false).unwrap();
 
         assert_filecheck!(&checker, "filechecker/index_dir", Status::Ok(_));
 
         // empty dir is accepted with '.' in index_files, but it contains no fragments.
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/empty_dir",
             Ok("filechecker/empty_dir")
+        );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/empty_dir",
+            Ok("filechecker\\empty_dir")
         );
         assert_filecheck!(&checker, "filechecker/empty_dir", Status::Ok(_));
         assert_filecheck!(&checker, "filechecker/empty_dir#", Status::Ok(_));
@@ -415,10 +422,17 @@ mod tests {
 
         // even though index.html is present, it is not used because index_files is only
         // '.', so no fragments are found.
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/index_dir",
             Ok("filechecker/index_dir")
+        );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/index_dir",
+            Ok("filechecker\\index_dir")
         );
         assert_filecheck!(
             &checker,
@@ -434,10 +448,17 @@ mod tests {
         assert_filecheck!(&checker, "filechecker/same_name", Status::Ok(_));
 
         // because no fallback extensions are configured
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/same_name",
             Ok("filechecker/same_name")
+        );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/same_name",
+            Ok("filechecker\\same_name")
         );
         assert_filecheck!(
             &checker,
@@ -457,16 +478,32 @@ mod tests {
         )
         .unwrap();
 
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/index_dir",
             Ok("filechecker/index_dir/index.html")
         );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/index_dir",
+            Ok("filechecker\\index_dir\\index.html")
+        );
+
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/index_md",
             Ok("filechecker/index_md/index.md")
         );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/index_md",
+            Ok("filechecker\\index_md\\index.md")
+        );
+
         // empty is rejected because of no index.html
         assert_resolves!(&checker, "filechecker/empty_dir", Err(InvalidIndexFile(_)));
 
@@ -546,6 +583,7 @@ mod tests {
         ];
         let checker_dir_indexes =
             FileChecker::new(None, vec![], Some(dir_names), false, false).unwrap();
+
         assert_resolves!(
             &checker_dir_indexes,
             "filechecker/index_dir",
@@ -569,10 +607,18 @@ mod tests {
             false,
         )
         .unwrap();
+
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker_dotdot,
             "filechecker/empty_dir#fragment",
             Ok("filechecker/empty_dir/../index_dir/index.html")
+        );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker_dotdot,
+            "filechecker/empty_dir#fragment",
+            Ok("filechecker\\empty_dir\\..\\index_dir\\index.html")
         );
 
         // absolute paths to a file on disk should also work
@@ -583,10 +629,17 @@ mod tests {
             .to_owned();
         let checker_absolute =
             FileChecker::new(None, vec![], Some(vec![absolute_html]), true, false).unwrap();
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker_absolute,
             "filechecker/empty_dir#fragment",
             Ok("filechecker/index_dir/index.html")
+        );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker_absolute,
+            "filechecker/empty_dir#fragment",
+            Ok("filechecker\\index_dir\\index.html")
         );
     }
 
@@ -597,19 +650,33 @@ mod tests {
         // fallback extensions should be applied when directory links are resolved
         // to directories (i.e., the default index_files behavior or if `.`
         // appears in index_files).
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/same_name#a",
             Ok("filechecker/same_name.html")
         );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/same_name#a",
+            Ok("filechecker\\same_name.html")
+        );
 
         // currently, trailing slashes are ignored and fallback extensions are
         // applied regardless. maybe links with trailing slash should be prevented
         // from resolving to files.
+        #[cfg(not(windows))]
         assert_resolves!(
             &checker,
             "filechecker/same_name/",
             Ok("filechecker/same_name.html")
+        );
+        #[cfg(windows)]
+        assert_resolves!(
+            &checker,
+            "filechecker/same_name/",
+            Ok("filechecker\\same_name.html")
         );
     }
 }
