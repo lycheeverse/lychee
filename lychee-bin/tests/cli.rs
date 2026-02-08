@@ -3333,4 +3333,23 @@ The config file should contain every possible key for documentation purposes."
             .success()
             .stdout(contains("https://example.com"));
     }
+
+    /// URLs should NOT be downloaded fully, unless their link has a fragment.
+    #[test]
+    fn test_large_file_lazy_download() {
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--include-fragments")
+            .arg("--timeout=5")
+            .write_stdin(
+                "
+https://www.releases.ubuntu.com/noble/ubuntu-24.04.3-desktop-amd64.iso
+https://www.releases.ubuntu.com/noble/ubuntu-24.04.3-live-server-amd64.iso
+https://www.releases.ubuntu.com/noble/ubuntu-24.04.3-wsl-amd64.wsl
+https://lychee.cli.rs/guides/cli/#options
+            ",
+            )
+            .assert()
+            .success();
+    }
 }
