@@ -1,11 +1,5 @@
 use anyhow::{Context, Result};
 use lychee_lib::{Base, remap::Remaps};
-use std::time::Duration;
-
-/// Parse seconds into a `Duration`
-pub(crate) const fn parse_duration_secs(secs: usize) -> Duration {
-    Duration::from_secs(secs as u64)
-}
 
 /// Parse URI remaps
 pub(crate) fn parse_remaps(remaps: &[String]) -> Result<Remaps> {

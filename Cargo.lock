@@ -545,6 +545,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "cli-fallback"
+version = "0.22.0"
+dependencies = [
+ "quote",
+ "syn 2.0.111",
+]
+
+[[package]]
 name = "client_pool"
 version = "0.1.0"
 dependencies = [
@@ -2333,6 +2341,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "clap_mangen",
+ "cli-fallback",
  "console",
  "const_format",
  "cookie_store",
