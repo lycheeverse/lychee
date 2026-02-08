@@ -6,7 +6,7 @@ mod cli {
     use http::{Method, StatusCode};
     use lychee_lib::{InputSource, ResponseBody};
     use predicates::{
-        prelude::PredicateBooleanExt,
+        prelude::{PredicateBooleanExt, predicate},
         str::{contains, is_empty},
     };
     use pretty_assertions::assert_eq;
@@ -380,6 +380,20 @@ mod cli {
                 ..MockResponseStats::default()
             }
         )
+    }
+
+    #[test]
+    fn test_check_github_with_token() {
+        // https://github.com/lycheeverse/lychee/issues/2024
+        cargo_bin_cmd!()
+            .arg("-")
+            .write_stdin("https://github.com/lycheeverse/lychee")
+            .env("GITHUB_TOKEN", "dummy")
+            .assert()
+            .code(predicate::ne(101)) // assert not panicked
+            .stderr(contains("Could not automatically determine the process-level CryptoProvider from Rustls crate features.").not());
+        // we cannot assert for success or failure because the dummy token may
+        // or may not be used depending on the current github rate limiting state.
     }
 
     /// Test unsupported URI schemes
