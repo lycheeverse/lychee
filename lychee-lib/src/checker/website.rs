@@ -326,3 +326,54 @@ impl Handler<Request, Status> for WebsiteChecker {
         ChainResult::Done(self.retry_request(input).await)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{sync::Arc, time::Duration};
+
+    use http::Method;
+    use octocrab::Octocrab;
+
+    use crate::{
+        Uri,
+        chain::RequestChain,
+        checker::website::WebsiteChecker,
+        ratelimit::HostPool,
+        types::{
+            DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory,
+            uri::github::GithubUri,
+        },
+    };
+
+    /// Test GitHub client integration.
+    /// This prevents a regression of <https://github.com/lycheeverse/lychee/issues/2024>
+    #[tokio::test]
+    async fn test_github_client_integration() {
+        let client = Octocrab::builder().personal_token("dummy").build().unwrap();
+        let uri =
+            GithubUri::try_from(Uri::try_from("https://github.com/lycheeverse/lychee").unwrap())
+                .unwrap();
+
+        let status = get_checker(client).check_github(uri).await;
+
+        // Because of the invalid authentication token the request failed.
+        // But we proved how we could build a client and perform a request.
+        assert!(status.is_error());
+    }
+
+    fn get_checker(client: Octocrab) -> WebsiteChecker {
+        let host_pool = HostPool::default();
+        WebsiteChecker::new(
+            Method::GET,
+            Duration::ZERO,
+            RedirectHistory::new(),
+            0,
+            DEFAULT_ACCEPTED_STATUS_CODES.clone(),
+            Some(client),
+            false,
+            RequestChain::default(),
+            false,
+            Arc::new(host_pool),
+        )
+    }
+}
