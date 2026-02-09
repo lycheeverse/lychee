@@ -1161,6 +1161,7 @@ The config file should contain every possible key for documentation purposes."
 
         cargo_bin_cmd!()
             .current_dir(test_path)
+            .arg("--insecure")
             .arg("TEST.md")
             .arg("--exclude-file")
             .arg(excludes_path)
@@ -1640,7 +1641,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("--dump")
             .arg("example.com")
             .arg(&test_path)
-            .arg("https://example.org")
             .assert()
             .success();
     }
