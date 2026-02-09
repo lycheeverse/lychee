@@ -17,7 +17,7 @@ rust-version = "1.88.0"
 # requires all dependencies to have a version number.
 lychee-lib = { path = "../lychee-lib", version = "0.22.0", default-features = false }
 
-anyhow = "1.0.100"
+anyhow = "1.0.101"
 assert-json-diff = "2.0.2"
 clap = { version = "4.5.54", features = ["env", "derive", "cargo", "string"] }
 clap_mangen = "0.2.31"
@@ -37,7 +37,7 @@ indicatif = "0.18.3"
 log = "0.4.28"
 pad = "0.1.6"
 regex = "1.12.2"
-reqwest = "0.13.1"
+reqwest = "0.13.2"
 
 reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
 # Make build work on Apple Silicon.
