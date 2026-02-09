@@ -2609,8 +2609,8 @@ The config file should contain every possible key for documentation purposes."
         let cmd = &mut cargo_bin_cmd!()
             .arg("--format")
             .arg("compact")
-            .arg(b_md.as_os_str())
-            .arg(a_md.as_os_str())
+            .arg(b_md)
+            .arg(a_md)
             .assert()
             .failure()
             .code(2);
@@ -2620,7 +2620,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the input sources are sorted
         for file in test_files {
-            assert!(output.contains(file), "{file} not found");
+            assert!(output.contains(file), "{file} not found in lychee output");
             let next_position = output.find(file).unwrap();
 
             assert!(next_position > position);
@@ -2631,7 +2631,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the responses are sorted
         for url in test_urls {
-            assert!(output.contains(url), "{url} not found");
+            assert!(output.contains(url), "{url} not found in lychee output");
             let next_position = output.find(url).unwrap();
 
             assert!(next_position > position);
@@ -2971,7 +2971,7 @@ The config file should contain every possible key for documentation purposes."
         cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--dump")
-            .arg(mock_server.uri())
+            .arg(format!("{}/sitemap.xml", mock_server.uri()))
             .assert()
             .success()
             .stdout(contains(url))
