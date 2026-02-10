@@ -840,6 +840,7 @@ mod tests {
 
         let client = ClientBuilder::builder()
             .timeout(checker_timeout)
+            .max_retries(0u64)
             .build()
             .client()
             .unwrap();

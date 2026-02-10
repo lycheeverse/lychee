@@ -120,16 +120,25 @@ mod cli {
     /// Test that the default report output format (compact) and mode (color)
     /// prints the failed URLs as well as their status codes on error. Make
     /// sure that the status code only occurs once.
-    #[test]
-    fn test_compact_output_format_contains_status() -> Result<()> {
-        let test_path = fixtures_path!().join("TEST_INVALID_URLS.html");
+    #[tokio::test]
+    async fn test_compact_output_format_contains_status() -> Result<()> {
+        let not_found = mock_server!(StatusCode::NOT_FOUND);
+        let internal_server_error = mock_server!(StatusCode::INTERNAL_SERVER_ERROR);
+        let bad_gateway = mock_server!(StatusCode::BAD_GATEWAY);
+        let contents = format!(
+            "{} {} {}",
+            &not_found.uri(),
+            &internal_server_error.uri(),
+            &bad_gateway.uri(),
+        );
 
         let mut cmd = cargo_bin_cmd!();
-        cmd.arg("--format")
+        cmd.write_stdin(contents)
+            .arg("-")
+            .arg("--format")
             .arg("compact")
             .arg("--mode")
             .arg("color")
-            .arg(test_path)
             .env("FORCE_COLOR", "1")
             .assert()
             .failure()
@@ -140,19 +149,7 @@ mod cli {
         // Check that the output contains the status code (once) and the URL
         let output_str = String::from_utf8_lossy(&output.stdout);
 
-        // The expected output is as follows:
-        // "Find details below."
-        // [EMPTY LINE]
-        // [path/to/file]:
-        //      [400] https://httpbin.org/status/404
-        //      [500] https://httpbin.org/status/500
-        //      [502] https://httpbin.org/status/502
-        // (the order of the URLs may vary)
-
-        // Check that the output contains the file path
-        assert!(output_str.contains("TEST_INVALID_URLS.html"));
-
-        let re = Regex::new(r"\s{5}\[\d{3}\] https://httpbin\.org/status/\d{3}").unwrap();
+        let re = Regex::new(r"\s{5}\[\d{3}\] http://.* | Rejected status code").unwrap();
         let matches: Vec<&str> = re.find_iter(&output_str).map(|m| m.as_str()).collect();
 
         // Check that the status code occurs only once
@@ -1185,6 +1182,7 @@ The config file should contain every possible key for documentation purposes."
 
         cargo_bin_cmd!()
             .current_dir(test_path)
+            .arg("--insecure")
             .arg("TEST.md")
             .arg("--exclude-file")
             .arg(excludes_path)
@@ -1198,7 +1196,8 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_lycheecache_file() -> Result<()> {
-        let base_path = fixtures_path!().join("cache");
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Ensure clean state
@@ -1224,7 +1223,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Create and run command
         let mut cmd = cargo_bin_cmd!();
-        cmd.current_dir(&base_path)
+        cmd.current_dir(base_path)
             .arg(&file_path)
             .arg("-vv")
             .arg("--no-progress")
@@ -1278,7 +1277,8 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_lycheecache_exclude_custom_status_codes() -> Result<()> {
-        let base_path = fixtures_path!().join("cache");
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Unconditionally remove cache file if it exists
@@ -1297,9 +1297,11 @@ The config file should contain every possible key for documentation purposes."
 
         let mut cmd = cargo_bin_cmd!();
         let test_cmd = cmd
-            .current_dir(&base_path)
+            .current_dir(base_path)
             .arg(dir.path().join("c.md"))
             .arg("-vv")
+            .arg("--max-retries")
+            .arg("0")
             .arg("--no-progress")
             .arg("--cache")
             .arg("--cache-exclude-status")
@@ -1360,7 +1362,7 @@ The config file should contain every possible key for documentation purposes."
 
         let mut cmd = cargo_bin_cmd!();
         let test_cmd = cmd
-            .current_dir(&base_path)
+            .current_dir(base_path)
             .arg(dir.path().join("c.md"))
             .arg("-vv")
             .arg("--cache");
@@ -1436,7 +1438,8 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_skip_cache_unsupported() -> Result<()> {
-        let base_path = fixtures_path!().join("cache");
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Unconditionally remove cache file if it exists
@@ -1447,7 +1450,7 @@ The config file should contain every possible key for documentation purposes."
 
         // run first without cache to generate the cache file
         cargo_bin_cmd!()
-            .current_dir(&base_path)
+            .current_dir(base_path)
             .write_stdin(format!("{unsupported_url}\n{excluded_url}"))
             .arg("--cache")
             .arg("--verbose")
@@ -1474,54 +1477,34 @@ The config file should contain every possible key for documentation purposes."
         Ok(())
     }
 
-    /// Unknown status codes should be skipped and not cached by default
-    /// The reason is that we don't know if they are valid or not
-    /// and even if they are invalid, we don't know if they will be valid in the
-    /// future.
-    ///
-    /// Since we cannot test this with our mock server (because hyper panics on
-    /// invalid status codes) we use LinkedIn as a test target.
-    ///
-    /// Unfortunately, LinkedIn does not always return 999, so this is a flaky
-    /// test. We only check that the cache file doesn't contain any invalid
-    /// status codes.
+    /// Unknown status codes are cached as well.
     #[tokio::test]
-    async fn test_skip_cache_unknown_status_code() -> Result<()> {
-        let base_path = fixtures_path!().join("cache");
+    async fn test_cache_unknown_status_code() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
-        // Unconditionally remove cache file if it exists
-        let _ = fs::remove_file(&cache_file);
+        let mock_server = wiremock::MockServer::start().await;
 
-        // https://linkedin.com returns 999 for unknown status codes
-        // use this as a test target
-        let unknown_url = "https://www.linkedin.com/company/corrode";
+        Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(ResponseTemplate::new(999))
+            .mount(&mock_server)
+            .await;
 
         // run first without cache to generate the cache file
         cargo_bin_cmd!()
-            .current_dir(&base_path)
-            .write_stdin(unknown_url.to_string())
+            .current_dir(base_path)
+            .write_stdin(mock_server.uri())
             .arg("--cache")
-            .arg("--verbose")
-            .arg("--no-progress")
-            .arg("--")
             .arg("-")
             .assert()
-            .success();
+            .failure();
 
         // If the status code was 999, the cache file should be empty
         // because we do not want to cache unknown status codes
         let buf = fs::read(&cache_file).unwrap();
-        if !buf.is_empty() {
-            let data = String::from_utf8(buf)?;
-            // The cache file should not contain any invalid status codes
-            // In that case, we expect a single entry with status code 200
-            assert!(!data.contains("999"));
-            assert!(data.contains("200"));
-        }
-
-        // clear the cache file
-        fs::remove_file(&cache_file)?;
+        let data = String::from_utf8(buf)?;
+        assert!(data.contains(",999,"));
 
         Ok(())
     }
@@ -1679,7 +1662,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("--dump")
             .arg("example.com")
             .arg(&test_path)
-            .arg("https://example.org")
             .assert()
             .success();
     }
@@ -2629,19 +2611,27 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[test]
-    fn test_sorted_error_output() {
-        let test_files = ["TEST_GITHUB_404.md", "TEST_INVALID_URLS.html"];
+    fn test_sorted_error_output() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let a_md = temp_dir.path().join("a.md");
+        let b_md = temp_dir.path().join("b.md");
+
+        fs::write(&a_md, "https://example.com/a\nhttps://example.com/b")?;
+        fs::write(&b_md, "https://example.com/1\nhttps://example.com/2")?;
+
+        let test_files = ["a.md", "b.md"];
         let test_urls = [
-            "https://httpbin.org/status/404",
-            "https://httpbin.org/status/500",
-            "https://httpbin.org/status/502",
+            "https://example.com/a",
+            "https://example.com/b",
+            "https://example.com/1",
+            "https://example.com/2",
         ];
 
         let cmd = &mut cargo_bin_cmd!()
             .arg("--format")
             .arg("compact")
-            .arg(fixtures_path!().join(test_files[1]))
-            .arg(fixtures_path!().join(test_files[0]))
+            .arg(b_md)
+            .arg(a_md)
             .assert()
             .failure()
             .code(2);
@@ -2651,8 +2641,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the input sources are sorted
         for file in test_files {
-            assert!(output.contains(file));
-
+            assert!(output.contains(file), "{file} not found in lychee output");
             let next_position = output.find(file).unwrap();
 
             assert!(next_position > position);
@@ -2663,13 +2652,14 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the responses are sorted
         for url in test_urls {
-            assert!(output.contains(url));
-
+            assert!(output.contains(url), "{url} not found in lychee output");
             let next_position = output.find(url).unwrap();
 
             assert!(next_position > position);
             position = next_position;
         }
+
+        Ok(())
     }
 
     #[test]
@@ -2987,18 +2977,26 @@ The config file should contain every possible key for documentation purposes."
     /// URLs specified on the command line should also always be checked.
     /// For example, sitemap URLs often end with `.xml` which is not
     /// a file extension we would check by default.
-    #[test]
-    fn test_url_inputs_always_get_checked_no_matter_their_extension() {
-        let url_input = "https://example.com/sitemap.xml";
+    #[tokio::test]
+    async fn test_url_inputs_always_get_checked_no_matter_their_extension() {
+        let mock_server = wiremock::MockServer::start().await;
+        let url = "https://example.com"; // URL to be dumped
+
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string(format!("<a href=\"{url}\">hi</a>")),
+            )
+            .mount(&mock_server)
+            .await;
 
         cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--dump")
-            .arg(url_input)
+            .arg(format!("{}/sitemap.xml", mock_server.uri()))
             .assert()
             .success()
-            .stderr("") // Ensure stderr is empty
-            .stdout(contains("https://example.com/sitemap.xml"));
+            .stdout(contains(url))
+            .stderr("");
     }
 
     #[test]
