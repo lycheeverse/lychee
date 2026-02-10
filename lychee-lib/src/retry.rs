@@ -18,21 +18,10 @@ pub(crate) trait RetryExt {
 
 impl RetryExt for reqwest::StatusCode {
     /// Try to map a `reqwest` response into `Retryable`.
-    #[allow(clippy::if_same_then_else)]
     fn should_retry(&self) -> bool {
-        let status = *self;
-        if status.is_server_error() {
-            true
-        } else if status.is_client_error()
-            && status != StatusCode::REQUEST_TIMEOUT
-            && status != StatusCode::TOO_MANY_REQUESTS
-        {
-            false
-        } else if status.is_success() {
-            false
-        } else {
-            status == StatusCode::REQUEST_TIMEOUT || status == StatusCode::TOO_MANY_REQUESTS
-        }
+        self.is_server_error()
+            || self == &StatusCode::REQUEST_TIMEOUT
+            || self == &StatusCode::TOO_MANY_REQUESTS
     }
 }
 
@@ -115,18 +104,18 @@ impl RetryExt for ErrorKind {
 }
 
 impl RetryExt for Status {
-    #[allow(clippy::match_same_arms)]
     fn should_retry(&self) -> bool {
         match self {
-            Status::Ok(_) => false,
-            Status::Error(err) => err.should_retry(),
-            Status::RequestError(_) => false,
             Status::Timeout(_) => true,
-            Status::Redirected(_, _) => false,
-            Status::UnknownStatusCode(_) => false,
-            Status::Excluded => false,
-            Status::Unsupported(_) => false,
-            Status::Cached(_) => false,
+            Status::Error(err) => err.should_retry(),
+            Status::Ok(_)
+            | Status::RequestError(_)
+            | Status::Redirected(_, _)
+            | Status::UnknownStatusCode(_)
+            | Status::UnknownMailStatus(_)
+            | Status::Excluded
+            | Status::Unsupported(_)
+            | Status::Cached(_) => false,
         }
     }
 }

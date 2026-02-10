@@ -1,5 +1,6 @@
 pub(crate) mod color;
 pub(crate) mod duration;
+pub(crate) mod host_stats;
 pub(crate) mod log;
 pub(crate) mod response;
 pub(crate) mod stats;
@@ -27,6 +28,18 @@ pub(crate) fn get_stats_formatter(
         StatsFormat::Markdown => Box::new(stats::Markdown::new()),
         StatsFormat::Raw => Box::new(stats::Raw::new()),
     }
+}
+
+/// Create a progress formatter based on the given format option
+pub(crate) fn get_progress_formatter(mode: &OutputMode) -> Box<dyn ResponseFormatter> {
+    let mode = match mode {
+        OutputMode::Plain => OutputMode::Plain,
+        OutputMode::Color => OutputMode::Color,
+        OutputMode::Emoji => OutputMode::Emoji,
+        OutputMode::Task => OutputMode::default(),
+    };
+
+    get_response_formatter(&mode)
 }
 
 /// Create a response formatter based on the given format option

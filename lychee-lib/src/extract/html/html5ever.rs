@@ -7,7 +7,8 @@ use html5ever::{
 };
 
 use super::{
-    super::plaintext::extract_raw_uri_from_plaintext, is_email_link, is_verbatim_elem, srcset,
+    super::{css::extract_css_with_default_span, plaintext::extract_raw_uri_from_plaintext},
+    is_email_link, is_verbatim_elem, srcset,
 };
 use crate::types::uri::raw::{RawUri, RawUriSpan, SourceSpanProvider, SpanProvider};
 
@@ -40,6 +41,10 @@ struct LinkExtractor {
     links: RefCell<Vec<RawUri>>,
     include_verbatim: bool,
     current_verbatim_element_name: RefCell<Option<String>>,
+    /// Whether we're currently inside a `<style>` tag.
+    in_style_tag: RefCell<bool>,
+    /// Accumulated CSS content from within a `<style>` tag.
+    style_content: RefCell<String>,
 }
 
 impl TokenSink for LinkExtractor {
@@ -53,6 +58,12 @@ impl TokenSink for LinkExtractor {
 
         match token {
             Token::CharacterTokens(raw) => {
+                // If we're inside a style tag, accumulate the CSS content
+                if *self.in_style_tag.borrow() {
+                    self.style_content.borrow_mut().push_str(&raw);
+                    return TokenSinkResult::Continue;
+                }
+
                 if self.current_verbatim_element_name.borrow().is_some() {
                     return TokenSinkResult::Continue;
                 }
@@ -94,6 +105,8 @@ impl LinkExtractor {
             links: RefCell::new(Vec::new()),
             include_verbatim,
             current_verbatim_element_name: RefCell::new(None),
+            in_style_tag: RefCell::new(false),
+            style_content: RefCell::new(String::new()),
         }
     }
 
@@ -107,6 +120,24 @@ impl LinkExtractor {
         }: Tag,
         line_number: usize,
     ) -> TokenSinkResult<()> {
+        // Handle style tags for CSS URL extraction
+        if &name == "style" {
+            match kind {
+                TagKind::StartTag => {
+                    *self.in_style_tag.borrow_mut() = true;
+                    self.style_content.borrow_mut().clear();
+                }
+                TagKind::EndTag => {
+                    *self.in_style_tag.borrow_mut() = false;
+                    // Extract CSS URLs from the accumulated style content
+                    let css_content = self.style_content.borrow();
+                    let css_urls = extract_css_with_default_span(&css_content);
+                    self.links.borrow_mut().extend(css_urls);
+                    self.style_content.borrow_mut().clear();
+                }
+            }
+        }
+
         // Check if this is a verbatim element, which we want to skip.
         if !self.include_verbatim && is_verbatim_elem(&name) {
             // Check if we're currently inside a verbatim block

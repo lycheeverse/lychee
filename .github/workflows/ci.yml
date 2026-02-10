@@ -21,13 +21,13 @@ jobs:
   typos:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: crate-ci/typos@v1.39.2
+      - uses: actions/checkout@v6
+      - uses: crate-ci/typos@v1.43.1
 
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
@@ -39,7 +39,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -59,7 +59,7 @@ jobs:
   publish-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: cargo fetch
         run: cargo fetch
       - name: cargo publish lychee-lib
@@ -87,14 +87,12 @@ jobs:
   check-feature-flags:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Check that rustls-tls feature doesn't depend on OpenSSL
-        run: test -z "$( cargo tree --package lychee --no-default-features --features rustls-tls --prefix none | sed -n '/^openssl-sys /p' )"
+      - name: Check that lychee doesn't depend on OpenSSL
+        run: test -z "$( cargo tree --package lychee --no-default-features --prefix none | sed -n '/^openssl-sys /p' )"
       - name: Run cargo check with default features
         run: cargo check --workspace --all-targets
       - name: Run cargo check with all features
         run: cargo check --workspace --all-targets --all-features
-      - name: Run cargo check with rustls-tls feature
-        run: cargo check --workspace --all-targets --no-default-features --features rustls-tls

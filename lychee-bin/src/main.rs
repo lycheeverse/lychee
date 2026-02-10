@@ -59,27 +59,24 @@
 #![deny(missing_docs)]
 
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, ErrorKind, Write};
+use std::io::{self, BufRead, BufReader, ErrorKind};
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use anyhow::{Context, Error, Result, bail};
 use clap::{Parser, crate_version};
 use commands::{CommandParams, generate};
-use formatters::{get_stats_formatter, log::init_logging};
+use formatters::log::init_logging;
 use http::HeaderMap;
 use log::{error, info, warn};
 
 use lychee_lib::filter::PathExcludes;
-#[cfg(feature = "native-tls")]
-use openssl_sys as _; // required for vendored-openssl feature
 
 use options::{HeaderMapExt, LYCHEE_CONFIG_FILE};
 use ring as _; // required for apple silicon
 
-use lychee_lib::BasicAuthExtractor;
 use lychee_lib::Collector;
 use lychee_lib::CookieJar;
+use lychee_lib::{BasicAuthExtractor, StatusCodeSelector};
 
 mod cache;
 mod client;
@@ -88,13 +85,14 @@ mod files_from;
 mod formatters;
 mod options;
 mod parse;
-mod stats;
+mod progress;
 mod time;
 mod verbosity;
 
+use crate::formatters::stats::{OutputStats, ResponseStats, output_statistics};
 use crate::{
     cache::{Cache, StoreExt},
-    formatters::{duration::Duration, stats::StatsFormatter},
+    formatters::duration::Duration,
     generate::generate,
     options::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
 };
@@ -248,7 +246,9 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
     let cache = Cache::load(
         LYCHEE_CACHE_FILE,
         cfg.max_cache_age.as_secs(),
-        &cfg.cache_exclude_status.clone().unwrap_or_default(),
+        &cfg.cache_exclude_status
+            .clone()
+            .unwrap_or(StatusCodeSelector::empty()),
     );
     match cache {
         Ok(cache) => Some(cache),
@@ -367,7 +367,6 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let requests = collector.collect_links_from_file_types(inputs, opts.config.extensions.clone());
 
     let cache = load_cache(&opts.config).unwrap_or_default();
-    let cache = Arc::new(cache);
 
     let cookie_jar = load_cookie_jar(&opts.config).with_context(|| {
         format!(
@@ -380,7 +379,6 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     })?;
 
     let client = client::create(&opts.config, cookie_jar.as_deref())?;
-
     let params = CommandParams {
         client,
         cache,
@@ -391,39 +389,15 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     let exit_code = if opts.config.dump {
         commands::dump(params).await?
     } else {
-        let (stats, cache, exit_code) = commands::check(params).await?;
+        let (response_stats, cache, exit_code, host_pool) = commands::check(params).await?;
+        github_warning(&response_stats, &opts.config);
+        redirect_warning(&response_stats, &opts.config);
 
-        let github_issues = stats
-            .error_map
-            .values()
-            .flatten()
-            .any(|body| body.uri.domain() == Some("github.com"));
-
-        let stats_formatter: Box<dyn StatsFormatter> =
-            get_stats_formatter(&opts.config.format, &opts.config.mode);
-
-        let is_empty = stats.is_empty();
-        let formatted_stats = stats_formatter.format(stats)?;
-
-        if let Some(formatted_stats) = formatted_stats {
-            if let Some(output) = &opts.config.output {
-                fs::write(output, formatted_stats).context("Cannot write status output to file")?;
-            } else {
-                if opts.config.verbose.log_level() >= log::Level::Info && !is_empty {
-                    // separate summary from the verbose list of links above
-                    // with a newline
-                    writeln!(io::stdout())?;
-                }
-                // we assume that the formatted stats don't have a final newline
-                writeln!(io::stdout(), "{formatted_stats}")?;
-            }
-        }
-
-        if github_issues && opts.config.github_token.is_none() {
-            warn!(
-                "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
-            );
-        }
+        let stats = OutputStats {
+            response_stats,
+            host_stats: opts.config.host_stats.then_some(host_pool.all_host_stats()),
+        };
+        output_statistics(stats, &opts.config)?;
 
         if opts.config.cache {
             cache.store(LYCHEE_CACHE_FILE)?;
@@ -438,4 +412,36 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     };
 
     Ok(exit_code as i32)
+}
+
+/// Display user-friendly message if there were any issues with GitHub URLs
+fn github_warning(stats: &ResponseStats, config: &Config) {
+    let github_errors = stats
+        .error_map
+        .values()
+        .flatten()
+        .any(|body| body.uri.domain() == Some("github.com"));
+
+    if github_errors && config.github_token.is_none() {
+        warn!(
+            "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
+        );
+    }
+}
+
+/// Display user-friendly message if there were any redirects
+/// in non-verbose mode.
+fn redirect_warning(stats: &ResponseStats, config: &Config) {
+    let redirects = stats.redirects;
+    if redirects > 0 && config.verbose.log_level() < log::Level::Info {
+        let noun = if redirects == 1 {
+            "redirect"
+        } else {
+            "redirects"
+        };
+
+        warn!(
+            "lychee detected {redirects} {noun}. You might want to consider replacing redirecting URLs with the resolved URLs. Run lychee in verbose mode (-v/--verbose) to see details about the redirections.",
+        );
+    }
 }

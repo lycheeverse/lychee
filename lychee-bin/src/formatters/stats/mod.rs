@@ -3,25 +3,53 @@ mod detailed;
 mod json;
 mod markdown;
 mod raw;
+mod response;
 
 pub(crate) use compact::Compact;
+
 pub(crate) use detailed::Detailed;
 pub(crate) use json::Json;
 pub(crate) use markdown::Markdown;
 pub(crate) use raw::Raw;
+pub(crate) use response::ResponseStats;
+use serde::Serialize;
 
 use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
+    fs,
+    io::{Write, stdout},
 };
 
-use crate::stats::ResponseStats;
-use anyhow::Result;
-use lychee_lib::InputSource;
+use crate::{formatters::get_stats_formatter, options::Config};
+use anyhow::{Context, Result};
+use lychee_lib::{InputSource, ratelimit::HostStatsMap};
+
+#[derive(Default, Serialize)]
+pub(crate) struct OutputStats {
+    #[serde(flatten)]
+    pub(crate) response_stats: ResponseStats,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) host_stats: Option<HostStatsMap>,
+}
 
 pub(crate) trait StatsFormatter {
     /// Format the stats of all responses and write them to stdout
-    fn format(&self, stats: ResponseStats) -> Result<Option<String>>;
+    fn format(&self, stats: OutputStats) -> Result<String>;
+}
+
+/// If configured to do so, output response statistics to stdout or the specified output file.
+pub(crate) fn output_statistics(stats: OutputStats, config: &Config) -> Result<()> {
+    let formatter = get_stats_formatter(&config.format, &config.mode);
+    let formatted_stats = formatter.format(stats)?;
+
+    if let Some(output) = &config.output {
+        fs::write(output, formatted_stats).context("Cannot write status output to file")?;
+    } else {
+        // we assume that the formatted stats don't have a final newline
+        writeln!(stdout(), "{formatted_stats}")?;
+    }
+    Ok(())
 }
 
 /// Convert a `ResponseStats` `HashMap` to a sorted Vec of key-value pairs
@@ -49,6 +77,89 @@ where
     });
 
     entries
+}
+
+#[cfg(test)]
+fn get_dummy_stats() -> OutputStats {
+    use http::StatusCode;
+    use lychee_lib::{Redirect, Redirects, ResponseBody, Status, ratelimit::HostStats};
+    use url::Url;
+
+    use crate::formatters::suggestion::Suggestion;
+
+    let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
+    let error_map = HashMap::from([(
+        source.clone(),
+        HashSet::from([ResponseBody {
+            uri: "https://github.com/mre/idiomatic-rust-doesnt-exist-man"
+                .try_into()
+                .unwrap(),
+            status: Status::Ok(StatusCode::NOT_FOUND),
+        }]),
+    )]);
+
+    let suggestion_map = HashMap::from([(
+        source.clone(),
+        HashSet::from([Suggestion {
+            original: "https://original.dev".try_into().unwrap(),
+            suggestion: "https://suggestion.dev".try_into().unwrap(),
+        }]),
+    )]);
+
+    let mut redirects = Redirects::new("https://1.dev".try_into().unwrap());
+    redirects.push(Redirect {
+        url: "https://2.dev".try_into().unwrap(),
+        code: StatusCode::PERMANENT_REDIRECT,
+    });
+    redirects.push(Redirect {
+        url: "http://redirected.dev".try_into().unwrap(),
+        code: StatusCode::PERMANENT_REDIRECT,
+    });
+
+    let redirect_map = HashMap::from([(
+        source,
+        HashSet::from([ResponseBody {
+            uri: "https://redirected.dev".try_into().unwrap(),
+            status: Status::Redirected(StatusCode::OK, redirects),
+        }]),
+    )]);
+
+    let response_stats = ResponseStats {
+        total: 2,
+        successful: 0,
+        errors: 1,
+        unknown: 0,
+        excludes: 0,
+        timeouts: 0,
+        duration_secs: 0,
+        unsupported: 0,
+        redirects: 1,
+        cached: 0,
+        suggestion_map,
+        redirect_map,
+        success_map: HashMap::default(),
+        error_map,
+        excluded_map: HashMap::default(),
+        detailed_stats: true,
+    };
+
+    let host_stats = Some(HostStatsMap::from(HashMap::from([(
+        String::from("example.com"),
+        HostStats {
+            total_requests: 5,
+            successful_requests: 3,
+            rate_limited: 1,
+            server_errors: 1,
+            cache_hits: 1,
+            cache_misses: 4,
+            ..Default::default()
+        },
+    )])));
+
+    OutputStats {
+        response_stats,
+        host_stats,
+    }
 }
 
 #[cfg(test)]

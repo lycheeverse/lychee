@@ -4,17 +4,18 @@ use crate::parse::parse_base;
 use crate::verbosity::Verbosity;
 use anyhow::{Context, Error, Result, anyhow};
 use clap::builder::PossibleValuesParser;
-use clap::{Parser, arg, builder::TypedValueParser};
+use clap::{Parser, builder::TypedValueParser};
 use const_format::{concatcp, formatcp};
 use http::{
     HeaderMap,
     header::{HeaderName, HeaderValue},
 };
 use lychee_lib::Preprocessor;
+use lychee_lib::ratelimit::HostConfigs;
 use lychee_lib::{
     Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, FileExtensions,
-    FileType, Input, StatusCodeExcluder, StatusCodeSelector, archive::Archive,
+    FileType, Input, StatusCodeSelector, archive::Archive,
 };
 use reqwest::tls;
 use secrecy::SecretString;
@@ -195,7 +196,6 @@ default_function! {
     retry_wait_time: usize = DEFAULT_RETRY_WAIT_TIME_SECS;
     method: String = DEFAULT_METHOD.to_string();
     verbosity: Verbosity = Verbosity::default();
-    accept_selector: StatusCodeSelector = StatusCodeSelector::default();
 }
 
 // Macro for merging configuration values
@@ -390,7 +390,7 @@ where
 pub(crate) struct Config {
     /// Read input filenames from the given file or stdin (if path is '-').
     #[arg(
-        long = "files-from",
+        long,
         value_name = "PATH",
         long_help = "Read input filenames from the given file or stdin (if path is '-').
 
@@ -421,6 +421,11 @@ File Format:
     #[serde(default)]
     pub(crate) no_progress: bool,
 
+    /// Show per-host statistics at the end of the run
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) host_stats: bool,
+
     /// A list of file extensions. Files not matching the specified extensions are skipped.
     ///
     /// E.g. a user can specify `--extensions html,htm,php,asp,aspx,jsp,cgi`
@@ -444,8 +449,11 @@ specify both extensions explicitly."
     ///
     /// This is useful for files without extensions or with unknown extensions.
     /// The extension will be used to determine the file type for processing.
-    /// Examples: --default-extension md, --default-extension html
-    #[arg(long, value_name = "EXTENSION")]
+    ///
+    /// Examples:
+    ///   --default-extension md
+    ///   --default-extension html
+    #[arg(long, value_name = "EXTENSION", verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) default_extension: Option<String>,
 
@@ -482,7 +490,7 @@ Use \"lychee --cache-exclude-status '429, 500..502' <inputs>...\" to provide a
 comma-separated list of excluded status codes. This example will not cache results
 with a status code of 429, 500 and 501."
     )]
-    pub(crate) cache_exclude_status: Option<StatusCodeExcluder>,
+    pub(crate) cache_exclude_status: Option<StatusCodeSelector>,
 
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
@@ -527,6 +535,34 @@ with a status code of 429, 500 and 501."
     #[arg(long, default_value = &MAX_CONCURRENCY_STR)]
     #[serde(default = "max_concurrency")]
     pub(crate) max_concurrency: usize,
+
+    /// Default maximum concurrent requests per host (default: 10)
+    ///
+    /// This limits the maximum amount of requests that are sent simultaneously
+    /// to the same host. This helps to prevent overwhelming servers and
+    /// running into rate-limits. Use the `hosts` option to configure this
+    /// on a per-host basis.
+    ///
+    /// Examples:
+    ///   --host-concurrency 2   # Conservative for slow APIs
+    ///   --host-concurrency 20  # Aggressive for fast APIs
+    #[arg(long, verbatim_doc_comment)]
+    #[serde(default)]
+    pub(crate) host_concurrency: Option<usize>,
+
+    /// Minimum interval between requests to the same host (default: 50ms)
+    ///
+    /// Sets a baseline delay between consecutive requests to prevent
+    /// overloading servers. The adaptive algorithm may increase this based
+    /// on server responses (rate limits, errors). Use the `hosts` option
+    /// to configure this on a per-host basis.
+    ///
+    /// Examples:
+    ///   --host-request-interval 50ms   # Fast for robust APIs
+    ///   --host-request-interval 1s     # Conservative for rate-limited APIs
+    #[arg(long, value_parser = humantime::parse_duration, verbatim_doc_comment)]
+    #[serde(default, with = "humantime_serde")]
+    pub(crate) host_request_interval: Option<Duration>,
 
     /// Number of threads to utilize.
     /// Defaults to number of cores available to the system
@@ -664,7 +700,7 @@ Note: This option only takes effect on `file://` URIs which exist and point to a
     /// Set custom header for requests
     #[arg(
         short = 'H',
-        long = "header",
+        long,
         // Note: We use a `Vec<(String, String)>` for headers, which is
         // unfortunate. The reason is that `clap::ArgAction::Append` collects
         // multiple values, and `clap` cannot automatically convert these tuples
@@ -677,7 +713,9 @@ Note: This option only takes effect on `file://` URIs which exist and point to a
 Some websites require custom headers to be passed in order to return valid responses.
 You can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.
 This is the same format that other tools like curl or wget use.
-Multiple headers can be specified by using the flag multiple times."
+Multiple headers can be specified by using the flag multiple times.
+The specified headers are used for ALL requests.
+Use the `hosts` option to configure headers on a per-host basis."
     )]
     #[serde(default)]
     #[serde(deserialize_with = "deserialize_headers")]
@@ -687,7 +725,6 @@ Multiple headers can be specified by using the flag multiple times."
     #[arg(
         short,
         long,
-        default_value_t,
         long_help = "A List of accepted status codes for valid links
 
 The following accept range syntax is supported: [start]..[[=]end]|code. Some valid
@@ -701,10 +738,10 @@ examples are:
 
 Use \"lychee --accept '200..=204, 429, 500' <inputs>...\" to provide a comma-
 separated list of accepted status codes. This example will accept 200, 201,
-202, 203, 204, 429, and 500 as valid status codes."
+202, 203, 204, 429, and 500 as valid status codes.
+Defaults to '100..=103,200..=299' if the user provides no value."
     )]
-    #[serde(default = "accept_selector")]
-    pub(crate) accept: StatusCodeSelector,
+    pub(crate) accept: Option<StatusCodeSelector>,
 
     /// Enable the checking of fragments in links.
     #[arg(long)]
@@ -852,7 +889,8 @@ and existing cookies will be updated."
     pub(crate) cookie_jar: Option<PathBuf>,
 
     #[allow(clippy::doc_markdown)]
-    /// Check WikiLinks in Markdown files
+    /// Check WikiLinks in Markdown files, this requires specifying --base-url
+    #[clap(requires = "base_url")]
     #[arg(long)]
     #[serde(default)]
     pub(crate) include_wikilinks: bool,
@@ -887,6 +925,11 @@ esac"#
     )]
     #[serde(default)]
     pub(crate) preprocess: Option<Preprocessor>,
+
+    /// Host-specific configurations from config file
+    #[arg(skip)]
+    #[serde(default)]
+    pub(crate) hosts: HostConfigs,
 }
 
 impl Config {
@@ -923,6 +966,11 @@ impl Config {
             self.github_token = toml.github_token;
         }
 
+        // Hosts configuration is only available in TOML for now (not in the CLI)
+        // That's because it's a bit complex to specify on the command line and
+        // we didn't come up with a good syntax for it yet.
+        self.hosts = toml.hosts;
+
         // NOTE: if you see an error within this macro call, check to make sure that
         // that the fields provided to fold_in! match all the fields of the Config struct.
         fold_in! {
@@ -933,9 +981,10 @@ impl Config {
                 // Keys which are handled outside of fold_in
                 ..header,
                 ..github_token,
+                ..hosts,
 
                 // Keys with defaults to assign
-                accept: StatusCodeSelector::default(),
+                accept: None,
                 archive: None,
                 base: None,
                 base_url: None,
@@ -944,6 +993,8 @@ impl Config {
                 cache_exclude_status: None,
                 cookie_jar: None,
                 default_extension: None,
+                host_concurrency: None,
+                host_request_interval: None,
                 dump: false,
                 dump_inputs: false,
                 exclude: Vec::<String>::new(),
@@ -960,6 +1011,7 @@ impl Config {
                 generate: None,
                 glob_ignore_case: false,
                 hidden: false,
+                host_stats: false,
                 include: Vec::<String>::new(),
                 include_fragments: false,
                 include_mail: false,
@@ -1000,33 +1052,6 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-
-    #[test]
-    fn test_accept_status_codes() {
-        let toml = Config {
-            accept: StatusCodeSelector::from_str("200..=204, 429, 500").unwrap(),
-            ..Default::default()
-        };
-
-        let mut cli = Config::default();
-        cli.merge(toml);
-
-        assert!(cli.accept.contains(429));
-        assert!(cli.accept.contains(200));
-        assert!(cli.accept.contains(203));
-        assert!(cli.accept.contains(204));
-        assert!(!cli.accept.contains(205));
-    }
-
-    #[test]
-    fn test_default() {
-        let cli = Config::default();
-
-        assert_eq!(
-            cli.accept,
-            StatusCodeSelector::from_str("100..=103,200..=299").expect("no error")
-        );
-    }
 
     #[test]
     fn test_parse_custom_headers() {

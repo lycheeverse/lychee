@@ -2,7 +2,8 @@ use crate::options::{Config, HeaderMapExt};
 use crate::parse::{parse_duration_secs, parse_remaps};
 use anyhow::{Context, Result};
 use http::{HeaderMap, StatusCode};
-use lychee_lib::{Client, ClientBuilder};
+use lychee_lib::StatusCodeSelector;
+use lychee_lib::{Client, ClientBuilder, ratelimit::RateLimitConfig};
 use regex::RegexSet;
 use reqwest_cookie_store::CookieStoreMutex;
 use std::sync::Arc;
@@ -17,7 +18,11 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     let remaps = parse_remaps(&cfg.remap)?;
     let includes = RegexSet::new(&cfg.include)?;
     let excludes = RegexSet::new(&cfg.exclude)?;
-    let accepted: HashSet<StatusCode> = cfg.accept.clone().try_into()?;
+    let accepted: HashSet<StatusCode> = cfg
+        .accept
+        .clone()
+        .unwrap_or(StatusCodeSelector::default_accepted())
+        .into();
 
     // Offline mode overrides the scheme
     let schemes = if cfg.offline {
@@ -55,6 +60,12 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .include_fragments(cfg.include_fragments)
         .fallback_extensions(cfg.fallback_extensions.clone())
         .index_files(cfg.index_files.clone())
+        .include_wikilinks(cfg.include_wikilinks)
+        .rate_limit_config(RateLimitConfig::from_options(
+            cfg.host_concurrency,
+            cfg.host_request_interval,
+        ))
+        .hosts(cfg.hosts.clone())
         .build()
         .client()
         .context("Failed to create request client")

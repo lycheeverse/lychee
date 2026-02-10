@@ -12,21 +12,23 @@ mod cli {
     use pretty_assertions::assert_eq;
     use regex::Regex;
     use serde::Serialize;
-    use serde_json::Value;
+    use serde_json::{Value, json};
     use std::{
         collections::{HashMap, HashSet},
         error::Error,
         fs::{self, File},
         io::{BufRead, Write},
+        ops::Not,
         path::Path,
-        time::Duration,
+        time::{Duration, Instant},
     };
     use tempfile::{NamedTempFile, tempdir};
     use test_utils::{fixtures_path, mock_server, redirecting_mock_server, root_path};
+    use url::Url;
 
     use uuid::Uuid;
     use wiremock::{
-        Mock, ResponseTemplate,
+        Mock, Request, ResponseTemplate,
         matchers::{basic_auth, method},
     };
 
@@ -292,12 +294,25 @@ mod cli {
 
     #[test]
     fn test_email() -> Result<()> {
+        cargo_bin_cmd!()
+            .write_stdin("test@example.com idiomatic-rust-doesnt-exist-man@wikipedia.org")
+            .arg("--include-mail")
+            .arg("-")
+            .assert()
+            .code(2)
+            .stdout(contains(
+                "Unreachable mail address mailto:test@example.com: No MX records found for domain",
+            ))
+            .stdout(contains(
+                "Unreachable mail address mailto:idiomatic-rust-doesnt-exist-man@wikipedia.org: Mail server rejects the address",
+            ))
+            .stdout(contains("2 Errors"));
+
         test_json_output!(
             "TEST_EMAIL.md",
             MockResponseStats {
-                total: 5,
-                excludes: 0,
-                successful: 5,
+                total: 3,
+                successful: 3,
                 ..MockResponseStats::default()
             },
             "--include-mail"
@@ -309,9 +324,9 @@ mod cli {
         test_json_output!(
             "TEST_EMAIL.md",
             MockResponseStats {
-                total: 5,
-                excludes: 3,
-                successful: 2,
+                total: 3,
+                excludes: 2,
+                successful: 1,
                 ..MockResponseStats::default()
             }
         )
@@ -464,6 +479,16 @@ mod cli {
             .failure()
             .stderr(contains("Invalid root directory"))
             .code(1);
+
+        let file = NamedTempFile::new().unwrap();
+        cargo_bin_cmd!()
+            .arg("--root-dir")
+            .arg(file.path())
+            .arg("http://example.com")
+            .assert()
+            .failure()
+            .stderr(contains("Invalid root directory"))
+            .code(1);
     }
 
     #[test]
@@ -599,7 +624,7 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(
-                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Rejected status code (this depends on your "accept" configuration): Not Found"#
+                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Rejected status code: 404 Not Found (configurable with "accept" option)"#
             ))
             .stderr(contains(
                 "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
@@ -685,23 +710,19 @@ mod cli {
             .arg("--hidden")
             .assert()
             .success()
-            .stdout(contains("1 Total"));
+            .stdout(contains("2 Total"));
 
-        cargo_bin_cmd!()
+        let result = cargo_bin_cmd!()
             .arg("--dump")
             .arg("--hidden")
             .arg(fixtures_path!().join("hidden/"))
             .assert()
-            .stdout(contains("wikipedia.org"))
             .success();
 
-        cargo_bin_cmd!()
-            .arg("--dump-inputs")
-            .arg("--hidden")
-            .arg(fixtures_path!().join("hidden/"))
-            .assert()
-            .stdout(contains(".hidden"))
-            .success();
+        assert_lines_eq(
+            result,
+            vec!["https://rust-lang.org/", "https://rust-lang.org/"],
+        );
     }
 
     #[test]
@@ -1184,7 +1205,7 @@ The config file should contain every possible key for documentation purposes."
         let mut cmd = cargo_bin_cmd!();
         cmd.current_dir(&base_path)
             .arg(&file_path)
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--no-progress")
             .arg("--cache")
             .arg("--exclude")
@@ -1257,7 +1278,7 @@ The config file should contain every possible key for documentation purposes."
         let test_cmd = cmd
             .current_dir(&base_path)
             .arg(dir.path().join("c.md"))
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--no-progress")
             .arg("--cache")
             .arg("--cache-exclude-status")
@@ -1277,7 +1298,7 @@ The config file should contain every possible key for documentation purposes."
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
-                "[429] {}/ | Rejected status code (this depends on your \"accept\" configuration): Too Many Requests\n",
+                "[429] {}/ | Rejected status code: 429 Too Many Requests (configurable with \"accept\" option)",
                 mock_server_too_many_requests.uri()
             )));
 
@@ -1320,7 +1341,7 @@ The config file should contain every possible key for documentation purposes."
         let test_cmd = cmd
             .current_dir(&base_path)
             .arg(dir.path().join("c.md"))
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--cache");
 
         assert!(
@@ -1335,11 +1356,11 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[418] {}/ | Rejected status code (this depends on your "accept" configuration): I'm a teapot"#,
+                r#"[418] {}/ | Rejected status code: 418 I'm a teapot (configurable with "accept" option)"#,
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                r#"[500] {}/ | Rejected status code (this depends on your "accept" configuration): Internal Server Error"#,
+                r#"[500] {}/ | Rejected status code: 500 Internal Server Error (configurable with "accept" option)"#,
                 mock_server_server_error.uri()
             )));
 
@@ -1385,7 +1406,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[200] {}/ | Rejected status code (this depends on your "accept" configuration): OK"#,
+                r#"[200] {}/ | Rejected status code: 200 OK (configurable with "accept" option)"#,
                 mock_server_200.uri()
             )));
 
@@ -1465,9 +1486,7 @@ The config file should contain every possible key for documentation purposes."
             .arg("--")
             .arg("-")
             .assert()
-            // LinkedIn does not always return 999, so we cannot check for that
-            // .stderr(contains(format!("[999] {unknown_url} | Unknown status")))
-            ;
+            .success();
 
         // If the status code was 999, the cache file should be empty
         // because we do not want to cache unknown status codes
@@ -1483,6 +1502,51 @@ The config file should contain every possible key for documentation purposes."
         // clear the cache file
         fs::remove_file(&cache_file)?;
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_process_internal_host_caching() -> Result<()> {
+        // Note that this process-internal per-host caching
+        // has no direct relation to the lychee cache file
+        // where state can be persisted between multiple invocations.
+        let server = wiremock::MockServer::start().await;
+
+        // Return one rate-limited response to make sure that
+        // such a response isn't cached.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(ResponseTemplate::new(429))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let temp_dir = tempfile::tempdir()?;
+        for i in 0..9 {
+            let test_md1 = temp_dir.path().join(format!("test{i}.md"));
+            fs::write(&test_md1, server.uri())?;
+        }
+
+        cargo_bin_cmd!()
+            .arg(temp_dir.path())
+            .arg("--host-stats")
+            .assert()
+            .success()
+            .stdout(contains("9 Total"))
+            .stdout(contains("9 OK"))
+            .stdout(contains("0 Errors"))
+            // Per-host statistics
+            // 1 rate limited + 9 OK
+            .stdout(contains("10 reqs"))
+            // 1 rate limited, 1 OK, 8 cached
+            .stdout(contains("80.0% cached"));
+
+        server.verify().await;
         Ok(())
     }
 
@@ -2058,7 +2122,8 @@ The config file should contain every possible key for documentation purposes."
             .arg(test_dir)
             .assert()
             .success()
-            .stdout(contains(".hidden/file.md"));
+            .stdout(contains("hidden/.file.md"))
+            .stdout(contains("hidden/.hidden/file.md"));
     }
 
     #[test]
@@ -2101,7 +2166,7 @@ The config file should contain every possible key for documentation purposes."
 
         let mut result = cargo_bin_cmd!()
             .arg("--include-fragments")
-            .arg("--verbose")
+            .arg("-vv")
             .arg(input)
             .assert()
             .failure();
@@ -2194,7 +2259,7 @@ The config file should contain every possible key for documentation purposes."
         // it's common for user to accept 429, but let's test with 404 since
         // triggering 429 may annoy the server
         cargo_bin_cmd!()
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--accept=200,404")
             .arg("--include-fragments")
             .arg(input)
@@ -2304,23 +2369,20 @@ The config file should contain every possible key for documentation purposes."
 
     #[tokio::test]
     async fn test_redirect_json() {
-        use serde_json::json;
-        redirecting_mock_server!(async |redirect_url: Url, ok_url| {
-            let output = cargo_bin_cmd!()
-                .arg("-")
-                .arg("--format")
-                .arg("json")
-                .write_stdin(redirect_url.as_str())
-                .env_clear()
-                .assert()
-                .success()
-                .get_output()
-                .clone()
-                .unwrap();
+        // Non-verbose mode
+        redirecting_mock_server!(async |redirect_url: Url, _| {
+            let (json, stderr) = run(&redirect_url, false);
+            assert!(stderr.contains("[WARN] lychee detected 1 redirect. You might want to consider replacing redirecting URLs"));
+            assert_eq!(json["total"], 1);
+            assert_eq!(json["redirects"], 1);
+            assert_eq!(json["redirect_map"], json!({}));
+        })
+        .await;
 
-            // Check that the output is in JSON format
-            let output = std::str::from_utf8(&output.stdout).unwrap();
-            let json: serde_json::Value = serde_json::from_str(output).unwrap();
+        // Verbose mode
+        redirecting_mock_server!(async |redirect_url: Url, ok_url| {
+            let (json, stderr) = run(&redirect_url, true);
+            assert!(stderr.contains("WARN").not());
             assert_eq!(json["total"], 1);
             assert_eq!(json["redirects"], 1);
             assert_eq!(
@@ -2330,13 +2392,45 @@ The config file should contain every possible key for documentation purposes."
                     "status": {
                         "code": 200,
                         "text": "Redirect",
-                        "redirects": [ redirect_url, ok_url ]
+                        "redirects": {
+                            "origin": redirect_url,
+                            "redirects": [{
+                                "code": 308,
+                                "url": ok_url,
+                            }]
+                        },
                     },
                     "url": redirect_url
                 }]})
             );
         })
         .await;
+
+        fn run(url: &Url, verbose: bool) -> (Value, String) {
+            let mut binding = cargo_bin_cmd!();
+            let mut base = binding.arg("-");
+
+            if verbose {
+                base = base.arg("--verbose");
+            }
+
+            let output = base
+                .arg("--format")
+                .arg("json")
+                .write_stdin(url.as_str())
+                .env_clear()
+                .assert()
+                .success()
+                .get_output()
+                .clone()
+                .unwrap();
+
+            let stdout = str::from_utf8(&output.stdout).unwrap().to_string();
+            let json: serde_json::Value = serde_json::from_str(stdout.as_str()).unwrap();
+            let stderr = str::from_utf8(&output.stderr).unwrap().to_string();
+
+            (json, stderr)
+        }
     }
 
     #[tokio::test]
@@ -2359,6 +2453,48 @@ The config file should contain every possible key for documentation purposes."
             .write_stdin(mock_server.uri())
             .assert()
             .success();
+    }
+
+    #[tokio::test]
+    async fn test_retry_rate_limit_headers() {
+        const RETRY_DELAY: Duration = Duration::from_secs(1);
+        const TOLERANCE: Duration = Duration::from_millis(500);
+        let server = wiremock::MockServer::start().await;
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                ResponseTemplate::new(429)
+                    .append_header("Retry-After", RETRY_DELAY.as_secs().to_string()),
+            )
+            .expect(1)
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        let start = Instant::now();
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(move |_: &Request| {
+                let delta = Instant::now().duration_since(start);
+                assert!(delta > RETRY_DELAY);
+                assert!(delta < RETRY_DELAY + TOLERANCE);
+                ResponseTemplate::new(200)
+            })
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        cargo_bin_cmd!()
+            // Direct args are not using the host pool, they are resolved earlier via Collector
+            .arg("-")
+            // Retry wait times are added on top of host-specific backoff timeout
+            .arg("--retry-wait-time")
+            .arg("0")
+            .write_stdin(server.uri())
+            .assert()
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
     }
 
     #[tokio::test]
@@ -2397,7 +2533,6 @@ The config file should contain every possible key for documentation purposes."
                 wiremock::Mock::given(wiremock::matchers::method("GET"))
                     .and(wiremock::matchers::header("X-Foo", "Bar"))
                     .respond_with(wiremock::ResponseTemplate::new(200))
-                    // We expect the mock to be called exactly least once.
                     .expect(1)
                     .named("GET expecting custom header"),
             )
@@ -2424,7 +2559,6 @@ The config file should contain every possible key for documentation purposes."
                     .and(wiremock::matchers::header("X-Foo", "Bar"))
                     .and(wiremock::matchers::header("X-Bar", "Baz"))
                     .respond_with(wiremock::ResponseTemplate::new(200))
-                    // We expect the mock to be called exactly least once.
                     .expect(1)
                     .named("GET expecting custom header"),
             )
@@ -2452,8 +2586,8 @@ The config file should contain every possible key for documentation purposes."
                 wiremock::Mock::given(wiremock::matchers::method("GET"))
                     .and(wiremock::matchers::header("X-Foo", "Bar"))
                     .and(wiremock::matchers::header("X-Bar", "Baz"))
+                    .and(wiremock::matchers::header("X-Host-Specific", "Foo"))
                     .respond_with(wiremock::ResponseTemplate::new(200))
-                    // We expect the mock to be called exactly least once.
                     .expect(1)
                     .named("GET expecting custom header"),
             )
@@ -2464,7 +2598,8 @@ The config file should contain every possible key for documentation purposes."
             .arg("--verbose")
             .arg("--config")
             .arg(config)
-            .arg(server.uri())
+            .arg("-")
+            .write_stdin(server.uri())
             .assert()
             .success();
 
@@ -2548,6 +2683,8 @@ The config file should contain every possible key for documentation purposes."
         cargo_bin_cmd!()
             .arg("--dump")
             .arg("--include-wikilinks")
+            .arg("--base-url")
+            .arg(fixtures_path!())
             .arg(test_path)
             .assert()
             .success()
@@ -2689,7 +2826,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Run the command with the binary input
         let result = cargo_bin_cmd!()
-            .arg("--verbose")
+            .arg("-vv")
             .arg(&inputs)
             .assert()
             .success()
@@ -3006,6 +3143,74 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stdout(contains("https://example.org")); // Should extract the link as plaintext
+    }
+
+    #[test]
+    fn test_wikilink_fixture_obsidian_style() {
+        let input = fixtures_path!().join("wiki/obsidian-style.md");
+
+        // testing without fragments should not yield failures
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path!())
+            .assert()
+            .success()
+            .stdout(contains("4 OK"));
+    }
+
+    #[test]
+    fn test_wikilink_fixture_wikilink_non_existent() {
+        let input = fixtures_path!().join("wiki/Non-existent.md");
+
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path!())
+            .assert()
+            .failure()
+            .stdout(contains("3 Errors"));
+    }
+
+    #[test]
+    fn test_wikilink_fixture_with_fragments_obsidian_style_fixtures_excluded() {
+        let input = fixtures_path!().join("wiki/obsidian-style-plus-headers.md");
+
+        // fragments should resolve all headers
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path!())
+            .assert()
+            .success()
+            .stdout(contains("4 OK"));
+    }
+
+    #[test]
+    fn test_wikilink_fixture_with_fragments_obsidian_style() {
+        let input = fixtures_path!().join("wiki/obsidian-style-plus-headers.md");
+
+        // fragments should resolve all headers
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--include-fragments")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path!())
+            .assert()
+            .success()
+            .stdout(contains("4 OK"));
     }
 
     /// An input which matches nothing should print a warning and continue.

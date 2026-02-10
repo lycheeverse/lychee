@@ -4,3 +4,7 @@ X-Bar = "Baz"
 
 # Alternative TOML syntax:
 # header = { X-Foo = "Bar", X-Bar = "Baz" }
+
+
+[hosts."127.0.0.1"]
+headers = { "X-Host-Specific" = "Foo" }

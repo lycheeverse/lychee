@@ -23,7 +23,7 @@ pub(crate) struct ResponseStats {
     pub(crate) total: usize,
     /// Number of successful responses
     pub(crate) successful: usize,
-    /// Number of responses with an unknown status code
+    /// Number of responses with an unknown status
     pub(crate) unknown: usize,
     /// Number of responses, which lychee does not support right now
     pub(crate) unsupported: usize,
@@ -72,7 +72,7 @@ impl ResponseStats {
         match status {
             Status::Ok(_) => self.successful += 1,
             Status::Error(_) | Status::RequestError(_) => self.errors += 1,
-            Status::UnknownStatusCode(_) => self.unknown += 1,
+            Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => self.unknown += 1,
             Status::Timeout(_) => self.timeouts += 1,
             Status::Redirected(_, _) => self.redirects += 1,
             Status::Excluded => self.excludes += 1,
@@ -97,7 +97,9 @@ impl ResponseStats {
             _ if status.is_error() => self.error_map.entry(source).or_default(),
             Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),
             Status::Excluded if self.detailed_stats => self.excluded_map.entry(source).or_default(),
-            Status::Redirected(_, _) => self.redirect_map.entry(source).or_default(),
+            Status::Redirected(_, _) if self.detailed_stats => {
+                self.redirect_map.entry(source).or_default()
+            }
             _ => return,
         };
         status_map_entry.insert(response.1);
@@ -117,8 +119,9 @@ impl ResponseStats {
     }
 
     #[inline]
+    #[cfg(test)]
     /// Check if no responses were received
-    pub(crate) const fn is_empty(&self) -> bool {
+    const fn is_empty(&self) -> bool {
         self.total == 0
     }
 }

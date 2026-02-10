@@ -2,6 +2,7 @@ use crate::{
     BasicAuthCredentials, ErrorKind, FileType, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
+    ratelimit::{CacheableResponse, HostPool},
     retry::RetryExt,
     types::{redirect_history::RedirectHistory, uri::github::GithubUri},
     utils::fragment_checker::{FragmentChecker, FragmentInput},
@@ -9,17 +10,14 @@ use crate::{
 use async_trait::async_trait;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
-use reqwest::{Request, Response, header::CONTENT_TYPE};
-use std::{collections::HashSet, path::Path, time::Duration};
+use reqwest::{Request, header::CONTENT_TYPE};
+use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 use url::Url;
 
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
     /// Request method used for making requests.
     method: reqwest::Method,
-
-    /// The HTTP client used for requests.
-    reqwest_client: reqwest::Client,
 
     /// GitHub client used for requests.
     github_client: Option<Octocrab>,
@@ -54,25 +52,36 @@ pub(crate) struct WebsiteChecker {
 
     /// Keep track of HTTP redirections for reporting
     redirect_history: RedirectHistory,
+
+    /// Optional host pool for per-host rate limiting.
+    ///
+    /// When present, HTTP requests will be routed through this pool for
+    /// rate limiting. When None, requests go directly through `reqwest_client`.
+    host_pool: Arc<HostPool>,
 }
 
 impl WebsiteChecker {
+    /// Get a reference to `HostPool`
+    #[must_use]
+    pub(crate) fn host_pool(&self) -> Arc<HostPool> {
+        self.host_pool.clone()
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         method: reqwest::Method,
         retry_wait_time: Duration,
         redirect_history: RedirectHistory,
         max_retries: u64,
-        reqwest_client: reqwest::Client,
         accepted: HashSet<StatusCode>,
         github_client: Option<Octocrab>,
         require_https: bool,
         plugin_request_chain: RequestChain,
         include_fragments: bool,
+        host_pool: Arc<HostPool>,
     ) -> Self {
         Self {
             method,
-            reqwest_client,
             github_client,
             plugin_request_chain,
             redirect_history,
@@ -82,11 +91,14 @@ impl WebsiteChecker {
             require_https,
             include_fragments,
             fragment_checker: FragmentChecker::new(),
+            host_pool,
         }
     }
 
     /// Retry requests up to `max_retries` times
     /// with an exponential backoff.
+    /// Note that, in addition, there also is a host-specific backoff
+    /// when host-specific rate limiting or errors are detected.
     pub(crate) async fn retry_request(&self, request: Request) -> Status {
         let mut retries: u64 = 0;
         let mut wait_time = self.retry_wait_time;
@@ -109,18 +121,18 @@ impl WebsiteChecker {
         let method = request.method().clone();
         let request_url = request.url().clone();
 
-        match self.reqwest_client.execute(request).await {
+        match self.host_pool.execute_request(request).await {
             Ok(response) => {
                 let status = Status::new(&response, &self.accepted);
                 // when `accept=200,429`, `status_code=429` will be treated as success
                 // but we are not able the check the fragment since it's inapplicable.
                 if self.include_fragments
-                    && response.status().is_success()
+                    && response.status.is_success()
                     && method == Method::GET
                     && request_url.fragment().is_some_and(|x| !x.is_empty())
                 {
                     let Some(content_type) = response
-                        .headers()
+                        .headers
                         .get(CONTENT_TYPE)
                         .and_then(|header| header.to_str().ok())
                     else {
@@ -131,7 +143,7 @@ impl WebsiteChecker {
                         ct if ct.starts_with("text/html") => FileType::Html,
                         ct if ct.starts_with("text/markdown") => FileType::Markdown,
                         ct if ct.starts_with("text/plain") => {
-                            let path = Path::new(response.url().path());
+                            let path = Path::new(response.url.path());
                             match path.extension() {
                                 Some(ext) if ext.eq_ignore_ascii_case("md") => FileType::Markdown,
                                 _ => return status,
@@ -154,22 +166,18 @@ impl WebsiteChecker {
         &self,
         url: Url,
         status: Status,
-        response: Response,
+        response: CacheableResponse,
         file_type: FileType,
     ) -> Status {
-        match response.text().await {
-            Ok(content) => {
-                match self
-                    .fragment_checker
-                    .check(FragmentInput { content, file_type }, &url)
-                    .await
-                {
-                    Ok(true) => status,
-                    Ok(false) => Status::Error(ErrorKind::InvalidFragment(url.into())),
-                    Err(e) => Status::Error(e),
-                }
-            }
-            Err(e) => Status::Error(ErrorKind::ReadResponseBody(e)),
+        let content = response.text;
+        match self
+            .fragment_checker
+            .check(FragmentInput { content, file_type }, &url)
+            .await
+        {
+            Ok(true) => status,
+            Ok(false) => Status::Error(ErrorKind::InvalidFragment(url.into())),
+            Err(e) => Status::Error(e),
         }
     }
 
@@ -239,10 +247,7 @@ impl WebsiteChecker {
     /// - The request failed.
     /// - The response status code is not accepted.
     async fn check_website_inner(&self, uri: &Uri, default_chain: &RequestChain) -> Status {
-        let request = self
-            .reqwest_client
-            .request(self.method.clone(), uri.as_str())
-            .build();
+        let request = self.host_pool.build_request(self.method.clone(), uri);
 
         let request = match request {
             Ok(r) => r,

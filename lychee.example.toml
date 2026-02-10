@@ -16,6 +16,9 @@ no_progress = false
 # Path to summary output file.
 output = ".config.dummy.report.md"
 
+# Show host statistics
+host_stats = true
+
 # Extract links instead of checking them
 dump = true
 
@@ -200,3 +203,20 @@ archive = "wayback"
 
 # Search and suggest link replacements for all broken links
 suggest = true
+
+#############################  Hosts  #############################
+
+# Maximum simultaneous requests to the same host
+host_concurrency = 5
+
+# Minimum interval between requests to the same host
+host_request_interval = "50ms"
+
+# Customize hosts
+[hosts."blog.example.com"]
+# Overwrite `host_concurrency` for this host
+concurrency = 5
+# Overwrite `host_request_interval` for this host
+request_interval = "0" # zero disables rate limiting
+# Merge global `header` values with the following `headers` for this host
+headers = { "A" = "B" }

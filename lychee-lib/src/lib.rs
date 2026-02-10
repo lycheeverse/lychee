@@ -68,6 +68,9 @@ pub mod extract;
 
 pub mod remap;
 
+/// Per-host rate limiting and concurrency control
+pub mod ratelimit;
+
 /// Filters are a way to define behavior when encountering
 /// URIs that need to be treated differently, such as
 /// local IPs or e-mail addresses
@@ -76,9 +79,6 @@ pub mod filter;
 #[cfg(test)]
 use doc_comment as _; // required for doctest
 use ring as _; // required for apple silicon
-
-#[cfg(feature = "native-tls")]
-use openssl_sys as _; // required for vendored-openssl feature
 
 #[doc(inline)]
 pub use crate::{
@@ -93,10 +93,10 @@ pub use crate::{
     collector::Collector,
     filter::{Excludes, Filter, Includes},
     types::{
-        AcceptRange, AcceptRangeError, Base, BasicAuthCredentials, BasicAuthSelector, CacheStatus,
-        CookieJar, ErrorKind, FileExtensions, FileType, Input, InputContent, InputResolver,
-        InputSource, LycheeResult, Preprocessor, Redirects, Request, RequestError,
-        ResolvedInputSource, Response, ResponseBody, Result, Status, StatusCodeExcluder,
-        StatusCodeSelector, uri::raw::RawUri, uri::valid::Uri,
+        Base, BasicAuthCredentials, BasicAuthSelector, CacheStatus, CookieJar, ErrorKind,
+        FileExtensions, FileType, Input, InputContent, InputResolver, InputSource, LycheeResult,
+        Preprocessor, Redirect, Redirects, Request, RequestError, ResolvedInputSource, Response,
+        ResponseBody, Result, Status, StatusCodeSelector, StatusRange, StatusRangeError,
+        uri::raw::RawUri, uri::valid::Uri,
     },
 };

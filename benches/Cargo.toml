@@ -9,14 +9,12 @@ publish = false
 
 [dependencies]
 lychee-lib = { path = "../lychee-lib", default-features = false }
-criterion = "0.7.0"
-tokio = "1.48.0"
+criterion = "0.8.2"
+tokio = "1.49.0"
 
 [features]
 email-check = ["lychee-lib/email-check"]
-native-tls = ["lychee-lib/native-tls"]
-rustls-tls = ["lychee-lib/rustls-tls"]
-default = ["native-tls", "email-check"]
+default = ["email-check"]
 
 [[bench]]
 name = "extract"

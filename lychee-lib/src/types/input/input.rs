@@ -12,6 +12,7 @@ use crate::types::{FileType, RequestError, file::FileExtensions, resolver::UrlCo
 use crate::{ErrorKind, LycheeResult};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
+use log::debug;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
 
@@ -269,6 +270,8 @@ impl Input {
     pub async fn stdin_content(file_type_hint: Option<FileType>) -> LycheeResult<InputContent> {
         let mut content = String::new();
         let mut stdin = stdin();
+
+        debug!("Reading content from stdin"); // useful info when nothing piped and process blocks
         stdin.read_to_string(&mut content).await?;
 
         let input_content = InputContent {

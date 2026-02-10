@@ -79,7 +79,7 @@ pub enum ErrorKind {
     InvalidUrlFromPath(PathBuf),
 
     /// The given mail address is unreachable
-    #[error("Unreachable mail address: {0}: {1}")]
+    #[error("Unreachable mail address {0}")]
     UnreachableEmailAddress(Uri, String),
 
     /// The given header could not be parsed.
@@ -138,7 +138,7 @@ pub enum ErrorKind {
     #[error("Cannot send/receive message from channel")]
     Channel(#[from] tokio::sync::mpsc::error::SendError<InputContent>),
 
-    /// An URL with an invalid host was found
+    /// A URL without a host was found
     #[error("URL is missing a host")]
     InvalidUrlHost,
 
@@ -151,7 +151,11 @@ pub enum ErrorKind {
     InvalidStatusCode(u16),
 
     /// The given status code was not accepted (this depends on the `accept` configuration)
-    #[error(r#"Rejected status code (this depends on your "accept" configuration)"#)]
+    #[error(
+        r#"Rejected status code: {code} {reason} (configurable with "accept" option)"#,
+        code = .0.as_str(),
+        reason = .0.canonical_reason().unwrap_or("Unknown status code")
+    )]
     RejectedStatusCode(StatusCode),
 
     /// Regex error
@@ -178,6 +182,14 @@ pub enum ErrorKind {
         /// The reason the command failed
         reason: String,
     },
+
+    /// The extracted `WikiLink` could not be found by searching the directory
+    #[error("Wikilink {0} not found at {1}")]
+    WikilinkNotFound(Uri, PathBuf),
+
+    /// Error on creation of the `WikilinkResolver`
+    #[error("Failed to initialize wikilink checker: {0}")]
+    WikilinkInvalidBase(String),
 }
 
 impl ErrorKind {
@@ -191,59 +203,54 @@ impl ErrorKind {
     pub fn details(&self) -> Option<String> {
         match self {
             ErrorKind::NetworkRequest(e) => {
-                        // Get detailed, actionable error analysis
-                        Some(utils::reqwest::analyze_error_chain(e))
-                    }
-            ErrorKind::RejectedStatusCode(status) => Some(
-                        status
-                            .canonical_reason()
-                            .unwrap_or("Unknown status code")
-                            .to_string(),
-                    ),
+                // Get detailed, actionable error analysis
+                Some(utils::reqwest::analyze_error_chain(e))
+            }
+            ErrorKind::RejectedStatusCode(status) => status
+                .is_redirection()
+                .then_some(r#"Redirects may have been limited by "max-redirects"."#.to_string()),
             ErrorKind::GithubRequest(e) => {
-                        if let octocrab::Error::GitHub { source, .. } = &**e {
-                            Some(source.message.clone())
-                        } else {
-                            // Fall back to generic error analysis
-                            Some(e.to_string())
-                        }
-                    }
-            ErrorKind::InvalidFilePath(_uri) => Some(
-                "File not found. Check if file exists and path is correct".to_string()
-            ),
+                if let octocrab::Error::GitHub { source, .. } = &**e {
+                    Some(source.message.clone())
+                } else {
+                    // Fall back to generic error analysis
+                    Some(e.to_string())
+                }
+            }
+            ErrorKind::InvalidFilePath(_uri) => {
+                Some("File not found. Check if file exists and path is correct".to_string())
+            }
             ErrorKind::ReadFileInput(e, path) => match e.kind() {
-                        std::io::ErrorKind::NotFound => Some(
-                            "Check if file path is correct".to_string()
-                        ),
-                        std::io::ErrorKind::PermissionDenied => Some(format!(
-                            "Permission denied: '{}'. Check file permissions",
-                            path.display()
-                        )),
-                        std::io::ErrorKind::IsADirectory => Some(format!(
-                            "Path is a directory, not a file: '{}'. Check file path",
-                            path.display()
-                        )),
-                        _ => Some(format!("File read error for '{}': {}", path.display(), e)),
-                    },
+                std::io::ErrorKind::NotFound => Some("Check if file path is correct".to_string()),
+                std::io::ErrorKind::PermissionDenied => Some(format!(
+                    "Permission denied: '{}'. Check file permissions",
+                    path.display()
+                )),
+                std::io::ErrorKind::IsADirectory => Some(format!(
+                    "Path is a directory, not a file: '{}'. Check file path",
+                    path.display()
+                )),
+                _ => Some(format!("File read error for '{}': {}", path.display(), e)),
+            },
             ErrorKind::ReadStdinInput(e) => match e.kind() {
-                        std::io::ErrorKind::UnexpectedEof => {
-                            Some("Stdin input ended unexpectedly. Check input data".to_string())
-                        }
-                        std::io::ErrorKind::InvalidData => {
-                            Some("Invalid data from stdin. Check input format".to_string())
-                        }
-                        _ => Some(format!("Stdin read error: {e}")),
-                    },
+                std::io::ErrorKind::UnexpectedEof => {
+                    Some("Stdin input ended unexpectedly. Check input data".to_string())
+                }
+                std::io::ErrorKind::InvalidData => {
+                    Some("Invalid data from stdin. Check input format".to_string())
+                }
+                _ => Some(format!("Stdin read error: {e}")),
+            },
             ErrorKind::ParseUrl(_, url) => {
-                        Some(format!("Invalid URL format: '{url}'. Check URL syntax"))
-                    }
+                Some(format!("Invalid URL format: '{url}'. Check URL syntax"))
+            }
             ErrorKind::EmptyUrl => {
-                        Some("Empty URL found. Check for missing links or malformed markdown".to_string())
-                    }
+                Some("Empty URL found. Check for missing links or malformed markdown".to_string())
+            }
             ErrorKind::InvalidFile(path) => Some(format!(
-                        "Invalid file path: '{}'. Check if file exists and is readable",
-                        path.display()
-                    )),
+                "Invalid file path: '{}'. Check if file exists and is readable",
+                path.display()
+            )),
             ErrorKind::ReadResponseBody(error) => Some(format!(
                 "Failed to read response body: {error}. Server may have sent invalid data",
             )),
@@ -253,9 +260,9 @@ impl ErrorKind {
             ErrorKind::RuntimeJoin(join_error) => Some(format!(
                 "Task execution failed: {join_error}. Internal processing error"
             )),
-            ErrorKind::Utf8(_utf8_error) => Some(
-                "Invalid UTF-8 sequence found. File contains non-UTF-8 characters".to_string()
-            ),
+            ErrorKind::Utf8(_utf8_error) => {
+                Some("Invalid UTF-8 sequence found. File contains non-UTF-8 characters".to_string())
+            }
             ErrorKind::BuildGithubClient(error) => Some(format!(
                 "Failed to create GitHub client: {error}. Check token and network connectivity",
             )),
@@ -263,32 +270,35 @@ impl ErrorKind {
                 "Invalid GitHub URL format: '{url}'. Check URL syntax",
             )),
             ErrorKind::InvalidFragment(_uri) => Some(
-                "Fragment not found in document. Check if fragment exists or page structure".to_string()
+                "Fragment not found in document. Check if fragment exists or page structure"
+                    .to_string(),
             ),
             ErrorKind::InvalidUrlFromPath(path_buf) => Some(format!(
                 "Cannot convert path to URL: '{}'. Check path format",
                 path_buf.display()
             )),
-            ErrorKind::UnreachableEmailAddress(uri, reason) => Some(format!(
-                "Email address unreachable: '{uri}'. {reason}",
-            )),
+            ErrorKind::UnreachableEmailAddress(_uri, reason) => Some(reason.clone()),
             ErrorKind::InvalidHeader(invalid_header_value) => Some(format!(
                 "Invalid HTTP header: {invalid_header_value}. Check header format",
             )),
-            ErrorKind::InvalidBase(base, reason) => Some(format!(
-                "Invalid base URL or directory: '{base}'. {reason}",
-            )),
+            ErrorKind::InvalidBase(base, reason) => {
+                Some(format!("Invalid base URL or directory: '{base}'. {reason}",))
+            }
             ErrorKind::InvalidBaseJoin(_) => Some("Check relative path format".to_string()),
             ErrorKind::InvalidPathToUri(path) => match path {
-                path if path.starts_with('/') =>
-                    "To resolve root-relative links in local files, provide a root dir",
+                path if path.starts_with('/') => {
+                    "To resolve root-relative links in local files, provide a root dir"
+                }
                 _ => "Check path format",
-            }.to_string().into(),
-            ErrorKind::InvalidRootDir(_, _) => Some(
-                "Check the root dir exists and is accessible".to_string()
-            ),
+            }
+            .to_string()
+            .into(),
+            ErrorKind::InvalidRootDir(_, _) => {
+                Some("Check the root dir exists and is accessible".to_string())
+            }
             ErrorKind::UnsupportedUriType(uri_type) => Some(format!(
-                "Unsupported URI type: '{uri_type}'. Only http, https, file, and mailto are supported",
+                "Unsupported URI type: '{uri_type}'. {}",
+                "Only http, https, file, and mailto are supported",
             )),
             ErrorKind::InvalidUrlRemap(remap) => Some(format!(
                 "Invalid URL remapping: '{remap}'. Check remapping syntax",
@@ -299,22 +309,21 @@ impl ErrorKind {
             ErrorKind::InvalidGlobPattern(pattern_error) => Some(format!(
                 "Invalid glob pattern: {pattern_error}. Check pattern syntax",
             )),
-            ErrorKind::MissingGitHubToken => Some(
-                "GitHub token required. Use --github-token flag or GITHUB_TOKEN environment variable".to_string()
-            ),
+            ErrorKind::MissingGitHubToken => Some(format!(
+                "GitHub token required. {}",
+                "Use --github-token flag or GITHUB_TOKEN environment variable",
+            )),
             ErrorKind::InsecureURL(uri) => Some(format!(
                 "Insecure HTTP URL detected: use '{}' instead of HTTP",
                 uri.as_str().replace("http://", "https://")
             )),
-            ErrorKind::Channel(_send_error) => Some(
-                "Internal communication error. Processing thread failed".to_string()
-            ),
-            ErrorKind::InvalidUrlHost => Some(
-                "URL missing hostname. Check URL format".to_string()
-            ),
-            ErrorKind::InvalidURI(uri) => Some(format!(
-                "Invalid URI format: '{uri}'. Check URI syntax",
-            )),
+            ErrorKind::Channel(_send_error) => {
+                Some("Internal communication error. Processing thread failed".to_string())
+            }
+            ErrorKind::InvalidUrlHost => Some("URL missing hostname. Check URL format".to_string()),
+            ErrorKind::InvalidURI(uri) => {
+                Some(format!("Invalid URI format: '{uri}'. Check URI syntax",))
+            }
             ErrorKind::InvalidStatusCode(code) => Some(format!(
                 "Invalid HTTP status code: {code}. Must be between 100-999",
             )),
@@ -322,20 +331,37 @@ impl ErrorKind {
                 "Regular expression error: {error}. Check regex syntax",
             )),
             ErrorKind::BasicAuthExtractorError(basic_auth_extractor_error) => Some(format!(
-                "Basic authentication error: {basic_auth_extractor_error}. Check credentials format",
+                "Basic authentication error: {basic_auth_extractor_error}. {}",
+                "Check credentials format",
             )),
             ErrorKind::Cookies(reason) => Some(format!(
                 "Cookie handling error: {reason}. Check cookie file format",
             )),
             ErrorKind::StatusCodeSelectorError(status_code_selector_error) => Some(format!(
-                "Status code selector error: {status_code_selector_error}. Check accept configuration",
+                "Status code selector error: {status_code_selector_error}. {}",
+                "Check accept configuration",
             )),
             ErrorKind::InvalidIndexFile(index_files) => match &index_files[..] {
-                [] => "No directory links are allowed because index_files is defined and empty".to_string(),
+                [] => "No directory links are allowed because index_files is defined and empty"
+                    .to_string(),
                 [name] => format!("An index file ({name}) is required"),
-                [init @ .., tail] => format!("An index file ({}, or {}) is required", init.join(", "), tail),
-            }.into(),
-            ErrorKind::PreprocessorError{command, reason} => Some(format!("Command '{command}' failed {reason}. Check value of the preprocessor option"))
+                [init @ .., tail] => format!(
+                    "An index file ({}, or {}) is required",
+                    init.join(", "),
+                    tail
+                ),
+            }
+            .into(),
+            ErrorKind::PreprocessorError { command, reason } => Some(format!(
+                "Command '{command}' failed {reason}. Check value of the pre option"
+            )),
+            ErrorKind::WikilinkNotFound(uri, pathbuf) => Some(format!(
+                "WikiLink {uri} could not be found at {:}",
+                pathbuf.display()
+            )),
+            ErrorKind::WikilinkInvalidBase(reason) => {
+                Some(format!("WikiLink Resolver could not be created: {reason} ",))
+            }
         }
     }
 
@@ -466,6 +492,8 @@ impl Hash for ErrorKind {
             Self::Cookies(e) => e.hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
             Self::PreprocessorError { command, reason } => (command, reason).hash(state),
+            Self::WikilinkNotFound(uri, pathbuf) => (uri, pathbuf).hash(state),
+            Self::WikilinkInvalidBase(e) => e.hash(state),
         }
     }
 }
@@ -483,5 +511,22 @@ impl From<Infallible> for ErrorKind {
     fn from(_: Infallible) -> Self {
         // tautological
         unreachable!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ErrorKind;
+    #[test]
+    fn test_error_kind_details() {
+        // Test rejected status code
+        let status_error = ErrorKind::RejectedStatusCode(http::StatusCode::NOT_FOUND);
+        assert!(status_error.to_string().contains("Not Found"));
+
+        // Test redirected status code
+        let redir_error = ErrorKind::RejectedStatusCode(http::StatusCode::MOVED_PERMANENTLY);
+        assert!(redir_error.details().is_some_and(|x| x.contains(
+            "Redirects may have been limited by \"max-redirects\""
+        )));
     }
 }

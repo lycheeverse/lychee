@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.21.0...lychee-v0.22.0) - 2025-12-05
+
+### Added
+
+- support relative --root-dir ([#1912](https://github.com/lycheeverse/lychee/pull/1912))
+- propagate input loading/collecting errors to top level  ([#1864](https://github.com/lycheeverse/lychee/pull/1864))
+- file preprocessing ([#1891](https://github.com/lycheeverse/lychee/pull/1891))
+
+### Fixed
+
+- make file matcher respect the hidden option ([#1936](https://github.com/lycheeverse/lychee/pull/1936))
+- inverted gitignore behaviour for --dump-inputs  ([#1882](https://github.com/lycheeverse/lychee/pull/1882))
+
+### Other
+
+- *(deps)* bump the dependencies group with 5 updates ([#1944](https://github.com/lycheeverse/lychee/pull/1944))
+- progress bar ([#1914](https://github.com/lycheeverse/lychee/pull/1914))
+- Bump the dependencies group with 3 updates ([#1933](https://github.com/lycheeverse/lychee/pull/1933))
+- Fix parsing larger HTML blocks in MDX files ([#1924](https://github.com/lycheeverse/lychee/pull/1924))
+- use markdown formatting for files-from help text ([#1917](https://github.com/lycheeverse/lychee/pull/1917))
+- Bump the dependencies group across 1 directory with 8 updates ([#1916](https://github.com/lycheeverse/lychee/pull/1916))
+- use log::Level's deserialiser, and link example TOML ([#1907](https://github.com/lycheeverse/lychee/pull/1907))
+- Config file up to date ([#1906](https://github.com/lycheeverse/lychee/pull/1906))
+- check glob validity when parsing input source arguments ([#1869](https://github.com/lycheeverse/lychee/pull/1869))
+- Fix typos, and configure the typos tool ([#1895](https://github.com/lycheeverse/lychee/pull/1895))
+- Address new clippy lints with version 1.91
+- Bump MSRV
+- Bump the dependencies group across 1 directory with 7 updates
+
 ## [0.21.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.20.1...lychee-v0.21.0) - 2025-10-23
 
 ### Added

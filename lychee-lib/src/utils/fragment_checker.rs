@@ -131,8 +131,8 @@ impl FragmentChecker {
         let extractor = match file_type {
             FileType::Markdown => extract_markdown_fragments,
             FileType::Html => extract_html_fragments,
-            FileType::Plaintext => {
-                info!("Skipping fragment check for {url} within a plaintext file");
+            FileType::Css | FileType::Plaintext => {
+                info!("Skipping fragment check for {url} within a {file_type} file");
                 return Ok(true);
             }
         };

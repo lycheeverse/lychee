@@ -1,11 +1,12 @@
 use std::collections::HashSet;
-use std::io::{self, Write};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use futures::StreamExt;
-use indicatif::ProgressBar;
-use indicatif::ProgressStyle;
+use http::StatusCode;
+use lychee_lib::StatusCodeSelector;
+use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -16,19 +17,17 @@ use lychee_lib::archive::Archive;
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
 use lychee_lib::{ResponseBody, Status};
 
-use crate::formatters::get_response_formatter;
-use crate::formatters::response::ResponseFormatter;
+use crate::formatters::stats::ResponseStats;
 use crate::formatters::suggestion::Suggestion;
-use crate::options::OutputMode;
 use crate::parse::parse_duration_secs;
-use crate::verbosity::Verbosity;
-use crate::{ExitCode, cache::Cache, stats::ResponseStats};
+use crate::progress::Progress;
+use crate::{ExitCode, cache::Cache};
 
 use super::CommandParams;
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
-) -> Result<(ResponseStats, Arc<Cache>, ExitCode), ErrorKind>
+) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind>
 where
     S: futures::Stream<Item = Result<Request, RequestError>>,
 {
@@ -45,25 +44,22 @@ where
     } else {
         ResponseStats::default()
     };
-    let cache_ref = params.cache.clone();
 
     let client = params.client;
     let cache = params.cache;
     let cache_exclude_status = params
         .cfg
         .cache_exclude_status
-        .unwrap_or_default()
-        .into_set();
-    let accept = params.cfg.accept.into();
-
-    let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {
-        None
-    } else {
-        Some(init_progress_bar("Extracting links"))
-    };
+        .unwrap_or(StatusCodeSelector::empty())
+        .into();
+    let accept = params
+        .cfg
+        .accept
+        .unwrap_or(StatusCodeSelector::default_accepted())
+        .into();
 
     // Start receiving requests
-    tokio::spawn(request_channel_task(
+    let handle = tokio::spawn(request_channel_task(
         recv_req,
         send_resp,
         max_concurrency,
@@ -73,47 +69,36 @@ where
         accept,
     ));
 
-    // Set the default formatter for progress bar output
-    let formatter_default = OutputMode::default();
+    let hide_bar = params.cfg.no_progress;
+    let level = params.cfg.verbose.log_level();
 
-    // Make it easier to add new formatters in the future (without breaking the progress bar)
-    let allowed_output_modes = [OutputMode::Emoji, OutputMode::Plain, OutputMode::Color];
+    let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode);
+    let show_results_task = tokio::spawn(collect_responses(recv_resp, progress.clone(), stats));
 
-    let formatter = get_response_formatter(if allowed_output_modes.contains(&params.cfg.mode) {
-        &params.cfg.mode
-    } else {
-        &formatter_default
-    });
-
-    let show_results_task = tokio::spawn(progress_bar_task(
-        recv_resp,
-        params.cfg.verbose,
-        pb.clone(),
-        formatter,
-        stats,
-    ));
-
-    // Wait until all messages are sent
-    send_inputs_loop(params.requests, send_req, pb).await?;
+    // Wait until all requests are sent
+    send_requests(params.requests, send_req, &progress).await?;
+    let (cache, client) = handle.await?;
 
     // Wait until all responses are received
     let result = show_results_task.await?;
-    let (pb, mut stats) = result?;
-
-    // Store elapsed time in stats
+    let mut stats = result?;
     stats.duration_secs = start.elapsed().as_secs();
 
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
-    if let Some(pb) = &pb {
-        pb.finish_with_message("Finished extracting links");
-    }
+    progress.finish("Finished extracting links");
 
     if params.cfg.suggest {
+        let progress = Progress::new(
+            "Searching for alternatives",
+            hide_bar,
+            level,
+            &params.cfg.mode,
+        );
         suggest_archived_links(
             params.cfg.archive.unwrap_or_default(),
             &mut stats,
-            !params.cfg.no_progress,
+            progress,
             max_concurrency,
             parse_duration_secs(params.cfg.timeout),
         )
@@ -125,24 +110,19 @@ where
     } else {
         ExitCode::LinkCheckFailure
     };
-    Ok((stats, cache_ref, code))
+
+    Ok((stats, cache, code, client.host_pool()))
 }
 
 async fn suggest_archived_links(
     archive: Archive,
     stats: &mut ResponseStats,
-    show_progress: bool,
+    progress: Progress,
     max_concurrency: usize,
     timeout: Duration,
 ) {
     let failed_urls = &get_failed_urls(stats);
-    let bar = if show_progress {
-        let bar = init_progress_bar("Searching for alternatives");
-        bar.set_length(failed_urls.len() as u64);
-        Some(bar)
-    } else {
-        None
-    };
+    progress.set_length(failed_urls.len() as u64);
 
     let suggestions = Mutex::new(&mut stats.suggestion_map);
 
@@ -161,75 +141,44 @@ async fn suggest_archived_links(
                     });
             }
 
-            if let Some(bar) = &bar {
-                bar.inc(1);
-            }
+            progress.update(None);
         })
         .await;
 
-    if let Some(bar) = &bar {
-        bar.finish_with_message("Finished searching for alternatives");
-    }
+    progress.finish("Finished searching for alternatives");
 }
 
 // drops the `send_req` channel on exit
 // required for the receiver task to end, which closes send_resp, which allows
 // the show_results_task to finish
-async fn send_inputs_loop<S>(
+async fn send_requests<S>(
     requests: S,
     send_req: mpsc::Sender<Result<Request, RequestError>>,
-    bar: Option<ProgressBar>,
+    progress: &Progress,
 ) -> Result<(), ErrorKind>
 where
     S: futures::Stream<Item = Result<Request, RequestError>>,
 {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
-        if let Some(pb) = &bar {
-            pb.inc_length(1);
-            match &request {
-                Ok(x) => pb.set_message(x.to_string()),
-                Err(e) => pb.set_message(e.to_string()),
-            }
-        }
+        progress.inc_length(1);
         send_req.send(request).await.expect("Cannot send request");
     }
     Ok(())
 }
 
 /// Reads from the request channel and updates the progress bar status
-async fn progress_bar_task(
+async fn collect_responses(
     mut recv_resp: mpsc::Receiver<Result<Response, ErrorKind>>,
-    verbose: Verbosity,
-    pb: Option<ProgressBar>,
-    formatter: Box<dyn ResponseFormatter>,
+    progress: Progress,
     mut stats: ResponseStats,
-) -> Result<(Option<ProgressBar>, ResponseStats), ErrorKind> {
+) -> Result<ResponseStats, ErrorKind> {
     while let Some(response) = recv_resp.recv().await {
         let response = response?;
-        show_progress(
-            &mut io::stderr(),
-            pb.as_ref(),
-            &response,
-            formatter.as_ref(),
-            &verbose,
-        )?;
+        progress.update(Some(response.body()));
         stats.add(response);
     }
-    Ok((pb, stats))
-}
-
-fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
-    let bar = ProgressBar::new_spinner().with_style(
-        ProgressStyle::with_template("{spinner:.162} {pos}/{len:.238} {bar:.162/238} {wide_msg}")
-            .expect("Valid progress bar")
-            .progress_chars("━ ━"),
-    );
-    bar.set_length(0);
-    bar.set_message(initial_message);
-    // report status _at least_ every 500ms
-    bar.enable_steady_tick(Duration::from_millis(500));
-    bar
+    Ok(stats)
 }
 
 async fn request_channel_task(
@@ -237,17 +186,17 @@ async fn request_channel_task(
     send_resp: mpsc::Sender<Result<Response, ErrorKind>>,
     max_concurrency: usize,
     client: Client,
-    cache: Arc<Cache>,
-    cache_exclude_status: HashSet<u16>,
-    accept: HashSet<u16>,
-) {
+    cache: Cache,
+    cache_exclude_status: HashSet<StatusCode>,
+    accept: HashSet<StatusCode>,
+) -> (Cache, Client) {
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
         |request: Result<Request, RequestError>| async {
             let response = handle(
                 &client,
-                cache.clone(),
+                &cache,
                 cache_exclude_status.clone(),
                 request,
                 accept.clone(),
@@ -261,6 +210,8 @@ async fn request_channel_task(
         },
     )
     .await;
+
+    (cache, client)
 }
 
 /// Check a URL and return a response.
@@ -292,10 +243,10 @@ async fn check_url(client: &Client, request: Request) -> Response {
 /// a failed response.
 async fn handle(
     client: &Client,
-    cache: Arc<Cache>,
-    cache_exclude_status: HashSet<u16>,
+    cache: &Cache,
+    cache_exclude_status: HashSet<StatusCode>,
     request: Result<Request, RequestError>,
-    accept: HashSet<u16>,
+    accept: HashSet<StatusCode>,
 ) -> Result<Response, ErrorKind> {
     // Note that the RequestError cases bypass the cache.
     let request = match request {
@@ -304,6 +255,8 @@ async fn handle(
     };
 
     let uri = request.uri.clone();
+
+    // First check the persistent disk-based cache
     if let Some(v) = cache.get(&uri) {
         // Found a cached request
         // Overwrite cache status in case the URI is excluded in the
@@ -315,18 +268,17 @@ async fn handle(
             // `accepted` status codes might have changed from the previous run
             // and they may have an impact on the interpretation of the status
             // code.
+            client.host_pool().record_persistent_cache_hit(&uri);
             Status::from_cache_status(v.value().status, &accept)
         };
+
         return Ok(Response::new(uri.clone(), status, request.source.into()));
     }
 
-    // Request was not cached; run a normal check
     let response = check_url(client, request).await;
 
-    // - Never cache filesystem access as it is fast already so caching has no
-    //   benefit.
-    // - Skip caching unsupported URLs as they might be supported in a
-    //   future run.
+    // - Never cache filesystem access as it is fast already so caching has no benefit.
+    // - Skip caching unsupported URLs as they might be supported in a future run.
     // - Skip caching excluded links; they might not be excluded in the next run.
     // - Skip caching links for which the status code has been explicitly excluded from the cache.
     let status = response.status();
@@ -346,47 +298,16 @@ async fn handle(
 /// - The status is unsupported.
 /// - The status is unknown.
 /// - The status code is excluded from the cache.
-fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<u16>) -> bool {
+fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<StatusCode>) -> bool {
     let status_code_excluded = status
         .code()
-        .is_some_and(|code| cache_exclude_status.contains(&code.as_u16()));
+        .is_some_and(|code| cache_exclude_status.contains(&code));
 
     uri.is_file()
         || status.is_excluded()
         || status.is_unsupported()
         || status.is_unknown()
         || status_code_excluded
-}
-
-fn show_progress(
-    output: &mut dyn Write,
-    progress_bar: Option<&ProgressBar>,
-    response: &Response,
-    formatter: &dyn ResponseFormatter,
-    verbose: &Verbosity,
-) -> Result<(), ErrorKind> {
-    // In case the log level is set to info, we want to show the detailed
-    // response output. Otherwise, we only show the essential information
-    // (typically the status code and the URL, but this is dependent on the
-    // formatter).
-    let out = if verbose.log_level() >= log::Level::Info {
-        formatter.format_detailed_response(response.body())
-    } else {
-        formatter.format_response(response.body())
-    };
-
-    if let Some(pb) = progress_bar {
-        pb.inc(1);
-        pb.set_message(out.clone());
-        if verbose.log_level() >= log::Level::Info {
-            pb.println(out);
-        }
-    } else if verbose.log_level() >= log::Level::Info
-        || (!response.status().is_success() && !response.status().is_excluded())
-    {
-        writeln!(output, "{out}")?;
-    }
-    Ok(())
 }
 
 fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
@@ -412,57 +333,10 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{formatters::get_response_formatter, options};
     use http::StatusCode;
-    use log::info;
-    use lychee_lib::{CacheStatus, ClientBuilder, ErrorKind, Uri};
+    use lychee_lib::{ClientBuilder, ErrorKind, Uri};
 
     use super::*;
-
-    #[test]
-    fn test_skip_cached_responses_in_progress_output() {
-        let mut buf = Vec::new();
-        let response = Response::new(
-            Uri::try_from("http://127.0.0.1").unwrap(),
-            Status::Cached(CacheStatus::Ok(200)),
-            InputSource::Stdin,
-        );
-        let formatter = get_response_formatter(&options::OutputMode::Plain);
-        show_progress(
-            &mut buf,
-            None,
-            &response,
-            formatter.as_ref(),
-            &Verbosity::default(),
-        )
-        .unwrap();
-
-        info!("{:?}", String::from_utf8_lossy(&buf));
-        assert!(buf.is_empty());
-    }
-
-    #[test]
-    fn test_show_cached_responses_in_progress_debug_output() {
-        let mut buf = Vec::new();
-        let response = Response::new(
-            Uri::try_from("http://127.0.0.1").unwrap(),
-            Status::Cached(CacheStatus::Ok(200)),
-            InputSource::Stdin,
-        );
-        let formatter = get_response_formatter(&options::OutputMode::Plain);
-        show_progress(
-            &mut buf,
-            None,
-            &response,
-            formatter.as_ref(),
-            &Verbosity::debug(),
-        )
-        .unwrap();
-
-        assert!(!buf.is_empty());
-        let buf = String::from_utf8_lossy(&buf);
-        assert_eq!(buf, "[200] http://127.0.0.1/ | OK (cached)\n");
-    }
 
     #[tokio::test]
     async fn test_invalid_url() {
@@ -517,7 +391,7 @@ mod tests {
     #[test]
     fn test_cache_ignore_excluded_status() {
         // Cache is ignored for excluded status codes
-        let exclude = [StatusCode::OK.as_u16()].iter().copied().collect();
+        let exclude = HashSet::from([StatusCode::OK]);
 
         assert!(ignore_cache(
             &Uri::try_from("https://[::1]").unwrap(),
