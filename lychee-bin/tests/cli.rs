@@ -3344,4 +3344,230 @@ The config file should contain every possible key for documentation purposes."
             .success()
             .stdout(contains("https://example.com"));
     }
+
+    /// Returns a regex (as a string) which matches URLs with the given base
+    /// as a proper prefix. This should respect URL path components.
+    fn escape_url_prefix(base_url: &str) -> String {
+        let escaped = regex::escape(base_url.trim_end_matches('/'));
+        format!("^{escaped}($|[/?#])")
+    }
+
+    fn normalise_url_lines(bytes: &[u8], substitutions: &[&str]) -> String {
+        let mut str = str::from_utf8(bytes).unwrap().to_string();
+
+        let mut iter = substitutions.iter();
+        while let Some(old) = iter.next() {
+            str = str.replace(old, iter.next().expect("substitutions should be paired!"));
+        }
+
+        let mut lines = str.lines().collect::<Vec<&str>>();
+        lines.sort();
+        lines
+            .into_iter()
+            .map(|x| format!("{x}\n"))
+            .collect::<String>()
+            .trim()
+            .to_string()
+    }
+
+    #[tokio::test]
+    #[allow(clippy::format_in_format_args)]
+    async fn test_mapping_whole_domain_to_local_folder() {
+        let fixture = fixtures_path!().join("mapping_local_folder");
+        let root_dir = fixture.join("a/b/ROOT");
+        let local_file = root_dir.join("whole_domain.md");
+
+        let mock_server = mock_response!(fs::read_to_string(fixture.join("remote.md")).unwrap());
+        let remote_url = format!("{}/server/1/2/file.md", mock_server.uri());
+        let remote_origin = mock_server.uri();
+
+        // relative URLs within local files should stay local. additionally, occurrences of base-url in local
+        // file should become local.
+        let proc2 = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(local_file)
+            .arg(format!("--root-dir={}", root_dir.display()))
+            .arg(format!(
+                "--remap={} {}",
+                escape_url_prefix("https://gist.githubusercontent.com"),
+                format!("file://{}/", root_dir.display())
+            ))
+            .assert()
+            .success();
+
+        // BUG: in the last /TMP line, the omission of /ROOT/ is due to https://github.com/lycheeverse/lychee/issues/1953
+        assert_eq!(
+            normalise_url_lines(
+                &proc2.get_output().stdout,
+                &[&fixture.to_string_lossy(), "/TMP"]
+            ),
+            "
+file:///TMP/a/b/ROOT/
+file:///TMP/a/b/ROOT/fully/qualified.html
+file:///TMP/a/b/ROOT/fully/qualified/up.html
+file:///TMP/a/b/ROOT/relative.md
+file:///TMP/a/b/ROOT/root
+file:///TMP/a/b/root-up
+https://gist.githubusercontent.com-fake/
+            "
+            .trim()
+        );
+
+        // URLs in remote paths underneath base-url should become local paths
+        let proc = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(remote_url)
+            .arg(format!("--root-dir={}", root_dir.display()))
+            .arg(format!(
+                "--remap={} {}",
+                escape_url_prefix(&remote_origin),
+                format!("file://{}/", root_dir.display())
+            ))
+            .assert()
+            .success();
+
+        // BUG: in the first three lines, /TMP appearing twice is incorrect and due to https://github.com/lycheeverse/lychee/issues/1964
+        assert_eq!(
+            normalise_url_lines(
+                &proc.get_output().stdout,
+                &[&fixture.to_string_lossy(), "/TMP"]
+            ),
+            "
+file:///TMP/a/b/ROOT/TMP/a/b/ROOT/root
+file:///TMP/a/b/ROOT/TMP/a/up-up
+file:///TMP/a/b/ROOT/TMP/up-up-up
+file:///TMP/a/b/ROOT/server/1/2/encoded%24%2A%28%20%29%5B%20%5D.html
+file:///TMP/a/b/ROOT/server/1/2/file.md#self
+file:///TMP/a/b/ROOT/server/1/2/query.html?boop=20
+file:///TMP/a/b/ROOT/server/1/2/relative.html
+file:///TMP/a/b/ROOT/server/1/2/sub/dir/index.html
+file:///TMP/a/b/ROOT/server/1/up-one.html
+file:///TMP/a/b/ROOT/server/up-two.html
+            "
+            .trim()
+        );
+    }
+
+    #[tokio::test]
+    #[allow(clippy::format_in_format_args)]
+    async fn test_mapping_subpath_to_local_folder() {
+        let fixture = fixtures_path!().join("mapping_local_folder");
+        let root_dir = fixture.join("a/b/ROOT");
+
+        let mock_server = mock_response!(fs::read_to_string(fixture.join("remote.md")).unwrap());
+        let remote_url = format!("{}/server/1/2/file.md", mock_server.uri());
+        let remote_base = format!("{}/server/1/", mock_server.uri());
+        let remote_origin = mock_server.uri();
+
+        // construct local folders with a structure matching the subpath of base-url.
+        let temp_root_dir_tmpdir = tempdir().unwrap();
+        let temp_root_dir = temp_root_dir_tmpdir.path().join("a/b/c/ROOT");
+        let temp_root_subdir = temp_root_dir.join("server/1"); // matches remote_base
+
+        let local_file = temp_root_subdir.join("subpath.md");
+
+        std::fs::create_dir_all(temp_root_subdir.parent().unwrap()).unwrap();
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&root_dir, &temp_root_subdir).unwrap();
+
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(&root_dir, &temp_root_subdir).unwrap();
+
+        let temp_root_subdir_url = format!("file://{}", temp_root_subdir.to_string_lossy());
+        let temp_root_dir_url = format!("file://{}", temp_root_dir.to_string_lossy());
+
+        let proc2 = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(local_file)
+            .arg(format!("--root-dir={}", temp_root_dir.display()))
+            .arg(format!(
+                "--remap={} {}$1",
+                escape_url_prefix("https://gist.githubusercontent.com/server/1"),
+                temp_root_subdir_url
+            ))
+            .arg(format!(
+                "--remap={} {}$1",
+                escape_url_prefix(&temp_root_subdir_url),
+                temp_root_subdir_url
+            ))
+            .arg(format!(
+                "--remap={} {}$1",
+                escape_url_prefix(&temp_root_dir_url),
+                "https://gist.githubusercontent.com"
+            ))
+            .assert()
+            .success();
+
+        assert_eq!(
+            normalise_url_lines(
+                &proc2.get_output().stdout,
+                &[&temp_root_dir_tmpdir.path().to_string_lossy(), "/TMP"]
+            ),
+            "
+file:///TMP/a/b/c/ROOT/server/1/make-me-local
+file:///TMP/a/b/c/ROOT/server/1/relative.md
+file:///TMP/a/b/c/root-up
+file:///TMP/a/b/very-up
+https://gist.githubusercontent.com-fake/
+https://gist.githubusercontent.com/
+https://gist.githubusercontent.com/fully/qualified.html
+https://gist.githubusercontent.com/fully/qualified/up.html
+https://gist.githubusercontent.com/root
+https://gist.githubusercontent.com/server/up
+            "
+            .trim()
+        );
+        // BUG: TMP appearing inside /very-up and /root-up is incorrect. this bug happens when when
+        // a link breaks out of temp_root_dir. if this happens, the remap will not detect it as
+        // being within the website domain. this bug could be avoided with --root-dir=/ but bleh.
+
+        let proc = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(remote_url)
+            .arg(format!("--root-dir={}", temp_root_dir.display()))
+            .arg(format!(
+                "--remap={} {}$1",
+                escape_url_prefix(&remote_base),
+                temp_root_subdir_url
+            ))
+            .arg(format!(
+                "--remap={} {}$1",
+                escape_url_prefix(&temp_root_subdir_url),
+                temp_root_subdir_url
+            ))
+            .arg(format!(
+                "--remap={} {}$1",
+                escape_url_prefix(&temp_root_dir_url),
+                remote_origin
+            ))
+            .assert()
+            .success();
+
+        assert_eq!(
+            normalise_url_lines(
+                &proc.get_output().stdout,
+                &[
+                    &temp_root_dir_tmpdir.path().to_string_lossy(),
+                    "/TMP",
+                    &mock_server.uri(),
+                    "[mock-server]"
+                ]
+            ),
+            "
+[mock-server]/TMP/a/b/c/ROOT/root
+[mock-server]/TMP/a/b/up-up
+[mock-server]/TMP/a/up-up-up
+[mock-server]/server/up-two.html
+file:///TMP/a/b/c/ROOT/server/1/2/encoded%24%2A%28%20%29%5B%20%5D.html
+file:///TMP/a/b/c/ROOT/server/1/2/file.md#self
+file:///TMP/a/b/c/ROOT/server/1/2/query.html?boop=20
+file:///TMP/a/b/c/ROOT/server/1/2/relative.html
+file:///TMP/a/b/c/ROOT/server/1/2/sub/dir/index.html
+file:///TMP/a/b/c/ROOT/server/1/up-one.html
+            "
+            .trim()
+        );
+        // BUG: TMP appearing inside server URLS is incorrect and due to https://github.com/lycheeverse/lychee/issues/1964
+    }
 }
