@@ -695,7 +695,6 @@ Options:
 
           [default: 20]
 
-
   -T, --threads <THREADS>
           Number of threads to utilize. Defaults to number of cores available to the system
 
