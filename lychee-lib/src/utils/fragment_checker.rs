@@ -16,18 +16,21 @@ use tokio::{fs, sync::Mutex};
 use url::Url;
 
 /// Holds the content and file type of the fragment input.
-pub(crate) struct FragmentInput {
-    pub content: String,
+pub(crate) struct FragmentInput<'a> {
+    pub content: Cow<'a, str>,
     pub file_type: FileType,
 }
 
-impl FragmentInput {
+impl FragmentInput<'_> {
     pub(crate) async fn from_path(path: &Path) -> Result<Self> {
         let content = fs::read_to_string(path)
             .await
             .map_err(|err| ErrorKind::ReadFileInput(err, path.to_path_buf()))?;
         let file_type = FileType::from(path);
-        Ok(Self { content, file_type })
+        Ok(Self {
+            content: Cow::Owned(content),
+            file_type,
+        })
     }
 }
 
@@ -117,7 +120,7 @@ impl FragmentChecker {
     /// (Empty # and #top fragments are always valid, triggering the browser to scroll to top.)
     ///
     /// In all other cases, returns true.
-    pub(crate) async fn check(&self, input: FragmentInput, url: &Url) -> Result<bool> {
+    pub(crate) async fn check(&self, input: FragmentInput<'_>, url: &Url) -> Result<bool> {
         let Some(fragment) = url.fragment() else {
             return Ok(true);
         };

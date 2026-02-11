@@ -67,11 +67,15 @@ impl HostPool {
     /// Fails if:
     /// - The request URL has no valid hostname
     /// - The underlying HTTP request fails
-    pub(crate) async fn execute_request(&self, request: Request) -> Result<CacheableResponse> {
+    pub(crate) async fn execute_request(
+        &self,
+        request: Request,
+        needs_body: bool,
+    ) -> Result<CacheableResponse> {
         let url = request.url();
         let host_key = HostKey::try_from(url)?;
         let host = self.get_or_create_host(host_key);
-        host.execute_request(request).await
+        host.execute_request(request, needs_body).await
     }
 
     /// Try to build a [`Request`]

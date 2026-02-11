@@ -32,17 +32,21 @@ use crate::{ErrorKind, Result};
 #[derive(Debug, Clone)]
 pub(crate) struct CacheableResponse {
     pub(crate) status: reqwest::StatusCode,
-    pub(crate) text: String,
+    pub(crate) text: Option<String>,
     pub(crate) headers: HeaderMap,
     pub(crate) url: Url,
 }
 
 impl CacheableResponse {
-    async fn try_from(response: Response) -> Result<Self> {
+    async fn from_response(response: Response, needs_body: bool) -> Result<Self> {
         let status = response.status();
         let headers = response.headers().clone();
         let url = response.url().clone();
-        let text = response.text().await.map_err(ErrorKind::ReadResponseBody)?;
+        let text = if needs_body {
+            Some(response.text().await.map_err(ErrorKind::ReadResponseBody)?)
+        } else {
+            None
+        };
 
         Ok(Self {
             status,
