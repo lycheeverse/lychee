@@ -3334,7 +3334,7 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("https://example.com"));
     }
 
-    /// URLs should NOT be downloaded fully, unless their link has a fragment.
+    /// URLs should NOT be downloaded fully, unless fragment checking is on and the link has a fragment.
     #[test]
     fn test_large_file_lazy_download() {
         cargo_bin_cmd!()
@@ -3343,10 +3343,24 @@ The config file should contain every possible key for documentation purposes."
             .arg("--timeout=5")
             .write_stdin(
                 "
-https://www.releases.ubuntu.com/noble/ubuntu-24.04.3-desktop-amd64.iso
-https://www.releases.ubuntu.com/noble/ubuntu-24.04.3-live-server-amd64.iso
-https://www.releases.ubuntu.com/noble/ubuntu-24.04.3-wsl-amd64.wsl
+https://proof.ovh.net/files/10Gb.dat
+https://proof.ovh.net/files/1Gb.dat
+https://proof.ovh.net/files/1Mb.dat
 https://lychee.cli.rs/guides/cli/#options
+            ",
+            )
+            .assert()
+            .success();
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--timeout=5")
+            .write_stdin(
+                "
+https://proof.ovh.net/files/10Gb.dat#fragments-ignored
+https://proof.ovh.net/files/1Gb.dat#fragments-ignored
+https://proof.ovh.net/files/1Mb.dat#fragments-ignored
+https://lychee.cli.rs/guides/cli/#fragments-ignored
             ",
             )
             .assert()
