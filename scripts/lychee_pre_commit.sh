@@ -79,7 +79,7 @@ fi
 
 # clean up no-longer-needed files to save a little bit of space
 rm -rf .git assets target build "$CARGO_BIN/cargo-binstall"
-git init # remake empty git directory for `git rev-parse --show-toplevel`
+git init -b main # remake empty git directory for `git rev-parse --show-toplevel`
 
 popd >/dev/null
 
