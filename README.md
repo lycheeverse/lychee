@@ -376,8 +376,11 @@ Options:
       --basic-auth <BASIC_AUTH>
           Basic authentication support. E.g. `http://example.com username:password`
 
-  -c, --config <CONFIG_FILE>
-          Configuration file to use
+  -c, --config <FILE_PATH>
+          Configuration file to use.
+          This option can be specified multiple times.
+          Multiple configs are merged into a single config.
+          Later occurrences take precedence over previous occurrences.
 
           [default: lychee.toml]
 
@@ -685,13 +688,6 @@ Options:
   -s, --scheme <SCHEME>
           Only test links with the given schemes (e.g. https). Omit to check links with
           any other scheme. At the moment, we support http, https, file, and mailto.
-
-      --secrets <CONFIG_FILE>
-          Configuration file to use for secrets.
-          This allows specifying an additional configuration file
-          which is then merged with the main configuration (--config).
-          In practice this is useful for extracting sensitive data (like headers)
-          into a file which is not tracked by version control.
 
       --skip-missing
           Skip missing input files (default is to error if they don't exist)

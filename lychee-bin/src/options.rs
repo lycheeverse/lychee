@@ -38,7 +38,12 @@ const HELP_MSG_CACHE: &str = formatcp!(
 // provided a custom value. If they didn't, we won't throw an error if
 // the file doesn't exist.
 const HELP_MSG_CONFIG_FILE: &str = formatcp!(
-    "Configuration file to use\n\n[default: {}]",
+    "Configuration file to use.
+This option can be specified multiple times.
+Multiple configs are merged into a single config.
+Later occurrences take precedence over previous occurrences.
+
+[default: {}]",
     LYCHEE_CONFIG_FILE,
 );
 #[derive(
@@ -279,9 +284,9 @@ NOTE: Use `--` to separate inputs from options that allow multiple arguments."
     raw_inputs: Vec<String>,
 
     /// Configuration file to use
-    #[arg(short, long = "config")]
+    #[arg(short, long = "config", value_name = "FILE_PATH")]
     #[arg(help = HELP_MSG_CONFIG_FILE)]
-    pub(crate) config_file: Option<PathBuf>,
+    pub(crate) config_files: Vec<PathBuf>,
 
     #[clap(flatten)]
     pub(crate) config: Config,
@@ -352,14 +357,6 @@ File Format:
 - Empty lines are also ignored."
     )]
     files_from: Option<PathBuf>,
-
-    /// Configuration file to use for secrets.
-    /// This allows specifying an additional configuration file
-    /// which is then merged with the main configuration (--config).
-    /// In practice this is useful for extracting sensitive data (like headers)
-    /// into a file which is not tracked by version control.
-    #[arg(long, verbatim_doc_comment, name = "CONFIG_FILE")]
-    pub(crate) secrets: Option<PathBuf>,
 
     /// Verbose program output
     #[clap(flatten)]
@@ -877,6 +874,7 @@ esac"#
 
 impl Config {
     /// Try to load configuration from a file and merge into `self`.
+    /// `config_file` has precedence over `self`.
     pub(crate) fn merge_file(self, config_file: &Path) -> Result<Config> {
         let config = Config::load_from_file(config_file).map_err(|e| {
             anyhow!(
@@ -885,7 +883,7 @@ impl Config {
             )
         })?;
 
-        Ok(self.merge(config))
+        Ok(config.merge(self))
     }
 
     fn load_from_file(path: &Path) -> Result<Config> {
@@ -1026,7 +1024,6 @@ impl Config {
                 method,
                 mode,
                 retry_wait_time,
-                secrets,
                 timeout,
                 user_agent,
             },

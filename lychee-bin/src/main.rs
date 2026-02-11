@@ -143,20 +143,16 @@ fn load_config() -> Result<LycheeOptions> {
 
     init_logging(&opts.config.verbose(), &opts.config.mode());
 
-    // Try to load specified config and merge it into the CLI config
-    if let Some(config_file) = &opts.config_file {
-        opts.config = opts.config.merge_file(config_file)?;
-    } else {
-        // If no config file was explicitly provided, we try to load the default
-        // config file from the current directory if the file exits.
+    if opts.config_files.is_empty() {
+        // Fall back on trying to load the default config file from the current directory
         let default_config = PathBuf::from(LYCHEE_CONFIG_FILE);
         if default_config.is_file() {
             opts.config = opts.config.merge_file(&default_config)?;
         }
-    }
-
-    if let Some(secrets_file) = opts.config.secrets.clone() {
-        opts.config = opts.config.merge_file(&secrets_file)?;
+    } else {
+        for config_file in &opts.config_files {
+            opts.config = opts.config.merge_file(config_file)?;
+        }
     }
 
     if let Ok(lycheeignore) = File::open(LYCHEE_IGNORE_FILE) {
