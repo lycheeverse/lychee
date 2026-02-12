@@ -319,10 +319,10 @@ Usage: lychee [OPTIONS] [inputs]...
 
 Arguments:
   [inputs]...
-          Inputs for link checking (where to get links to check from). These can be:
-          files (e.g. `README.md`), file globs (e.g. `'~/git/*/README.md'`), remote URLs
-          (e.g. `https://example.com/README.md`), or standard input (`-`). Alternatively,
-          use `--files-from` to read inputs from a file.
+          Inputs for link checking (where to get links to check from).
+          These can be: files (e.g. `README.md`), file globs (e.g. `'~/git/*/README.md'`),
+          remote URLs (e.g. `https://example.com/README.md`), or standard input (`-`).
+          Alternatively, use `--files-from` to read inputs from a file.
 
           NOTE: Use `--` to separate inputs from options that allow multiple arguments.
 
@@ -330,8 +330,8 @@ Options:
   -a, --accept <ACCEPT>
           A List of accepted status codes for valid links
 
-          The following accept range syntax is supported: [start]..[[=]end]|code. Some valid
-          examples are:
+          The following accept range syntax is supported: [start]..[[=]end]|code.
+          Some valid examples are:
 
           - 200 (accepts the 200 status code only)
           - ..204 (accepts any status code < 204)
@@ -342,10 +342,13 @@ Options:
           Use "lychee --accept '200..=204, 429, 500' <inputs>..." to provide a comma-
           separated list of accepted status codes. This example will accept 200, 201,
           202, 203, 204, 429, and 500 as valid status codes.
-          Defaults to '100..=103,200..=299' if the user provides no value.
+
+          [default: 100..=103,200..=299]
 
       --archive <ARCHIVE>
           Specify the use of a specific web archive. Can be used in combination with `--suggest`
+
+          [default: wayback]
 
           [possible values: wayback]
 
@@ -404,7 +407,7 @@ Options:
           with a status code of 429, 500 and 501.
 
       --cookie-jar <COOKIE_JAR>
-          Tell lychee to read cookies from the given file. Cookies will be stored in the
+          Read and write cookies using the given file. Cookies will be stored in the
           cookie jar and sent with requests. New cookies will be stored in the cookie jar
           and existing cookies will be updated.
 
@@ -447,11 +450,15 @@ Options:
           Exclude private IP address ranges from checking
 
       --extensions <EXTENSIONS>
-          Test the specified file extensions for URIs when checking files locally.
+          A list of file extensions. Files not matching the specified extensions are skipped.
 
           Multiple extensions can be separated by commas. Note that if you want to check filetypes,
           which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
           specify both extensions explicitly.
+          An example is: `--extensions html,htm,php,asp,aspx,jsp,cgi`.
+
+          This is useful when the default extensions are not enough and you don't
+          want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
 
           [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt]
 
@@ -507,7 +514,7 @@ Options:
           Print help (see a summary with '-h')
 
   -H, --header <HEADER:VALUE>
-          Set custom header for requests
+          Set custom header for requests.
 
           Some websites require custom headers to be passed in order to return valid responses.
           You can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.
@@ -643,6 +650,7 @@ Options:
           To invoke programs with custom arguments or to use multiple preprocessors, use a
           wrapper program such as a shell script. An example script looks like this:
 
+          ```
           #!/usr/bin/env bash
           case "$1" in
           *.pdf)
@@ -656,6 +664,7 @@ Options:
               exec cat
               ;;
           esac
+          ```
 
   -q, --quiet...
           Less output per occurrence (e.g. `-q` or `-qq`)
@@ -686,8 +695,9 @@ Options:
           followed by the absolute link's own path.
 
   -s, --scheme <SCHEME>
-          Only test links with the given schemes (e.g. https). Omit to check links with
-          any other scheme. At the moment, we support http, https, file, and mailto.
+          Only test links with the given schemes (e.g. https).
+          Omit to check links with any other scheme.
+          At the moment, we support http, https, file, and mailto.
 
       --skip-missing
           Skip missing input files (default is to error if they don't exist)

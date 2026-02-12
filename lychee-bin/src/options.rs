@@ -270,16 +270,16 @@ impl HeaderMapExt for HeaderMap {
 #[command(version, about, next_display_order = None)]
 pub(crate) struct LycheeOptions {
     /// Inputs for link checking (where to get links to check from).
+    /// These can be: files (e.g. `README.md`), file globs (e.g. `'~/git/*/README.md'`),
+    /// remote URLs (e.g. `https://example.com/README.md`), or standard input (`-`).
+    /// Alternatively, use `--files-from` to read inputs from a file.
+    ///
+    /// NOTE: Use `--` to separate inputs from options that allow multiple arguments.
     #[arg(
         name = "inputs",
         required_unless_present = "files_from",
         required_unless_present = "generate",
-        long_help = "Inputs for link checking (where to get links to check from). These can be:
-files (e.g. `README.md`), file globs (e.g. `'~/git/*/README.md'`), remote URLs
-(e.g. `https://example.com/README.md`), or standard input (`-`). Alternatively,
-use `--files-from` to read inputs from a file.
-
-NOTE: Use `--` to separate inputs from options that allow multiple arguments."
+        verbatim_doc_comment
     )]
     raw_inputs: Vec<String>,
 
@@ -337,25 +337,21 @@ where
 #[serde(deny_unknown_fields)]
 pub(crate) struct Config {
     /// Read input filenames from the given file or stdin (if path is '-').
-    #[arg(
-        long,
-        value_name = "PATH",
-        long_help = "Read input filenames from the given file or stdin (if path is '-').
-
-This is useful when you have a large number of inputs that would be
-cumbersome to specify on the command line directly.
-
-Examples:
-
-    lychee --files-from list.txt
-    find . -name '*.md' | lychee --files-from -
-    echo 'README.md' | lychee --files-from -
-
-File Format:
-- Each line should contain one input (file path, URL, or glob pattern).
-- Lines starting with '#' are treated as comments and ignored.
-- Empty lines are also ignored."
-    )]
+    ///
+    /// This is useful when you have a large number of inputs that would be
+    /// cumbersome to specify on the command line directly.
+    ///
+    /// Examples:
+    ///
+    ///     lychee --files-from list.txt
+    ///     find . -name '*.md' | lychee --files-from -
+    ///     echo 'README.md' | lychee --files-from -
+    ///
+    /// File Format:
+    /// - Each line should contain one input (file path, URL, or glob pattern).
+    /// - Lines starting with '#' are treated as comments and ignored.
+    /// - Empty lines are also ignored.
+    #[arg(long, value_name = "PATH", verbatim_doc_comment)]
     files_from: Option<PathBuf>,
 
     /// Verbose program output
@@ -375,21 +371,16 @@ File Format:
 
     /// A list of file extensions. Files not matching the specified extensions are skipped.
     ///
-    /// E.g. a user can specify `--extensions html,htm,php,asp,aspx,jsp,cgi`
-    /// to check for links in files with these extensions.
+    /// Multiple extensions can be separated by commas. Note that if you want to check filetypes,
+    /// which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
+    /// specify both extensions explicitly.
+    /// An example is: `--extensions html,htm,php,asp,aspx,jsp,cgi`.
     ///
     /// This is useful when the default extensions are not enough and you don't
     /// want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
-    #[arg(
-        long,
-        long_help = "Test the specified file extensions for URIs when checking files locally.
-
-Multiple extensions can be separated by commas. Note that if you want to check filetypes,
-which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
-specify both extensions explicitly.
-
-[default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt]"
-    )]
+    ///
+    /// [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt]
+    #[arg(long, verbatim_doc_comment)]
     extensions: Option<FileExtensions>,
 
     /// This is the default file extension that is applied to files without an extension.
@@ -413,27 +404,24 @@ specify both extensions explicitly.
     /// [default: 1d]
     #[arg(long, value_parser = humantime::parse_duration)]
     #[serde(default, with = "humantime_serde")]
-    pub(crate) max_cache_age: Option<Duration>,
+    max_cache_age: Option<Duration>,
 
-    /// A list of status codes that will be excluded from the cache
-    #[arg(
-        long,
-        long_help = "A list of status codes that will be ignored from the cache
-
-The following exclude range syntax is supported: [start]..[[=]end]|code. Some valid
-examples are:
-
-- 429 (excludes the 429 status code only)
-- 500.. (excludes any status code >= 500)
-- ..100 (excludes any status code < 100)
-- 500..=599 (excludes any status code from 500 to 599 inclusive)
-- 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)
-
-Use \"lychee --cache-exclude-status '429, 500..502' <inputs>...\" to provide a
-comma-separated list of excluded status codes. This example will not cache results
-with a status code of 429, 500 and 501."
-    )]
-    pub(crate) cache_exclude_status: Option<StatusCodeSelector>,
+    /// A list of status codes that will be ignored from the cache
+    ///
+    /// The following exclude range syntax is supported: [start]..[[=]end]|code. Some valid
+    /// examples are:
+    ///
+    /// - 429 (excludes the 429 status code only)
+    /// - 500.. (excludes any status code >= 500)
+    /// - ..100 (excludes any status code < 100)
+    /// - 500..=599 (excludes any status code from 500 to 599 inclusive)
+    /// - 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)
+    ///
+    /// Use "lychee --cache-exclude-status '429, 500..502' <inputs>..." to provide a
+    /// comma-separated list of excluded status codes. This example will not cache results
+    /// with a status code of 429, 500 and 501.
+    #[arg(long, verbatim_doc_comment)]
+    cache_exclude_status: Option<StatusCodeSelector>,
 
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
@@ -449,8 +437,10 @@ with a status code of 429, 500 and 501."
 
     /// Specify the use of a specific web archive.
     /// Can be used in combination with `--suggest`
+    ///
+    /// [default: wayback]
     #[arg(long, value_parser = PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]
-    pub(crate) archive: Option<Archive>,
+    archive: Option<Archive>,
 
     /// Suggest link replacements for broken links, using a web archive.
     /// The web archive can be specified with `--archive`
@@ -514,7 +504,7 @@ with a status code of 429, 500 and 501."
 
     /// User agent
     ///
-    /// [default: lychee/x.y.z]
+    /// [default: lychee/0.22.0]
     #[arg(short, long)]
     user_agent: Option<String>,
 
@@ -526,12 +516,7 @@ with a status code of 429, 500 and 501."
     /// Only test links with the given schemes (e.g. https).
     /// Omit to check links with any other scheme.
     /// At the moment, we support http, https, file, and mailto.
-    #[arg(
-        short,
-        long,
-        long_help = "Only test links with the given schemes (e.g. https). Omit to check links with
-any other scheme. At the moment, we support http, https, file, and mailto."
-    )]
+    #[arg(short, long, verbatim_doc_comment)]
     #[serde(default)]
     pub(crate) scheme: Vec<String>,
 
@@ -593,53 +578,52 @@ any other scheme. At the moment, we support http, https, file, and mailto."
     #[arg(long)]
     pub(crate) remap: Vec<String>,
 
-    /// Automatically append file extensions to `file://` URIs for non-existing paths
+    /// When checking locally, attempts to locate missing files by trying the given
+    /// fallback extensions. Multiple extensions can be separated by commas. Extensions
+    /// will be checked in order of appearance.
+    ///
+    /// Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
+    ///
+    /// Note: This option takes effect on `file://` URIs which do not exist and on
+    ///       `file://` URIs pointing to directories which resolve to themself (by the
+    ///       --index-files logic).
     #[serde(default)]
-    #[arg(
-        long,
-        value_delimiter = ',',
-        long_help = "When checking locally, attempts to locate missing files by trying the given
-fallback extensions. Multiple extensions can be separated by commas. Extensions
-will be checked in order of appearance.
-
-Example: --fallback-extensions html,htm,php,asp,aspx,jsp,cgi
-
-Note: This option takes effect on `file://` URIs which do not exist and on
-      `file://` URIs pointing to directories which resolve to themself (by the
-      --index-files logic)."
-    )]
+    #[arg(long, value_delimiter = ',', verbatim_doc_comment)]
     pub(crate) fallback_extensions: Vec<String>,
 
-    /// Resolve local directory links to specified index files within the directory
-    #[arg(
-        long,
-        value_delimiter = ',',
-        long_help = "When checking locally, resolves directory links to a separate index file.
-The argument is a comma-separated list of index file names to search for. Index
-names are relative to the link's directory and attempted in the order given.
-
-If `--index-files` is specified, then at least one index file must exist in
-order for a directory link to be considered valid. Additionally, the special
-name `.` can be used in the list to refer to the directory itself.
-
-If unspecified (the default behavior), index files are disabled and directory
-links are considered valid as long as the directory exists on disk.
-
-Example 1: `--index-files index.html,readme.md` looks for index.html or readme.md
-           and requires that at least one exists.
-
-Example 2: `--index-files index.html,.` will use index.html if it exists, but
-           still accept the directory link regardless.
-
-Example 3: `--index-files ''` will reject all directory links because there are
-           no valid index files. This will require every link to explicitly name
-           a file.
-
-Note: This option only takes effect on `file://` URIs which exist and point to a directory."
-    )]
+    /// When checking locally, resolves directory links to a separate index file.
+    /// The argument is a comma-separated list of index file names to search for. Index
+    /// names are relative to the link's directory and attempted in the order given.
+    ///
+    /// If `--index-files` is specified, then at least one index file must exist in
+    /// order for a directory link to be considered valid. Additionally, the special
+    /// name `.` can be used in the list to refer to the directory itself.
+    ///
+    /// If unspecified (the default behavior), index files are disabled and directory
+    /// links are considered valid as long as the directory exists on disk.
+    ///
+    /// Example 1: `--index-files index.html,readme.md` looks for index.html or readme.md
+    ///            and requires that at least one exists.
+    ///
+    /// Example 2: `--index-files index.html,.` will use index.html if it exists, but
+    ///            still accept the directory link regardless.
+    ///
+    /// Example 3: `--index-files ''` will reject all directory links because there are
+    ///            no valid index files. This will require every link to explicitly name
+    ///            a file.
+    ///
+    /// Note: This option only takes effect on `file://` URIs which exist and point to a directory.
+    #[arg(long, value_delimiter = ',', verbatim_doc_comment)]
     pub(crate) index_files: Option<Vec<String>>,
 
-    /// Set custom header for requests
+    /// Set custom header for requests.
+    ///
+    /// Some websites require custom headers to be passed in order to return valid responses.
+    /// You can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.
+    /// This is the same format that other tools like curl or wget use.
+    /// Multiple headers can be specified by using the flag multiple times.
+    /// The specified headers are used for ALL requests.
+    /// Use the `hosts` option to configure headers on a per-host basis.
     #[arg(
         short = 'H',
         long,
@@ -650,39 +634,29 @@ Note: This option only takes effect on `file://` URIs which exist and point to a
         action = clap::ArgAction::Append,
         value_parser = HeaderParser,
         value_name = "HEADER:VALUE",
-        long_help = "Set custom header for requests
-
-Some websites require custom headers to be passed in order to return valid responses.
-You can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.
-This is the same format that other tools like curl or wget use.
-Multiple headers can be specified by using the flag multiple times.
-The specified headers are used for ALL requests.
-Use the `hosts` option to configure headers on a per-host basis."
+        verbatim_doc_comment
     )]
     #[serde(default)]
     #[serde(deserialize_with = "deserialize_headers")]
     header: Vec<(String, String)>,
 
     /// A List of accepted status codes for valid links
-    #[arg(
-        short,
-        long,
-        long_help = "A List of accepted status codes for valid links
-
-The following accept range syntax is supported: [start]..[[=]end]|code. Some valid
-examples are:
-
-- 200 (accepts the 200 status code only)
-- ..204 (accepts any status code < 204)
-- ..=204 (accepts any status code <= 204)
-- 200..=204 (accepts any status code from 200 to 204 inclusive)
-- 200..205 (accepts any status code from 200 to 205 excluding 205, same as 200..=204)
-
-Use \"lychee --accept '200..=204, 429, 500' <inputs>...\" to provide a comma-
-separated list of accepted status codes. This example will accept 200, 201,
-202, 203, 204, 429, and 500 as valid status codes.
-Defaults to '100..=103,200..=299' if the user provides no value."
-    )]
+    ///
+    /// The following accept range syntax is supported: [start]..[[=]end]|code.
+    /// Some valid examples are:
+    ///
+    /// - 200 (accepts the 200 status code only)
+    /// - ..204 (accepts any status code < 204)
+    /// - ..=204 (accepts any status code <= 204)
+    /// - 200..=204 (accepts any status code from 200 to 204 inclusive)
+    /// - 200..205 (accepts any status code from 200 to 205 excluding 205, same as 200..=204)
+    ///
+    /// Use "lychee --accept '200..=204, 429, 500' <inputs>..." to provide a comma-
+    /// separated list of accepted status codes. This example will accept 200, 201,
+    /// 202, 203, 204, 429, and 500 as valid status codes.
+    ///
+    /// [default: 100..=103,200..=299]
+    #[arg(short, long, verbatim_doc_comment)]
     accept: Option<StatusCodeSelector>,
 
     /// Enable the checking of fragments in links.
@@ -714,51 +688,46 @@ Defaults to '100..=103,200..=299' if the user provides no value."
     #[serde(skip)]
     pub(crate) base: Option<Base>,
 
-    /// Base URL used to resolve relative URLs in local files.
-    /// Example: <https://example.com>
+    /// Base URL to use when resolving relative URLs in local files. If specified,
+    /// relative links in local files are interpreted as being relative to the given
+    /// base URL.
+    ///
+    /// For example, given a base URL of `https://example.com/dir/page`, the link `a`
+    /// would resolve to `https://example.com/dir/a` and the link `/b` would resolve
+    /// to `https://example.com/b`. This behavior is not affected by the filesystem
+    /// path of the file containing these links.
+    ///
+    /// Note that relative URLs without a leading slash become siblings of the base
+    /// URL. If, instead, the base URL ended in a slash, the link would become a child
+    /// of the base URL. For example, a base URL of `https://example.com/dir/page/` and
+    /// a link of `a` would resolve to `https://example.com/dir/page/a`.
+    ///
+    /// Basically, the base URL option resolves links as if the local files were hosted
+    /// at the given base URL address.
+    ///
+    /// The provided base URL value must either be a URL (with scheme) or an absolute path.
+    /// Note that certain URL schemes cannot be used as a base, e.g., `data` and `mailto`.
     #[arg(
         short,
         long,
         value_parser = parse_base,
-        long_help = "Base URL to use when resolving relative URLs in local files. If specified,
-relative links in local files are interpreted as being relative to the given
-base URL.
-
-For example, given a base URL of `https://example.com/dir/page`, the link `a`
-would resolve to `https://example.com/dir/a` and the link `/b` would resolve
-to `https://example.com/b`. This behavior is not affected by the filesystem
-path of the file containing these links.
-
-Note that relative URLs without a leading slash become siblings of the base
-URL. If, instead, the base URL ended in a slash, the link would become a child
-of the base URL. For example, a base URL of `https://example.com/dir/page/` and
-a link of `a` would resolve to `https://example.com/dir/page/a`.
-
-Basically, the base URL option resolves links as if the local files were hosted
-at the given base URL address.
-
-The provided base URL value must either be a URL (with scheme) or an absolute path.
-Note that certain URL schemes cannot be used as a base, e.g., `data` and `mailto`."
+        verbatim_doc_comment
     )]
     pub(crate) base_url: Option<Base>,
 
-    /// Root directory to use when checking absolute links in local files.
-    /// Must be an absolute path.
-    #[arg(
-        long,
-        long_help = "Root directory to use when checking absolute links in local files. This option is
-required if absolute links appear in local files, otherwise those links will be
-flagged as errors. This must be an absolute path (i.e., one beginning with `/`).
-
-If specified, absolute links in local files are resolved by prefixing the given
-root directory to the requested absolute link. For example, with a root-dir of
-`/root/dir`, a link to `/page.html` would be resolved to `/root/dir/page.html`.
-
-This option can be specified alongside `--base-url`. If both are given, an
-absolute link is resolved by constructing a URL from three parts: the domain
-name specified in `--base-url`, followed by the `--root-dir` directory path,
-followed by the absolute link's own path."
-    )]
+    /// Root directory to use when checking absolute links in local files. This option is
+    /// required if absolute links appear in local files, otherwise those links will be
+    /// flagged as errors. This must be an absolute path (i.e., one beginning with `/`).
+    ///
+    /// If specified, absolute links in local files are resolved by prefixing the given
+    /// root directory to the requested absolute link. For example, with a root-dir of
+    /// `/root/dir`, a link to `/page.html` would be resolved to `/root/dir/page.html`.
+    ///
+    /// This option can be specified alongside `--base-url`. If both are given, an
+    /// absolute link is resolved by constructing a URL from three parts: the domain
+    /// name specified in `--base-url`, followed by the `--root-dir` directory path,
+    /// followed by the absolute link's own path.
+    #[arg(long, verbatim_doc_comment)]
     pub(crate) root_dir: Option<PathBuf>,
 
     /// Basic authentication support. E.g. `http://example.com username:password`
@@ -820,13 +789,10 @@ followed by the absolute link's own path."
     #[serde(default)]
     pub(crate) require_https: bool,
 
-    /// Read and write cookies using the given file
-    #[arg(
-        long,
-        long_help = "Tell lychee to read cookies from the given file. Cookies will be stored in the
-cookie jar and sent with requests. New cookies will be stored in the cookie jar
-and existing cookies will be updated."
-    )]
+    /// Read and write cookies using the given file. Cookies will be stored in the
+    /// cookie jar and sent with requests. New cookies will be stored in the cookie jar
+    /// and existing cookies will be updated.
+    #[arg(long, verbatim_doc_comment)]
     pub(crate) cookie_jar: Option<PathBuf>,
 
     #[allow(clippy::doc_markdown)]
@@ -837,33 +803,30 @@ and existing cookies will be updated."
     pub(crate) include_wikilinks: bool,
 
     /// Preprocess input files.
-    #[arg(
-        short,
-        long,
-        value_name = "COMMAND",
-        long_help = r#"Preprocess input files.
-For each file input, this flag causes lychee to execute `COMMAND PATH` and process
-its standard output instead of the original contents of PATH. This allows you to
-convert files that would otherwise not be understood by lychee. The preprocessor
-COMMAND is only run on input files, not on standard input or URLs.
-
-To invoke programs with custom arguments or to use multiple preprocessors, use a
-wrapper program such as a shell script. An example script looks like this:
-
-#!/usr/bin/env bash
-case "$1" in
-*.pdf)
-    exec pdftohtml -i -s -stdout "$1"
-    ;;
-*.odt|*.docx|*.epub|*.ipynb)
-    exec pandoc "$1" --to=html --wrap=none
-    ;;
-*)
-    # identity function, output input without changes
-    exec cat
-    ;;
-esac"#
-    )]
+    /// For each file input, this flag causes lychee to execute `COMMAND PATH` and process
+    /// its standard output instead of the original contents of PATH. This allows you to
+    /// convert files that would otherwise not be understood by lychee. The preprocessor
+    /// COMMAND is only run on input files, not on standard input or URLs.
+    ///
+    /// To invoke programs with custom arguments or to use multiple preprocessors, use a
+    /// wrapper program such as a shell script. An example script looks like this:
+    ///
+    /// ```
+    /// #!/usr/bin/env bash
+    /// case "$1" in
+    /// *.pdf)
+    ///     exec pdftohtml -i -s -stdout "$1"
+    ///     ;;
+    /// *.odt|*.docx|*.epub|*.ipynb)
+    ///     exec pandoc "$1" --to=html --wrap=none
+    ///     ;;
+    /// *)
+    ///     # identity function, output input without changes
+    ///     exec cat
+    ///     ;;
+    /// esac
+    /// ```
+    #[arg(short, long, value_name = "COMMAND", verbatim_doc_comment)]
     pub(crate) preprocess: Option<Preprocessor>,
 
     /// Host-specific configurations from config file
@@ -1068,9 +1031,130 @@ impl Config {
 mod tests {
     use std::collections::HashMap;
 
+    use clap::{CommandFactory, FromArgMatches};
     use lychee_lib::ratelimit::{HostConfig, HostKey};
+    use regex::Regex;
 
     use super::*;
+
+    #[test]
+    fn test_no_clap_default_used() {
+        if Regex::new(r"(?ms)#\[arg\([^\]]*default_value")
+            .unwrap()
+            .is_match(&read_file_to_string())
+        {
+            panic!(
+                r"As per convention we avoid clap's default values.
+Write a getter function instead, keep the field private and annotate the default value in the doc comment manually.
+The annotated default value is then verified with a test."
+            );
+        }
+    }
+
+    #[test]
+    fn test_no_clap_long_help_used() {
+        if Regex::new(r"(?ms)#\[arg\([^\]]*long_help")
+            .unwrap()
+            .is_match(&read_file_to_string())
+        {
+            panic!(
+                r"As per convention we avoid clap's long_help.
+Instead use Rust's doc comments in combination with `verbatim_doc_comment`.
+This convention also simplifies our default value testing."
+            );
+        }
+    }
+
+    #[test]
+    fn test_default_values() {
+        let contents = read_file_to_string();
+
+        let default_value_annotation = Regex::new(r"\s*\[default: (?<value>.*)\]").unwrap();
+        let default_field =
+            Regex::new(r"(?m)^\s+///(?<comment>.*)\n.*\n\s+(?<ident>\w+):\s*Option<.*>,?$")
+                .unwrap();
+
+        let undocumented_default_fields = [
+            "verbose",              // the flag takes no argument
+            "cache_exclude_status", // empty default
+            // the following flags do not have any default values.
+            // they are not public because they are only used internally.
+            "default_extension",
+            "files_from",
+        ];
+
+        let mut default_values = default_field
+            .captures_iter(&contents)
+            .map(|c| {
+                (
+                    c.name("comment").unwrap().as_str(),
+                    c.name("ident").unwrap().as_str(),
+                )
+            })
+            .filter(|(_,i)| !undocumented_default_fields.contains(i))
+            .map(|(comment, ident)| {
+                let default_value = default_value_annotation
+                    .captures(comment)
+                    .unwrap_or_else(|| panic!(
+                        "Default value must be specified at the end of the doc comment for argument '{ident}'"
+                    ))
+                    .name("value")
+                    .unwrap_or_else(|| panic!("Default value missing for argument '{ident}'"))
+                    .as_str();
+
+                (ident, default_value)
+            }).collect::<Vec<_>>();
+
+        let default = parse_default_options();
+
+        let mut remove = |identifier: &str| {
+            let position = default_values
+                .iter()
+                .position(|(ident, _)| *ident == identifier)
+                .unwrap_or_else(|| panic!("Option with name '{identifier}' not found. Is it a non-public field of type `Option<T>`?"));
+            default_values.remove(position)
+        };
+
+        macro_rules! check_default_values {
+            ( $( $name:ident ),* $(,)? ) => {
+                $(
+                    let (ident, default_value) = remove(stringify!($name));
+                    let flag = ident.replace("_", "-");
+                    let explicit = parse_options(vec![
+                        "lychee",
+                        format!("--{flag}").as_str(),
+                        default_value,
+                        "-",
+                    ]);
+                    assert_eq!(
+                        default.config.$name(),
+                        explicit.config.$name(),
+                        "Documented default value does not match the actual default value for option '{ident}'"
+                    );
+                )*
+            };
+        }
+
+        check_default_values!(
+            accept,
+            archive,
+            extensions,
+            format,
+            max_concurrency,
+            max_redirects,
+            max_retries,
+            mode,
+            retry_wait_time,
+            timeout,
+            user_agent
+        );
+
+        assert_eq!(
+            default_values,
+            vec![],
+            "Untested default values found. Add them to this test."
+        );
+    }
 
     #[test]
     fn test_parse_custom_headers() {
@@ -1220,5 +1304,19 @@ mod tests {
                 }
             )])
         );
+    }
+
+    fn read_file_to_string() -> String {
+        fs::read_to_string("./src/options.rs")
+            .expect("Unable to read this source code file to string")
+    }
+
+    fn parse_default_options() -> LycheeOptions {
+        parse_options(vec!["lychee", "-"])
+    }
+
+    fn parse_options(args: Vec<&str>) -> LycheeOptions {
+        let mut matches = <LycheeOptions as CommandFactory>::command().get_matches_from(args);
+        <LycheeOptions as FromArgMatches>::from_arg_matches_mut(&mut matches).unwrap()
     }
 }
