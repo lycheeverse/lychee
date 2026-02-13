@@ -2326,7 +2326,7 @@ checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
 name = "lychee"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "anyhow",
  "assert-json-diff",
@@ -2375,7 +2375,7 @@ dependencies = [
 
 [[package]]
 name = "lychee-lib"
-version = "0.22.0"
+version = "0.23.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -4206,7 +4206,7 @@ checksum = "8f50febec83f5ee1df3015341d8bd429f2d1cc62bcba7ea2076759d315084683"
 
 [[package]]
 name = "test-utils"
-version = "0.22.0"
+version = "0.23.0"
 
 [[package]]
 name = "testing_table"
