@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.22.0...lychee-v0.23.0) - 2026-02-13
+
+### Added
+
+- per-host caching ([#1974](https://github.com/lycheeverse/lychee/pull/1974))
+- implement per-host rate limiting and statistics ([#1929](https://github.com/lycheeverse/lychee/pull/1929))
+
+### Fixed
+
+- CacheableResponse should only download file when needed ([#2035](https://github.com/lycheeverse/lychee/pull/2035))
+- Combine host stats with response stats ([#1975](https://github.com/lycheeverse/lychee/pull/1975))
+
+### Other
+
+- delete leftover openssl sentence in readme
+- Speed up slow tests ([#2019](https://github.com/lycheeverse/lychee/pull/2019))
+- *(deps)* bump the dependencies group with 2 updates
+- Improve README.md UX ([#2029](https://github.com/lycheeverse/lychee/pull/2029))
+- Replace OpenSSL with rustls  ([#1928](https://github.com/lycheeverse/lychee/pull/1928))
+- Replace check-if-email-exists with mailify ([#1985](https://github.com/lycheeverse/lychee/pull/1985))
+- Redirect hint ([#2020](https://github.com/lycheeverse/lychee/pull/2020))
+- Update to reqwest 0.13.1 & cargo update
+- *(deps)* bump the dependencies group across 1 directory with 4 updates
+- Use absolute instead of canonicalize for relative root-dir ([#2008](https://github.com/lycheeverse/lychee/pull/2008))
+- Log successful responses only for Debug and Trace
+- Only show redirect details in verbose mode
+- Show status code in redirect list
+- Use u8 instead of i8 for log level values
+- Update comparison table ([#1997](https://github.com/lycheeverse/lychee/pull/1997))
+- Rejected urls ([#1990](https://github.com/lycheeverse/lychee/pull/1990))
+- Accept ranges ([#1989](https://github.com/lycheeverse/lychee/pull/1989))
+- *(deps)* bump the dependencies group with 5 updates ([#1988](https://github.com/lycheeverse/lychee/pull/1988))
+- *(deps)* bump the dependencies group with 4 updates ([#1978](https://github.com/lycheeverse/lychee/pull/1978))
+- *(deps)* bump the dependencies group with 4 updates ([#1973](https://github.com/lycheeverse/lychee/pull/1973))
+- *(docs)* update TOC
+- Improve wikilink parsing and checking ([#1799](https://github.com/lycheeverse/lychee/pull/1799))
+- Specify that Scoop installation is for Windows ([#1969](https://github.com/lycheeverse/lychee/pull/1969))
+- Extract record_cache_event & skip mail caching
+- Add tldr-pages link to README ([#1963](https://github.com/lycheeverse/lychee/pull/1963))
+- *(deps)* bump the dependencies group across 1 directory with 3 updates ([#1961](https://github.com/lycheeverse/lychee/pull/1961))
+- Extract URLs from CSS ([#1956](https://github.com/lycheeverse/lychee/pull/1956))
+
 ## [0.22.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.21.0...lychee-v0.22.0) - 2025-12-05
 
 ### Added
