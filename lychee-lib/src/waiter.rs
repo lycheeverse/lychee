@@ -17,8 +17,7 @@ pub struct WaitGroup(Receiver<()>);
 /// The existence of values of this type represents outstanding work for
 /// its corresponding [`WaitGroup`].
 ///
-///
-/// A [`WaitGuard`] can be cloned using [`WaitGuard::clone`]. This is allows
+/// A [`WaitGuard`] can be cloned using [`WaitGuard::clone`]. This allows
 /// a task to spawn additional tasks, recursively.
 #[derive(Clone, Debug)]
 pub struct WaitGuard(
@@ -30,7 +29,11 @@ pub struct WaitGuard(
 );
 
 impl WaitGroup {
-    /// Creates a new WaitGroup.
+    /// Creates a new [`WaitGroup`] and its first associated [`WaitGuard`].
+    ///
+    /// Note that [`WaitGroup`] itself has no ability to create new guards.
+    /// If needed, news guard should be created by cloning the returned [`WaitGuard`].
+    #[must_use]
     pub fn new() -> (Self, WaitGuard) {
         let (send, recv) = channel(1);
         (Self(recv), WaitGuard(send))
