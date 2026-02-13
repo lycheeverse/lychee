@@ -189,16 +189,22 @@ async fn collect_responses(
     progress: Progress,
     mut stats: ResponseStats,
 ) -> Result<ResponseStats, ErrorKind> {
-    let mut race = FuturesUnordered::new();
-    race.push(waiter.wait().map(|()| None).boxed());
+    use futures::future::Either::{Left, Right};
 
-    race.push(recv_resp.recv().boxed());
-    drop(race);
-    let mut race = FuturesUnordered::new();
-    // race.push(waiter.wait().map(|()| None).boxed());
+    let mut recv_future = recv_resp.recv().boxed();
+    let mut waiter_future = waiter.wait().boxed();
 
-    race.push(recv_resp.recv().boxed());
-    while let Some(Some((guard, response))) = race.next().await {
+    loop {
+        let race = futures::future::select(recv_future, waiter_future);
+
+        let (guard, response) = match race.await {
+            Right(((), _)) => break,
+            Left((item, w)) => {
+                waiter_future = w;
+                item
+            }
+        };
+
         let response = response?;
         progress.update(Some(response.body()));
         stats.add(response);
