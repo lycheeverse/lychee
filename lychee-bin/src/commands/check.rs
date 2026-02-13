@@ -3,8 +3,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use futures::stream::futures_unordered::FuturesUnordered;
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use http::StatusCode;
 use lychee_lib::StatusCodeSelector;
 use lychee_lib::ratelimit::HostPool;
@@ -183,7 +182,7 @@ where
 
 /// Reads from the request channel and updates the progress bar status
 async fn collect_responses(
-    mut recv_resp: mpsc::Receiver<(WaitGuard, Result<Response, ErrorKind>)>,
+    recv_resp: mpsc::Receiver<(WaitGuard, Result<Response, ErrorKind>)>,
     send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
     waiter: WaitGroup,
     progress: Progress,
@@ -195,7 +194,7 @@ async fn collect_responses(
     )
     .boxed();
 
-    while let Some(Ok((guard, response))) = recv_resp_or_done.next().await {
+    while let Some(Ok((_guard, response))) = recv_resp_or_done.next().await {
         let response = response?;
         progress.update(Some(response.body()));
         stats.add(response);
