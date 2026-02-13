@@ -3,7 +3,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use futures::StreamExt;
+use futures::stream::futures_unordered::FuturesUnordered;
+use futures::{FutureExt, StreamExt};
 use http::StatusCode;
 use lychee_lib::StatusCodeSelector;
 use lychee_lib::ratelimit::HostPool;
@@ -184,20 +185,25 @@ where
 async fn collect_responses(
     mut recv_resp: mpsc::Receiver<(WaitGuard, Result<Response, ErrorKind>)>,
     send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
-    mut waiter: WaitGroup,
+    waiter: WaitGroup,
     progress: Progress,
     mut stats: ResponseStats,
 ) -> Result<ResponseStats, ErrorKind> {
-    while let Some((guard, response)) = recv_resp.recv().await {
+    let mut race = FuturesUnordered::new();
+    race.push(waiter.wait().map(|()| None).boxed());
+
+    race.push(recv_resp.recv().boxed());
+    drop(race);
+    let mut race = FuturesUnordered::new();
+    // race.push(waiter.wait().map(|()| None).boxed());
+
+    race.push(recv_resp.recv().boxed());
+    while let Some(Some((guard, response))) = race.next().await {
         let response = response?;
         progress.update(Some(response.body()));
         stats.add(response);
 
         drop(guard);
-        match waiter.try_wait() {
-            Ok(()) => break,
-            Err(x) => waiter = x,
-        }
     }
 
     // unused for now, but will be used for recursion eventually. by holding
