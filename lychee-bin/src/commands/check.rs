@@ -189,33 +189,22 @@ async fn collect_responses(
     progress: Progress,
     mut stats: ResponseStats,
 ) -> Result<ResponseStats, ErrorKind> {
-    use futures::future::Either::{Left, Right};
+    let mut recv_resp_or_done = futures::stream::select(
+        ReceiverStream::new(recv_resp).map(|x| Ok(x)),
+        futures::stream::once(waiter.wait()).map(|()| Err(())),
+    )
+    .boxed();
 
-    let mut recv_future = recv_resp.recv().boxed();
-    let mut waiter_future = waiter.wait().boxed();
-
-    loop {
-        let race = futures::future::select(recv_future, waiter_future);
-
-        let (guard, response) = match race.await {
-            Right(((), _)) => break,
-            Left((item, w)) => {
-                waiter_future = w;
-                item
-            }
-        };
-
+    while let Some(Ok((guard, response))) = recv_resp_or_done.next().await {
         let response = response?;
         progress.update(Some(response.body()));
         stats.add(response);
-
-        drop(guard);
     }
 
     // unused for now, but will be used for recursion eventually. by holding
-    // an extra `send_req` endpoint, we make sure that the WaitGroup is what
-    // is performing the termination - instead of naturally finishing the
-    // pipeline when all senders are dropped.
+    // an extra `send_req` endpoint, we prevent the natural termination when
+    // each channel finishes and closes. instead, we rely on the WaitGroup to
+    // break the cyclic channels.
     let _ = send_req;
     Ok(stats)
 }
