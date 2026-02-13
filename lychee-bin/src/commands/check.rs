@@ -36,7 +36,7 @@ where
     let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
     let (send_resp, recv_resp) = mpsc::channel(params.cfg.max_concurrency);
     let max_concurrency = params.cfg.max_concurrency;
-    let waiter = WaitGroup::new();
+    let (waiter, wait_guard) = WaitGroup::new();
 
     // Measure check time
     let start = std::time::Instant::now();
@@ -75,7 +75,6 @@ where
     let level = params.cfg.verbose.log_level();
 
     let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode);
-    let wait_guard = waiter.guard();
     let show_results_task = tokio::spawn(collect_responses(
         recv_resp,
         send_req.clone(),
