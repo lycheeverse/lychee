@@ -23,6 +23,7 @@ where
         fs::File::create(out_file)?;
     }
 
+    let verbosity = params.cfg.verbose();
     let mut writer = super::create_writer(params.cfg.output)?;
 
     while let Some(request) = requests.next().await {
@@ -43,11 +44,11 @@ where
 
         let excluded = params.client.is_excluded(&request.uri);
 
-        if excluded && params.cfg.verbose.log_level() < log::Level::Info {
+        if excluded && verbosity.log_level() < log::Level::Info {
             continue;
         }
 
-        if let Err(e) = write(&mut writer, &request, &params.cfg.verbose, excluded) {
+        if let Err(e) = write(&mut writer, &request, &verbosity, excluded) {
             // Avoid panic on broken pipe.
             // See https://github.com/rust-lang/rust/issues/46016
             // This can occur when piping the output of lychee

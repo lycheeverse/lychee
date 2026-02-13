@@ -42,9 +42,9 @@ pub const DEFAULT_MAX_REDIRECTS: usize = 5;
 /// Default number of retries before a request is deemed as failed, 3.
 pub const DEFAULT_MAX_RETRIES: u64 = 3;
 /// Default wait time in seconds between retries, 1.
-pub const DEFAULT_RETRY_WAIT_TIME_SECS: usize = 1;
+pub const DEFAULT_RETRY_WAIT_TIME_SECS: u64 = 1;
 /// Default timeout in seconds before a request is deemed as failed, 20.
-pub const DEFAULT_TIMEOUT_SECS: usize = 20;
+pub const DEFAULT_TIMEOUT_SECS: u64 = 20;
 /// Default user agent, `lychee-<PKG_VERSION>`.
 pub const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"));
 

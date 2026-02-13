@@ -40,7 +40,7 @@ pub(crate) trait StatsFormatter {
 
 /// If configured to do so, output response statistics to stdout or the specified output file.
 pub(crate) fn output_statistics(stats: OutputStats, config: &Config) -> Result<()> {
-    let formatter = get_stats_formatter(&config.format, &config.mode);
+    let formatter = get_stats_formatter(&config.format(), &config.mode());
     let formatted_stats = formatter.format(stats)?;
 
     if let Some(output) = &config.output {

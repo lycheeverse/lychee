@@ -5,7 +5,6 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use http::StatusCode;
-use lychee_lib::StatusCodeSelector;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
 use tokio::sync::mpsc;
@@ -19,7 +18,6 @@ use lychee_lib::{ResponseBody, Status};
 
 use crate::formatters::stats::ResponseStats;
 use crate::formatters::suggestion::Suggestion;
-use crate::parse::parse_duration_secs;
 use crate::progress::Progress;
 use crate::{ExitCode, cache::Cache};
 
@@ -32,14 +30,14 @@ where
     S: futures::Stream<Item = Result<Request, RequestError>>,
 {
     // Setup
-    let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
-    let (send_resp, recv_resp) = mpsc::channel(params.cfg.max_concurrency);
-    let max_concurrency = params.cfg.max_concurrency;
+    let max_concurrency = params.cfg.max_concurrency();
+    let (send_req, recv_req) = mpsc::channel(max_concurrency);
+    let (send_resp, recv_resp) = mpsc::channel(max_concurrency);
 
     // Measure check time
     let start = std::time::Instant::now();
 
-    let stats = if params.cfg.verbose.log_level() >= log::Level::Info {
+    let stats = if params.cfg.verbose().log_level() >= log::Level::Info {
         ResponseStats::extended()
     } else {
         ResponseStats::default()
@@ -47,16 +45,8 @@ where
 
     let client = params.client;
     let cache = params.cache;
-    let cache_exclude_status = params
-        .cfg
-        .cache_exclude_status
-        .unwrap_or(StatusCodeSelector::empty())
-        .into();
-    let accept = params
-        .cfg
-        .accept
-        .unwrap_or(StatusCodeSelector::default_accepted())
-        .into();
+    let cache_exclude_status = params.cfg.cache_exclude_status().into();
+    let accept = params.cfg.accept().into();
 
     // Start receiving requests
     let handle = tokio::spawn(request_channel_task(
@@ -70,9 +60,9 @@ where
     ));
 
     let hide_bar = params.cfg.no_progress;
-    let level = params.cfg.verbose.log_level();
+    let level = params.cfg.verbose().log_level();
 
-    let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode);
+    let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode());
     let show_results_task = tokio::spawn(collect_responses(recv_resp, progress.clone(), stats));
 
     // Wait until all requests are sent
@@ -93,14 +83,14 @@ where
             "Searching for alternatives",
             hide_bar,
             level,
-            &params.cfg.mode,
+            &params.cfg.mode(),
         );
         suggest_archived_links(
-            params.cfg.archive.unwrap_or_default(),
+            params.cfg.archive(),
             &mut stats,
             progress,
             max_concurrency,
-            parse_duration_secs(params.cfg.timeout),
+            params.cfg.timeout(),
         )
         .await;
     }
