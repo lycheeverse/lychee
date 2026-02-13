@@ -188,8 +188,8 @@ async fn collect_responses(
     mut stats: ResponseStats,
 ) -> Result<ResponseStats, ErrorKind> {
     let mut recv_resp_or_done = futures::stream::select(
-        ReceiverStream::new(recv_resp).map(|x| Ok(x)),
-        futures::stream::once(waiter.wait()).map(|()| Err(())),
+        ReceiverStream::new(recv_resp).map(Ok),
+        futures::stream::once(waiter.wait()).map(Err),
     )
     .boxed();
 
