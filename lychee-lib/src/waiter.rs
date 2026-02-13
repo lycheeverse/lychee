@@ -2,6 +2,7 @@
 //! waiter and multiple waitees (things that are waited for). Notably, each
 //! waitee can also start more work to be waited for.
 
+use std::convert::Infallible;
 use tokio::sync::mpsc::{Receiver, Sender, channel};
 
 /// Manager for a particular wait group. This can spawn a number of [`WaitGuard`]s
@@ -10,7 +11,12 @@ use tokio::sync::mpsc::{Receiver, Sender, channel};
 /// Each [`WaitGroup`] is single-use&mdash;once it finishes waiting, it
 /// is consumed and cannot be restarted with new tasks.
 #[derive(Debug)]
-pub struct WaitGroup(Receiver<()>);
+pub struct WaitGroup {
+    /// [`Receiver`] is held to wait for multiple [`Sender`]s and detect
+    /// when they have closed. The [`Infallible`] type means no value can/will
+    /// ever be received through the channel.
+    recv: Receiver<Infallible>,
+}
 
 /// Guard held by a task which is being waited for.
 ///
@@ -20,13 +26,12 @@ pub struct WaitGroup(Receiver<()>);
 /// A [`WaitGuard`] can be cloned using [`WaitGuard::clone`]. This allows
 /// a task to spawn additional tasks, recursively.
 #[derive(Clone, Debug)]
-pub struct WaitGuard(
-    #[allow(
-        dead_code,
-        reason = "Field is never accessed, but it is crucial to hold on to the value."
-    )]
-    Sender<()>,
-);
+pub struct WaitGuard {
+    /// [`Sender`] is held to keep the [`Receiver`] end open (stored in [`WaitGroup`]).
+    /// The dropping of all senders will cause the receiver to detect and close.
+    /// The [`Infallible`] type means no value can/will ever be sent through the channel.
+    _send: Sender<Infallible>,
+}
 
 impl WaitGroup {
     /// Creates a new [`WaitGroup`] and its first associated [`WaitGuard`].
@@ -36,11 +41,11 @@ impl WaitGroup {
     #[must_use]
     pub fn new() -> (Self, WaitGuard) {
         let (send, recv) = channel(1);
-        (Self(recv), WaitGuard(send))
+        (Self { recv }, WaitGuard { _send: send })
     }
 
     /// Waits, asynchronously, until all the associated [`WaitGuard`]s have finished.
     pub async fn wait(mut self) {
-        self.0.recv().await;
+        let None = self.recv.recv().await;
     }
 }
