@@ -115,11 +115,6 @@ enum ExitCode {
 const LYCHEEIGNORE_COMMENT_MARKER: &str = "#";
 
 fn main() -> Result<()> {
-    let x = std::path::PathBuf::from(&format!(
-        "/home/rina/progs/lychee/{}.socket",
-        std::process::id()
-    ));
-    console_subscriber::Builder::default().server_addr(x).init();
     // std::process::exit doesn't guarantee that all destructors will be run,
     // therefore we wrap the main code in another function to ensure that.
     // See: https://doc.rust-lang.org/stable/std/process/fn.exit.html

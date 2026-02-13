@@ -2,9 +2,6 @@
 //! waiter and multiple waitees (things that are waited for). Notably, each
 //! waitee can also start more work to be waited for.
 
-use std::sync::Arc;
-use std::sync::Weak;
-use tokio::sync::Notify;
 use tokio::sync::mpsc::{Receiver, Sender, channel};
 
 /// Manager for a particular wait group. This can spawn a number of [`WaitGuard`]s
