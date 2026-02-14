@@ -14,6 +14,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use lychee_lib::InputSource;
 use lychee_lib::RequestError;
 use lychee_lib::archive::Archive;
+use lychee_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
 use lychee_lib::{ResponseBody, Status};
 
@@ -35,6 +36,7 @@ where
     let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
     let (send_resp, recv_resp) = mpsc::channel(params.cfg.max_concurrency);
     let max_concurrency = params.cfg.max_concurrency;
+    let (waiter, wait_guard) = WaitGroup::new();
 
     // Measure check time
     let start = std::time::Instant::now();
@@ -73,10 +75,16 @@ where
     let level = params.cfg.verbose.log_level();
 
     let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode);
-    let show_results_task = tokio::spawn(collect_responses(recv_resp, progress.clone(), stats));
+    let show_results_task = tokio::spawn(collect_responses(
+        recv_resp,
+        send_req.clone(),
+        waiter,
+        progress.clone(),
+        stats,
+    ));
 
     // Wait until all requests are sent
-    send_requests(params.requests, send_req, &progress).await?;
+    send_requests(params.requests, wait_guard, send_req, &progress).await?;
     let (cache, client) = handle.await?;
 
     // Wait until all responses are received
@@ -153,7 +161,8 @@ async fn suggest_archived_links(
 // the show_results_task to finish
 async fn send_requests<S>(
     requests: S,
-    send_req: mpsc::Sender<Result<Request, RequestError>>,
+    guard: WaitGuard,
+    send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
     progress: &Progress,
 ) -> Result<(), ErrorKind>
 where
@@ -162,28 +171,47 @@ where
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
         progress.inc_length(1);
-        send_req.send(request).await.expect("Cannot send request");
+        send_req
+            .send((guard.clone(), request))
+            .await
+            .expect("Cannot send request");
     }
     Ok(())
 }
 
 /// Reads from the request channel and updates the progress bar status
 async fn collect_responses(
-    mut recv_resp: mpsc::Receiver<Result<Response, ErrorKind>>,
+    recv_resp: mpsc::Receiver<(WaitGuard, Result<Response, ErrorKind>)>,
+    send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
+    waiter: WaitGroup,
     progress: Progress,
     mut stats: ResponseStats,
 ) -> Result<ResponseStats, ErrorKind> {
-    while let Some(response) = recv_resp.recv().await {
+    // Wrap recv_resp until the WaitGroup finishes, at which time the
+    // recv_resp_until_done stream will be closed. The correctness of
+    // WaitGroup guarantees that if the waiter finishes, every channel
+    // with a WaitGuard must be empty.
+    let mut recv_resp_until_done = ReceiverStream::new(recv_resp)
+        .take_until(waiter.wait())
+        .boxed();
+
+    while let Some((_guard, response)) = recv_resp_until_done.next().await {
         let response = response?;
         progress.update(Some(response.body()));
         stats.add(response);
     }
+
+    // unused for now, but will be used for recursion eventually. by holding
+    // an extra `send_req` endpoint, we prevent the natural termination when
+    // each channel finishes and closes. instead, we rely on the WaitGroup to
+    // break the cyclic channels.
+    let _ = send_req;
     Ok(stats)
 }
 
 async fn request_channel_task(
-    recv_req: mpsc::Receiver<Result<Request, RequestError>>,
-    send_resp: mpsc::Sender<Result<Response, ErrorKind>>,
+    recv_req: mpsc::Receiver<(WaitGuard, Result<Request, RequestError>)>,
+    send_resp: mpsc::Sender<(WaitGuard, Result<Response, ErrorKind>)>,
     max_concurrency: usize,
     client: Client,
     cache: Cache,
@@ -193,7 +221,7 @@ async fn request_channel_task(
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
-        |request: Result<Request, RequestError>| async {
+        |(guard, request): (WaitGuard, Result<Request, RequestError>)| async {
             let response = handle(
                 &client,
                 &cache,
@@ -204,7 +232,7 @@ async fn request_channel_task(
             .await;
 
             send_resp
-                .send(response)
+                .send((guard, response))
                 .await
                 .expect("cannot send response to queue");
         },
