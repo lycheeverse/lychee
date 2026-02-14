@@ -3463,4 +3463,37 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .stdout(contains("https://lychee.cli.rs/another%20page"));
     }
+
+    /// URLs should NOT be downloaded fully, unless fragment checking is on and the link has a fragment.
+    #[test]
+    fn test_large_file_lazy_download() {
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--include-fragments")
+            .arg("--timeout=5")
+            .write_stdin(
+                "
+https://proof.ovh.net/files/10Gb.dat
+https://proof.ovh.net/files/1Gb.dat
+https://proof.ovh.net/files/1Mb.dat
+https://lychee.cli.rs/guides/cli/#options
+            ",
+            )
+            .assert()
+            .success();
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--timeout=5")
+            .write_stdin(
+                "
+https://proof.ovh.net/files/10Gb.dat#fragments-ignored
+https://proof.ovh.net/files/1Gb.dat#fragments-ignored
+https://proof.ovh.net/files/1Mb.dat#fragments-ignored
+https://lychee.cli.rs/guides/cli/#fragments-ignored
+            ",
+            )
+            .assert()
+            .success();
+    }
 }

@@ -94,13 +94,19 @@ impl Host {
         }
     }
 
-    /// Check if a URI is cached and return the cached status if valid
-    ///
-    /// # Panics
-    ///
-    /// Panics if the statistics mutex is poisoned
-    fn get_cached_status(&self, uri: &Uri) -> Option<CacheableResponse> {
-        self.cache.get(uri).map(|v| v.clone())
+    /// Check if a URI is cached and returns the cached response if it is valid
+    /// and satisfies the `needs_body` requirement.
+    fn get_cached_status(&self, uri: &Uri, needs_body: bool) -> Option<CacheableResponse> {
+        let cached = self.cache.get(uri)?.clone();
+        if needs_body {
+            if cached.text.is_some() {
+                Some(cached)
+            } else {
+                None
+            }
+        } else {
+            Some(cached)
+        }
     }
 
     fn record_cache_hit(&self) {
@@ -128,11 +134,18 @@ impl Host {
     /// # Panics
     ///
     /// Panics if the statistics mutex is poisoned
-    pub(crate) async fn execute_request(&self, request: Request) -> Result<CacheableResponse> {
-        let uri = Uri::from(request.url().clone());
+    pub(crate) async fn execute_request(
+        &self,
+        request: Request,
+        needs_body: bool,
+    ) -> Result<CacheableResponse> {
+        let mut url = request.url().clone();
+        url.set_fragment(None);
+        let uri = Uri::from(url);
+
         let _permit = self.acquire_semaphore().await;
 
-        if let Some(cached) = self.get_cached_status(&uri) {
+        if let Some(cached) = self.get_cached_status(&uri, needs_body) {
             self.record_cache_hit();
             return Ok(cached);
         }
@@ -143,20 +156,25 @@ impl Host {
             rate_limiter.until_ready().await;
         }
 
-        if let Some(cached) = self.get_cached_status(&uri) {
+        if let Some(cached) = self.get_cached_status(&uri, needs_body) {
             self.record_cache_hit();
             return Ok(cached);
         }
 
         self.record_cache_miss();
-        self.perform_request(request, uri).await
+        self.perform_request(request, uri, needs_body).await
     }
 
     pub(crate) const fn get_client(&self) -> &ReqwestClient {
         &self.client
     }
 
-    async fn perform_request(&self, request: Request, uri: Uri) -> Result<CacheableResponse> {
+    async fn perform_request(
+        &self,
+        request: Request,
+        uri: Uri,
+        needs_body: bool,
+    ) -> Result<CacheableResponse> {
         let start_time = Instant::now();
         let response = match self.client.execute(request).await {
             Ok(response) => response,
@@ -170,7 +188,7 @@ impl Host {
         self.update_backoff(response.status());
         self.handle_rate_limit_headers(&response);
 
-        let response = CacheableResponse::try_from(response).await?;
+        let response = CacheableResponse::from_response(response, needs_body).await?;
         self.cache_result(&uri, response.clone());
         Ok(response)
     }
