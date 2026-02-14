@@ -187,10 +187,10 @@ async fn collect_responses(
     progress: Progress,
     mut stats: ResponseStats,
 ) -> Result<ResponseStats, ErrorKind> {
-    /// Wrap recv_resp until the WaitGroup finishes, at which time the
-    /// recv_resp_until_done stream will be closed. The correctness of
-    /// WaitGroup guarantees that if the waiter finishes, every channel
-    /// with a WaitGuard must be empty.
+    // Wrap recv_resp until the WaitGroup finishes, at which time the
+    // recv_resp_until_done stream will be closed. The correctness of
+    // WaitGroup guarantees that if the waiter finishes, every channel
+    // with a WaitGuard must be empty.
     let mut recv_resp_until_done = ReceiverStream::new(recv_resp)
         .take_until(waiter.wait())
         .boxed();
