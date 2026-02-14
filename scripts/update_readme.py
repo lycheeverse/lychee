@@ -20,11 +20,7 @@ def main():
     with open('README.md', 'r+') as f:
         text = f.read()
         before, after = text.split(begin, 1)
-        old_help, after = after.split(end, 1)
-
-        if old_help.strip() == new_help.strip():
-            print('readme already up to date, skipping.')
-            return
+        _, after = after.split(end, 1)
 
         f.seek(0)
 

@@ -701,7 +701,7 @@ Options:
   -u, --user-agent <USER_AGENT>
           User agent
 
-          [default: lychee/0.20.1]
+          [default: lychee/x.y.z]
 
   -v, --verbose...
           Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)
