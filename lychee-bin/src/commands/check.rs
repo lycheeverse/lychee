@@ -187,13 +187,15 @@ async fn collect_responses(
     progress: Progress,
     mut stats: ResponseStats,
 ) -> Result<ResponseStats, ErrorKind> {
-    let mut recv_resp_or_done = futures::stream::select(
-        ReceiverStream::new(recv_resp).map(Ok),
-        futures::stream::once(waiter.wait()).map(Err),
-    )
-    .boxed();
+    /// Wrap recv_resp until the WaitGroup finishes, at which time the
+    /// recv_resp_until_done stream will be closed. The correctness of
+    /// WaitGroup guarantees that if the waiter finishes, every channel
+    /// with a WaitGuard must be empty.
+    let mut recv_resp_until_done = ReceiverStream::new(recv_resp)
+        .take_until(waiter.wait())
+        .boxed();
 
-    while let Some(Ok((_guard, response))) = recv_resp_or_done.next().await {
+    while let Some((_guard, response)) = recv_resp_until_done.next().await {
         let response = response?;
         progress.update(Some(response.body()));
         stats.add(response);
