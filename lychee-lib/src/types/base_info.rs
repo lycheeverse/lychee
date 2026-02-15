@@ -371,6 +371,7 @@ mod tests {
     use super::BaseInfo;
     use reqwest::Url;
     use rstest::rstest;
+    use std::path::PathBuf;
 
     #[test]
     fn test_base_info_construction() {
@@ -387,8 +388,63 @@ mod tests {
             BaseInfo::Full(Url::parse("file:///file-path/").unwrap(), String::new())
         );
 
-        let urls = ["https://a.com/b/?q#x", "file:///a.com/b/?q#x"];
-        // .url() of base-info should return the original URL
+        // symbols inside a path are encoded if needed and should *not* be decoded.
+        assert_eq!(
+            BaseInfo::from_path(&PathBuf::from("/file path")).unwrap(),
+            BaseInfo::Full(Url::parse("file:///file%20path/").unwrap(), String::new())
+        );
+        assert_eq!(
+            BaseInfo::from_path(&PathBuf::from("/file%20path")).unwrap(),
+            BaseInfo::Full(Url::parse("file:///file%2520path/").unwrap(), String::new())
+        );
+        // query parameters are *not* interpreted from paths and are treated as literals
+        assert_eq!(
+            BaseInfo::from_path(&PathBuf::from("/file?q=2")).unwrap(),
+            BaseInfo::Full(Url::parse("file:///file%3Fq=2/").unwrap(), String::new())
+        );
+
+        // symbols are encoded inside URLs if needed
+        assert_eq!(
+            BaseInfo::from_source_url(&Url::parse("http://a.com/x y/").unwrap()),
+            BaseInfo::Full(Url::parse("http://a.com/").unwrap(), "x%20y/".to_owned())
+        );
+        assert_eq!(
+            BaseInfo::from_source_url(&Url::parse("http://a.com/x?q=x y").unwrap()),
+            BaseInfo::Full(Url::parse("http://a.com/").unwrap(), "x?q=x%20y".to_owned())
+        );
+        assert_eq!(
+            BaseInfo::from_source_url(&Url::parse("http://a.com/Ω≈ç√∫˜µ≤≥÷/").unwrap()),
+            BaseInfo::Full(
+                Url::parse("http://a.com/").unwrap(),
+                "%CE%A9%E2%89%88%C3%A7%E2%88%9A%E2%88%AB%CB%9C%C2%B5%E2%89%A4%E2%89%A5%C3%B7/"
+                    .to_owned()
+            )
+        );
+        assert_eq!(
+            BaseInfo::from_source_url(&Url::parse("http://みんな.com/x").unwrap()),
+            BaseInfo::Full(
+                Url::parse("http://xn--q9jyb4c.com/").unwrap(),
+                "x".to_owned()
+            )
+        );
+        assert_eq!(
+            BaseInfo::from_source_url(&Url::parse("http://München-Ost.com/x").unwrap()),
+            BaseInfo::Full(
+                Url::parse("http://xn--mnchen-ost-9db.com/").unwrap(),
+                "x".to_owned()
+            )
+        );
+        assert_eq!(
+            BaseInfo::from_source_url(&Url::parse("http://😉.com/x").unwrap()),
+            BaseInfo::Full(Url::parse("http://xn--n28h.com/").unwrap(), "x".to_owned())
+        );
+
+        let urls = [
+            "https://a.com/b/?q#x",
+            "file:///a.com/b/?q#x",
+            "https://a.com/b%20a/?q#x",
+        ];
+        // .url() of base-info should return the original URL with no changes to encoding
         for url_str in urls {
             let url = Url::parse(url_str).unwrap();
             assert_eq!(BaseInfo::try_from(url_str).unwrap().url(), Some(url));
