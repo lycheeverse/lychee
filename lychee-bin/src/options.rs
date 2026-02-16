@@ -802,7 +802,8 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) include_wikilinks: bool,
 
-    /// Preprocess input files.
+    /// Preprocess input files with the given command.
+    ///
     /// For each file input, this flag causes lychee to execute `COMMAND PATH` and process
     /// its standard output instead of the original contents of PATH. This allows you to
     /// convert files that would otherwise not be understood by lychee. The preprocessor
@@ -1041,10 +1042,10 @@ mod tests {
     fn test_no_clap_default_used() {
         if Regex::new(r"(?ms)#\[arg\([^\]]*default_value")
             .unwrap()
-            .is_match(&read_file_to_string())
+            .is_match(&read_this_source_file())
         {
             panic!(
-                r"As per convention we avoid clap's default values.
+                r"In lychee, we avoid clap's default values.
 Write a getter function instead, keep the field private and annotate the default value in the doc comment manually.
 The annotated default value is then verified with a test."
             );
@@ -1055,10 +1056,10 @@ The annotated default value is then verified with a test."
     fn test_no_clap_long_help_used() {
         if Regex::new(r"(?ms)#\[arg\([^\]]*long_help")
             .unwrap()
-            .is_match(&read_file_to_string())
+            .is_match(&read_this_source_file())
         {
             panic!(
-                r"As per convention we avoid clap's long_help.
+                r"In lychee, we avoid clap's long_help.
 Instead use Rust's doc comments in combination with `verbatim_doc_comment`.
 This convention also simplifies our default value testing."
             );
@@ -1067,7 +1068,7 @@ This convention also simplifies our default value testing."
 
     #[test]
     fn test_default_values() {
-        let contents = read_file_to_string();
+        let contents = read_this_source_file();
 
         let default_value_annotation = Regex::new(r"\s*\[default: (?<value>.*)\]").unwrap();
         let default_field =
@@ -1111,7 +1112,7 @@ This convention also simplifies our default value testing."
             let position = default_values
                 .iter()
                 .position(|(ident, _)| *ident == identifier)
-                .unwrap_or_else(|| panic!("Option with name '{identifier}' not found. Is it a non-public field of type `Option<T>`?"));
+                .unwrap_or_else(|| panic!("Option with name '{identifier}' was expected due to check_default_values!. Make sure it is exists as a private field of type `Option<T>`, or update the call to check_default_values!."));
             default_values.remove(position)
         };
 
@@ -1306,7 +1307,7 @@ This convention also simplifies our default value testing."
         );
     }
 
-    fn read_file_to_string() -> String {
+    fn read_this_source_file() -> String {
         fs::read_to_string("./src/options.rs")
             .expect("Unable to read this source code file to string")
     }

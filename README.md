@@ -641,7 +641,8 @@ Options:
           Only check local files and block network requests
 
   -p, --preprocess <COMMAND>
-          Preprocess input files.
+          Preprocess input files with the given command.
+
           For each file input, this flag causes lychee to execute `COMMAND PATH` and process
           its standard output instead of the original contents of PATH. This allows you to
           convert files that would otherwise not be understood by lychee. The preprocessor
