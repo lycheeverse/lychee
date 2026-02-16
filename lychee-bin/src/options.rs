@@ -504,7 +504,7 @@ pub(crate) struct Config {
 
     /// User agent
     ///
-    /// [default: lychee/0.22.0]
+    /// [default: lychee/x.y.z]
     #[arg(short, long)]
     user_agent: Option<String>,
 
@@ -1104,16 +1104,13 @@ This convention also simplifies our default value testing."
                     .as_str();
 
                 (ident, default_value)
-            }).collect::<Vec<_>>();
+            }).collect::<HashMap<_,_>>();
 
-        let default = parse_default_options();
+        let default = parse_options(vec!["lychee", "-"]);
 
         let mut remove = |identifier: &str| {
-            let position = default_values
-                .iter()
-                .position(|(ident, _)| *ident == identifier)
-                .unwrap_or_else(|| panic!("Option with name '{identifier}' was expected due to check_default_values!. Make sure it is exists as a private field of type `Option<T>`, or update the call to check_default_values!."));
-            default_values.remove(position)
+            default_values.remove_entry(identifier)
+                .unwrap_or_else(|| panic!("Option with name '{identifier}' was expected due to `check_default_values!`. Make sure it is exists as a private field of type `Option<T>`, or update the call to `check_default_values!`."))
         };
 
         macro_rules! check_default_values {
@@ -1147,12 +1144,14 @@ This convention also simplifies our default value testing."
             mode,
             retry_wait_time,
             timeout,
-            user_agent
         );
+
+        // We document `lychee/x.y.z` as default instead of the actual version
+        assert_eq!(remove("user_agent"), ("user_agent", "lychee/x.y.z"));
 
         assert_eq!(
             default_values,
-            vec![],
+            HashMap::new(),
             "Untested default values found. Add them to this test."
         );
     }
@@ -1310,10 +1309,6 @@ This convention also simplifies our default value testing."
     fn read_this_source_file() -> String {
         fs::read_to_string("./src/options.rs")
             .expect("Unable to read this source code file to string")
-    }
-
-    fn parse_default_options() -> LycheeOptions {
-        parse_options(vec!["lychee", "-"])
     }
 
     fn parse_options(args: Vec<&str>) -> LycheeOptions {
