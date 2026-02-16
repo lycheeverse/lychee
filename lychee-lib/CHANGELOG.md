@@ -11,46 +11,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- per-host caching ([#1974](https://github.com/lycheeverse/lychee/pull/1974))
-- implement per-host rate limiting and statistics ([#1929](https://github.com/lycheeverse/lychee/pull/1929))
+- Implement per-host rate limiting and statistics ([#1929](https://github.com/lycheeverse/lychee/pull/1929))
+- Per-host caching ([#1974](https://github.com/lycheeverse/lychee/pull/1974))
+- Replace OpenSSL with rustls  ([#1928](https://github.com/lycheeverse/lychee/pull/1928))
+- Replace check-if-email-exists with mailify ([#1985](https://github.com/lycheeverse/lychee/pull/1985))
+- Redirect hint ([#2020](https://github.com/lycheeverse/lychee/pull/2020))
+- Extract URLs from CSS ([#1956](https://github.com/lycheeverse/lychee/pull/1956))
+- Improve wikilink parsing and checking ([#1799](https://github.com/lycheeverse/lychee/pull/1799))
+- Show status code in redirect list
 
 ### Fixed
 
 - CacheableResponse should only download file when needed ([#2035](https://github.com/lycheeverse/lychee/pull/2035))
 - GITHUB_TOKEN should not cause rustls CryptoProvider panic ([#2036](https://github.com/lycheeverse/lychee/pull/2036))
 - Combine host stats with response stats ([#1975](https://github.com/lycheeverse/lychee/pull/1975))
+- Fix overflow when handling rate limit headers
+- Try to fix rustls setup after recent reqwest change ([#2016](https://github.com/lycheeverse/lychee/pull/2016))
+- Accept ranges ([#1989](https://github.com/lycheeverse/lychee/pull/1989))
+- Rejected urls ([#1990](https://github.com/lycheeverse/lychee/pull/1990))
 
 ### Other
 
-- delete leftover openssl sentence in readme
 - Speed up slow tests ([#2019](https://github.com/lycheeverse/lychee/pull/2019))
-- *(deps)* bump the dependencies group with 2 updates
-- Fix overflow when handling rate limit headers
 - Improve README.md UX ([#2029](https://github.com/lycheeverse/lychee/pull/2029))
-- Replace OpenSSL with rustls  ([#1928](https://github.com/lycheeverse/lychee/pull/1928))
-- Replace check-if-email-exists with mailify ([#1985](https://github.com/lycheeverse/lychee/pull/1985))
-- Redirect hint ([#2020](https://github.com/lycheeverse/lychee/pull/2020))
-- Try to fix rustls setup after recent reqwest change ([#2016](https://github.com/lycheeverse/lychee/pull/2016))
 - Update to reqwest 0.13.1 & cargo update
-- *(deps)* bump the dependencies group across 1 directory with 4 updates
 - Use absolute instead of canonicalize for relative root-dir ([#2008](https://github.com/lycheeverse/lychee/pull/2008))
-- Show status code in redirect list
 - Update comparison table ([#1997](https://github.com/lycheeverse/lychee/pull/1997))
-- Rejected urls ([#1990](https://github.com/lycheeverse/lychee/pull/1990))
 - Fix source code formatting in ErrorKind::details() ([#1993](https://github.com/lycheeverse/lychee/pull/1993))
-- Accept ranges ([#1989](https://github.com/lycheeverse/lychee/pull/1989))
-- *(deps)* bump the dependencies group with 5 updates ([#1988](https://github.com/lycheeverse/lychee/pull/1988))
-- *(deps)* bump the dependencies group with 4 updates ([#1978](https://github.com/lycheeverse/lychee/pull/1978))
-- *(deps)* bump the dependencies group with 4 updates ([#1973](https://github.com/lycheeverse/lychee/pull/1973))
-- *(docs)* update TOC
-- Improve wikilink parsing and checking ([#1799](https://github.com/lycheeverse/lychee/pull/1799))
-- *(deps)* bump the dependencies group with 2 updates ([#1967](https://github.com/lycheeverse/lychee/pull/1967))
 - Specify that Scoop installation is for Windows ([#1969](https://github.com/lycheeverse/lychee/pull/1969))
 - Extract record_cache_event & skip mail caching
 - Improve logging
 - Add tldr-pages link to README ([#1963](https://github.com/lycheeverse/lychee/pull/1963))
+- *(deps)* bump the dependencies group with 2 updates
+- *(deps)* bump the dependencies group across 1 directory with 4 updates
+- *(deps)* bump the dependencies group with 5 updates ([#1988](https://github.com/lycheeverse/lychee/pull/1988))
+- *(deps)* bump the dependencies group with 4 updates ([#1978](https://github.com/lycheeverse/lychee/pull/1978))
+- *(deps)* bump the dependencies group with 4 updates ([#1973](https://github.com/lycheeverse/lychee/pull/1973))
+- *(deps)* bump the dependencies group with 2 updates ([#1967](https://github.com/lycheeverse/lychee/pull/1967))
 - *(deps)* bump the dependencies group across 1 directory with 3 updates ([#1961](https://github.com/lycheeverse/lychee/pull/1961))
-- Extract URLs from CSS ([#1956](https://github.com/lycheeverse/lychee/pull/1956))
 - *(deps)* bump the dependencies group with 2 updates ([#1948](https://github.com/lycheeverse/lychee/pull/1948))
 
 ## [0.22.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.21.0...lychee-lib-v0.22.0) - 2025-12-05
