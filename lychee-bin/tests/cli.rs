@@ -1034,6 +1034,24 @@ mod cli {
     }
 
     #[tokio::test]
+    async fn test_cli_option_precedence() {
+        let path = fixtures_path!().join("configs");
+
+        cargo_bin_cmd!()
+            .current_dir(&path)
+            .arg(".")
+            // the CLI args always have precedence over config files
+            .arg("--format")
+            .arg("json")
+            .arg("--config")
+            .arg("precedence-compact.toml")
+            .assert()
+            .success()
+            .stdout(contains(r#""total": 1,"#))
+            .stdout(contains("1 Total").not());
+    }
+
+    #[tokio::test]
     async fn test_config_merging() {
         let path = fixtures_path!().join("configs");
         cargo_bin_cmd!()

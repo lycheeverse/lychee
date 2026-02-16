@@ -838,7 +838,7 @@ pub(crate) struct Config {
 
 impl Config {
     /// Try to load configuration from a file and merge into `self`.
-    /// `config_file` has precedence over `self`.
+    /// `self` has precedence over `config_file`.
     pub(crate) fn merge_file(self, config_file: &Path) -> Result<Config> {
         let config = Config::load_from_file(config_file).map_err(|e| {
             anyhow!(
@@ -847,7 +847,7 @@ impl Config {
             )
         })?;
 
-        Ok(config.merge(self))
+        Ok(self.merge(config))
     }
 
     fn load_from_file(path: &Path) -> Result<Config> {

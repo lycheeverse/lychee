@@ -150,7 +150,8 @@ fn load_config() -> Result<LycheeOptions> {
             opts.config = opts.config.merge_file(&default_config)?;
         }
     } else {
-        for config_file in &opts.config_files {
+        let configs = opts.config_files.iter().rev(); // reverse so that later args have precedence
+        for config_file in configs {
             opts.config = opts.config.merge_file(config_file)?;
         }
     }
