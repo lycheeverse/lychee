@@ -952,6 +952,7 @@ impl Config {
                     // `false` in the merge chain, as there is no way to distinguish
                     // between "default" `false` and user-provided `false`.
                     // We would have to use `Option<bool>` in order to do that.
+                    // See: https://github.com/lycheeverse/lychee/issues/2051
                     $( $bool: self.$bool || other.$bool, )*
                 }
             };
@@ -1071,6 +1072,8 @@ This convention also simplifies our default value testing."
         let contents = read_this_source_file();
 
         let default_value_annotation = Regex::new(r"\s*\[default: (?<value>.*)\]").unwrap();
+        // Matches last line of rustdoc comment, then skips a line (expected to be `#[arg(...)]`),
+        // then matches a *private* field of type Option.
         let default_field =
             Regex::new(r"(?m)^\s+///(?<comment>.*)\n.*\n\s+(?<ident>\w+):\s*Option<.*>,?$")
                 .unwrap();
