@@ -19,7 +19,7 @@ cached = "0.56.0"
 cookie_store = "0.22.0"
 dashmap = { version = "6.1.0" }
 email_address = "0.2.9"
-futures = "0.3.31"
+futures = "0.3.32"
 glob = "0.3.3"
 governor = "0.10.4"
 headers = "0.4.1"
@@ -64,7 +64,7 @@ shellexpand = "3.1.1"
 strum = { version = "0.27.2", features = ["derive"] }
 thiserror = "2.0.18"
 tokio = { version = "1.49.0", features = ["full"] }
-toml = "0.9.11"
+toml = "1.0.1"
 typed-builder = "0.23.2"
 url = { version = "2.5.8", features = ["serde"] }
 walkdir = "2.5.0"
@@ -78,9 +78,9 @@ doc-comment = "0.3.4"
 pretty_assertions = "1.4.1"
 rstest = "0.26.1"
 serde_json = "1.0.149"
-tempfile = "3.24.0"
+tempfile = "3.25.0"
 test-utils = { path = "../test-utils" }
-toml = "0.9.11"
+toml = "1.0.1"
 wiremock = "0.6.5"
 
 [features]
