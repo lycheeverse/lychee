@@ -2,7 +2,7 @@ use crate::{
     BasicAuthCredentials, ErrorKind, FileType, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
-    ratelimit::{CacheableResponse, HostPool},
+    ratelimit::HostPool,
     retry::RetryExt,
     types::{redirect_history::RedirectHistory, uri::github::GithubUri},
     utils::fragment_checker::{FragmentChecker, FragmentInput},
@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
 use reqwest::{Request, header::CONTENT_TYPE};
-use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
+use std::{borrow::Cow, collections::HashSet, path::Path, sync::Arc, time::Duration};
 use url::Url;
 
 #[derive(Debug, Clone)]
@@ -121,15 +121,22 @@ impl WebsiteChecker {
         let method = request.method().clone();
         let request_url = request.url().clone();
 
-        match self.host_pool.execute_request(request).await {
+        let check_request_fragments = self.include_fragments
+            && method == Method::GET
+            && request_url.fragment().is_some_and(|x| !x.is_empty());
+
+        match self
+            .host_pool
+            .execute_request(request, check_request_fragments)
+            .await
+        {
             Ok(response) => {
                 let status = Status::new(&response, &self.accepted);
                 // when `accept=200,429`, `status_code=429` will be treated as success
                 // but we are not able the check the fragment since it's inapplicable.
-                if self.include_fragments
+                if let Some(content) = response.text
+                    && check_request_fragments
                     && response.status.is_success()
-                    && method == Method::GET
-                    && request_url.fragment().is_some_and(|x| !x.is_empty())
                 {
                     let Some(content_type) = response
                         .headers
@@ -152,7 +159,7 @@ impl WebsiteChecker {
                         _ => return status,
                     };
 
-                    self.check_html_fragment(request_url, status, response, file_type)
+                    self.check_html_fragment(request_url, status, &content, file_type)
                         .await
                 } else {
                     status
@@ -166,13 +173,18 @@ impl WebsiteChecker {
         &self,
         url: Url,
         status: Status,
-        response: CacheableResponse,
+        content: &str,
         file_type: FileType,
     ) -> Status {
-        let content = response.text;
         match self
             .fragment_checker
-            .check(FragmentInput { content, file_type }, &url)
+            .check(
+                FragmentInput {
+                    content: Cow::Borrowed(content),
+                    file_type,
+                },
+                &url,
+            )
             .await
         {
             Ok(true) => status,
