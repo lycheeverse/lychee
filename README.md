@@ -346,7 +346,7 @@ Options:
           [default: 100..=103,200..=299]
 
       --archive <ARCHIVE>
-          Specify the use of a specific web archive. Can be used in combination with `--suggest`
+          Web archive to use to provide suggestions for `--suggest`.
 
           [default: wayback]
 
@@ -380,10 +380,10 @@ Options:
           Basic authentication support. E.g. `http://example.com username:password`
 
   -c, --config <FILE_PATH>
-          Configuration file to use.
-          This option can be specified multiple times.
-          Multiple configs are merged into a single config.
-          Later occurrences take precedence over previous occurrences.
+          Configuration file to use. Can be specified multiple times.
+
+          If given multiple times, the configs are merged and later
+          occurrences take precedence over previous occurrences.
 
           [default: lychee.toml]
 

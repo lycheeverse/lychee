@@ -38,10 +38,10 @@ const HELP_MSG_CACHE: &str = formatcp!(
 // provided a custom value. If they didn't, we won't throw an error if
 // the file doesn't exist.
 const HELP_MSG_CONFIG_FILE: &str = formatcp!(
-    "Configuration file to use.
-This option can be specified multiple times.
-Multiple configs are merged into a single config.
-Later occurrences take precedence over previous occurrences.
+    "Configuration file to use. Can be specified multiple times.
+
+If given multiple times, the configs are merged and later
+occurrences take precedence over previous occurrences.
 
 [default: {}]",
     LYCHEE_CONFIG_FILE,
@@ -435,8 +435,7 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) dump_inputs: bool,
 
-    /// Specify the use of a specific web archive.
-    /// Can be used in combination with `--suggest`
+    /// Web archive to use to provide suggestions for `--suggest`.
     ///
     /// [default: wayback]
     #[arg(long, value_parser = PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]
