@@ -2444,6 +2444,7 @@ dependencies = [
  "test-utils",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-stream",
  "toml",
  "typed-builder",
  "url",

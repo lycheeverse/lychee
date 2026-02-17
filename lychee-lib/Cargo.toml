@@ -64,6 +64,7 @@ shellexpand = "3.1.1"
 strum = { version = "0.27.2", features = ["derive"] }
 thiserror = "2.0.18"
 tokio = { version = "1.49.0", features = ["full"] }
+tokio-stream = "0.1.18"
 toml = "1.0.1"
 typed-builder = "0.23.2"
 url = { version = "2.5.8", features = ["serde"] }
