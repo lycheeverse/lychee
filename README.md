@@ -11,8 +11,8 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/lycheeverse/lychee?color=%23099cec&logo=Docker)](https://hub.docker.com/r/lycheeverse/lychee)
 
 ⚡ A fast, async, stream-based link checker written in Rust ⚡\
-Finds broken hyperlinks and mail addresses inside Markdown, HTML,
-reStructuredText, or any other text file or website!\
+Finds broken hyperlinks and mail addresses in websites
+and Markdown, HTML, and other file formats!\
 Available as command-line utility,
 [library](https://docs.rs/lychee-lib/latest/lychee_lib/) and
 [GitHub Action](https://github.com/lycheeverse/lychee-action).
@@ -311,7 +311,7 @@ Use `lychee --help` or `man lychee` to see all available command line parameters
 <details><summary><b>View full help message</b></summary>
 
 ```help-message
-lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses in local files and websites. It supports Markdown and HTML and works well with many plain text file formats.
+lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses in local files and websites. It supports Markdown and HTML and works with other file formats.
 
 lychee is powered by lychee-lib, the Rust library for link checking.
 
@@ -759,6 +759,19 @@ If the `--cache` flag is set, lychee will cache responses in a file called
 then the cache will be loaded on startup. This can greatly speed up future runs.
 Note that by default lychee will not store any data on disk.
 This is explained in more detail in [our documentation](https://lychee.cli.rs/recipes/caching/).
+
+## Supported file formats
+
+lychee supports HTML and Markdown file formats.
+For any other file format, lychee falls back to a "plain text" mode.
+This means that [linkify](https://github.com/robinst/linkify)
+attempts to extract URLs on a best-effort basis.
+
+For non-plaintext files (pdf, epub, docx, etc.) or for files
+which don't work well with the fallback extraction method (csv, ipynb, etc.)
+you can make use of the `--preprocess` option.
+
+Take a look at [lychee-all](https://github.com/lycheeverse/lychee-all) for more information.
 
 ## Library usage
 
