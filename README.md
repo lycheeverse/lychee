@@ -763,7 +763,7 @@ This is explained in more detail in [our documentation](https://lychee.cli.rs/re
 ## Supported file formats
 
 lychee supports HTML and Markdown file formats.
-For any other file format lychee falls back to a "plain text" mode.
+For any other file format, lychee falls back to a "plain text" mode.
 This means that [linkify](https://github.com/robinst/linkify)
 attempts to extract URLs on a best-effort basis.
 
