@@ -17,20 +17,14 @@ def main():
     begin = '\n```help-message\n'
     end = '\n```\n'
 
-    with open('README.md', 'r+') as f:
+    with open('README.md', 'r') as f:
         text = f.read()
-        before, after = text.split(begin, 1)
-        _, after = after.split(end, 1)
+        before, rest = text.split(begin, 1)
+        _, after = rest.split(end, 1)
 
-        f.seek(0)
-
-        f.write(before)
-        f.write(begin)
-        f.write(new_help)
-        f.write(end)
-        f.write(after)
-
-        f.truncate()
+    with open('README.md', 'w') as f:
+        for part in [before, begin, new_help, end, after]:
+            f.write(part)
 
 if __name__ == "__main__":
     main()
