@@ -9,10 +9,10 @@ import subprocess
 def main():
     new_help = subprocess.check_output('cargo run -- --help'.split(), encoding='utf-8')
     version = subprocess.check_output('cargo run -- --version'.split(), encoding='utf-8').split()[-1]
-    new_help = '\n'.join(
-        line.replace(f'lychee/{version}', 'lychee/x.y.z').rstrip()
-        for line in new_help.strip().split('\n')
-    )
+
+    lines = new_help.strip().splitlines()
+    new_help = '\n'.join(line.rstrip() for line in lines)
+    new_help = new_help.replace(f'lychee/{version}', 'lychee/x.y.z')
 
     begin = '\n```help-message\n'
     end = '\n```\n'
