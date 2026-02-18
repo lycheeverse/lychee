@@ -586,4 +586,48 @@ mod tests {
             "origin={origin}, path={path:?}, text={text:?}, expected={expected}"
         );
     }
+
+    #[test]
+    fn test_none_rejects_relative_but_accepts_absolute() {
+        // Ensures BaseInfo::None doesn't silently swallow relative links
+        let none = BaseInfo::none();
+        // Absolute URLs still work
+        assert!(none.parse_url_text("https://a.com").is_ok());
+        // Relative links fail
+        assert!(none.parse_url_text("relative").is_err());
+        assert!(none.parse_url_text("/root-relative").is_err());
+    }
+
+    #[test]
+    fn test_no_root_rejects_root_relative() {
+        // A file:// source without --root-dir can resolve siblings but not root-relative links
+        let no_root = BaseInfo::try_from("file:///some/path/").unwrap();
+        assert_eq!(
+            no_root.parse_url_text("sibling.html").unwrap(),
+            Url::parse("file:///some/path/sibling.html").unwrap()
+        );
+        assert!(no_root.parse_url_text("/root-relative").is_err());
+    }
+
+    #[test]
+    fn test_or_fallback_prefers_more_capable_variant() {
+        // Pins the fallback priority that drives base selection in the collector
+        let none = BaseInfo::none();
+        let no_root = BaseInfo::NoRoot(Url::parse("file:///a/").unwrap());
+        let full = BaseInfo::full(Url::parse("https://a.com/").unwrap(), String::new());
+
+        assert_eq!(none.or_fallback(&full), &full);
+        assert_eq!(full.or_fallback(&none), &full);
+        assert_eq!(none.or_fallback(&no_root), &no_root);
+        assert_eq!(no_root.or_fallback(&full), &full);
+        assert_eq!(none.or_fallback(&none), &none);
+    }
+
+    #[test]
+    fn test_try_from_rejects_invalid_bases() {
+        // Prevent data: URLs and relative paths from silently becoming a base in the future
+        assert!(BaseInfo::try_from("data:text/plain,hello").is_err());
+        assert!(BaseInfo::try_from("relative/path").is_err());
+        assert!(BaseInfo::from_path(&PathBuf::from("relative")).is_err());
+    }
 }
