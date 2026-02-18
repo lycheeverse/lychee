@@ -56,6 +56,7 @@ fn try_parse_into_uri(
     let mut url = base.parse_url_text_with_root_dir(&raw_uri.text, root_dir.as_ref())?;
 
     // BACKWARDS COMPAT: delete trailing slash for file urls
+    // Without this, then a local link like `README.md/` will fail.
     if url.scheme() == "file" {
         let _ = url
             .path_segments_mut()
