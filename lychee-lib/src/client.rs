@@ -28,7 +28,7 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
+    BaseInfo, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
@@ -268,7 +268,7 @@ pub struct ClientBuilder {
     ///
     /// E.g. if the base is `/home/user/` and the path is `file.txt`, the
     /// resolved path would be `/home/user/file.txt`.
-    base: Option<Base>,
+    base: BaseInfo,
 
     /// Initial time between retries of failed requests.
     ///
@@ -398,7 +398,7 @@ impl ClientBuilder {
             email_checker: MailChecker::new(self.timeout),
             website_checker,
             file_checker: FileChecker::new(
-                self.base,
+                &self.base,
                 self.fallback_extensions,
                 self.index_files,
                 self.include_fragments,
