@@ -63,7 +63,7 @@ fn try_parse_into_uri(
             warn!(
                 "Removing trailing slash from file URL: {url}. {} {}",
                 "This lets the URL match both files and folders.",
-                "In future, a file URL ending in / may be required to be a directory."
+                "In future, a file URL ending in / might fail link checking if it points to a file."
             );
         }
         let _ = url
