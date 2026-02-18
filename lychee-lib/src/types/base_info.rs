@@ -42,21 +42,18 @@ pub enum BaseInfo {
     /// but you cannot jump to the "root".
     NoRoot(Url),
 
-    /// A full base which can resolve all kinds of relative links. `file:` URLs
-    /// with a known root directory fall into this case, as do all non-`file:`
-    /// URLs which *can be a base*.
+    /// A full base made up of `origin` and `path`. This can resolve
+    /// all kinds of relative links.
     ///
-    /// The `origin` and `path` fields are most significant for `file:` URLs.
-    /// For these, `origin` represents the root used for root-relative links,
-    /// and `path` is the subpath to the current input source within `origin`.
-    /// Keeping `path` separate allows locally-relative links to be resolved
-    /// relative to `origin.join(path)`.
+    /// All non-`file:` URLs which *can be a base* fall into this case. For these,
+    /// `origin` and `path` are obtained by dividing the source URL into its
+    /// origin and path. When joined, `${origin}/${path}` should be equivalent
+    /// to the source's original URL.
     ///
-    /// For non-`file:` URLs, the distinction between `origin` and `path` is
-    /// less important, as the "root" is always taken to be the natural root
-    /// of the origin website domain. For these URLs, all kinds of relative
-    /// links are resolved relative to `origin.join(path)` using the normal
-    /// rules.
+    /// This also represents `file:` URLs with a known root. The `origin` field
+    /// records the `file:` URL which will be used to resolve root-relative links.
+    /// The `path` field is the subpath to a particular input source within the
+    /// root. This is retained to resolve locally-relative links.
     ///
     /// In all cases, the fields should satisfy `origin.join(path) == input_source_url`
     /// where `input_source_url` is the URL of the originating input source.
