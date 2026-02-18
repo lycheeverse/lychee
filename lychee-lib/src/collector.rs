@@ -75,8 +75,8 @@ impl Collector {
         // HACK: if root-dir and base-url are given together and the base is a full file path,
         // then join the root dir onto the base to match old behaviour.........
         let (root_dir, base) = match (root_dir, base) {
-            (Some(root_dir), BaseInfo::Full(url, path))
-                if url.scheme() == "file" && path.is_empty() =>
+            (Some(root_dir), BaseInfo::Full { origin, path })
+                if origin.scheme() == "file" && path.is_empty() =>
             {
                 let root_dir = root_dir
                     .strip_prefix("/")
@@ -84,9 +84,9 @@ impl Collector {
                     .unwrap_or(root_dir)
                     .join("");
 
-                match url.to_file_path() {
-                    Ok(base_path) => (Some(base_path.join(root_dir)), BaseInfo::full(url, path)),
-                    Err(()) => (Some(root_dir), BaseInfo::full(url, path)),
+                match origin.to_file_path() {
+                    Ok(base_path) => (Some(base_path.join(root_dir)), BaseInfo::full(origin, path)),
+                    Err(()) => (Some(root_dir), BaseInfo::full(origin, path)),
                 }
             }
             (Some(root_dir), base) => {

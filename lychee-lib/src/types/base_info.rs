@@ -42,22 +42,35 @@ pub enum BaseInfo {
     /// but you cannot jump to the "root".
     NoRoot(Url),
 
-    /// A full base made up of `origin` and `path`. This can resolve
-    /// all kinds of relative links.
+    /// A full base which can resolve all kinds of relative links. `file:` URLs
+    /// with a known root directory fall into this case, as do all non-`file:`
+    /// URLs which *can be a base*.
     ///
-    /// All non-`file:` URLs which *can be a base* fall into this case. For these,
-    /// `origin` and `path` are obtained by dividing the source URL into its
-    /// origin and path. When joined, `${origin}/${path}` should be equivalent
-    /// to the source's original URL.
+    /// The `origin` and `path` fields are most significant for `file:` URLs.
+    /// For these, `origin` represents the root used for root-relative links,
+    /// and `path` is the subpath to the current input source within `origin`.
+    /// Keeping `path` separate allows locally-relative links to be resolved
+    /// relative to `origin.join(path)`.
     ///
-    /// This also represents `file:` URLs with a known root. The `origin` field
-    /// records the `file:` URL which will be used to resolve root-relative links.
-    /// The `path` field is the subpath to a particular input source within the
-    /// root. This is retained to resolve locally-relative links.
+    /// For non-`file:` URLs, the distinction between `origin` and `path` is
+    /// less important, as the "root" is always taken to be the natural root
+    /// of the origin website domain. For these URLs, all kinds of relative
+    /// links are resolved relative to `origin.join(path)` using the normal
+    /// rules.
     ///
-    /// In all cases, the `path` field should be a (possibly-empty) locally- or
-    /// root-relative link and should not be a full URL or a scheme-relative link.
-    Full(Url, String),
+    /// In all cases, the fields should satisfy `origin.join(path) == input_source_url`
+    /// where `input_source_url` is the URL of the originating input source.
+    Full {
+        /// A `file:` or *can be a base* URL which acts as the origin. If this is
+        /// a `file:` URL, root-relative links will resolve to subpaths of this URL.
+        /// See the [`BaseInfo::Full`] for more information.
+        origin: Url,
+
+        /// The `path` field is conditionally joined with `origin` to resolve
+        /// links. This is a (possibly-empty) locally- or root-relative link
+        /// and should not be a full URL or a scheme-relative link.
+        path: String,
+    },
 }
 
 impl BaseInfo {
@@ -70,7 +83,7 @@ impl BaseInfo {
     /// Constructs [`BaseInfo::Full`] with the given fields.
     #[must_use]
     pub const fn full(origin: Url, path: String) -> Self {
-        Self::Full(origin, path)
+        Self::Full { origin, path }
     }
 
     /// Constructs a [`BaseInfo`], with the variant being determined by the given URL.
@@ -190,7 +203,7 @@ impl BaseInfo {
         match self {
             Self::None => None,
             Self::NoRoot(url) => Some(url.clone()),
-            Self::Full(url, path) => url.join(path).ok(),
+            Self::Full { origin, path } => origin.join(path).ok(),
         }
     }
 
@@ -208,7 +221,7 @@ impl BaseInfo {
     pub fn scheme(&self) -> Option<&str> {
         match self {
             Self::None => None,
-            Self::NoRoot(url) | Self::Full(url, _) => Some(url.scheme()),
+            Self::NoRoot(url) | Self::Full { origin: url, .. } => Some(url.scheme()),
         }
     }
 
@@ -223,7 +236,7 @@ impl BaseInfo {
     /// If true, implies [`BaseInfo::supports_locally_relative`].
     #[must_use]
     pub const fn supports_root_relative(&self) -> bool {
-        matches!(self, Self::Full(_, _))
+        matches!(self, Self::Full { .. })
     }
 
     /// Returns whether this [`BaseInfo`] variant supports resolving locally-relative links.
@@ -242,8 +255,8 @@ impl BaseInfo {
     #[allow(clippy::match_same_arms)]
     pub const fn or_fallback<'a>(&'a self, fallback: &'a Self) -> &'a Self {
         match (self, fallback) {
-            (x @ Self::Full(_, _), _) => x,
-            (_, x @ Self::Full(_, _)) => x,
+            (x @ Self::Full { .. }, _) => x,
+            (_, x @ Self::Full { .. }) => x,
             (x @ Self::NoRoot(_), _) => x,
             (_, x @ Self::NoRoot(_)) => x,
             (x @ Self::None, Self::None) => x,
@@ -282,7 +295,7 @@ impl BaseInfo {
 
                 // Resolve root-relative link with `file:` base by changing it to
                 // a subpath of the origin.
-                Self::Full(origin, _)
+                Self::Full { origin, .. }
                     if is_root_relative_link(text) && origin.scheme() == "file" =>
                 {
                     let locally_relative = format!(".{}", text.trim_ascii_start());
@@ -291,7 +304,7 @@ impl BaseInfo {
 
                 // Resolve all other relative links, including root-relative links
                 // of non-file bases.
-                Self::Full(origin, subpath) => origin.join(subpath).and_then(|x| x.join(text)),
+                Self::Full { origin, path } => origin.join(path).and_then(|x| x.join(text)),
             }
             .map_err(|e| ErrorKind::ParseUrl(e, text.to_string())),
 
@@ -367,7 +380,6 @@ impl TryFrom<String> for BaseInfo {
 
 #[cfg(test)]
 mod tests {
-
     use super::BaseInfo;
     use reqwest::Url;
     use rstest::rstest;
@@ -377,7 +389,7 @@ mod tests {
     fn test_base_info_construction() {
         assert_eq!(
             BaseInfo::try_from("https://a.com/b/?q#x").unwrap(),
-            BaseInfo::Full(Url::parse("https://a.com").unwrap(), "b/?q#x".to_string())
+            BaseInfo::full(Url::parse("https://a.com").unwrap(), "b/?q#x".to_string())
         );
         assert_eq!(
             BaseInfo::try_from("file:///file-path").unwrap(),
@@ -385,36 +397,36 @@ mod tests {
         );
         assert_eq!(
             BaseInfo::try_from("/file-path").unwrap(),
-            BaseInfo::Full(Url::parse("file:///file-path/").unwrap(), String::new())
+            BaseInfo::full(Url::parse("file:///file-path/").unwrap(), String::new())
         );
 
         // symbols inside a path are encoded if needed and should *not* be decoded.
         assert_eq!(
             BaseInfo::from_path(&PathBuf::from("/file path")).unwrap(),
-            BaseInfo::Full(Url::parse("file:///file%20path/").unwrap(), String::new())
+            BaseInfo::full(Url::parse("file:///file%20path/").unwrap(), String::new())
         );
         assert_eq!(
             BaseInfo::from_path(&PathBuf::from("/file%20path")).unwrap(),
-            BaseInfo::Full(Url::parse("file:///file%2520path/").unwrap(), String::new())
+            BaseInfo::full(Url::parse("file:///file%2520path/").unwrap(), String::new())
         );
         // query parameters are *not* interpreted from paths and are treated as literals
         assert_eq!(
             BaseInfo::from_path(&PathBuf::from("/file?q=2")).unwrap(),
-            BaseInfo::Full(Url::parse("file:///file%3Fq=2/").unwrap(), String::new())
+            BaseInfo::full(Url::parse("file:///file%3Fq=2/").unwrap(), String::new())
         );
 
         // symbols are encoded inside URLs if needed
         assert_eq!(
             BaseInfo::from_source_url(&Url::parse("http://a.com/x y/").unwrap()),
-            BaseInfo::Full(Url::parse("http://a.com/").unwrap(), "x%20y/".to_owned())
+            BaseInfo::full(Url::parse("http://a.com/").unwrap(), "x%20y/".to_owned())
         );
         assert_eq!(
             BaseInfo::from_source_url(&Url::parse("http://a.com/x?q=x y").unwrap()),
-            BaseInfo::Full(Url::parse("http://a.com/").unwrap(), "x?q=x%20y".to_owned())
+            BaseInfo::full(Url::parse("http://a.com/").unwrap(), "x?q=x%20y".to_owned())
         );
         assert_eq!(
             BaseInfo::from_source_url(&Url::parse("http://a.com/Ω≈ç√∫˜µ≤≥÷/").unwrap()),
-            BaseInfo::Full(
+            BaseInfo::full(
                 Url::parse("http://a.com/").unwrap(),
                 "%CE%A9%E2%89%88%C3%A7%E2%88%9A%E2%88%AB%CB%9C%C2%B5%E2%89%A4%E2%89%A5%C3%B7/"
                     .to_owned()
@@ -422,21 +434,21 @@ mod tests {
         );
         assert_eq!(
             BaseInfo::from_source_url(&Url::parse("http://みんな.com/x").unwrap()),
-            BaseInfo::Full(
+            BaseInfo::full(
                 Url::parse("http://xn--q9jyb4c.com/").unwrap(),
                 "x".to_owned()
             )
         );
         assert_eq!(
             BaseInfo::from_source_url(&Url::parse("http://München-Ost.com/x").unwrap()),
-            BaseInfo::Full(
+            BaseInfo::full(
                 Url::parse("http://xn--mnchen-ost-9db.com/").unwrap(),
                 "x".to_owned()
             )
         );
         assert_eq!(
             BaseInfo::from_source_url(&Url::parse("http://😉.com/x").unwrap()),
-            BaseInfo::Full(Url::parse("http://xn--n28h.com/").unwrap(), "x".to_owned())
+            BaseInfo::full(Url::parse("http://xn--n28h.com/").unwrap(), "x".to_owned())
         );
 
         let urls = [
