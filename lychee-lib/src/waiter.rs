@@ -10,7 +10,7 @@
 //! [`tokio::sync::mpsc::Sender`]. Despite this simple implementation, the
 //! [`WaitGroup`] and [`WaitGuard`] wrappers are useful to make this discoverable.
 
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt};
 use std::convert::Infallible;
 use tokio::sync::mpsc::{Receiver, Sender, channel};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
@@ -62,83 +62,120 @@ impl WaitGroup {
     }
 }
 
-async fn quicksort_waiter_example<'a, T>(xs: &'a mut [T], waiter: WaitGroup, guard: WaitGuard)
-where
-    T: Ord + Copy + Send + 'static,
-{
+/// Demonstrates use of the [`WaitGroup`] and [`WaitGuard`] to (very inefficiently)
+/// compute the Fibonacci number `F(n)` using recursive channels.
+///
+/// The given `waiter` will be used to detect when the work has finished and it will
+/// close the channels. Additionally, `waiter` can be omitted to show that without
+/// the [`WaitGroup`], the tasks would not terminate.
+async fn fibonacci_waiter_example(n: usize, waiter: Option<(WaitGroup, WaitGuard)>) -> usize {
     let (send, recv) = unbounded_channel();
+    let (incr_count, recv_count) = unbounded_channel();
 
-    let task = tokio::task::spawn(quicksort_waiter_example_task::<T>(
-        recv,
-        send.clone(),
-        waiter,
-    ));
+    let (waiter, guard) = match waiter {
+        Some((waiter, guard)) => (Some(waiter), Some(guard)),
+        None => (None, None),
+    };
 
-    send.send((guard.clone(), xs)).expect("initial send");
-    task.await;
+    let recursive_task = tokio::task::spawn({
+        let send = send.clone();
+        fibonacci_waiter_example_task(recv, send, incr_count, waiter)
+    });
+
+    let count_task = tokio::task::spawn(async move {
+        let count = UnboundedReceiverStream::new(recv_count).count();
+        count.await
+    });
+
+    send.send((guard, n)).expect("initial send"); // note `guard` must be moved!
+
+    let ((), result) = futures::try_join!(recursive_task, count_task).expect("join");
+    result
 }
 
-async fn quicksort_waiter_example_task<'a, T: Ord>(
-    recv: UnboundedReceiver<(WaitGuard, &'a mut [T])>,
-    send: UnboundedSender<(WaitGuard, &'a mut [T])>,
-    waiter: WaitGroup,
+/// An inefficient Fibonacci implementation. This computes `F(n)` by sending
+/// by `n-1` and `n-2` back into the channel. This shows how one work item can
+/// create multiple subsequent work items.
+///
+/// The result is determined by sending `()` into an increment channel and
+/// reading the number of increments.
+///
+/// This is wildly inefficient because it does not cache any results. Computing
+/// `F(n)` would generate `O(2^n)` channel items.
+async fn fibonacci_waiter_example_task(
+    recv: UnboundedReceiver<(Option<WaitGuard>, usize)>,
+    send: UnboundedSender<(Option<WaitGuard>, usize)>,
+    incr_count: UnboundedSender<()>,
+    waiter: Option<WaitGroup>,
 ) {
-    UnboundedReceiverStream::new(recv)
-        .take_until(waiter.wait())
-        .for_each(async |(guard, slice): (WaitGuard, &'a mut [T])| {
-            if slice.is_empty() {
-                return;
+    let stream = UnboundedReceiverStream::new(recv);
+    let stream = match waiter {
+        Some(waiter) => stream.take_until(waiter.wait()).left_stream(),
+        None => stream.right_stream(),
+    };
+
+    stream
+        .for_each(async |(guard, n)| match n {
+            0 => (),
+            1 => incr_count.send(()).expect("send incr"),
+            n => {
+                send.send((guard.clone(), n - 1)).expect("send 1");
+                send.send((guard.clone(), n - 2)).expect("send 2");
             }
-            let (lower, higher) = partition(slice);
-            send.send((guard.clone(), lower)).expect("send 1");
-            send.send((guard.clone(), higher)).expect("send 1");
         })
         .await
-}
-
-fn partition<T: Ord>(slice: &mut [T]) -> (&mut [T], &mut [T]) {
-    if let ([pivot], rest) = slice.split_at_mut(1) {
-        let mut iter = rest.iter_mut();
-        let mut current = iter.next();
-        let mut num_lesser = 0usize;
-
-        while let Some(x) = current {
-            current = if *x < *pivot {
-                num_lesser += 1;
-                iter.next()
-            } else {
-                // `x` is big. we have to swap `x` to the back
-                let Some(ref mut dest) = iter.next_back() else {
-                    break;
-                };
-                std::mem::swap(*dest, x);
-                Some(x)
-            };
-        }
-
-        slice.swap(num_lesser, 0);
-        slice.split_at_mut(num_lesser)
-    } else {
-        return (&mut [], &mut []);
-    }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use super::partition;
+    use super::fibonacci_waiter_example;
     use super::{WaitGroup, WaitGuard};
+    use std::time::Duration;
 
-    // #[tokio::test]
-    // async fn quicksort_basic() {
-    //     let mut xs = [5, 4, 3, 2, 1];
-    //     let (waiter, guard) = WaitGroup::new();
-    //     quicksort_waiter_example(&mut xs, waiter, guard).await;
-    // }
-    #[test]
-    fn test_partition() {
-        let mut xs = [3, 100, 4, 5, 2, 1, 8, 1, 0, 6, 8];
-        partition(&mut xs);
-        println!("{:?}", xs);
+    fn timeout<F: IntoFuture>(fut: F) -> tokio::time::Timeout<F::IntoFuture> {
+        tokio::time::timeout(Duration::from_millis(250), fut)
+    }
+
+    #[tokio::test]
+    async fn fibonacci_basic_termination() {
+        assert_eq!(
+            fibonacci_waiter_example(9, Some(WaitGroup::new())).await,
+            34
+        );
+        assert_eq!(
+            fibonacci_waiter_example(10, Some(WaitGroup::new())).await,
+            55
+        );
+    }
+
+    #[tokio::test]
+    async fn fibonacci_nontermination_without_waiter() {
+        // task does not terminate if WaitGroup is not used, due to recursive channels
+        assert!(timeout(fibonacci_waiter_example(9, None)).await.is_err());
+
+        // even a "trivial" case does not terminate.
+        assert!(timeout(fibonacci_waiter_example(0, None)).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn fibonacci_nontermination_with_extra_guard() {
+        // in these tests, we do use a WaitGroup but it doesn't terminate because we
+        // *clone* the guard and the test function holds an extra guard, blocking
+        // WaitGroup from returning. this is an example of something that can go wrong
+        // when using the waiter.
+        let (waiter, guard) = WaitGroup::new();
+        assert!(
+            timeout(fibonacci_waiter_example(9, Some((waiter, guard.clone()))))
+                .await
+                .is_err()
+        );
+
+        let (waiter, guard) = WaitGroup::new();
+        assert!(
+            timeout(fibonacci_waiter_example(0, Some((waiter, guard.clone()))))
+                .await
+                .is_err()
+        );
     }
 }
