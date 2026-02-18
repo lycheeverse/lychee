@@ -79,9 +79,8 @@ pub(crate) fn create(
     fallback_base: &BaseInfo,
     extractor: Option<&BasicAuthExtractor>,
 ) -> Vec<Result<Request, RequestError>> {
-    let source_base = match source.to_url() {
-        Ok(None) => BaseInfo::none(),
-        Ok(Some(url)) => BaseInfo::from_source_url(&url),
+    let source_base = match source.to_base_info() {
+        Ok(base) => base,
         Err(e) => {
             // TODO: GetInputContent is not quite the right error.
             return vec![Err(RequestError::GetInputContent(source.clone().into(), e))];
