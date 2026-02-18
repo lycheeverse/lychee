@@ -29,6 +29,7 @@ Available as command-line utility,
 - [Installation](#installation)
 - [Features](#features)
 - [Commandline usage](#commandline-usage)
+- [Supported file formats](#supported-file-formats)
 - [Library usage](#library-usage)
 - [GitHub Action Usage](#github-action-usage)
 - [Pre-commit Usage](#pre-commit-usage)
