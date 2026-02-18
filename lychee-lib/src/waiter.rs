@@ -125,7 +125,7 @@ async fn fibonacci_waiter_example_task(
                 send.send((guard.clone(), n - 2)).expect("send 2");
             }
         })
-        .await
+        .await;
 }
 
 #[cfg(test)]
