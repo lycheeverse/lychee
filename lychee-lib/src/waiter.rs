@@ -10,8 +10,8 @@
 //! [`tokio::sync::mpsc::Sender`]. Despite this simple implementation, the
 //! [`WaitGroup`] and [`WaitGuard`] wrappers are useful to make this discoverable.
 
+use futures::never::Never;
 use futures::{FutureExt, StreamExt};
-use std::convert::Infallible;
 use tokio::sync::mpsc::{Receiver, Sender, channel};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -25,9 +25,9 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 #[derive(Debug)]
 pub struct WaitGroup {
     /// [`Receiver`] is held to wait for multiple [`Sender`]s and detect
-    /// when they have closed. The [`Infallible`] type means no value can/will
+    /// when they have closed. The [`Never`] type means no value can/will
     /// ever be received through the channel.
-    recv: Receiver<Infallible>,
+    recv: Receiver<Never>,
 }
 
 /// RAII guard held by a task which is being waited for.
@@ -41,8 +41,8 @@ pub struct WaitGroup {
 pub struct WaitGuard {
     /// [`Sender`] is held to keep the [`Receiver`] end open (stored in [`WaitGroup`]).
     /// The dropping of all senders will cause the receiver to detect and close.
-    /// The [`Infallible`] type means no value can/will ever be sent through the channel.
-    _send: Sender<Infallible>,
+    /// The [`Never`] type means no value can/will ever be sent through the channel.
+    _send: Sender<Never>,
 }
 
 impl WaitGroup {
