@@ -14,7 +14,7 @@ use futures::StreamExt;
 use futures::never::Never;
 use tokio::sync::mpsc::{Receiver, Sender, channel};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
-use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
 
 /// Manager for a particular wait group. This can spawn a number of [`WaitGuard`]s
 /// and it can then wait for them to all complete.
@@ -71,7 +71,7 @@ impl WaitGroup {
 #[allow(dead_code)]
 async fn fibonacci_waiter_example(n: usize, waiter: Option<(WaitGroup, WaitGuard)>) -> usize {
     let (send, recv) = unbounded_channel();
-    let (incr_count, recv_count) = unbounded_channel();
+    let (incr_count, recv_count) = channel(1);
 
     let (waiter, guard) = match waiter {
         Some((waiter, guard)) => (Some(waiter), Some(guard)),
@@ -84,7 +84,7 @@ async fn fibonacci_waiter_example(n: usize, waiter: Option<(WaitGroup, WaitGuard
     });
 
     let count_task = tokio::task::spawn(async move {
-        let count = UnboundedReceiverStream::new(recv_count).count();
+        let count = ReceiverStream::new(recv_count).count();
         count.await
     });
 
@@ -107,7 +107,7 @@ async fn fibonacci_waiter_example(n: usize, waiter: Option<(WaitGroup, WaitGuard
 async fn fibonacci_waiter_example_task(
     recv: UnboundedReceiver<(Option<WaitGuard>, usize)>,
     send: UnboundedSender<(Option<WaitGuard>, usize)>,
-    incr_count: UnboundedSender<()>,
+    incr_count: Sender<()>,
     waiter: Option<WaitGroup>,
 ) {
     let stream = UnboundedReceiverStream::new(recv);
@@ -119,7 +119,7 @@ async fn fibonacci_waiter_example_task(
     stream
         .for_each(async |(guard, n)| match n {
             0 => (),
-            1 => incr_count.send(()).expect("send incr"),
+            1 => incr_count.send(()).await.expect("send incr"),
             n => {
                 send.send((guard.clone(), n - 1)).expect("send 1");
                 send.send((guard.clone(), n - 2)).expect("send 2");
