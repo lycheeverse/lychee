@@ -22,7 +22,6 @@ use reqwest::Url;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::borrow::Cow;
 use std::fmt::Display;
-use std::ops::Deref;
 use std::path::PathBuf;
 use std::result::Result;
 
@@ -173,7 +172,7 @@ impl ResolvedInputSource {
     /// fails.
     pub fn to_base_info(&self) -> Result<BaseInfo, ErrorKind> {
         let url = match self {
-            Self::RemoteUrl(url) => Cow::Borrowed(url.deref()),
+            Self::RemoteUrl(url) => Cow::Borrowed(&**url),
             Self::FsPath(path) => std::path::absolute(path)
                 .ok()
                 .and_then(|x| Url::from_file_path(x).ok())
