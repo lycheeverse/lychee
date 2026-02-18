@@ -23,6 +23,11 @@ pub enum RequestError {
     /// Unable to load an input source directly specified by the user.
     #[error("Error reading user input '{0}': {1}")]
     UserInputContent(InputSource, #[source] ErrorKind),
+
+    /// Unable to process URLs from an input source due to an error.
+    /// This is for errors that happen after the input content was loaded.
+    #[error("Error processing input '{0}': {1}")]
+    InputSourceError(InputSource, #[source] ErrorKind),
 }
 
 impl RequestError {
@@ -32,7 +37,8 @@ impl RequestError {
         match self {
             Self::CreateRequestItem(_, _, e)
             | Self::GetInputContent(_, e)
-            | Self::UserInputContent(_, e) => e,
+            | Self::UserInputContent(_, e)
+            | Self::InputSourceError(_, e) => e,
         }
     }
 
@@ -42,7 +48,8 @@ impl RequestError {
         match self {
             Self::CreateRequestItem(_, _, e)
             | Self::GetInputContent(_, e)
-            | Self::UserInputContent(_, e) => e,
+            | Self::UserInputContent(_, e)
+            | Self::InputSourceError(_, e) => e,
         }
     }
 
@@ -51,7 +58,9 @@ impl RequestError {
     pub fn input_source(&self) -> InputSource {
         match self {
             Self::CreateRequestItem(_, src, _) => src.clone().into(),
-            Self::GetInputContent(src, _) | Self::UserInputContent(src, _) => src.clone(),
+            Self::GetInputContent(src, _)
+            | Self::UserInputContent(src, _)
+            | Self::InputSourceError(src, _) => src.clone(),
         }
     }
 

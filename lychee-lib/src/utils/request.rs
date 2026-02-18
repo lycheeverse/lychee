@@ -82,8 +82,12 @@ pub(crate) fn create(
     let source_base = match source.to_base_info() {
         Ok(base) => base,
         Err(e) => {
-            // TODO: GetInputContent is not quite the right error.
-            return vec![Err(RequestError::GetInputContent(source.clone().into(), e))];
+            // This should be extremely rare and only happens
+            // if a FsPath leads to an invalid URL.
+            return vec![Err(RequestError::InputSourceError(
+                source.clone().into(),
+                e,
+            ))];
         }
     };
 
