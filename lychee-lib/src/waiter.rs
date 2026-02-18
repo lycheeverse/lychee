@@ -130,7 +130,6 @@ async fn fibonacci_waiter_example_task(
 
 #[cfg(test)]
 mod tests {
-
     use super::WaitGroup;
     use super::fibonacci_waiter_example;
     use std::time::Duration;
