@@ -488,6 +488,22 @@ mod cli {
     }
 
     #[test]
+    fn test_root_relative_with_remote_base_url_and_root_dir() {
+        // When both are set and base-url is remote, root-relative links
+        // should resolve against the remote base, not the local root-dir.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--dump")
+            .arg("--base-url=https://example.com/docs/")
+            .arg("--root-dir=/tmp")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/page)")
+            .assert()
+            .success()
+            .stdout(contains("https://example.com/page"));
+    }
+
+    #[test]
     fn test_nonexistent_root_dir() {
         cargo_bin_cmd!()
             .arg("--root-dir")
