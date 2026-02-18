@@ -10,8 +10,8 @@
 //! [`tokio::sync::mpsc::Sender`]. Despite this simple implementation, the
 //! [`WaitGroup`] and [`WaitGuard`] wrappers are useful to make this discoverable.
 
+use futures::StreamExt;
 use futures::never::Never;
-use futures::{FutureExt, StreamExt};
 use tokio::sync::mpsc::{Receiver, Sender, channel};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -68,6 +68,7 @@ impl WaitGroup {
 /// The given `waiter` will be used to detect when the work has finished and it will
 /// close the channels. Additionally, `waiter` can be omitted to show that without
 /// the [`WaitGroup`], the tasks would not terminate.
+#[allow(dead_code)]
 async fn fibonacci_waiter_example(n: usize, waiter: Option<(WaitGroup, WaitGuard)>) -> usize {
     let (send, recv) = unbounded_channel();
     let (incr_count, recv_count) = unbounded_channel();
@@ -102,6 +103,7 @@ async fn fibonacci_waiter_example(n: usize, waiter: Option<(WaitGroup, WaitGuard
 ///
 /// This is wildly inefficient because it does not cache any results. Computing
 /// `F(n)` would generate `O(2^n)` channel items.
+#[allow(dead_code)]
 async fn fibonacci_waiter_example_task(
     recv: UnboundedReceiver<(Option<WaitGuard>, usize)>,
     send: UnboundedSender<(Option<WaitGuard>, usize)>,
@@ -129,8 +131,8 @@ async fn fibonacci_waiter_example_task(
 #[cfg(test)]
 mod tests {
 
+    use super::WaitGroup;
     use super::fibonacci_waiter_example;
-    use super::{WaitGroup, WaitGuard};
     use std::time::Duration;
 
     fn timeout<F: IntoFuture>(fut: F) -> tokio::time::Timeout<F::IntoFuture> {
@@ -139,6 +141,7 @@ mod tests {
 
     #[tokio::test]
     async fn fibonacci_basic_termination() {
+        assert_eq!(fibonacci_waiter_example(0, Some(WaitGroup::new())).await, 0);
         assert_eq!(
             fibonacci_waiter_example(9, Some(WaitGroup::new())).await,
             34
