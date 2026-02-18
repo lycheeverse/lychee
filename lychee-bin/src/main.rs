@@ -1,6 +1,6 @@
 //! `lychee` is a fast, asynchronous, resource-friendly link checker.
-//! It is able to find broken hyperlinks and mail addresses inside Markdown,
-//! HTML, reStructuredText, and any other format.
+//! It is able to find broken hyperlinks and mail addresses in websites
+//! and Markdown, HTML, and other file formats.
 //!
 //! The lychee binary is a wrapper around lychee-lib, which provides
 //! convenience functions for calling lychee from the command-line.
@@ -62,7 +62,7 @@ use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, ErrorKind};
 use std::path::PathBuf;
 
-use anyhow::{Context, Error, Result, bail};
+use anyhow::{Context, Error, Result};
 use clap::{Parser, crate_version};
 use commands::{CommandParams, generate};
 use formatters::log::init_logging;
@@ -74,9 +74,9 @@ use lychee_lib::filter::PathExcludes;
 use options::{HeaderMapExt, LYCHEE_CONFIG_FILE};
 use ring as _; // required for apple silicon
 
+use lychee_lib::BasicAuthExtractor;
 use lychee_lib::Collector;
 use lychee_lib::CookieJar;
-use lychee_lib::{BasicAuthExtractor, StatusCodeSelector};
 
 mod cache;
 mod client;
@@ -135,40 +135,24 @@ fn read_lines(file: &File) -> Result<Vec<String>> {
 }
 
 /// Merge all provided config options into one.
-/// This includes a potential config file, command-line- and environment variables
+/// This includes the command-line args,
+/// the config file and the secrets file in that order.
 fn load_config() -> Result<LycheeOptions> {
+    // Merge by precedence, parsed CLI args have highest precedence
     let mut opts = LycheeOptions::parse();
 
-    init_logging(&opts.config.verbose, &opts.config.mode);
+    init_logging(&opts.config.verbose(), &opts.config.mode());
 
-    // Load a potentially existing config file and merge it into the config from
-    // the CLI
-    if let Some(config_file) = &opts.config_file {
-        match Config::load_from_file(config_file) {
-            Ok(c) => opts.config.merge(c),
-            Err(e) => {
-                bail!(
-                    "Cannot load configuration file `{}`: {e:?}",
-                    config_file.display()
-                );
-            }
-        }
-    } else {
-        // If no config file was explicitly provided, we try to load the default
-        // config file from the current directory if the file exits. This will
-        // raise an error if the file is invalid, just like the explicit provided
-        // config file.
+    if opts.config_files.is_empty() {
+        // Fall back on trying to load the default config file from the current directory
         let default_config = PathBuf::from(LYCHEE_CONFIG_FILE);
         if default_config.is_file() {
-            match Config::load_from_file(&default_config) {
-                Ok(c) => opts.config.merge(c),
-                Err(e) => {
-                    bail!(
-                        "Cannot load default configuration file `{}`: {e:?}",
-                        default_config.display()
-                    );
-                }
-            }
+            opts.config = opts.config.merge_file(&default_config)?;
+        }
+    } else {
+        let configs = opts.config_files.iter().rev(); // reverse so that later args have precedence
+        for config_file in configs {
+            opts.config = opts.config.merge_file(config_file)?;
         }
     }
 
@@ -216,6 +200,8 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
         return None;
     }
 
+    let max_cache_age = cfg.max_cache_age();
+
     // Discard entire cache if it hasn't been updated since `max_cache_age`.
     // This is an optimization, which avoids iterating over the file and
     // checking the age of each entry.
@@ -227,28 +213,26 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
         Ok(metadata) => {
             let modified = metadata.modified().ok()?;
             let elapsed = modified.elapsed().ok()?;
-            if elapsed > cfg.max_cache_age {
+            if elapsed > max_cache_age {
                 warn!(
                     "Cache is too old (age: {}, max age: {}). Discarding and recreating.",
                     Duration::from_secs(elapsed.as_secs()),
-                    Duration::from_secs(cfg.max_cache_age.as_secs())
+                    Duration::from_secs(max_cache_age.as_secs())
                 );
                 return None;
             }
             info!(
                 "Cache is recent (age: {}, max age: {}). Using.",
                 Duration::from_secs(elapsed.as_secs()),
-                Duration::from_secs(cfg.max_cache_age.as_secs())
+                Duration::from_secs(max_cache_age.as_secs())
             );
         }
     }
 
     let cache = Cache::load(
         LYCHEE_CACHE_FILE,
-        cfg.max_cache_age.as_secs(),
-        &cfg.cache_exclude_status
-            .clone()
-            .unwrap_or(StatusCodeSelector::empty()),
+        max_cache_age.as_secs(),
+        &cfg.cache_exclude_status(),
     );
     match cache {
         Ok(cache) => Some(cache),
@@ -334,7 +318,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
             inputs,
             opts.config.output.as_ref(),
             &opts.config.exclude_path,
-            &opts.config.extensions,
+            &opts.config.extensions(),
             !opts.config.hidden,
             // be aware that "no ignore" means do *not* ignore files
             !opts.config.no_ignore,
@@ -350,7 +334,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         // be aware that "no ignore" means do *not* ignore files
         .skip_ignored(!opts.config.no_ignore)
         .include_verbatim(opts.config.include_verbatim)
-        .headers(HeaderMap::from_header_pairs(&opts.config.header)?)
+        .headers(HeaderMap::from_header_pairs(&opts.config.headers())?)
         .excluded_paths(PathExcludes::new(opts.config.exclude_path.clone())?)
         // File a bug if you rely on this envvar! It's going to go away eventually.
         .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").is_ok_and(|x| x == "1"))
@@ -363,7 +347,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         collector
     };
 
-    let requests = collector.collect_links_from_file_types(inputs, opts.config.extensions.clone());
+    let requests = collector.collect_links_from_file_types(inputs, opts.config.extensions());
 
     let cache = load_cache(&opts.config).unwrap_or_default();
 
@@ -432,7 +416,7 @@ fn github_warning(stats: &ResponseStats, config: &Config) {
 /// in non-verbose mode.
 fn redirect_warning(stats: &ResponseStats, config: &Config) {
     let redirects = stats.redirects;
-    if redirects > 0 && config.verbose.log_level() < log::Level::Info {
+    if redirects > 0 && config.verbose().log_level() < log::Level::Info {
         let noun = if redirects == 1 {
             "redirect"
         } else {

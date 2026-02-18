@@ -954,7 +954,7 @@ mod cli {
             .arg(".")
             .assert()
             .failure()
-            .stderr(contains("Cannot load default configuration file"));
+            .stderr(contains("Cannot load configuration file"));
     }
 
     #[tokio::test]
@@ -1026,6 +1026,69 @@ mod cli {
     }
 
     #[tokio::test]
+    async fn test_configs_precedence() {
+        let path = fixtures_path!().join("configs");
+
+        cargo_bin_cmd!()
+            .current_dir(&path)
+            .arg(".")
+            .arg("--config")
+            .arg("precedence-compact.toml")
+            .arg("--config")
+            .arg("precedence-json.toml") // later config takes precedence
+            .assert()
+            .success()
+            .stdout(contains(r#""total": 1,"#))
+            .stdout(contains("1 Total").not());
+
+        cargo_bin_cmd!()
+            .current_dir(path)
+            .arg(".")
+            .arg("--config")
+            .arg("precedence-json.toml")
+            .arg("--config")
+            .arg("precedence-compact.toml") // later config takes precedence
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains(r#""total": 1,"#).not());
+    }
+
+    #[tokio::test]
+    async fn test_cli_option_precedence() {
+        let path = fixtures_path!().join("configs");
+
+        cargo_bin_cmd!()
+            .current_dir(&path)
+            .arg(".")
+            // the CLI args always have precedence over config files
+            .arg("--format")
+            .arg("json")
+            .arg("--config")
+            .arg("precedence-compact.toml")
+            .assert()
+            .success()
+            .stdout(contains(r#""total": 1,"#))
+            .stdout(contains("1 Total").not());
+    }
+
+    #[tokio::test]
+    async fn test_config_merging() {
+        let path = fixtures_path!().join("configs");
+        cargo_bin_cmd!()
+            .current_dir(&path)
+            .write_stdin("https://a.dev https://b.dev")
+            .arg("-")
+            .arg("--config")
+            .arg("exclude-a.toml")
+            .arg("--config")
+            .arg("exclude-b.toml")
+            .assert()
+            .success()
+            .stdout(contains("2 Excluded"));
+    }
+
+    #[tokio::test]
     async fn test_config_invalid_keys() {
         let mock_server = mock_server!(StatusCode::OK);
         let config = fixtures_path!().join("configs").join("invalid-key.toml");
@@ -1056,13 +1119,12 @@ mod cli {
 
     #[tokio::test]
     async fn test_config_example() {
-        let mock_server = mock_server!(StatusCode::OK);
         let config = root_path!().join("lychee.example.toml");
         cargo_bin_cmd!()
+            .current_dir(root_path!())
             .arg("--config")
             .arg(config)
             .arg("-")
-            .write_stdin(mock_server.uri())
             .env_clear()
             .assert()
             .success();

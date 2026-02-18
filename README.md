@@ -11,8 +11,8 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/lycheeverse/lychee?color=%23099cec&logo=Docker)](https://hub.docker.com/r/lycheeverse/lychee)
 
 ⚡ A fast, async, stream-based link checker written in Rust ⚡\
-Finds broken hyperlinks and mail addresses inside Markdown, HTML,
-reStructuredText, or any other text file or website!\
+Finds broken hyperlinks and mail addresses in websites
+and Markdown, HTML, and other file formats!\
 Available as command-line utility,
 [library](https://docs.rs/lychee-lib/latest/lychee_lib/) and
 [GitHub Action](https://github.com/lycheeverse/lychee-action).
@@ -311,7 +311,7 @@ Use `lychee --help` or `man lychee` to see all available command line parameters
 <details><summary><b>View full help message</b></summary>
 
 ```help-message
-lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses in local files and websites. It supports Markdown and HTML and works well with many plain text file formats.
+lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses in local files and websites. It supports Markdown and HTML and works with other file formats.
 
 lychee is powered by lychee-lib, the Rust library for link checking.
 
@@ -319,10 +319,10 @@ Usage: lychee [OPTIONS] [inputs]...
 
 Arguments:
   [inputs]...
-          Inputs for link checking (where to get links to check from). These can be:
-          files (e.g. `README.md`), file globs (e.g. `'~/git/*/README.md'`), remote URLs
-          (e.g. `https://example.com/README.md`), or standard input (`-`). Alternatively,
-          use `--files-from` to read inputs from a file.
+          Inputs for link checking (where to get links to check from).
+          These can be: files (e.g. `README.md`), file globs (e.g. `'~/git/*/README.md'`),
+          remote URLs (e.g. `https://example.com/README.md`), or standard input (`-`).
+          Alternatively, use `--files-from` to read inputs from a file.
 
           NOTE: Use `--` to separate inputs from options that allow multiple arguments.
 
@@ -330,8 +330,8 @@ Options:
   -a, --accept <ACCEPT>
           A List of accepted status codes for valid links
 
-          The following accept range syntax is supported: [start]..[[=]end]|code. Some valid
-          examples are:
+          The following accept range syntax is supported: [start]..[[=]end]|code.
+          Some valid examples are:
 
           - 200 (accepts the 200 status code only)
           - ..204 (accepts any status code < 204)
@@ -342,10 +342,13 @@ Options:
           Use "lychee --accept '200..=204, 429, 500' <inputs>..." to provide a comma-
           separated list of accepted status codes. This example will accept 200, 201,
           202, 203, 204, 429, and 500 as valid status codes.
-          Defaults to '100..=103,200..=299' if the user provides no value.
+
+          [default: 100..=103,200..=299]
 
       --archive <ARCHIVE>
-          Specify the use of a specific web archive. Can be used in combination with `--suggest`
+          Web archive to use to provide suggestions for `--suggest`.
+
+          [default: wayback]
 
           [possible values: wayback]
 
@@ -376,8 +379,11 @@ Options:
       --basic-auth <BASIC_AUTH>
           Basic authentication support. E.g. `http://example.com username:password`
 
-  -c, --config <CONFIG_FILE>
-          Configuration file to use
+  -c, --config <FILE_PATH>
+          Configuration file to use. Can be specified multiple times.
+
+          If given multiple times, the configs are merged and later
+          occurrences take precedence over previous occurrences.
 
           [default: lychee.toml]
 
@@ -401,7 +407,7 @@ Options:
           with a status code of 429, 500 and 501.
 
       --cookie-jar <COOKIE_JAR>
-          Tell lychee to read cookies from the given file. Cookies will be stored in the
+          Read and write cookies using the given file. Cookies will be stored in the
           cookie jar and sent with requests. New cookies will be stored in the cookie jar
           and existing cookies will be updated.
 
@@ -444,11 +450,15 @@ Options:
           Exclude private IP address ranges from checking
 
       --extensions <EXTENSIONS>
-          Test the specified file extensions for URIs when checking files locally.
+          A list of file extensions. Files not matching the specified extensions are skipped.
 
           Multiple extensions can be separated by commas. Note that if you want to check filetypes,
           which have multiple extensions, e.g. HTML files with both .html and .htm extensions, you need to
           specify both extensions explicitly.
+          An example is: `--extensions html,htm,php,asp,aspx,jsp,cgi`.
+
+          This is useful when the default extensions are not enough and you don't
+          want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
 
           [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt]
 
@@ -456,6 +466,7 @@ Options:
           Output format of final status report
 
           [default: compact]
+
           [possible values: compact, detailed, json, markdown, raw]
 
       --fallback-extensions <FALLBACK_EXTENSIONS>
@@ -503,7 +514,7 @@ Options:
           Print help (see a summary with '-h')
 
   -H, --header <HEADER:VALUE>
-          Set custom header for requests
+          Set custom header for requests.
 
           Some websites require custom headers to be passed in order to return valid responses.
           You can specify custom headers in the format 'Name: Value'. For example, 'Accept: text/html'.
@@ -613,6 +624,7 @@ Options:
           Set the output display mode. Determines how results are presented in the terminal
 
           [default: color]
+
           [possible values: plain, color, emoji, task]
 
   -n, --no-progress
@@ -629,7 +641,8 @@ Options:
           Only check local files and block network requests
 
   -p, --preprocess <COMMAND>
-          Preprocess input files.
+          Preprocess input files with the given command.
+
           For each file input, this flag causes lychee to execute `COMMAND PATH` and process
           its standard output instead of the original contents of PATH. This allows you to
           convert files that would otherwise not be understood by lychee. The preprocessor
@@ -638,6 +651,7 @@ Options:
           To invoke programs with custom arguments or to use multiple preprocessors, use a
           wrapper program such as a shell script. An example script looks like this:
 
+          ```
           #!/usr/bin/env bash
           case "$1" in
           *.pdf)
@@ -651,6 +665,7 @@ Options:
               exec cat
               ;;
           esac
+          ```
 
   -q, --quiet...
           Less output per occurrence (e.g. `-q` or `-qq`)
@@ -681,8 +696,9 @@ Options:
           followed by the absolute link's own path.
 
   -s, --scheme <SCHEME>
-          Only test links with the given schemes (e.g. https). Omit to check links with
-          any other scheme. At the moment, we support http, https, file, and mailto.
+          Only test links with the given schemes (e.g. https).
+          Omit to check links with any other scheme.
+          At the moment, we support http, https, file, and mailto.
 
       --skip-missing
           Skip missing input files (default is to error if they don't exist)
@@ -701,7 +717,7 @@ Options:
   -u, --user-agent <USER_AGENT>
           User agent
 
-          [default: lychee/0.20.1]
+          [default: lychee/x.y.z]
 
   -v, --verbose...
           Set verbosity level; more output per occurrence (e.g. `-v` or `-vv`)
@@ -743,6 +759,19 @@ If the `--cache` flag is set, lychee will cache responses in a file called
 then the cache will be loaded on startup. This can greatly speed up future runs.
 Note that by default lychee will not store any data on disk.
 This is explained in more detail in [our documentation](https://lychee.cli.rs/recipes/caching/).
+
+## Supported file formats
+
+lychee supports HTML and Markdown file formats.
+For any other file format, lychee falls back to a "plain text" mode.
+This means that [linkify](https://github.com/robinst/linkify)
+attempts to extract URLs on a best-effort basis.
+
+For non-plaintext files (pdf, epub, docx, etc.) or for files
+which don't work well with the fallback extraction method (csv, ipynb, etc.)
+you can make use of the `--preprocess` option.
+
+Take a look at [lychee-all](https://github.com/lycheeverse/lychee-all) for more information.
 
 ## Library usage
 
