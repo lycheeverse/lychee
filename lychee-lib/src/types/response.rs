@@ -99,7 +99,7 @@ impl Display for ResponseBody {
         write!(f, "{}", self.uri)?;
 
         if let Some(span) = self.span {
-            write!(f, " at {}", span)?;
+            write!(f, " at {span}")?;
         }
 
         // Early return for OK status to avoid verbose output

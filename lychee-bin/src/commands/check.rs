@@ -213,7 +213,7 @@ async fn check_url(client: &Client, request: Request) -> Response {
     // Request was not cached; run a normal check
     let uri = request.uri.clone();
     let source = request.source.clone();
-    let span = request.span.clone();
+    let span = request.span;
     client.check(request).await.unwrap_or_else(|e| {
         log::error!("Error checking URL {uri}: Cannot parse URL to URI: {e}");
         Response::new(

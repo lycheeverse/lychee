@@ -80,7 +80,7 @@ fn markdown_response(response: &ResponseBody) -> Result<String> {
     );
 
     if let Some(span) = response.span {
-        formatted = format!("{} at {}", formatted, span);
+        formatted = format!("{formatted} at {span}");
     }
 
     if let Status::Ok(StatusCode::OK) = response.status {

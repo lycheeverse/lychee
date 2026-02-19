@@ -30,7 +30,7 @@ fn create_request(
     let source = source.clone();
     let element = raw_uri.element.clone();
     let attribute = raw_uri.attribute.clone();
-    let span = raw_uri.span.clone();
+    let span = raw_uri.span;
     let credentials = extract_credentials(extractor, &uri);
 
     Ok(Request::new(
@@ -38,8 +38,8 @@ fn create_request(
         source,
         element,
         attribute,
-        credentials,
         Some(span),
+        credentials,
     ))
 }
 
@@ -457,8 +457,8 @@ mod tests {
                 input_source,
                 None,
                 None,
-                None,
                 Some(SPAN),
+                None,
             )
         );
     }
@@ -515,8 +515,8 @@ mod tests {
                 input_source,
                 None,
                 None,
-                None,
                 Some(SPAN),
+                None,
             )
         );
     }

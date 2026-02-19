@@ -39,16 +39,16 @@ impl Request {
         source: ResolvedInputSource,
         element: Option<String>,
         attribute: Option<String>,
-        credentials: Option<BasicAuthCredentials>,
         span: Option<RawUriSpan>,
+        credentials: Option<BasicAuthCredentials>,
     ) -> Self {
         Request {
             uri,
             source,
             element,
             attribute,
-            credentials,
             span,
+            credentials,
         }
     }
 }
