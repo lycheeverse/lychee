@@ -63,8 +63,6 @@ jobs:
       - name: cargo fetch
         run: cargo fetch
       - name: cargo publish lychee-lib
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish --dry-run --manifest-path lychee-lib/Cargo.toml
 
       # Can't check lychee binary as it depends on the lib above
@@ -78,8 +76,6 @@ jobs:
       #
       # - name: cargo publish lychee
       #   uses: actions-rs/cargo@v1
-      #   env:
-      #     CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       #   with:
       #     command: publish
       #     args: --dry-run --manifest-path lychee-bin/Cargo.toml
