@@ -102,7 +102,7 @@ impl ResponseStats {
             }
             _ => return,
         };
-        status_map_entry.insert(response.1);
+        status_map_entry.insert(response.response_body);
     }
 
     /// Update the stats with a new response
@@ -146,7 +146,7 @@ mod tests {
     // and it's a lot faster to just generate a fake response
     fn mock_response(status: Status) -> Response {
         let uri = website("https://some-url.com/ok");
-        Response::new(uri, status, InputSource::Stdin)
+        Response::new(uri, status, InputSource::Stdin, None)
     }
 
     fn dummy_ok() -> Response {
@@ -182,7 +182,10 @@ mod tests {
 
         let response = dummy_error();
         let expected_error_map: HashMap<InputSource, HashSet<ResponseBody>> =
-            HashMap::from_iter([(response.source().clone(), HashSet::from_iter([response.1]))]);
+            HashMap::from_iter([(
+                response.source().clone(),
+                HashSet::from_iter([response.response_body]),
+            )]);
         assert_eq!(stats.error_map, expected_error_map);
 
         assert!(stats.success_map.is_empty());
@@ -204,7 +207,7 @@ mod tests {
         let entry = expected_error_map
             .entry(response.source().clone())
             .or_default();
-        entry.insert(response.1);
+        entry.insert(response.response_body);
         assert_eq!(stats.error_map, expected_error_map);
 
         let mut expected_success_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
@@ -212,7 +215,7 @@ mod tests {
         let entry = expected_success_map
             .entry(response.source().clone())
             .or_default();
-        entry.insert(response.1);
+        entry.insert(response.response_body);
         assert_eq!(stats.success_map, expected_success_map);
 
         let mut expected_excluded_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
@@ -220,7 +223,7 @@ mod tests {
         let entry = expected_excluded_map
             .entry(response.source().clone())
             .or_default();
-        entry.insert(response.1);
+        entry.insert(response.response_body);
         assert_eq!(stats.excluded_map, expected_excluded_map);
     }
 }

@@ -81,6 +81,7 @@ impl RequestError {
                     ERROR_URI.clone(),
                     Status::RequestError(e),
                     src,
+                    None,
                 ))
             }
         }

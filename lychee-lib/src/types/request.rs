@@ -1,26 +1,30 @@
 use std::{borrow::Cow, convert::TryFrom, fmt::Display};
 
-use crate::{BasicAuthCredentials, ErrorKind, Uri};
+use crate::{BasicAuthCredentials, ErrorKind, Uri, types::uri::raw::RawUriSpan};
 
 use super::ResolvedInputSource;
 
-/// A request type that can be handle by lychee
+/// A URI which was extracted by lychee.
+/// Can be checked as a next step.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Request {
-    /// A valid Uniform Resource Identifier of a given endpoint, which can be
-    /// checked with lychee
+    /// The extracted Uniform Resource Identifier
+    /// which can be checked with lychee
     pub uri: Uri,
 
-    /// The resource which contained the given URI
+    /// The resource which contains the given URI
     pub source: ResolvedInputSource,
 
-    /// Specifies how the URI was rendered inside a document
+    /// How the URI is rendered inside a document
     /// (for example `img`, `a`, `pre`, or `code`).
     /// In case of plaintext input the field is `None`.
     pub element: Option<String>,
 
-    /// Specifies the attribute (e.g. `href`) that contained the URI
+    /// What attribute (e.g. `href`) URI is contained in
     pub attribute: Option<String>,
+
+    /// Where the URI is located
+    pub span: Option<RawUriSpan>,
 
     /// Basic auth credentials
     pub credentials: Option<BasicAuthCredentials>,
@@ -36,6 +40,7 @@ impl Request {
         element: Option<String>,
         attribute: Option<String>,
         credentials: Option<BasicAuthCredentials>,
+        span: Option<RawUriSpan>,
     ) -> Self {
         Request {
             uri,
@@ -43,6 +48,7 @@ impl Request {
             element,
             attribute,
             credentials,
+            span,
         }
     }
 }
@@ -63,6 +69,7 @@ impl TryFrom<Uri> for Request {
             None,
             None,
             None,
+            None,
         ))
     }
 }
@@ -78,6 +85,7 @@ impl TryFrom<String> for Request {
             None,
             None,
             None,
+            None,
         ))
     }
 }
@@ -90,6 +98,7 @@ impl TryFrom<&str> for Request {
         Ok(Request::new(
             uri,
             ResolvedInputSource::String(Cow::Owned(s.to_owned())),
+            None,
             None,
             None,
             None,

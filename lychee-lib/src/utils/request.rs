@@ -30,9 +30,17 @@ fn create_request(
     let source = source.clone();
     let element = raw_uri.element.clone();
     let attribute = raw_uri.attribute.clone();
+    let span = raw_uri.span.clone();
     let credentials = extract_credentials(extractor, &uri);
 
-    Ok(Request::new(uri, source, element, attribute, credentials))
+    Ok(Request::new(
+        uri,
+        source,
+        element,
+        attribute,
+        credentials,
+        Some(span),
+    ))
 }
 
 /// Try to parse the raw URI into a `Uri`.
@@ -139,6 +147,11 @@ mod tests {
 
     use super::*;
 
+    const SPAN: RawUriSpan = RawUriSpan {
+        line: NonZeroUsize::MIN,
+        column: Some(NonZeroUsize::MIN),
+    };
+
     /// Create requests from the given raw URIs and returns requests that were
     /// constructed successfully, silently ignoring link parsing errors.
     ///
@@ -163,10 +176,7 @@ mod tests {
             text: text.to_string(),
             element: None,
             attribute: None,
-            span: RawUriSpan {
-                line: NonZeroUsize::MAX,
-                column: None,
-            },
+            span: SPAN,
         }
     }
 
@@ -448,6 +458,7 @@ mod tests {
                 None,
                 None,
                 None,
+                Some(SPAN),
             )
         );
     }
@@ -505,6 +516,7 @@ mod tests {
                 None,
                 None,
                 None,
+                Some(SPAN),
             )
         );
     }

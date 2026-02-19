@@ -12,9 +12,9 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use lychee_lib::InputSource;
 use lychee_lib::RequestError;
+use lychee_lib::Status;
 use lychee_lib::archive::Archive;
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
-use lychee_lib::{ResponseBody, Status};
 
 use crate::formatters::stats::ResponseStats;
 use crate::formatters::suggestion::Suggestion;
@@ -213,12 +213,14 @@ async fn check_url(client: &Client, request: Request) -> Response {
     // Request was not cached; run a normal check
     let uri = request.uri.clone();
     let source = request.source.clone();
+    let span = request.span.clone();
     client.check(request).await.unwrap_or_else(|e| {
         log::error!("Error checking URL {uri}: Cannot parse URL to URI: {e}");
         Response::new(
             uri.clone(),
             Status::Error(ErrorKind::InvalidURI(uri.clone())),
             source.into(),
+            span,
         )
     })
 }
@@ -262,7 +264,12 @@ async fn handle(
             Status::from_cache_status(v.value().status, &accept)
         };
 
-        return Ok(Response::new(uri.clone(), status, request.source.into()));
+        return Ok(Response::new(
+            uri.clone(),
+            status,
+            request.source.into(),
+            request.span,
+        ));
     }
 
     let response = check_url(client, request).await;
@@ -304,10 +311,7 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
     stats
         .error_map
         .iter()
-        .flat_map(|(source, set)| {
-            set.iter()
-                .map(move |ResponseBody { uri, status: _ }| (source, uri))
-        })
+        .flat_map(|(source, set)| set.iter().map(move |body| (source, &body.uri)))
         .filter_map(|(source, uri)| {
             if uri.is_data() || uri.is_mail() || uri.is_file() {
                 None
