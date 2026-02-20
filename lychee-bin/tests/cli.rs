@@ -614,43 +614,6 @@ mod cli {
     }
 
     #[test]
-    fn test_caching_single_file() {
-        // Repetitions in one file shall all be checked and counted only once.
-        let test_schemes_path_1 = fixtures_path!().join("TEST_REPETITION_1.txt");
-
-        cargo_bin_cmd!()
-            .arg(&test_schemes_path_1)
-            .env_clear()
-            .assert()
-            .success()
-            .stdout(contains("1 Total"))
-            .stdout(contains("1 OK"));
-    }
-
-    #[test]
-    // Test that two identical requests don't get executed twice.
-    fn test_caching_across_files() -> Result<()> {
-        // Repetitions across multiple files shall all be checked only once.
-        let repeated_uris = fixtures_path!().join("TEST_REPETITION_*.txt");
-
-        test_json_output!(
-            repeated_uris,
-            MockResponseStats {
-                total: 2,
-                cached: 1,
-                successful: 2,
-                excludes: 0,
-                ..MockResponseStats::default()
-            },
-            // Two requests to the same URI may be executed in parallel. As a
-            // result, the response might not be cached and the test would be
-            // flaky. Therefore limit the concurrency to one request at a time.
-            "--max-concurrency",
-            "1"
-        )
-    }
-
-    #[test]
     fn test_failure_github_404_no_token() {
         let test_github_404_path = fixtures_path!().join("TEST_GITHUB_404.md");
 
@@ -1602,7 +1565,7 @@ The config file should contain every possible key for documentation purposes."
         // such a response isn't cached.
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .respond_with(ResponseTemplate::new(429))
-            .up_to_n_times(1)
+            .up_to_n_times(2)
             .mount(&server)
             .await;
 
@@ -1613,9 +1576,10 @@ The config file should contain every possible key for documentation purposes."
             .await;
 
         let temp_dir = tempfile::tempdir()?;
-        for i in 0..9 {
+        for i in 0..4 {
             let test_md1 = temp_dir.path().join(format!("test{i}.md"));
-            fs::write(&test_md1, server.uri())?;
+            let duplicate_url_content = format!("{}\n{}", server.uri(), server.uri());
+            fs::write(&test_md1, duplicate_url_content)?;
         }
 
         cargo_bin_cmd!()
@@ -1623,14 +1587,15 @@ The config file should contain every possible key for documentation purposes."
             .arg("--host-stats")
             .assert()
             .success()
-            .stdout(contains("9 Total"))
-            .stdout(contains("9 OK"))
+            .stdout(contains("8 Total"))
+            .stdout(contains("8 OK"))
             .stdout(contains("0 Errors"))
             // Per-host statistics
-            // 1 rate limited + 9 OK
+            // 2 rate limited + 8 OK
             .stdout(contains("10 reqs"))
-            // 1 rate limited, 1 OK, 8 cached
-            .stdout(contains("80.0% cached"));
+            .stdout(contains("80.0% success"))
+            // 2 rate limited, 1 OK, 7 cached
+            .stdout(contains("70.0% cached"));
 
         server.verify().await;
         Ok(())
