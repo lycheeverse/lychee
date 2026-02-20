@@ -16,9 +16,7 @@ use crate::{InputSource, Status, Uri, types::uri::raw::RawUriSpan};
 #[derive(Debug)]
 pub struct Response {
     input_source: InputSource,
-
-    /// TODO
-    pub response_body: ResponseBody,
+    response_body: ResponseBody,
 }
 
 impl Response {
@@ -54,9 +52,16 @@ impl Response {
 
     #[inline]
     #[must_use]
-    /// Retrieve the underlying body of the response
+    /// Retrieve the body of the response
     pub const fn body(&self) -> &ResponseBody {
         &self.response_body
+    }
+
+    #[inline]
+    #[must_use]
+    /// Retrieve the body of the response by consuming `self`
+    pub fn into_body(self) -> ResponseBody {
+        self.response_body
     }
 }
 

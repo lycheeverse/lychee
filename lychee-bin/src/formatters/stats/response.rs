@@ -102,7 +102,7 @@ impl ResponseStats {
             }
             _ => return,
         };
-        status_map_entry.insert(response.response_body);
+        status_map_entry.insert(response.into_body());
     }
 
     /// Update the stats with a new response
@@ -184,7 +184,7 @@ mod tests {
         let expected_error_map: HashMap<InputSource, HashSet<ResponseBody>> =
             HashMap::from_iter([(
                 response.source().clone(),
-                HashSet::from_iter([response.response_body]),
+                HashSet::from_iter([response.into_body()]),
             )]);
         assert_eq!(stats.error_map, expected_error_map);
 
@@ -207,7 +207,7 @@ mod tests {
         let entry = expected_error_map
             .entry(response.source().clone())
             .or_default();
-        entry.insert(response.response_body);
+        entry.insert(response.into_body());
         assert_eq!(stats.error_map, expected_error_map);
 
         let mut expected_success_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
@@ -215,7 +215,7 @@ mod tests {
         let entry = expected_success_map
             .entry(response.source().clone())
             .or_default();
-        entry.insert(response.response_body);
+        entry.insert(response.into_body());
         assert_eq!(stats.success_map, expected_success_map);
 
         let mut expected_excluded_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
@@ -223,7 +223,7 @@ mod tests {
         let entry = expected_excluded_map
             .entry(response.source().clone())
             .or_default();
-        entry.insert(response.response_body);
+        entry.insert(response.into_body());
         assert_eq!(stats.excluded_map, expected_excluded_map);
     }
 }

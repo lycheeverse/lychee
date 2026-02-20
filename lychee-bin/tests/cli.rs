@@ -2213,13 +2213,19 @@ The config file should contain every possible key for documentation purposes."
     #[test]
     fn test_fragments() {
         let input = fixtures_path!().join("fragments");
-
-        let mut result = cargo_bin_cmd!()
+        let result = cargo_bin_cmd!()
             .arg("--include-fragments")
+            .arg("--format=json")
             .arg("-vv")
             .arg(input)
             .assert()
             .failure();
+
+        let output = std::str::from_utf8(&result.get_output().stdout).unwrap();
+        let json: Value = serde_json::from_str(output).unwrap();
+
+        let actual_successes = extract_urls(&json["success_map"]);
+        let actual_errors = extract_urls(&json["error_map"]);
 
         let expected_successes = vec![
             "fixtures/fragments/empty_dir",
@@ -2255,7 +2261,7 @@ The config file should contain every possible key for documentation purposes."
             "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
         ];
 
-        let expected_failures = vec![
+        let expected_errors = vec![
             "fixtures/fragments/sub_dir_non_existing_1",
             "fixtures/fragments/sub_dir#non-existing-fragment-2",
             "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
@@ -2270,36 +2276,35 @@ The config file should contain every possible key for documentation purposes."
             "https://github.com/lycheeverse/lychee#non-existent-anchor",
         ];
 
-        // the stdout/stderr format looks like this:
-        //
-        //     [ERROR] https://github.com/lycheeverse/lychee#non-existent-anchor | Cannot find fragment
-        //     [200] file:///home/rina/progs/lychee/fixtures/fragments/file.html#a-word
-        //
-        // errors are printed to both, but 200s are printed to stderr only.
-        // we take advantage of this to ensure that good URLs do not appear
-        // in stdout, and bad URLs do appear in stdout.
-        //
-        // also, a space or newline is appended to the URL to prevent
-        // incorrect matches where one URL is a prefix of another.
-        for good_url in &expected_successes {
-            // additionally checks that URL is within stderr to ensure that
-            // the URL is detected by lychee.
-            result = result
-                .stdout(contains(format!("{good_url} ")).not())
-                .stderr(contains(format!("{good_url}\n"))); // TODO: previous now fails as " at X:Y" is appended before \n
-        }
-        for bad_url in &expected_failures {
-            result = result.stdout(contains(format!("{bad_url} ")));
+        assert_eq!(actual_successes.len(), expected_successes.len());
+        assert_eq!(actual_errors.len(), expected_errors.len());
+
+        for good_url in expected_successes {
+            assert!(
+                actual_successes.iter().any(|url| url.ends_with(good_url)),
+                "Expected {good_url} to be a success"
+            );
         }
 
-        let ok_num = expected_successes.len();
-        let err_num = expected_failures.len();
-        let total_num = ok_num + err_num;
-        result
-            .stdout(contains(format!("{ok_num} OK")))
-            // Failures because of missing fragments or failed binary body scan
-            .stdout(contains(format!("{err_num} Errors")))
-            .stdout(contains(format!("{total_num} Total")));
+        for bad_url in &expected_errors {
+            assert!(
+                actual_errors.iter().any(|url| url.ends_with(bad_url)),
+                "Expected {bad_url} to be an error"
+            );
+        }
+
+        fn extract_urls(json: &Value) -> HashSet<&str> {
+            json.as_object()
+                .unwrap()
+                .into_iter()
+                .flat_map(|(_, file)| {
+                    file.as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|o| o.as_object().unwrap()["url"].as_str().unwrap())
+                })
+                .collect()
+        }
     }
 
     #[test]
@@ -2411,7 +2416,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the output is in JSON format
         let output = std::str::from_utf8(&output.stdout)?;
-        let json: serde_json::Value = serde_json::from_str(output)?;
+        let json: Value = serde_json::from_str(output)?;
         assert_eq!(json["total"], 1);
 
         Ok(())
@@ -2480,7 +2485,7 @@ The config file should contain every possible key for documentation purposes."
                 .unwrap();
 
             let stdout = str::from_utf8(&output.stdout).unwrap().to_string();
-            let json: serde_json::Value = serde_json::from_str(stdout.as_str()).unwrap();
+            let json: Value = serde_json::from_str(stdout.as_str()).unwrap();
             let stderr = str::from_utf8(&output.stderr).unwrap().to_string();
 
             (json, stderr)
