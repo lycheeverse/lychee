@@ -1,6 +1,19 @@
 - id: lychee
   name: lychee
-  description: "Run 'lychee' for fast, async, stream-based link checking (auto-installs)"
+  description: "Run 'lychee' for fast, async, stream-based link checking (auto-installs from binary)"
+  entry: scripts/lychee_pre_commit.sh
+  language: script
+  # defaults to the version of the current repo checkout, i.e., the 'rev' field in
+  # .pre-commit-config.yaml. to use a different lychee version, pass "LYCHEE_VERSION=0.xx.0"
+  # as the first arg in 'args'.
+  args: ["--no-progress"]
+  types: [text]
+  pass_filenames: true
+  require_serial: true
+  minimum_pre_commit_version: "2.9.2"
+- id: lychee-src
+  name: lychee-src
+  description: "Run 'lychee' for fast, async, stream-based link checking (auto-installs from source)"
   entry: lychee
   language: rust
   args: ["--no-progress"]
