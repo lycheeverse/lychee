@@ -23,7 +23,7 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-use crate::types::uri::raw::{RawUri, SourceSpanProvider, SpanProvider};
+use crate::types::uri::raw::{RawUri, SpanProvider};
 
 /// Regular expression to match CSS `url()` functions
 ///
@@ -116,13 +116,10 @@ pub(crate) fn extract_css<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
         .collect()
 }
 
-/// Extract URLs from CSS content with default span
-pub(crate) fn extract_css_with_default_span(input: &str) -> Vec<RawUri> {
-    extract_css(input, &SourceSpanProvider::from_input(input))
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::types::uri::raw::SourceSpanProvider;
+
     use super::*;
 
     // Tests based on MDN documentation:
@@ -435,5 +432,10 @@ mod tests {
         assert_eq!(urls.len(), 1);
         assert_eq!(urls[0].element, Some("style".to_string()));
         assert_eq!(urls[0].attribute, Some("url".to_string()));
+    }
+
+    /// Extract URLs from CSS content with default span
+    fn extract_css_with_default_span(input: &str) -> Vec<RawUri> {
+        extract_css(input, &SourceSpanProvider::from_input(input))
     }
 }

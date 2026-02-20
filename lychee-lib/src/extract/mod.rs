@@ -17,7 +17,6 @@ use plaintext::extract_raw_uri_from_plaintext;
 /// performance-critical section of the library.
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Extractor {
-    use_html5ever: bool,
     include_verbatim: bool,
     include_wikilinks: bool,
 }
@@ -27,18 +26,13 @@ impl Extractor {
     ///
     /// The extractor can be configured with the following settings:
     ///
-    /// - `use_html5ever` enables the alternative HTML parser engine html5ever, that
-    ///   is also used in the Servo browser by Mozilla.
-    ///   The default is `html5gum`, which is more performant and well maintained.
-    ///
     /// - `include_verbatim` ignores links inside Markdown code blocks.
     ///   These can be denoted as a block starting with three backticks or an indented block.
     ///   For more information, consult the `pulldown_cmark` documentation about code blocks
     ///   [here](https://docs.rs/pulldown-cmark/latest/pulldown_cmark/enum.CodeBlockKind.html)
     #[must_use]
-    pub const fn new(use_html5ever: bool, include_verbatim: bool, include_wikilinks: bool) -> Self {
+    pub const fn new(include_verbatim: bool, include_wikilinks: bool) -> Self {
         Self {
-            use_html5ever,
             include_verbatim,
             include_wikilinks,
         }
@@ -55,11 +49,7 @@ impl Extractor {
                 self.include_wikilinks,
             ),
             FileType::Html => {
-                if self.use_html5ever {
-                    html::html5ever::extract_html(&input_content.content, self.include_verbatim)
-                } else {
-                    html::html5gum::extract_html(&input_content.content, self.include_verbatim)
-                }
+                html::html5gum::extract_html(&input_content.content, self.include_verbatim)
             }
             FileType::Css => extract_css(
                 &input_content.content,
@@ -93,35 +83,11 @@ mod tests {
     fn extract_uris(input: &str, file_type: FileType) -> HashSet<Uri> {
         let input_content = InputContent::from_string(input, file_type);
 
-        let extractor = Extractor::new(false, false, false);
-        let uris_html5gum: HashSet<Uri> = extractor
+        Extractor::new(false, false)
             .extract(&input_content)
             .into_iter()
             .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
-            .collect();
-        let uris_html5gum_sorted: Vec<Uri> = {
-            let mut uris = uris_html5gum.clone().into_iter().collect::<Vec<_>>();
-            uris.sort();
-            uris
-        };
-
-        let extractor = Extractor::new(true, false, false);
-        let uris_html5ever: HashSet<Uri> = extractor
-            .extract(&input_content)
-            .into_iter()
-            .filter_map(|raw_uri| Uri::try_from(raw_uri).ok())
-            .collect();
-        let uris_html5ever_sorted: Vec<Uri> = {
-            let mut uris = uris_html5ever.into_iter().collect::<Vec<_>>();
-            uris.sort();
-            uris
-        };
-
-        assert_eq!(
-            uris_html5gum_sorted, uris_html5ever_sorted,
-            "Mismatch between html5gum and html5ever"
-        );
-        uris_html5gum
+            .collect()
     }
 
     #[test]
@@ -236,23 +202,21 @@ mod tests {
             content: contents.to_string(),
         };
 
-        for use_html5ever in [true, false] {
-            let extractor = Extractor::new(use_html5ever, false, false);
-            let links = extractor.extract(input_content);
+        let extractor = Extractor::new(false, false);
+        let links = extractor.extract(input_content);
 
-            let urls = links
-                .into_iter()
-                .map(|raw_uri| raw_uri.text)
-                .collect::<HashSet<_>>();
-
-            let expected_urls = IntoIterator::into_iter([
-                String::from("https://github.com/lycheeverse/lychee/"),
-                String::from("/about"),
-            ])
+        let urls = links
+            .into_iter()
+            .map(|raw_uri| raw_uri.text)
             .collect::<HashSet<_>>();
 
-            assert_eq!(urls, expected_urls);
-        }
+        let expected_urls = IntoIterator::into_iter([
+            String::from("https://github.com/lycheeverse/lychee/"),
+            String::from("/about"),
+        ])
+        .collect::<HashSet<_>>();
+
+        assert_eq!(urls, expected_urls);
     }
 
     #[test]
@@ -355,7 +319,7 @@ mod tests {
    </head>
 </html>"#;
         let input_content = InputContent::from_string(input, FileType::Html);
-        let extractor = Extractor::new(false, false, false);
+        let extractor = Extractor::new(false, false);
         let raw_uris = extractor.extract(&input_content);
         assert_eq!(raw_uris, vec![css_url("./lychee.png", span(5, 32))]);
     }
@@ -370,7 +334,7 @@ mod tests {
 @import url(https://example.com/style.css);
 "#;
         let input_content = InputContent::from_string(input, FileType::Css);
-        let extractor = Extractor::new(false, false, false);
+        let extractor = Extractor::new(false, false);
         let raw_uris = extractor.extract(&input_content);
         assert_eq!(
             raw_uris,
@@ -397,7 +361,7 @@ mod tests {
    </head>
 </html>"#;
         let input_content = InputContent::from_string(input, FileType::Html);
-        let extractor = Extractor::new(false, false, false);
+        let extractor = Extractor::new(false, false);
         let raw_uris = extractor.extract(&input_content);
 
         assert_eq!(

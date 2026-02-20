@@ -213,12 +213,14 @@ async fn check_url(client: &Client, request: Request) -> Response {
     // Request was not cached; run a normal check
     let uri = request.uri.clone();
     let source = request.source.clone();
+    let span = request.span;
     client.check(request).await.unwrap_or_else(|e| {
         log::error!("Error checking URL {uri}: Cannot parse URL to URI: {e}");
         Response::new(
             uri.clone(),
             Status::Error(ErrorKind::InvalidURI(uri.clone())),
             source.into(),
+            span,
         )
     })
 }
@@ -262,7 +264,12 @@ async fn handle(
             Status::from_cache_status(v.value().status, &accept)
         };
 
-        return Ok(Response::new(uri.clone(), status, request.source.into()));
+        return Ok(Response::new(
+            uri.clone(),
+            status,
+            request.source.into(),
+            request.span,
+        ));
     }
 
     let response = check_url(client, request).await;
@@ -305,8 +312,13 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
         .error_map
         .iter()
         .flat_map(|(source, set)| {
-            set.iter()
-                .map(move |ResponseBody { uri, status: _ }| (source, uri))
+            set.iter().map(
+                move |ResponseBody {
+                          uri,
+                          status: _,
+                          span: _,
+                      }| (source, uri),
+            )
         })
         .filter_map(|(source, uri)| {
             if uri.is_data() || uri.is_mail() || uri.is_file() {

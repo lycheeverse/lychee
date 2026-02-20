@@ -1,5 +1,7 @@
 use std::{fmt::Display, num::NonZeroUsize};
 
+use serde::Serialize;
+
 /// A raw URI that got extracted from a document with a fuzzy parser.
 /// Note that this can still be invalid according to stricter URI standards
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -42,7 +44,7 @@ impl From<(&str, RawUriSpan)> for RawUri {
 /// A span of a [`RawUri`] in the document.
 ///
 /// The span can be used to give more precise error messages.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct RawUriSpan {
     /// The line of the URI.
     ///
@@ -51,9 +53,13 @@ pub struct RawUriSpan {
     /// The column of the URI if computable.
     ///
     /// The column is 1-based.
-    /// This is `None`, if the column can't be computed exactly,
-    /// e.g. when it comes from the `html5ever` parser.
-    pub column: Option<NonZeroUsize>,
+    pub column: NonZeroUsize,
+}
+
+impl Display for RawUriSpan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.line, self.column)
+    }
 }
 
 /// Test helper to create [`RawUriSpan`]s easily.
@@ -61,16 +67,7 @@ pub struct RawUriSpan {
 pub(crate) const fn span(line: usize, column: usize) -> RawUriSpan {
     RawUriSpan {
         line: NonZeroUsize::new(line).unwrap(),
-        column: Some(NonZeroUsize::new(column).unwrap()),
-    }
-}
-
-/// Test helper to create a [`RawUriSpan`] from just the line and leave the column unset.
-#[cfg(test)]
-pub(crate) const fn span_line(line: usize) -> RawUriSpan {
-    RawUriSpan {
-        line: std::num::NonZeroUsize::new(line).unwrap(),
-        column: None,
+        column: NonZeroUsize::new(column).unwrap(),
     }
 }
 
@@ -127,14 +124,13 @@ impl SpanProvider for SourceSpanProvider<'_> {
         let column = self
             .input
             .get(line_offset..offset)
-            .or_else(|| self.input.get(line_offset..))
-            // columns are 1-based
-            .map(|v| ONE.saturating_add(v.chars().count()));
+            .unwrap_or_else(|| &self.input[line_offset..]); // As line_offset marks the beginning of a line it shouldn't panic.
 
         RawUriSpan {
             // lines are 1-based
             line: ONE.saturating_add(line),
-            column,
+            // columns are 1-based
+            column: ONE.saturating_add(column.chars().count()),
         }
     }
 }

@@ -538,13 +538,19 @@ impl Client {
             ref mut uri,
             credentials,
             source,
+            span,
             ..
         } = request.try_into()?;
 
         self.remap(uri)?;
 
         if self.is_excluded(uri) {
-            return Ok(Response::new(uri.clone(), Status::Excluded, source.into()));
+            return Ok(Response::new(
+                uri.clone(),
+                Status::Excluded,
+                source.into(),
+                span,
+            ));
         }
 
         let status = match uri.scheme() {
@@ -554,7 +560,7 @@ impl Client {
             _ => self.check_website(uri, credentials).await?,
         };
 
-        Ok(Response::new(uri.clone(), status, source.into()))
+        Ok(Response::new(uri.clone(), status, source.into(), span))
     }
 
     /// Check a single file using the file checker.

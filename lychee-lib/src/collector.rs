@@ -29,7 +29,6 @@ pub struct Collector {
     skip_hidden: bool,
     include_verbatim: bool,
     include_wikilinks: bool,
-    use_html5ever: bool,
     root_dir: Option<PathBuf>,
     base: BaseInfo,
     excluded_paths: PathExcludes,
@@ -51,7 +50,6 @@ impl Default for Collector {
             skip_missing_inputs: false,
             include_verbatim: false,
             include_wikilinks: false,
-            use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
             root_dir: None,
@@ -103,7 +101,6 @@ impl Collector {
             skip_missing_inputs: false,
             include_verbatim: false,
             include_wikilinks: false,
-            use_html5ever: false,
             skip_hidden: true,
             skip_ignored: true,
             preprocessor: None,
@@ -149,13 +146,6 @@ impl Collector {
     #[must_use]
     pub fn client(mut self, client: Client) -> Self {
         self.client = client;
-        self
-    }
-
-    /// Use `html5ever` to parse HTML instead of `html5gum`.
-    #[must_use]
-    pub const fn use_html5ever(mut self, yes: bool) -> Self {
-        self.use_html5ever = yes;
         self
     }
 
@@ -231,11 +221,7 @@ impl Collector {
             client: self.client,
         };
 
-        let extractor = Extractor::new(
-            self.use_html5ever,
-            self.include_verbatim,
-            self.include_wikilinks,
-        );
+        let extractor = Extractor::new(self.include_verbatim, self.include_wikilinks);
 
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {

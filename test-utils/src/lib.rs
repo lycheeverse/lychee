@@ -175,6 +175,7 @@ macro_rules! mock_response_body {
         ResponseBody {
             uri: Uri::try_from($uri).unwrap(),
             status: $status,
+            span: None,
         }
     }};
 }
