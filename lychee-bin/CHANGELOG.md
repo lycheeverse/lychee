@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.23.0...lychee-v0.24.0) - 2026-02-20
+
+### Added
+
+- Support multiple config files ([#2007](https://github.com/lycheeverse/lychee/pull/2007))
+
+### Other
+
+- Fix toc action ([#2055](https://github.com/lycheeverse/lychee/pull/2055))
+- [**breaking**] add BaseInfo for resolving links, delete Base, cleanup utils ([#2005](https://github.com/lycheeverse/lychee/pull/2005))
+- Document file format support ([#2052](https://github.com/lycheeverse/lychee/pull/2052))
+- Improve help message as proposed by @katrinafyi
+- *(deps)* bump the dependencies group with 8 updates
+- Update changelogs
+
 ## [0.23.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.22.0...lychee-v0.23.0) - 2026-02-13
 
 ### Added
