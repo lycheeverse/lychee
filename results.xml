@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="lychee link check results" tests="16" failures="7" errors="0">
+    <testsuite name="lychee link check results" tests="16" disabled="4" errors="0" failures="7">
+        <testcase name="Failed file:///home/thomas/Projects/lychee/assets/banner.ssvg" file="fixtures/TEST.md" line="2">
+            <failure message="file:///home/thomas/Projects/lychee/assets/banner.ssvg at 2:1 | Cannot find file: File not found. Check if file exists and path is correct"/>
+            <system-out>file:///home/thomas/Projects/lychee/assets/banner.ssvg at 2:1 | Cannot find file: File not found. Check if file exists and path is correct</system-out>
+        </testcase>
+        <testcase name="Failed https://ldra.comm/" file="fixtures/TEST.md" line="13">
+            <failure message="https://ldra.comm/ at 13:1 | Network error: Connection failed. Check network connectivity and firewall settings (error sending request for url (https://ldra.comm/)): Connection failed. Check network connectivity and firewall settings"/>
+            <system-out>https://ldra.comm/ at 13:1 | Network error: Connection failed. Check network connectivity and firewall settings (error sending request for url (https://ldra.comm/)): Connection failed. Check network connectivity and firewall settings</system-out>
+        </testcase>
+        <testcase name="Failed https://endler.dev/oh-no" file="fixtures/TEST.md" line="10">
+            <failure message="https://endler.dev/oh-no at 10:1 | Rejected status code: 404 Not Found (configurable with &quot;accept&quot; option)"/>
+            <system-out>https://endler.dev/oh-no at 10:1 | Rejected status code: 404 Not Found (configurable with &quot;accept&quot; option)</system-out>
+        </testcase>
+        <testcase name="Failed https://en.wikipedia.org/huhhh" file="fixtures/TEST.md" line="7">
+            <failure message="https://en.wikipedia.org/huhhh at 7:1 | Rejected status code: 404 Not Found (configurable with &quot;accept&quot; option)"/>
+            <system-out>https://en.wikipedia.org/huhhh at 7:1 | Rejected status code: 404 Not Found (configurable with &quot;accept&quot; option)</system-out>
+        </testcase>
+        <testcase name="Failed http://127.0.0.1/bash" file="fixtures/TEST_CODE_BLOCKS.md" line="8">
+            <failure message="http://127.0.0.1/bash at 8:1 | Network error: Connection refused - server may be down or port blocked (error sending request for url (http://127.0.0.1/bash)): Connection refused - server may be down or port blocked"/>
+            <system-out>http://127.0.0.1/bash at 8:1 | Network error: Connection refused - server may be down or port blocked (error sending request for url (http://127.0.0.1/bash)): Connection refused - server may be down or port blocked</system-out>
+        </testcase>
+        <testcase name="Failed http://127.0.0.1/inline" file="fixtures/TEST_CODE_BLOCKS.md" line="11">
+            <failure message="http://127.0.0.1/inline at 11:2 | Network error: Connection refused - server may be down or port blocked (error sending request for url (http://127.0.0.1/inline)): Connection refused - server may be down or port blocked"/>
+            <system-out>http://127.0.0.1/inline at 11:2 | Network error: Connection refused - server may be down or port blocked (error sending request for url (http://127.0.0.1/inline)): Connection refused - server may be down or port blocked</system-out>
+        </testcase>
+        <testcase name="Failed http://127.0.0.1/block" file="fixtures/TEST_CODE_BLOCKS.md" line="4">
+            <failure message="http://127.0.0.1/block at 4:1 | Network error: Connection refused - server may be down or port blocked (error sending request for url (http://127.0.0.1/block)): Connection refused - server may be down or port blocked"/>
+            <system-out>http://127.0.0.1/block at 4:1 | Network error: Connection refused - server may be down or port blocked (error sending request for url (http://127.0.0.1/block)): Connection refused - server may be down or port blocked</system-out>
+        </testcase>
+        <testcase name="Excluded mailto:test2@example.com" file="fixtures/TEST.md" line="26">
+            <skipped message="mailto:test2@example.com at 26:8"/>
+            <system-out>mailto:test2@example.com at 26:8</system-out>
+        </testcase>
+        <testcase name="Excluded https://example.com/" file="fixtures/TEST.md" line="21">
+            <skipped message="https://example.com/ at 21:1"/>
+            <system-out>https://example.com/ at 21:1</system-out>
+        </testcase>
+        <testcase name="Excluded mailto:test@example.com" file="fixtures/TEST.md" line="25">
+            <skipped message="mailto:test@example.com at 25:1"/>
+            <system-out>mailto:test@example.com at 25:1</system-out>
+        </testcase>
+        <testcase name="Excluded http://example.com/" file="fixtures/TEST.md" line="20">
+            <skipped message="http://example.com/ at 20:1"/>
+            <system-out>http://example.com/ at 20:1</system-out>
+        </testcase>
+        <testcase name="Successful https://licensebuttons.net/p/zero/1.0/88x31.png" file="fixtures/TEST.md" line="16">
+            <system-out>https://licensebuttons.net/p/zero/1.0/88x31.png at 16:2</system-out>
+        </testcase>
+        <testcase name="Successful https://creativecommons.org/publicdomain/zero/1.0/" file="fixtures/TEST.md" line="16">
+            <system-out>https://creativecommons.org/publicdomain/zero/1.0/ at 16:1</system-out>
+        </testcase>
+        <testcase name="Successful file:///home/thomas/Projects/lychee/fixtures/TEST.md#awesome" file="fixtures/TEST.md" line="4">
+            <system-out>file:///home/thomas/Projects/lychee/fixtures/TEST.md#awesome at 4:1</system-out>
+        </testcase>
+        <testcase name="Successful https://github.com/analysis-tools-dev/static-analysis/issues/350" file="fixtures/TEST.md" line="12">
+            <system-out>https://github.com/analysis-tools-dev/static-analysis/issues/350 at 12:29</system-out>
+        </testcase>
+        <testcase name="Redirected http://thomaszahner.ch/" file="fixtures/TEST.md" line="23">
+            <system-out>http://thomaszahner.ch/ at 23:1 | Redirect: Followed 1 redirect resolving to the final status of: OK. Redirects: http://thomaszahner.ch/ --[301]--&gt; https://thomaszahner.ch/</system-out>
+        </testcase>
+    </testsuite>
+</testsuites>
+

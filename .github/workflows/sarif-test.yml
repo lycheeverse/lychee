@@ -1,0 +1,18 @@
+name: SARIF test
+on:
+  pull_request:
+
+jobs:
+  junit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish JUnit test report
+        uses: mikepenz/action-junit-report@v6
+        with:
+          report_paths: "results.xml"
+          annotate_only: true
