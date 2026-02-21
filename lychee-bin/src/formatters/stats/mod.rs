@@ -1,6 +1,7 @@
 mod compact;
 mod detailed;
 mod json;
+mod junit;
 mod markdown;
 mod raw;
 mod response;
@@ -9,6 +10,7 @@ pub(crate) use compact::Compact;
 
 pub(crate) use detailed::Detailed;
 pub(crate) use json::Json;
+pub(crate) use junit::Junit;
 pub(crate) use markdown::Markdown;
 pub(crate) use raw::Raw;
 pub(crate) use response::ResponseStats;

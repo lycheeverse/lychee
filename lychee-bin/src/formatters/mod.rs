@@ -25,6 +25,7 @@ pub(crate) fn get_stats_formatter(
         StatsFormat::Compact => Box::new(stats::Compact::new(mode.clone())),
         StatsFormat::Detailed => Box::new(stats::Detailed::new(mode.clone())),
         StatsFormat::Json => Box::new(stats::Json::new()),
+        StatsFormat::Junit => Box::new(stats::Junit::new()),
         StatsFormat::Markdown => Box::new(stats::Markdown::new()),
         StatsFormat::Raw => Box::new(stats::Raw::new()),
     }
