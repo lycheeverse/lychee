@@ -15,7 +15,7 @@ rust-version = "1.88.0"
 [dependencies]
 async-stream = "0.3.6"
 async-trait = "0.1.88"
-cookie_store = "0.22.0"
+cookie_store = "0.22.1"
 dashmap = { version = "6.1.0" }
 email_address = "0.2.9"
 futures = "0.3.32"
@@ -46,7 +46,7 @@ octocrab = { version = "0.49.5", default-features = false, features = [
     "tracing",
 ] }
 percent-encoding = "2.3.1"
-pulldown-cmark = "0.13.0"
+pulldown-cmark = "0.13.1"
 regex = "1.12.2"
 reqwest = { version = "0.13.2", features = ["json", "gzip"] }
 reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
@@ -59,10 +59,10 @@ secrecy = "0.10.3"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_with = "3.16.1"
 shellexpand = "3.1.1"
-strum = { version = "0.27.2", features = ["derive"] }
+strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2.0.18"
 tokio = { version = "1.49.0", features = ["full"] }
-toml = "1.0.1"
+toml = "1.0.3"
 typed-builder = "0.23.2"
 url = { version = "2.5.8", features = ["serde"] }
 walkdir = "2.5.0"
@@ -78,7 +78,7 @@ rstest = "0.26.1"
 serde_json = "1.0.149"
 tempfile = "3.25.0"
 test-utils = { path = "../test-utils" }
-toml = "1.0.1"
+toml = "1.0.3"
 wiremock = "0.6.5"
 
 [features]
