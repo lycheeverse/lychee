@@ -50,6 +50,9 @@
 #[cfg(doctest)]
 doc_comment::doctest!("../../README.md");
 
+#[cfg(all(test, not(doctest)))]
+use tokio_stream as _;
+
 /// Check online archives to try and restore broken links
 pub mod archive;
 mod basic_auth;
