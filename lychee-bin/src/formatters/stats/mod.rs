@@ -125,7 +125,7 @@ fn get_dummy_stats() -> OutputStats {
     });
 
     let redirect_map = HashMap::from([(
-        source,
+        source.clone(),
         HashSet::from([ResponseBody {
             uri: "https://redirected.dev".try_into().unwrap(),
             status: Status::Redirected(StatusCode::OK, redirects),

@@ -468,7 +468,7 @@ Options:
 
           [default: compact]
 
-          [possible values: compact, detailed, json, markdown, raw]
+          [possible values: compact, detailed, json, junit, markdown, raw]
 
       --fallback-extensions <FALLBACK_EXTENSIONS>
           When checking locally, attempts to locate missing files by trying the given
