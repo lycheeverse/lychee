@@ -2,8 +2,6 @@ name: Update Table of Contents
 
 on:
   push:
-    branches:
-      - master
 
 jobs:
   update-toc:

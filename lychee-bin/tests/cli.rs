@@ -458,12 +458,49 @@ mod cli {
             .arg("/resolve_paths")
             .arg("--base-url")
             .arg(&dir)
-            .arg(dir.join("resolve_paths").join("index.html"))
+            .arg(dir.join("resolve_paths").join("index2.html"))
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("3 Total"))
-            .stdout(contains("3 OK"));
+            .stdout(contains("5 Total"))
+            .stdout(contains("5 OK"));
+    }
+
+    #[test]
+    fn test_resolve_paths_from_root_dir_and_local_base_url() {
+        let dir = fixtures_path!();
+
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--root-dir")
+            .arg("/root")
+            .arg("--base-url")
+            .arg("/base/")
+            .arg(dir.join("resolve_paths").join("index2.html"))
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("file:///base/root"))
+            .stdout(contains("file:///base/root/about"))
+            .stdout(contains("file:///base/resolve_paths/index.html"))
+            .stdout(contains("file:///base/root/another%20page#y"))
+            .stdout(contains("file:///base/resolve_paths/same%20folder.html#x"));
+    }
+
+    #[test]
+    fn test_root_relative_with_remote_base_url_and_root_dir() {
+        // When both are set and base-url is remote, root-relative links
+        // should resolve against the remote base, not the local root-dir.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--dump")
+            .arg("--base-url=https://example.com/docs/")
+            .arg("--root-dir=/tmp")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/page)")
+            .assert()
+            .success()
+            .stdout(contains("https://example.com/page"));
     }
 
     #[test]
@@ -3405,6 +3442,104 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stdout(contains("https://example.com"));
+    }
+
+    #[test]
+    fn test_local_base_url_bug_1896() -> Result<()> {
+        // https://github.com/lycheeverse/lychee/issues/1896
+        let dir = tempdir()?;
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--dump")
+            .arg("--base-url")
+            .arg(dir.path())
+            .arg("--default-extension")
+            .arg("md")
+            .write_stdin("[a](b.html#a)")
+            .assert()
+            .success()
+            .stdout(contains("b.html#a"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_relative_url_parse_errors() -> Result<()> {
+        let dir = tempdir()?;
+
+        // without root-dir, fails to resolve in all cases
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--default-extension=md")
+            .write_stdin("[a](a)")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot parse 'a' into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/a)")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot resolve root-relative link '/a': To resolve root-relative links in local files, provide a root dir"));
+
+        // with root-dir, locally-relative links can still fail because
+        // there is no current base URL
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--root-dir")
+            .arg(dir.path())
+            .arg("--default-extension=md")
+            .write_stdin("[a](a)")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot parse 'a' into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
+
+        // with root-dir, root-relative links should succeed
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--root-dir")
+            .arg(dir.path())
+            .arg("--default-extension=md")
+            .write_stdin("[a](/)")
+            .assert()
+            .success();
+
+        // with an explicit base-url, root-relative and locally-relative links work. yay!
+        // both should become relative to the base-url.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("-vv")
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/)")
+            .assert()
+            .success()
+            .stderr(contains("https://lychee.cli.rs/"));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("-vv")
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg("--default-extension=md")
+            .write_stdin("[a](.)")
+            .assert()
+            .success()
+            .stderr(contains("https://lychee.cli.rs/"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_base_url_applies_to_local() {
+        cargo_bin_cmd!()
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg(fixtures_path!().join("resolve_paths/index.html"))
+            .assert()
+            .failure()
+            .stdout(contains("https://lychee.cli.rs/another%20page"));
     }
 
     /// URLs should NOT be downloaded fully, unless fragment checking is on and the link has a fragment.

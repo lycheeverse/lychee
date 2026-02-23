@@ -98,7 +98,7 @@ pub use crate::{
     collector::Collector,
     filter::{Excludes, Filter, Includes},
     types::{
-        Base, BasicAuthCredentials, BasicAuthSelector, CacheStatus, CookieJar, ErrorKind,
+        BaseInfo, BasicAuthCredentials, BasicAuthSelector, CacheStatus, CookieJar, ErrorKind,
         FileExtensions, FileType, Input, InputContent, InputResolver, InputSource, LycheeResult,
         Preprocessor, Redirect, Redirects, Request, RequestError, ResolvedInputSource, Response,
         ResponseBody, Result, Status, StatusCodeSelector, StatusRange, StatusRangeError,

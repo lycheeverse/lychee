@@ -1,6 +1,6 @@
 use crate::files_from::FilesFrom;
 use crate::generate::GenerateMode;
-use crate::parse::parse_base;
+use crate::parse::parse_base_info;
 use crate::verbosity::Verbosity;
 use anyhow::{Context, Error, Result, anyhow};
 use clap::builder::PossibleValuesParser;
@@ -12,7 +12,7 @@ use http::{
 };
 use lychee_lib::ratelimit::HostConfigs;
 use lychee_lib::{
-    Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+    BaseInfo, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, FileExtensions, FileType, Input,
     StatusCodeSelector, archive::Archive,
 };
@@ -38,10 +38,10 @@ const HELP_MSG_CACHE: &str = formatcp!(
 // provided a custom value. If they didn't, we won't throw an error if
 // the file doesn't exist.
 const HELP_MSG_CONFIG_FILE: &str = formatcp!(
-    "Configuration file to use.
-This option can be specified multiple times.
-Multiple configs are merged into a single config.
-Later occurrences take precedence over previous occurrences.
+    "Configuration file to use. Can be specified multiple times.
+
+If given multiple times, the configs are merged and later
+occurrences take precedence over previous occurrences.
 
 [default: {}]",
     LYCHEE_CONFIG_FILE,
@@ -262,8 +262,7 @@ impl HeaderMapExt for HeaderMap {
 }
 
 /// lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses
-/// in local files and websites. It supports Markdown and HTML and works well
-/// with many plain text file formats.
+/// in local files and websites. It supports Markdown and HTML and works with other file formats.
 ///
 /// lychee is powered by lychee-lib, the Rust library for link checking.
 #[derive(Parser, Debug)]
@@ -435,8 +434,7 @@ pub(crate) struct Config {
     #[serde(default)]
     pub(crate) dump_inputs: bool,
 
-    /// Specify the use of a specific web archive.
-    /// Can be used in combination with `--suggest`
+    /// Web archive to use to provide suggestions for `--suggest`.
     ///
     /// [default: wayback]
     #[arg(long, value_parser = PossibleValuesParser::new(Archive::VARIANTS).map(|s| s.parse::<Archive>().unwrap()))]
@@ -684,9 +682,9 @@ pub(crate) struct Config {
     method: Option<String>,
 
     /// Deprecated; use `--base-url` instead
-    #[arg(long, value_parser = parse_base)]
+    #[arg(long, value_parser = parse_base_info)]
     #[serde(skip)]
-    pub(crate) base: Option<Base>,
+    pub(crate) base: Option<BaseInfo>,
 
     /// Base URL to use when resolving relative URLs in local files. If specified,
     /// relative links in local files are interpreted as being relative to the given
@@ -710,10 +708,10 @@ pub(crate) struct Config {
     #[arg(
         short,
         long,
-        value_parser = parse_base,
+        value_parser = parse_base_info,
         verbatim_doc_comment
     )]
-    pub(crate) base_url: Option<Base>,
+    pub(crate) base_url: Option<BaseInfo>,
 
     /// Root directory to use when checking absolute links in local files. This option is
     /// required if absolute links appear in local files, otherwise those links will be
