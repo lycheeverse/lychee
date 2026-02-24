@@ -4,8 +4,8 @@ use crate::{BasicAuthCredentials, ErrorKind, Uri, types::uri::raw::RawUriSpan};
 
 use super::ResolvedInputSource;
 
-/// A URI which was extracted by lychee.
-/// Can be checked as a next step.
+/// A checkable element extracted from a document by lychee,
+/// containing a URI and its location within the source.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Request {
     /// The extracted Uniform Resource Identifier
@@ -20,7 +20,7 @@ pub struct Request {
     /// In case of plaintext input the field is `None`.
     pub element: Option<String>,
 
-    /// What attribute (e.g. `href`) URI is contained in
+    /// What attribute (e.g. `href`) the URI is contained in
     pub attribute: Option<String>,
 
     /// Where the URI is located
