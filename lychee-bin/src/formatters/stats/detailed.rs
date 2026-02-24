@@ -144,7 +144,7 @@ mod tests {
 ⛔ Unsupported......1
 
 Errors in https://example.com/
-[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | 404 Not Found: Not Found
+[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found
 
 Suggestions in https://example.com/
 https://original.dev/ --> https://suggestion.dev/

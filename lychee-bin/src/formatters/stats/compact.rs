@@ -1,7 +1,7 @@
 use anyhow::Result;
 use console::Style;
 use std::{
-    fmt::{self, Display},
+    fmt::{self, Display, Formatter},
     sync::LazyLock,
     time::Duration,
 };
@@ -10,6 +10,7 @@ use crate::formatters::{
     color::{BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, NORMAL, color},
     get_response_formatter,
     host_stats::CompactHostStats,
+    response::ResponseFormatter,
     stats::{OutputStats, ResponseStats},
 };
 use crate::options;
@@ -44,24 +45,8 @@ impl Display for CompactResponseStats {
 
         for (source, responses) in super::sort_stat_map(&stats.error_map) {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
-            for response in responses {
-                writeln!(f, "{}", response_formatter.format_response(response))?;
-            }
-
-            if let Some(suggestions) = stats.suggestion_map.get(source) {
-                // Sort suggestions
-                let mut sorted_suggestions: Vec<_> = suggestions.iter().collect();
-                sorted_suggestions.sort_by(|a, b| {
-                    let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-                    numeric_sort::cmp(&a, &b)
-                });
-
-                writeln!(f, "\nℹ Suggestions")?;
-                for suggestion in sorted_suggestions {
-                    writeln!(f, "{suggestion}")?;
-                }
-            }
-
+            write_responses(f, &*response_formatter, responses)?;
+            write_suggestions(f, stats, source)?;
             writeln!(f)?;
         }
 
@@ -86,6 +71,40 @@ impl Display for CompactResponseStats {
 
         Ok(())
     }
+}
+
+fn write_responses(
+    f: &mut Formatter<'_>,
+    response_formatter: &dyn ResponseFormatter,
+    responses: Vec<&lychee_lib::ResponseBody>,
+) -> Result<(), fmt::Error> {
+    for response in responses {
+        writeln!(f, "{}", response_formatter.format_response(response))?;
+    }
+
+    Ok(())
+}
+
+fn write_suggestions(
+    f: &mut Formatter<'_>,
+    stats: &ResponseStats,
+    source: &lychee_lib::InputSource,
+) -> Result<(), fmt::Error> {
+    if let Some(suggestions) = stats.suggestion_map.get(source) {
+        // Sort suggestions
+        let mut sorted_suggestions: Vec<_> = suggestions.iter().collect();
+        sorted_suggestions.sort_by(|a, b| {
+            let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
+            numeric_sort::cmp(&a, &b)
+        });
+
+        writeln!(f, "\nℹ Suggestions")?;
+        for suggestion in sorted_suggestions {
+            writeln!(f, "{suggestion}")?;
+        }
+    }
+
+    Ok(())
 }
 
 fn write_if_any(
@@ -149,7 +168,7 @@ mod tests {
             "Issues found in 1 input. Find details below.
 
 [https://example.com/]:
-[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | 404 Not Found: Not Found
+[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found
 
 ℹ Suggestions
 https://original.dev/ --> https://suggestion.dev/

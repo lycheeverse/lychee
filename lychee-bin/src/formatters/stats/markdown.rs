@@ -80,7 +80,7 @@ fn markdown_response(response: &ResponseBody) -> Result<String> {
     );
 
     if let Some(span) = response.span {
-        formatted = format!("{formatted} at {span}");
+        formatted = format!("{formatted} (at {span})");
     }
 
     if let Status::Ok(StatusCode::OK) = response.status {
@@ -196,7 +196,7 @@ mod tests {
             span: SPAN,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(markdown, "* [200] <http://example.com/> at 1:1");
+        assert_eq!(markdown, "* [200] <http://example.com/> (at 1:1)");
     }
 
     #[test]
@@ -209,7 +209,7 @@ mod tests {
         let markdown = markdown_response(&response).unwrap();
         assert_eq!(
             markdown,
-            "* [200] <http://example.com/> at 1:1 | OK (cached)"
+            "* [200] <http://example.com/> (at 1:1) | OK (cached)"
         );
     }
 
@@ -223,7 +223,7 @@ mod tests {
         let markdown = markdown_response(&response).unwrap();
         assert_eq!(
             markdown,
-            "* [400] <http://example.com/> at 1:1 | Error (cached)"
+            "* [400] <http://example.com/> (at 1:1) | Error (cached)"
         );
     }
 
@@ -264,7 +264,7 @@ mod tests {
 
 ### Errors in https://example.com/
 
-* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> | 404 Not Found: Not Found
+* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> (at 1:1) | 404 Not Found: Not Found
 
 ## Redirects per input
 

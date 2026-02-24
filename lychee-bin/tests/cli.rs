@@ -625,7 +625,7 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(
-                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man at 3:9 | Rejected status code: 404 Not Found (configurable with "accept" option)"#
+                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 3:9) | Rejected status code: 404 Not Found (configurable with "accept" option)"#
             ))
             .stderr(contains(
                 "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
@@ -1304,11 +1304,11 @@ The config file should contain every possible key for documentation purposes."
         // Run again to verify cache behavior
         cmd.assert()
             .stderr(contains(format!(
-                "[200] {}/ at 1:1 | OK (cached)\n",
+                "[200] {}/ (at 1:1) | OK (cached)\n",
                 mock_server_ok.uri()
             )))
             .stderr(contains(format!(
-                "[404] {}/ at 2:1 | Error (cached)\n",
+                "[404] {}/ (at 2:1) | Error (cached)\n",
                 mock_server_err.uri()
             )));
 
@@ -1360,13 +1360,13 @@ The config file should contain every possible key for documentation purposes."
         // Run first without cache to generate the cache file
         test_cmd
             .assert()
-            .stderr(contains(format!("[200] {}/ at 1:1\n", mock_server_ok.uri())))
+            .stderr(contains(format!("[200] {}/ (at 1:1)\n", mock_server_ok.uri())))
             .stderr(contains(format!(
-                "[204] {}/ at 2:1 | 204 No Content: No Content\n",
+                "[204] {}/ (at 2:1) | 204 No Content: No Content\n",
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
-                "[429] {}/ at 3:1 | Rejected status code: 429 Too Many Requests (configurable with \"accept\" option)",
+                "[429] {}/ (at 3:1) | Rejected status code: 429 Too Many Requests (configurable with \"accept\" option)",
                 mock_server_too_many_requests.uri()
             )));
 
@@ -1424,11 +1424,11 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[418] {}/ at 2:1 | Rejected status code: 418 I'm a teapot (configurable with "accept" option)"#,
+                r#"[418] {}/ (at 2:1) | Rejected status code: 418 I'm a teapot (configurable with "accept" option)"#,
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                r#"[500] {}/ at 3:1 | Rejected status code: 500 Internal Server Error (configurable with "accept" option)"#,
+                r#"[500] {}/ (at 3:1) | Rejected status code: 500 Internal Server Error (configurable with "accept" option)"#,
                 mock_server_server_error.uri()
             )));
 
@@ -1447,11 +1447,11 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stderr(contains(format!(
-                "[418] {}/ at 2:1 | OK (cached)",
+                "[418] {}/ (at 2:1) | OK (cached)",
                 mock_server_teapot.uri()
             )))
             .stderr(contains(format!(
-                "[500] {}/ at 3:1 | OK (cached)",
+                "[500] {}/ (at 3:1) | OK (cached)",
                 mock_server_server_error.uri()
             )));
 
@@ -1474,7 +1474,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[200] {}/ at 1:1 | Rejected status code: 200 OK (configurable with "accept" option)"#,
+                r#"[200] {}/ (at 1:1) | Rejected status code: 200 OK (configurable with "accept" option)"#,
                 mock_server_200.uri()
             )));
 
@@ -1506,9 +1506,9 @@ The config file should contain every possible key for documentation purposes."
             .arg("-")
             .assert()
             .stderr(contains(format!(
-                "[IGNORED] {unsupported_url} at 1:1 | Unsupported: Error creating request client"
+                "[IGNORED] {unsupported_url} (at 1:1) | Unsupported: Error creating request client"
             )))
-            .stderr(contains(format!("[EXCLUDED] {excluded_url} at 2:1\n")));
+            .stderr(contains(format!("[EXCLUDED] {excluded_url} (at 2:1)\n")));
 
         // The cache file should be empty, because the only checked URL is
         // unsupported and we don't want to cache that. It might be supported in
