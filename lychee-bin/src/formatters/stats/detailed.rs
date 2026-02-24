@@ -10,22 +10,20 @@ use crate::{
 
 use anyhow::Result;
 use lychee_lib::InputSource;
-use pad::{Alignment, PadStr};
 use std::{
     collections::HashSet,
     fmt::{self, Display},
 };
 // Maximum padding for each entry in the final statistics output
-const MAX_PADDING: usize = 20;
+const WIDTH: usize = 20;
 
 fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -> fmt::Result {
-    let fill = title.chars().count();
     f.write_str(title)?;
-    f.write_str(
-        &stat
-            .to_string()
-            .pad(MAX_PADDING - fill, '.', Alignment::Right, false),
-    )?;
+
+    let stat = stat.to_string();
+    let spacing = WIDTH.saturating_sub(title.chars().count());
+
+    f.write_str(format!("{stat:.>spacing$}").as_str())?;
 
     if newline {
         f.write_str("\n")?;
@@ -45,7 +43,7 @@ struct DetailedResponseStats {
 impl Display for DetailedResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let stats = &self.stats;
-        let separator = "-".repeat(MAX_PADDING + 1);
+        let separator = "-".repeat(WIDTH + 1);
 
         writeln!(f, "📝 Summary")?;
         writeln!(f, "{separator}")?;

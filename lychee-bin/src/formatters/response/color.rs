@@ -39,12 +39,7 @@ impl ColorFormatter {
         // Calculate the effective padding. Ensure it's non-negative to avoid panic.
         let padding = MAX_RESPONSE_OUTPUT_WIDTH.saturating_sub(status_code_or_text.len() + 2); // +2 for brackets
 
-        format!(
-            "{}[{:>width$}]",
-            " ".repeat(padding),
-            status_code_or_text,
-            width = status_code_or_text.len()
-        )
+        format!("{}[{}]", " ".repeat(padding), status_code_or_text)
     }
 
     /// Color and format the response status.
