@@ -53,12 +53,18 @@ pub struct RawUriSpan {
     /// The column of the URI if computable.
     ///
     /// The column is 1-based.
-    pub column: NonZeroUsize,
+    /// This is `None`, if the column can't be computed exactly,
+    /// e.g. when it comes from the `html5ever` parser.
+    pub column: Option<NonZeroUsize>,
 }
 
 impl Display for RawUriSpan {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}", self.line, self.column)
+        if let Some(column) = self.column {
+            write!(f, "{}:{}", self.line, column)
+        } else {
+            write!(f, "{}", self.line)
+        }
     }
 }
 
@@ -67,7 +73,16 @@ impl Display for RawUriSpan {
 pub(crate) const fn span(line: usize, column: usize) -> RawUriSpan {
     RawUriSpan {
         line: NonZeroUsize::new(line).unwrap(),
-        column: NonZeroUsize::new(column).unwrap(),
+        column: Some(NonZeroUsize::new(column).unwrap()),
+    }
+}
+
+/// Test helper to create a [`RawUriSpan`] from just the line and leave the column unset.
+#[cfg(test)]
+pub(crate) const fn span_line(line: usize) -> RawUriSpan {
+    RawUriSpan {
+        line: std::num::NonZeroUsize::new(line).unwrap(),
+        column: None,
     }
 }
 
@@ -124,13 +139,14 @@ impl SpanProvider for SourceSpanProvider<'_> {
         let column = self
             .input
             .get(line_offset..offset)
-            .unwrap_or_else(|| &self.input[line_offset..]); // As line_offset marks the beginning of a line it shouldn't panic.
+            .or_else(|| self.input.get(line_offset..))
+            // columns are 1-based
+            .map(|v| ONE.saturating_add(v.chars().count()));
 
         RawUriSpan {
             // lines are 1-based
             line: ONE.saturating_add(line),
-            // columns are 1-based
-            column: ONE.saturating_add(column.chars().count()),
+            column,
         }
     }
 }

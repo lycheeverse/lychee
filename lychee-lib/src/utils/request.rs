@@ -149,7 +149,7 @@ mod tests {
 
     const SPAN: RawUriSpan = RawUriSpan {
         line: NonZeroUsize::MIN,
-        column: NonZeroUsize::MIN,
+        column: Some(NonZeroUsize::MIN),
     };
 
     /// Create requests from the given raw URIs and returns requests that were

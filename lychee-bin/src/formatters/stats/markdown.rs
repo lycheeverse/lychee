@@ -185,7 +185,7 @@ mod tests {
 
     const SPAN: Option<RawUriSpan> = Some(RawUriSpan {
         line: NonZeroUsize::MIN,
-        column: NonZeroUsize::MIN,
+        column: Some(NonZeroUsize::MIN),
     });
 
     #[test]
