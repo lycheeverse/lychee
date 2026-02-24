@@ -31,25 +31,47 @@ pub struct Request {
 }
 
 impl Request {
-    /// Instantiate a new `Request` object
+    /// Instantiate a new `Request` object,
+    /// with optional fields set to `None`
     #[inline]
     #[must_use]
-    pub const fn new(
-        uri: Uri,
-        source: ResolvedInputSource,
-        element: Option<String>,
-        attribute: Option<String>,
-        span: Option<RawUriSpan>,
-        credentials: Option<BasicAuthCredentials>,
-    ) -> Self {
+    pub const fn new(uri: Uri, source: ResolvedInputSource) -> Self {
         Request {
             uri,
             source,
-            element,
-            attribute,
-            span,
-            credentials,
+            element: None,
+            attribute: None,
+            span: None,
+            credentials: None,
         }
+    }
+
+    /// Set [`Self::element`]
+    #[must_use]
+    pub fn with_element(mut self, element: String) -> Self {
+        self.element = Some(element);
+        self
+    }
+
+    /// Set [`Self::attribute`]
+    #[must_use]
+    pub fn with_attribute(mut self, attribute: String) -> Self {
+        self.attribute = Some(attribute);
+        self
+    }
+
+    /// Set [`Self::span`]
+    #[must_use]
+    pub const fn with_span(mut self, span: RawUriSpan) -> Self {
+        self.span = Some(span);
+        self
+    }
+
+    /// Set [`Self::credentials`]
+    #[must_use]
+    pub fn with_credentials(mut self, credentials: BasicAuthCredentials) -> Self {
+        self.credentials = Some(credentials);
+        self
     }
 }
 
@@ -66,10 +88,6 @@ impl TryFrom<Uri> for Request {
         Ok(Request::new(
             uri.clone(),
             ResolvedInputSource::RemoteUrl(Box::new(uri.url)),
-            None,
-            None,
-            None,
-            None,
         ))
     }
 }
@@ -82,10 +100,6 @@ impl TryFrom<String> for Request {
         Ok(Request::new(
             uri,
             ResolvedInputSource::String(Cow::Owned(s)),
-            None,
-            None,
-            None,
-            None,
         ))
     }
 }
@@ -98,10 +112,6 @@ impl TryFrom<&str> for Request {
         Ok(Request::new(
             uri,
             ResolvedInputSource::String(Cow::Owned(s.to_owned())),
-            None,
-            None,
-            None,
-            None,
         ))
     }
 }

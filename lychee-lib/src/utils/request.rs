@@ -30,17 +30,17 @@ fn create_request(
     let source = source.clone();
     let element = raw_uri.element.clone();
     let attribute = raw_uri.attribute.clone();
-    let span = raw_uri.span;
+    let span = Some(raw_uri.span);
     let credentials = extract_credentials(extractor, &uri);
 
-    Ok(Request::new(
+    Ok(Request {
         uri,
         source,
         element,
         attribute,
-        Some(span),
+        span,
         credentials,
-    ))
+    })
 }
 
 /// Try to parse the raw URI into a `Uri`.
@@ -452,14 +452,11 @@ mod tests {
             actual,
             Request::new(
                 Uri {
-                    url: Url::from_file_path("/tmp/lychee/file.html").unwrap()
+                    url: Url::from_file_path("/tmp/lychee/file.html").unwrap(),
                 },
                 input_source,
-                None,
-                None,
-                Some(SPAN),
-                None,
             )
+            .with_span(SPAN)
         );
     }
 
@@ -510,14 +507,11 @@ mod tests {
             Request::new(
                 Uri {
                     url: Url::from_file_path("/tmp/lychee/usr/local/share/doc/example.html")
-                        .unwrap()
+                        .unwrap(),
                 },
                 input_source,
-                None,
-                None,
-                Some(SPAN),
-                None,
             )
+            .with_span(SPAN)
         );
     }
 
