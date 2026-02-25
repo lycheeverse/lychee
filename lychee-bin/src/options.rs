@@ -659,6 +659,11 @@ pub(crate) struct Config {
     #[arg(short, long, verbatim_doc_comment)]
     accept: Option<StatusCodeSelector>,
 
+    /// Accept timeout as a valid response
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) accept_timeout: bool,
+
     /// Enable the checking of fragments in links.
     #[arg(long)]
     #[serde(default)]
@@ -1003,6 +1008,7 @@ impl Config {
                 header,
             },
             bool {
+                accept_timeout,
                 cache,
                 dump,
                 dump_inputs,
