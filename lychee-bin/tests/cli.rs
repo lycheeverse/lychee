@@ -1513,7 +1513,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[TIMEOUT] {}/ | Timeout"#,
+                r#"[TIMEOUT] {}/ (at 1:1) | Timeout"#,
                 mock_server_timeout.uri()
             )));
 
@@ -1527,7 +1527,7 @@ The config file should contain every possible key for documentation purposes."
             .success()
             .code(0)
             .stdout(contains(format!(
-                r#"[TIMEOUT] {}/ | Timeout"#,
+                r#"[TIMEOUT] {}/ (at 1:1) | Timeout"#,
                 mock_server_timeout.uri()
             )));
 
