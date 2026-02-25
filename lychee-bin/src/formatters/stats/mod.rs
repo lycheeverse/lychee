@@ -81,6 +81,8 @@ where
 
 #[cfg(test)]
 fn get_dummy_stats() -> OutputStats {
+    use std::num::NonZeroUsize;
+
     use http::StatusCode;
     use lychee_lib::{RawUriSpan, Redirect, Redirects, ResponseBody, Status, ratelimit::HostStats};
     use url::Url;
@@ -96,8 +98,8 @@ fn get_dummy_stats() -> OutputStats {
                 .unwrap(),
             status: Status::Ok(StatusCode::NOT_FOUND),
             span: Some(RawUriSpan {
-                column: Some(1.try_into().unwrap()),
-                line: 1.try_into().unwrap(),
+                column: Some(NonZeroUsize::MIN),
+                line: NonZeroUsize::MIN,
             }),
         }]),
     )]);

@@ -4,8 +4,8 @@ use crate::{BasicAuthCredentials, ErrorKind, Uri, types::uri::raw::RawUriSpan};
 
 use super::ResolvedInputSource;
 
-/// A checkable element extracted from a document by lychee,
-/// containing a URI and its location within the source.
+/// A checkable element extracted from a [`ResolvedInputSource`],
+/// containing a [`Uri`] and additional metadata associated with it.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Request {
     /// The extracted Uniform Resource Identifier

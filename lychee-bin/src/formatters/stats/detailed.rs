@@ -20,9 +20,7 @@ const WIDTH: usize = 20;
 fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -> fmt::Result {
     f.write_str(title)?;
 
-    let stat = stat.to_string();
     let spacing = WIDTH.saturating_sub(title.chars().count());
-
     f.write_str(format!("{stat:.>spacing$}").as_str())?;
 
     if newline {
