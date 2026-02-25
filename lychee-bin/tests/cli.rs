@@ -1486,6 +1486,7 @@ The config file should contain every possible key for documentation purposes."
         let mock_server_timeout = mock_server!(StatusCode::OK, set_delay(Duration::from_secs(30)));
 
         cargo_bin_cmd!()
+            .arg("--max-retries=0")
             .arg("--timeout=1")
             .arg("-")
             .write_stdin(mock_server_timeout.uri())
@@ -1498,6 +1499,7 @@ The config file should contain every possible key for documentation purposes."
             )));
 
         cargo_bin_cmd!()
+            .arg("--max-retries=0")
             .arg("--timeout=1")
             .arg("--accept-timeouts")
             .arg("-")
