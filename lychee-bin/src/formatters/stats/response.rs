@@ -119,6 +119,13 @@ impl ResponseStats {
     }
 
     #[inline]
+    /// Check if the entire run was successful, ignoring timeouts
+    pub(crate) const fn is_success_ignoring_timeouts(&self) -> bool {
+        self.total
+            == self.successful + self.excludes + self.unsupported + self.redirects + self.timeouts
+    }
+
+    #[inline]
     #[cfg(test)]
     /// Check if no responses were received
     const fn is_empty(&self) -> bool {
