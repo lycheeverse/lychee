@@ -1499,7 +1499,7 @@ The config file should contain every possible key for documentation purposes."
 
         cargo_bin_cmd!()
             .arg("--timeout=1")
-            .arg("--accept-timeout")
+            .arg("--accept-timeouts")
             .arg("-")
             .write_stdin(mock_server_timeout.uri())
             .assert()

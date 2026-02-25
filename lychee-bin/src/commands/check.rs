@@ -49,7 +49,7 @@ where
     let cache = params.cache;
     let cache_exclude_status = params.cfg.cache_exclude_status().into();
     let accept = params.cfg.accept().into();
-    let accept_timeout = params.cfg.accept_timeout;
+    let accept_timeouts = params.cfg.accept_timeouts;
 
     // Start receiving requests
     let handle = tokio::spawn(request_channel_task(
@@ -104,7 +104,7 @@ where
         .await;
     }
 
-    let is_success = if accept_timeout {
+    let is_success = if accept_timeouts {
         stats.is_success_ignoring_timeouts()
     } else {
         stats.is_success()
