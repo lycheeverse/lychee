@@ -346,6 +346,9 @@ Options:
 
           [default: 100..=103,200..=299]
 
+      --accept-timeouts
+          Accept timeouts as valid links
+
       --archive <ARCHIVE>
           Web archive to use to provide suggestions for `--suggest`.
 
