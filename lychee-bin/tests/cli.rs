@@ -1482,6 +1482,38 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
+    async fn test_accept_timeout() -> Result<()> {
+        let mock_server_timeout = mock_server!(StatusCode::OK, set_delay(Duration::from_secs(30)));
+
+        cargo_bin_cmd!()
+            .arg("--timeout=1")
+            .arg("-")
+            .write_stdin(mock_server_timeout.uri())
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains(format!(
+                r#"[TIMEOUT] {}/ | Timeout"#,
+                mock_server_timeout.uri()
+            )));
+
+        cargo_bin_cmd!()
+            .arg("--timeout=1")
+            .arg("--accept-timeout")
+            .arg("-")
+            .write_stdin(mock_server_timeout.uri())
+            .assert()
+            .success()
+            .code(0)
+            .stdout(contains(format!(
+                r#"[TIMEOUT] {}/ | Timeout"#,
+                mock_server_timeout.uri()
+            )));
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_skip_cache_unsupported() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let base_path = dir.path();
