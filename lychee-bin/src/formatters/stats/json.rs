@@ -47,6 +47,10 @@ mod tests {
         "status": {
           "text": "404 Not Found",
           "code": 404
+        },
+        "span": {
+          "line": 1,
+          "column": 1
         }
       }
     ]

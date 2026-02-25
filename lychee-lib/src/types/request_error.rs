@@ -77,10 +77,16 @@ impl RequestError {
             RequestError::UserInputContent(_, e) => Err(e),
             e => {
                 let src = e.input_source();
+                let span = match &e {
+                    RequestError::CreateRequestItem(raw, _, _) => Some(raw.span),
+                    _ => None,
+                };
+
                 Ok(Response::new(
                     ERROR_URI.clone(),
                     Status::RequestError(e),
                     src,
+                    span,
                 ))
             }
         }

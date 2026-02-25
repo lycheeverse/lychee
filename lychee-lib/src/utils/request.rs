@@ -30,9 +30,17 @@ fn create_request(
     let source = source.clone();
     let element = raw_uri.element.clone();
     let attribute = raw_uri.attribute.clone();
+    let span = Some(raw_uri.span);
     let credentials = extract_credentials(extractor, &uri);
 
-    Ok(Request::new(uri, source, element, attribute, credentials))
+    Ok(Request {
+        uri,
+        source,
+        element,
+        attribute,
+        span,
+        credentials,
+    })
 }
 
 /// Try to parse the raw URI into a `Uri`.
@@ -139,6 +147,11 @@ mod tests {
 
     use super::*;
 
+    const SPAN: RawUriSpan = RawUriSpan {
+        line: NonZeroUsize::MIN,
+        column: Some(NonZeroUsize::MIN),
+    };
+
     /// Create requests from the given raw URIs and returns requests that were
     /// constructed successfully, silently ignoring link parsing errors.
     ///
@@ -163,10 +176,7 @@ mod tests {
             text: text.to_string(),
             element: None,
             attribute: None,
-            span: RawUriSpan {
-                line: NonZeroUsize::MAX,
-                column: None,
-            },
+            span: SPAN,
         }
     }
 
@@ -442,13 +452,11 @@ mod tests {
             actual,
             Request::new(
                 Uri {
-                    url: Url::from_file_path("/tmp/lychee/file.html").unwrap()
+                    url: Url::from_file_path("/tmp/lychee/file.html").unwrap(),
                 },
                 input_source,
-                None,
-                None,
-                None,
             )
+            .with_span(SPAN)
         );
     }
 
@@ -499,13 +507,11 @@ mod tests {
             Request::new(
                 Uri {
                     url: Url::from_file_path("/tmp/lychee/usr/local/share/doc/example.html")
-                        .unwrap()
+                        .unwrap(),
                 },
                 input_source,
-                None,
-                None,
-                None,
             )
+            .with_span(SPAN)
         );
     }
 

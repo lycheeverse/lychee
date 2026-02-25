@@ -1,5 +1,7 @@
 use std::{fmt::Display, num::NonZeroUsize};
 
+use serde::Serialize;
+
 /// A raw URI that got extracted from a document with a fuzzy parser.
 /// Note that this can still be invalid according to stricter URI standards
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -42,7 +44,7 @@ impl From<(&str, RawUriSpan)> for RawUri {
 /// A span of a [`RawUri`] in the document.
 ///
 /// The span can be used to give more precise error messages.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
 pub struct RawUriSpan {
     /// The line of the URI.
     ///
@@ -54,6 +56,16 @@ pub struct RawUriSpan {
     /// This is `None`, if the column can't be computed exactly,
     /// e.g. when it comes from the `html5ever` parser.
     pub column: Option<NonZeroUsize>,
+}
+
+impl Display for RawUriSpan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(column) = self.column {
+            write!(f, "{}:{}", self.line, column)
+        } else {
+            write!(f, "{}", self.line)
+        }
+    }
 }
 
 /// Test helper to create [`RawUriSpan`]s easily.

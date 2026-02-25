@@ -194,6 +194,10 @@ mod cli {
         let expected_success_map = serde_json::json!({
             "stdin": [
                 {
+                    "span": {
+                        "column": 1,
+                        "line": 1,
+                    },
                     "status": {
                         "code": 200,
                         "text": "200 OK"
@@ -610,43 +614,6 @@ mod cli {
     }
 
     #[test]
-    fn test_caching_single_file() {
-        // Repetitions in one file shall all be checked and counted only once.
-        let test_schemes_path_1 = fixtures_path!().join("TEST_REPETITION_1.txt");
-
-        cargo_bin_cmd!()
-            .arg(&test_schemes_path_1)
-            .env_clear()
-            .assert()
-            .success()
-            .stdout(contains("1 Total"))
-            .stdout(contains("1 OK"));
-    }
-
-    #[test]
-    // Test that two identical requests don't get executed twice.
-    fn test_caching_across_files() -> Result<()> {
-        // Repetitions across multiple files shall all be checked only once.
-        let repeated_uris = fixtures_path!().join("TEST_REPETITION_*.txt");
-
-        test_json_output!(
-            repeated_uris,
-            MockResponseStats {
-                total: 2,
-                cached: 1,
-                successful: 2,
-                excludes: 0,
-                ..MockResponseStats::default()
-            },
-            // Two requests to the same URI may be executed in parallel. As a
-            // result, the response might not be cached and the test would be
-            // flaky. Therefore limit the concurrency to one request at a time.
-            "--max-concurrency",
-            "1"
-        )
-    }
-
-    #[test]
     fn test_failure_github_404_no_token() {
         let test_github_404_path = fixtures_path!().join("TEST_GITHUB_404.md");
 
@@ -658,7 +625,7 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(
-                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Rejected status code: 404 Not Found (configurable with "accept" option)"#
+                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 3:9) | Rejected status code: 404 Not Found (configurable with "accept" option)"#
             ))
             .stderr(contains(
                 "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
@@ -1337,11 +1304,11 @@ The config file should contain every possible key for documentation purposes."
         // Run again to verify cache behavior
         cmd.assert()
             .stderr(contains(format!(
-                "[200] {}/ | OK (cached)\n",
+                "[200] {}/ (at 1:1) | OK (cached)\n",
                 mock_server_ok.uri()
             )))
             .stderr(contains(format!(
-                "[404] {}/ | Error (cached)\n",
+                "[404] {}/ (at 2:1) | Error (cached)\n",
                 mock_server_err.uri()
             )));
 
@@ -1393,13 +1360,13 @@ The config file should contain every possible key for documentation purposes."
         // Run first without cache to generate the cache file
         test_cmd
             .assert()
-            .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
+            .stderr(contains(format!("[200] {}/ (at 1:1)\n", mock_server_ok.uri())))
             .stderr(contains(format!(
-                "[204] {}/ | 204 No Content: No Content\n",
+                "[204] {}/ (at 2:1) | 204 No Content: No Content\n",
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
-                "[429] {}/ | Rejected status code: 429 Too Many Requests (configurable with \"accept\" option)",
+                "[429] {}/ (at 3:1) | Rejected status code: 429 Too Many Requests (configurable with \"accept\" option)",
                 mock_server_too_many_requests.uri()
             )));
 
@@ -1457,11 +1424,11 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[418] {}/ | Rejected status code: 418 I'm a teapot (configurable with "accept" option)"#,
+                r#"[418] {}/ (at 2:1) | Rejected status code: 418 I'm a teapot (configurable with "accept" option)"#,
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                r#"[500] {}/ | Rejected status code: 500 Internal Server Error (configurable with "accept" option)"#,
+                r#"[500] {}/ (at 3:1) | Rejected status code: 500 Internal Server Error (configurable with "accept" option)"#,
                 mock_server_server_error.uri()
             )));
 
@@ -1480,11 +1447,11 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stderr(contains(format!(
-                "[418] {}/ | OK (cached)",
+                "[418] {}/ (at 2:1) | OK (cached)",
                 mock_server_teapot.uri()
             )))
             .stderr(contains(format!(
-                "[500] {}/ | OK (cached)",
+                "[500] {}/ (at 3:1) | OK (cached)",
                 mock_server_server_error.uri()
             )));
 
@@ -1507,7 +1474,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[200] {}/ | Rejected status code: 200 OK (configurable with "accept" option)"#,
+                r#"[200] {}/ (at 1:1) | Rejected status code: 200 OK (configurable with "accept" option)"#,
                 mock_server_200.uri()
             )));
 
@@ -1539,9 +1506,9 @@ The config file should contain every possible key for documentation purposes."
             .arg("-")
             .assert()
             .stderr(contains(format!(
-                "[IGNORED] {unsupported_url} | Unsupported: Error creating request client"
+                "[IGNORED] {unsupported_url} (at 1:1) | Unsupported: Error creating request client"
             )))
-            .stderr(contains(format!("[EXCLUDED] {excluded_url}\n")));
+            .stderr(contains(format!("[EXCLUDED] {excluded_url} (at 2:1)\n")));
 
         // The cache file should be empty, because the only checked URL is
         // unsupported and we don't want to cache that. It might be supported in
@@ -1598,7 +1565,7 @@ The config file should contain every possible key for documentation purposes."
         // such a response isn't cached.
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .respond_with(ResponseTemplate::new(429))
-            .up_to_n_times(1)
+            .up_to_n_times(2)
             .mount(&server)
             .await;
 
@@ -1609,9 +1576,10 @@ The config file should contain every possible key for documentation purposes."
             .await;
 
         let temp_dir = tempfile::tempdir()?;
-        for i in 0..9 {
+        for i in 0..4 {
             let test_md1 = temp_dir.path().join(format!("test{i}.md"));
-            fs::write(&test_md1, server.uri())?;
+            let duplicate_url_content = format!("{}\n{}", server.uri(), server.uri());
+            fs::write(&test_md1, duplicate_url_content)?;
         }
 
         cargo_bin_cmd!()
@@ -1619,14 +1587,15 @@ The config file should contain every possible key for documentation purposes."
             .arg("--host-stats")
             .assert()
             .success()
-            .stdout(contains("9 Total"))
-            .stdout(contains("9 OK"))
+            .stdout(contains("8 Total"))
+            .stdout(contains("8 OK"))
             .stdout(contains("0 Errors"))
             // Per-host statistics
-            // 1 rate limited + 9 OK
+            // 2 rate limited + 8 OK
             .stdout(contains("10 reqs"))
-            // 1 rate limited, 1 OK, 8 cached
-            .stdout(contains("80.0% cached"));
+            .stdout(contains("80.0% success"))
+            // 2 rate limited, 1 OK, 7 cached
+            .stdout(contains("70.0% cached"));
 
         server.verify().await;
         Ok(())
@@ -2244,13 +2213,19 @@ The config file should contain every possible key for documentation purposes."
     #[test]
     fn test_fragments() {
         let input = fixtures_path!().join("fragments");
-
-        let mut result = cargo_bin_cmd!()
+        let result = cargo_bin_cmd!()
             .arg("--include-fragments")
+            .arg("--format=json")
             .arg("-vv")
             .arg(input)
             .assert()
             .failure();
+
+        let output = std::str::from_utf8(&result.get_output().stdout).unwrap();
+        let json: Value = serde_json::from_str(output).unwrap();
+
+        let actual_successes = extract_urls(&json["success_map"]);
+        let actual_errors = extract_urls(&json["error_map"]);
 
         let expected_successes = vec![
             "fixtures/fragments/empty_dir",
@@ -2286,7 +2261,7 @@ The config file should contain every possible key for documentation purposes."
             "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
         ];
 
-        let expected_failures = vec![
+        let expected_errors = vec![
             "fixtures/fragments/sub_dir_non_existing_1",
             "fixtures/fragments/sub_dir#non-existing-fragment-2",
             "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
@@ -2301,36 +2276,35 @@ The config file should contain every possible key for documentation purposes."
             "https://github.com/lycheeverse/lychee#non-existent-anchor",
         ];
 
-        // the stdout/stderr format looks like this:
-        //
-        //     [ERROR] https://github.com/lycheeverse/lychee#non-existent-anchor | Cannot find fragment
-        //     [200] file:///home/rina/progs/lychee/fixtures/fragments/file.html#a-word
-        //
-        // errors are printed to both, but 200s are printed to stderr only.
-        // we take advantage of this to ensure that good URLs do not appear
-        // in stdout, and bad URLs do appear in stdout.
-        //
-        // also, a space or newline is appended to the URL to prevent
-        // incorrect matches where one URL is a prefix of another.
-        for good_url in &expected_successes {
-            // additionally checks that URL is within stderr to ensure that
-            // the URL is detected by lychee.
-            result = result
-                .stdout(contains(format!("{good_url} ")).not())
-                .stderr(contains(format!("{good_url}\n")));
-        }
-        for bad_url in &expected_failures {
-            result = result.stdout(contains(format!("{bad_url} ")));
+        assert_eq!(actual_successes.len(), expected_successes.len());
+        assert_eq!(actual_errors.len(), expected_errors.len());
+
+        for good_url in expected_successes {
+            assert!(
+                actual_successes.iter().any(|url| url.ends_with(good_url)),
+                "Expected {good_url} to be a success"
+            );
         }
 
-        let ok_num = expected_successes.len();
-        let err_num = expected_failures.len();
-        let total_num = ok_num + err_num;
-        result
-            .stdout(contains(format!("{ok_num} OK")))
-            // Failures because of missing fragments or failed binary body scan
-            .stdout(contains(format!("{err_num} Errors")))
-            .stdout(contains(format!("{total_num} Total")));
+        for bad_url in &expected_errors {
+            assert!(
+                actual_errors.iter().any(|url| url.ends_with(bad_url)),
+                "Expected {bad_url} to be an error"
+            );
+        }
+
+        fn extract_urls(json: &Value) -> HashSet<&str> {
+            json.as_object()
+                .unwrap()
+                .into_iter()
+                .flat_map(|(_, file)| {
+                    file.as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|o| o.as_object().unwrap()["url"].as_str().unwrap())
+                })
+                .collect()
+        }
     }
 
     #[test]
@@ -2442,7 +2416,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the output is in JSON format
         let output = std::str::from_utf8(&output.stdout)?;
-        let json: serde_json::Value = serde_json::from_str(output)?;
+        let json: Value = serde_json::from_str(output)?;
         assert_eq!(json["total"], 1);
 
         Ok(())
@@ -2470,6 +2444,10 @@ The config file should contain every possible key for documentation purposes."
                 json["redirect_map"],
                 json!({
                 "stdin":[{
+                    "span": {
+                        "column": 1,
+                        "line": 1,
+                    },
                     "status": {
                         "code": 200,
                         "text": "Redirect",
@@ -2507,7 +2485,7 @@ The config file should contain every possible key for documentation purposes."
                 .unwrap();
 
             let stdout = str::from_utf8(&output.stdout).unwrap().to_string();
-            let json: serde_json::Value = serde_json::from_str(stdout.as_str()).unwrap();
+            let json: Value = serde_json::from_str(stdout.as_str()).unwrap();
             let stderr = str::from_utf8(&output.stderr).unwrap().to_string();
 
             (json, stderr)

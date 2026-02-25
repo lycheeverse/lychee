@@ -97,6 +97,6 @@ pub use crate::{
         FileExtensions, FileType, Input, InputContent, InputResolver, InputSource, LycheeResult,
         Preprocessor, Redirect, Redirects, Request, RequestError, ResolvedInputSource, Response,
         ResponseBody, Result, Status, StatusCodeSelector, StatusRange, StatusRangeError,
-        uri::raw::RawUri, uri::valid::Uri,
+        uri::raw::RawUri, uri::raw::RawUriSpan, uri::valid::Uri,
     },
 };

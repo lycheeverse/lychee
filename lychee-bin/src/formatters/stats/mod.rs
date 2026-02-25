@@ -81,8 +81,10 @@ where
 
 #[cfg(test)]
 fn get_dummy_stats() -> OutputStats {
+    use std::num::NonZeroUsize;
+
     use http::StatusCode;
-    use lychee_lib::{Redirect, Redirects, ResponseBody, Status, ratelimit::HostStats};
+    use lychee_lib::{RawUriSpan, Redirect, Redirects, ResponseBody, Status, ratelimit::HostStats};
     use url::Url;
 
     use crate::formatters::suggestion::Suggestion;
@@ -95,6 +97,10 @@ fn get_dummy_stats() -> OutputStats {
                 .try_into()
                 .unwrap(),
             status: Status::Ok(StatusCode::NOT_FOUND),
+            span: Some(RawUriSpan {
+                column: Some(NonZeroUsize::MIN),
+                line: NonZeroUsize::MIN,
+            }),
         }]),
     )]);
 
@@ -121,6 +127,7 @@ fn get_dummy_stats() -> OutputStats {
         HashSet::from([ResponseBody {
             uri: "https://redirected.dev".try_into().unwrap(),
             status: Status::Redirected(StatusCode::OK, redirects),
+            span: None,
         }]),
     )]);
 
@@ -176,7 +183,7 @@ mod tests {
     fn make_test_response(url_str: &str, source: InputSource) -> Response {
         let uri = Uri::from(make_test_url(url_str));
 
-        Response::new(uri, Status::Error(ErrorKind::EmptyUrl), source)
+        Response::new(uri, Status::Error(ErrorKind::EmptyUrl), source, None)
     }
 
     #[test]

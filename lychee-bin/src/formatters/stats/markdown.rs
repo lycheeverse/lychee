@@ -79,6 +79,10 @@ fn markdown_response(response: &ResponseBody) -> Result<String> {
         response.uri,
     );
 
+    if let Some(span) = response.span {
+        formatted = format!("{formatted} (at {span})");
+    }
+
     if let Status::Ok(StatusCode::OK) = response.status {
         // Don't print anything else if the status code is 200.
         // The output gets too verbose then.
@@ -169,21 +173,30 @@ impl StatsFormatter for Markdown {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
+
     use http::StatusCode;
+    use lychee_lib::RawUriSpan;
     use lychee_lib::{CacheStatus, ResponseBody, Status, Uri};
 
     use crate::formatters::stats::get_dummy_stats;
 
     use super::*;
 
+    const SPAN: Option<RawUriSpan> = Some(RawUriSpan {
+        line: NonZeroUsize::MIN,
+        column: Some(NonZeroUsize::MIN),
+    });
+
     #[test]
     fn test_markdown_response_ok() {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Ok(StatusCode::OK),
+            span: SPAN,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(markdown, "* [200] <http://example.com/>");
+        assert_eq!(markdown, "* [200] <http://example.com/> (at 1:1)");
     }
 
     #[test]
@@ -191,9 +204,13 @@ mod tests {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Cached(CacheStatus::Ok(StatusCode::OK)),
+            span: SPAN,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(markdown, "* [200] <http://example.com/> | OK (cached)");
+        assert_eq!(
+            markdown,
+            "* [200] <http://example.com/> (at 1:1) | OK (cached)"
+        );
     }
 
     #[test]
@@ -201,9 +218,13 @@ mod tests {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Cached(CacheStatus::Error(Some(StatusCode::BAD_REQUEST))),
+            span: SPAN,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(markdown, "* [400] <http://example.com/> | Error (cached)");
+        assert_eq!(
+            markdown,
+            "* [400] <http://example.com/> (at 1:1) | Error (cached)"
+        );
     }
 
     #[test]
@@ -243,7 +264,7 @@ mod tests {
 
 ### Errors in https://example.com/
 
-* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> | 404 Not Found: Not Found
+* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> (at 1:1) | 404 Not Found: Not Found
 
 ## Redirects per input
 

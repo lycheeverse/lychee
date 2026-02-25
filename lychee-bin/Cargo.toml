@@ -35,7 +35,6 @@ humantime-serde = "1.1.1"
 numeric-sort = "0.1.5"
 indicatif = "0.18.4"
 log = "0.4.28"
-pad = "0.1.6"
 regex = "1.12.2"
 reqwest = "0.13.2"
 
