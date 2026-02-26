@@ -550,8 +550,11 @@ impl Client {
                 Status::Excluded,
                 source.into(),
                 span,
+                None,
             ));
         }
+
+        let start = std::time::Instant::now(); // Measure check time
 
         let status = match uri.scheme() {
             _ if uri.is_tel() => Status::Excluded, // We don't check tel: URIs
@@ -560,7 +563,13 @@ impl Client {
             _ => self.check_website(uri, credentials).await?,
         };
 
-        Ok(Response::new(uri.clone(), status, source.into(), span))
+        Ok(Response::new(
+            uri.clone(),
+            status,
+            source.into(),
+            span,
+            Some(start.elapsed()),
+        ))
     }
 
     /// Check a single file using the file checker.

@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, time::Duration};
 
 use http::StatusCode;
 use serde::Serialize;
@@ -28,10 +28,16 @@ impl Response {
         status: Status,
         input_source: InputSource,
         span: Option<RawUriSpan>,
+        duration: Option<Duration>,
     ) -> Self {
         Response {
             input_source,
-            response_body: ResponseBody { uri, status, span },
+            response_body: ResponseBody {
+                uri,
+                status,
+                span,
+                duration,
+            },
         }
     }
 
@@ -80,7 +86,7 @@ impl Serialize for Response {
     }
 }
 
-/// Encapsulates the state of a URI check
+/// Encapsulates the state of a [`Uri`] check result
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Serialize, Hash, PartialEq, Eq)]
 pub struct ResponseBody {
@@ -92,6 +98,9 @@ pub struct ResponseBody {
     /// The location of the URI
     #[serde(skip_serializing_if = "Option::is_none")]
     pub span: Option<RawUriSpan>,
+    /// The time it took to perform the request and produce this [`ResponseBody`]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration: Option<Duration>,
 }
 
 // Extract as much information from the underlying error conditions as possible
