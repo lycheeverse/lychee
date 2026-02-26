@@ -1,5 +1,6 @@
 use anyhow::Result;
 use console::Style;
+use humantime::FormattedDuration;
 use std::{
     fmt::{self, Display, Formatter},
     sync::LazyLock,
@@ -51,11 +52,7 @@ impl Display for CompactResponseStats {
         }
 
         color!(f, NORMAL, "🔍 {} Total", stats.total)?;
-
-        // show duration (in a human readable format), e.g. 2m 30s
-        let duration = Duration::from_secs(stats.duration_secs);
-        color!(f, DIM, " (in {})", humantime::format_duration(duration))?;
-
+        color!(f, DIM, " (in {})", format_duration(stats.duration))?;
         color!(f, BOLD_GREEN, " ✅ {} OK", stats.successful)?;
 
         let total_errors = stats.errors;
@@ -71,6 +68,14 @@ impl Display for CompactResponseStats {
 
         Ok(())
     }
+}
+
+/// Format duration in a human readable format with
+/// millisecond precision. (e.g. `2m 30s 155ms`)
+fn format_duration(d: Duration) -> FormattedDuration {
+    #[allow(clippy::cast_possible_truncation)]
+    let truncated = Duration::from_millis(d.as_millis() as u64);
+    humantime::format_duration(truncated)
 }
 
 fn write_responses(

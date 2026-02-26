@@ -36,8 +36,7 @@ where
     let (send_resp, recv_resp) = mpsc::channel(max_concurrency);
     let (waiter, wait_guard) = WaitGroup::new();
 
-    // Measure check time
-    let start = std::time::Instant::now();
+    let start = std::time::Instant::now(); // Measure check time
 
     let stats = if params.cfg.verbose().log_level() >= log::Level::Info {
         ResponseStats::extended()
@@ -80,7 +79,7 @@ where
     // Wait until all responses are received
     let result = show_results_task.await?;
     let mut stats = result?;
-    stats.duration_secs = start.elapsed().as_secs();
+    stats.duration = start.elapsed();
 
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
@@ -249,6 +248,7 @@ async fn check_url(client: &Client, request: Request) -> Response {
             Status::Error(ErrorKind::InvalidURI(uri.clone())),
             source.into(),
             span,
+            None,
         )
     })
 }
@@ -297,6 +297,7 @@ async fn handle(
             status,
             request.source.into(),
             request.span,
+            None,
         ));
     }
 
