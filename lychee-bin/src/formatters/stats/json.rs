@@ -51,6 +51,10 @@ mod tests {
         "span": {
           "line": 1,
           "column": 1
+        },
+        "duration": {
+          "secs": 1,
+          "nanos": 0
         }
       }
     ]
@@ -83,12 +87,23 @@ mod tests {
               }
             ]
           }
+        },
+        "span": {
+          "line": 1,
+          "column": 1
+        },
+        "duration": {
+          "secs": 1,
+          "nanos": 0
         }
       }
     ]
   },
   "excluded_map": {},
-  "duration_secs": 0,
+  "duration": {
+    "secs": 0,
+    "nanos": 0
+  },
   "detailed_stats": true,
   "host_stats": {
     "example.com": {

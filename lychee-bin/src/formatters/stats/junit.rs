@@ -67,6 +67,7 @@ fn junit_testcases_group(
             b.into_iter().map(move |response| {
                 let name = format!("{reason} {}", response.uri);
                 let mut testcase = TestCase::new(name, status.clone());
+                testcase.time = response.duration;
 
                 testcase
                     .extra
@@ -89,10 +90,14 @@ fn junit_testcases_group(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
+    use std::{
+        collections::{HashMap, HashSet},
+        time::Duration,
+    };
 
     use http::StatusCode;
     use lychee_lib::{InputSource, ResponseBody, Status};
+    use pretty_assertions::assert_eq;
     use url::Url;
 
     use crate::formatters::stats::{self, OutputStats, StatsFormatter, junit::Junit};
@@ -107,19 +112,19 @@ mod tests {
             r#"<?xml version="1.0" encoding="UTF-8"?>
 <testsuites name="lychee link check results" tests="4" failures="1" errors="0">
     <testsuite name="lychee link check results" tests="4" disabled="1" errors="0" failures="1">
-        <testcase name="Failed https://github.com/mre/idiomatic-rust-doesnt-exist-man" file="https://example.com/" line="1">
+        <testcase name="Failed https://github.com/mre/idiomatic-rust-doesnt-exist-man" time="1.000" file="https://example.com/" line="1">
             <failure message="https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found"/>
             <system-out>https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found</system-out>
         </testcase>
-        <testcase name="Excluded https://excluded.org/" file="https://example.com/">
+        <testcase name="Excluded https://excluded.org/" time="0.042" file="https://example.com/">
             <skipped message="https://excluded.org/"/>
             <system-out>https://excluded.org/</system-out>
         </testcase>
-        <testcase name="Successful https://success.org/" file="https://example.com/">
+        <testcase name="Successful https://success.org/" time="1.000" file="https://example.com/">
             <system-out>https://success.org/</system-out>
         </testcase>
-        <testcase name="Redirected https://redirected.dev/" file="https://example.com/">
-            <system-out>https://redirected.dev/ | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--&gt; https://2.dev/ --[308]--&gt; http://redirected.dev/</system-out>
+        <testcase name="Redirected https://redirected.dev/" time="1.000" file="https://example.com/" line="1">
+            <system-out>https://redirected.dev/ (at 1:1) | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--&gt; https://2.dev/ --[308]--&gt; http://redirected.dev/</system-out>
         </testcase>
     </testsuite>
 </testsuites>
@@ -141,6 +146,7 @@ mod tests {
                 uri: "https://success.org".try_into().unwrap(),
                 status: Status::Ok(StatusCode::OK),
                 span: None,
+                duration: Some(Duration::from_secs(1)),
             }]),
         )]);
 
@@ -150,6 +156,7 @@ mod tests {
                 uri: "https://excluded.org".try_into().unwrap(),
                 status: Status::Excluded,
                 span: None,
+                duration: Some(Duration::from_millis(42)),
             }]),
         )]);
 

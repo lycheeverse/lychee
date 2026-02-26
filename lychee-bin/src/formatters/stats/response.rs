@@ -1,7 +1,10 @@
 // Disable lint, clippy thinks that InputSource has inner mutability, but this seems like a false positive
 #![allow(clippy::mutable_key_type)]
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status};
 use serde::Serialize;
@@ -37,18 +40,18 @@ pub(crate) struct ResponseStats {
     pub(crate) errors: usize,
     /// Number of responses that were cached from a previous run
     pub(crate) cached: usize,
-    /// Store successful responses (if `detailed_stats` is enabled)
+    /// Successful responses (if `detailed_stats` is enabled)
     pub(crate) success_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// Store failed responses (if `detailed_stats` is enabled)
+    /// Failed responses (if `detailed_stats` is enabled)
     pub(crate) error_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Replacement suggestions for failed responses (if `--suggest` is enabled)
     pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
-    /// Store redirected responses (if `detailed_stats` is enabled)
+    /// Redirected responses (if `detailed_stats` is enabled)
     pub(crate) redirect_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// Store excluded responses (if `detailed_stats` is enabled)
+    /// Excluded responses (if `detailed_stats` is enabled)
     pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// Used to store the duration of the run in seconds.
-    pub(crate) duration_secs: u64,
+    /// The time it took to perform the full run
+    pub(crate) duration: Duration,
     /// Also track successful and excluded responses
     pub(crate) detailed_stats: bool,
 }
@@ -146,7 +149,7 @@ mod tests {
     // and it's a lot faster to just generate a fake response
     fn mock_response(status: Status) -> Response {
         let uri = website("https://some-url.com/ok");
-        Response::new(uri, status, InputSource::Stdin, None)
+        Response::new(uri, status, InputSource::Stdin, None, None)
     }
 
     fn dummy_ok() -> Response {

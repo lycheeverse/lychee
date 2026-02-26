@@ -83,13 +83,19 @@ where
 
 #[cfg(test)]
 fn get_dummy_stats() -> OutputStats {
-    use std::num::NonZeroUsize;
+    use std::{num::NonZeroUsize, time::Duration};
 
     use http::StatusCode;
     use lychee_lib::{RawUriSpan, Redirect, Redirects, ResponseBody, Status, ratelimit::HostStats};
     use url::Url;
 
     use crate::formatters::suggestion::Suggestion;
+
+    const SPAN: Option<RawUriSpan> = Some(RawUriSpan {
+        column: Some(NonZeroUsize::MIN),
+        line: NonZeroUsize::MIN,
+    });
+    const DURATION: Option<Duration> = Some(Duration::from_secs(1));
 
     let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
     let error_map = HashMap::from([(
@@ -99,10 +105,8 @@ fn get_dummy_stats() -> OutputStats {
                 .try_into()
                 .unwrap(),
             status: Status::Ok(StatusCode::NOT_FOUND),
-            span: Some(RawUriSpan {
-                column: Some(NonZeroUsize::MIN),
-                line: NonZeroUsize::MIN,
-            }),
+            span: SPAN,
+            duration: DURATION,
         }]),
     )]);
 
@@ -129,7 +133,8 @@ fn get_dummy_stats() -> OutputStats {
         HashSet::from([ResponseBody {
             uri: "https://redirected.dev".try_into().unwrap(),
             status: Status::Redirected(StatusCode::OK, redirects),
-            span: None,
+            span: SPAN,
+            duration: DURATION,
         }]),
     )]);
 
@@ -140,7 +145,7 @@ fn get_dummy_stats() -> OutputStats {
         unknown: 0,
         excludes: 0,
         timeouts: 0,
-        duration_secs: 0,
+        duration: Duration::ZERO,
         unsupported: 0,
         redirects: 1,
         cached: 0,
@@ -185,7 +190,7 @@ mod tests {
     fn make_test_response(url_str: &str, source: InputSource) -> Response {
         let uri = Uri::from(make_test_url(url_str));
 
-        Response::new(uri, Status::Error(ErrorKind::EmptyUrl), source, None)
+        Response::new(uri, Status::Error(ErrorKind::EmptyUrl), source, None, None)
     }
 
     #[test]

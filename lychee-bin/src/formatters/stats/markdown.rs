@@ -174,10 +174,12 @@ impl StatsFormatter for Markdown {
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroUsize;
+    use std::time::Duration;
 
     use http::StatusCode;
     use lychee_lib::RawUriSpan;
     use lychee_lib::{CacheStatus, ResponseBody, Status, Uri};
+    use pretty_assertions::assert_eq;
 
     use crate::formatters::stats::get_dummy_stats;
 
@@ -187,6 +189,7 @@ mod tests {
         line: NonZeroUsize::MIN,
         column: Some(NonZeroUsize::MIN),
     });
+    const DURATION: Option<Duration> = Some(Duration::from_secs(1));
 
     #[test]
     fn test_markdown_response_ok() {
@@ -194,6 +197,7 @@ mod tests {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Ok(StatusCode::OK),
             span: SPAN,
+            duration: DURATION,
         };
         let markdown = markdown_response(&response).unwrap();
         assert_eq!(markdown, "* [200] <http://example.com/> (at 1:1)");
@@ -205,6 +209,7 @@ mod tests {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Cached(CacheStatus::Ok(StatusCode::OK)),
             span: SPAN,
+            duration: DURATION,
         };
         let markdown = markdown_response(&response).unwrap();
         assert_eq!(
@@ -219,6 +224,7 @@ mod tests {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Cached(CacheStatus::Error(Some(StatusCode::BAD_REQUEST))),
             span: SPAN,
+            duration: DURATION,
         };
         let markdown = markdown_response(&response).unwrap();
         assert_eq!(
@@ -270,7 +276,7 @@ mod tests {
 
 ### Redirects in https://example.com/
 
-* [200] <https://redirected.dev/> | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
+* [200] <https://redirected.dev/> (at 1:1) | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 ## Suggestions per input
 

@@ -87,6 +87,7 @@ impl RequestError {
                     Status::RequestError(e),
                     src,
                     span,
+                    None,
                 ))
             }
         }
