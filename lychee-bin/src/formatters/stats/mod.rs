@@ -85,10 +85,10 @@ where
             if let Some(responses) = first.get(source) {
                 sorted_responses.extend(responses.iter());
             }
-            if let Some(second_map) = second {
-                if let Some(responses) = second_map.get(source) {
-                    sorted_responses.extend(responses.iter());
-                }
+            if let Some(second_map) = second
+                && let Some(responses) = second_map.get(source)
+            {
+                sorted_responses.extend(responses.iter());
             }
             sorted_responses.sort_by(|a, b| {
                 let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
@@ -190,7 +190,7 @@ fn get_dummy_stats() -> OutputStats {
         success_map: HashMap::default(),
         error_map,
         excluded_map: HashMap::default(),
-        timeout_map: timeout_map,
+        timeout_map,
         detailed_stats: true,
     };
 
