@@ -58,10 +58,36 @@ fn sort_stat_map<T>(stat_map: &HashMap<InputSource, HashSet<T>>) -> Vec<(&InputS
 where
     T: Display,
 {
-    let mut entries: Vec<_> = stat_map
-        .iter()
-        .map(|(source, responses)| {
-            let mut sorted_responses: Vec<&T> = responses.iter().collect();
+    merge_and_sort_stat_map(stat_map, None)
+}
+
+/// Merge two `ResponseStats` `HashMap` to a sorted Vec of key-value pairs
+/// The returned keys and values are both sorted in natural, case-insensitive order
+fn merge_and_sort_stat_map<'a, T>(
+    first: &'a HashMap<InputSource, HashSet<T>>,
+    second: Option<&'a HashMap<InputSource, HashSet<T>>>,
+) -> Vec<(&'a InputSource, Vec<&'a T>)>
+where
+    T: Display,
+{
+    let mut all_sources: HashSet<&InputSource> = first.keys().collect();
+
+    if let Some(sec) = second {
+        all_sources.extend(sec.keys());
+    }
+
+    let mut entries: Vec<_> = all_sources
+        .into_iter()
+        .map(|source| {
+            let mut sorted_responses: Vec<&T> = Vec::new();
+            if let Some(responses) = first.get(source) {
+                sorted_responses.extend(responses.iter());
+            }
+            if let Some(second_map) = second
+                && let Some(responses) = second_map.get(source)
+            {
+                sorted_responses.extend(responses.iter());
+            }
             sorted_responses.sort_by(|a, b| {
                 let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
                 numeric_sort::cmp(&a, &b)
@@ -104,6 +130,18 @@ fn get_dummy_stats() -> OutputStats {
         }]),
     )]);
 
+    let timeout_map = HashMap::from([(
+        source.clone(),
+        HashSet::from([ResponseBody {
+            uri: "https://httpbin.org/delay/2".try_into().unwrap(),
+            status: Status::Timeout(None),
+            span: Some(RawUriSpan {
+                column: Some(NonZeroUsize::MIN),
+                line: NonZeroUsize::MIN,
+            }),
+        }]),
+    )]);
+
     let suggestion_map = HashMap::from([(
         source.clone(),
         HashSet::from([Suggestion {
@@ -137,7 +175,7 @@ fn get_dummy_stats() -> OutputStats {
         errors: 1,
         unknown: 0,
         excludes: 0,
-        timeouts: 0,
+        timeouts: 1,
         duration_secs: 0,
         unsupported: 0,
         redirects: 1,
@@ -147,6 +185,7 @@ fn get_dummy_stats() -> OutputStats {
         success_map: HashMap::default(),
         error_map,
         excluded_map: HashMap::default(),
+        timeout_map,
         detailed_stats: true,
     };
 

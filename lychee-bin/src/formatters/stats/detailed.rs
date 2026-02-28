@@ -56,7 +56,9 @@ impl Display for DetailedResponseStats {
 
         let response_formatter = get_response_formatter(&self.mode);
 
-        for (source, responses) in super::sort_stat_map(&stats.error_map) {
+        for (source, responses) in
+            super::merge_and_sort_stat_map(&stats.error_map, Some(&stats.timeout_map))
+        {
             // Using leading newlines over trailing ones (e.g. `writeln!`)
             // lets us avoid extra newlines without any additional logic.
             write!(f, "\n\nErrors in {source}")?;
@@ -134,7 +136,7 @@ mod tests {
 ---------------------
 🔍 Total............2
 ✅ Successful.......0
-⏳ Timeouts.........0
+⏳ Timeouts.........1
 🔀 Redirected.......1
 👻 Excluded.........0
 ❓ Unknown..........0
@@ -143,6 +145,7 @@ mod tests {
 
 Errors in https://example.com/
 [404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found
+[TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Timeout
 
 Suggestions in https://example.com/
 https://original.dev/ --> https://suggestion.dev/

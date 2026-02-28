@@ -34,7 +34,7 @@ mod tests {
   "successful": 0,
   "unknown": 0,
   "unsupported": 0,
-  "timeouts": 0,
+  "timeouts": 1,
   "redirects": 1,
   "excludes": 0,
   "errors": 1,
@@ -47,6 +47,20 @@ mod tests {
         "status": {
           "text": "404 Not Found",
           "code": 404
+        },
+        "span": {
+          "line": 1,
+          "column": 1
+        }
+      }
+    ]
+  },
+  "timeout_map": {
+    "https://example.com/": [
+      {
+        "url": "https://httpbin.org/delay/2",
+        "status": {
+          "text": "Timeout"
         },
         "span": {
           "line": 1,
