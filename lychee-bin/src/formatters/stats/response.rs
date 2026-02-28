@@ -117,15 +117,14 @@ impl ResponseStats {
 
     #[inline]
     /// Check if the entire run was successful
-    pub(crate) const fn is_success(&self) -> bool {
-        self.total == self.successful + self.excludes + self.unsupported + self.redirects
+    pub(crate) fn is_success(&self) -> bool {
+        self.error_map.is_empty() && self.timeout_map.is_empty()
     }
 
     #[inline]
     /// Check if the entire run was successful, ignoring timeouts
-    pub(crate) const fn is_success_ignoring_timeouts(&self) -> bool {
-        self.total
-            == self.successful + self.excludes + self.unsupported + self.redirects + self.timeouts
+    pub(crate) fn is_success_ignoring_timeouts(&self) -> bool {
+        self.error_map.is_empty()
     }
 
     #[inline]
