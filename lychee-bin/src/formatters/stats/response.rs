@@ -41,6 +41,8 @@ pub(crate) struct ResponseStats {
     pub(crate) success_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Store failed responses (if `detailed_stats` is enabled)
     pub(crate) error_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// Store timed out responses (if `detailed_stats` is enabled)
+    pub(crate) timeout_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Replacement suggestions for failed responses (if `--suggest` is enabled)
     pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
     /// Store redirected responses (if `detailed_stats` is enabled)
@@ -94,6 +96,7 @@ impl ResponseStats {
         let status = response.status();
         let source: InputSource = response.source().clone();
         let status_map_entry = match status {
+            _ if status.is_timeout() => self.timeout_map.entry(source).or_default(),
             _ if status.is_error() => self.error_map.entry(source).or_default(),
             Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),
             Status::Excluded if self.detailed_stats => self.excluded_map.entry(source).or_default(),

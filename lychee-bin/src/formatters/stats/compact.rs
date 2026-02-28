@@ -43,7 +43,9 @@ impl Display for CompactResponseStats {
 
         let response_formatter = get_response_formatter(&self.mode);
 
-        for (source, responses) in super::sort_stat_map(&stats.error_map) {
+        for (source, responses) in
+            super::merge_and_sort_stat_map(&stats.error_map, Some(&stats.timeout_map))
+        {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             write_responses(f, &*response_formatter, responses)?;
             write_suggestions(f, stats, source)?;
@@ -169,11 +171,12 @@ mod tests {
 
 [https://example.com/]:
 [404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found
+[TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Timeout
 
 ℹ Suggestions
 https://original.dev/ --> https://suggestion.dev/
 
-🔍 2 Total (in 0s) ✅ 0 OK 🚫 1 Error 🔀 1 Redirects
+🔍 2 Total (in 0s) ✅ 0 OK 🚫 1 Error ⏳ 1 Timeouts 🔀 1 Redirects
 
 📊 Per-host Statistics
 ────────────────────────────────────────────────────────────
