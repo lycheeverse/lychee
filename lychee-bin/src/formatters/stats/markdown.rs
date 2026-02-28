@@ -114,6 +114,10 @@ impl Display for MarkdownResponseStats {
             markdown_response(response).map_err(|_| fmt::Error)
         })?;
 
+        write_stats_per_input(f, "Timeouts", &stats.timeout_map, |response| {
+            markdown_response(response).map_err(|_| fmt::Error)
+        })?;
+
         write_stats_per_input(f, "Redirects", &stats.redirect_map, |response| {
             markdown_response(response).map_err(|_| fmt::Error)
         })?;
@@ -259,7 +263,7 @@ mod tests {
 |----------------|-------|
 | 🔍 Total       | 2     |
 | ✅ Successful  | 0     |
-| ⏳ Timeouts    | 0     |
+| ⏳ Timeouts    | 1     |
 | 🔀 Redirected  | 1     |
 | 👻 Excluded    | 0     |
 | ❓ Unknown     | 0     |
@@ -271,6 +275,12 @@ mod tests {
 ### Errors in https://example.com/
 
 * [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> (at 1:1) | 404 Not Found: Not Found
+
+## Timeouts per input
+
+### Timeouts in https://example.com/
+
+* [TIMEOUT] <https://httpbin.org/delay/2> (at 1:1) | Timeout
 
 ## Redirects per input
 
