@@ -57,8 +57,8 @@ reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
 ring = "0.17.14"
 secrecy = "0.10.3"
 serde = { version = "1.0.228", features = ["derive"] }
-serde_with = "3.16.1"
-shellexpand = "3.1.1"
+serde_with = "3.17.0"
+shellexpand = "3.1.2"
 strum = { version = "0.28.0", features = ["derive"] }
 thiserror = "2.0.18"
 tokio = { version = "1.49.0", features = ["full"] }
@@ -76,7 +76,7 @@ doc-comment = "0.3.4"
 pretty_assertions = "1.4.1"
 rstest = "0.26.1"
 serde_json = "1.0.149"
-tempfile = "3.25.0"
+tempfile = "3.26.0"
 test-utils = { path = "../test-utils" }
 tokio-stream = "0.1.18"
 toml = "1.0.3"
