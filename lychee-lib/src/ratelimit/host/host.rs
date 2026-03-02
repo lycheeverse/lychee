@@ -150,7 +150,6 @@ impl Host {
         url.set_fragment(None);
         let uri = Uri::from(url);
 
-        let _permit = self.acquire_semaphore().await;
         let uri_mutex = self.acquire_uri_mutex(&uri);
         let _uri_guard = uri_mutex.lock().await;
 
@@ -159,13 +158,15 @@ impl Host {
             return Ok(cached);
         }
 
+        self.record_cache_miss();
+        let _permit = self.acquire_semaphore().await;
+
         self.await_backoff().await;
 
         if let Some(rate_limiter) = &self.rate_limiter {
             rate_limiter.until_ready().await;
         }
 
-        self.record_cache_miss();
         self.perform_request(request, uri, needs_body).await
     }
 
