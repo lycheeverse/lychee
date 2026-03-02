@@ -1557,8 +1557,8 @@ The config file should contain every possible key for documentation purposes."
     #[tokio::test]
     async fn test_no_duplicate_requests() {
         let server = wiremock::MockServer::start().await;
-        let count = 10; // given 10 duplicate URLs
-        let cached = "90.0%"; // we expect 9 out of 10 to be cached
+        let count = 100; // given 100 duplicate URLs
+        let cached = "99.0%"; // we expect 99 out of 100 to be cached
 
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .respond_with(|_: &_| {
@@ -1576,6 +1576,8 @@ The config file should contain every possible key for documentation purposes."
             .write_stdin(format!("{} ", server.uri()).repeat(count))
             .arg("-")
             .arg("--host-stats")
+            // the request interval must not have an affect on duplicates
+            .arg("--host-request-interval=1s")
             .assert()
             .success()
             .stdout(contains("100.0% success"))

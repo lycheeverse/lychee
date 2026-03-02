@@ -154,15 +154,15 @@ impl Host {
         let uri_mutex = self.acquire_uri_mutex(&uri);
         let _uri_guard = uri_mutex.lock().await;
 
+        if let Some(cached) = self.get_cached_status(&uri, needs_body) {
+            self.record_cache_hit();
+            return Ok(cached);
+        }
+
         self.await_backoff().await;
 
         if let Some(rate_limiter) = &self.rate_limiter {
             rate_limiter.until_ready().await;
-        }
-
-        if let Some(cached) = self.get_cached_status(&uri, needs_body) {
-            self.record_cache_hit();
-            return Ok(cached);
         }
 
         self.record_cache_miss();
