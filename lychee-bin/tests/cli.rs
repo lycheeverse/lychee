@@ -1555,6 +1555,34 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
+    async fn test_no_duplicate_requests() {
+        let server = wiremock::MockServer::start().await;
+        let count = 10; // given 10 duplicate URLs
+        let cached = "90.0%"; // we expect 9 out of 10 to be cached
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(|_: &_| {
+                // Simulate real-world delay.
+                // Keep the delay to prove how we make use of synchronization
+                // primitives to prevent duplicate requests.
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                ResponseTemplate::new(200)
+            })
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        cargo_bin_cmd!()
+            .write_stdin(format!("{} ", server.uri()).repeat(count))
+            .arg("-")
+            .arg("--host-stats")
+            .assert()
+            .success()
+            .stdout(contains("100.0% success"))
+            .stdout(contains(format!("{cached} cached")));
+    }
+
+    #[tokio::test]
     async fn test_process_internal_host_caching() -> Result<()> {
         // Note that this process-internal per-host caching
         // has no direct relation to the lychee cache file
