@@ -61,7 +61,7 @@ assert_cmd = "2.1.2"
 cookie_store = "0.22.1"
 predicates = "3.1.4"
 pretty_assertions = "1.4.1"
-tempfile = "3.25.0"
+tempfile = "3.26.0"
 test-utils = { path = "../test-utils" }
 tracing-subscriber = { version = "0.3.22", default-features = false, features = [
     "fmt",
