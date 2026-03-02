@@ -149,9 +149,7 @@ impl Host {
         let mut url = request.url().clone();
         url.set_fragment(None);
         let uri = Uri::from(url);
-
-        let uri_mutex = self.acquire_uri_mutex(&uri);
-        let _uri_guard = uri_mutex.lock().await;
+        let _uri_guard = self.lock_uri_mutex(uri.clone()).await;
 
         if let Some(cached) = self.get_cached_status(&uri, needs_body) {
             self.record_cache_hit();
@@ -214,12 +212,16 @@ impl Host {
         }
     }
 
-    /// Prevent concurrent requests to identical [`Uri`]s.
-    fn acquire_uri_mutex(&self, uri: &Uri) -> Arc<tokio::sync::Mutex<()>> {
-        self.active_requests
-            .entry(uri.clone())
+    /// Get a [`tokio::sync::OwnedMutexGuard<()>`]
+    /// to prevent concurrent requests to identical [`Uri`]s.
+    async fn lock_uri_mutex(&self, uri: Uri) -> tokio::sync::OwnedMutexGuard<()> {
+        let uri_mutex = self
+            .active_requests
+            .entry(uri)
             .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
-            .clone()
+            .clone();
+
+        uri_mutex.lock_owned().await
     }
 
     /// Enforce the maximum concurrency of this host
