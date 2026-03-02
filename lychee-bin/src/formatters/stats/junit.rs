@@ -19,7 +19,7 @@ impl Junit {
 }
 
 impl StatsFormatter for Junit {
-    /// Format stats as JSON object
+    /// Format stats as a `JUnit` XML report
     fn format(&self, stats: OutputStats) -> Result<String> {
         junit_xml(stats.response_stats)
             .to_string()

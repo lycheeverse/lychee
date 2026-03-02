@@ -82,16 +82,22 @@ mod cli {
     /// Additionally remove the non-deterministic duration to simplify subsequent assertions
     fn stdout_to_json(stdout: &[u8]) -> Result<Value> {
         let mut output_json = serde_json::from_slice::<Value>(stdout)?;
-        remove_non_deterministic_duration(&mut output_json["success_map"]);
-        remove_non_deterministic_duration(&mut output_json["redirect_map"]);
+        remove_nondeterministic_duration(&mut output_json["success_map"]);
+        remove_nondeterministic_duration(&mut output_json["redirect_map"]);
         return Ok(output_json);
 
-        fn remove_non_deterministic_duration(value: &mut Value) {
-            let map = value.as_object_mut().unwrap();
+        fn remove_nondeterministic_duration(value: &mut Value) {
+            let map = value.as_object_mut().expect("Expected object");
             map.iter_mut().for_each(|(_, v)| {
-                v.as_array_mut().unwrap().iter_mut().for_each(|a| {
-                    a.as_object_mut().unwrap().remove("duration").unwrap();
-                });
+                v.as_array_mut()
+                    .expect("Expected array of objects")
+                    .iter_mut()
+                    .for_each(|a| {
+                        a.as_object_mut()
+                            .expect("Expected object")
+                            .remove("duration")
+                            .expect("Value of 'duration' not present");
+                    });
             });
         }
     }
