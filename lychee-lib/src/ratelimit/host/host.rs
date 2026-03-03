@@ -12,8 +12,11 @@ use http::StatusCode;
 use humantime_serde::re::humantime::format_duration;
 use log::warn;
 use reqwest::{Client as ReqwestClient, Request, Response as ReqwestResponse};
-use std::time::{Duration, Instant};
 use std::{num::NonZeroU32, sync::Mutex};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::sync::Semaphore;
 
 use super::key::HostKey;
@@ -63,6 +66,9 @@ pub struct Host {
     /// Per-host cache to prevent duplicate requests during a single link check invocation.
     /// Note that this cache has no direct relation to the inter-process persistable [`crate::CacheStatus`].
     cache: HostCache,
+
+    /// Keep track of currently active requests, to prevent duplicate concurrent requests
+    active_requests: DashMap<Uri, Arc<tokio::sync::Mutex<()>>>,
 }
 
 impl Host {
@@ -91,6 +97,7 @@ impl Host {
             stats: Mutex::new(HostStats::default()),
             backoff_duration: Mutex::new(Duration::from_millis(0)),
             cache: DashMap::new(),
+            active_requests: DashMap::new(),
         }
     }
 
@@ -142,19 +149,7 @@ impl Host {
         let mut url = request.url().clone();
         url.set_fragment(None);
         let uri = Uri::from(url);
-
-        let _permit = self.acquire_semaphore().await;
-
-        if let Some(cached) = self.get_cached_status(&uri, needs_body) {
-            self.record_cache_hit();
-            return Ok(cached);
-        }
-
-        self.await_backoff().await;
-
-        if let Some(rate_limiter) = &self.rate_limiter {
-            rate_limiter.until_ready().await;
-        }
+        let _uri_guard = self.lock_uri_mutex(uri.clone()).await;
 
         if let Some(cached) = self.get_cached_status(&uri, needs_body) {
             self.record_cache_hit();
@@ -162,6 +157,14 @@ impl Host {
         }
 
         self.record_cache_miss();
+        let _permit = self.acquire_semaphore().await;
+
+        self.await_backoff().await;
+
+        if let Some(rate_limiter) = &self.rate_limiter {
+            rate_limiter.until_ready().await;
+        }
+
         self.perform_request(request, uri, needs_body).await
     }
 
@@ -209,6 +212,19 @@ impl Host {
         }
     }
 
+    /// Get a [`tokio::sync::OwnedMutexGuard<()>`]
+    /// to prevent concurrent requests to identical [`Uri`]s.
+    async fn lock_uri_mutex(&self, uri: Uri) -> tokio::sync::OwnedMutexGuard<()> {
+        let uri_mutex = self
+            .active_requests
+            .entry(uri)
+            .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+            .clone();
+
+        uri_mutex.lock_owned().await
+    }
+
+    /// Enforce the maximum concurrency of this host
     async fn acquire_semaphore(&self) -> tokio::sync::SemaphorePermit<'_> {
         self.semaphore
             .acquire()
