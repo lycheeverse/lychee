@@ -22,14 +22,7 @@ impl StatsFormatter for Json {
 mod tests {
     use crate::formatters::stats::{Json, StatsFormatter, get_dummy_stats};
 
-    #[test]
-    fn test_json_formatter() {
-        let formatter = Json::new();
-        let result = formatter.format(get_dummy_stats()).unwrap();
-
-        assert_eq!(
-            result,
-            r#"{
+    const EXPECTED_JSON: &str = r#"{
   "total": 2,
   "successful": 0,
   "unknown": 0,
@@ -138,7 +131,16 @@ mod tests {
       "status_codes": {}
     }
   }
-}"#
+}"#;
+
+    #[test]
+    fn test_json_formatter() {
+        let formatter = Json::new();
+        let result = formatter.format(get_dummy_stats()).unwrap();
+
+        assert_eq!(
+            result,
+            EXPECTED_JSON,
         );
     }
 }
