@@ -17,9 +17,9 @@ use crate::formatters::suggestion::Suggestion;
 /// run. It also contains maps to store the responses for each status (success,
 /// error, excluded, etc.) and the sources of the responses.
 ///
-/// The `detailed_stats` field is used to enable or disable the storage of the
-/// responses in the maps for successful and excluded responses. If it's set to
-/// `false`, the maps will be empty and only the counters will be updated.
+/// The `detailed_stats` field indicates whether detailed statistics are shown.
+/// `success_map`, `redirect_map` and `excluded_map` remain empty if detailed
+/// statistics are disabled. This depends on the verbosity mode.
 #[derive(Default, Serialize, Debug)]
 pub(crate) struct ResponseStats {
     /// Total number of responses
@@ -42,7 +42,7 @@ pub(crate) struct ResponseStats {
     pub(crate) cached: usize,
     /// Successful responses (if `detailed_stats` is enabled)
     pub(crate) success_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// Failed responses (if `detailed_stats` is enabled)
+    /// Failed responses
     pub(crate) error_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Replacement suggestions for failed responses (if `--suggest` is enabled)
     pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
