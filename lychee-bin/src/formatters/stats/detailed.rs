@@ -122,6 +122,7 @@ impl StatsFormatter for Detailed {
 mod tests {
     use super::*;
     use crate::{formatters::stats::get_dummy_stats, options::OutputMode};
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_detailed_formatter() {
@@ -149,7 +150,7 @@ https://original.dev/ --> https://suggestion.dev/
 
 
 Redirects in https://example.com/
-https://redirected.dev/ | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
+https://redirected.dev/ (at 1:1) | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 
 📊 Per-host Statistics

@@ -1,7 +1,10 @@
 // Disable lint, clippy thinks that InputSource has inner mutability, but this seems like a false positive
 #![allow(clippy::mutable_key_type)]
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status};
 use serde::Serialize;
@@ -14,9 +17,9 @@ use crate::formatters::suggestion::Suggestion;
 /// run. It also contains maps to store the responses for each status (success,
 /// error, excluded, etc.) and the sources of the responses.
 ///
-/// The `detailed_stats` field is used to enable or disable the storage of the
-/// responses in the maps for successful and excluded responses. If it's set to
-/// `false`, the maps will be empty and only the counters will be updated.
+/// The `detailed_stats` field indicates whether detailed statistics are shown.
+/// `success_map`, `redirect_map` and `excluded_map` remain empty if detailed
+/// statistics are disabled. This depends on the verbosity mode.
 #[derive(Default, Serialize, Debug)]
 pub(crate) struct ResponseStats {
     /// Total number of responses
@@ -37,18 +40,18 @@ pub(crate) struct ResponseStats {
     pub(crate) errors: usize,
     /// Number of responses that were cached from a previous run
     pub(crate) cached: usize,
-    /// Store successful responses (if `detailed_stats` is enabled)
+    /// Successful responses (if `detailed_stats` is enabled)
     pub(crate) success_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// Store failed responses (if `detailed_stats` is enabled)
+    /// Failed responses
     pub(crate) error_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Replacement suggestions for failed responses (if `--suggest` is enabled)
     pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
-    /// Store redirected responses (if `detailed_stats` is enabled)
+    /// Redirected responses (if `detailed_stats` is enabled)
     pub(crate) redirect_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// Store excluded responses (if `detailed_stats` is enabled)
+    /// Excluded responses (if `detailed_stats` is enabled)
     pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// Used to store the duration of the run in seconds.
-    pub(crate) duration_secs: u64,
+    /// The time it took to perform the full run
+    pub(crate) duration: Duration,
     /// Also track successful and excluded responses
     pub(crate) detailed_stats: bool,
 }
@@ -146,7 +149,7 @@ mod tests {
     // and it's a lot faster to just generate a fake response
     fn mock_response(status: Status) -> Response {
         let uri = website("https://some-url.com/ok");
-        Response::new(uri, status, InputSource::Stdin, None)
+        Response::new(uri, status, InputSource::Stdin, None, None)
     }
 
     fn dummy_ok() -> Response {
