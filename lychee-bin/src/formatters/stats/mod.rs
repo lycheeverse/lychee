@@ -54,55 +54,61 @@ pub(crate) fn output_statistics(stats: OutputStats, config: &Config) -> Result<(
     Ok(())
 }
 
+/// Trait to sort a Vec of items in natural, case-insensitive order
+trait NaturalSort {
+    fn natural_sort(&mut self);
+}
+
+/// Implement natural sorting for Vec of items that implement Display
+impl<T> NaturalSort for Vec<T>
+where
+    T: Display,
+{
+    fn natural_sort(&mut self) {
+        self.sort_by(|a, b| {
+            let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
+            numeric_sort::cmp(&a, &b)
+        });
+    }
+}
+
 /// Convert a `ResponseStats` `HashMap` to a sorted Vec of key-value pairs
 /// The returned keys and values are both sorted in natural, case-insensitive order
 fn sort_stat_map<T>(stat_map: &HashMap<InputSource, HashSet<T>>) -> Vec<(&InputSource, Vec<&T>)>
 where
     T: Display,
 {
-    merge_and_sort_stat_map(stat_map, None)
+    sort_stat_maps(&vec![&stat_map])
 }
 
-/// Merge two `ResponseStats` `HashMap` to a sorted Vec of key-value pairs
+/// Merge `ResponseStats` `HashMap` to a sorted Vec of key-value pairs
 /// The returned keys and values are both sorted in natural, case-insensitive order
-fn merge_and_sort_stat_map<'a, T>(
-    first: &'a HashMap<InputSource, HashSet<T>>,
-    second: Option<&'a HashMap<InputSource, HashSet<T>>>,
+fn sort_stat_maps<'a, T>(
+    stat_maps: &Vec<&'a HashMap<InputSource, HashSet<T>>>,
 ) -> Vec<(&'a InputSource, Vec<&'a T>)>
 where
     T: Display,
 {
-    let mut all_sources: HashSet<&InputSource> = first.keys().collect();
+    // First we collect all unique sources across all maps, then we sort them in natural order.
+    let all_sources_hs: HashSet<_> = stat_maps.iter().flat_map(|m| m.keys()).collect();
+    let mut all_sources: Vec<_> = all_sources_hs.into_iter().collect();
 
-    if let Some(sec) = second {
-        all_sources.extend(sec.keys());
-    }
+    all_sources.natural_sort();
 
-    let mut entries: Vec<_> = all_sources
+    let entries: Vec<_> = all_sources
         .into_iter()
         .map(|source| {
-            let mut sorted_responses: Vec<&T> = Vec::new();
-            if let Some(responses) = first.get(source) {
-                sorted_responses.extend(responses.iter());
-            }
-            if let Some(second_map) = second
-                && let Some(responses) = second_map.get(source)
-            {
-                sorted_responses.extend(responses.iter());
-            }
-            sorted_responses.sort_by(|a, b| {
-                let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-                numeric_sort::cmp(&a, &b)
-            });
+            let mut responses: Vec<&T> = stat_maps
+                .iter()
+                .filter_map(|m| m.get(source))
+                .flat_map(|set| set.iter())
+                .collect();
 
-            (source, sorted_responses)
+            responses.natural_sort();
+
+            (source, responses)
         })
         .collect();
-
-    entries.sort_by(|(a, _), (b, _)| {
-        let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-        numeric_sort::cmp(&a, &b)
-    });
 
     entries
 }
