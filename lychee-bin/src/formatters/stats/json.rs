@@ -138,9 +138,6 @@ mod tests {
         let formatter = Json::new();
         let result = formatter.format(get_dummy_stats()).unwrap();
 
-        assert_eq!(
-            result,
-            EXPECTED_JSON,
-        );
+        assert_eq!(result, EXPECTED_JSON);
     }
 }
