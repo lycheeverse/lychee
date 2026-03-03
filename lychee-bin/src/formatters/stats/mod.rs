@@ -54,24 +54,6 @@ pub(crate) fn output_statistics(stats: OutputStats, config: &Config) -> Result<(
     Ok(())
 }
 
-/// Trait to sort a Vec of items in natural, case-insensitive order
-trait NaturalSort {
-    fn natural_sort(&mut self);
-}
-
-/// Implement natural sorting for Vec of items that implement Display
-impl<T> NaturalSort for Vec<T>
-where
-    T: Display,
-{
-    fn natural_sort(&mut self) {
-        self.sort_by(|a, b| {
-            let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-            numeric_sort::cmp(&a, &b)
-        });
-    }
-}
-
 /// Convert a `ResponseStats` `HashMap` to a sorted Vec of key-value pairs
 /// The returned keys and values are both sorted in natural, case-insensitive order
 fn sort_stat_map<T>(stat_map: &HashMap<InputSource, HashSet<T>>) -> Vec<(&InputSource, Vec<&T>)>
@@ -93,7 +75,7 @@ where
     let all_sources_hs: HashSet<_> = stat_maps.iter().flat_map(|m| m.keys()).collect();
     let mut all_sources: Vec<_> = all_sources_hs.into_iter().collect();
 
-    all_sources.natural_sort();
+    all_sources.sort_by_key(|item| item.to_string().to_lowercase());
 
     let entries: Vec<_> = all_sources
         .into_iter()
@@ -104,7 +86,7 @@ where
                 .flat_map(|set| set.iter())
                 .collect();
 
-            responses.natural_sort();
+            responses.sort_by_key(|item| item.to_string().to_lowercase());
 
             (source, responses)
         })
