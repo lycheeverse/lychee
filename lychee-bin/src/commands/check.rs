@@ -3,12 +3,13 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
+use futures::FutureExt;
 use futures::StreamExt;
 use http::StatusCode;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
-use tokio::sync::mpsc;
 use tokio::sync::SetOnce;
+use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
 use lychee_lib::InputSource;
@@ -16,7 +17,7 @@ use lychee_lib::RequestError;
 use lychee_lib::Status;
 use lychee_lib::archive::Archive;
 use lychee_lib::waiter::{WaitGroup, WaitGuard};
-use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
+use lychee_lib::{Client, ErrorKind, Request, Response};
 
 use crate::cache::CacheValue;
 use crate::formatters::stats::ResponseStats;
@@ -48,7 +49,6 @@ where
 
     let client = params.client;
     let cache = params.cache;
-    let cache_exclude_status = params.cfg.cache_exclude_status().into();
     let accept = params.cfg.accept().into();
 
     // Start receiving requests
@@ -58,7 +58,6 @@ where
         max_concurrency,
         client,
         cache,
-        cache_exclude_status,
         accept,
     ));
 
@@ -206,43 +205,46 @@ async fn request_channel_task(
     max_concurrency: usize,
     client: Client,
     cache: Cache,
-    cache_exclude_status: HashSet<StatusCode>,
     accept: HashSet<StatusCode>,
 ) -> (Cache, Client) {
-    let accept = Arc::new(Box::pin(accept));
-
     let (send_side_channel, recv_side_channel) = mpsc::channel(max_concurrency);
 
-    let main_task = StreamExt::for_each_concurrent(
-        ReceiverStream::new(recv_req),
-        max_concurrency,
-        |(guard, request): (WaitGuard, Result<Request, RequestError>)| async {
-            let response = handle(&client, &cache, send_side_channel.clone(), guard, request).await;
+    let main_task = futures::future::always_ready(|| send_side_channel.clone())
+        .then(|send_side_channel| async move {
+            StreamExt::for_each_concurrent(
+                ReceiverStream::new(recv_req),
+                max_concurrency,
+                |(guard, request)| async {
+                    let response =
+                        handle(&client, &cache, (&send_side_channel).clone(), guard, request).await;
 
-            if let Some((guard, response)) = response {
-                send_resp
-                    .send((guard, response))
-                    .await
-                    .expect("cannot send response to queue");
-            }
+                    if let Some((guard, response)) = response {
+                        send_resp
+                            .send((guard, response))
+                            .await
+                            .expect("cannot send response to queue");
+                    }
+                },
+            ).await
+        })
+        .boxed();
+
+    let side_task = StreamExt::for_each_concurrent(
+        ReceiverStream::new(recv_side_channel),
+        max_concurrency,
+        |(guard, request, once)| async {
+            let response = handle_cached(&client, &accept, request, once).await;
+
+            send_resp
+                .send((guard, Ok(response)))
+                .await
+                .expect("cannot send response to queue from side task");
         },
-    );
-    //
-    // let side_task = StreamExt::for_each_concurrent(
-    //     ReceiverStream::new(recv_side_channel),
-    //     max_concurrency,
-    //     |(guard, request, once):  (WaitGuard, Request, Arc<SetOnce<CacheValue>>)| async {
-    //         let response = handle_cached(&client, panic!("a"), request, once).await;
-    //
-    //         send_resp
-    //             .send((guard, Ok(response)))
-    //             .await
-    //             .expect("cannot send response to queue from side task");
-    //     },
-    // );
-    //
-    // let ((), ()) = futures::join!(main_task, side_task);
-    //
+    )
+    .boxed();
+
+    let ((), ()) = futures::join!(main_task, side_task);
+
     (cache, client)
 }
 
@@ -291,11 +293,12 @@ async fn handle(
 
     let uri = request.uri.clone();
 
-    // First check the persistent disk-based cache
+    // First check the persistent in-memory cache
     match cache.lock_entry(uri) {
         Ok(arc) => {
             let response = check_url(client, request).await;
-            arc.set(response.status().into());
+            arc.set(response.status().into())
+                .expect("cache already set??");
             Some((guard, Ok(response)))
         }
         // Found a cached request
@@ -332,26 +335,6 @@ async fn handle_cached(
     };
 
     Response::new(uri, status, request.source.into(), request.span, None)
-}
-
-/// Returns `true` if the response should be ignored in the cache.
-///
-/// The response should be ignored if:
-/// - The URI is a file URI.
-/// - The status is excluded.
-/// - The status is unsupported.
-/// - The status is unknown.
-/// - The status code is excluded from the cache.
-fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<StatusCode>) -> bool {
-    let status_code_excluded = status
-        .code()
-        .is_some_and(|code| cache_exclude_status.contains(&code));
-
-    uri.is_file()
-        || status.is_excluded()
-        || status.is_unsupported()
-        || status.is_unknown()
-        || status_code_excluded
 }
 
 fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
@@ -392,52 +375,32 @@ mod tests {
 
     #[test]
     fn test_cache_by_default() {
-        assert!(!ignore_cache(
-            &Uri::try_from("https://[::1]").unwrap(),
-            &Status::Ok(StatusCode::OK),
-            &HashSet::default()
+        assert!(!Cache::is_omitted_from_disk_cache(
+            &(&Status::Ok(StatusCode::OK)).into()
         ));
     }
 
     #[test]
     // Cache is ignored for file URLs
     fn test_cache_ignore_file_urls() {
-        assert!(ignore_cache(
+        assert!(Cache::is_bypassed_from_cache(
             &Uri::try_from("file:///home").unwrap(),
-            &Status::Ok(StatusCode::OK),
-            &HashSet::default()
         ));
     }
 
     #[test]
     // Cache is ignored for unsupported status
     fn test_cache_ignore_unsupported_status() {
-        assert!(ignore_cache(
-            &Uri::try_from("https://[::1]").unwrap(),
-            &Status::Unsupported(ErrorKind::EmptyUrl),
-            &HashSet::default()
+        assert!(Cache::is_omitted_from_disk_cache(
+            &(&Status::Unsupported(ErrorKind::EmptyUrl)).into()
         ));
     }
 
     #[test]
     // Cache is ignored for unknown status
     fn test_cache_ignore_unknown_status() {
-        assert!(ignore_cache(
-            &Uri::try_from("https://[::1]").unwrap(),
-            &Status::UnknownStatusCode(StatusCode::IM_A_TEAPOT),
-            &HashSet::default()
-        ));
-    }
-
-    #[test]
-    fn test_cache_ignore_excluded_status() {
-        // Cache is ignored for excluded status codes
-        let exclude = HashSet::from([StatusCode::OK]);
-
-        assert!(ignore_cache(
-            &Uri::try_from("https://[::1]").unwrap(),
-            &Status::Ok(StatusCode::OK),
-            &exclude
+        assert!(Cache::is_omitted_from_disk_cache(
+            &(&Status::UnknownStatusCode(StatusCode::IM_A_TEAPOT)).into()
         ));
     }
 }

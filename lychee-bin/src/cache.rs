@@ -1,13 +1,13 @@
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
-use std::collections::HashSet;
 
-use http::StatusCode;
 use anyhow::Result;
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
+use http::StatusCode;
 use serde::{Deserialize, Serialize};
-use tokio::sync::{SetOnce, SetOnceError};
+use tokio::sync::SetOnce;
 
 use crate::time::{self, Timestamp, timestamp};
 use lychee_lib::{CacheStatus, Status, StatusCodeSelector, Uri};
@@ -53,7 +53,7 @@ impl Cache {
     }
 
     /// Returns whether the given [`Uri`] should bypass the cache entirely.
-    fn is_bypassed_from_cache(uri: &Uri) -> bool {
+    pub(crate) fn is_bypassed_from_cache(uri: &Uri) -> bool {
         uri.is_file()
     }
 
@@ -65,7 +65,7 @@ impl Cache {
     /// - The status is unsupported.
     /// - The status is unknown.
     /// - The status code is excluded from the cache.
-    fn is_omitted_from_disk_cache(cache_value: &CacheValue) -> bool {
+    pub(crate) fn is_omitted_from_disk_cache(cache_value: &CacheValue) -> bool {
         match cache_value.status {
             CacheStatus::Ok(_) | CacheStatus::Error(_) => false,
             CacheStatus::Excluded | CacheStatus::Unsupported => true,
@@ -85,7 +85,9 @@ impl Cache {
             if let Some(v) = entry.value().get()
                 && !Self::is_omitted_from_disk_cache(v)
             {
-                if Option::<StatusCode>::from(v.status).is_none_or(|s| !cache_exclude_status.contains(&s)) {
+                if Option::<StatusCode>::from(v.status)
+                    .is_none_or(|s| !cache_exclude_status.contains(&s))
+                {
                     wtr.serialize((entry.key(), v))?;
                 }
             }
@@ -122,17 +124,14 @@ impl Cache {
 
             map.insert(uri, value);
         }
-        Ok(map.into())
+        Ok(map.into_iter().collect())
     }
 }
 
-impl<It> From<It> for Cache
-where
-    It: IntoIterator<Item = (Uri, CacheValue)>,
-{
-    fn from(it: It) -> Self {
+impl FromIterator<(Uri, CacheValue)> for Cache {
+    fn from_iter<It: IntoIterator<Item = (Uri, CacheValue)>>(iter: It) -> Self {
         let map = DashMap::new();
-        for (k, v) in it {
+        for (k, v) in iter {
             map.insert(k, Arc::new(v.into()));
         }
         Self(map)
@@ -141,12 +140,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use dashmap::DashMap;
     use http::StatusCode;
     use lychee_lib::{CacheStatus, StatusCodeSelector, StatusRange, Uri};
 
     use crate::{
-        cache::{Cache, CacheValue, StoreExt},
+        cache::{Cache, CacheValue},
         time::timestamp,
     };
 
@@ -154,17 +152,18 @@ mod tests {
     fn test_excluded_status_not_reused_from_cache() {
         let uri: Uri = "https://example.com".try_into().unwrap();
 
-        let cache: Cache = Default::default();
-        cache.insert(
+        let cache: Cache = vec![(
             uri.clone(),
             CacheValue {
                 status: CacheStatus::Ok(StatusCode::TOO_MANY_REQUESTS),
                 timestamp: timestamp(),
             },
-        );
+        )]
+        .into_iter()
+        .collect();
 
         let tmp = tempfile::NamedTempFile::new().unwrap();
-        cache.store(tmp.path()).unwrap();
+        cache.store(tmp.path(), &Default::default()).unwrap();
 
         let mut excluder = StatusCodeSelector::empty();
         excluder.add_range(StatusRange::new(400, 500).unwrap());

@@ -383,7 +383,10 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         output_statistics(stats, &opts.config)?;
 
         if opts.config.cache {
-            cache.store(LYCHEE_CACHE_FILE)?;
+            cache.store(
+                LYCHEE_CACHE_FILE,
+                &opts.config.cache_exclude_status().into(),
+            )?;
         }
 
         if let Some(cookie_jar) = cookie_jar.as_ref() {
