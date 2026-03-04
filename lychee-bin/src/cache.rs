@@ -1,6 +1,8 @@
 use std::path::Path;
 use std::sync::Arc;
+use std::collections::HashSet;
 
+use http::StatusCode;
 use anyhow::Result;
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
@@ -41,14 +43,17 @@ impl Cache {
         &self,
         uri: Uri,
     ) -> Result<Arc<SetOnce<CacheValue>>, Arc<SetOnce<CacheValue>>> {
+        if Self::is_bypassed_from_cache(&uri) {
+            return Ok(Default::default());
+        }
         match self.0.entry(uri) {
-            Entry::Vacant(vac) => Ok(vac.insert(Arc::new(SetOnce::new())).value().clone()),
+            Entry::Vacant(vac) => Ok(vac.insert(Default::default()).value().clone()),
             Entry::Occupied(occ) => Err(occ.get().clone()),
         }
     }
 
     /// Returns whether the given [`Uri`] should bypass the cache entirely.
-    pub(crate) fn is_bypassed_from_cache(uri: &Uri) -> bool {
+    fn is_bypassed_from_cache(uri: &Uri) -> bool {
         uri.is_file()
     }
 
@@ -62,13 +67,17 @@ impl Cache {
     /// - The status code is excluded from the cache.
     fn is_omitted_from_disk_cache(cache_value: &CacheValue) -> bool {
         match cache_value.status {
-            CacheStatus::Ok(_) | CacheStatus::Error(_) => true,
-            CacheStatus::Excluded | CacheStatus::Unsupported => false,
+            CacheStatus::Ok(_) | CacheStatus::Error(_) => false,
+            CacheStatus::Excluded | CacheStatus::Unsupported => true,
         }
     }
 
     /// Store the cache under the given path. Update access timestamps
-    pub(crate) fn store(&self, path: impl AsRef<Path>) -> Result<()> {
+    pub(crate) fn store(
+        &self,
+        path: impl AsRef<Path>,
+        cache_exclude_status: &HashSet<StatusCode>,
+    ) -> Result<()> {
         let mut wtr = csv::WriterBuilder::new()
             .has_headers(false)
             .from_path(path)?;
@@ -76,7 +85,9 @@ impl Cache {
             if let Some(v) = entry.value().get()
                 && !Self::is_omitted_from_disk_cache(v)
             {
-                wtr.serialize((entry.key(), v))?;
+                if Option::<StatusCode>::from(v.status).is_none_or(|s| !cache_exclude_status.contains(&s)) {
+                    wtr.serialize((entry.key(), v))?;
+                }
             }
         }
         Ok(())

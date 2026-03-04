@@ -8,6 +8,7 @@ use http::StatusCode;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
 use tokio::sync::mpsc;
+use tokio::sync::SetOnce;
 use tokio_stream::wrappers::ReceiverStream;
 
 use lychee_lib::InputSource;
@@ -208,27 +209,40 @@ async fn request_channel_task(
     cache_exclude_status: HashSet<StatusCode>,
     accept: HashSet<StatusCode>,
 ) -> (Cache, Client) {
-    StreamExt::for_each_concurrent(
+    let accept = Arc::new(Box::pin(accept));
+
+    let (send_side_channel, recv_side_channel) = mpsc::channel(max_concurrency);
+
+    let main_task = StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
         |(guard, request): (WaitGuard, Result<Request, RequestError>)| async {
-            let response = handle(
-                &client,
-                &cache,
-                cache_exclude_status.clone(),
-                request,
-                accept.clone(),
-            )
-            .await;
+            let response = handle(&client, &cache, send_side_channel.clone(), guard, request).await;
 
-            send_resp
-                .send((guard, response))
-                .await
-                .expect("cannot send response to queue");
+            if let Some((guard, response)) = response {
+                send_resp
+                    .send((guard, response))
+                    .await
+                    .expect("cannot send response to queue");
+            }
         },
-    )
-    .await;
-
+    );
+    //
+    // let side_task = StreamExt::for_each_concurrent(
+    //     ReceiverStream::new(recv_side_channel),
+    //     max_concurrency,
+    //     |(guard, request, once):  (WaitGuard, Request, Arc<SetOnce<CacheValue>>)| async {
+    //         let response = handle_cached(&client, panic!("a"), request, once).await;
+    //
+    //         send_resp
+    //             .send((guard, Ok(response)))
+    //             .await
+    //             .expect("cannot send response to queue from side task");
+    //     },
+    // );
+    //
+    // let ((), ()) = futures::join!(main_task, side_task);
+    //
     (cache, client)
 }
 
@@ -265,59 +279,59 @@ async fn check_url(client: &Client, request: Request) -> Response {
 async fn handle(
     client: &Client,
     cache: &Cache,
-    cache_exclude_status: HashSet<StatusCode>,
+    send_side_channel: mpsc::Sender<(WaitGuard, Request, Arc<SetOnce<CacheValue>>)>,
+    guard: WaitGuard,
     request: Result<Request, RequestError>,
-    accept: HashSet<StatusCode>,
-) -> Result<Response, ErrorKind> {
+) -> Option<(WaitGuard, Result<Response, ErrorKind>)> {
     // Note that the RequestError cases bypass the cache.
     let request = match request {
         Ok(x) => x,
-        Err(e) => return e.into_response(),
+        Err(e) => return Some((guard, e.into_response())),
     };
 
     let uri = request.uri.clone();
 
     // First check the persistent disk-based cache
-    if let Some(v) = cache.0.get(&uri) {
+    match cache.lock_entry(uri) {
+        Ok(arc) => {
+            let response = check_url(client, request).await;
+            arc.set(response.status().into());
+            Some((guard, Ok(response)))
+        }
         // Found a cached request
-        // Overwrite cache status in case the URI is excluded in the
-        // current run
-        let status = if client.is_excluded(&uri) {
-            Status::Excluded
-        } else {
-            // Can't impl `Status::from(v.value().status)` here because the
-            // `accepted` status codes might have changed from the previous run
-            // and they may have an impact on the interpretation of the status
-            // code.
-            client.host_pool().record_persistent_cache_hit(&uri);
-            Status::from_cache_status(v.value().wait().await.status, &accept)
-        };
-
-        return Ok(Response::new(
-            uri.clone(),
-            status,
-            request.source.into(),
-            request.span,
-            None,
-        ));
+        Err(arc) => {
+            send_side_channel
+                .send((guard, request, arc))
+                .await
+                .expect("side channel closed");
+            None
+        }
     }
+}
 
-    let response = check_url(client, request).await;
+async fn handle_cached(
+    client: &Client,
+    accept: &HashSet<StatusCode>,
+    request: Request,
+    once: Arc<SetOnce<CacheValue>>,
+) -> Response {
+    let uri = request.uri;
+    let status = once.wait().await.status;
 
-    // - Never cache filesystem access as it is fast already so caching has no benefit.
-    // - Skip caching unsupported URLs as they might be supported in a future run.
-    // - Skip caching excluded links; they might not be excluded in the next run.
-    // - Skip caching links for which the status code has been explicitly excluded from the cache.
-    let status = response.status();
-    if ignore_cache(&uri, status, &cache_exclude_status) {
-        return Ok(response);
-    }
+    // Overwrite cache status in case the URI is excluded in the
+    // current run
+    let status = if client.is_excluded(&uri) {
+        Status::Excluded
+    } else {
+        // Can't impl `Status::from(v.value().status)` here because the
+        // `accepted` status codes might have changed from the previous run
+        // and they may have an impact on the interpretation of the status
+        // code.
+        client.host_pool().record_persistent_cache_hit(&uri);
+        Status::from_cache_status(status, &accept)
+    };
 
-    cache.0.insert(
-        uri,
-        Arc::new(<&Status as Into<CacheValue>>::into(status).into()),
-    );
-    Ok(response)
+    Response::new(uri, status, request.source.into(), request.span, None)
 }
 
 /// Returns `true` if the response should be ignored in the cache.
