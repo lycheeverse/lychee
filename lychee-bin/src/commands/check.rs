@@ -209,25 +209,21 @@ async fn request_channel_task(
 ) -> (Cache, Client) {
     let (send_side_channel, recv_side_channel) = mpsc::channel(max_concurrency);
 
-    let main_task = futures::future::always_ready(|| send_side_channel.clone())
-        .then(|send_side_channel| async move {
-            StreamExt::for_each_concurrent(
-                ReceiverStream::new(recv_req),
-                max_concurrency,
-                |(guard, request)| async {
-                    let response =
-                        handle(&client, &cache, (&send_side_channel).clone(), guard, request).await;
+    let main_task = StreamExt::for_each_concurrent(
+        ReceiverStream::new(recv_req),
+        max_concurrency,
+        |(guard, request)| async {
+            let response = handle(&client, &cache, send_side_channel.clone(), guard, request).await;
 
-                    if let Some((guard, response)) = response {
-                        send_resp
-                            .send((guard, response))
-                            .await
-                            .expect("cannot send response to queue");
-                    }
-                },
-            ).await
-        })
-        .boxed();
+            if let Some((guard, response)) = response {
+                send_resp
+                    .send((guard, response))
+                    .await
+                    .expect("cannot send response to queue");
+            }
+        },
+    )
+    .boxed();
 
     let side_task = StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_side_channel),
