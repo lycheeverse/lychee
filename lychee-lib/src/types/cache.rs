@@ -16,7 +16,10 @@ pub enum CacheStatus {
     /// The cached request failed before
     #[serde(serialize_with = "serialize_optional_status_code")]
     Error(Option<StatusCode>),
-    /// The request was excluded (skipped)
+    /// The request was excluded (skipped).
+    ///
+    /// Note that this means excluded *from link checking*, not necessarily
+    /// excluded from the cache.
     Excluded,
     /// The protocol is not yet supported
     // We no longer cache unsupported files as they might be supported in future

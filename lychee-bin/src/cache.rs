@@ -30,13 +30,35 @@ impl From<&Status> for CacheValue {
 pub(crate) struct Cache(pub(crate) DashMap<Uri, CacheValue>);
 
 impl Cache {
+    /// Returns whether the given [`Uri`] should bypass the cache entirely.
+    fn is_bypassed_from_cache(uri: &Uri) -> bool {
+        uri.is_file()
+    }
+
+    /// Returns `true` if the cache value should be omitted when writing the
+    /// cache to disk.
+    ///
+    /// The response should be ignored if:
+    /// - The status is excluded.
+    /// - The status is unsupported.
+    /// - The status is unknown.
+    /// - The status code is excluded from the cache.
+    fn is_omitted_from_disk_cache(cache_value: &CacheValue) -> bool {
+        match cache_value.status {
+            CacheStatus::Ok(_) | CacheStatus::Error(_) => true,
+            CacheStatus::Excluded | CacheStatus::Unsupported => false,
+        }
+    }
+
     /// Store the cache under the given path. Update access timestamps
-    pub(crate) fn store<T: AsRef<Path>>(&self, path: T) -> Result<()> {
+    pub(crate) fn store(&self, path: impl AsRef<Path>) -> Result<()> {
         let mut wtr = csv::WriterBuilder::new()
             .has_headers(false)
             .from_path(path)?;
         for entry in &self.0 {
-            wtr.serialize(entry)?;
+            if !Self::is_omitted_from_disk_cache(entry.value()) {
+                wtr.serialize((entry.key(), entry.value()))?;
+            }
         }
         Ok(())
     }
