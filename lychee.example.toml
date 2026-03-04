@@ -190,6 +190,9 @@ include_wikilinks = true
 # Only check local files
 offline = true
 
+# Accept timed out requests
+accept_timeouts = true
+
 #############################  Other  #############################
 
 # Read input filenames from the given file or stdin ('-')

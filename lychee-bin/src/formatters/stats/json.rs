@@ -22,19 +22,12 @@ impl StatsFormatter for Json {
 mod tests {
     use crate::formatters::stats::{Json, StatsFormatter, get_dummy_stats};
 
-    #[test]
-    fn test_json_formatter() {
-        let formatter = Json::new();
-        let result = formatter.format(get_dummy_stats()).unwrap();
-
-        assert_eq!(
-            result,
-            r#"{
+    const EXPECTED_JSON: &str = r#"{
   "total": 2,
   "successful": 0,
   "unknown": 0,
   "unsupported": 0,
-  "timeouts": 0,
+  "timeouts": 1,
   "redirects": 1,
   "excludes": 0,
   "errors": 1,
@@ -47,6 +40,24 @@ mod tests {
         "status": {
           "text": "404 Not Found",
           "code": 404
+        },
+        "span": {
+          "line": 1,
+          "column": 1
+        },
+        "duration": {
+          "secs": 1,
+          "nanos": 0
+        }
+      }
+    ]
+  },
+  "timeout_map": {
+    "https://example.com/": [
+      {
+        "url": "https://httpbin.org/delay/2",
+        "status": {
+          "text": "Timeout"
         },
         "span": {
           "line": 1,
@@ -120,7 +131,13 @@ mod tests {
       "status_codes": {}
     }
   }
-}"#
-        );
+}"#;
+
+    #[test]
+    fn test_json_formatter() {
+        let formatter = Json::new();
+        let result = formatter.format(get_dummy_stats()).unwrap();
+
+        assert_eq!(result, EXPECTED_JSON);
     }
 }

@@ -1501,6 +1501,40 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
+    async fn test_accept_timeout() -> Result<()> {
+        let mock_server_timeout = mock_server!(StatusCode::OK, set_delay(Duration::from_secs(30)));
+
+        cargo_bin_cmd!()
+            .arg("--max-retries=0")
+            .arg("--timeout=1")
+            .arg("-")
+            .write_stdin(mock_server_timeout.uri())
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains(format!(
+                r#"[TIMEOUT] {}/ (at 1:1) | Timeout"#,
+                mock_server_timeout.uri()
+            )));
+
+        cargo_bin_cmd!()
+            .arg("--max-retries=0")
+            .arg("--timeout=1")
+            .arg("--accept-timeouts")
+            .arg("-")
+            .write_stdin(mock_server_timeout.uri())
+            .assert()
+            .success()
+            .code(0)
+            .stdout(contains(format!(
+                r#"[TIMEOUT] {}/ (at 1:1) | Timeout"#,
+                mock_server_timeout.uri()
+            )));
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_skip_cache_unsupported() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let base_path = dir.path();
@@ -1584,8 +1618,7 @@ The config file should contain every possible key for documentation purposes."
                 // Simulate real-world delay.
                 // Keep the delay to prove how we make use of synchronization
                 // primitives to prevent duplicate requests.
-                std::thread::sleep(std::time::Duration::from_secs(1));
-                ResponseTemplate::new(200)
+                ResponseTemplate::new(200).set_delay(Duration::from_secs(1))
             })
             .expect(1)
             .mount(&server)
