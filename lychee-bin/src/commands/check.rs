@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use futures::FutureExt;
 use futures::StreamExt;
+use futures::future::Either;
 use http::StatusCode;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
@@ -212,7 +213,8 @@ async fn request_channel_task(
     let main_task = StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
-        |(guard, request)| async {
+        |(guard, request)| {
+            async {
             let response = handle(&client, &cache, send_side_channel.clone(), guard, request).await;
 
             if let Some((guard, response)) = response {
@@ -221,8 +223,12 @@ async fn request_channel_task(
                     .await
                     .expect("cannot send response to queue");
             }
-        },
-    )
+        }},
+    ).then(|()| async {
+            drop(send_side_channel);
+            ()
+
+        })
     .boxed();
 
     let side_task = StreamExt::for_each_concurrent(
@@ -239,7 +245,13 @@ async fn request_channel_task(
     )
     .boxed();
 
-    let ((), ()) = futures::join!(main_task, side_task);
+    match futures::future::select(main_task, side_task).await {
+        Either::Left(((), side_task)) => {
+    // drop(send_side_channel);
+    side_task.await
+        }
+        Either::Right(((), main_task)) => main_task.await
+    };
 
     (cache, client)
 }
