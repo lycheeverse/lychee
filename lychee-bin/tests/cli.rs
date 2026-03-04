@@ -1618,8 +1618,7 @@ The config file should contain every possible key for documentation purposes."
                 // Simulate real-world delay.
                 // Keep the delay to prove how we make use of synchronization
                 // primitives to prevent duplicate requests.
-                std::thread::sleep(std::time::Duration::from_secs(1));
-                ResponseTemplate::new(200)
+                ResponseTemplate::new(200).set_delay(Duration::from_secs(1))
             })
             .expect(1)
             .mount(&server)

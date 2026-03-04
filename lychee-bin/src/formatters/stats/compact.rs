@@ -26,19 +26,19 @@ struct CompactResponseStats {
 impl Display for CompactResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let stats = &self.stats;
+        let issues = stats
+            .error_map
+            .iter()
+            .chain(stats.timeout_map.iter())
+            .count();
 
-        if !stats.error_map.is_empty() {
-            let input = if stats.error_map.len() == 1 {
-                "input"
-            } else {
-                "inputs"
-            };
+        if issues > 0 {
+            let input = if issues == 1 { "input" } else { "inputs" };
 
             color!(
                 f,
                 BOLD_PINK,
-                "Issues found in {} {input}. Find details below.\n\n",
-                stats.error_map.len()
+                "Issues found in {issues} {input}. Find details below.\n\n",
             )?;
         }
 
