@@ -6,7 +6,6 @@ use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{SetOnce, SetOnceError};
-use tokio::sync::{RwLock};
 
 use crate::time::{self, Timestamp, timestamp};
 use lychee_lib::{CacheStatus, Status, StatusCodeSelector, Uri};
@@ -32,32 +31,19 @@ impl From<&Status> for CacheValue {
 ///
 /// At the moment it is backed by `DashMap`, but this is an implementation
 /// detail which should not be relied upon. The cache values stored within
-/// the map can represent a request that might be in-flight and not yet finished.
+/// the map are wrapped in [`SetOnce`] to represent a request that might be
+/// in-flight and not yet finished.
 #[derive(Default, Debug)]
-pub(crate) struct Cache(pub(crate) DashMap<Uri, Arc<RwLock<Option<CacheValue>>>>);
+pub(crate) struct Cache(pub(crate) DashMap<Uri, Arc<SetOnce<CacheValue>>>);
 
 impl Cache {
-    pub(crate) fn get_or_init(
+    pub(crate) fn lock_entry(
         &self,
         uri: Uri,
-        init: impl FnOnce(&Uri) -> Fut
-    ) -> Result<impl FnOnce(CacheValue) -> (), impl Future<Output = &CacheValue>> {
+    ) -> Result<Arc<SetOnce<CacheValue>>, Arc<SetOnce<CacheValue>>> {
         match self.0.entry(uri) {
-            Entry::Vacant(vac) => {
-                let arc = vac.insert(Arc::new(None.into())).value().clone();
-                let guard = arc.lock_owned();
-                Ok(move |x| {
-                    let guard = guard;
-                    once.set(x);
-                })
-            }
-            Entry::Occupied(occ) => {
-                let once: Arc<_> = occ.get().clone();
-                Err(async move {
-                    let once = once.clone();
-                    once.wait().await
-                })
-            }
+            Entry::Vacant(vac) => Ok(vac.insert(Arc::new(SetOnce::new())).value().clone()),
+            Entry::Occupied(occ) => Err(occ.get().clone()),
         }
     }
 
