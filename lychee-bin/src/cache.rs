@@ -1,7 +1,6 @@
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
-use std::borrow::Borrow;
 
 use anyhow::Result;
 use dashmap::DashMap;
@@ -29,31 +28,60 @@ impl From<&Status> for CacheValue {
     }
 }
 
-struct MappedValue<T, U, F: Fn(&T) -> dyn Borrow<U>> {
+struct MappedValue<T, F> {
     val: T,
     f: F,
 }
 
-impl<T> MappedValue<T, T, fn(&T) -> dyn &T> {
+impl<T> MappedValue<T, fn(T) -> T> {
     fn new(val: T) -> Self {
         MappedValue { val, f: |x| x }
     }
 }
 
-// impl<T, U: 'static, F: Fn(&T) -> Borrow<U>> MappedValue<T, U, F> {
-//     fn map<V>(self, g: impl Fn(&U) -> Borrow<V>) -> MappedValue<T, V, impl Fn(&T) -> Borrow<V>> {
-//         MappedValue {
-//             val: self.val,
-//             f: move |x| g((self.f)(x)),
-//         }
-//     }
-// }
+fn compose<T, U: 'static, V>(f: impl Fn(&T) -> &U, g: impl Fn(&U) -> &V) -> impl Fn(&T) -> &V {
+    move |x| g(f(x))
+}
 
-impl<T, U, F: Fn(&T) -> &U> Deref for MappedValue<T, U, F> {
+impl<T, U: 'static, F: Fn(&T) -> &U> MappedValue<T, F>
+{
+    fn map_ref<V>(self, g: impl Fn(&U) -> &V) -> MappedValue<T, impl Fn(&T) -> &V> {
+        MappedValue {
+            val: self.val,
+            f: compose(self.f, g)
+        }
+    }
+}
+
+impl<T, U, F: Fn(T) -> U> MappedValue<T, F>
+{
+    fn map_owned<V>(self, g: impl Fn(U) -> V) -> MappedValue<T, impl Fn(T) -> V> {
+        MappedValue {
+            val: self.val,
+            f: move |x| g((self.f)(x))
+        }
+    }
+}
+
+impl<T, F, U> Deref for MappedValue<T, F>
+where
+    F: Fn(&T) -> &U,
+{
     type Target = U;
     fn deref(&self) -> &Self::Target {
         (self.f)(&self.val)
     }
+}
+
+impl<T, U, F: Fn(T) -> U> Into<U> for MappedValue<T, F>
+{
+    fn into(self) -> U {
+        (self.f)(self.val)
+    }
+}
+
+fn f() {
+    MappedValue::new(vec![1]).map_owned(|x| x);
 }
 
 /// The cache stores previous response codes for faster checking.
@@ -66,39 +94,40 @@ impl<T, U, F: Fn(&T) -> &U> Deref for MappedValue<T, U, F> {
 pub(crate) struct Cache(pub(crate) DashMap<Uri, Arc<SetOnce<CacheValue>>>);
 
 impl Cache {
-    // pub(crate) fn lock_entry<Fut>(
-    //     &self,
-    //     uri: Uri,
-    //     f: impl FnOnce(&Uri) -> Fut,
-    // ) -> impl Deref<Target = impl Future<Output = CacheValue>>
-    // where
-    //     Fut: Future<Output = CacheValue>,
-    // {
-    //     let arc = match self.0.entry(uri.clone()) {
-    //         Entry::Vacant(vac) => {
-    //             let arc = Arc::new(SetOnce::new());
-    //             Ok(vac.insert(arc).value().clone())
-    //         }
-    //         Entry::Occupied(occ) => Err(occ.get().clone()),
-    //     };
-    //
-    //     match arc {
-    //         Ok(arc) => {
-    //             MappedValue::new(arc).map(move |arc: &Arc<SetOnce<CacheValue>>| {
-    //                 let arc = arc.clone();
-    //                 let uri = uri.clone();
-    //                 async move {
-    //                     let arc = arc.clone();
-    //                     let _ = arc.set(f(&uri).await);
-    //                     arc.wait().await
-    //                 }
-    //             })
-    //         }
-    //         Err(arc) =>
-    //         panic!(""),
-    //     }
-    // }
-    //
+    pub(crate) fn lock_entry<Fut>(
+        &self,
+        uri: Uri,
+        f: impl FnOnce(&Uri) -> Fut,
+    ) -> impl Fn() -> Future<Output = CacheValue>
+    where
+        Fut: Future<Output = CacheValue>,
+    {
+        let arc = match self.0.entry(uri.clone()) {
+            Entry::Vacant(vac) => {
+                let arc = Arc::new(SetOnce::new());
+                Ok(vac.insert(arc).value().clone())
+            }
+            Entry::Occupied(occ) => Err(occ.get().clone()),
+        };
+
+        match arc {
+            Ok(arc) => {
+                let mapped = MappedValue::new(arc).map_owned(move |arc: Arc<SetOnce<CacheValue>>| {
+                    let arc = arc.clone();
+                    let uri = uri.clone();
+                    async move {
+                        let arc = arc.clone();
+                        let _ = arc.set(f(&uri).await);
+                        arc.wait().await
+                    }
+                });
+
+            }
+            Err(arc) =>
+            panic!(""),
+        }
+    }
+
     /// Returns whether the given [`Uri`] should bypass the cache entirely.
     pub(crate) fn is_bypassed_from_cache(uri: &Uri) -> bool {
         uri.is_file()
