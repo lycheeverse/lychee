@@ -71,7 +71,10 @@ impl Extractor {
                 &input_content.content,
                 &SourceSpanProvider::from_input(&input_content.content),
             ),
-            FileType::Xml => extract_xml(&input_content.content),
+            FileType::Xml => extract_xml(
+                &input_content.content,
+                &SourceSpanProvider::from_input(&input_content.content),
+            ),
         }
     }
 }

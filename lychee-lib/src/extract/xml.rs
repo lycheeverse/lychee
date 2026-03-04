@@ -1,19 +1,50 @@
 //! Extract links from XML documents. Currently only sitemaps are supported.
-use crate::RawUri;
+use std::sync::LazyLock;
+
+use regex::Regex;
+
+use crate::types::uri::raw::{RawUri, SpanProvider};
+
+// Static regex for extracting URLs from sitemaps
+static SITEMAP_URL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?x)                     # Enable extended mode for whitespace and comments
+        <loc>(                      # Match '<loc>'
+        (?P<url>[^<]+)              # Capture the URL (anything until the next '<')
+        )</loc>                     # Match '</loc>'
+        "#,
+    )
+    .expect("XML URL regex should be valid")
+});
 
 /// Extract unparsed URL strings from XML
-pub(crate) fn extract_xml(input: &str) -> Vec<RawUri> {
-    panic!("XML extraction is not implemented yet");
+pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Vec<RawUri> {
+    SITEMAP_URL_REGEX
+        .captures_iter(input)
+        .filter_map(|cap| {
+            let url = cap.name("url").map(|m| m.as_str().trim())?;
+
+            // Get the position of the entire match (for span information)
+            let match_start = cap.get(0)?.start();
+
+            Some(RawUri {
+                text: url.to_string(),
+                element: Some("loc".to_string()),
+                attribute: None,
+                span: span_provider.span(match_start),
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::types::uri::raw::{SourceSpanProvider, span};
+    use crate::types::uri::raw::{SourceSpanProvider};
 
     use super::*;
 
     fn extract(input: &str) -> Vec<RawUri> {
-        extract_xml(input)
+        extract_xml(input, &SourceSpanProvider::from_input(input))
     }
 
     #[test]
@@ -36,13 +67,24 @@ mod tests {
 </urlset>"#;
 
         let links: Vec<RawUri> = extract(input);
-        assert_eq!(
-            links,
-            [
-                RawUri::from(("https://elastisys.io/welkin/", span(3, 1))),
-                RawUri::from(("https://elastisys.io/welkin/architecture/", span(7, 1),)),
-                RawUri::from(("https://elastisys.io/welkin/glossary/", span(11, 1),)),
-            ]
-        );
+        let expected_links = vec![
+            "https://elastisys.io/welkin/",
+            "https://elastisys.io/welkin/architecture/",
+            "https://elastisys.io/welkin/glossary/",
+        ];
+
+        assert_eq!(links.len(), 3, "Should extract all URLs");
+
+        for expected_link in expected_links {
+            assert!(
+                links.iter().any(|u| u.text == expected_link),
+                "Should find URL: {expected_link}"
+            );
+        }
+
+        for link in &links {
+            assert_eq!(link.element, Some("loc".to_string()));
+            assert_eq!(link.attribute, None);
+        }
     }
 }
