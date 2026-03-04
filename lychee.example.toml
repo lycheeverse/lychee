@@ -191,7 +191,7 @@ include_wikilinks = true
 offline = true
 
 # Accept timed out requests
-accept_timeouts = false
+accept_timeouts = true
 
 #############################  Other  #############################
 
