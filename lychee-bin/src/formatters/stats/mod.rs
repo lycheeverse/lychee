@@ -17,9 +17,11 @@ pub(crate) use response::ResponseStats;
 use serde::Serialize;
 
 use std::{
+    cmp::Eq,
     collections::{HashMap, HashSet},
     fmt::Display,
     fs,
+    hash::Hash,
     io::{Write, stdout},
 };
 
@@ -54,43 +56,54 @@ pub(crate) fn output_statistics(stats: OutputStats, config: &Config) -> Result<(
     Ok(())
 }
 
-/// Convert a `ResponseStats` `HashMap` to a sorted Vec of key-value pairs
-/// The returned keys and values are both sorted in natural, case-insensitive order
+/// Convert a `ResponseStats` `HashMap` to a sorted Vec of key-value pairs.
+/// The returned keys and values are both sorted in natural, case-insensitive order.
+/// Additionally, the returned keys are deduplicated and their values are merged.
 fn sort_stat_map<T>(stat_map: &HashMap<InputSource, HashSet<T>>) -> Vec<(&InputSource, Vec<&T>)>
 where
     T: Display,
 {
-    sort_stat_maps(&vec![&stat_map])
+    sort_stats_iter(stat_map)
 }
 
-/// Merge `ResponseStats` `HashMap` to a sorted Vec of key-value pairs
-/// The returned keys and values are both sorted in natural, case-insensitive order
-fn sort_stat_maps<'a, T>(
-    stat_maps: &Vec<&'a HashMap<InputSource, HashSet<T>>>,
-) -> Vec<(&'a InputSource, Vec<&'a T>)>
+/// Sorts the given iterable of key-valuelist pairs by concatenating value lists
+/// for keys which are equal. The returned keys, and the value list for each key,
+/// are both sorted by case-insensitive order of their string representation.
+///
+/// This function takes [`IntoIterator`], so it can be called with an iterable
+/// value (e.g., a [`HashMap`]) or with an iterator already constructed (e.g.,
+/// from `hashmap.iter()`).
+///
+/// To sort multiple maps, you should chain their iterables, e.g.:
+/// ```
+/// let map1 = HashMap::<String, Vec<String>>::new();
+/// let map2 = HashMap::<String, Vec<String>>::new();
+/// let _ = sort_stats_iter(map1.iter().chain(map2.iter()));
+/// ```
+/// In the above example, we also see that although this function takes an
+/// iterable of *borrowed* items, it can still be called with an owned iterable
+/// because `.iter()` will borrow for us.
+fn sort_stats_iter<'a, K, V, Entries, Vals>(it: Entries) -> Vec<(&'a K, Vec<&'a V>)>
 where
-    T: Display,
+    K: Display + Hash + Eq + 'a,
+    V: Display + 'a,
+    Entries: IntoIterator<Item = (&'a K, Vals)>,
+    Vals: IntoIterator<Item = &'a V>,
 {
-    // First we collect all unique sources across all maps, then we sort them in natural order.
-    let all_sources_hs: HashSet<_> = stat_maps.iter().flat_map(|m| m.keys()).collect();
-    let mut all_sources: Vec<_> = all_sources_hs.into_iter().collect();
+    let mut map: HashMap<&K, Vec<&V>> = HashMap::new();
+    for (k, vs) in it {
+        let vals = map.entry(k).or_insert_with(Vec::new);
+        vals.extend(vs);
+    }
 
-    all_sources.sort_by_key(|item| item.to_string().to_lowercase());
+    // TODO: sorting by lowercase leads to unspecified order between
+    // items which differ only in case.
+    let mut entries: Vec<(&K, Vec<&V>)> = map.into_iter().collect();
 
-    let entries: Vec<_> = all_sources
-        .into_iter()
-        .map(|source| {
-            let mut responses: Vec<&T> = stat_maps
-                .iter()
-                .filter_map(|m| m.get(source))
-                .flat_map(|set| set.iter())
-                .collect();
-
-            responses.sort_by_key(|item| item.to_string().to_lowercase());
-
-            (source, responses)
-        })
-        .collect();
+    entries.sort_by_cached_key(|(x, _)| x.to_string().to_lowercase());
+    for (_, vs) in entries.iter_mut() {
+        vs.sort_by_cached_key(|x| x.to_string().to_lowercase());
+    }
 
     entries
 }

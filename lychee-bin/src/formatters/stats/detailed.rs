@@ -57,7 +57,7 @@ impl Display for DetailedResponseStats {
         let response_formatter = get_response_formatter(&self.mode);
 
         for (source, responses) in
-            super::sort_stat_maps(&vec![&stats.error_map, &stats.timeout_map])
+            super::sort_stats_iter(stats.error_map.iter().chain(stats.timeout_map.iter()))
         {
             // Using leading newlines over trailing ones (e.g. `writeln!`)
             // lets us avoid extra newlines without any additional logic.

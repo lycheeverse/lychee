@@ -45,7 +45,7 @@ impl Display for CompactResponseStats {
         let response_formatter = get_response_formatter(&self.mode);
 
         for (source, responses) in
-            super::sort_stat_maps(&vec![&stats.error_map, &stats.timeout_map])
+            super::sort_stats_iter(stats.error_map.iter().chain(stats.timeout_map.iter()))
         {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             write_responses(f, &*response_formatter, responses)?;
