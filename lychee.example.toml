@@ -190,7 +190,7 @@ include_wikilinks = true
 # Only check local files
 offline = true
 
-# Accept timeouts as valid links
+# Accept timed out requests
 accept_timeouts = false
 
 #############################  Other  #############################
