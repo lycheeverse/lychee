@@ -172,7 +172,7 @@ mod tests {
 
         assert_eq!(
             without_color_codes,
-            "Issues found in 1 input. Find details below.
+            "Issues found in 2 inputs. Find details below.
 
 [https://example.com/]:
 [404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found
