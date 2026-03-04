@@ -17,6 +17,7 @@ use lychee_lib::archive::Archive;
 use lychee_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
 
+use crate::cache::CacheValue;
 use crate::formatters::stats::ResponseStats;
 use crate::formatters::suggestion::Suggestion;
 use crate::progress::Progress;
@@ -289,7 +290,7 @@ async fn handle(
             // and they may have an impact on the interpretation of the status
             // code.
             client.host_pool().record_persistent_cache_hit(&uri);
-            Status::from_cache_status(v.value().status, &accept)
+            Status::from_cache_status(v.value().wait().await.status, &accept)
         };
 
         return Ok(Response::new(
@@ -312,7 +313,10 @@ async fn handle(
         return Ok(response);
     }
 
-    cache.0.insert(uri, status.into());
+    cache.0.insert(
+        uri,
+        Arc::new(<&Status as Into<CacheValue>>::into(status).into()),
+    );
     Ok(response)
 }
 

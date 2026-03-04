@@ -1,9 +1,14 @@
-use crate::time::{self, Timestamp, timestamp};
+use std::path::Path;
+use std::sync::Arc;
+
 use anyhow::Result;
 use dashmap::DashMap;
-use lychee_lib::{CacheStatus, Status, StatusCodeSelector, Uri};
+use dashmap::mapref::entry::Entry;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use tokio::sync::{SetOnce, SetOnceError};
+
+use crate::time::{self, Timestamp, timestamp};
+use lychee_lib::{CacheStatus, Status, StatusCodeSelector, Uri};
 
 /// Describes a response status that can be serialized to disk
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,14 +29,26 @@ impl From<&Status> for CacheValue {
 
 /// The cache stores previous response codes for faster checking.
 ///
-/// At the moment it is backed by `DashMap`, but this is an
-/// implementation detail, which should not be relied upon.
+/// At the moment it is backed by `DashMap`, but this is an implementation
+/// detail which should not be relied upon. The cache values stored within
+/// the map are wrapped in [`SetOnce`] to represent a request that might be
+/// in-flight and not yet finished.
 #[derive(Default, Debug)]
-pub(crate) struct Cache(pub(crate) DashMap<Uri, CacheValue>);
+pub(crate) struct Cache(pub(crate) DashMap<Uri, Arc<SetOnce<CacheValue>>>);
 
 impl Cache {
+    pub(crate) fn lock_entry(
+        &self,
+        uri: Uri,
+    ) -> Result<Arc<SetOnce<CacheValue>>, Arc<SetOnce<CacheValue>>> {
+        match self.0.entry(uri) {
+            Entry::Vacant(vac) => Ok(vac.insert(Arc::new(SetOnce::new())).value().clone()),
+            Entry::Occupied(occ) => Err(occ.get().clone()),
+        }
+    }
+
     /// Returns whether the given [`Uri`] should bypass the cache entirely.
-    fn is_bypassed_from_cache(uri: &Uri) -> bool {
+    pub(crate) fn is_bypassed_from_cache(uri: &Uri) -> bool {
         uri.is_file()
     }
 
@@ -56,8 +73,10 @@ impl Cache {
             .has_headers(false)
             .from_path(path)?;
         for entry in &self.0 {
-            if !Self::is_omitted_from_disk_cache(entry.value()) {
-                wtr.serialize((entry.key(), entry.value()))?;
+            if let Some(v) = entry.value().get()
+                && !Self::is_omitted_from_disk_cache(v)
+            {
+                wtr.serialize((entry.key(), v))?;
             }
         }
         Ok(())
@@ -92,7 +111,20 @@ impl Cache {
 
             map.insert(uri, value);
         }
-        Ok(Self(map))
+        Ok(map.into())
+    }
+}
+
+impl<It> From<It> for Cache
+where
+    It: IntoIterator<Item = (Uri, CacheValue)>,
+{
+    fn from(it: It) -> Self {
+        let map = DashMap::new();
+        for (k, v) in it {
+            map.insert(k, Arc::new(v.into()));
+        }
+        Self(map)
     }
 }
 
