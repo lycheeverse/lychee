@@ -659,7 +659,8 @@ pub(crate) struct Config {
     #[arg(short, long, verbatim_doc_comment)]
     accept: Option<StatusCodeSelector>,
 
-    /// Accept timeouts as valid links
+    /// Accept timed out requests and return exit code 0
+    /// when encountering timeouts but not any other errors.
     #[arg(long)]
     #[serde(default)]
     pub(crate) accept_timeouts: bool,
