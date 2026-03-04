@@ -91,7 +91,7 @@ mod verbosity;
 
 use crate::formatters::stats::{OutputStats, ResponseStats, output_statistics};
 use crate::{
-    cache::{Cache, StoreExt},
+    cache::Cache,
     formatters::duration::Duration,
     generate::generate,
     options::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},

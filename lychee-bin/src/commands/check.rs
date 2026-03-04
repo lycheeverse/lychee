@@ -277,7 +277,7 @@ async fn handle(
     let uri = request.uri.clone();
 
     // First check the persistent disk-based cache
-    if let Some(v) = cache.get(&uri) {
+    if let Some(v) = cache.0.get(&uri) {
         // Found a cached request
         // Overwrite cache status in case the URI is excluded in the
         // current run
@@ -312,7 +312,7 @@ async fn handle(
         return Ok(response);
     }
 
-    cache.insert(uri, status.into());
+    cache.0.insert(uri, status.into());
     Ok(response)
 }
 

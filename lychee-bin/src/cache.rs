@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Describes a response status that can be serialized to disk
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct CacheValue {
     pub(crate) status: CacheStatus,
     pub(crate) timestamp: Timestamp,
@@ -26,32 +26,23 @@ impl From<&Status> for CacheValue {
 ///
 /// At the moment it is backed by `DashMap`, but this is an
 /// implementation detail, which should not be relied upon.
-pub(crate) type Cache = DashMap<Uri, CacheValue>;
+#[derive(Default, Debug)]
+pub(crate) struct Cache(pub(crate) DashMap<Uri, CacheValue>);
 
-pub(crate) trait StoreExt {
+impl Cache {
     /// Store the cache under the given path. Update access timestamps
-    fn store<T: AsRef<Path>>(&self, path: T) -> Result<()>;
-
-    /// Load cache from path. Discard entries older than `max_age_secs`
-    fn load<T: AsRef<Path>>(
-        path: T,
-        max_age_secs: u64,
-        excluder: &StatusCodeSelector,
-    ) -> Result<Cache>;
-}
-
-impl StoreExt for Cache {
-    fn store<T: AsRef<Path>>(&self, path: T) -> Result<()> {
+    pub(crate) fn store<T: AsRef<Path>>(&self, path: T) -> Result<()> {
         let mut wtr = csv::WriterBuilder::new()
             .has_headers(false)
             .from_path(path)?;
-        for result in self {
-            wtr.serialize((result.key(), result.value()))?;
+        for entry in &self.0 {
+            wtr.serialize(entry)?;
         }
         Ok(())
     }
 
-    fn load<T: AsRef<Path>>(
+    /// Load cache from path. Discard entries older than `max_age_secs`
+    pub(crate) fn load<T: AsRef<Path>>(
         path: T,
         max_age_secs: u64,
         excluder: &StatusCodeSelector,
@@ -79,7 +70,7 @@ impl StoreExt for Cache {
 
             map.insert(uri, value);
         }
-        Ok(map)
+        Ok(Self(map))
     }
 }
 
@@ -98,7 +89,7 @@ mod tests {
     fn test_excluded_status_not_reused_from_cache() {
         let uri: Uri = "https://example.com".try_into().unwrap();
 
-        let cache: Cache = DashMap::<Uri, CacheValue>::new();
+        let cache: Cache = Default::default();
         cache.insert(
             uri.clone(),
             CacheValue {
@@ -114,6 +105,6 @@ mod tests {
         excluder.add_range(StatusRange::new(400, 500).unwrap());
 
         let cache = Cache::load(tmp.path(), u64::MAX, &excluder).unwrap();
-        assert!(cache.get(&uri).is_none());
+        assert!(cache.0.get(&uri).is_none());
     }
 }
