@@ -92,8 +92,7 @@ where
 {
     let mut map: HashMap<&K, Vec<&V>> = HashMap::new();
     for (k, vs) in it {
-        let vals = map.entry(k).or_default();
-        vals.extend(vs);
+        map.entry(k).or_default().extend(vs);
     }
 
     let mut entries: Vec<(&K, Vec<&V>)> = map.into_iter().collect();
