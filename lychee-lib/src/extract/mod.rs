@@ -6,11 +6,13 @@ use crate::types::{
 pub mod css;
 pub mod html;
 pub mod markdown;
+pub mod xml;
 mod plaintext;
 
 use css::extract_css;
 use markdown::extract_markdown;
 use plaintext::extract_raw_uri_from_plaintext;
+use xml::extract_xml;
 
 /// A handler for extracting links from various input formats like Markdown and
 /// HTML. Allocations should be avoided if possible as this is a
@@ -69,6 +71,7 @@ impl Extractor {
                 &input_content.content,
                 &SourceSpanProvider::from_input(&input_content.content),
             ),
+            FileType::Xml => extract_xml(&input_content.content),
         }
     }
 }
