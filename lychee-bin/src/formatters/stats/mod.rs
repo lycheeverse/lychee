@@ -92,7 +92,7 @@ where
 {
     let mut map: HashMap<&K, Vec<&V>> = HashMap::new();
     for (k, vs) in it {
-        let vals = map.entry(k).or_insert_with(Vec::new);
+        let vals = map.entry(k).or_default();
         vals.extend(vs);
     }
 
@@ -101,7 +101,7 @@ where
     let mut entries: Vec<(&K, Vec<&V>)> = map.into_iter().collect();
 
     entries.sort_by_cached_key(|(x, _)| x.to_string().to_lowercase());
-    for (_, vs) in entries.iter_mut() {
+    for (_, vs) in &mut entries {
         vs.sort_by_cached_key(|x| x.to_string().to_lowercase());
     }
 
