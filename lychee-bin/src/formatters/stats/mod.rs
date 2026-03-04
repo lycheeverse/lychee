@@ -96,13 +96,12 @@ where
         vals.extend(vs);
     }
 
-    // TODO: sorting by lowercase leads to unspecified order between
-    // items which differ only in case.
     let mut entries: Vec<(&K, Vec<&V>)> = map.into_iter().collect();
 
-    entries.sort_by_cached_key(|(x, _)| x.to_string().to_lowercase());
+    // Sort first by case-insensitive string representation, then by original string representation to break ties
+    entries.sort_by_cached_key(|(x, _)| (x.to_string().to_lowercase(), x.to_string()));
     for (_, vs) in &mut entries {
-        vs.sort_by_cached_key(|x| x.to_string().to_lowercase());
+        vs.sort_by_cached_key(|x| (x.to_string().to_lowercase(), x.to_string()));
     }
 
     entries
