@@ -3600,6 +3600,18 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("https://lychee.cli.rs/another%20page"));
     }
 
+    #[test]
+    fn test_sitexml() {
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("sitemap/sitemap.xml"))
+            .arg("-v")
+            .assert()
+            .success()
+            .stdout(contains("0 Redirects"))
+            .stdout(contains("1 OK"))
+            .stdout(contains("0 Errors"));
+    }
+
     /// URLs should NOT be downloaded fully, unless fragment checking is on and the link has a fragment.
     #[test]
     fn test_large_file_lazy_download() {
