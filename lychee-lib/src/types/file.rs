@@ -297,6 +297,7 @@ mod tests {
                 + FileType::HTML_EXTENSIONS.len()
                 + FileType::CSS_EXTENSIONS.len()
                 + FileType::PLAINTEXT_EXTENSIONS.len()
+                + FileType::XML_EXTENSIONS.len()
         );
     }
 

@@ -8,11 +8,11 @@ use crate::types::uri::raw::{RawUri, SpanProvider};
 // Static regex for extracting URLs from sitemaps
 static SITEMAP_URL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?x)                     # Enable extended mode for whitespace and comments
+        r"(?x)                      # Enable extended mode for whitespace and comments
         <loc>(                      # Match '<loc>'
         (?P<url>[^<]+)              # Capture the URL (anything until the next '<')
         )</loc>                     # Match '</loc>'
-        "#,
+        ",
     )
     .expect("XML URL regex should be valid")
 });
@@ -39,7 +39,7 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
 
 #[cfg(test)]
 mod tests {
-    use crate::types::uri::raw::{SourceSpanProvider};
+    use crate::types::uri::raw::SourceSpanProvider;
 
     use super::*;
 

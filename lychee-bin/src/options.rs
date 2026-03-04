@@ -380,7 +380,7 @@ pub(crate) struct Config {
     /// This is useful when the default extensions are not enough and you don't
     /// want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
     ///
-    /// [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt]
+    /// [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt,xml]
     #[arg(long, verbatim_doc_comment)]
     extensions: Option<FileExtensions>,
 
