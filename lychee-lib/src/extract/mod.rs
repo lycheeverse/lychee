@@ -6,8 +6,8 @@ use crate::types::{
 pub mod css;
 pub mod html;
 pub mod markdown;
-pub mod xml;
 mod plaintext;
+pub mod xml;
 
 use css::extract_css;
 use markdown::extract_markdown;

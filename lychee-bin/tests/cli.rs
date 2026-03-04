@@ -3111,8 +3111,6 @@ The config file should contain every possible key for documentation purposes."
     }
 
     /// URLs specified on the command line should also always be checked.
-    /// For example, sitemap URLs often end with `.xml` which is not
-    /// a file extension we would check by default.
     #[tokio::test]
     async fn test_url_inputs_always_get_checked_no_matter_their_extension() {
         let mock_server = wiremock::MockServer::start().await;
@@ -3128,7 +3126,7 @@ The config file should contain every possible key for documentation purposes."
         cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--dump")
-            .arg(format!("{}/sitemap.xml", mock_server.uri()))
+            .arg(format!("{}/some.svg", mock_server.uri()))
             .assert()
             .success()
             .stdout(contains(url))
@@ -3607,8 +3605,8 @@ The config file should contain every possible key for documentation purposes."
             .arg("-v")
             .assert()
             .success()
-            .stdout(contains("0 Redirects"))
-            .stdout(contains("1 OK"))
+            .stdout(contains("2 Total"))
+            .stdout(contains("2 OK"))
             .stdout(contains("0 Errors"));
     }
 
