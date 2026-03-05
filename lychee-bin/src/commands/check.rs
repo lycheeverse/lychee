@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt};
 use http::StatusCode;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
