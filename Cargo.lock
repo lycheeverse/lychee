@@ -2345,6 +2345,7 @@ dependencies = [
  "percent-encoding",
  "pretty_assertions",
  "pulldown-cmark",
+ "quick-xml 0.39.2",
  "regex",
  "reqwest",
  "reqwest_cookie_store",
@@ -3083,7 +3084,7 @@ dependencies = [
  "chrono",
  "indexmap 2.13.0",
  "newtype-uuid",
- "quick-xml",
+ "quick-xml 0.38.4",
  "strip-ansi-escapes",
  "thiserror 2.0.18",
  "uuid",
@@ -3094,6 +3095,15 @@ name = "quick-xml"
 version = "0.38.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b66c2058c55a409d601666cffe35f04333cf1013010882cec174a7467cd4e21c"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.39.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "958f21e8e7ceb5a1aa7fa87fab28e7c75976e0bfe7e23ff069e0a260f894067d"
 dependencies = [
  "memchr",
 ]
