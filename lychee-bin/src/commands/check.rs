@@ -51,7 +51,7 @@ where
     let accept_timeouts = params.cfg.accept_timeouts;
 
     // Start receiving requests
-    let handle = tokio::spawn(request_channel_task(
+    let mut request_handle = tokio::spawn(request_channel_task(
         recv_req,
         send_resp,
         max_concurrency,
@@ -59,27 +59,44 @@ where
         cache,
         cache_exclude_status,
         accept,
-    ));
+    ))
+    .fuse();
 
     let hide_bar = params.cfg.no_progress;
     let level = params.cfg.verbose().log_level();
 
     let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode());
-    let show_results_task = tokio::spawn(collect_responses(
+    let mut show_results_handle = tokio::spawn(collect_responses(
         recv_resp,
         send_req.clone(),
         waiter,
         progress.clone(),
         stats,
-    ));
+    ))
+    .fuse();
 
-    // Wait until all requests are sent
-    send_requests(params.requests, wait_guard, send_req, &progress).await?;
-    let (cache, client) = handle.await?;
+    // Send requests into the channel. Note that this runs within the main task.
+    let send_task = send_requests(params.requests, wait_guard, send_req, &progress).fuse();
+    tokio::pin!(send_task);
 
-    // Wait until all responses are received
-    let result = show_results_task.await?;
-    let mut stats = result?;
+    // In case of fatal user input error, the show_results_handle will be the
+    // first to terminate and it will contain the real error. So, we unwrap
+    // that result first so it gets reported.
+    futures::select! {
+        show_result = show_results_handle => if let Ok(Err(e)) = show_result { return Err(e)? },
+        _ = request_handle => (),
+        _ = send_task => (),
+    };
+
+    let stats: Result<ResponseStats, ErrorKind> = show_results_handle.await?;
+    let mut stats: ResponseStats = stats?;
+
+    let (cache, client) = request_handle.await?;
+
+    // if send_result fails, it is highly likely another task has also failed
+    // and we would have returned already.
+    send_task.await.expect("sending input requests failed");
+
     stats.duration = start.elapsed();
 
     // Note that print statements may interfere with the progress bar, so this
@@ -154,22 +171,19 @@ async fn suggest_archived_links(
 // drops the `send_req` channel on exit
 // required for the receiver task to end, which closes send_resp, which allows
 // the show_results_task to finish
-async fn send_requests<S>(
-    requests: S,
+async fn send_requests(
+    requests: impl futures::Stream<Item = Result<Request, RequestError>>,
     guard: WaitGuard,
     send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
     progress: &Progress,
-) -> Result<(), ErrorKind>
-where
-    S: futures::Stream<Item = Result<Request, RequestError>>,
-{
+) -> Result<(), ()> {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
         progress.inc_length(1);
         send_req
             .send((guard.clone(), request))
             .await
-            .expect("Cannot send request");
+            .map_err(|_| ())?;
     }
     Ok(())
 }
