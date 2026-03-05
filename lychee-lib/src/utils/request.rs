@@ -83,9 +83,9 @@ fn try_parse_into_uri(
     Ok(url.into())
 }
 
-/// Create requests out of the collected URLs.
-/// Returns a vector of valid URLs and errors. Valid URLs are deduplicated,
-/// request errors are not deduplicated.
+/// Create requests out of the collected URLs. Returns a vector of valid URLs
+/// and errors. URLs are not deduplicated because repeated URLs may occur at
+/// different source locations.
 ///
 /// If a URLs is ignored (because of the current settings),
 /// it will not be added to the results.
@@ -114,26 +114,23 @@ pub(crate) fn create(
     let fallback_base = fallback_base.use_fs_root_as_origin();
     let base = source_base.or_fallback(&fallback_base);
 
-    let mut requests = HashSet::<Request>::new();
-    let mut errors = Vec::<RequestError>::new();
+    let mut vec = vec![];
 
     for raw_uri in uris {
         let result = create_request(&raw_uri, source, root_dir, base, extractor);
         match result {
             Ok(request) => {
-                requests.insert(request);
+                vec.push(Ok(request));
             }
-            Err(e) => errors.push(RequestError::CreateRequestItem(
+            Err(e) => vec.push(Err(RequestError::CreateRequestItem(
                 raw_uri.clone(),
                 source.clone(),
                 e,
-            )),
+            ))),
         }
     }
 
-    (requests.into_iter().map(Result::Ok))
-        .chain(errors.into_iter().map(Result::Err))
-        .collect()
+    vec
 }
 
 #[cfg(test)]
