@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.23.0...lychee-lib-v0.24.0) - 2026-03-05
+
+### Added
+
+- allow accepting timeouts ([#2063](https://github.com/lycheeverse/lychee/pull/2063))
+- Support multiple config files ([#2007](https://github.com/lycheeverse/lychee/pull/2007))
+
+### Other
+
+- Remove deduplication of requests ([#2075](https://github.com/lycheeverse/lychee/pull/2075))
+- Add Tor Project's support website
+- Add JUnit format ([#2066](https://github.com/lycheeverse/lychee/pull/2066))
+- Prevent duplicate requests to the same URLs ([#2067](https://github.com/lycheeverse/lychee/pull/2067))
+- *(deps)* bump the dependencies group with 3 updates
+- add WaitGroup for waiting for a dynamic set of tasks  ([#2046](https://github.com/lycheeverse/lychee/pull/2046))
+- Show line & column numbers ([#2056](https://github.com/lycheeverse/lychee/pull/2056))
+- *(deps)* bump the dependencies group with 6 updates
+- Fix toc action ([#2055](https://github.com/lycheeverse/lychee/pull/2055))
+- [**breaking**] add BaseInfo for resolving links, delete Base, cleanup utils ([#2005](https://github.com/lycheeverse/lychee/pull/2005))
+- Document file format support ([#2052](https://github.com/lycheeverse/lychee/pull/2052))
+- Improve help message as proposed by @katrinafyi
+- *(deps)* bump the dependencies group with 8 updates
+- Update changelogs
+
 ## [0.23.0](https://github.com/lycheeverse/lychee/compare/lychee-lib-v0.22.0...lychee-lib-v0.23.0) - 2026-02-13
 
 ### Added
