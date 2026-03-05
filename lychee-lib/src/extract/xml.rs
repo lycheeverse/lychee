@@ -38,7 +38,9 @@ pub(crate) fn extract_sitemap_xml<S: SpanProvider>(input: &str, span_provider: &
         .collect();
 
     if uris.is_empty() {
-        warn!("No URLs found in sitemap XML input. Currently, lychee only supports extracting URLs from <loc> elements in sitemaps. If your XML contains links in a different format, please consider submitting a feature request or contributing support for additional XML formats.");
+        warn!(
+            "No URLs found in sitemap XML input. Currently, lychee only supports extracting URLs from <loc> elements in sitemaps. If your XML contains links in a different format, please consider submitting a feature request or contributing support for additional XML formats."
+        );
     }
 
     uris
