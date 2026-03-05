@@ -82,8 +82,8 @@ fn try_parse_into_uri(
     Ok(url.into())
 }
 
-/// Create requests out of the collected URLs. Returns a vector of valid URLs
-/// and errors.
+/// Create requests out of the collected URLs. Maps each [`RawUri`] to a parsed
+/// [`Request`] or a [`RequestError`], according to the given options.
 ///
 /// Requests are not deduplicated because repeated URLs may occur at different
 /// source locations. Caching and deduplication happens elsewhere (e.g., in the
