@@ -87,7 +87,7 @@ fn try_parse_into_uri(
 ///
 /// Requests are not deduplicated because repeated URLs may occur at different
 /// source locations. Caching and deduplication happens elsewhere (e.g., in the
-/// per-host HostCache and the top-level persistent cache).
+/// per-host `HostCache` and the top-level persistent cache).
 pub(crate) fn create(
     uris: Vec<RawUri>,
     source: &ResolvedInputSource,
