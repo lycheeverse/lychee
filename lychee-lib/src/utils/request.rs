@@ -83,11 +83,11 @@ fn try_parse_into_uri(
 }
 
 /// Create requests out of the collected URLs. Returns a vector of valid URLs
-/// and errors. URLs are not deduplicated because repeated URLs may occur at
-/// different source locations.
+/// and errors.
 ///
-/// If a URLs is ignored (because of the current settings),
-/// it will not be added to the results.
+/// Requests are not deduplicated because repeated URLs may occur at different
+/// source locations. Caching and deduplication happens elsewhere (e.g., in the
+/// per-host HostCache and the top-level persistent cache).
 pub(crate) fn create(
     uris: Vec<RawUri>,
     source: &ResolvedInputSource,
