@@ -5,7 +5,6 @@ use std::time::Duration;
 
 use futures::FutureExt;
 use futures::StreamExt;
-use futures::future::Either;
 use http::StatusCode;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
@@ -210,26 +209,37 @@ async fn request_channel_task(
 ) -> (Cache, Client) {
     let (send_side_channel, recv_side_channel) = mpsc::channel(max_concurrency);
 
-    let main_task = StreamExt::for_each_concurrent(
-        ReceiverStream::new(recv_req),
-        max_concurrency,
-        |(guard, request)| {
-            async {
-            let response = handle(&client, &cache, send_side_channel.clone(), guard, request).await;
+    let main_task = {
+        // It's vital that we MOVE send_side_channel into the for_each_concurrent
+        // closure, otherwise these two tasks will deadlock. To do this, we use
+        // `move` on the closure and async block, and we shadow the other
+        // variables so they will still be captured by reference.
+        let send_side_channel = send_side_channel;
+        let send_resp = &send_resp;
+        let client = &client;
+        let cache = &cache;
 
-            if let Some((guard, response)) = response {
-                send_resp
-                    .send((guard, response))
-                    .await
-                    .expect("cannot send response to queue");
-            }
-        }},
-    ).then(|()| async {
-            drop(send_side_channel);
-            ()
+        StreamExt::for_each_concurrent(
+            ReceiverStream::new(recv_req),
+            max_concurrency,
+            move |(guard, request)| {
+                // We also have to clone within this closure, because each invocation of
+                // the closure returns a new future.
+                let send_side_channel = send_side_channel.clone();
+                async move {
+                    let response = handle(client, cache, send_side_channel, guard, request).await;
 
-        })
-    .boxed();
+                    if let Some((guard, response)) = response {
+                        send_resp
+                            .send((guard, response))
+                            .await
+                            .expect("cannot send response to queue");
+                    }
+                }
+            },
+        )
+        .boxed()
+    };
 
     let side_task = StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_side_channel),
@@ -245,13 +255,7 @@ async fn request_channel_task(
     )
     .boxed();
 
-    match futures::future::select(main_task, side_task).await {
-        Either::Left(((), side_task)) => {
-    // drop(send_side_channel);
-    side_task.await
-        }
-        Either::Right(((), main_task)) => main_task.await
-    };
+    let ((), ()) = futures::join!(main_task, side_task);
 
     (cache, client)
 }
@@ -304,6 +308,7 @@ async fn handle(
     // First check the persistent in-memory cache
     match cache.lock_entry(uri) {
         Ok(arc) => {
+            println!("main");
             let response = check_url(client, request).await;
             arc.set(response.status().into())
                 .expect("cache already set??");
@@ -326,8 +331,10 @@ async fn handle_cached(
     request: Request,
     once: Arc<SetOnce<CacheValue>>,
 ) -> Response {
+    println!("side waiting");
     let uri = request.uri;
     let status = once.wait().await.status;
+    println!("side ready");
 
     // Overwrite cache status in case the URI is excluded in the
     // current run
