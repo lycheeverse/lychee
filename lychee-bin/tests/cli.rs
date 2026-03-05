@@ -3587,7 +3587,7 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("0 Total"))
             .stdout(contains("0 OK"))
             .stdout(contains("0 Errors"))
-            .stderr(contains("[WARN] No URLs found in sitemap XML input."));
+            .stderr(contains("[WARN] No URLs found in XML input."));
     }
 
     /// URLs should NOT be downloaded fully, unless fragment checking is on and the link has a fragment.
