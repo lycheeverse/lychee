@@ -81,9 +81,9 @@ where
     let (stats_result, request_result, send_result) =
         futures::join!(stats_handle, request_handle, send_task);
 
-    // Fatal user errors are reported in this Result, so check it first.
-    let stats: Result<ResponseStats, ErrorKind> = stats_result?;
-    let mut stats: ResponseStats = stats?;
+    // Fatal user errors are here so check it first. Unwraps two results, the
+    // first for JoinError and the second for ErrorKind.
+    let mut stats: ResponseStats = stats_result??;
 
     let (cache, client) = request_result?;
     send_result.expect("sending input requests failed");
