@@ -1,6 +1,5 @@
 use log::warn;
 use reqwest::Url;
-use std::collections::HashSet;
 use std::path::Path;
 use url::PathSegmentsMut;
 
