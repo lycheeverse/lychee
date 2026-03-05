@@ -1,6 +1,7 @@
 //! Extract links from XML documents. Currently only sitemaps are supported.
 use std::sync::LazyLock;
 
+use log::warn;
 use regex::Regex;
 
 use crate::types::uri::raw::{RawUri, SpanProvider};
@@ -17,9 +18,9 @@ static SITEMAP_URL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     .expect("XML URL regex should be valid")
 });
 
-/// Extract unparsed URL strings from XML
-pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Vec<RawUri> {
-    SITEMAP_URL_REGEX
+/// Extract unparsed URL strings from Sitemaps
+pub(crate) fn extract_sitemap_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Vec<RawUri> {
+    let uris: Vec<RawUri> = SITEMAP_URL_REGEX
         .captures_iter(input)
         .filter_map(|cap| {
             let url = cap.name("url").map(|m| m.as_str().trim())?;
@@ -34,7 +35,13 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
                 span: span_provider.span(match_start),
             })
         })
-        .collect()
+        .collect();
+
+    if uris.is_empty() {
+        warn!("No URLs found in sitemap XML input. Currently, lychee only supports extracting URLs from <loc> elements in sitemaps. If your XML contains links in a different format, please consider submitting a feature request or contributing support for additional XML formats.");
+    }
+
+    uris
 }
 
 #[cfg(test)]
@@ -44,7 +51,7 @@ mod tests {
     use super::*;
 
     fn extract(input: &str) -> Vec<RawUri> {
-        extract_xml(input, &SourceSpanProvider::from_input(input))
+        extract_sitemap_xml(input, &SourceSpanProvider::from_input(input))
     }
 
     #[test]

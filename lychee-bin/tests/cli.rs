@@ -3566,7 +3566,7 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[test]
-    fn test_sitexml() {
+    fn test_sitemap_xml() {
         cargo_bin_cmd!()
             .arg(fixtures_path!().join("sitemap/sitemap.xml"))
             .arg("-v")
@@ -3575,6 +3575,19 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("2 Total"))
             .stdout(contains("2 OK"))
             .stdout(contains("0 Errors"));
+    }
+
+    #[test]
+    fn test_sitemap_xml_warn() {
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("sitemap/not-a-sitemap.xml"))
+            .arg("-v")
+            .assert()
+            .success()
+            .stdout(contains("0 Total"))
+            .stdout(contains("0 OK"))
+            .stdout(contains("0 Errors"))
+            .stderr(contains("[WARN] No URLs found in sitemap XML input."));
     }
 
     /// URLs should NOT be downloaded fully, unless fragment checking is on and the link has a fragment.
