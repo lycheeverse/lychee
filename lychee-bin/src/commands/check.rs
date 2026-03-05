@@ -78,11 +78,11 @@ where
     let send_task = send_requests(params.requests, wait_guard, send_req, &progress);
 
     // Waits for all futures to finish, either normally or due to panic.
-    let (stats, request_result, send_result) =
+    let (stats_result, request_result, send_result) =
         futures::join!(stats_handle, request_handle, send_task);
 
     // Fatal user errors are reported in this Result, so check it first.
-    let stats: Result<ResponseStats, ErrorKind> = stats?;
+    let stats: Result<ResponseStats, ErrorKind> = stats_result?;
     let mut stats: ResponseStats = stats?;
 
     let (cache, client) = request_result?;
