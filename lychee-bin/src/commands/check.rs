@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use http::StatusCode;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
@@ -51,7 +51,7 @@ where
     let accept_timeouts = params.cfg.accept_timeouts;
 
     // Start receiving requests
-    let mut request_handle = tokio::spawn(request_channel_task(
+    let request_handle = tokio::spawn(request_channel_task(
         recv_req,
         send_resp,
         max_concurrency,
@@ -59,43 +59,34 @@ where
         cache,
         cache_exclude_status,
         accept,
-    ))
-    .fuse();
+    ));
 
     let hide_bar = params.cfg.no_progress;
     let level = params.cfg.verbose().log_level();
 
     let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode());
-    let mut show_results_handle = tokio::spawn(collect_responses(
+    let stats_handle = tokio::spawn(collect_responses(
         recv_resp,
         send_req.clone(),
         waiter,
         progress.clone(),
         stats,
-    ))
-    .fuse();
+    ));
 
-    // Send requests into the channel. Note that this runs within the main task.
-    let send_task = send_requests(params.requests, wait_guard, send_req, &progress).fuse();
-    tokio::pin!(send_task);
+    // Send requests into the channel. Note that this will run within the main task
+    // and doesn't start until awaited.
+    let send_task = send_requests(params.requests, wait_guard, send_req, &progress);
 
-    // In case of fatal user input error, the show_results_handle will be the
-    // first to terminate and it will contain the real error. So, we unwrap
-    // that result first so it gets reported.
-    futures::select! {
-        show_result = show_results_handle => if let Ok(Err(e)) = show_result { return Err(e)? },
-        _ = request_handle => (),
-        _ = send_task => (),
-    };
+    // Waits for all futures to finish, either normally or due to panic.
+    let (stats, request_result, send_result) =
+        futures::join!(stats_handle, request_handle, send_task);
 
-    let stats: Result<ResponseStats, ErrorKind> = show_results_handle.await?;
+    // Fatal user errors are reported in this Result, so check it first.
+    let stats: Result<ResponseStats, ErrorKind> = stats?;
     let mut stats: ResponseStats = stats?;
 
-    let (cache, client) = request_handle.await?;
-
-    // if send_result fails, it is highly likely another task has also failed
-    // and we would have returned already.
-    send_task.await.expect("sending input requests failed");
+    let (cache, client) = request_result?;
+    send_result.expect("sending input requests failed");
 
     stats.duration = start.elapsed();
 
