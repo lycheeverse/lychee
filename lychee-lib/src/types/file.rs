@@ -83,6 +83,7 @@ impl From<FileType> for FileExtensions {
             FileType::Markdown => FileType::markdown_extensions(),
             FileType::Css => FileType::css_extensions(),
             FileType::Plaintext => FileType::plaintext_extensions(),
+            FileType::Xml => FileType::xml_extensions(),
         }
     }
 }
@@ -118,6 +119,8 @@ pub enum FileType {
     Markdown,
     /// File in CSS format
     Css,
+    /// File in XML format (used for sitemaps)
+    Xml,
     /// Generic text file without syntax-specific parsing
     #[default]
     Plaintext,
@@ -130,6 +133,7 @@ impl std::fmt::Display for FileType {
             FileType::Markdown => write!(f, "Markdown"),
             FileType::Css => write!(f, "CSS"),
             FileType::Plaintext => write!(f, "plaintext"),
+            FileType::Xml => write!(f, "XML"),
         }
     }
 }
@@ -149,6 +153,9 @@ impl FileType {
     /// All known plaintext extensions
     const PLAINTEXT_EXTENSIONS: &'static [&'static str] = &["txt"];
 
+    /// All known XML extensions
+    const XML_EXTENSIONS: &'static [&'static str] = &["xml"];
+
     /// Default extensions which are checked by lychee
     #[must_use]
     pub fn default_extensions() -> FileExtensions {
@@ -157,6 +164,7 @@ impl FileType {
         extensions.extend(Self::html_extensions());
         extensions.extend(Self::css_extensions());
         extensions.extend(Self::plaintext_extensions());
+        extensions.extend(Self::xml_extensions());
         extensions
     }
 
@@ -196,6 +204,15 @@ impl FileType {
             .collect()
     }
 
+    /// All known XML extensions
+    #[must_use]
+    pub fn xml_extensions() -> FileExtensions {
+        Self::XML_EXTENSIONS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
+    }
+
     /// Get the [`FileType`] from an extension string
     #[must_use]
     pub fn from_extension(extension: &str) -> Option<Self> {
@@ -208,6 +225,8 @@ impl FileType {
             Some(Self::Css)
         } else if Self::PLAINTEXT_EXTENSIONS.contains(&ext.as_str()) {
             Some(Self::Plaintext)
+        } else if Self::XML_EXTENSIONS.contains(&ext.as_str()) {
+            Some(Self::Xml)
         } else {
             None
         }
@@ -278,6 +297,7 @@ mod tests {
                 + FileType::HTML_EXTENSIONS.len()
                 + FileType::CSS_EXTENSIONS.len()
                 + FileType::PLAINTEXT_EXTENSIONS.len()
+                + FileType::XML_EXTENSIONS.len()
         );
     }
 
