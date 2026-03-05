@@ -113,23 +113,12 @@ pub(crate) fn create(
     let fallback_base = fallback_base.use_fs_root_as_origin();
     let base = source_base.or_fallback(&fallback_base);
 
-    let mut vec = vec![];
-
-    for raw_uri in uris {
-        let result = create_request(&raw_uri, source, root_dir, base, extractor);
-        match result {
-            Ok(request) => {
-                vec.push(Ok(request));
-            }
-            Err(e) => vec.push(Err(RequestError::CreateRequestItem(
-                raw_uri.clone(),
-                source.clone(),
-                e,
-            ))),
-        }
-    }
-
-    vec
+    uris.into_iter()
+        .map(|raw_uri| {
+            create_request(&raw_uri, source, root_dir, base, extractor)
+                .map_err(|e| RequestError::CreateRequestItem(raw_uri.clone(), source.clone(), e))
+        })
+        .collect()
 }
 
 #[cfg(test)]
