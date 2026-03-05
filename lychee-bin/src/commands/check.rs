@@ -8,9 +8,8 @@ use futures::StreamExt;
 use http::StatusCode;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
-use tokio::sync::SetOnce;
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
 
 use lychee_lib::InputSource;
 use lychee_lib::RequestError;
@@ -19,11 +18,13 @@ use lychee_lib::archive::Archive;
 use lychee_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::{Client, ErrorKind, Request, Response};
 
-use crate::cache::CacheValue;
 use crate::formatters::stats::ResponseStats;
 use crate::formatters::suggestion::Suggestion;
 use crate::progress::Progress;
-use crate::{ExitCode, cache::Cache};
+use crate::{
+    ExitCode,
+    cache::{Cache, CacheFut},
+};
 
 use super::CommandParams;
 
@@ -207,7 +208,7 @@ async fn request_channel_task(
     cache: Cache,
     accept: HashSet<StatusCode>,
 ) -> (Cache, Client) {
-    let (send_side_channel, recv_side_channel) = mpsc::channel(max_concurrency);
+    let (send_side_channel, recv_side_channel) = mpsc::unbounded_channel();
 
     let main_task = {
         // It's vital that we MOVE send_side_channel into the for_each_concurrent
@@ -226,24 +227,24 @@ async fn request_channel_task(
                 // We also have to clone within this closure, because each invocation of
                 // the closure returns a new future.
                 let send_side_channel = send_side_channel.clone();
-                async move {
-                    let response = handle(client, cache, send_side_channel, guard, request).await;
-
-                    if let Some((guard, response)) = response {
-                        send_resp
-                            .send((guard, response))
-                            .await
-                            .expect("cannot send response to queue");
-                    }
-                }
+                handle(
+                    client,
+                    cache,
+                    guard,
+                    request,
+                    send_resp.clone(),
+                    send_side_channel,
+                )
             },
         )
         .boxed()
     };
 
-    let side_task = StreamExt::for_each_concurrent(
-        ReceiverStream::new(recv_side_channel),
-        max_concurrency,
+    // Note that the cached handler task is not concurrent, because it only does
+    // very simple computations and we don't want to take resources away from the
+    // main task.
+    let side_task = StreamExt::for_each(
+        UnboundedReceiverStream::new(recv_side_channel),
         |(guard, request, once)| async {
             let response = handle_cached(&client, &accept, request, once).await;
 
@@ -282,45 +283,64 @@ async fn check_url(client: &Client, request: Request) -> Response {
     })
 }
 
-/// Handle a single request
+/// Handles a single request by checking the URL and ensures that there are no
+/// simultaneous requests for the same [`Uri`]. This function does not return
+/// a value. Instead, it forwards to either the `send_resp` or `send_side`
+/// channels.
+///
+/// If the request URL has not been seen before, it will mark the request as
+/// in-progress in the cache, then perform the link check. Afterwards, it will
+/// update the cache with the response and forward the response to the `send_resp`
+/// channel.
+///
+/// If the request URL is in-progress (or previously finished), this function
+/// will skip link checking and forward the request to the `send_side` channel,
+/// along with a future which can be used to wait for the result (or fetch
+/// the cached result).
 ///
 /// # Errors
 ///
-/// An Err is returned if and only if there was an error while loading
-/// a *user-provided* input argument. Other errors, including errors in
-/// link resolution and in resolved inputs, will be returned as Ok with
-/// a failed response.
+/// An Err is forwarded to the `send_resp` channel if and only if there was an
+/// error while loading a *user-provided* input argument. Other errors, including
+/// errors in link resolution and in resolved inputs, will be forwarded as Ok
+/// with a failed response.
 async fn handle(
     client: &Client,
     cache: &Cache,
-    send_side_channel: mpsc::Sender<(WaitGuard, Request, Arc<SetOnce<CacheValue>>)>,
     guard: WaitGuard,
     request: Result<Request, RequestError>,
-) -> Option<(WaitGuard, Result<Response, ErrorKind>)> {
+    send_resp: mpsc::Sender<(WaitGuard, Result<Response, ErrorKind>)>,
+    send_side: mpsc::UnboundedSender<(WaitGuard, Request, CacheFut)>,
+) {
     // Note that the RequestError cases bypass the cache.
     let request = match request {
         Ok(x) => x,
-        Err(e) => return Some((guard, e.into_response())),
+        Err(e) => {
+            return send_resp
+                .send((guard, e.into_response()))
+                .await
+                .expect("response channel closed");
+        }
     };
 
     let uri = request.uri.clone();
 
     // First check the persistent in-memory cache
     match cache.lock_entry(uri) {
-        Ok(arc) => {
+        Ok(store_cache) => {
             println!("main");
             let response = check_url(client, request).await;
-            arc.set(response.status().into())
-                .expect("cache already set??");
-            Some((guard, Ok(response)))
+            store_cache(response.status().into());
+            send_resp
+                .send((guard, Ok(response)))
+                .await
+                .expect("response channel closed")
         }
         // Found a cached request
-        Err(arc) => {
-            send_side_channel
-                .send((guard, request, arc))
-                .await
+        Err(fut) => {
+            send_side
+                .send((guard, request, fut))
                 .expect("side channel closed");
-            None
         }
     }
 }
@@ -329,11 +349,11 @@ async fn handle_cached(
     client: &Client,
     accept: &HashSet<StatusCode>,
     request: Request,
-    once: Arc<SetOnce<CacheValue>>,
+    once: CacheFut,
 ) -> Response {
     println!("side waiting");
     let uri = request.uri;
-    let status = once.wait().await.status;
+    let status = once.await.status;
     println!("side ready");
 
     // Overwrite cache status in case the URI is excluded in the

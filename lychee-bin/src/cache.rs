@@ -13,7 +13,7 @@ use crate::time::{self, Timestamp, timestamp};
 use lychee_lib::{CacheStatus, Status, StatusCodeSelector, Uri};
 
 /// Describes a response status that can be serialized to disk
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Copy, Clone)]
 pub(crate) struct CacheValue {
     pub(crate) status: CacheStatus,
     pub(crate) timestamp: Timestamp,
@@ -38,17 +38,37 @@ impl From<&Status> for CacheValue {
 #[derive(Default, Debug)]
 pub(crate) struct Cache(pub(crate) DashMap<Uri, Arc<SetOnce<CacheValue>>>);
 
+pub(crate) struct CacheFut(Arc<SetOnce<CacheValue>>);
+impl Future for CacheFut {
+    type Output = CacheValue;
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut futures::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let mut pinned = std::pin::pin!(self.0.wait());
+        pinned.as_mut().poll(cx).map(|x| x.clone())
+    }
+}
+
 impl Cache {
-    pub(crate) fn lock_entry(
-        &self,
-        uri: Uri,
-    ) -> Result<Arc<SetOnce<CacheValue>>, Arc<SetOnce<CacheValue>>> {
+    fn make_setter(arc: Arc<SetOnce<CacheValue>>) -> impl FnOnce(CacheValue) -> () {
+        move |x| {
+            arc.set(x)
+                .expect("cache already set?? this should not happen because of mutual exclusion")
+        }
+    }
+
+    pub(crate) fn lock_entry(&self, uri: Uri) -> Result<impl FnOnce(CacheValue) -> (), CacheFut> {
         if Self::is_bypassed_from_cache(&uri) {
-            return Ok(Default::default());
+            // make a no-op setter that is not stored in the cache
+            return Ok(Self::make_setter(Default::default()));
         }
         match self.0.entry(uri) {
-            Entry::Vacant(vac) => Ok(vac.insert(Default::default()).value().clone()),
-            Entry::Occupied(occ) => Err(occ.get().clone()),
+            Entry::Vacant(vac) => {
+                let arc = vac.insert(Default::default()).value().clone();
+                Ok(Self::make_setter(arc))
+            }
+            Entry::Occupied(occ) => Err(CacheFut(occ.get().clone())),
         }
     }
 
