@@ -11,7 +11,7 @@ use lychee_lib::{CacheStatus, Status, StatusCodeSelector, Uri};
 /// An *in-memory* cached value. Compared to the on-disk cache, this
 /// stores a richer [`Status`] type for link checks which were performed
 /// within the current execution of lychee.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct CacheValue {
     pub(crate) status: CacheStatus,
     pub(crate) timestamp: Timestamp,
@@ -64,9 +64,7 @@ impl LycheeCache {
     ) -> Option<(CacheStatus, Timestamp)> {
         let CacheValue { status, timestamp } = cache_value;
 
-        if Option::<StatusCode>::from(status.clone())
-            .is_some_and(|s| cache_exclude_status.contains(&s))
-        {
+        if Option::<StatusCode>::from(status).is_some_and(|s| cache_exclude_status.contains(&s)) {
             return Some((status, timestamp));
         }
         match status {
@@ -127,21 +125,27 @@ impl LycheeCache {
     }
 }
 
+impl FromIterator<(Uri, CacheValue)> for LycheeCache {
+    fn from_iter<It: IntoIterator<Item = (Uri, CacheValue)>>(iter: It) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use http::StatusCode;
-    use lychee_lib::{CacheStatus, StatusCodeSelector, StatusRange, Uri};
 
-    use crate::{
-        cache::{Cache, CacheValue},
-        time::timestamp,
-    };
+    use http::StatusCode;
+    use std::collections::HashSet;
+
+    use crate::LycheeCache;
+    use crate::{cache::CacheValue, time::timestamp};
+    use lychee_lib::{CacheStatus, StatusCodeSelector, StatusRange, Uri};
 
     #[test]
     fn test_excluded_status_not_reused_from_cache() {
         let uri: Uri = "https://example.com".try_into().unwrap();
 
-        let cache: Cache = vec![(
+        let cache: LycheeCache = vec![(
             uri.clone(),
             CacheValue {
                 status: CacheStatus::Ok(StatusCode::TOO_MANY_REQUESTS),
@@ -152,12 +156,12 @@ mod tests {
         .collect();
 
         let tmp = tempfile::NamedTempFile::new().unwrap();
-        cache.store(tmp.path(), &Default::default()).unwrap();
+        cache.store(tmp.path(), &HashSet::default()).unwrap();
 
         let mut excluder = StatusCodeSelector::empty();
         excluder.add_range(StatusRange::new(400, 500).unwrap());
 
-        let cache = Cache::load(tmp.path(), u64::MAX, &excluder).unwrap();
-        assert!(cache.0.get(&uri).is_none());
+        let cache = LycheeCache::load(tmp.path(), u64::MAX, &excluder).unwrap();
+        assert!(cache.lock_entry(&uri).is_ok());
     }
 }

@@ -10,8 +10,8 @@ use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
 use tokio::sync::SetOnce;
 
-/// Cache for asynchronous operations, with each operation associated with a key.
-/// Operations are cached, deduplicated and mutually exclusive with other
+/// Cache for asynchronous operations. Each operation is associated with a key,
+/// and operations are cached, deduplicated and mutually exclusive with other
 /// operations on the same key, including in-progress operations.
 pub struct Cache<K, V> {
     /// Internal map of keys to set-once values.
@@ -31,8 +31,8 @@ impl<T> CacheFut<T> {
     /// Returns a future which resolves when the cache value is computed
     /// (by another task). If the value has already been computed and stored,
     /// the future will be ready immediately.
-    pub fn wait(&self) -> impl Future<Output = &T> {
-        async { self.0.wait().await }
+    pub async fn wait(&self) -> &T {
+        self.0.wait().await
     }
 }
 
@@ -50,7 +50,8 @@ impl<T, Fn: FnOnce() -> T> CacheSetter<T, Fn> {
     /// Constructs a new [`CacheSetter`] writing into the given [`SetOnce`].
     ///
     /// By default, no fallback is configured.
-    pub fn new(arc: Arc<SetOnce<T>>) -> Self {
+    #[must_use]
+    pub const fn new(arc: Arc<SetOnce<T>>) -> Self {
         Self(arc, None)
     }
 
@@ -71,7 +72,7 @@ impl<T, Fn: FnOnce() -> T> CacheSetter<T, Fn> {
     /// not backed by any value within the cache. This can be useful to let
     /// uncacheable entities use the same cache-handling logic.
     pub fn dissociated() -> Self {
-        Self(Default::default(), None)
+        Self(Arc::default(), None)
     }
 }
 
@@ -92,6 +93,7 @@ where
     K: Hash + Eq,
 {
     /// Constructs a new empty [`Cache`].
+    #[must_use]
     pub fn new() -> Self {
         Self {
             data: DashMap::new(),
@@ -100,13 +102,22 @@ where
         }
     }
 
-    /// Locks the cache entry with the given key, returning [`Ok`] if this
-    /// is the first task to lock this entry (and so, the value should be computed),
-    /// or [`Err`] if the value is already cached or another task is currently
-    /// computing the value.
+    /// Locks the cache entry with the given key, adding it to the cache if
+    /// it does not already exist. This function returns values which can be
+    /// used to write into or read from the cache.
+    ///
+    /// If this is the first task to lock this entry, [`Ok`] of [`CacheSetter`]
+    /// is returned so the call can compute and store the value. If the value is
+    /// already cached or another task is currently computing the value, [`Err`]
+    /// of [`CacheFut`] is returned which can be used to wait and retrieve the value
+    /// from the cache.
     ///
     /// The given key will only be cloned if the cache does not currently have
     /// an entry for this key.
+    ///
+    /// # Errors
+    /// An [`Err`] means the cache key is already completed or in-progress, as
+    /// described above.
     pub fn lock_entry(&self, key: &K) -> Result<CacheSetter<V>, CacheFut<V>>
     where
         K: Clone,
@@ -118,7 +129,7 @@ where
         match self.data.entry(key.clone()) {
             Entry::Vacant(vac) => {
                 self.num_misses.fetch_add(1, Ordering::Relaxed);
-                let arc = vac.insert(Default::default()).value().clone();
+                let arc = vac.insert(Arc::default()).value().clone();
                 Ok(CacheSetter::new(arc))
             }
             Entry::Occupied(occ) => {
@@ -130,13 +141,15 @@ where
 
     /// Consumes the cache and returns an iterator over the completed key
     /// and value pairs.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if there are leftover [`CacheFut`] or [`CacheSetter`]
+    /// references pointing to the current cache.
     pub fn into_completed_entries(self) -> impl Iterator<Item = (K, V)> {
         self.data.into_iter().filter_map(|(k, v)| {
             let cell = Arc::into_inner(v).expect("unresolved CacheFut or CacheSetter values exist");
-            match cell.into_inner() {
-                Some(x) => Some((k, x)),
-                None => None,
-            }
+            cell.into_inner().map(|x| (k, x))
         })
     }
 }

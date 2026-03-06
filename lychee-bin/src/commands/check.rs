@@ -333,7 +333,7 @@ async fn handle(
             send_resp
                 .send((guard, Ok(response)))
                 .await
-                .expect("response channel closed")
+                .expect("response channel closed");
         }
         // Found a cached request
         Err(fut) => {
@@ -366,7 +366,7 @@ async fn handle_cached(
         // and they may have an impact on the interpretation of the status
         // code.
         client.host_pool().record_persistent_cache_hit(&uri);
-        Status::from_cache_status(status, &accept)
+        Status::from_cache_status(status, accept)
     };
 
     Response::new(uri, status, request.source.into(), request.span, None)
@@ -410,9 +410,10 @@ mod tests {
 
     #[test]
     fn test_cache_by_default() {
-        assert!(!LycheeCache::is_omitted_from_disk_cache(
-            &(&Status::Ok(StatusCode::OK)).into()
-        ));
+        assert!(
+            LycheeCache::to_disk_cache_value((&Status::Ok(StatusCode::OK)).into(), &HashSet::new())
+                .is_some()
+        );
     }
 
     #[test]
@@ -426,16 +427,24 @@ mod tests {
     #[test]
     // Cache is ignored for unsupported status
     fn test_cache_ignore_unsupported_status() {
-        assert!(LycheeCache::is_omitted_from_disk_cache(
-            &(&Status::Unsupported(ErrorKind::EmptyUrl)).into()
-        ));
+        assert!(
+            LycheeCache::to_disk_cache_value(
+                (&Status::Unsupported(ErrorKind::EmptyUrl)).into(),
+                &HashSet::new()
+            )
+            .is_none()
+        );
     }
 
     #[test]
     // Cache is ignored for unknown status
     fn test_cache_ignore_unknown_status() {
-        assert!(LycheeCache::is_omitted_from_disk_cache(
-            &(&Status::UnknownStatusCode(StatusCode::IM_A_TEAPOT)).into()
-        ));
+        assert!(
+            LycheeCache::to_disk_cache_value(
+                (&Status::UnknownStatusCode(StatusCode::IM_A_TEAPOT)).into(),
+                &HashSet::new()
+            )
+            .is_none()
+        );
     }
 }
