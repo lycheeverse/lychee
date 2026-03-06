@@ -39,14 +39,46 @@ impl From<&Status> for CacheValue {
 pub(crate) struct Cache(pub(crate) DashMap<Uri, Arc<SetOnce<CacheValue>>>);
 
 pub(crate) struct CacheFut(Arc<SetOnce<CacheValue>>);
-impl Future for CacheFut {
-    type Output = CacheValue;
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut futures::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        let mut pinned = std::pin::pin!(self.0.wait());
-        pinned.as_mut().poll(cx).map(|x| x.clone())
+
+impl CacheFut {
+    pub(crate) fn wait(&self) -> impl Future<Output = &CacheValue> {
+        async { self.0.wait().await }
+    }
+}
+
+pub(crate) struct CacheSetter<T, Fn: FnOnce() -> T = fn() -> T>(Arc<SetOnce<T>>, Option<Fn>);
+
+impl<T, Fn: FnOnce() -> T> CacheSetter<T, Fn> {
+    fn empty_arc() -> Arc<SetOnce<T>> {
+        Default::default()
+    }
+
+    pub(crate) fn dissociated() -> Self {
+        Self(Self::empty_arc(), None)
+    }
+
+    pub(crate) fn new(arc: Arc<SetOnce<T>>) -> Self {
+        Self(arc, None)
+    }
+
+    pub(crate) fn with_fallback<F: FnOnce() -> T>(mut self, default: F) -> CacheSetter<T, F> {
+        let arc = std::mem::take(&mut self.0);
+        self.1 = None;
+        CacheSetter(arc, Some(default))
+    }
+
+    pub(crate) fn set(self, value: T) {
+        let _ = self.0.set(value);
+    }
+}
+
+impl<T, Fn: FnOnce() -> T> Drop for CacheSetter<T, Fn> {
+    fn drop(&mut self) {
+        if let Some(f) = self.1.take()
+            && !self.0.initialized()
+        {
+            let _ = self.0.set(f());
+        }
     }
 }
 
@@ -58,15 +90,15 @@ impl Cache {
         }
     }
 
-    pub(crate) fn lock_entry(&self, uri: Uri) -> Result<impl FnOnce(CacheValue) -> (), CacheFut> {
+    pub(crate) fn lock_entry(&self, uri: Uri) -> Result<CacheSetter<CacheValue>, CacheFut> {
         if Self::is_bypassed_from_cache(&uri) {
             // make a no-op setter that is not stored in the cache
-            return Ok(Self::make_setter(Default::default()));
+            return Ok(CacheSetter::dissociated());
         }
         match self.0.entry(uri) {
             Entry::Vacant(vac) => {
                 let arc = vac.insert(Default::default()).value().clone();
-                Ok(Self::make_setter(arc))
+                Ok(CacheSetter::new(arc))
             }
             Entry::Occupied(occ) => Err(CacheFut(occ.get().clone())),
         }

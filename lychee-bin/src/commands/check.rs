@@ -327,10 +327,10 @@ async fn handle(
 
     // First check the persistent in-memory cache
     match cache.lock_entry(uri) {
-        Ok(store_cache) => {
+        Ok(setter) => {
             println!("main");
             let response = check_url(client, request).await;
-            store_cache(response.status().into());
+            setter.set(response.status().into());
             send_resp
                 .send((guard, Ok(response)))
                 .await
@@ -353,7 +353,7 @@ async fn handle_cached(
 ) -> Response {
     println!("side waiting");
     let uri = request.uri;
-    let status = once.await.status;
+    let status = once.wait().await.status;
     println!("side ready");
 
     // Overwrite cache status in case the URI is excluded in the
