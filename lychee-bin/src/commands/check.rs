@@ -6,12 +6,10 @@ use std::task::Poll;
 use std::time::Duration;
 
 use futures::{FutureExt, StreamExt};
-use futures::future::RemoteHandle;
 use http::StatusCode;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
 use tokio::sync::mpsc;
-use tokio_util::task::AbortOnDropHandle;
 use tokio_stream::wrappers::ReceiverStream;
 
 use lychee_lib::InputSource;
@@ -130,11 +128,6 @@ where
     }
 }
 
-fn remote_handle_fused<T>(f: impl Future<Output = T>) -> (impl FusedFuture<Output = ()>, RemoteHandle<T>) {
-    let (remote, handle) = f.remote_handle();
-    (remote.fuse(), handle)
-}
-
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
 ) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind>
@@ -162,7 +155,7 @@ where
     let accept_timeouts = params.cfg.accept_timeouts;
 
     // Start receiving requests
-    let mut request_handle = remote_handle_fused(AbortOnDropHandle::new(tokio::spawn(request_channel_task(
+    let request_handle = tokio::spawn(request_channel_task(
         recv_req,
         send_resp,
         max_concurrency,
@@ -170,22 +163,28 @@ where
         cache,
         cache_exclude_status,
         accept,
-    ))));
+    ));
+    let abort_request = request_handle.abort_handle();
+    let mut request_handle = StoringFuture::new(request_handle.fuse());
 
     let hide_bar = params.cfg.no_progress;
     let level = params.cfg.verbose().log_level();
 
     let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode());
-    let mut stats_handle = remote_handle_fused(AbortOnDropHandle::new(tokio::spawn(collect_responses(
+    let stats_handle = tokio::spawn(collect_responses(
         recv_resp,
         send_req.clone(),
         waiter,
         progress.clone(),
         stats,
-    ))));
+    ));
+    let abort_stats = stats_handle.abort_handle();
+    let mut stats_handle = StoringFuture::new(stats_handle.fuse());
 
     // Send requests into the channel.
-    let send_handle = remote_handle_fused(tokio::spawn(send_requests(params.requests, wait_guard, send_req, &progress)));
+    let send_task = send_requests(params.requests, wait_guard, send_req, &progress).fuse();
+    tokio::pin!(send_task);
+    let mut send_task = StoringFuture::new(send_task);
 
     // Note the differences between spawned tasks (with `tokio::spawn`) and async
     // subtasks within the main task:
@@ -196,11 +195,36 @@ where
     // - Additionally, spawned tasks are not automatically cancelled on drop, so
     //   we *must* abort them manually to ensure termination.
 
+    loop {
+        // Race the futures so that if `stats_handle` finishes, we always process
+        // it first and abort the others. This must be in a loop, in case another
+        // task (e.g., `send_task`) finishes first.
+        futures::select! {
+            () = stats_handle => {
+                log::debug!("Response processing task finished");
+                if let Some(Ok(Err(_))) = stats_handle.get() {
+                    let Some(Ok(Err(e))) = stats_handle.into_stored() else {
+                        panic!("pattern match will succeed because we just checked it");
+                    };
+                    // very important to abort the spawned tasks, to ensure termination.
+                    log::debug!("Fatal error, aborting other tasks");
+                    abort_request.abort();
+                    abort_stats.abort();
+                    return Err(e);
+                }
+            }
+            () = request_handle => log::debug!("Request handling task finished"),
+            () = send_task => log::debug!("Request enqueueing task finished"),
+            complete => break,
+        };
+    }
+    log::debug!("All check tasks finished");
+
     // Waits for all futures to finish, either normally or due to panic.
-    let (stats_result, request_result, send_result) = (
-        stats_handle,
-        request_handle,
-        send_task
+    let (Some(stats_result), Some(request_result), Some(send_result)) = (
+        stats_handle.into_stored(),
+        request_handle.into_stored(),
+        send_task.into_stored(),
     ) else {
         panic!("StoredFuture should all be ready due to earlier select.")
     };
