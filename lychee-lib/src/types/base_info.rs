@@ -1,6 +1,7 @@
 //! Parses and resolves [`RawUri`] into into fully-qualified [`Uri`] by
 //! applying base URL and root dir mappings.
 
+use either::{Left, Right};
 use reqwest::Url;
 use serde::Deserialize;
 use std::borrow::Cow;
@@ -8,9 +9,10 @@ use std::path::{Path, PathBuf};
 use url::ParseError;
 
 use crate::ErrorKind;
-use crate::Uri;
+use crate::types::uri::relative::{
+    LocalRel, RelativeUri, RootRel, SchemeRel, parse_url_or_relative,
+};
 use crate::utils;
-use crate::utils::url::is_root_relative_link;
 
 /// Information used for resolving relative URLs within a particular
 /// input source. There should be a 1:1 correspondence between each
@@ -272,41 +274,43 @@ impl BaseInfo {
     /// relative link and this [`BaseInfo`] variant cannot resolve
     /// the relative link.
     pub fn parse_url_text(&self, text: &str) -> Result<Url, ErrorKind> {
-        use ParseError::RelativeUrlWithoutBase;
-
-        match Uri::try_from(text) {
-            Ok(Uri { url }) => Ok(url),
-
-            Err(ErrorKind::ParseUrl(RelativeUrlWithoutBase, _))
-                if !self.supports_root_relative() && is_root_relative_link(text) =>
-            {
-                Err(ErrorKind::RootRelativeLinkWithoutRoot(text.to_string()))
-            }
-
-            Err(ErrorKind::ParseUrl(RelativeUrlWithoutBase, _)) => match self {
-                // Cannot resolve any relative links
-                Self::None => Err(RelativeUrlWithoutBase),
-
-                // Resolve locally-relative link using NoRoot
-                Self::NoRoot(base) => base.join(text),
-
-                // Resolve root-relative link with `file:` base by changing it to
-                // a subpath of the origin.
-                Self::Full { origin, .. }
-                    if is_root_relative_link(text) && origin.scheme() == "file" =>
-                {
-                    let locally_relative = format!(".{}", text.trim_ascii_start());
-                    origin.join(&locally_relative)
-                }
-
-                // Resolve all other relative links, including root-relative links
-                // of non-file bases.
-                Self::Full { origin, path } => origin.join(path).and_then(|x| x.join(text)),
-            }
-            .map_err(|e| ErrorKind::ParseUrl(e, text.to_string())),
-
+        match parse_url_or_relative(text) {
+            Ok(Left(uri)) => Ok(uri.url),
+            Ok(Right(rel)) => self.resolve_relative_link(&rel),
             Err(e) => Err(e),
         }
+    }
+
+    /// Resolves the given relative link into a fully-qualified URL, if
+    /// supported by the current [`BaseInfo`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the text is an invalid URL, or if the current
+    /// [`BaseInfo`] is not capable of resolving the given relative link.
+    /// Returned errors include [`ErrorKind::RootRelativeLinkWithoutRoot`]
+    /// and [`ParseError::RelativeUrlWithoutBase`] (within [`ErrorKind::ParseUrl`]).
+    pub fn resolve_relative_link(&self, rel: &RelativeUri<'_>) -> Result<Url, ErrorKind> {
+        match (self, &rel) {
+            (Self::None | Self::NoRoot(_), RootRel(_)) => {
+                return Err(ErrorKind::RootRelativeLinkWithoutRoot(
+                    rel.link_text().to_string(),
+                ));
+            }
+
+            (Self::None, _) => Err(ParseError::RelativeUrlWithoutBase),
+
+            (Self::NoRoot(base), LocalRel(text) | SchemeRel(text)) => base.join(text),
+
+            (Self::Full { origin, .. }, RootRel(text)) if origin.scheme() == "file" => {
+                origin.join(&format!(".{text}"))
+            }
+
+            (Self::Full { origin, path }, rel) => {
+                origin.join(path).and_then(|x| x.join(rel.link_text()))
+            }
+        }
+        .map_err(|e| ErrorKind::ParseUrl(e, rel.link_text().to_string()))
     }
 
     /// Parses the given URL text into a fully-qualified URL, including
@@ -330,33 +334,40 @@ impl BaseInfo {
         // file:// URLs. eventually, someone up the stack should construct
         // the BaseInfo::Full for root-dir and this function should be deleted.
 
-        // NOTE: also apply root-dir for BaseInfo::None :)
-        let fake_base_info = match (self.scheme(), root_dir) {
-            (Some("file") | None, Some(root_dir)) if is_root_relative_link(text) => {
-                Cow::Owned(Self::full(root_dir.clone(), String::new()))
-            }
-            _ => Cow::Borrowed(self),
+        let rel = match parse_url_or_relative(text) {
+            Ok(Left(uri)) => return Ok(uri.url),
+            Err(e) => return Err(e),
+            Ok(Right(rel)) => rel,
         };
 
-        fake_base_info.parse_url_text(text)
+        // NOTE: also applies root-dir for BaseInfo::None :)
+        if let Some(root_dir) = root_dir
+            && let RootRel(_) = rel
+            && let None | Some("file") = self.scheme()
+        {
+            let root_dir_base = Self::full(root_dir.clone(), String::new());
+            root_dir_base.resolve_relative_link(&rel)
+        } else {
+            self.resolve_relative_link(&rel)
+        }
     }
 }
 
+/// Attempts to parse a base from the given string which may be
+/// a URL or a filesystem path. In both cases, the string must
+/// represent a valid base (i.e., not resulting in [`BaseInfo::None`]).
+/// Otherwise, an error will be returned.
+///
+/// Note that this makes a distinction between filesystem paths as paths
+/// and filesystem paths as URLs. When specified as a path, they will
+/// become [`BaseInfo::Full`] but when specified as a URL, they will
+/// become [`BaseInfo::NoRoot`].
+///
+/// Additionally, the empty string is accepted and will be parsed to
+/// [`BaseInfo::None`].
 impl TryFrom<&str> for BaseInfo {
     type Error = ErrorKind;
 
-    /// Attempts to parse a base from the given string which may be
-    /// a URL or a filesystem path. In both cases, the string must
-    /// represent a valid base (i.e., not resulting in [`BaseInfo::None`]).
-    /// Otherwise, an error will be returned.
-    ///
-    /// Note that this makes a distinction between filesystem paths as paths
-    /// and filesystem paths as URLs. When specified as a path, they will
-    /// become [`BaseInfo::Full`] but when specified as a URL, they will
-    /// become [`BaseInfo::NoRoot`].
-    ///
-    /// Additionally, the empty string is accepted and will be parsed to
-    /// [`BaseInfo::None`].
     fn try_from(value: &str) -> Result<Self, ErrorKind> {
         if value.is_empty() {
             return Ok(BaseInfo::none());

@@ -3,33 +3,6 @@ use std::sync::LazyLock;
 use linkify::LinkFinder;
 use url::Url;
 
-/// Returns whether the text represents a root-relative link. These look like
-/// `/this` and are resolved relative to a base URL's origin. This can also be called
-/// "domain-relative URL" (by [MDN]) and "path-absolute-URL string" (by [WHATWG]).
-/// From [MDN]:
-///
-/// > Domain-relative URL: `/en-US/docs/Learn_web_development` — the protocol and
-/// > the domain name are both missing. The browser will use the same protocol
-/// > and the same domain name as the one used to load the document hosting that URL.
-///
-/// [MDN]: https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_URL#absolute_urls_vs._relative_urls
-/// [WHATWG]: https://url.spec.whatwg.org/#path-absolute-url-string
-pub(crate) fn is_root_relative_link(text: &str) -> bool {
-    !is_scheme_relative_link(text) && text.trim_ascii_start().starts_with('/')
-}
-
-/// Returns whether the text represents a scheme-relative link. These look like
-/// `//example.com/subpath`. From [MDN]:
-///
-/// > Scheme-relative URL: `//developer.mozilla.org/en-US/docs/Learn_web_development` —
-/// > only the protocol is missing. The browser will use the same protocol as the one
-/// > used to load the document hosting that URL.
-///
-/// [MDN]: https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_URL#absolute_urls_vs._relative_urls
-pub(crate) fn is_scheme_relative_link(text: &str) -> bool {
-    text.trim_ascii_start().starts_with("//")
-}
-
 /// Attempts to parse a string which might represent a URL or a filesystem path.
 /// Returns [`Ok`] if it is unambiguously a valid URL, otherwise returns [`Err`]
 /// with the original input.
