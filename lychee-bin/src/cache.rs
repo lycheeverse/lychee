@@ -5,15 +5,19 @@ use std::sync::Arc;
 use anyhow::Result;
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
+use either::Either;
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
 use tokio::sync::SetOnce;
 
 use crate::time::{self, Timestamp, timestamp};
+use lychee_lib::cache::{Cache, CacheFut, CacheSetter};
 use lychee_lib::{CacheStatus, Status, StatusCodeSelector, Uri};
 
-/// Describes a response status that can be serialized to disk
-#[derive(Debug, Serialize, Deserialize, Copy, Clone)]
+/// An *in-memory* cached value. Compared to the on-disk cache, this
+/// stores a richer [`Status`] type for link checks which were performed
+/// within the current execution of lychee.
+#[derive(Debug)]
 pub(crate) struct CacheValue {
     pub(crate) status: CacheStatus,
     pub(crate) timestamp: Timestamp,
@@ -36,91 +40,49 @@ impl From<&Status> for CacheValue {
 /// the map are wrapped in [`SetOnce`] to represent a request that might be
 /// in-flight and not yet finished.
 #[derive(Default, Debug)]
-pub(crate) struct Cache(pub(crate) DashMap<Uri, Arc<SetOnce<CacheValue>>>);
+pub(crate) struct LycheeCache(Cache<Uri, CacheValue>);
 
-pub(crate) struct CacheFut(Arc<SetOnce<CacheValue>>);
-
-impl CacheFut {
-    pub(crate) fn wait(&self) -> impl Future<Output = &CacheValue> {
-        async { self.0.wait().await }
-    }
-}
-
-pub(crate) struct CacheSetter<T, Fn: FnOnce() -> T = fn() -> T>(Arc<SetOnce<T>>, Option<Fn>);
-
-impl<T, Fn: FnOnce() -> T> CacheSetter<T, Fn> {
-    fn empty_arc() -> Arc<SetOnce<T>> {
-        Default::default()
-    }
-
-    pub(crate) fn dissociated() -> Self {
-        Self(Self::empty_arc(), None)
-    }
-
-    pub(crate) fn new(arc: Arc<SetOnce<T>>) -> Self {
-        Self(arc, None)
-    }
-
-    pub(crate) fn with_fallback<F: FnOnce() -> T>(mut self, default: F) -> CacheSetter<T, F> {
-        let arc = std::mem::take(&mut self.0);
-        self.1 = None;
-        CacheSetter(arc, Some(default))
-    }
-
-    pub(crate) fn set(self, value: T) {
-        let _ = self.0.set(value);
-    }
-}
-
-impl<T, Fn: FnOnce() -> T> Drop for CacheSetter<T, Fn> {
-    fn drop(&mut self) {
-        if let Some(f) = self.1.take()
-            && !self.0.initialized()
-        {
-            let _ = self.0.set(f());
-        }
-    }
-}
-
-impl Cache {
-    fn make_setter(arc: Arc<SetOnce<CacheValue>>) -> impl FnOnce(CacheValue) -> () {
-        move |x| {
-            arc.set(x)
-                .expect("cache already set?? this should not happen because of mutual exclusion")
-        }
-    }
-
-    pub(crate) fn lock_entry(&self, uri: Uri) -> Result<CacheSetter<CacheValue>, CacheFut> {
-        if Self::is_bypassed_from_cache(&uri) {
+impl LycheeCache {
+    pub(crate) fn lock_entry(
+        &self,
+        uri: &Uri,
+    ) -> Result<CacheSetter<CacheValue>, CacheFut<CacheValue>> {
+        if Self::is_bypassed_from_cache(uri) {
             // make a no-op setter that is not stored in the cache
             return Ok(CacheSetter::dissociated());
         }
-        match self.0.entry(uri) {
-            Entry::Vacant(vac) => {
-                let arc = vac.insert(Default::default()).value().clone();
-                Ok(CacheSetter::new(arc))
-            }
-            Entry::Occupied(occ) => Err(CacheFut(occ.get().clone())),
-        }
+        self.0.lock_entry(uri)
     }
 
     /// Returns whether the given [`Uri`] should bypass the cache entirely.
+    /// It will always be re-executed by lychee, even within the same lychee
+    /// run.
     pub(crate) fn is_bypassed_from_cache(uri: &Uri) -> bool {
         uri.is_file()
     }
 
-    /// Returns `true` if the cache value should be omitted when writing the
+    /// Returns `true` if the given cache value should be omitted when writing the
     /// cache to disk.
     ///
-    /// The response should be ignored if:
+    /// The cache value will be omitted if:
     /// - The status is excluded.
     /// - The status is unsupported.
     /// - The status is unknown.
     /// - The status code is excluded from the cache.
-    pub(crate) fn is_omitted_from_disk_cache(cache_value: &CacheValue) -> bool {
-        match cache_value.status {
-            CacheStatus::Ok(_) | CacheStatus::Error(_) => false,
-            CacheStatus::Excluded | CacheStatus::Unsupported => true,
+    pub(crate) fn to_disk_cache_value(
+        cache_value: CacheValue,
+        cache_exclude_status: &HashSet<StatusCode>,
+    ) -> Option<(CacheStatus, Timestamp)> {
+        let CacheValue { status, timestamp } = cache_value;
+
+        if Option::<StatusCode>::from(status.clone())
+            .is_some_and(|s| cache_exclude_status.contains(&s))
+        {
+            return Some((status, timestamp));
+        }
+        match status {
+            CacheStatus::Ok(_) | CacheStatus::Error(_) => Some((status, timestamp)),
+            CacheStatus::Excluded | CacheStatus::Unsupported => None,
         }
     }
 
@@ -133,17 +95,11 @@ impl Cache {
         let mut wtr = csv::WriterBuilder::new()
             .has_headers(false)
             .from_path(path)?;
-        for entry in &self.0 {
-            if let Some(v) = entry.value().get()
-                && !Self::is_omitted_from_disk_cache(v)
-            {
-                if Option::<StatusCode>::from(v.status)
-                    .is_none_or(|s| !cache_exclude_status.contains(&s))
-                {
-                    wtr.serialize((entry.key(), v))?;
-                }
-            }
-        }
+        // for entry in self.0 {
+        //     if !Self::is_omitted_from_disk_cache(v, cache_exclude_status) {
+        //         wtr.serialize((entry.key(), v))?;
+        //     }
+        // }
         Ok(())
     }
 
@@ -152,41 +108,31 @@ impl Cache {
         path: T,
         max_age_secs: u64,
         excluder: &StatusCodeSelector,
-    ) -> Result<Cache> {
+    ) -> Result<LycheeCache> {
         let mut rdr = csv::ReaderBuilder::new()
             .has_headers(false)
             .from_path(path)?;
 
-        let map = DashMap::new();
+        let mut data = vec![];
         let current_ts = timestamp();
         for result in rdr.deserialize() {
-            let (uri, value): (Uri, CacheValue) = result?;
+            let (uri, status, timestamp): (Uri, CacheStatus, Timestamp) = result?;
             // Discard entries older than `max_age_secs`.
             // This allows gradually updating the cache over multiple runs.
-            if current_ts - value.timestamp >= max_age_secs {
+            if current_ts - timestamp >= max_age_secs {
                 continue;
             }
 
             // Discard entries for status codes which have been excluded.
             // Without this check, an entry might be cached, then its status code is configured as
             // excluded, and in subsequent runs the cached value is still reused.
-            if value.status.is_excluded(excluder) {
+            if status.is_excluded(excluder) {
                 continue;
             }
 
-            map.insert(uri, value);
+            data.push((uri, CacheValue { status, timestamp }));
         }
-        Ok(map.into_iter().collect())
-    }
-}
-
-impl FromIterator<(Uri, CacheValue)> for Cache {
-    fn from_iter<It: IntoIterator<Item = (Uri, CacheValue)>>(iter: It) -> Self {
-        let map = DashMap::new();
-        for (k, v) in iter {
-            map.insert(k, Arc::new(v.into()));
-        }
-        Self(map)
+        Ok(Self(data.into_iter().collect()))
     }
 }
 

@@ -15,22 +15,21 @@ use lychee_lib::InputSource;
 use lychee_lib::RequestError;
 use lychee_lib::Status;
 use lychee_lib::archive::Archive;
+use lychee_lib::cache::{Cache, CacheFut, CacheSetter};
 use lychee_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::{Client, ErrorKind, Request, Response};
 
+use crate::ExitCode;
+use crate::cache::{CacheValue, LycheeCache};
 use crate::formatters::stats::ResponseStats;
 use crate::formatters::suggestion::Suggestion;
 use crate::progress::Progress;
-use crate::{
-    ExitCode,
-    cache::{Cache, CacheFut},
-};
 
 use super::CommandParams;
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
-) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind>
+) -> Result<(ResponseStats, LycheeCache, ExitCode, Arc<HostPool>), ErrorKind>
 where
     S: futures::Stream<Item = Result<Request, RequestError>>,
 {
@@ -205,9 +204,9 @@ async fn request_channel_task(
     send_resp: mpsc::Sender<(WaitGuard, Result<Response, ErrorKind>)>,
     max_concurrency: usize,
     client: Client,
-    cache: Cache,
+    cache: LycheeCache,
     accept: HashSet<StatusCode>,
-) -> (Cache, Client) {
+) -> (LycheeCache, Client) {
     let (send_side_channel, recv_side_channel) = mpsc::unbounded_channel();
 
     let main_task = {
@@ -306,11 +305,11 @@ async fn check_url(client: &Client, request: Request) -> Response {
 /// with a failed response.
 async fn handle(
     client: &Client,
-    cache: &Cache,
+    cache: &LycheeCache,
     guard: WaitGuard,
     request: Result<Request, RequestError>,
     send_resp: mpsc::Sender<(WaitGuard, Result<Response, ErrorKind>)>,
-    send_side: mpsc::UnboundedSender<(WaitGuard, Request, CacheFut)>,
+    send_side: mpsc::UnboundedSender<(WaitGuard, Request, CacheFut<CacheValue>)>,
 ) {
     // Note that the RequestError cases bypass the cache.
     let request = match request {
@@ -323,10 +322,8 @@ async fn handle(
         }
     };
 
-    let uri = request.uri.clone();
-
     // First check the persistent in-memory cache
-    match cache.lock_entry(uri) {
+    match cache.lock_entry(&request.uri) {
         Ok(setter) => {
             println!("main");
             let response = check_url(client, request).await;
@@ -349,7 +346,7 @@ async fn handle_cached(
     client: &Client,
     accept: &HashSet<StatusCode>,
     request: Request,
-    once: CacheFut,
+    once: CacheFut<CacheValue>,
 ) -> Response {
     println!("side waiting");
     let uri = request.uri;
@@ -410,7 +407,7 @@ mod tests {
 
     #[test]
     fn test_cache_by_default() {
-        assert!(!Cache::is_omitted_from_disk_cache(
+        assert!(!LycheeCache::is_omitted_from_disk_cache(
             &(&Status::Ok(StatusCode::OK)).into()
         ));
     }
@@ -418,7 +415,7 @@ mod tests {
     #[test]
     // Cache is ignored for file URLs
     fn test_cache_ignore_file_urls() {
-        assert!(Cache::is_bypassed_from_cache(
+        assert!(LycheeCache::is_bypassed_from_cache(
             &Uri::try_from("file:///home").unwrap(),
         ));
     }
@@ -426,7 +423,7 @@ mod tests {
     #[test]
     // Cache is ignored for unsupported status
     fn test_cache_ignore_unsupported_status() {
-        assert!(Cache::is_omitted_from_disk_cache(
+        assert!(LycheeCache::is_omitted_from_disk_cache(
             &(&Status::Unsupported(ErrorKind::EmptyUrl)).into()
         ));
     }
@@ -434,7 +431,7 @@ mod tests {
     #[test]
     // Cache is ignored for unknown status
     fn test_cache_ignore_unknown_status() {
-        assert!(Cache::is_omitted_from_disk_cache(
+        assert!(LycheeCache::is_omitted_from_disk_cache(
             &(&Status::UnknownStatusCode(StatusCode::IM_A_TEAPOT)).into()
         ));
     }

@@ -55,6 +55,7 @@ tokio-stream = "0.1.18"
 toml = "1.0.3"
 url = "2.5.8"
 quick-junit = "0.5.2"
+either = "1.15.0"
 
 
 [dev-dependencies]
