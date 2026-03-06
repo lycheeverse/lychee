@@ -1,9 +1,9 @@
 use std::collections::HashSet;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::time::Duration;
 use std::task::Poll;
-use std::pin::Pin;
+use std::time::Duration;
 
 use futures::{FutureExt, StreamExt};
 use http::StatusCode;
@@ -31,9 +31,9 @@ use futures::future::FusedFuture;
 pin_project_lite::pin_project! {
     struct StoringFuture<Fut, T> {
         #[pin]
-        fut: Fut,
+        fut: Pin<Box<Fut>>,
 
-        stored: std::cell::OnceCell<T>,
+        stored: Arc<std::cell::OnceCell<T>>,
     }
 }
 
@@ -43,7 +43,7 @@ impl<Fut, T> StoringFuture<Fut, T> {
         Fut: futures::future::Future<Output = T>,
     {
         StoringFuture {
-            fut,
+            fut: Box::pin(fut),
             stored: Default::default(),
         }
     }
@@ -52,20 +52,50 @@ impl<Fut, T> StoringFuture<Fut, T> {
         self.stored.get()
     }
 
-    fn wait(mut self: Pin<&mut Self>) -> impl Future<Output = &T>
-    where
-        Fut: futures::future::FusedFuture<Output = T> + Unpin,
-    {
-        match self.stored.get() {
-            Some(x) => return futures::future::ready(x).left_future(),
-            None => (),
-        };
+    fn into_stored(self) -> Option<T> {
+        Arc::into_inner(self.stored)
+            .expect("arc should be unique, due to exclusive mutable borrow")
+            .take()
+    }
 
-        std::future::poll_fn(move |cx| match self.as_mut().poll(cx) {
-            Poll::Ready(()) => Poll::Ready(self.stored.get().unwrap()),
-            Poll::Pending => Poll::Pending
-        })
-            .right_future()
+    async fn wait(self) -> T
+    where
+        Fut: futures::future::Future<Output = T>,
+    {
+        if let Some(_) = self.get() {
+            return self.into_stored().expect("checked by .get");
+        }
+        let arc = self.stored.clone();
+        self.await;
+        Arc::into_inner(arc)
+            .expect("arc should be unique, due to ownership of self and dropping of self")
+            .take()
+            .expect("value not set after future finished. did it panic?")
+    }
+
+    // async fn wait2(&mut self) -> impl Future<Output = &T>
+    // where
+    //     Fut: futures::future::FusedFuture<Output = T>,
+    // {
+    //     match self.stored.get() {
+    //         Some(_) => return futures::future::ready(x).left_future(),
+    //         None => (),
+    //     };
+    //     panic!("a")
+    //     // std::future::poll_fn(move |cx| match self.as_mut().poll(cx) {
+    //     //     Poll::Ready(()) => Poll::Ready(self.get().unwrap()),
+    //     //     Poll::Pending => Poll::Pending
+    //     // }).right_future()
+    // }
+
+    async fn wait_and_set(&mut self) -> &T
+    where
+        Fut: futures::future::Future<Output = T>,
+    {
+        Pin::new(&mut *self).await;
+        self.stored
+            .get()
+            .expect("value not set after future finished. did it panic?")
     }
 }
 
@@ -78,6 +108,9 @@ where
     }
 }
 
+/// It is generally not useful to use `.await` directly on this future,
+/// because that will consume the future and its stored cell. Instead,
+/// you should pin this future and use `.await` on `Pin<&mut StoringFuture<>>`.
 impl<Fut, T> Future for StoringFuture<Fut, T>
 where
     Fut: futures::future::Future<Output = T>,
@@ -149,9 +182,9 @@ where
     let mut stats_handle = StoringFuture::new(stats_handle.fuse());
 
     // Send requests into the channel.
-    let send_task =
-        StoringFuture::new(send_requests(params.requests, wait_guard, send_req, &progress).fuse());
+    let send_task = send_requests(params.requests, wait_guard, send_req, &progress).fuse();
     tokio::pin!(send_task);
+    let mut send_task = StoringFuture::new(send_task);
 
     // Note the differences between spawned tasks (with `tokio::spawn`) and async
     // subtasks within the main task:
@@ -167,9 +200,12 @@ where
         // it first and abort the others. This must be in a loop, in case another
         // task (e.g., `send_task`) finishes first.
         futures::select! {
-            stats_result = stats_handle => {
+            () = stats_handle => {
                 log::debug!("Response processing task finished");
-                if let Ok(Err(e)) = stats_result {
+                if let Some(Ok(Err(_))) = stats_handle.get() {
+                    let Some(Ok(Err(e))) = stats_handle.into_stored() else {
+                        panic!("pattern match will succeed because we just checked it");
+                    };
                     // very important to abort the spawned tasks, to ensure termination.
                     log::debug!("Fatal error, aborting other tasks");
                     abort_request.abort();
@@ -177,16 +213,21 @@ where
                     return Err(e);
                 }
             }
-            _ = request_handle => log::debug!("Request handling task finished"),
-            _ = send_task => log::debug!("Request enqueueing task finished"),
+            () = request_handle => log::debug!("Request handling task finished"),
+            () = send_task => log::debug!("Request enqueueing task finished"),
             complete => break,
         };
     }
     log::debug!("All check tasks finished");
 
     // Waits for all futures to finish, either normally or due to panic.
-    let (stats_result, request_result, send_result) =
-        futures::join!(stats_handle, request_handle, send_task);
+    let (Some(stats_result), Some(request_result), Some(send_result)) = (
+        stats_handle.into_stored(),
+        request_handle.into_stored(),
+        send_task.into_stored(),
+    ) else {
+        panic!("StoredFuture should all be ready due to earlier select.")
+    };
 
     // Unwraps two results, the first with JoinError and the second with ErrorKind.
     let mut stats: ResponseStats = stats_result??;
