@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use http::StatusCode;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
@@ -60,8 +60,6 @@ where
         cache_exclude_status,
         accept,
     ));
-    let abort_request = request_handle.abort_handle();
-    let mut request_handle = request_handle.fuse();
 
     let hide_bar = params.cfg.no_progress;
     let level = params.cfg.verbose().log_level();
@@ -74,49 +72,17 @@ where
         progress.clone(),
         stats,
     ));
-    let abort_stats = stats_handle.abort_handle();
-    let mut stats_handle = stats_handle.fuse();
 
-    // Send requests into the channel.
-    let send_task = send_requests(params.requests, wait_guard, send_req, &progress).fuse();
-    tokio::pin!(send_task);
-
-    // Note the differences between spawned tasks (with `tokio::spawn`) and async
-    // subtasks within the main task:
-    // - Spawned tasks are isolated from the main process. They can panic and their
-    //   anic will *not* propagate to the toplevel, unlike panics in the main task.
-    // - Spawned tasks are *automatically* started when `spawn` is called, unlike
-    //   async subtasks which only start when awaited.
-    // - Additionally, spawned tasks are not automatically cancelled on drop, so
-    //   we *must* abort them manually to ensure termination.
-
-    loop {
-        // Race the futures so that if `stats_handle` finishes, we always process
-        // it first and abort the others. This must be in a loop, in case another
-        // task (e.g., `send_task`) finishes first.
-        futures::select! {
-            stats_result = stats_handle => {
-                log::debug!("Response processing task finished");
-                if let Ok(Err(e)) = stats_result {
-                    // very important to abort the spawned tasks, to ensure termination.
-                    log::debug!("Fatal error, aborting other tasks");
-                    abort_request.abort();
-                    abort_stats.abort();
-                    return Err(e);
-                }
-            }
-            _ = request_handle => log::debug!("Request handling task finished"),
-            _ = send_task => log::debug!("Request enqueueing task finished"),
-            complete => break,
-        };
-    }
-    log::debug!("All check tasks finished");
+    // Send requests into the channel. Note that this will run within the main task
+    // and doesn't start until awaited.
+    let send_task = send_requests(params.requests, wait_guard, send_req, &progress);
 
     // Waits for all futures to finish, either normally or due to panic.
     let (stats_result, request_result, send_result) =
         futures::join!(stats_handle, request_handle, send_task);
 
-    // Unwraps two results, the first with JoinError and the second with ErrorKind.
+    // Fatal user errors are here so check it first. Unwraps two results, the
+    // first for JoinError and the second for ErrorKind.
     let mut stats: ResponseStats = stats_result??;
 
     let (cache, client) = request_result?;
