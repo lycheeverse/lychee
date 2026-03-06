@@ -16,7 +16,7 @@ pub(crate) mod resolver;
 mod response;
 mod status;
 mod status_code_selector;
-pub mod uri;
+pub(crate) mod uri;
 
 pub use accept::*;
 pub use base_info::BaseInfo;
