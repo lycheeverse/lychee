@@ -9,9 +9,10 @@ use std::path::{Path, PathBuf};
 use url::ParseError;
 
 use crate::ErrorKind;
-use crate::types::uri::relative::{LocalRel, RootRel, SchemeRel, parse_url_or_relative};
+use crate::types::uri::relative::{
+    LocalRel, RelativeUri, RootRel, SchemeRel, parse_url_or_relative,
+};
 use crate::utils;
-use crate::utils::url::is_root_relative_link;
 
 /// Information used for resolving relative URLs within a particular
 /// input source. There should be a 1:1 correspondence between each
@@ -275,28 +276,41 @@ impl BaseInfo {
     pub fn parse_url_text(&self, text: &str) -> Result<Url, ErrorKind> {
         match parse_url_or_relative(text) {
             Ok(Left(uri)) => Ok(uri.url),
-
-            Ok(Right(rel)) => match (self, rel) {
-                (Self::None | Self::NoRoot(_), RootRel(_)) => {
-                    return Err(ErrorKind::RootRelativeLinkWithoutRoot(text.to_string()));
-                }
-
-                (Self::None, _) => Err(ParseError::RelativeUrlWithoutBase),
-
-                (Self::NoRoot(base), LocalRel(text) | SchemeRel(text)) => base.join(text),
-
-                (Self::Full { origin, .. }, RootRel(text)) if origin.scheme() == "file" => {
-                    origin.join(&format!(".{}", text))
-                }
-
-                (Self::Full { origin, path }, rel) => {
-                    origin.join(path).and_then(|x| x.join(rel.link_text()))
-                }
-            }
-            .map_err(|e| ErrorKind::ParseUrl(e, text.to_string())),
-
+            Ok(Right(rel)) => self.resolve_relative_link(&rel),
             Err(e) => Err(e),
         }
+    }
+
+    /// Resolves the given relative link into a fully-qualified URL, if
+    /// supported by the current [`BaseInfo`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the text is an invalid URL, or if the current
+    /// [`BaseInfo`] is not capable of resolving the given relative link.
+    /// Returned errors include [`ErrorKind::RootRelativeLinkWithoutRoot`]
+    /// and [`ParseError::RelativeUrlWithoutBase`] (within [`ErrorKind::ParseUrl`]).
+    pub fn resolve_relative_link(&self, rel: &RelativeUri<'_>) -> Result<Url, ErrorKind> {
+        match (self, &rel) {
+            (Self::None | Self::NoRoot(_), RootRel(_)) => {
+                return Err(ErrorKind::RootRelativeLinkWithoutRoot(
+                    rel.link_text().to_string(),
+                ));
+            }
+
+            (Self::None, _) => Err(ParseError::RelativeUrlWithoutBase),
+
+            (Self::NoRoot(base), LocalRel(text) | SchemeRel(text)) => base.join(text),
+
+            (Self::Full { origin, .. }, RootRel(text)) if origin.scheme() == "file" => {
+                origin.join(&format!(".{text}"))
+            }
+
+            (Self::Full { origin, path }, rel) => {
+                origin.join(path).and_then(|x| x.join(rel.link_text()))
+            }
+        }
+        .map_err(|e| ErrorKind::ParseUrl(e, rel.link_text().to_string()))
     }
 
     /// Parses the given URL text into a fully-qualified URL, including
@@ -320,15 +334,22 @@ impl BaseInfo {
         // file:// URLs. eventually, someone up the stack should construct
         // the BaseInfo::Full for root-dir and this function should be deleted.
 
-        // NOTE: also apply root-dir for BaseInfo::None :)
-        let fake_base_info = match (self.scheme(), root_dir) {
-            (Some("file") | None, Some(root_dir)) if is_root_relative_link(text) => {
-                Cow::Owned(Self::full(root_dir.clone(), String::new()))
-            }
-            _ => Cow::Borrowed(self),
+        let rel = match parse_url_or_relative(text) {
+            Ok(Left(uri)) => return Ok(uri.url),
+            Err(e) => return Err(e),
+            Ok(Right(rel)) => rel,
         };
 
-        fake_base_info.parse_url_text(text)
+        // NOTE: also applies root-dir for BaseInfo::None :)
+        if let Some(root_dir) = root_dir
+            && let RootRel(_) = rel
+            && let None | Some("file") = self.scheme()
+        {
+            let root_dir_base = Self::full(root_dir.clone(), String::new());
+            root_dir_base.resolve_relative_link(&rel)
+        } else {
+            self.resolve_relative_link(&rel)
+        }
     }
 }
 
