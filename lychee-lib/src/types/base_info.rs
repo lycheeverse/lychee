@@ -285,12 +285,12 @@ impl BaseInfo {
 
                 (Self::NoRoot(base), LocalRel(text) | SchemeRel(text)) => base.join(text),
 
-                (Self::Full(origin, _), RootRel(text)) if origin.scheme() == "file" => {
+                (Self::Full { origin, .. }, RootRel(text)) if origin.scheme() == "file" => {
                     origin.join(&format!(".{}", text))
                 }
 
-                (Self::Full(origin, subpath), rel) => {
-                    origin.join(subpath).and_then(|x| x.join(rel.link_text()))
+                (Self::Full { origin, path }, rel) => {
+                    origin.join(path).and_then(|x| x.join(rel.link_text()))
                 }
             }
             .map_err(|e| ErrorKind::ParseUrl(e, text.to_string())),
