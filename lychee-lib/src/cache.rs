@@ -17,9 +17,9 @@ pub struct Cache<K, V> {
     /// Internal map of keys to set-once values.
     data: DashMap<K, Arc<SetOnce<V>>>,
     /// Number of cache hits (including hits to in-progress values).
-    num_hits: AtomicUsize,
+    pub num_hits: AtomicUsize,
     /// Number of cache misses.
-    num_misses: AtomicUsize,
+    pub num_misses: AtomicUsize,
 }
 
 /// A future returned on cache hits. [`CacheFut::wait`] returns a future which
@@ -91,6 +91,15 @@ impl<K, V> Cache<K, V>
 where
     K: Hash + Eq,
 {
+    /// Constructs a new empty [`Cache`].
+    pub fn new() -> Self {
+        Self {
+            data: DashMap::new(),
+            num_hits: 0.into(),
+            num_misses: 0.into(),
+        }
+    }
+
     /// Locks the cache entry with the given key, returning [`Ok`] if this
     /// is the first task to lock this entry (and so, the value should be computed),
     /// or [`Err`] if the value is already cached or another task is currently
@@ -119,25 +128,24 @@ where
         }
     }
 
-    // pub fn into_completed_entries(self) -> impl Iterator<Item = (K, V)> {
-    //     panic!("boop");
-    // self.data.into_iter()
-    //     .filter_map(|(k, v)| match v.into_inner() {
-    //         Some(x) => Some((k, x)),
-    //         None => None,
-    //     })
-    // }
+    /// Consumes the cache and returns an iterator over the completed key
+    /// and value pairs.
+    pub fn into_completed_entries(self) -> impl Iterator<Item = (K, V)> {
+        self.data.into_iter().filter_map(|(k, v)| {
+            let cell = Arc::into_inner(v).expect("unresolved CacheFut or CacheSetter values exist");
+            match cell.into_inner() {
+                Some(x) => Some((k, x)),
+                None => None,
+            }
+        })
+    }
 }
 impl<K, V> Default for Cache<K, V>
 where
     K: Hash + Eq,
 {
     fn default() -> Self {
-        Self {
-            data: DashMap::new(),
-            num_hits: 0.into(),
-            num_misses: 0.into(),
-        }
+        Self::new()
     }
 }
 
@@ -146,15 +154,11 @@ where
     K: Hash + Eq,
 {
     fn from_iter<It: IntoIterator<Item = (K, V)>>(iter: It) -> Self {
-        let data = DashMap::new();
+        let cache = Self::new();
         for (k, v) in iter {
-            data.insert(k, Arc::new(v.into()));
+            cache.data.insert(k, Arc::new(v.into()));
         }
-        Self {
-            data,
-            num_hits: 0.into(),
-            num_misses: 0.into(),
-        }
+        cache
     }
 }
 

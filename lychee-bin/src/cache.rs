@@ -1,14 +1,8 @@
 use std::collections::HashSet;
 use std::path::Path;
-use std::sync::Arc;
 
 use anyhow::Result;
-use dashmap::DashMap;
-use dashmap::mapref::entry::Entry;
-use either::Either;
 use http::StatusCode;
-use serde::{Deserialize, Serialize};
-use tokio::sync::SetOnce;
 
 use crate::time::{self, Timestamp, timestamp};
 use lychee_lib::cache::{Cache, CacheFut, CacheSetter};
@@ -34,11 +28,6 @@ impl From<&Status> for CacheValue {
 }
 
 /// The cache stores previous response codes for faster checking.
-///
-/// At the moment it is backed by `DashMap`, but this is an implementation
-/// detail which should not be relied upon. The cache values stored within
-/// the map are wrapped in [`SetOnce`] to represent a request that might be
-/// in-flight and not yet finished.
 #[derive(Default, Debug)]
 pub(crate) struct LycheeCache(Cache<Uri, CacheValue>);
 
@@ -61,10 +50,10 @@ impl LycheeCache {
         uri.is_file()
     }
 
-    /// Returns `true` if the given cache value should be omitted when writing the
+    /// Returns `Some` if the given cache value should be kept when writing the
     /// cache to disk.
     ///
-    /// The cache value will be omitted if:
+    /// The cache value will be omitted (and this function will return `None`) if:
     /// - The status is excluded.
     /// - The status is unsupported.
     /// - The status is unknown.
@@ -88,18 +77,20 @@ impl LycheeCache {
 
     /// Store the cache under the given path. Update access timestamps
     pub(crate) fn store(
-        &self,
+        self,
         path: impl AsRef<Path>,
         cache_exclude_status: &HashSet<StatusCode>,
     ) -> Result<()> {
         let mut wtr = csv::WriterBuilder::new()
             .has_headers(false)
             .from_path(path)?;
-        // for entry in self.0 {
-        //     if !Self::is_omitted_from_disk_cache(v, cache_exclude_status) {
-        //         wtr.serialize((entry.key(), v))?;
-        //     }
-        // }
+
+        for (k, v) in self.0.into_completed_entries() {
+            if let Some(v) = Self::to_disk_cache_value(v, cache_exclude_status) {
+                wtr.serialize((k, v))?;
+            }
+        }
+
         Ok(())
     }
 

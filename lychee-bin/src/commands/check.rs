@@ -9,13 +9,13 @@ use http::StatusCode;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
+use tokio_stream::wrappers::ReceiverStream;
 
 use lychee_lib::InputSource;
 use lychee_lib::RequestError;
 use lychee_lib::Status;
 use lychee_lib::archive::Archive;
-use lychee_lib::cache::{Cache, CacheFut, CacheSetter};
+use lychee_lib::cache::CacheFut;
 use lychee_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::{Client, ErrorKind, Request, Response};
 
@@ -207,7 +207,7 @@ async fn request_channel_task(
     cache: LycheeCache,
     accept: HashSet<StatusCode>,
 ) -> (LycheeCache, Client) {
-    let (send_side_channel, recv_side_channel) = mpsc::unbounded_channel();
+    let (send_side_channel, recv_side_channel) = mpsc::channel(max_concurrency * 100);
 
     let main_task = {
         // It's vital that we MOVE send_side_channel into the for_each_concurrent
@@ -242,8 +242,10 @@ async fn request_channel_task(
     // Note that the cached handler task is not concurrent, because it only does
     // very simple computations and we don't want to take resources away from the
     // main task.
+    // TODO: should this be concurrent? might become a bottleneck if there are lots
+    // of cache hits.
     let side_task = StreamExt::for_each(
-        UnboundedReceiverStream::new(recv_side_channel),
+        ReceiverStream::new(recv_side_channel),
         |(guard, request, once)| async {
             let response = handle_cached(&client, &accept, request, once).await;
 
@@ -309,7 +311,7 @@ async fn handle(
     guard: WaitGuard,
     request: Result<Request, RequestError>,
     send_resp: mpsc::Sender<(WaitGuard, Result<Response, ErrorKind>)>,
-    send_side: mpsc::UnboundedSender<(WaitGuard, Request, CacheFut<CacheValue>)>,
+    send_side: mpsc::Sender<(WaitGuard, Request, CacheFut<CacheValue>)>,
 ) {
     // Note that the RequestError cases bypass the cache.
     let request = match request {
@@ -337,6 +339,7 @@ async fn handle(
         Err(fut) => {
             send_side
                 .send((guard, request, fut))
+                .await
                 .expect("side channel closed");
         }
     }
