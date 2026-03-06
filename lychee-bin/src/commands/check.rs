@@ -2,8 +2,6 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
-use std::task::Poll;
-use std::pin::Pin;
 
 use futures::{FutureExt, StreamExt};
 use http::StatusCode;
@@ -25,75 +23,6 @@ use crate::progress::Progress;
 use crate::{ExitCode, cache::Cache};
 
 use super::CommandParams;
-
-use futures::future::FusedFuture;
-
-pin_project_lite::pin_project! {
-    struct StoringFuture<Fut, T> {
-        #[pin]
-        fut: Fut,
-
-        stored: std::cell::OnceCell<T>,
-    }
-}
-
-impl<Fut, T> StoringFuture<Fut, T> {
-    fn new(fut: Fut) -> StoringFuture<Fut, T>
-    where
-        Fut: futures::future::Future<Output = T>,
-    {
-        StoringFuture {
-            fut,
-            stored: Default::default(),
-        }
-    }
-
-    fn get(&self) -> Option<&T> {
-        self.stored.get()
-    }
-
-    fn wait(mut self: Pin<&mut Self>) -> impl Future<Output = &T>
-    where
-        Fut: futures::future::FusedFuture<Output = T> + Unpin,
-    {
-        match self.stored.get() {
-            Some(x) => return futures::future::ready(x).left_future(),
-            None => (),
-        };
-
-        std::future::poll_fn(move |cx| match self.as_mut().poll(cx) {
-            Poll::Ready(()) => Poll::Ready(self.stored.get().unwrap()),
-            Poll::Pending => Poll::Pending
-        })
-            .right_future()
-    }
-}
-
-impl<Fut, T> FusedFuture for StoringFuture<Fut, T>
-where
-    Fut: futures::future::FusedFuture<Output = T>,
-{
-    fn is_terminated(&self) -> bool {
-        self.fut.is_terminated()
-    }
-}
-
-impl<Fut, T> Future for StoringFuture<Fut, T>
-where
-    Fut: futures::future::Future<Output = T>,
-{
-    type Output = ();
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        let pinned = self.project();
-        pinned.fut.poll(cx).map(|x| {
-            let _ = pinned.stored.set(x);
-            ()
-        })
-    }
-}
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
@@ -132,7 +61,7 @@ where
         accept,
     ));
     let abort_request = request_handle.abort_handle();
-    let mut request_handle = StoringFuture::new(request_handle.fuse());
+    let mut request_handle = request_handle.fuse();
 
     let hide_bar = params.cfg.no_progress;
     let level = params.cfg.verbose().log_level();
@@ -146,11 +75,10 @@ where
         stats,
     ));
     let abort_stats = stats_handle.abort_handle();
-    let mut stats_handle = StoringFuture::new(stats_handle.fuse());
+    let mut stats_handle = stats_handle.fuse();
 
     // Send requests into the channel.
-    let send_task =
-        StoringFuture::new(send_requests(params.requests, wait_guard, send_req, &progress).fuse());
+    let send_task = send_requests(params.requests, wait_guard, send_req, &progress).fuse();
     tokio::pin!(send_task);
 
     // Note the differences between spawned tasks (with `tokio::spawn`) and async
