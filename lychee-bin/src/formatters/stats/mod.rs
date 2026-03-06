@@ -17,9 +17,11 @@ pub(crate) use response::ResponseStats;
 use serde::Serialize;
 
 use std::{
+    cmp::Eq,
     collections::{HashMap, HashSet},
     fmt::Display,
     fs,
+    hash::Hash,
     io::{Write, stdout},
 };
 
@@ -54,29 +56,52 @@ pub(crate) fn output_statistics(stats: OutputStats, config: &Config) -> Result<(
     Ok(())
 }
 
-/// Convert a `ResponseStats` `HashMap` to a sorted Vec of key-value pairs
-/// The returned keys and values are both sorted in natural, case-insensitive order
+/// Convert a `ResponseStats` `HashMap` to a sorted Vec of key-value pairs.
+/// The returned keys and values are both sorted in natural, case-insensitive order.
+/// Additionally, the returned keys are deduplicated and their values are merged.
 fn sort_stat_map<T>(stat_map: &HashMap<InputSource, HashSet<T>>) -> Vec<(&InputSource, Vec<&T>)>
 where
     T: Display,
 {
-    let mut entries: Vec<_> = stat_map
-        .iter()
-        .map(|(source, responses)| {
-            let mut sorted_responses: Vec<&T> = responses.iter().collect();
-            sorted_responses.sort_by(|a, b| {
-                let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-                numeric_sort::cmp(&a, &b)
-            });
+    sort_stats_iter(stat_map)
+}
 
-            (source, sorted_responses)
-        })
-        .collect();
+/// Sorts the given iterable of key-valuelist pairs by concatenating value lists
+/// for keys which are equal. The returned keys, and the value list for each key,
+/// are both sorted by case-insensitive order of their string representation.
+///
+/// This function takes [`IntoIterator`], so it can be called with an iterable
+/// value (e.g., a [`HashMap`]) or with an iterator already constructed (e.g.,
+/// from `hashmap.iter()`).
+///
+/// To sort multiple maps, you should chain their iterables, e.g.:
+/// ```
+/// let map1 = HashMap::<String, Vec<String>>::new();
+/// let map2 = HashMap::<String, Vec<String>>::new();
+/// let _ = sort_stats_iter(map1.iter().chain(map2.iter()));
+/// ```
+/// In the above example, we also see that although this function takes an
+/// iterable of *borrowed* items, it can still be called with an owned iterable
+/// because `.iter()` will borrow for us.
+fn sort_stats_iter<'a, K, V, Entries, Vals>(it: Entries) -> Vec<(&'a K, Vec<&'a V>)>
+where
+    K: Display + Hash + Eq + 'a,
+    V: Display + 'a,
+    Entries: IntoIterator<Item = (&'a K, Vals)>,
+    Vals: IntoIterator<Item = &'a V>,
+{
+    let mut map: HashMap<&K, Vec<&V>> = HashMap::new();
+    for (k, vs) in it {
+        map.entry(k).or_default().extend(vs);
+    }
 
-    entries.sort_by(|(a, _), (b, _)| {
-        let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-        numeric_sort::cmp(&a, &b)
-    });
+    let mut entries: Vec<(&K, Vec<&V>)> = map.into_iter().collect();
+
+    // Sort first by case-insensitive string representation, then by original string representation to break ties
+    entries.sort_by_cached_key(|(x, _)| (x.to_string().to_lowercase(), x.to_string()));
+    for (_, vs) in &mut entries {
+        vs.sort_by_cached_key(|x| (x.to_string().to_lowercase(), x.to_string()));
+    }
 
     entries
 }
@@ -105,6 +130,16 @@ fn get_dummy_stats() -> OutputStats {
                 .try_into()
                 .unwrap(),
             status: Status::Ok(StatusCode::NOT_FOUND),
+            span: SPAN,
+            duration: DURATION,
+        }]),
+    )]);
+
+    let timeout_map = HashMap::from([(
+        source.clone(),
+        HashSet::from([ResponseBody {
+            uri: "https://httpbin.org/delay/2".try_into().unwrap(),
+            status: Status::Timeout(None),
             span: SPAN,
             duration: DURATION,
         }]),
@@ -144,7 +179,7 @@ fn get_dummy_stats() -> OutputStats {
         errors: 1,
         unknown: 0,
         excludes: 0,
-        timeouts: 0,
+        timeouts: 1,
         duration: Duration::ZERO,
         unsupported: 0,
         redirects: 1,
@@ -154,6 +189,7 @@ fn get_dummy_stats() -> OutputStats {
         success_map: HashMap::default(),
         error_map,
         excluded_map: HashMap::default(),
+        timeout_map,
         detailed_stats: true,
     };
 

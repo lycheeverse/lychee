@@ -26,25 +26,27 @@ struct CompactResponseStats {
 impl Display for CompactResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let stats = &self.stats;
+        let issues = stats
+            .error_map
+            .iter()
+            .chain(stats.timeout_map.iter())
+            .count();
 
-        if !stats.error_map.is_empty() {
-            let input = if stats.error_map.len() == 1 {
-                "input"
-            } else {
-                "inputs"
-            };
+        if issues > 0 {
+            let input = if issues == 1 { "input" } else { "inputs" };
 
             color!(
                 f,
                 BOLD_PINK,
-                "Issues found in {} {input}. Find details below.\n\n",
-                stats.error_map.len()
+                "Issues found in {issues} {input}. Find details below.\n\n",
             )?;
         }
 
         let response_formatter = get_response_formatter(&self.mode);
 
-        for (source, responses) in super::sort_stat_map(&stats.error_map) {
+        for (source, responses) in
+            super::sort_stats_iter(stats.error_map.iter().chain(stats.timeout_map.iter()))
+        {
             color!(f, BOLD_YELLOW, "[{}]:\n", source)?;
             write_responses(f, &*response_formatter, responses)?;
             write_suggestions(f, stats, source)?;
@@ -170,15 +172,16 @@ mod tests {
 
         assert_eq!(
             without_color_codes,
-            "Issues found in 1 input. Find details below.
+            "Issues found in 2 inputs. Find details below.
 
 [https://example.com/]:
 [404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found
+[TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Timeout
 
 ℹ Suggestions
 https://original.dev/ --> https://suggestion.dev/
 
-🔍 2 Total (in 0s) ✅ 0 OK 🚫 1 Error 🔀 1 Redirects
+🔍 2 Total (in 0s) ✅ 0 OK 🚫 1 Error ⏳ 1 Timeouts 🔀 1 Redirects
 
 📊 Per-host Statistics
 ────────────────────────────────────────────────────────────

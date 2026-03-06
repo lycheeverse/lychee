@@ -659,6 +659,12 @@ pub(crate) struct Config {
     #[arg(short, long, verbatim_doc_comment)]
     accept: Option<StatusCodeSelector>,
 
+    /// Accept timed out requests and return exit code 0
+    /// when encountering timeouts but not any other errors.
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) accept_timeouts: bool,
+
     /// Enable the checking of fragments in links.
     #[arg(long)]
     #[serde(default)]
@@ -1003,6 +1009,7 @@ impl Config {
                 header,
             },
             bool {
+                accept_timeouts,
                 cache,
                 dump,
                 dump_inputs,
