@@ -17,9 +17,9 @@ pub struct Cache<K, V> {
     /// Internal map of keys to set-once values.
     data: DashMap<K, Arc<SetOnce<V>>>,
     /// Number of cache hits (including hits to in-progress values).
-    pub num_hits: AtomicUsize,
+    num_hits: AtomicUsize,
     /// Number of cache misses.
-    pub num_misses: AtomicUsize,
+    num_misses: AtomicUsize,
 }
 
 /// A future returned on cache hits. [`CacheFut::wait`] returns a future which
@@ -100,6 +100,16 @@ where
             num_hits: 0.into(),
             num_misses: 0.into(),
         }
+    }
+
+    /// Number of cache hits (including hits to in-progress values).
+    pub fn num_hits(&self) -> usize {
+        self.num_hits.load(Ordering::Relaxed)
+    }
+
+    /// Number of cache misses.
+    pub fn num_misses(&self) -> usize {
+        self.num_misses.load(Ordering::Relaxed)
     }
 
     /// Locks the cache entry with the given key, adding it to the cache if
