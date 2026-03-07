@@ -14,7 +14,7 @@ static ERROR_URI: LazyLock<Uri> = LazyLock::new(|| Uri::try_from("error:").unwra
 pub enum RequestError {
     /// Unable to construct a URL for a link appearing within the given source.
     #[error("Error building URL for {0}: {2}")]
-    CreateRequestItem(RawUri, Box<ResolvedInputSource>, #[source] Box<ErrorKind>),
+    CreateRequestItem(Box<RawUri>, ResolvedInputSource, #[source] Box<ErrorKind>),
 
     /// Unable to load the content of an input source.
     #[error("Error reading input '{0}': {1}")]
@@ -57,7 +57,7 @@ impl RequestError {
     #[must_use]
     pub fn input_source(&self) -> InputSource {
         match self {
-            Self::CreateRequestItem(_, src, _) => (*src.clone()).into(),
+            Self::CreateRequestItem(_, src, _) => src.clone().into(),
             Self::GetInputContent(src, _)
             | Self::UserInputContent(src, _)
             | Self::InputSourceError(src, _) => src.clone(),
