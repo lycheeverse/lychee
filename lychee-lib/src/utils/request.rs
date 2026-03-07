@@ -94,7 +94,7 @@ pub(crate) fn create(
     root_dir: Option<&Path>,
     fallback_base: &BaseInfo,
     extractor: Option<&BasicAuthExtractor>,
-) -> Vec<Result<Request, Box<RequestError>>> {
+) -> Vec<Result<Request, RequestError>> {
     let source_base = match source.to_base_info() {
         Ok(base) => base,
         Err(e) => {
@@ -103,8 +103,7 @@ pub(crate) fn create(
             return vec![Err(RequestError::InputSourceError(
                 source.clone().into(),
                 e,
-            )
-            .into())];
+            ))];
         }
     };
 
@@ -116,9 +115,8 @@ pub(crate) fn create(
 
     uris.into_iter()
         .map(|raw_uri| {
-            create_request(&raw_uri, source, root_dir, base, extractor).map_err(|e| {
-                RequestError::CreateRequestItem(raw_uri.clone(), source.clone(), e).into()
-            })
+            create_request(&raw_uri, source, root_dir, base, extractor)
+                .map_err(|e| RequestError::CreateRequestItem(raw_uri.clone(), source.clone(), e))
         })
         .collect()
 }
