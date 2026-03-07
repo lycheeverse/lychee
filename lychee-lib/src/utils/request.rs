@@ -116,7 +116,7 @@ pub(crate) fn create(
     uris.into_iter()
         .map(|raw_uri| {
             create_request(&raw_uri, source, root_dir, base, extractor).map_err(|e| {
-                RequestError::CreateRequestItem(raw_uri.clone(), source.clone(), e.into())
+                RequestError::CreateRequestItem(raw_uri.clone(), source.clone().into(), e.into())
             })
         })
         .collect()
