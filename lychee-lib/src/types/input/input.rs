@@ -96,14 +96,14 @@ impl Input {
         resolver: UrlContentResolver,
         excluded_paths: PathExcludes,
         preprocessor: Option<Preprocessor>,
-    ) -> impl Stream<Item = Result<InputContent, RequestError>> {
+    ) -> impl Stream<Item = Result<InputContent, Box<RequestError>>> {
         try_stream! {
             let source = self.source.clone();
 
             let user_input_error =
-                move |e: ErrorKind| RequestError::UserInputContent(source.clone(), e);
+                move |e: ErrorKind| Box::new(RequestError::UserInputContent(source.clone(), e));
             let discovered_input_error =
-                |e: ErrorKind| RequestError::GetInputContent(self.source.clone(), e);
+                |e: ErrorKind| Box::new(RequestError::GetInputContent(self.source.clone(), e));
 
             // Handle simple cases that don't need resolution. Also, perform
             // simple *stateful* checks for more complex input sources.
@@ -123,14 +123,14 @@ impl Input {
                     let is_readable = if path.is_dir() {
                         path.read_dir()
                             .map(|_| ())
-                            .map_err(|e| ErrorKind::DirTraversal(ignore::Error::Io(e)))
+                            .map_err(|e| ErrorKind::DirTraversal(ignore::Error::Io(e)).into())
                     } else {
                         // This checks existence without requiring an open. Opening here,
                         // then re-opening later, might cause problems with pipes. This
                         // does not validate permissions.
                         path.metadata()
                             .map(|_| ())
-                            .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))
+                            .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()).into())
                     };
 
                     is_readable.map_err(user_input_error)?;

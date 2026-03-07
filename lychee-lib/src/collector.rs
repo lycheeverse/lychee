@@ -203,7 +203,7 @@ impl Collector {
     pub fn collect_links(
         self,
         inputs: HashSet<Input>,
-    ) -> impl Stream<Item = Result<Request, RequestError>> {
+    ) -> impl Stream<Item = Result<Request, Box<RequestError>>> {
         self.collect_links_from_file_types(inputs, crate::types::FileType::default_extensions())
     }
 
@@ -218,7 +218,7 @@ impl Collector {
         self,
         inputs: HashSet<Input>,
         extensions: FileExtensions,
-    ) -> impl Stream<Item = Result<Request, RequestError>> {
+    ) -> impl Stream<Item = Result<Request, Box<RequestError>>> {
         let skip_missing_inputs = self.skip_missing_inputs;
         let skip_hidden = self.skip_hidden;
         let skip_ignored = self.skip_ignored;
@@ -262,7 +262,10 @@ impl Collector {
                 let root_dir = self.root_dir.clone();
                 let basic_auth_extractor = self.basic_auth_extractor.clone();
                 async move {
-                    let content = content?;
+                    let content = match content {
+                        Ok(x) => x,
+                        Err(e) => return Err(e),
+                    };
                     let uris: Vec<RawUri> = extractor.extract(&content);
                     let requests = request::create(
                         uris,

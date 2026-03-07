@@ -14,7 +14,7 @@ use super::CommandParams;
 /// Dump all detected links to stdout without checking them
 pub(crate) async fn dump<S>(params: CommandParams<S>) -> lychee_lib::Result<ExitCode>
 where
-    S: futures::Stream<Item = Result<Request, RequestError>>,
+    S: futures::Stream<Item = Result<Request, Box<RequestError>>>,
 {
     let requests = params.requests;
     tokio::pin!(requests);

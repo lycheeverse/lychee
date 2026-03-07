@@ -17,7 +17,7 @@ use lychee_lib::RequestError;
 use lychee_lib::{Client, Request};
 
 /// Parameters passed to every command
-pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request, RequestError>>> {
+pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request, Box<RequestError>>>> {
     pub(crate) client: Client,
     pub(crate) cache: Cache,
     pub(crate) requests: S,
