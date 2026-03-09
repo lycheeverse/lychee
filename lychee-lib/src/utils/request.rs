@@ -1,4 +1,3 @@
-use log::warn;
 use reqwest::Url;
 use std::path::Path;
 use url::PathSegmentsMut;
