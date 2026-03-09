@@ -50,9 +50,9 @@ serde_json = "1.0.149"
 strum = { version = "0.28.0", features = ["derive"] }
 supports-color = "3.0.2"
 tabled = "0.20.0"
-tokio = { version = "1.49.0", features = ["full"] }
+tokio = { version = "1.50.0", features = ["full"] }
 tokio-stream = "0.1.18"
-toml = "1.0.3"
+toml = "1.0.6"
 url = "2.5.8"
 quick-junit = "0.5.2"
 
@@ -69,7 +69,7 @@ tracing-subscriber = { version = "0.3.22", default-features = false, features = 
     "registry",
     "env-filter",
 ] }
-uuid = { version = "1.21.0", features = ["v4"] }
+uuid = { version = "1.22.0", features = ["v4"] }
 wiremock = "0.6.5"
 
 [features]
