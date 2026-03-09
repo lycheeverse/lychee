@@ -21,6 +21,7 @@
 
 use std::ops::Index;
 
+use log::debug;
 use regex::Regex;
 use url::Url;
 
@@ -61,13 +62,15 @@ impl Remaps {
     pub fn remap(&self, original: &Url) -> Result<Url> {
         for (pattern, replacement) in self {
             if pattern.is_match(original.as_str()) {
-                let after = pattern.replace_all(original.as_str(), replacement);
-                let after_url = Url::parse(after.as_ref()).map_err(|_| {
+                let new = pattern.replace_all(original.as_str(), replacement);
+                let new = Url::parse(&new).map_err(|_| {
                     ErrorKind::InvalidUrlRemap(format!(
-                        "The remapping pattern must produce a valid URL, but it is not: {after}"
+                        "The remapping pattern produced an invalid URL: {new}"
                     ))
                 })?;
-                return Ok(after_url);
+
+                debug!("Remapping {original} --> {new}");
+                return Ok(new);
             }
         }
         Ok(original.clone())
