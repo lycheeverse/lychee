@@ -1,4 +1,3 @@
-use log::warn;
 use reqwest::Url;
 use std::path::Path;
 use url::PathSegmentsMut;
@@ -66,13 +65,6 @@ fn try_parse_into_uri(
     // BACKWARDS COMPAT: delete trailing slash for file urls
     // Without this, then a local link like `README.md/` will fail.
     if url.scheme() == "file" {
-        if url.path() != "/" && url.path().ends_with('/') {
-            warn!(
-                "Removing trailing slash from file URL: {url}. {} {}",
-                "This lets the URL match both files and folders.",
-                "In future, a file URL ending in / might fail link checking if it points to a file."
-            );
-        }
         let _ = url
             .path_segments_mut()
             .as_mut()
