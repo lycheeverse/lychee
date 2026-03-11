@@ -25,7 +25,3 @@ debug/
 # lychee-specific files
 .lycheecache
 .config.dummy.report.md
-/.vs/lychee.slnx/FileContentIndex/11555c99-819f-49fe-938b-d191dcbde661.vsidx
-/.vs/lychee.slnx/FileContentIndex/cccf6fa6-e900-4bb8-818b-568102342b17.vsidx
-/.vs/lychee.slnx/FileContentIndex/fe16b549-4915-4d3c-b7b3-6241a4544666.vsidx
-/.vs
