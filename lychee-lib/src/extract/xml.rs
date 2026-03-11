@@ -41,7 +41,8 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
                             let element = std::str::from_utf8(e.name().as_ref())
                                 .unwrap_or("")
                                 .to_string();
-                            let end_of_empty_tag: usize = reader.buffer_position().try_into().unwrap_or_default();
+                            let end_of_empty_tag: usize =
+                                reader.buffer_position().try_into().unwrap_or_default();
                             // Span is a bit imprecise, as it points to the end of the element. However, quick_xml does not provide the position of attributes, so this is the best we can do.
                             let span = span_provider.span(end_of_empty_tag);
 
@@ -73,7 +74,7 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
 
 #[cfg(test)]
 mod tests {
-    use crate::types::uri::raw::{ SourceSpanProvider, span };
+    use crate::types::uri::raw::{SourceSpanProvider, span};
 
     use super::*;
 
@@ -100,23 +101,26 @@ mod tests {
     </url>
 </urlset>"#;
 
-
-        let expected = vec![RawUri {
-            text: "https://elastisys.io/welkin/".to_string(),
-            element: Some("loc".to_string()),
-            attribute: None,
-            span: span(4, 15),
-        }, RawUri {
-            text: "https://elastisys.io/welkin/architecture/".to_string(),
-            element: Some("loc".to_string()),
-            attribute: None,
-            span: span(8, 15),
-        }, RawUri {
-            text: "https://elastisys.io/welkin/glossary/".to_string(),
-            element: Some("loc".to_string()),
-            attribute: None,
-            span: span(12, 15),
-        }];
+        let expected = vec![
+            RawUri {
+                text: "https://elastisys.io/welkin/".to_string(),
+                element: Some("loc".to_string()),
+                attribute: None,
+                span: span(4, 15),
+            },
+            RawUri {
+                text: "https://elastisys.io/welkin/architecture/".to_string(),
+                element: Some("loc".to_string()),
+                attribute: None,
+                span: span(8, 15),
+            },
+            RawUri {
+                text: "https://elastisys.io/welkin/glossary/".to_string(),
+                element: Some("loc".to_string()),
+                attribute: None,
+                span: span(12, 15),
+            },
+        ];
 
         let uris = extract(input);
 
@@ -140,17 +144,20 @@ mod tests {
     </channel>
 </rss>"#;
 
-        let expected = vec![RawUri {
-            text: "https://example.com".to_string(),
-            element: Some("link".to_string()),
-            attribute: None,
-            span: span(5, 15),
-        }, RawUri {
-            text: "https://example.com/item".to_string(),
-            element: Some("link".to_string()),
-            attribute: None,
-            span: span(9, 19),
-        }];
+        let expected = vec![
+            RawUri {
+                text: "https://example.com".to_string(),
+                element: Some("link".to_string()),
+                attribute: None,
+                span: span(5, 15),
+            },
+            RawUri {
+                text: "https://example.com/item".to_string(),
+                element: Some("link".to_string()),
+                attribute: None,
+                span: span(9, 19),
+            },
+        ];
 
         let uris = extract(input);
 
@@ -178,17 +185,20 @@ mod tests {
     </entry>
 </feed>"#;
 
-        let expected = vec![RawUri {
-            text: "https://example.com".to_string(),
-            element: Some("link".to_string()),
-            attribute: Some("href".to_string()),
-            span: span(4, 40),
-        }, RawUri {
-            text: "https://example.com/entry".to_string(),
-            element: Some("link".to_string()),
-            attribute: Some("href".to_string()),
-            span: span(12, 50),
-        }];
+        let expected = vec![
+            RawUri {
+                text: "https://example.com".to_string(),
+                element: Some("link".to_string()),
+                attribute: Some("href".to_string()),
+                span: span(4, 40),
+            },
+            RawUri {
+                text: "https://example.com/entry".to_string(),
+                element: Some("link".to_string()),
+                attribute: Some("href".to_string()),
+                span: span(12, 50),
+            },
+        ];
 
         let uris = extract(input);
 
