@@ -42,7 +42,7 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
                                 .unwrap_or("")
                                 .to_string();
                             let end_of_empty_tag: usize = reader.buffer_position().try_into().unwrap_or_default();
-                            // Span is a bit unprecise, as it points to the end of the element. However, quick_xml does not provide the position of attributes, so this is the best we can do.
+                            // Span is a bit imprecise, as it points to the end of the element. However, quick_xml does not provide the position of attributes, so this is the best we can do.
                             let span = span_provider.span(end_of_empty_tag);
 
                             if !text.is_empty() && !element.is_empty() {
