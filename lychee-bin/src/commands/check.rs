@@ -81,8 +81,7 @@ where
     let (stats_result, request_result, send_result) =
         futures::join!(stats_handle, request_handle, send_task);
 
-    // Fatal user errors are here so check it first. Unwraps two results, the
-    // first for JoinError and the second for ErrorKind.
+    // Fatal user errors are here so check it first.
     let mut stats: ResponseStats = stats_result??;
 
     let (cache, client) = request_result?;
