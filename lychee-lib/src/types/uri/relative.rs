@@ -15,7 +15,7 @@ pub enum RelativeUri<'a> {
     /// A root-relative link, e.g. `"/help"`. The contained string will
     /// start with `/` and not start with `//`.
     RootRel(&'a str),
-    /// A scheme-relative link, e.g. `"//example.comhelp"`. The contained
+    /// A scheme-relative link, e.g. `"//example.com/help"`. The contained
     /// string will start with `//`.
     SchemeRel(&'a str),
     /// A locally-relative link, e.g. `"help"` or `"../home"`.
@@ -61,7 +61,7 @@ pub(crate) fn is_scheme_relative_link(text: &str) -> bool {
     text.trim_ascii_start().starts_with("//")
 }
 
-/// Attempts to parse the given text as a into a [`Uri`] or [`RelativeUri`].
+/// Attempts to parse the given text into a [`Uri`] or [`RelativeUri`].
 ///
 /// # Errors
 ///
