@@ -3,7 +3,7 @@ use log::warn;
 use quick_xml::Reader;
 use quick_xml::events::Event;
 
-use crate::types::uri::raw::{RawUri, span, SpanProvider};
+use crate::types::uri::raw::{RawUri, SpanProvider};
 
 /// Extract unparsed URL strings from common XML formats, like sitemap.xml, RSS feeds, or Atom feeds.
 pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Vec<RawUri> {
@@ -73,7 +73,7 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
 
 #[cfg(test)]
 mod tests {
-    use crate::types::uri::raw::SourceSpanProvider;
+    use crate::types::uri::raw::{ SourceSpanProvider, span };
 
     use super::*;
 
