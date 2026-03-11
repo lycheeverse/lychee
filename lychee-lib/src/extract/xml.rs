@@ -100,23 +100,27 @@ mod tests {
     </url>
 </urlset>"#;
 
-        let links: Vec<RawUri> = extract(input);
-        let expected_links = [
-            "https://elastisys.io/welkin/",
-            "https://elastisys.io/welkin/architecture/",
-            "https://elastisys.io/welkin/glossary/",
-        ];
 
-        assert_eq!(links.len(), 3, "Should extract all URLs");
+        let expected = vec![RawUri {
+            text: "https://elastisys.io/welkin/".to_string(),
+            element: Some("loc".to_string()),
+            attribute: None,
+            span: span(4, 15),
+        }, RawUri {
+            text: "https://elastisys.io/welkin/architecture/".to_string(),
+            element: Some("loc".to_string()),
+            attribute: None,
+            span: span(8, 15),
+        }, RawUri {
+            text: "https://elastisys.io/welkin/glossary/".to_string(),
+            element: Some("loc".to_string()),
+            attribute: None,
+            span: span(12, 15),
+        }];
 
-        for (expected_link, link) in expected_links.iter().zip(links.iter()) {
-            assert_eq!(expected_link, &link.text);
-        }
+        let uris = extract(input);
 
-        for link in &links {
-            assert_eq!(link.element, Some("loc".to_string()));
-            assert_eq!(link.attribute, None);
-        }
+        assert_eq!(uris, expected);
     }
 
     #[test]
@@ -136,19 +140,21 @@ mod tests {
     </channel>
 </rss>"#;
 
-        let links: Vec<RawUri> = extract(input);
-        let expected_links = ["https://example.com", "https://example.com/item"];
+        let expected = vec![RawUri {
+            text: "https://example.com".to_string(),
+            element: Some("link".to_string()),
+            attribute: None,
+            span: span(5, 15),
+        }, RawUri {
+            text: "https://example.com/item".to_string(),
+            element: Some("link".to_string()),
+            attribute: None,
+            span: span(9, 19),
+        }];
 
-        assert_eq!(links.len(), 2, "Should extract all URLs");
+        let uris = extract(input);
 
-        for (expected_link, link) in expected_links.iter().zip(links.iter()) {
-            assert_eq!(expected_link, &link.text);
-        }
-
-        for link in &links {
-            assert_eq!(link.element, Some("link".to_string()));
-            assert_eq!(link.attribute, None);
-        }
+        assert_eq!(uris, expected);
     }
 
     #[test]
@@ -172,18 +178,20 @@ mod tests {
     </entry>
 </feed>"#;
 
-        let links: Vec<RawUri> = extract(input);
-        let expected_links = ["https://example.com", "https://example.com/entry"];
+        let expected = vec![RawUri {
+            text: "https://example.com".to_string(),
+            element: Some("link".to_string()),
+            attribute: Some("href".to_string()),
+            span: span(4, 40),
+        }, RawUri {
+            text: "https://example.com/entry".to_string(),
+            element: Some("link".to_string()),
+            attribute: Some("href".to_string()),
+            span: span(12, 50),
+        }];
 
-        assert_eq!(links.len(), 2, "Should extract all URLs");
+        let uris = extract(input);
 
-        for (expected_link, link) in expected_links.iter().zip(links.iter()) {
-            assert_eq!(expected_link, &link.text);
-        }
-
-        for link in &links {
-            assert_eq!(link.element, Some("link".to_string()));
-            assert_eq!(link.attribute, Some("href".to_string()));
-        }
+        assert_eq!(uris, expected);
     }
 }
