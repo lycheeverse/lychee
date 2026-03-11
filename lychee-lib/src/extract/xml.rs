@@ -157,6 +157,10 @@ mod tests {
     <title>Example Feed</title>
     <link href="https://example.com" />
     <updated>2026-03-04T12:00:00Z</updated>
+    <author>
+        <name>John Doe</name>
+    </author>
+    <id>urn:uuid:60a76c80-d399-11d9-b93C-0003939e0af6</id>
     <entry>
         <title>Example Entry</title>
         <link href="https://example.com/entry" />
