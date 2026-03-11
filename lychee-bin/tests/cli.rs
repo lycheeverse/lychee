@@ -3394,7 +3394,19 @@ The config file should contain every possible key for documentation purposes."
             .arg("http://website.invalid")
             .assert()
             .failure()
-            .code(1);
+            .code(1)
+            .stderr(contains("Error: Network error"));
+
+        // invalid domain name should be reported even if other tokio panics happen
+        // (e.g., due to send into closed channel).
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("https://a.invalid")
+            .write_stdin("http://example.com")
+            .assert()
+            .failure()
+            .code(1)
+            .stderr(contains("Error: Network error"));
 
         // maybe test with a directory with no write permissions? but there
         // doesn't seem to be an equivalent to chmod on the windows API:
