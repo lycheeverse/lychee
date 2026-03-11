@@ -409,7 +409,7 @@ pub(crate) struct Config {
 
     /// A list of status codes that will be ignored from the cache
     ///
-    /// The following exclude range syntax is supported: [start]..[[=]end]|code. Some valid
+    /// The following exclude range syntax is supported: `[start`]..`[`[=`]end`]|code. Some valid
     /// examples are:
     ///
     /// - 429 (excludes the 429 status code only)
@@ -418,7 +418,7 @@ pub(crate) struct Config {
     /// - 500..=599 (excludes any status code from 500 to 599 inclusive)
     /// - 500..600 (excludes any status code from 500 to 600 excluding 600, same as 500..=599)
     ///
-    /// Use "lychee --cache-exclude-status '429, 500..502' <inputs>..." to provide a
+    /// Use "lychee --cache-exclude-status '429, 500..502' `<inputs>`..." to provide a
     /// comma-separated list of excluded status codes. This example will not cache results
     /// with a status code of 429, 500 and 501.
     #[arg(long, verbatim_doc_comment)]
@@ -642,7 +642,7 @@ pub(crate) struct Config {
 
     /// A List of accepted status codes for valid links
     ///
-    /// The following accept range syntax is supported: [start]..[[=]end]|code.
+    /// The following exclude range syntax is supported: `[start`]..`[`[=`]end`]|code. Some valid
     /// Some valid examples are:
     ///
     /// - 200 (accepts the 200 status code only)
@@ -651,7 +651,7 @@ pub(crate) struct Config {
     /// - 200..=204 (accepts any status code from 200 to 204 inclusive)
     /// - 200..205 (accepts any status code from 200 to 205 excluding 205, same as 200..=204)
     ///
-    /// Use "lychee --accept '200..=204, 429, 500' <inputs>..." to provide a comma-
+    /// Use "lychee --accept '200..=204, 429, 500' `<inputs>`..." to provide a comma-
     /// separated list of accepted status codes. This example will accept 200, 201,
     /// 202, 203, 204, 429, and 500 as valid status codes.
     ///

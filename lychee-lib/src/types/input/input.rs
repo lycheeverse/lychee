@@ -212,8 +212,8 @@ impl Input {
     /// - Remote URLs are returned as is, in their full form
     /// - Glob patterns are expanded and each matched entry is returned
     /// - Absolute or relative filepaths are returned as-is
-    /// - Stdin input is returned as the special string "<stdin>"
-    /// - A raw string input is returned as the special string "<raw string>"
+    /// - Stdin input is returned as the special string `"<stdin>"`
+    /// - A raw string input is returned as the special string `"<raw string>"`
     ///
     /// # Errors
     ///

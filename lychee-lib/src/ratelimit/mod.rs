@@ -6,11 +6,11 @@
 //!
 //! # Architecture
 //!
-//! - [`HostKey`]: Represents a hostname/domain for rate limiting
-//! - [`Host`]: Manages rate limiting, concurrency, and caching for a specific host
-//! - [`HostPool`]: Coordinates multiple hosts and routes requests appropriately
-//! - [`HostConfig`]: Configuration for per-host behavior
-//! - [`HostStats`]: Statistics tracking for each host
+//! - \[`HostKey`\]: Represents a hostname/domain for rate limiting
+//! - \[`Host`\]: Manages rate limiting, concurrency, and caching for a specific host
+//! - \[`HostPool`\]: Coordinates multiple hosts and routes requests appropriately
+//! - \[`HostConfig`\]: Configuration for per-host behavior
+//! - \[`HostStats`\]: Statistics tracking for each host
 
 mod config;
 mod headers;
