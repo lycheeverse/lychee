@@ -3,7 +3,7 @@ use log::warn;
 use quick_xml::Reader;
 use quick_xml::events::Event;
 
-use crate::types::uri::raw::{RawUri, SpanProvider};
+use crate::types::uri::raw::{RawUri, span, SpanProvider};
 
 /// Extract unparsed URL strings from common XML formats, like sitemap.xml, RSS feeds, or Atom feeds.
 pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Vec<RawUri> {
@@ -15,16 +15,17 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
         match reader.read_event().unwrap() {
             Event::Start(e) => match e.name().as_ref() {
                 b"loc" /* sitemap */ | b"link" /* RSS */ => {
+                    let start_of_text_offset: usize = reader.buffer_position().try_into().unwrap_or_default();
                     let element = String::from_utf8(e.name().as_ref().to_vec()).unwrap_or_default();
                     let text = reader.read_text(e.name()).unwrap_or_default().as_ref().to_string();
+                    let span = span_provider.span(start_of_text_offset);
 
                     if !text.is_empty() && !element.is_empty() {
                         uris.push(RawUri {
                             text,
                             element: Some(element),
                             attribute: None,
-                            span: span_provider
-                                .span(reader.buffer_position().try_into().unwrap_or_default()),
+                            span
                         });
                     }
                 },
@@ -40,15 +41,16 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
                             let element = std::str::from_utf8(e.name().as_ref())
                                 .unwrap_or("")
                                 .to_string();
+                            let end_of_empty_tag: usize = reader.buffer_position().try_into().unwrap_or_default();
+                            // Span is a bit unprecise, as it points to the end of the element. However, quick_xml does not provide the position of attributes, so this is the best we can do.
+                            let span = span_provider.span(end_of_empty_tag);
 
                             if !text.is_empty() && !element.is_empty() {
                                 uris.push(RawUri {
                                     text,
                                     element: Some(element),
                                     attribute: Some("href".to_string()),
-                                    span: span_provider.span(
-                                        reader.buffer_position().try_into().unwrap_or_default(),
-                                    ),
+                                    span,
                                 });
                             }
                         }
