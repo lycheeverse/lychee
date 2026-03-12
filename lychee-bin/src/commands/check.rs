@@ -51,7 +51,7 @@ where
     let accept_timeouts = params.cfg.accept_timeouts;
 
     // Start receiving requests
-    let handle = tokio::spawn(request_channel_task(
+    let request_handle = tokio::spawn(request_channel_task(
         recv_req,
         send_resp,
         max_concurrency,
@@ -65,7 +65,7 @@ where
     let level = params.cfg.verbose().log_level();
 
     let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode());
-    let show_results_task = tokio::spawn(collect_responses(
+    let stats_handle = tokio::spawn(collect_responses(
         recv_resp,
         send_req.clone(),
         waiter,
@@ -73,13 +73,20 @@ where
         stats,
     ));
 
-    // Wait until all requests are sent
-    send_requests(params.requests, wait_guard, send_req, &progress).await?;
-    let (cache, client) = handle.await?;
+    // Send requests into the channel. Note that this will run within the main task
+    // and doesn't start until awaited.
+    let send_task = send_requests(params.requests, wait_guard, send_req, &progress);
 
-    // Wait until all responses are received
-    let result = show_results_task.await?;
-    let mut stats = result?;
+    // Waits for all futures to finish, either normally or due to panic.
+    let (stats_result, request_result, send_result) =
+        futures::join!(stats_handle, request_handle, send_task);
+
+    // Fatal user errors are here so check it first.
+    let mut stats: ResponseStats = stats_result??;
+
+    let (cache, client) = request_result?;
+    send_result.expect("sending input requests failed");
+
     stats.duration = start.elapsed();
 
     // Note that print statements may interfere with the progress bar, so this
@@ -154,22 +161,19 @@ async fn suggest_archived_links(
 // drops the `send_req` channel on exit
 // required for the receiver task to end, which closes send_resp, which allows
 // the show_results_task to finish
-async fn send_requests<S>(
-    requests: S,
+async fn send_requests(
+    requests: impl futures::Stream<Item = Result<Request, RequestError>>,
     guard: WaitGuard,
     send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
     progress: &Progress,
-) -> Result<(), ErrorKind>
-where
-    S: futures::Stream<Item = Result<Request, RequestError>>,
-{
+) -> Result<(), ()> {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
         progress.inc_length(1);
         send_req
             .send((guard.clone(), request))
             .await
-            .expect("Cannot send request");
+            .map_err(|_| ())?;
     }
     Ok(())
 }
