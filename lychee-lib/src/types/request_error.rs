@@ -7,7 +7,7 @@ use crate::{InputSource, ResolvedInputSource};
 
 static ERROR_URI: LazyLock<Uri> = LazyLock::new(|| Uri::try_from("error:").unwrap());
 
-/// An error which occurs while trying to construct a [`request::Request`] object.
+/// An error which occurs while trying to construct a [`crate::types::request::Request`] object.
 /// That is, an error which happens while trying to load links from an input
 /// source.
 #[derive(Error, Debug, PartialEq, Eq, Hash)]

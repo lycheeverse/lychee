@@ -6,11 +6,11 @@
 //!
 //! # Architecture
 //!
-//! - [`host::HostKey`]: Represents a hostname/domain for rate limiting
-//! - [`host::Host`]: Manages rate limiting, concurrency, and caching for a specific host
-//! - [`host::HostPool`]: Coordinates multiple hosts and routes requests appropriately
-//! - [`host::HostConfig`]: Configuration for per-host behavior
-//! - [`host::HostStats`]: Statistics tracking for each host
+//! - [`crate::ratelimit::HostKey`]: Represents a hostname/domain for rate limiting
+//! - [`crate::ratelimit::Host`]: Manages rate limiting, concurrency, and caching for a specific host
+//! - [`crate::ratelimit::HostPool`]: Coordinates multiple hosts and routes requests appropriately
+//! - [`crate::ratelimit::HostConfig`]: Configuration for per-host behavior
+//! - [`crate::ratelimit::HostStats`]: Statistics tracking for each host
 
 mod config;
 mod headers;
