@@ -18,6 +18,9 @@ use reqwest::Client;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use dashmap::DashSet;
+use std::sync::Arc;
+
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
 #[allow(clippy::struct_excessive_bools)]
@@ -237,6 +240,7 @@ impl Collector {
             self.include_wikilinks,
         );
 
+        let seen = Arc::new(DashSet::new());
         stream::iter(inputs)
             .par_then_unordered(None, move |input| {
                 let extensions = extensions.clone();
@@ -258,12 +262,20 @@ impl Collector {
             })
             .flatten()
             .par_then_unordered(None, move |content| {
+                let seen = seen.clone();
                 let global_base = global_base.clone();
                 let root_dir = self.root_dir.clone();
                 let basic_auth_extractor = self.basic_auth_extractor.clone();
                 async move {
                     let content = content?;
                     let uris: Vec<RawUri> = extractor.extract(&content);
+
+                    /* Deduplicate URIs across parallel tasks. */
+                    let uris: Vec<RawUri> = uris
+                        .into_iter()
+                        .filter(|uri| seen.insert(uri.text.clone()))
+                        .collect();
+
                     let requests = request::create(
                         uris,
                         &content.source,
