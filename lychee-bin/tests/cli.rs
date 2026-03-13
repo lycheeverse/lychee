@@ -741,7 +741,7 @@ mod cli {
 
         assert_lines_eq(
             result,
-            vec!["https://rust-lang.org/", "https://rust-lang.org/"],
+            vec!["https://rust-lang.org/", "https://rust-lang.org/learn/"],
         );
     }
 
