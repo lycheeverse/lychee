@@ -59,7 +59,7 @@
 #![deny(missing_docs)]
 
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, ErrorKind};
+use std::io::{self, BufRead, BufReader, ErrorKind, IsTerminal};
 use std::path::PathBuf;
 
 use anyhow::{Context, Error, Result};
@@ -301,6 +301,22 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
 
+    // Hide the progress bar only when stdin is the sole input and it is
+    // interactive (TTY).
+    //
+    // We restrict this to the sole-input case because with mixed inputs like
+    // `lychee - README.md` the file is processed concurrently with stdin, so
+    // the order of completion is non-deterministic. Hiding the bar there would
+    // be confusing rather than helpful.
+    //
+    // When stdin is piped (`cat links.txt | lychee -`), `is_terminal()` returns
+    // false, so the progress bar is shown normally.
+    let stdin_input = inputs.len() == 1
+        && inputs
+            .iter()
+            .any(|input| matches!(input.source, lychee_lib::InputSource::Stdin))
+        && std::io::stdin().is_terminal();
+
     // TODO: Remove this section after `--base` got removed with 1.0
     let base = match (opts.config.base.clone(), opts.config.base_url.clone()) {
         (None, base_url) => base_url,
@@ -367,6 +383,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         cache,
         requests,
         cfg: opts.config.clone(),
+        stdin_input,
     };
 
     let exit_code = if opts.config.dump {
