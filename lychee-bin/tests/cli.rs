@@ -691,13 +691,13 @@ mod cli {
     }
 
     #[test]
-    fn test_missing_file_ok_if_skip_missing() {
+    fn test_fails_if_input_file_missing_even_with_skip_missing() {
         let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
         cargo_bin_cmd!()
             .arg(&filename)
             .arg("--skip-missing")
             .assert()
-            .success();
+            .failure();
     }
 
     #[test]
@@ -1786,13 +1786,14 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_inputs_without_scheme() {
-        let test_path = fixtures_path!().join("TEST_HTTP.html");
         cargo_bin_cmd!()
             .arg("--dump")
             .arg("example.com")
-            .arg(&test_path)
             .assert()
-            .success();
+            .failure()
+            .stderr(contains(
+                "Input 'example.com' not found as file and not a valid URL",
+            ));
     }
 
     #[test]
@@ -1941,7 +1942,9 @@ The config file should contain every possible key for documentation purposes."
             .arg("./NOT-A-REAL-TEST-FIXTURE.md")
             .assert()
             .failure()
-            .stderr(contains("Invalid file path: ./NOT-A-REAL-TEST-FIXTURE.md"));
+            .stderr(contains(
+                "Input './NOT-A-REAL-TEST-FIXTURE.md' not found as file and not a valid URL",
+            ));
     }
 
     #[test]
