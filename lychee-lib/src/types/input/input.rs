@@ -139,9 +139,6 @@ impl Input {
                     };
                     is_readable.map_err(user_input_error)?;
                 }
-                InputSource::FsPath(_) => {
-                    // skip_missing is true, we don't validate readability here
-                }
                 InputSource::Stdin => {
                     yield Self::stdin_content(self.file_type_hint)
                         .await
