@@ -119,13 +119,9 @@ impl Input {
                     }
                     return;
                 }
-                InputSource::FsPath(ref path) if !skip_missing => {
+                InputSource::FsPath(ref path) => {
                     // We check if the file is readable before processing. This catches
-                    // permission errors and missing files early. However, when skip_missing
-                    // is enabled, we skip this validation entirely and let the file be
-                    // processed later in the stream. If reading fails there, the error will
-                    // be caught and skipped. This ensures --skip-missing works for directly
-                    // specified file paths, not just for files discovered through glob expansion.
+                    // permission errors and missing files early.
                     let is_readable = if path.is_dir() {
                         path.read_dir()
                             .map(|_| ())
