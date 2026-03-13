@@ -1625,7 +1625,11 @@ The config file should contain every possible key for documentation purposes."
             .await;
 
         cargo_bin_cmd!()
-            .write_stdin(format!("{} ", server.uri()).repeat(count))
+            .write_stdin(
+                (0..count)
+                    .map(|i| format!("{}/#q={} ", server.uri(), i))
+                    .collect::<String>(),
+            )
             .arg("-")
             .arg("--host-stats")
             // the request interval must not have an affect on duplicates
