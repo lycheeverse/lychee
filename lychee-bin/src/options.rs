@@ -448,7 +448,7 @@ pub(crate) struct Config {
 
     /// Maximum number of allowed redirects
     ///
-    /// [default: 5]
+    /// [default: 10]
     #[arg(short, long)]
     max_redirects: Option<usize>,
 
