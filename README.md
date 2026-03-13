@@ -602,7 +602,7 @@ Options:
   -m, --max-redirects <MAX_REDIRECTS>
           Maximum number of allowed redirects
 
-          [default: 5]
+          [default: 10]
 
       --max-cache-age <MAX_CACHE_AGE>
           Discard all cached requests older than this duration
