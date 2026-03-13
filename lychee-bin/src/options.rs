@@ -88,7 +88,6 @@ pub(crate) enum StatsFormat {
     Json,
     Junit,
     Markdown,
-    Raw,
 }
 
 impl FromStr for StatsFormat {
@@ -101,7 +100,6 @@ impl FromStr for StatsFormat {
             "json" => Ok(StatsFormat::Json),
             "junit" => Ok(StatsFormat::Junit),
             "markdown" | "md" => Ok(StatsFormat::Markdown),
-            "raw" => Ok(StatsFormat::Raw),
             _ => Err(anyhow!("Unknown format {format}")),
         }
     }
