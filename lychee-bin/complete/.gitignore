@@ -1,0 +1,7 @@
+# Generated shell completion files.
+# Run `make completions` to (re)generate them locally.
+lychee.bash
+lychee.elv
+lychee.fish
+_lychee.ps1
+_lychee

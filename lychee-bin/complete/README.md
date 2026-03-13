@@ -3,6 +3,10 @@
 lychee comes with built-in support for generating shell completions.
 This unlocks tab-completion for commands, options, and arguments in your shell!
 
+If you installed lychee via a package manager (Homebrew, apt, nix, etc.),
+completions may already be set up for you. If not, check with your package
+maintainer or follow the manual steps below.
+
 ## Installation
 
 ### Bash
