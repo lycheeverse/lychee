@@ -72,7 +72,7 @@ impl InputSource {
                     // Single character scheme (likely Windows drive letter)
                     // Continue to file path handling
                 }
-            };
+            }
         }
 
         // This seems to be the only way to determine if this is a glob pattern
