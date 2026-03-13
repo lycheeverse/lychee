@@ -1796,6 +1796,33 @@ The config file should contain every possible key for documentation purposes."
             ));
     }
 
+    // Regression test for https://github.com/lycheeverse/lychee/issues/972
+    // Absolute Windows paths like `C:\dir` were rejected with "URL scheme is not
+    // allowed" because the drive letter was parsed as a URL scheme.
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_absolute_path_accepted_as_file_input() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let path_str = dir.path().to_str().unwrap().to_owned();
+
+        // Sanity-check: the path must start with a drive letter (e.g. "C:\")
+        // for the regression to be meaningful.
+        assert!(
+            path_str.chars().nth(1) == Some(':'),
+            "Expected an absolute Windows path with a drive letter, got: {path_str}"
+        );
+
+        // The path exists, so lychee should accept it and attempt to check
+        // the links inside (there are none, so it exits successfully).
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(&path_str)
+            .assert()
+            .success();
+    }
+
     #[test]
     fn test_print_excluded_links_in_verbose_mode() {
         let test_path = fixtures_path!().join("TEST_DUMP_EXCLUDE.txt");

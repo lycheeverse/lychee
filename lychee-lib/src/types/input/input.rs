@@ -403,8 +403,8 @@ mod tests {
         let input = input.unwrap_err();
 
         match input {
-            ErrorKind::InvalidFile(_) => (),
-            _ => panic!("Should have received InvalidFile error"),
+            ErrorKind::InvalidInput(_) => (),
+            _ => panic!("Should have received InvalidInput error, got: {input:?}"),
         }
     }
 
