@@ -27,7 +27,6 @@ pub(crate) fn get_stats_formatter(
         StatsFormat::Json => Box::new(stats::Json::new()),
         StatsFormat::Junit => Box::new(stats::Junit::new()),
         StatsFormat::Markdown => Box::new(stats::Markdown::new()),
-        StatsFormat::Raw => Box::new(stats::Raw::new()),
     }
 }
 
