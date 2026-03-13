@@ -14,6 +14,7 @@
 //!   and filtered by extension
 //! - URLs, raw strings, and standard input (`stdin`) are read directly
 
+use crate::BaseInfo;
 use crate::ErrorKind;
 
 use glob::Pattern;
@@ -156,6 +157,32 @@ pub enum ResolvedInputSource {
     Stdin,
     /// Raw string input.
     String(Cow<'static, str>),
+}
+
+impl ResolvedInputSource {
+    /// Converts a [`ResolvedInputSource::RemoteUrl`] or
+    /// [`ResolvedInputSource::FsPath`] to a [`BaseInfo`] for the source.
+    ///
+    /// For other variants (i.e., those without a URL), [`BaseInfo::None`]
+    /// is returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if building a URL from a [`ResolvedInputSource::FsPath`]
+    /// fails.
+    pub fn to_base_info(&self) -> Result<BaseInfo, ErrorKind> {
+        let url = match self {
+            Self::RemoteUrl(url) => Cow::Borrowed(&**url),
+            Self::FsPath(path) => std::path::absolute(path)
+                .ok()
+                .and_then(|x| Url::from_file_path(x).ok())
+                .map(Cow::Owned)
+                .ok_or_else(|| ErrorKind::InvalidUrlFromPath(path.to_owned()))?,
+            _ => return Ok(BaseInfo::none()),
+        };
+
+        Ok(BaseInfo::from_source_url(&url))
+    }
 }
 
 impl From<ResolvedInputSource> for InputSource {

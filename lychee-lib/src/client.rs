@@ -28,7 +28,7 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
+    BaseInfo, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
@@ -37,8 +37,8 @@ use crate::{
     types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory},
 };
 
-/// Default number of redirects before a request is deemed as failed, 5.
-pub const DEFAULT_MAX_REDIRECTS: usize = 5;
+/// Default number of redirects that are followed.
+pub const DEFAULT_MAX_REDIRECTS: usize = 10;
 /// Default number of retries before a request is deemed as failed, 3.
 pub const DEFAULT_MAX_RETRIES: u64 = 3;
 /// Default wait time in seconds between retries, 1.
@@ -268,7 +268,7 @@ pub struct ClientBuilder {
     ///
     /// E.g. if the base is `/home/user/` and the path is `file.txt`, the
     /// resolved path would be `/home/user/file.txt`.
-    base: Option<Base>,
+    base: BaseInfo,
 
     /// Initial time between retries of failed requests.
     ///
@@ -398,7 +398,7 @@ impl ClientBuilder {
             email_checker: MailChecker::new(self.timeout),
             website_checker,
             file_checker: FileChecker::new(
-                self.base,
+                &self.base,
                 self.fallback_extensions,
                 self.index_files,
                 self.include_fragments,
@@ -538,14 +538,23 @@ impl Client {
             ref mut uri,
             credentials,
             source,
+            span,
             ..
         } = request.try_into()?;
 
         self.remap(uri)?;
 
         if self.is_excluded(uri) {
-            return Ok(Response::new(uri.clone(), Status::Excluded, source.into()));
+            return Ok(Response::new(
+                uri.clone(),
+                Status::Excluded,
+                source.into(),
+                span,
+                None,
+            ));
         }
+
+        let start = std::time::Instant::now(); // Measure check time
 
         let status = match uri.scheme() {
             _ if uri.is_tel() => Status::Excluded, // We don't check tel: URIs
@@ -554,7 +563,13 @@ impl Client {
             _ => self.check_website(uri, credentials).await?,
         };
 
-        Ok(Response::new(uri.clone(), status, source.into()))
+        Ok(Response::new(
+            uri.clone(),
+            status,
+            source.into(),
+            span,
+            Some(start.elapsed()),
+        ))
     }
 
     /// Check a single file using the file checker.

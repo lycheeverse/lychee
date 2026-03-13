@@ -303,14 +303,13 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
 
     // TODO: Remove this section after `--base` got removed with 1.0
     let base = match (opts.config.base.clone(), opts.config.base_url.clone()) {
-        (None, None) => None,
-        (Some(base), None) => Some(base),
-        (None, Some(base_url)) => Some(base_url),
-        (Some(_base), Some(base_url)) => {
+        (None, base_url) => base_url,
+        (base, None) => base,
+        (_base, base_url) => {
             warn!(
                 "WARNING: Both, `--base` and `--base-url` are set. Using `base-url` and ignoring `--base` (as it's deprecated)."
             );
-            Some(base_url)
+            base_url
         }
     };
 
@@ -329,7 +328,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         return Ok(exit_code as i32);
     }
 
-    let mut collector = Collector::new(opts.config.root_dir.clone(), base)?
+    let mut collector = Collector::new(opts.config.root_dir.clone(), base.unwrap_or_default())?
         .skip_missing_inputs(opts.config.skip_missing)
         .skip_hidden(!opts.config.hidden)
         // be aware that "no ignore" means do *not* ignore files

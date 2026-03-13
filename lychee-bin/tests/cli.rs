@@ -78,6 +78,30 @@ mod cli {
         assert_eq!(actual_lines, expected_lines);
     }
 
+    /// Parse lychee's json output to [`Value`].
+    /// Additionally remove the non-deterministic duration to simplify subsequent assertions
+    fn stdout_to_json(stdout: &[u8]) -> Result<Value> {
+        let mut output_json = serde_json::from_slice::<Value>(stdout)?;
+        remove_nondeterministic_duration(&mut output_json["success_map"]);
+        remove_nondeterministic_duration(&mut output_json["redirect_map"]);
+        return Ok(output_json);
+
+        fn remove_nondeterministic_duration(value: &mut Value) {
+            let map = value.as_object_mut().expect("Expected object");
+            map.iter_mut().for_each(|(_, v)| {
+                v.as_array_mut()
+                    .expect("Expected array of objects")
+                    .iter_mut()
+                    .for_each(|a| {
+                        a.as_object_mut()
+                            .expect("Expected object")
+                            .remove("duration")
+                            .expect("Value of 'duration' not present");
+                    });
+            });
+        }
+    }
+
     /// Test the output of the JSON format.
     macro_rules! test_json_output {
         ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
@@ -173,7 +197,7 @@ mod cli {
             .assert()
             .success();
         let output = cmd.output().unwrap();
-        let output_json = serde_json::from_slice::<Value>(&output.stdout)?;
+        let output_json = stdout_to_json(&output.stdout)?;
 
         // Check that the output is valid JSON
         assert!(output_json.is_object());
@@ -184,8 +208,7 @@ mod cli {
         assert!(output_json.get("excluded_map").is_some());
 
         // Check the success map
-        let success_map = output_json["success_map"].as_object().unwrap();
-        assert_eq!(success_map.len(), 1);
+        let success_map = &output_json["success_map"];
 
         // Get the actual URL from the mock server for comparison
         let mock_url = mock_server_ok.uri();
@@ -194,6 +217,10 @@ mod cli {
         let expected_success_map = serde_json::json!({
             "stdin": [
                 {
+                    "span": {
+                        "column": 1,
+                        "line": 1,
+                    },
                     "status": {
                         "code": 200,
                         "text": "200 OK"
@@ -205,8 +232,7 @@ mod cli {
 
         // Compare the actual success map with the expected one
         assert_eq!(
-            success_map,
-            expected_success_map.as_object().unwrap(),
+            *success_map, expected_success_map,
             "Success map doesn't match expected structure"
         );
 
@@ -231,7 +257,7 @@ mod cli {
         let output = cmd.output()?;
 
         // Check that the output is valid JSON
-        assert!(serde_json::from_slice::<Value>(&output.stdout).is_ok());
+        stdout_to_json(&output.stdout)?;
         Ok(())
     }
 
@@ -249,11 +275,8 @@ mod cli {
 
         let output = cmd.output()?;
 
-        // Check that the output is valid JSON
-        assert!(serde_json::from_slice::<Value>(&output.stdout).is_ok());
-
         // Parse site error status from the error_map
-        let output_json = serde_json::from_slice::<Value>(&output.stdout).unwrap();
+        let output_json = stdout_to_json(&output.stdout)?;
         let site_error_status =
             &output_json["error_map"][&test_path.to_str().unwrap()][0]["status"];
 
@@ -458,12 +481,49 @@ mod cli {
             .arg("/resolve_paths")
             .arg("--base-url")
             .arg(&dir)
-            .arg(dir.join("resolve_paths").join("index.html"))
+            .arg(dir.join("resolve_paths").join("index2.html"))
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("3 Total"))
-            .stdout(contains("3 OK"));
+            .stdout(contains("5 Total"))
+            .stdout(contains("5 OK"));
+    }
+
+    #[test]
+    fn test_resolve_paths_from_root_dir_and_local_base_url() {
+        let dir = fixtures_path!();
+
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--root-dir")
+            .arg("/root")
+            .arg("--base-url")
+            .arg("/base/")
+            .arg(dir.join("resolve_paths").join("index2.html"))
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("file:///base/root"))
+            .stdout(contains("file:///base/root/about"))
+            .stdout(contains("file:///base/resolve_paths/index.html"))
+            .stdout(contains("file:///base/root/another%20page#y"))
+            .stdout(contains("file:///base/resolve_paths/same%20folder.html#x"));
+    }
+
+    #[test]
+    fn test_root_relative_with_remote_base_url_and_root_dir() {
+        // When both are set and base-url is remote, root-relative links
+        // should resolve against the remote base, not the local root-dir.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--dump")
+            .arg("--base-url=https://example.com/docs/")
+            .arg("--root-dir=/tmp")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/page)")
+            .assert()
+            .success()
+            .stdout(contains("https://example.com/page"));
     }
 
     #[test]
@@ -573,43 +633,6 @@ mod cli {
     }
 
     #[test]
-    fn test_caching_single_file() {
-        // Repetitions in one file shall all be checked and counted only once.
-        let test_schemes_path_1 = fixtures_path!().join("TEST_REPETITION_1.txt");
-
-        cargo_bin_cmd!()
-            .arg(&test_schemes_path_1)
-            .env_clear()
-            .assert()
-            .success()
-            .stdout(contains("1 Total"))
-            .stdout(contains("1 OK"));
-    }
-
-    #[test]
-    // Test that two identical requests don't get executed twice.
-    fn test_caching_across_files() -> Result<()> {
-        // Repetitions across multiple files shall all be checked only once.
-        let repeated_uris = fixtures_path!().join("TEST_REPETITION_*.txt");
-
-        test_json_output!(
-            repeated_uris,
-            MockResponseStats {
-                total: 2,
-                cached: 1,
-                successful: 2,
-                excludes: 0,
-                ..MockResponseStats::default()
-            },
-            // Two requests to the same URI may be executed in parallel. As a
-            // result, the response might not be cached and the test would be
-            // flaky. Therefore limit the concurrency to one request at a time.
-            "--max-concurrency",
-            "1"
-        )
-    }
-
-    #[test]
     fn test_failure_github_404_no_token() {
         let test_github_404_path = fixtures_path!().join("TEST_GITHUB_404.md");
 
@@ -621,7 +644,7 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(
-                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Rejected status code: 404 Not Found (configurable with "accept" option)"#
+                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 3:9) | Rejected status code: 404 Not Found (configurable with "accept" option)"#
             ))
             .stderr(contains(
                 "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
@@ -1300,11 +1323,11 @@ The config file should contain every possible key for documentation purposes."
         // Run again to verify cache behavior
         cmd.assert()
             .stderr(contains(format!(
-                "[200] {}/ | OK (cached)\n",
+                "[200] {}/ (at 1:1) | OK (cached)\n",
                 mock_server_ok.uri()
             )))
             .stderr(contains(format!(
-                "[404] {}/ | Error (cached)\n",
+                "[404] {}/ (at 2:1) | Error (cached)\n",
                 mock_server_err.uri()
             )));
 
@@ -1356,13 +1379,13 @@ The config file should contain every possible key for documentation purposes."
         // Run first without cache to generate the cache file
         test_cmd
             .assert()
-            .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
+            .stderr(contains(format!("[200] {}/ (at 1:1)\n", mock_server_ok.uri())))
             .stderr(contains(format!(
-                "[204] {}/ | 204 No Content: No Content\n",
+                "[204] {}/ (at 2:1) | 204 No Content: No Content\n",
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
-                "[429] {}/ | Rejected status code: 429 Too Many Requests (configurable with \"accept\" option)",
+                "[429] {}/ (at 3:1) | Rejected status code: 429 Too Many Requests (configurable with \"accept\" option)",
                 mock_server_too_many_requests.uri()
             )));
 
@@ -1420,11 +1443,11 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[418] {}/ | Rejected status code: 418 I'm a teapot (configurable with "accept" option)"#,
+                r#"[418] {}/ (at 2:1) | Rejected status code: 418 I'm a teapot (configurable with "accept" option)"#,
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                r#"[500] {}/ | Rejected status code: 500 Internal Server Error (configurable with "accept" option)"#,
+                r#"[500] {}/ (at 3:1) | Rejected status code: 500 Internal Server Error (configurable with "accept" option)"#,
                 mock_server_server_error.uri()
             )));
 
@@ -1443,11 +1466,11 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stderr(contains(format!(
-                "[418] {}/ | OK (cached)",
+                "[418] {}/ (at 2:1) | OK (cached)",
                 mock_server_teapot.uri()
             )))
             .stderr(contains(format!(
-                "[500] {}/ | OK (cached)",
+                "[500] {}/ (at 3:1) | OK (cached)",
                 mock_server_server_error.uri()
             )));
 
@@ -1470,8 +1493,42 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[200] {}/ | Rejected status code: 200 OK (configurable with "accept" option)"#,
+                r#"[200] {}/ (at 1:1) | Rejected status code: 200 OK (configurable with "accept" option)"#,
                 mock_server_200.uri()
+            )));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_accept_timeout() -> Result<()> {
+        let mock_server_timeout = mock_server!(StatusCode::OK, set_delay(Duration::from_secs(30)));
+
+        cargo_bin_cmd!()
+            .arg("--max-retries=0")
+            .arg("--timeout=1")
+            .arg("-")
+            .write_stdin(mock_server_timeout.uri())
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains(format!(
+                r#"[TIMEOUT] {}/ (at 1:1) | Timeout"#,
+                mock_server_timeout.uri()
+            )));
+
+        cargo_bin_cmd!()
+            .arg("--max-retries=0")
+            .arg("--timeout=1")
+            .arg("--accept-timeouts")
+            .arg("-")
+            .write_stdin(mock_server_timeout.uri())
+            .assert()
+            .success()
+            .code(0)
+            .stdout(contains(format!(
+                r#"[TIMEOUT] {}/ (at 1:1) | Timeout"#,
+                mock_server_timeout.uri()
             )));
 
         Ok(())
@@ -1502,9 +1559,9 @@ The config file should contain every possible key for documentation purposes."
             .arg("-")
             .assert()
             .stderr(contains(format!(
-                "[IGNORED] {unsupported_url} | Unsupported: Error creating request client"
+                "[IGNORED] {unsupported_url} (at 1:1) | Unsupported: Error creating request client"
             )))
-            .stderr(contains(format!("[EXCLUDED] {excluded_url}\n")));
+            .stderr(contains(format!("[EXCLUDED] {excluded_url} (at 2:1)\n")));
 
         // The cache file should be empty, because the only checked URL is
         // unsupported and we don't want to cache that. It might be supported in
@@ -1551,6 +1608,35 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
+    async fn test_no_duplicate_requests() {
+        let server = wiremock::MockServer::start().await;
+        let count = 100; // given 100 duplicate URLs
+        let cached = "99.0%"; // we expect 99 out of 100 to be cached
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(|_: &_| {
+                // Simulate real-world delay.
+                // Keep the delay to prove how we make use of synchronization
+                // primitives to prevent duplicate requests.
+                ResponseTemplate::new(200).set_delay(Duration::from_secs(1))
+            })
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        cargo_bin_cmd!()
+            .write_stdin(format!("{} ", server.uri()).repeat(count))
+            .arg("-")
+            .arg("--host-stats")
+            // the request interval must not have an affect on duplicates
+            .arg("--host-request-interval=1s")
+            .assert()
+            .success()
+            .stdout(contains("100.0% success"))
+            .stdout(contains(format!("{cached} cached")));
+    }
+
+    #[tokio::test]
     async fn test_process_internal_host_caching() -> Result<()> {
         // Note that this process-internal per-host caching
         // has no direct relation to the lychee cache file
@@ -1561,7 +1647,7 @@ The config file should contain every possible key for documentation purposes."
         // such a response isn't cached.
         wiremock::Mock::given(wiremock::matchers::method("GET"))
             .respond_with(ResponseTemplate::new(429))
-            .up_to_n_times(1)
+            .up_to_n_times(2)
             .mount(&server)
             .await;
 
@@ -1572,9 +1658,10 @@ The config file should contain every possible key for documentation purposes."
             .await;
 
         let temp_dir = tempfile::tempdir()?;
-        for i in 0..9 {
+        for i in 0..4 {
             let test_md1 = temp_dir.path().join(format!("test{i}.md"));
-            fs::write(&test_md1, server.uri())?;
+            let duplicate_url_content = format!("{}\n{}", server.uri(), server.uri());
+            fs::write(&test_md1, duplicate_url_content)?;
         }
 
         cargo_bin_cmd!()
@@ -1582,14 +1669,15 @@ The config file should contain every possible key for documentation purposes."
             .arg("--host-stats")
             .assert()
             .success()
-            .stdout(contains("9 Total"))
-            .stdout(contains("9 OK"))
+            .stdout(contains("8 Total"))
+            .stdout(contains("8 OK"))
             .stdout(contains("0 Errors"))
             // Per-host statistics
-            // 1 rate limited + 9 OK
+            // 2 rate limited + 8 OK
             .stdout(contains("10 reqs"))
-            // 1 rate limited, 1 OK, 8 cached
-            .stdout(contains("80.0% cached"));
+            .stdout(contains("80.0% success"))
+            // 2 rate limited, 1 OK, 7 cached
+            .stdout(contains("70.0% cached"));
 
         server.verify().await;
         Ok(())
@@ -2207,13 +2295,19 @@ The config file should contain every possible key for documentation purposes."
     #[test]
     fn test_fragments() {
         let input = fixtures_path!().join("fragments");
-
-        let mut result = cargo_bin_cmd!()
+        let result = cargo_bin_cmd!()
             .arg("--include-fragments")
+            .arg("--format=json")
             .arg("-vv")
             .arg(input)
             .assert()
             .failure();
+
+        let output = std::str::from_utf8(&result.get_output().stdout).unwrap();
+        let json: Value = serde_json::from_str(output).unwrap();
+
+        let actual_successes = extract_urls(&json["success_map"]);
+        let actual_errors = extract_urls(&json["error_map"]);
 
         let expected_successes = vec![
             "fixtures/fragments/empty_dir",
@@ -2249,7 +2343,7 @@ The config file should contain every possible key for documentation purposes."
             "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
         ];
 
-        let expected_failures = vec![
+        let expected_errors = vec![
             "fixtures/fragments/sub_dir_non_existing_1",
             "fixtures/fragments/sub_dir#non-existing-fragment-2",
             "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
@@ -2264,36 +2358,35 @@ The config file should contain every possible key for documentation purposes."
             "https://github.com/lycheeverse/lychee#non-existent-anchor",
         ];
 
-        // the stdout/stderr format looks like this:
-        //
-        //     [ERROR] https://github.com/lycheeverse/lychee#non-existent-anchor | Cannot find fragment
-        //     [200] file:///home/rina/progs/lychee/fixtures/fragments/file.html#a-word
-        //
-        // errors are printed to both, but 200s are printed to stderr only.
-        // we take advantage of this to ensure that good URLs do not appear
-        // in stdout, and bad URLs do appear in stdout.
-        //
-        // also, a space or newline is appended to the URL to prevent
-        // incorrect matches where one URL is a prefix of another.
-        for good_url in &expected_successes {
-            // additionally checks that URL is within stderr to ensure that
-            // the URL is detected by lychee.
-            result = result
-                .stdout(contains(format!("{good_url} ")).not())
-                .stderr(contains(format!("{good_url}\n")));
-        }
-        for bad_url in &expected_failures {
-            result = result.stdout(contains(format!("{bad_url} ")));
+        assert_eq!(actual_successes.len(), expected_successes.len());
+        assert_eq!(actual_errors.len(), expected_errors.len());
+
+        for good_url in expected_successes {
+            assert!(
+                actual_successes.iter().any(|url| url.ends_with(good_url)),
+                "Expected {good_url} to be a success"
+            );
         }
 
-        let ok_num = expected_successes.len();
-        let err_num = expected_failures.len();
-        let total_num = ok_num + err_num;
-        result
-            .stdout(contains(format!("{ok_num} OK")))
-            // Failures because of missing fragments or failed binary body scan
-            .stdout(contains(format!("{err_num} Errors")))
-            .stdout(contains(format!("{total_num} Total")));
+        for bad_url in &expected_errors {
+            assert!(
+                actual_errors.iter().any(|url| url.ends_with(bad_url)),
+                "Expected {bad_url} to be an error"
+            );
+        }
+
+        fn extract_urls(json: &Value) -> HashSet<&str> {
+            json.as_object()
+                .unwrap()
+                .into_iter()
+                .flat_map(|(_, file)| {
+                    file.as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|o| o.as_object().unwrap()["url"].as_str().unwrap())
+                })
+                .collect()
+        }
     }
 
     #[test]
@@ -2405,7 +2498,7 @@ The config file should contain every possible key for documentation purposes."
 
         // Check that the output is in JSON format
         let output = std::str::from_utf8(&output.stdout)?;
-        let json: serde_json::Value = serde_json::from_str(output)?;
+        let json: Value = serde_json::from_str(output)?;
         assert_eq!(json["total"], 1);
 
         Ok(())
@@ -2433,6 +2526,10 @@ The config file should contain every possible key for documentation purposes."
                 json["redirect_map"],
                 json!({
                 "stdin":[{
+                    "span": {
+                        "column": 1,
+                        "line": 1,
+                    },
                     "status": {
                         "code": 200,
                         "text": "Redirect",
@@ -2469,11 +2566,9 @@ The config file should contain every possible key for documentation purposes."
                 .clone()
                 .unwrap();
 
-            let stdout = str::from_utf8(&output.stdout).unwrap().to_string();
-            let json: serde_json::Value = serde_json::from_str(stdout.as_str()).unwrap();
             let stderr = str::from_utf8(&output.stderr).unwrap().to_string();
 
-            (json, stderr)
+            (stdout_to_json(&output.stdout).unwrap(), stderr)
         }
     }
 
@@ -3016,8 +3111,6 @@ The config file should contain every possible key for documentation purposes."
     }
 
     /// URLs specified on the command line should also always be checked.
-    /// For example, sitemap URLs often end with `.xml` which is not
-    /// a file extension we would check by default.
     #[tokio::test]
     async fn test_url_inputs_always_get_checked_no_matter_their_extension() {
         let mock_server = wiremock::MockServer::start().await;
@@ -3033,7 +3126,7 @@ The config file should contain every possible key for documentation purposes."
         cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--dump")
-            .arg(format!("{}/sitemap.xml", mock_server.uri()))
+            .arg(format!("{}/some.svg", mock_server.uri()))
             .assert()
             .success()
             .stdout(contains(url))
@@ -3299,7 +3392,19 @@ The config file should contain every possible key for documentation purposes."
             .arg("http://website.invalid")
             .assert()
             .failure()
-            .code(1);
+            .code(1)
+            .stderr(contains("Error: Network error"));
+
+        // invalid domain name should be reported even if other tokio panics happen
+        // (e.g., due to send into closed channel).
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("https://a.invalid")
+            .write_stdin("http://example.com")
+            .assert()
+            .failure()
+            .code(1)
+            .stderr(contains("Error: Network error"));
 
         // maybe test with a directory with no write permissions? but there
         // doesn't seem to be an equivalent to chmod on the windows API:
@@ -3405,6 +3510,129 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stdout(contains("https://example.com"));
+    }
+
+    #[test]
+    fn test_local_base_url_bug_1896() -> Result<()> {
+        // https://github.com/lycheeverse/lychee/issues/1896
+        let dir = tempdir()?;
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--dump")
+            .arg("--base-url")
+            .arg(dir.path())
+            .arg("--default-extension")
+            .arg("md")
+            .write_stdin("[a](b.html#a)")
+            .assert()
+            .success()
+            .stdout(contains("b.html#a"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_relative_url_parse_errors() -> Result<()> {
+        let dir = tempdir()?;
+
+        // without root-dir, fails to resolve in all cases
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--default-extension=md")
+            .write_stdin("[a](a)")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot parse 'a' into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/a)")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot resolve root-relative link '/a': To resolve root-relative links in local files, provide a root dir"));
+
+        // with root-dir, locally-relative links can still fail because
+        // there is no current base URL
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--root-dir")
+            .arg(dir.path())
+            .arg("--default-extension=md")
+            .write_stdin("[a](a)")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot parse 'a' into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
+
+        // with root-dir, root-relative links should succeed
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--root-dir")
+            .arg(dir.path())
+            .arg("--default-extension=md")
+            .write_stdin("[a](/)")
+            .assert()
+            .success();
+
+        // with an explicit base-url, root-relative and locally-relative links work. yay!
+        // both should become relative to the base-url.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("-vv")
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/)")
+            .assert()
+            .success()
+            .stderr(contains("https://lychee.cli.rs/"));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("-vv")
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg("--default-extension=md")
+            .write_stdin("[a](.)")
+            .assert()
+            .success()
+            .stderr(contains("https://lychee.cli.rs/"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_base_url_applies_to_local() {
+        cargo_bin_cmd!()
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg(fixtures_path!().join("resolve_paths/index.html"))
+            .assert()
+            .failure()
+            .stdout(contains("https://lychee.cli.rs/another%20page"));
+    }
+
+    #[test]
+    fn test_sitemap_xml() {
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("sitemap/sitemap.xml"))
+            .arg("-v")
+            .assert()
+            .success()
+            .stdout(contains("2 Total"))
+            .stdout(contains("2 OK"))
+            .stdout(contains("0 Errors"));
+    }
+
+    #[test]
+    fn test_sitemap_xml_warn() {
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("sitemap/not-a-sitemap.xml"))
+            .arg("-v")
+            .assert()
+            .success()
+            .stdout(contains("0 Total"))
+            .stdout(contains("0 OK"))
+            .stdout(contains("0 Errors"))
+            .stderr(contains("[WARN] No URLs found in XML input."));
     }
 
     /// URLs should NOT be downloaded fully, unless fragment checking is on and the link has a fragment.

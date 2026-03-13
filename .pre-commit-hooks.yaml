@@ -3,6 +3,9 @@
   description: "Run 'lychee' for fast, async, stream-based link checking (auto-installs)"
   entry: scripts/lychee_pre_commit.sh
   language: script
+  # defaults to the version of the current repo checkout, i.e., the 'rev' field in
+  # .pre-commit-config.yaml. to use a different lychee version, pass "LYCHEE_VERSION=0.xx.0"
+  # as the first arg in 'args'.
   args: ["--no-progress"]
   types: [text]
   pass_filenames: true
@@ -19,7 +22,7 @@
   require_serial: true
   minimum_pre_commit_version: "2.9.2"
 - id: lychee-docker
-  name: lychee-docker  
+  name: lychee-docker
   description: "Run 'lychee' docker image for fast, async, stream-based link checking (auto-installs)"
   entry: lycheeverse/lychee:0.20.1
   language: docker_image

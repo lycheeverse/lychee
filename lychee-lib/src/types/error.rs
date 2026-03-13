@@ -59,8 +59,12 @@ pub enum ErrorKind {
     EmptyUrl,
 
     /// The given string can not be parsed into a valid URL, e-mail address, or file path
-    #[error("Cannot parse string `{1}` as website url: {0}")]
+    #[error("Cannot parse '{1}' into a URL: {0}")]
     ParseUrl(#[source] url::ParseError, String),
+
+    /// The given string is a root-relative link and cannot be parsed without a known root-dir
+    #[error("Cannot resolve root-relative link '{0}'")]
+    RootRelativeLinkWithoutRoot(String),
 
     /// The given URI cannot be converted to a file path
     #[error("Cannot find file")]
@@ -89,16 +93,8 @@ pub enum ErrorKind {
     InvalidHeader(#[from] http::header::InvalidHeaderValue),
 
     /// The given string can not be parsed into a valid base URL or base directory
-    #[error("Error with base dir `{0}` : {1}")]
+    #[error("Error with base dir '{0}': {1}")]
     InvalidBase(String, String),
-
-    /// Cannot join the given text with the base URL
-    #[error("Cannot join '{0}' with the base URL")]
-    InvalidBaseJoin(String),
-
-    /// Cannot convert the given path to a URI
-    #[error("Cannot convert path '{0}' to a URI")]
-    InvalidPathToUri(String),
 
     /// Invalid root directory given
     #[error("Invalid root directory '{0}': {1}")]
@@ -241,9 +237,16 @@ impl ErrorKind {
                 }
                 _ => Some(format!("Stdin read error: {e}")),
             },
-            ErrorKind::ParseUrl(_, url) => {
-                Some(format!("Invalid URL format: '{url}'. Check URL syntax"))
-            }
+            ErrorKind::ParseUrl(e, _url) => match e {
+                url::ParseError::RelativeUrlWithoutBase => Some(
+                    "This relative link was found inside an input source that has no base location"
+                        .to_string(),
+                ),
+                _ => None,
+            },
+            ErrorKind::RootRelativeLinkWithoutRoot(_) => Some(
+                "To resolve root-relative links in local files, provide a root dir".to_string(),
+            ),
             ErrorKind::EmptyUrl => {
                 Some("Empty URL found. Check for missing links or malformed markdown".to_string())
             }
@@ -284,15 +287,6 @@ impl ErrorKind {
             ErrorKind::InvalidBase(base, reason) => {
                 Some(format!("Invalid base URL or directory: '{base}'. {reason}",))
             }
-            ErrorKind::InvalidBaseJoin(_) => Some("Check relative path format".to_string()),
-            ErrorKind::InvalidPathToUri(path) => match path {
-                path if path.starts_with('/') => {
-                    "To resolve root-relative links in local files, provide a root dir"
-                }
-                _ => "Check path format",
-            }
-            .to_string()
-            .into(),
             ErrorKind::InvalidRootDir(_, _) => {
                 Some("Check the root dir exists and is accessible".to_string())
             }
@@ -465,6 +459,7 @@ impl Hash for ErrorKind {
             Self::InvalidFile(e) => e.to_string_lossy().hash(state),
             Self::EmptyUrl => "Empty URL".hash(state),
             Self::ParseUrl(e, s) => (e.to_string(), s).hash(state),
+            Self::RootRelativeLinkWithoutRoot(s) => s.hash(state),
             Self::InvalidURI(u) => u.hash(state),
             Self::InvalidUrlFromPath(p) => p.hash(state),
             Self::Utf8(e) => e.to_string().hash(state),
@@ -474,8 +469,6 @@ impl Hash for ErrorKind {
             Self::UnreachableEmailAddress(u, ..) => u.hash(state),
             Self::InsecureURL(u, ..) => u.hash(state),
             Self::InvalidBase(base, e) => (base, e).hash(state),
-            Self::InvalidBaseJoin(s) => s.hash(state),
-            Self::InvalidPathToUri(s) => s.hash(state),
             Self::InvalidRootDir(s, _) => s.hash(state),
             Self::UnsupportedUriType(s) => s.hash(state),
             Self::InvalidUrlRemap(remap) => (remap).hash(state),

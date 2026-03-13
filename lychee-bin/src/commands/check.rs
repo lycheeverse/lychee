@@ -12,9 +12,10 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use lychee_lib::InputSource;
 use lychee_lib::RequestError;
+use lychee_lib::Status;
 use lychee_lib::archive::Archive;
+use lychee_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
-use lychee_lib::{ResponseBody, Status};
 
 use crate::formatters::stats::ResponseStats;
 use crate::formatters::suggestion::Suggestion;
@@ -33,9 +34,9 @@ where
     let max_concurrency = params.cfg.max_concurrency();
     let (send_req, recv_req) = mpsc::channel(max_concurrency);
     let (send_resp, recv_resp) = mpsc::channel(max_concurrency);
+    let (waiter, wait_guard) = WaitGroup::new();
 
-    // Measure check time
-    let start = std::time::Instant::now();
+    let start = std::time::Instant::now(); // Measure check time
 
     let stats = if params.cfg.verbose().log_level() >= log::Level::Info {
         ResponseStats::extended()
@@ -47,9 +48,10 @@ where
     let cache = params.cache;
     let cache_exclude_status = params.cfg.cache_exclude_status().into();
     let accept = params.cfg.accept().into();
+    let accept_timeouts = params.cfg.accept_timeouts;
 
     // Start receiving requests
-    let handle = tokio::spawn(request_channel_task(
+    let request_handle = tokio::spawn(request_channel_task(
         recv_req,
         send_resp,
         max_concurrency,
@@ -63,16 +65,29 @@ where
     let level = params.cfg.verbose().log_level();
 
     let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode());
-    let show_results_task = tokio::spawn(collect_responses(recv_resp, progress.clone(), stats));
+    let stats_handle = tokio::spawn(collect_responses(
+        recv_resp,
+        send_req.clone(),
+        waiter,
+        progress.clone(),
+        stats,
+    ));
 
-    // Wait until all requests are sent
-    send_requests(params.requests, send_req, &progress).await?;
-    let (cache, client) = handle.await?;
+    // Send requests into the channel. Note that this will run within the main task
+    // and doesn't start until awaited.
+    let send_task = send_requests(params.requests, wait_guard, send_req, &progress);
 
-    // Wait until all responses are received
-    let result = show_results_task.await?;
-    let mut stats = result?;
-    stats.duration_secs = start.elapsed().as_secs();
+    // Waits for all futures to finish, either normally or due to panic.
+    let (stats_result, request_result, send_result) =
+        futures::join!(stats_handle, request_handle, send_task);
+
+    // Fatal user errors are here so check it first.
+    let mut stats: ResponseStats = stats_result??;
+
+    let (cache, client) = request_result?;
+    send_result.expect("sending input requests failed");
+
+    stats.duration = start.elapsed();
 
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
@@ -95,7 +110,12 @@ where
         .await;
     }
 
-    let code = if stats.is_success() {
+    let is_success = if accept_timeouts {
+        stats.is_success_ignoring_timeouts()
+    } else {
+        stats.is_success()
+    };
+    let code = if is_success {
         ExitCode::Success
     } else {
         ExitCode::LinkCheckFailure
@@ -141,39 +161,56 @@ async fn suggest_archived_links(
 // drops the `send_req` channel on exit
 // required for the receiver task to end, which closes send_resp, which allows
 // the show_results_task to finish
-async fn send_requests<S>(
-    requests: S,
-    send_req: mpsc::Sender<Result<Request, RequestError>>,
+async fn send_requests(
+    requests: impl futures::Stream<Item = Result<Request, RequestError>>,
+    guard: WaitGuard,
+    send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
     progress: &Progress,
-) -> Result<(), ErrorKind>
-where
-    S: futures::Stream<Item = Result<Request, RequestError>>,
-{
+) -> Result<(), ()> {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
         progress.inc_length(1);
-        send_req.send(request).await.expect("Cannot send request");
+        send_req
+            .send((guard.clone(), request))
+            .await
+            .map_err(|_| ())?;
     }
     Ok(())
 }
 
 /// Reads from the request channel and updates the progress bar status
 async fn collect_responses(
-    mut recv_resp: mpsc::Receiver<Result<Response, ErrorKind>>,
+    recv_resp: mpsc::Receiver<(WaitGuard, Result<Response, ErrorKind>)>,
+    send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
+    waiter: WaitGroup,
     progress: Progress,
     mut stats: ResponseStats,
 ) -> Result<ResponseStats, ErrorKind> {
-    while let Some(response) = recv_resp.recv().await {
+    // Wrap recv_resp until the WaitGroup finishes, at which time the
+    // recv_resp_until_done stream will be closed. The correctness of
+    // WaitGroup guarantees that if the waiter finishes, every channel
+    // with a WaitGuard must be empty.
+    let mut recv_resp_until_done = ReceiverStream::new(recv_resp)
+        .take_until(waiter.wait())
+        .boxed();
+
+    while let Some((_guard, response)) = recv_resp_until_done.next().await {
         let response = response?;
         progress.update(Some(response.body()));
         stats.add(response);
     }
+
+    // unused for now, but will be used for recursion eventually. by holding
+    // an extra `send_req` endpoint, we prevent the natural termination when
+    // each channel finishes and closes. instead, we rely on the WaitGroup to
+    // break the cyclic channels.
+    let _ = send_req;
     Ok(stats)
 }
 
 async fn request_channel_task(
-    recv_req: mpsc::Receiver<Result<Request, RequestError>>,
-    send_resp: mpsc::Sender<Result<Response, ErrorKind>>,
+    recv_req: mpsc::Receiver<(WaitGuard, Result<Request, RequestError>)>,
+    send_resp: mpsc::Sender<(WaitGuard, Result<Response, ErrorKind>)>,
     max_concurrency: usize,
     client: Client,
     cache: Cache,
@@ -183,7 +220,7 @@ async fn request_channel_task(
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
-        |request: Result<Request, RequestError>| async {
+        |(guard, request): (WaitGuard, Result<Request, RequestError>)| async {
             let response = handle(
                 &client,
                 &cache,
@@ -194,7 +231,7 @@ async fn request_channel_task(
             .await;
 
             send_resp
-                .send(response)
+                .send((guard, response))
                 .await
                 .expect("cannot send response to queue");
         },
@@ -213,12 +250,15 @@ async fn check_url(client: &Client, request: Request) -> Response {
     // Request was not cached; run a normal check
     let uri = request.uri.clone();
     let source = request.source.clone();
+    let span = request.span;
     client.check(request).await.unwrap_or_else(|e| {
         log::error!("Error checking URL {uri}: Cannot parse URL to URI: {e}");
         Response::new(
             uri.clone(),
             Status::Error(ErrorKind::InvalidURI(uri.clone())),
             source.into(),
+            span,
+            None,
         )
     })
 }
@@ -262,7 +302,13 @@ async fn handle(
             Status::from_cache_status(v.value().status, &accept)
         };
 
-        return Ok(Response::new(uri.clone(), status, request.source.into()));
+        return Ok(Response::new(
+            uri.clone(),
+            status,
+            request.source.into(),
+            request.span,
+            None,
+        ));
     }
 
     let response = check_url(client, request).await;
@@ -304,10 +350,7 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
     stats
         .error_map
         .iter()
-        .flat_map(|(source, set)| {
-            set.iter()
-                .map(move |ResponseBody { uri, status: _ }| (source, uri))
-        })
+        .flat_map(|(source, set)| set.iter().map(move |body| (source, &body.uri)))
         .filter_map(|(source, uri)| {
             if uri.is_data() || uri.is_mail() || uri.is_file() {
                 None

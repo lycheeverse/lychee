@@ -1,49 +1,77 @@
 use std::{borrow::Cow, convert::TryFrom, fmt::Display};
 
-use crate::{BasicAuthCredentials, ErrorKind, Uri};
+use crate::{BasicAuthCredentials, ErrorKind, Uri, types::uri::raw::RawUriSpan};
 
 use super::ResolvedInputSource;
 
-/// A request type that can be handle by lychee
+/// A checkable element extracted from a [`ResolvedInputSource`],
+/// containing a [`Uri`] and additional metadata associated with it.
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Request {
-    /// A valid Uniform Resource Identifier of a given endpoint, which can be
-    /// checked with lychee
+    /// The extracted Uniform Resource Identifier
+    /// which can be checked with lychee
     pub uri: Uri,
 
-    /// The resource which contained the given URI
+    /// The resource which contains the given URI
     pub source: ResolvedInputSource,
 
-    /// Specifies how the URI was rendered inside a document
+    /// How the URI is rendered inside a document
     /// (for example `img`, `a`, `pre`, or `code`).
     /// In case of plaintext input the field is `None`.
     pub element: Option<String>,
 
-    /// Specifies the attribute (e.g. `href`) that contained the URI
+    /// What attribute (e.g. `href`) the URI is contained in
     pub attribute: Option<String>,
+
+    /// Where the URI is located
+    pub span: Option<RawUriSpan>,
 
     /// Basic auth credentials
     pub credentials: Option<BasicAuthCredentials>,
 }
 
 impl Request {
-    /// Instantiate a new `Request` object
+    /// Instantiate a new `Request` object,
+    /// with optional fields set to `None`
     #[inline]
     #[must_use]
-    pub const fn new(
-        uri: Uri,
-        source: ResolvedInputSource,
-        element: Option<String>,
-        attribute: Option<String>,
-        credentials: Option<BasicAuthCredentials>,
-    ) -> Self {
+    pub const fn new(uri: Uri, source: ResolvedInputSource) -> Self {
         Request {
             uri,
             source,
-            element,
-            attribute,
-            credentials,
+            element: None,
+            attribute: None,
+            span: None,
+            credentials: None,
         }
+    }
+
+    /// Set [`Self::element`]
+    #[must_use]
+    pub fn with_element(mut self, element: String) -> Self {
+        self.element = Some(element);
+        self
+    }
+
+    /// Set [`Self::attribute`]
+    #[must_use]
+    pub fn with_attribute(mut self, attribute: String) -> Self {
+        self.attribute = Some(attribute);
+        self
+    }
+
+    /// Set [`Self::span`]
+    #[must_use]
+    pub const fn with_span(mut self, span: RawUriSpan) -> Self {
+        self.span = Some(span);
+        self
+    }
+
+    /// Set [`Self::credentials`]
+    #[must_use]
+    pub fn with_credentials(mut self, credentials: BasicAuthCredentials) -> Self {
+        self.credentials = Some(credentials);
+        self
     }
 }
 
@@ -60,9 +88,6 @@ impl TryFrom<Uri> for Request {
         Ok(Request::new(
             uri.clone(),
             ResolvedInputSource::RemoteUrl(Box::new(uri.url)),
-            None,
-            None,
-            None,
         ))
     }
 }
@@ -75,9 +100,6 @@ impl TryFrom<String> for Request {
         Ok(Request::new(
             uri,
             ResolvedInputSource::String(Cow::Owned(s)),
-            None,
-            None,
-            None,
         ))
     }
 }
@@ -90,9 +112,6 @@ impl TryFrom<&str> for Request {
         Ok(Request::new(
             uri,
             ResolvedInputSource::String(Cow::Owned(s.to_owned())),
-            None,
-            None,
-            None,
         ))
     }
 }

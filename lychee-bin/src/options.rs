@@ -1,6 +1,6 @@
 use crate::files_from::FilesFrom;
 use crate::generate::GenerateMode;
-use crate::parse::parse_base;
+use crate::parse::parse_base_info;
 use crate::verbosity::Verbosity;
 use anyhow::{Context, Error, Result, anyhow};
 use clap::builder::PossibleValuesParser;
@@ -12,7 +12,7 @@ use http::{
 };
 use lychee_lib::ratelimit::HostConfigs;
 use lychee_lib::{
-    Base, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+    BaseInfo, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
     DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, FileExtensions, FileType, Input,
     StatusCodeSelector, archive::Archive,
 };
@@ -86,8 +86,8 @@ pub(crate) enum StatsFormat {
     Compact,
     Detailed,
     Json,
+    Junit,
     Markdown,
-    Raw,
 }
 
 impl FromStr for StatsFormat {
@@ -98,8 +98,8 @@ impl FromStr for StatsFormat {
             "compact" | "string" => Ok(StatsFormat::Compact),
             "detailed" => Ok(StatsFormat::Detailed),
             "json" => Ok(StatsFormat::Json),
+            "junit" => Ok(StatsFormat::Junit),
             "markdown" | "md" => Ok(StatsFormat::Markdown),
-            "raw" => Ok(StatsFormat::Raw),
             _ => Err(anyhow!("Unknown format {format}")),
         }
     }
@@ -378,7 +378,7 @@ pub(crate) struct Config {
     /// This is useful when the default extensions are not enough and you don't
     /// want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
     ///
-    /// [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt]
+    /// [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt,xml]
     #[arg(long, verbatim_doc_comment)]
     extensions: Option<FileExtensions>,
 
@@ -448,7 +448,7 @@ pub(crate) struct Config {
 
     /// Maximum number of allowed redirects
     ///
-    /// [default: 5]
+    /// [default: 10]
     #[arg(short, long)]
     max_redirects: Option<usize>,
 
@@ -657,6 +657,12 @@ pub(crate) struct Config {
     #[arg(short, long, verbatim_doc_comment)]
     accept: Option<StatusCodeSelector>,
 
+    /// Accept timed out requests and return exit code 0
+    /// when encountering timeouts but not any other errors.
+    #[arg(long)]
+    #[serde(default)]
+    pub(crate) accept_timeouts: bool,
+
     /// Enable the checking of fragments in links.
     #[arg(long)]
     #[serde(default)]
@@ -682,9 +688,9 @@ pub(crate) struct Config {
     method: Option<String>,
 
     /// Deprecated; use `--base-url` instead
-    #[arg(long, value_parser = parse_base)]
+    #[arg(long, value_parser = parse_base_info)]
     #[serde(skip)]
-    pub(crate) base: Option<Base>,
+    pub(crate) base: Option<BaseInfo>,
 
     /// Base URL to use when resolving relative URLs in local files. If specified,
     /// relative links in local files are interpreted as being relative to the given
@@ -708,10 +714,10 @@ pub(crate) struct Config {
     #[arg(
         short,
         long,
-        value_parser = parse_base,
+        value_parser = parse_base_info,
         verbatim_doc_comment
     )]
-    pub(crate) base_url: Option<Base>,
+    pub(crate) base_url: Option<BaseInfo>,
 
     /// Root directory to use when checking absolute links in local files. This option is
     /// required if absolute links appear in local files, otherwise those links will be
@@ -1001,6 +1007,7 @@ impl Config {
                 header,
             },
             bool {
+                accept_timeouts,
                 cache,
                 dump,
                 dump_inputs,

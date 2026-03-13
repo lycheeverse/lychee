@@ -79,6 +79,10 @@ fn markdown_response(response: &ResponseBody) -> Result<String> {
         response.uri,
     );
 
+    if let Some(span) = response.span {
+        formatted = format!("{formatted} (at {span})");
+    }
+
     if let Status::Ok(StatusCode::OK) = response.status {
         // Don't print anything else if the status code is 200.
         // The output gets too verbose then.
@@ -107,6 +111,10 @@ impl Display for MarkdownResponseStats {
         writeln!(f, "{}", stats_table(&self.0))?;
 
         write_stats_per_input(f, "Errors", &stats.error_map, |response| {
+            markdown_response(response).map_err(|_| fmt::Error)
+        })?;
+
+        write_stats_per_input(f, "Timeouts", &stats.timeout_map, |response| {
             markdown_response(response).map_err(|_| fmt::Error)
         })?;
 
@@ -169,21 +177,34 @@ impl StatsFormatter for Markdown {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
+    use std::time::Duration;
+
     use http::StatusCode;
+    use lychee_lib::RawUriSpan;
     use lychee_lib::{CacheStatus, ResponseBody, Status, Uri};
+    use pretty_assertions::assert_eq;
 
     use crate::formatters::stats::get_dummy_stats;
 
     use super::*;
+
+    const SPAN: Option<RawUriSpan> = Some(RawUriSpan {
+        line: NonZeroUsize::MIN,
+        column: Some(NonZeroUsize::MIN),
+    });
+    const DURATION: Option<Duration> = Some(Duration::from_secs(1));
 
     #[test]
     fn test_markdown_response_ok() {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Ok(StatusCode::OK),
+            span: SPAN,
+            duration: DURATION,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(markdown, "* [200] <http://example.com/>");
+        assert_eq!(markdown, "* [200] <http://example.com/> (at 1:1)");
     }
 
     #[test]
@@ -191,9 +212,14 @@ mod tests {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Cached(CacheStatus::Ok(StatusCode::OK)),
+            span: SPAN,
+            duration: DURATION,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(markdown, "* [200] <http://example.com/> | OK (cached)");
+        assert_eq!(
+            markdown,
+            "* [200] <http://example.com/> (at 1:1) | OK (cached)"
+        );
     }
 
     #[test]
@@ -201,9 +227,14 @@ mod tests {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Cached(CacheStatus::Error(Some(StatusCode::BAD_REQUEST))),
+            span: SPAN,
+            duration: DURATION,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(markdown, "* [400] <http://example.com/> | Error (cached)");
+        assert_eq!(
+            markdown,
+            "* [400] <http://example.com/> (at 1:1) | Error (cached)"
+        );
     }
 
     #[test]
@@ -232,7 +263,7 @@ mod tests {
 |----------------|-------|
 | 🔍 Total       | 2     |
 | ✅ Successful  | 0     |
-| ⏳ Timeouts    | 0     |
+| ⏳ Timeouts    | 1     |
 | 🔀 Redirected  | 1     |
 | 👻 Excluded    | 0     |
 | ❓ Unknown     | 0     |
@@ -243,13 +274,19 @@ mod tests {
 
 ### Errors in https://example.com/
 
-* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> | 404 Not Found: Not Found
+* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> (at 1:1) | 404 Not Found: Not Found
+
+## Timeouts per input
+
+### Timeouts in https://example.com/
+
+* [TIMEOUT] <https://httpbin.org/delay/2> (at 1:1) | Timeout
 
 ## Redirects per input
 
 ### Redirects in https://example.com/
 
-* [200] <https://redirected.dev/> | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
+* [200] <https://redirected.dev/> (at 1:1) | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 ## Suggestions per input
 

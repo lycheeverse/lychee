@@ -10,22 +10,18 @@ use crate::{
 
 use anyhow::Result;
 use lychee_lib::InputSource;
-use pad::{Alignment, PadStr};
 use std::{
     collections::HashSet,
     fmt::{self, Display},
 };
 // Maximum padding for each entry in the final statistics output
-const MAX_PADDING: usize = 20;
+const WIDTH: usize = 20;
 
 fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -> fmt::Result {
-    let fill = title.chars().count();
     f.write_str(title)?;
-    f.write_str(
-        &stat
-            .to_string()
-            .pad(MAX_PADDING - fill, '.', Alignment::Right, false),
-    )?;
+
+    let spacing = WIDTH.saturating_sub(title.chars().count());
+    f.write_str(format!("{stat:.>spacing$}").as_str())?;
 
     if newline {
         f.write_str("\n")?;
@@ -45,7 +41,7 @@ struct DetailedResponseStats {
 impl Display for DetailedResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let stats = &self.stats;
-        let separator = "-".repeat(MAX_PADDING + 1);
+        let separator = "-".repeat(WIDTH + 1);
 
         writeln!(f, "📝 Summary")?;
         writeln!(f, "{separator}")?;
@@ -60,7 +56,9 @@ impl Display for DetailedResponseStats {
 
         let response_formatter = get_response_formatter(&self.mode);
 
-        for (source, responses) in super::sort_stat_map(&stats.error_map) {
+        for (source, responses) in
+            super::sort_stats_iter(stats.error_map.iter().chain(stats.timeout_map.iter()))
+        {
             // Using leading newlines over trailing ones (e.g. `writeln!`)
             // lets us avoid extra newlines without any additional logic.
             write!(f, "\n\nErrors in {source}")?;
@@ -126,6 +124,7 @@ impl StatsFormatter for Detailed {
 mod tests {
     use super::*;
     use crate::{formatters::stats::get_dummy_stats, options::OutputMode};
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_detailed_formatter() {
@@ -138,7 +137,7 @@ mod tests {
 ---------------------
 🔍 Total............2
 ✅ Successful.......0
-⏳ Timeouts.........0
+⏳ Timeouts.........1
 🔀 Redirected.......1
 👻 Excluded.........0
 ❓ Unknown..........0
@@ -146,14 +145,15 @@ mod tests {
 ⛔ Unsupported......1
 
 Errors in https://example.com/
-[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | 404 Not Found: Not Found
+[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found
+[TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Timeout
 
 Suggestions in https://example.com/
 https://original.dev/ --> https://suggestion.dev/
 
 
 Redirects in https://example.com/
-https://redirected.dev/ | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
+https://redirected.dev/ (at 1:1) | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 
 📊 Per-host Statistics

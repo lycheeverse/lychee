@@ -12,12 +12,12 @@ pub(crate) use task::TaskFormatter;
 
 /// Desired total width of formatted string for color formatter
 ///
-/// The longest string, which needs to be formatted, is currently `[Excluded]`
-/// which is 10 characters long (including brackets).
+/// The longest string, which needs to be formatted, is currently `EXCLUDED`
+/// which is 8 characters long.
 ///
 /// Keep in sync with `Status::code_as_string`, which converts status codes to
 /// strings.
-pub(crate) const MAX_RESPONSE_OUTPUT_WIDTH: usize = 10;
+pub(crate) const MAX_RESPONSE_OUTPUT_WIDTH: usize = 8;
 
 /// A trait for formatting a response body
 ///

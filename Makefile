@@ -84,3 +84,7 @@ screencast: ## Create a screencast for the docs
 verify: ## Verify the MSRV
 	cargo msrv --path lychee-lib verify
 	cargo msrv --path lychee-bin verify
+
+.PHONY: readme
+readme: ## Updates README.md with `lychee --help`
+	scripts/update_readme.py

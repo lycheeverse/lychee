@@ -29,6 +29,7 @@ Available as command-line utility,
 - [Installation](#installation)
 - [Features](#features)
 - [Commandline usage](#commandline-usage)
+- [Supported file formats](#supported-file-formats)
 - [Library usage](#library-usage)
 - [GitHub Action Usage](#github-action-usage)
 - [Pre-commit Usage](#pre-commit-usage)
@@ -345,6 +346,9 @@ Options:
 
           [default: 100..=103,200..=299]
 
+      --accept-timeouts
+          Accept timed out requests and return exit code 0 when encountering timeouts but not any other errors
+
       --archive <ARCHIVE>
           Web archive to use to provide suggestions for `--suggest`.
 
@@ -460,14 +464,14 @@ Options:
           This is useful when the default extensions are not enough and you don't
           want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
 
-          [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt]
+          [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt,xml]
 
   -f, --format <FORMAT>
           Output format of final status report
 
           [default: compact]
 
-          [possible values: compact, detailed, json, markdown, raw]
+          [possible values: compact, detailed, json, junit, markdown]
 
       --fallback-extensions <FALLBACK_EXTENSIONS>
           When checking locally, attempts to locate missing files by trying the given
@@ -598,7 +602,7 @@ Options:
   -m, --max-redirects <MAX_REDIRECTS>
           Maximum number of allowed redirects
 
-          [default: 5]
+          [default: 10]
 
       --max-cache-age <MAX_CACHE_AGE>
           Discard all cached requests older than this duration
@@ -869,6 +873,7 @@ We collect a list of common workarounds for various websites in our [troubleshoo
 - https://github.com/FreeBSD-Ask/FreeBSD-Ask
 - https://github.com/prosekit/prosekit
 - https://github.com/tldr-pages/tldr
+- https://gitlab.torproject.org/tpo/web/marble/support
 - https://github.com/lycheeverse/lychee (yes, lychee is checked with lychee 🤯)
 
 If you are using lychee for your project, **please add it here**.
