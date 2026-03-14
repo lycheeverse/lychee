@@ -1646,7 +1646,6 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
-    #[ignore = "Needs adjustment to new URI de-duplication. See https://github.com/lycheeverse/lychee/pull/2088"]
     async fn test_process_internal_host_caching() -> Result<()> {
         // Note that this process-internal per-host caching
         // has no direct relation to the lychee cache file
