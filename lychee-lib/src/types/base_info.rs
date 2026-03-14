@@ -288,6 +288,8 @@ impl BaseInfo {
     /// [`BaseInfo`] is not capable of resolving the given relative link.
     /// Returned errors include [`ErrorKind::RootRelativeLinkWithoutRoot`]
     /// and [`ParseError::RelativeUrlWithoutBase`] (within [`ErrorKind::ParseUrl`]).
+    #[expect(clippy::unnested_or_patterns, reason = "more readable here")]
+    #[expect(clippy::match_same_arms, reason = "we need to comment one of the arms")]
     pub fn resolve_relative_link(&self, rel: &RelativeUri<'_>) -> Result<Url, ErrorKind> {
         match (self, &rel) {
             (Self::None, RelativeUri::Root(_)) | (Self::NoRoot(_), RelativeUri::Root(_)) => {
