@@ -16,6 +16,7 @@
 
 use crate::BaseInfo;
 use crate::ErrorKind;
+use crate::utils;
 
 use glob::Pattern;
 use reqwest::Url;
@@ -63,16 +64,8 @@ impl InputSource {
             return Ok(InputSource::Stdin);
         }
 
-        // We use [`reqwest::Url::parse`] because it catches some other edge cases that [`http::Request:builder`] does not
-        if let Ok(url) = Url::parse(input) {
-            // Weed out Windows drive letters which will be incorrectly accepted as URLs.
-            match url.scheme() {
-                scheme if scheme.len() > 1 => return Ok(InputSource::RemoteUrl(Box::new(url))),
-                _ => {
-                    // Single character scheme (likely Windows drive letter)
-                    // Continue to file path handling
-                }
-            }
+        if let Ok(url) = utils::url::parse_url_or_path(input) {
+            return Ok(InputSource::RemoteUrl(Box::new(url)));
         }
 
         // This seems to be the only way to determine if this is a glob pattern
@@ -88,14 +81,7 @@ impl InputSource {
         // It might be a file path; check if it exists
         let path = PathBuf::from(input);
 
-        // Assume all non-URL non-glob things are intended to be file paths.
-        // The error message should be general enough to suggest solutions to the user.
-        //
-        // For missing files, we defer validation to the stream processing level where
-        // --skip-missing can take effect. Domain-like inputs still get immediate
-        // InvalidInput errors for better user experience.
         if path.exists() {
-            // The file exists, so we return the path
             Ok(InputSource::FsPath(path))
         } else {
             Err(ErrorKind::InvalidInput(input.to_owned()))
