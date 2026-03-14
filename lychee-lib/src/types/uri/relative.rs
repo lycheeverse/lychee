@@ -7,29 +7,23 @@ use crate::Uri;
 /// A relative link text fragment. Leading whitespace is removed from the
 /// string reference.
 #[derive(Debug, PartialEq, Eq, Clone)]
-#[expect(
-    clippy::enum_variant_names,
-    reason = "suffixing with Rel makes the names more sensible to read"
-)]
 pub enum RelativeUri<'a> {
     /// A root-relative link, e.g. `"/help"`. The contained string will
     /// start with `/` and not start with `//`.
-    RootRel(&'a str),
+    Root(&'a str),
     /// A scheme-relative link, e.g. `"//example.com/help"`. The contained
     /// string will start with `//`.
-    SchemeRel(&'a str),
+    Scheme(&'a str),
     /// A locally-relative link, e.g. `"help"` or `"../home"`.
-    LocalRel(&'a str),
+    Local(&'a str),
 }
-
-pub use RelativeUri::{LocalRel, RootRel, SchemeRel};
 
 impl RelativeUri<'_> {
     /// Returns the string text of the given relative link. The returned
     /// string has leading whitespace trimmed.
     pub const fn link_text(&self) -> &str {
         match self {
-            RootRel(x) | SchemeRel(x) | LocalRel(x) => x,
+            Self::Root(x) | Self::Scheme(x) | Self::Local(x) => x,
         }
     }
 }
@@ -75,11 +69,11 @@ pub fn parse_url_or_relative(text: &str) -> Result<Either<Uri, RelativeUri<'_>>,
 
         Err(ErrorKind::ParseUrl(ParseError::RelativeUrlWithoutBase, _)) => {
             if is_scheme_relative_link(text) {
-                Ok(Right(SchemeRel(text)))
+                Ok(Right(RelativeUri::Scheme(text)))
             } else if is_root_relative_link(text) {
-                Ok(Right(RootRel(text)))
+                Ok(Right(RelativeUri::Root(text)))
             } else {
-                Ok(Right(LocalRel(text)))
+                Ok(Right(RelativeUri::Local(text)))
             }
         }
         Err(e) => Err(e),

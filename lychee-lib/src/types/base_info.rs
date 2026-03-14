@@ -9,9 +9,7 @@ use std::path::{Path, PathBuf};
 use url::ParseError;
 
 use crate::ErrorKind;
-use crate::types::uri::relative::{
-    LocalRel, RelativeUri, RootRel, SchemeRel, parse_url_or_relative,
-};
+use crate::types::uri::relative::{RelativeUri, parse_url_or_relative};
 use crate::utils;
 
 /// Information used for resolving relative URLs within a particular
@@ -292,7 +290,7 @@ impl BaseInfo {
     /// and [`ParseError::RelativeUrlWithoutBase`] (within [`ErrorKind::ParseUrl`]).
     pub fn resolve_relative_link(&self, rel: &RelativeUri<'_>) -> Result<Url, ErrorKind> {
         match (self, &rel) {
-            (Self::None | Self::NoRoot(_), RootRel(_)) => {
+            (Self::None, RelativeUri::Root(_)) | (Self::NoRoot(_), RelativeUri::Root(_)) => {
                 return Err(ErrorKind::RootRelativeLinkWithoutRoot(
                     rel.link_text().to_string(),
                 ));
@@ -300,9 +298,10 @@ impl BaseInfo {
 
             (Self::None, _) => Err(ParseError::RelativeUrlWithoutBase),
 
-            (Self::NoRoot(base), LocalRel(text) | SchemeRel(text)) => base.join(text),
+            (Self::NoRoot(base), RelativeUri::Local(text))
+            | (Self::NoRoot(base), RelativeUri::Scheme(text)) => base.join(text),
 
-            (Self::Full { origin, .. }, RootRel(text)) if origin.scheme() == "file" => {
+            (Self::Full { origin, .. }, RelativeUri::Root(text)) if origin.scheme() == "file" => {
                 origin.join(&format!(".{text}"))
             }
 
@@ -342,7 +341,7 @@ impl BaseInfo {
 
         // NOTE: also applies root-dir for BaseInfo::None :)
         if let Some(root_dir) = root_dir
-            && let RootRel(_) = rel
+            && let RelativeUri::Root(_) = rel
             && let None | Some("file") = self.scheme()
         {
             let root_dir_base = Self::full(root_dir.clone(), String::new());
