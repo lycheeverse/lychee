@@ -3807,7 +3807,8 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .arg(&test_file_2)
             .assert()
             .success()
-            .stdout(contains("3 Total"));
+            .stdout(contains("6 Total"))
+            .stdout(contains("3 Unique"));
 
         cargo_bin_cmd!()
             .arg("--dump")
@@ -3815,7 +3816,7 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .arg(&test_file_2)
             .assert()
             .success()
-            .stdout(contains("resource-1.md").count(1));
+            .stdout(contains("resource-1.md").count(2));
     }
 }
 

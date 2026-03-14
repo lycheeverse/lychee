@@ -33,6 +33,10 @@ fn stats_table(stats: &ResponseStats) -> String {
             count: stats.total,
         },
         StatsTableEntry {
+            status: "🔗 Unique",
+            count: stats.unique,
+        },
+        StatsTableEntry {
             status: "✅ Successful",
             count: stats.successful,
         },
@@ -244,6 +248,7 @@ mod tests {
         let expected = "| Status         | Count |
 |----------------|-------|
 | 🔍 Total       | 0     |
+| 🔗 Unique      | 0     |
 | ✅ Successful  | 0     |
 | ⏳ Timeouts    | 0     |
 | 🔀 Redirected  | 0     |
@@ -262,6 +267,7 @@ mod tests {
 | Status         | Count |
 |----------------|-------|
 | 🔍 Total       | 2     |
+| 🔗 Unique      | 2     |
 | ✅ Successful  | 0     |
 | ⏳ Timeouts    | 1     |
 | 🔀 Redirected  | 1     |
