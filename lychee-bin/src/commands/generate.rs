@@ -5,6 +5,7 @@
 
 use anyhow::Result;
 use clap::{CommandFactory, crate_authors};
+use clap_complete::aot::Shell;
 use clap_mangen::{
     Man,
     roff::{Roff, roman},
@@ -70,6 +71,7 @@ const EXIT_CODE_SECTION: &str = "
 ";
 
 /// What to generate when providing the --generate flag
+/// The interface is inspired by ripgrep
 #[derive(Debug, Deserialize, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq)]
 #[non_exhaustive]
 #[strum(serialize_all = "snake_case")]
@@ -77,12 +79,27 @@ const EXIT_CODE_SECTION: &str = "
 pub(crate) enum GenerateMode {
     /// Generate roff used for the man page
     Man,
+    /// Generate bash completion script
+    CompleteBash,
+    /// Generate zsh completion script
+    CompleteZsh,
+    /// Generate fish completion script
+    CompleteFish,
+    /// Generate Powershell completion script. Lowercase "s" to match ripgrep's naming
+    CompletePowershell,
+    /// Generate Elvish completion script
+    CompleteElvish,
 }
 
 /// Generate special output according to the [`GenerateMode`]
 pub(crate) fn generate(mode: &GenerateMode) -> Result<String> {
     match mode {
         GenerateMode::Man => man_page(),
+        GenerateMode::CompleteBash => generate_completion(Shell::Bash),
+        GenerateMode::CompleteZsh => generate_completion(Shell::Zsh),
+        GenerateMode::CompleteFish => generate_completion(Shell::Fish),
+        GenerateMode::CompletePowershell => generate_completion(Shell::PowerShell),
+        GenerateMode::CompleteElvish => generate_completion(Shell::Elvish),
     }
 }
 
@@ -138,6 +155,15 @@ fn render_section(title: &str, content: &str, buffer: &mut Vec<u8>) -> Result<()
     roff.text([roman(content)]);
     roff.to_writer(buffer)?;
     Ok(())
+}
+
+/// Generate shell completion script for the given shell using [`clap_complete`]
+fn generate_completion(shell: Shell) -> Result<String> {
+    let mut cmd = LycheeOptions::command();
+    let name = cmd.get_name().to_string();
+    let mut buffer = Vec::new();
+    clap_complete::generate(shell, &mut cmd, name, &mut buffer);
+    Ok(String::from_utf8(buffer)?)
 }
 
 #[cfg(test)]

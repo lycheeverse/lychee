@@ -3667,4 +3667,17 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .assert()
             .success();
     }
+
+    #[test]
+    fn test_generate_complete_for_all_shells() {
+        // We trust the maintainers of clap_complete, so here we only perform smoke tests
+        for shell in ["bash", "elvish", "fish", "powershell", "zsh"] {
+            cargo_bin_cmd!()
+                .arg("--generate")
+                .arg(format!("complete_{}", shell))
+                .assert()
+                .success()
+                .stdout(contains("max-concurrency"));
+        }
+    }
 }

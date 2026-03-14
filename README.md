@@ -502,9 +502,11 @@ Options:
           - Empty lines are also ignored.
 
       --generate <GENERATE>
-          Generate special output (e.g. the man page) instead of performing link checking
+          Generate special output (e.g. the man page and shell completions) instead of performing link checking
 
-          [possible values: man]
+          Example: `source <(lychee --generate complete_bash)` to get shell completion for bash
+
+          [possible values: man, complete_bash, complete_zsh, complete_fish, complete_powershell, complete_elvish]
 
       --github-token <GITHUB_TOKEN>
           GitHub API token to use when checking github.com links, to avoid rate limiting

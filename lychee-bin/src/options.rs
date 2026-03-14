@@ -784,7 +784,9 @@ pub(crate) struct Config {
     #[arg(short, long, value_parser = PossibleValuesParser::new(StatsFormat::VARIANTS).map(|s| s.parse::<StatsFormat>().unwrap()))]
     format: Option<StatsFormat>,
 
-    /// Generate special output (e.g. the man page) instead of performing link checking
+    /// Generate special output (e.g. the man page and shell completions) instead of performing link checking
+    ///
+    /// Example: `source <(lychee --generate complete_bash)` to get shell completion for bash
     #[arg(long, value_parser = PossibleValuesParser::new(GenerateMode::VARIANTS).map(|s| s.parse::<GenerateMode>().unwrap()))]
     pub(crate) generate: Option<GenerateMode>,
 
