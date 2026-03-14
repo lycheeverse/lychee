@@ -26,6 +26,26 @@ impl RelativeUri<'_> {
             Self::Root(x) | Self::Scheme(x) | Self::Local(x) => x,
         }
     }
+
+    /// Interprets the current relative link as a locally-relative link
+    /// and returns the link text.
+    ///
+    /// For a root-relative link like `/rest`, this will return `./rest`.
+    /// For a scheme-relative link like `//rest`, this will return
+    /// `./rest`. A locally-relative link will be returned unchanged.
+    ///
+    /// This is occasionally useful - for example, to resolve root-relative
+    /// links to a known local root directory.
+    pub fn to_local_link_text(&self) -> String {
+        match self {
+            Self::Local(x) => x.to_string(),
+            Self::Root(x) => format!(".{x}"),
+            Self::Scheme(x) => {
+                let x = &x[1..];
+                format!(".{x}")
+            }
+        }
+    }
 }
 
 /// Returns whether the text represents a root-relative link. These look like

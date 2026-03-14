@@ -298,11 +298,19 @@ impl BaseInfo {
 
             (Self::None, _) => Err(ParseError::RelativeUrlWithoutBase),
 
-            (Self::NoRoot(base), RelativeUri::Local(text))
-            | (Self::NoRoot(base), RelativeUri::Scheme(text)) => base.join(text),
+            (Self::NoRoot(base), RelativeUri::Local(text)) => base.join(text),
 
-            (Self::Full { origin, .. }, RelativeUri::Root(text)) if origin.scheme() == "file" => {
-                origin.join(&format!(".{text}"))
+            // `(Self::NoRoot, RelativeUri::Scheme)` happens when a link like `///a` occurs
+            // within a local file without root-dir. note the triple slash because file
+            // URLs typically don't have a hostname. however, file URLs with hostname
+            // are also valid syntax, but they will be rejected by:
+            // https://docs.rs/reqwest/0.12.23/reqwest/struct.Url.html#method.to_file_path
+            (Self::NoRoot(base), RelativeUri::Scheme(text)) => base.join(text),
+
+            (Self::Full { origin, .. }, rel @ RelativeUri::Root(_))
+                if origin.scheme() == "file" =>
+            {
+                origin.join(&rel.to_local_link_text())
             }
 
             (Self::Full { origin, path }, rel) => {
