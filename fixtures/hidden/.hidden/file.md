@@ -1,1 +1,1 @@
-https://rust-lang.org/learn/
+https://rust-lang.org
