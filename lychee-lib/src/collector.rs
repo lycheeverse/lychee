@@ -270,6 +270,12 @@ impl Collector {
                     let content = content?;
                     let uris: Vec<RawUri> = extractor.extract(&content);
 
+                    /* Deduplicate URIs across parallel tasks. */
+                    let uris: Vec<RawUri> = uris
+                        .into_iter()
+                        .filter(|uri| seen.insert(uri.text.clone()))
+                        .collect();
+
                     let requests = request::create(
                         uris,
                         &content.source,
@@ -277,15 +283,6 @@ impl Collector {
                         &global_base,
                         basic_auth_extractor.as_ref(),
                     );
-
-                    /* Deduplicate URIs across parallel tasks. */
-                    let requests: Vec<_> = requests
-                        .into_iter()
-                        .filter(|request| match request {
-                            Ok(req) => seen.insert(req.uri.url.clone()),
-                            Err(_) => true,
-                        })
-                        .collect();
                     Result::Ok(stream::iter(requests))
                 }
             })
