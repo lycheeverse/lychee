@@ -26,6 +26,18 @@ clean: ## Clean up build artifacts
 build: ## Build Rust code locally
 	cargo build
 
+.PHONY: completions
+completions: ## Update shell completions
+	@echo "Building release binary..."
+	@cargo build --release
+	@echo "Generating completions..."
+	@target/release/lychee --generate complete-bash > lychee-bin/complete/lychee.bash
+	@target/release/lychee --generate complete-elvish > lychee-bin/complete/lychee.elv
+	@target/release/lychee --generate complete-fish > lychee-bin/complete/lychee.fish
+	@target/release/lychee --generate complete-powershell > lychee-bin/complete/_lychee.ps1
+	@target/release/lychee --generate complete-zsh > lychee-bin/complete/_lychee
+	@echo "All completions updated in lychee-bin/complete/"
+
 .PHONY: install
 install: ## Install project locally
 	cargo install --path lychee-bin --locked

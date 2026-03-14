@@ -35,6 +35,14 @@ jobs:
         run: cargo check --locked
       - name: Test
         run: make test
+      # Verify shell completions can be generated without errors
+      - name: Check shell completions can be generated
+        run: |
+          ./target/debug/lychee --generate complete-bash > /dev/null
+          ./target/debug/lychee --generate complete-zsh > /dev/null
+          ./target/debug/lychee --generate complete-fish > /dev/null
+          ./target/debug/lychee --generate complete-elvish > /dev/null
+          ./target/debug/lychee --generate complete-powershell > /dev/null
 
   lint:
     runs-on: ubuntu-latest
