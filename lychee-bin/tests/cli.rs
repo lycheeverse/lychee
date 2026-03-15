@@ -691,13 +691,13 @@ mod cli {
     }
 
     #[test]
-    fn test_missing_file_ok_if_skip_missing() {
+    fn test_fails_if_input_file_missing_even_with_skip_missing() {
         let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
         cargo_bin_cmd!()
             .arg(&filename)
             .arg("--skip-missing")
             .assert()
-            .success();
+            .failure();
     }
 
     #[test]
@@ -1786,11 +1786,39 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_inputs_without_scheme() {
-        let test_path = fixtures_path!().join("TEST_HTTP.html");
         cargo_bin_cmd!()
             .arg("--dump")
             .arg("example.com")
-            .arg(&test_path)
+            .assert()
+            .failure()
+            .stderr(contains(
+                "Input 'example.com' not found as file and not a valid URL",
+            ));
+    }
+
+    // Regression test for https://github.com/lycheeverse/lychee/issues/972
+    // Absolute Windows paths like `C:\dir` were rejected with "URL scheme is not
+    // allowed" because the drive letter was parsed as a URL scheme.
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_absolute_path_accepted_as_file_input() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let path_str = dir.path().to_str().unwrap().to_owned();
+
+        // Sanity-check: the path must start with a drive letter (e.g. "C:\")
+        // for the regression to be meaningful.
+        assert!(
+            path_str.chars().nth(1) == Some(':'),
+            "Expected an absolute Windows path with a drive letter, got: {path_str}"
+        );
+
+        // The path exists, so lychee should accept it and attempt to check
+        // the links inside (there are none, so it exits successfully).
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(&path_str)
             .assert()
             .success();
     }
@@ -1941,7 +1969,9 @@ The config file should contain every possible key for documentation purposes."
             .arg("./NOT-A-REAL-TEST-FIXTURE.md")
             .assert()
             .failure()
-            .stderr(contains("Invalid file path: ./NOT-A-REAL-TEST-FIXTURE.md"));
+            .stderr(contains(
+                "Input './NOT-A-REAL-TEST-FIXTURE.md' not found as file and not a valid URL",
+            ));
     }
 
     #[test]
