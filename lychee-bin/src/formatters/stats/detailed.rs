@@ -46,6 +46,7 @@ impl Display for DetailedResponseStats {
         writeln!(f, "📝 Summary")?;
         writeln!(f, "{separator}")?;
         write_stat(f, "🔍 Total", stats.total, true)?;
+        write_stat(f, "🔗 Unique", stats.unique, true)?;
         write_stat(f, "✅ Successful", stats.successful, true)?;
         write_stat(f, "⏳ Timeouts", stats.timeouts, true)?;
         write_stat(f, "🔀 Redirected", stats.redirects, true)?;
@@ -136,6 +137,7 @@ mod tests {
             "📝 Summary
 ---------------------
 🔍 Total............2
+🔗 Unique...........2
 ✅ Successful.......0
 ⏳ Timeouts.........1
 🔀 Redirected.......1

@@ -55,6 +55,7 @@ impl Display for CompactResponseStats {
 
         color!(f, NORMAL, "🔍 {} Total", stats.total)?;
         color!(f, DIM, " (in {})", format_duration(stats.duration))?;
+        color!(f, NORMAL, " 🔗 {} Unique", stats.unique)?;
         color!(f, BOLD_GREEN, " ✅ {} OK", stats.successful)?;
 
         let total_errors = stats.errors;
@@ -181,7 +182,7 @@ mod tests {
 ℹ Suggestions
 https://original.dev/ --> https://suggestion.dev/
 
-🔍 2 Total (in 0s) ✅ 0 OK 🚫 1 Error ⏳ 1 Timeouts 🔀 1 Redirects
+🔍 2 Total (in 0s) 🔗 2 Unique ✅ 0 OK 🚫 1 Error ⏳ 1 Timeouts 🔀 1 Redirects
 
 📊 Per-host Statistics
 ────────────────────────────────────────────────────────────
