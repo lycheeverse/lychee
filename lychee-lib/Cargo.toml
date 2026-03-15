@@ -17,6 +17,7 @@ async-stream = "0.3.6"
 async-trait = "0.1.88"
 cookie_store = "0.22.1"
 dashmap = { version = "6.1.0" }
+either = "1.15.0"
 email_address = "0.2.9"
 futures = "0.3.32"
 glob = "0.3.3"
