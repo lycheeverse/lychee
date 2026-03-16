@@ -39,11 +39,8 @@ impl RelativeUri<'_> {
     pub fn to_local_link_text(&self) -> String {
         match self {
             Self::Local(x) => x.to_string(),
-            Self::Root(x) => format!(".{x}"),
-            Self::Scheme(x) => {
-                let x = &x[1..];
-                format!(".{x}")
-            }
+            Self::Root(x) => format!("./{}", x.strip_prefix("/").unwrap_or(x)),
+            Self::Scheme(x) => format!("./{}", x.strip_prefix("//").unwrap_or(x)),
         }
     }
 }
