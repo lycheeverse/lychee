@@ -309,10 +309,12 @@ impl BaseInfo {
             // https://docs.rs/reqwest/0.12.23/reqwest/struct.Url.html#method.to_file_path
             (Self::NoRoot(base), RelativeUri::Scheme(text)) => base.join(text),
 
-            (Self::Full { origin, .. }, rel @ RelativeUri::Root(_))
+            (Self::Full { origin, .. }, RelativeUri::Root(root_rel))
                 if origin.scheme() == "file" =>
             {
-                origin.join(&rel.to_local_link_text())
+                // `root_rel` starts with `/`, so this prefixing it with `.`
+                // changes it to a locally-relative link like `./something`.
+                origin.join(&format!(".{root_rel}"))
             }
 
             (Self::Full { origin, path }, rel) => {
