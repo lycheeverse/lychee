@@ -41,25 +41,15 @@ impl RelativeUri<'_> {
     pub fn new(text: &str) -> RelativeUri<'_> {
         let text = text.trim_ascii_start();
 
-        if Self::is_scheme_relative_link(text) {
+        // important to check for scheme-rel before root-rel, as both of them
+        // start with a slash.
+        if text.starts_with("//") {
             RelativeUri::Scheme(text)
-        } else if Self::is_root_relative_link(text) {
+        } else if text.starts_with('/') {
             RelativeUri::Root(text)
         } else {
             RelativeUri::Local(text)
         }
-    }
-
-    /// Returns whether the text represents a root-relative link. These look like
-    /// `/this` and are resolved relative to a base URL's origin.
-    fn is_root_relative_link(text: &str) -> bool {
-        !Self::is_scheme_relative_link(text) && text.trim_ascii_start().starts_with('/')
-    }
-
-    /// Returns whether the text represents a scheme-relative link. These look like
-    /// `//example.com/subpath`.
-    fn is_scheme_relative_link(text: &str) -> bool {
-        text.trim_ascii_start().starts_with("//")
     }
 
     /// Returns the string text of the given relative link. The returned
