@@ -25,7 +25,6 @@ impl<'a> ParsedUri<'a> {
 
         match Uri::try_from(text) {
             Ok(uri) => Ok(ParsedUri::Absolute(uri)),
-
             Err(ErrorKind::ParseUrl(ParseError::RelativeUrlWithoutBase, _)) => {
                 Ok(ParsedUri::Relative(RelativeUri::new(text)))
             }
