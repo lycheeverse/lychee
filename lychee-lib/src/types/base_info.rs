@@ -1,7 +1,6 @@
 //! Parses and resolves [`RawUri`] into into fully-qualified [`Uri`] by
 //! applying base URL and root dir mappings.
 
-use either::{Left, Right};
 use reqwest::Url;
 use serde::Deserialize;
 use std::borrow::Cow;
@@ -9,7 +8,8 @@ use std::path::{Path, PathBuf};
 use url::ParseError;
 
 use crate::ErrorKind;
-use crate::types::uri::relative::{RelativeUri, parse_url_or_relative};
+use crate::types::uri::parsed::ParsedUri;
+use crate::types::uri::relative::RelativeUri;
 use crate::utils;
 
 /// Information used for resolving relative URLs within a particular
@@ -272,9 +272,9 @@ impl BaseInfo {
     /// relative link and this [`BaseInfo`] variant cannot resolve
     /// the relative link.
     pub fn parse_url_text(&self, text: &str) -> Result<Url, ErrorKind> {
-        match parse_url_or_relative(text) {
-            Ok(Left(uri)) => Ok(uri.url),
-            Ok(Right(rel)) => self.resolve_relative_link(&rel),
+        match ParsedUri::try_from(text) {
+            Ok(ParsedUri::Absolute(uri)) => Ok(uri.url),
+            Ok(ParsedUri::Relative(rel)) => self.resolve_relative_link(&rel),
             Err(e) => Err(e),
         }
     }
@@ -345,10 +345,10 @@ impl BaseInfo {
         // file:// URLs. eventually, someone up the stack should construct
         // the BaseInfo::Full for root-dir and this function should be deleted.
 
-        let rel = match parse_url_or_relative(text) {
-            Ok(Left(uri)) => return Ok(uri.url),
+        let rel = match ParsedUri::try_from(text) {
+            Ok(ParsedUri::Absolute(uri)) => return Ok(uri.url),
             Err(e) => return Err(e),
-            Ok(Right(rel)) => rel,
+            Ok(ParsedUri::Relative(rel)) => rel,
         };
 
         // NOTE: also applies root-dir for BaseInfo::None :)
