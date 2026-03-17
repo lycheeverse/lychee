@@ -33,12 +33,12 @@ pub enum RelativeUri<'a> {
 }
 
 impl RelativeUri<'_> {
-    /// Interprets the given text as a [`RelativeUri`] variant.
+    /// Parses the given text as a [`RelativeUri`].
     ///
     /// Determining between [`RelativeUri::Root`] and [`RelativeUri::Scheme`]
     /// is done based on how many initial slashes are in the text. If there
     /// are *no* initial slashes, the text is assumed to be a [`RelativeUri::Local`].
-    pub fn new(text: &str) -> RelativeUri<'_> {
+    pub fn parse(text: &str) -> RelativeUri<'_> {
         let text = text.trim_ascii_start();
 
         // important to check for scheme-rel before root-rel, as both of them
