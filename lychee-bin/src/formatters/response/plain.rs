@@ -69,12 +69,12 @@ mod plain_tests {
         });
 
         let body = mock_response_body!(
-            Status::Redirected(StatusCode::MOVED_PERMANENTLY, redirects),
+            Status::Redirected(Box::new(Status::Ok(StatusCode::OK)), redirects),
             "https://example.com/redirect",
         );
         assert_eq!(
             formatter.format_response(&body),
-            "[301] https://example.com/redirect | Redirect: Followed 1 redirect resolving to the final status of: Moved Permanently. Redirects: https://from.dev/ --[308]--> https://to.dev/"
+            "[200] https://example.com/redirect | Redirect: Followed 1 redirect resolving to the final status of: OK. Redirects: https://from.dev/ --[308]--> https://to.dev/"
         );
     }
 

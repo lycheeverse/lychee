@@ -165,7 +165,7 @@ fn get_dummy_stats() -> OutputStats {
         source.clone(),
         HashSet::from([ResponseBody {
             uri: "https://redirected.dev".try_into().unwrap(),
-            status: Status::Redirected(StatusCode::OK, redirects),
+            status: Status::Redirected(Box::new(Status::Ok(StatusCode::OK)), redirects),
             span: SPAN,
             duration: DURATION,
         }]),

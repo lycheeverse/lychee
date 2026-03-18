@@ -15,7 +15,7 @@ impl ColorFormatter {
     /// response.
     fn status_color(status: &Status) -> &'static std::sync::LazyLock<console::Style> {
         match status {
-            Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) | Status::Redirected(_, _) => &GREEN,
+            Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => &GREEN,
             Status::Excluded
             | Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => &DIM,
@@ -25,6 +25,7 @@ impl ColorFormatter {
             Status::Error(_) | Status::RequestError(_) | Status::Cached(CacheStatus::Error(_)) => {
                 &PINK
             }
+            Status::Redirected(inner, _) => Self::status_color(inner),
         }
     }
 
