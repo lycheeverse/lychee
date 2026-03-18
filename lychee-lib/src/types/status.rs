@@ -31,7 +31,7 @@ pub enum Status {
     /// Request timed out
     Timeout(Option<StatusCode>),
     /// Got redirected to different resource
-    Redirected(StatusCode, Redirects),
+    Redirected(Box<Status>, Redirects),
     /// The given status code is not known by lychee
     UnknownStatusCode(StatusCode),
     /// The given mail address could not be reliably identified.
@@ -148,16 +148,24 @@ impl Status {
     pub fn details(&self) -> Option<String> {
         match &self {
             Status::Ok(code) => code.canonical_reason().map(String::from),
-            Status::Redirected(code, redirects) => {
+            Status::Redirected(inner, redirects) => {
                 let count = redirects.count();
                 let noun = if count == 1 { "redirect" } else { "redirects" };
 
-                let result = code
-                    .canonical_reason()
-                    .map(String::from)
-                    .unwrap_or(code.as_str().to_owned());
+                let details = inner
+                    .code()
+                    .map(|code| {
+                        let status = code
+                            .canonical_reason()
+                            .map(String::from)
+                            .unwrap_or(code.as_str().into());
+
+                        format!(" resolving to the final status of: {status}")
+                    })
+                    .unwrap_or_default();
+
                 Some(format!(
-                    "Followed {count} {noun} resolving to the final status of: {result}. Redirects: {redirects}"
+                    "Followed {count} {noun}{details}. Redirects: {redirects}"
                 ))
             }
             Status::Error(e) => e.details(),
@@ -182,6 +190,10 @@ impl Status {
     #[must_use]
     /// Returns `true` if the check was not successful
     pub const fn is_error(&self) -> bool {
+        if let Status::Redirected(inner, _) = self {
+            return inner.is_error();
+        }
+
         matches!(
             self,
             Status::Error(_)
@@ -238,7 +250,6 @@ impl Status {
     pub fn code(&self) -> Option<StatusCode> {
         match self {
             Status::Ok(code)
-            | Status::Redirected(code, _)
             | Status::UnknownStatusCode(code)
             | Status::Timeout(Some(code))
             | Status::Cached(CacheStatus::Ok(code) | CacheStatus::Error(Some(code))) => Some(*code),
@@ -249,6 +260,7 @@ impl Status {
                     None => None,
                 },
             },
+            Status::Redirected(inner, _) => inner.code(),
             _ => None,
         }
     }
@@ -257,9 +269,7 @@ impl Status {
     #[must_use]
     pub fn code_as_string(&self) -> String {
         match self {
-            Status::Ok(code) | Status::Redirected(code, _) | Status::UnknownStatusCode(code) => {
-                code.as_u16().to_string()
-            }
+            Status::Ok(code) | Status::UnknownStatusCode(code) => code.as_u16().to_string(),
             Status::UnknownMailStatus(_) => "UNKNOWN".to_string(),
             Status::Excluded => "EXCLUDED".to_string(),
             Status::Error(e) => match e {
@@ -287,6 +297,7 @@ impl Status {
                 CacheStatus::Excluded => "EXCLUDED".to_string(),
                 CacheStatus::Unsupported => "IGNORED".to_string(),
             },
+            Status::Redirected(inner, _) => inner.code_as_string(),
         }
     }
 
@@ -368,7 +379,7 @@ mod tests {
         );
         assert_eq!(
             Status::Redirected(
-                StatusCode::from_u16(300).unwrap(),
+                Box::new(Status::Ok(StatusCode::from_u16(300).unwrap())),
                 Redirects::new("http://example.com".try_into().unwrap())
             )
             .code()

@@ -726,7 +726,7 @@ mod tests {
         let res = get_mock_client_response!(r).await;
         assert!(matches!(
             res.status(),
-            Status::Redirected(StatusCode::OK, _)
+            Status::Redirected(inner, _) if **inner == Status::Ok(StatusCode::OK)
         ));
     }
 
@@ -952,12 +952,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
+        assert!(matches!(
             res.status(),
-            &Status::Error(ErrorKind::RejectedStatusCode(
-                StatusCode::PERMANENT_REDIRECT
-            ))
-        );
+            Status::Redirected(inner, redirects) if **inner == Status::Error(
+                ErrorKind::RejectedStatusCode(StatusCode::PERMANENT_REDIRECT)
+            ) && redirects.count() == redirect_count,
+        ));
     }
 
     #[tokio::test]
@@ -977,7 +977,11 @@ mod tests {
                 url: ok_url,
                 code: StatusCode::PERMANENT_REDIRECT,
             });
-            assert_eq!(res.status(), &Status::Redirected(StatusCode::OK, redirects));
+
+            assert_eq!(
+                res.status(),
+                &Status::Redirected(Box::new(Status::Ok(StatusCode::OK)), redirects)
+            );
         })
         .await;
     }

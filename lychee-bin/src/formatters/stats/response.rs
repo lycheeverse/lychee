@@ -85,7 +85,10 @@ impl ResponseStats {
             Status::Error(_) | Status::RequestError(_) => self.errors += 1,
             Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => self.unknown += 1,
             Status::Timeout(_) => self.timeouts += 1,
-            Status::Redirected(_, _) => self.redirects += 1,
+            Status::Redirected(inner, _) => {
+                self.redirects += 1;
+                self.increment_status_counters(inner);
+            }
             Status::Excluded => self.excludes += 1,
             Status::Unsupported(_) => self.unsupported += 1,
             Status::Cached(cache_status) => {

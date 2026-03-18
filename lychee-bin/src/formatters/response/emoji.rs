@@ -17,7 +17,7 @@ impl EmojiFormatter {
             Status::Excluded => "👻",
             Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => "🚫",
-            Status::Redirected(_, _) => "↪️",
+            Status::Redirected(inner, _) => Self::emoji_for_status(inner),
             Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) | Status::Timeout(_) => {
                 "⚠️"
             }
@@ -77,14 +77,14 @@ mod emoji_tests {
         let formatter = EmojiFormatter;
         let body = mock_response_body!(
             Status::Redirected(
-                StatusCode::MOVED_PERMANENTLY,
+                Box::new(Status::Ok(StatusCode::OK)),
                 Redirects::new("https://example.com/redirect".try_into().unwrap())
             ),
             "https://example.com/redirect",
         );
         assert_eq!(
             formatter.format_response(&body),
-            "↪️ https://example.com/redirect | Redirect: Followed 0 redirects resolving to the final status of: Moved Permanently. Redirects: https://example.com/redirect"
+            "✅ https://example.com/redirect | Redirect: Followed 0 redirects resolving to the final status of: OK. Redirects: https://example.com/redirect"
         );
     }
 
