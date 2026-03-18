@@ -124,7 +124,7 @@ mod tests {
             <system-out>https://success.org/</system-out>
         </testcase>
         <testcase name="Redirected https://redirected.dev/" time="1.000" file="https://example.com/" line="1">
-            <system-out>https://redirected.dev/ (at 1:1) | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--&gt; https://2.dev/ --[308]--&gt; http://redirected.dev/</system-out>
+            <system-out>https://redirected.dev/ (at 1:1) | 200 OK: Followed 2 redirects. Redirects: https://1.dev/ --[308]--&gt; https://2.dev/ --[308]--&gt; http://redirected.dev/</system-out>
         </testcase>
     </testsuite>
 </testsuites>

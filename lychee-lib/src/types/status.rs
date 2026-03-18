@@ -52,7 +52,6 @@ impl Display for Status {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Status::Ok(code) => write!(f, "{code}"),
-            Status::Redirected(_, _) => write!(f, "Redirect"),
             Status::UnknownStatusCode(code) => write!(f, "Unknown status ({code})"),
             Status::UnknownMailStatus(_) => write!(f, "Unknown mail status"),
             Status::Timeout(Some(code)) => write!(f, "Timeout ({code})"),
@@ -62,6 +61,7 @@ impl Display for Status {
             Status::RequestError(e) => write!(f, "{e}"),
             Status::Cached(status) => write!(f, "{status}"),
             Status::Excluded => Ok(()),
+            Status::Redirected(inner, _) => Status::fmt(inner, f),
         }
     }
 }
@@ -148,25 +148,10 @@ impl Status {
     pub fn details(&self) -> Option<String> {
         match &self {
             Status::Ok(code) => code.canonical_reason().map(String::from),
-            Status::Redirected(inner, redirects) => {
+            Status::Redirected(_, redirects) => {
                 let count = redirects.count();
                 let noun = if count == 1 { "redirect" } else { "redirects" };
-
-                let details = inner
-                    .code()
-                    .map(|code| {
-                        let status = code
-                            .canonical_reason()
-                            .map(String::from)
-                            .unwrap_or(code.as_str().into());
-
-                        format!(" resolving to the final status of: {status}")
-                    })
-                    .unwrap_or_default();
-
-                Some(format!(
-                    "Followed {count} {noun}{details}. Redirects: {redirects}"
-                ))
+                Some(format!("Followed {count} {noun}. Redirects: {redirects}"))
             }
             Status::Error(e) => e.details(),
             Status::RequestError(e) => e.error().details(),
