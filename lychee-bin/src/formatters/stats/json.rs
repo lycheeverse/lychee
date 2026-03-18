@@ -21,6 +21,7 @@ impl StatsFormatter for Json {
 #[cfg(test)]
 mod tests {
     use crate::formatters::stats::{Json, StatsFormatter, get_dummy_stats};
+    use pretty_assertions::assert_eq;
 
     const EXPECTED_JSON: &str = r#"{
   "total": 2,
@@ -84,7 +85,7 @@ mod tests {
       {
         "url": "https://redirected.dev/",
         "status": {
-          "text": "Redirect",
+          "text": "200 OK",
           "code": 200,
           "redirects": {
             "origin": "https://1.dev/",

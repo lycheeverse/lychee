@@ -2556,7 +2556,8 @@ The config file should contain every possible key for documentation purposes."
             let (json, stderr) = run(&redirect_url, false);
             assert!(stderr.contains("[WARN] lychee detected 1 redirect. You might want to consider replacing redirecting URLs"));
             assert_eq!(json["total"], 1);
-            assert_eq!(json["redirects"], 1);
+            assert_eq!(json["redirects"], 1); // there was one redirect
+            assert_eq!(json["successful"], 1); // which resolved to a success
             assert_eq!(json["redirect_map"], json!({}));
         })
         .await;
@@ -2577,7 +2578,7 @@ The config file should contain every possible key for documentation purposes."
                     },
                     "status": {
                         "code": 200,
-                        "text": "Redirect",
+                        "text": "200 OK",
                         "redirects": {
                             "origin": redirect_url,
                             "redirects": [{

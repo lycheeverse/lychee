@@ -84,7 +84,7 @@ mod emoji_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "✅ https://example.com/redirect | Redirect: Followed 0 redirects resolving to the final status of: OK. Redirects: https://example.com/redirect"
+            "✅ https://example.com/redirect | 200 OK: Followed 0 redirects. Redirects: https://example.com/redirect"
         );
     }
 

@@ -74,7 +74,7 @@ mod plain_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "[200] https://example.com/redirect | Redirect: Followed 1 redirect resolving to the final status of: OK. Redirects: https://from.dev/ --[308]--> https://to.dev/"
+            "[200] https://example.com/redirect | 200 OK: Followed 1 redirect. Redirects: https://from.dev/ --[308]--> https://to.dev/"
         );
     }
 

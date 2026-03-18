@@ -292,7 +292,7 @@ mod tests {
 
 ### Redirects in https://example.com/
 
-* [200] <https://redirected.dev/> (at 1:1) | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
+* [200] <https://redirected.dev/> (at 1:1) | 200 OK: Followed 2 redirects. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 ## Suggestions per input
 
