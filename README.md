@@ -331,7 +331,7 @@ Options:
   -a, --accept <ACCEPT>
           A List of accepted status codes for valid links
 
-          The following accept range syntax is supported: [start]..[[=]end]|code.
+          The following accept range syntax is supported: `[start]..[[=]end]|code`.
           Some valid examples are:
 
           - 200 (accepts the 200 status code only)
