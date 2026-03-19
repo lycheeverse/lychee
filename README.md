@@ -340,7 +340,7 @@ Options:
           - 200..=204 (accepts any status code from 200 to 204 inclusive)
           - 200..205 (accepts any status code from 200 to 205 excluding 205, same as 200..=204)
 
-          Use "lychee --accept '200..=204, 429, 500' <inputs>..." to provide a comma-
+          Use `lychee --accept '200..=204,429,500' <inputs>...` to provide a comma-
           separated list of accepted status codes. This example will accept 200, 201,
           202, 203, 204, 429, and 500 as valid status codes.
 

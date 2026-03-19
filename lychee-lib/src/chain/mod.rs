@@ -4,7 +4,7 @@
 //! a request and decide if it should be passed to the next element or not.
 //!
 //! The chain is implemented as a vector of [`Handler`] handlers. It is
-//! traversed by calling [`Chain::traverse`], which will call
+//! traversed by calling Chain::traverse via [`crate::chain`], which will call
 //! [`Handler::handle`] on each handler in the chain consecutively.
 //!
 //! To add external handlers, you can implement the [`Handler`] trait and add
