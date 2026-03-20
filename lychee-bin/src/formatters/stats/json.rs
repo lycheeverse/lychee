@@ -30,6 +30,7 @@ mod tests {
   "unsupported": 0,
   "timeouts": 1,
   "redirects": 1,
+  "remaps": 0,
   "excludes": 0,
   "errors": 1,
   "cached": 0,
@@ -58,7 +59,8 @@ mod tests {
       {
         "url": "https://httpbin.org/delay/2",
         "status": {
-          "text": "Timeout"
+          "text": "Timeout",
+          "details": "Request timed out"
         },
         "span": {
           "line": 1,

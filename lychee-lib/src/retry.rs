@@ -115,7 +115,7 @@ impl RetryExt for Status {
             | Status::Excluded
             | Status::Unsupported(_)
             | Status::Cached(_) => false,
-            Status::Redirected(inner, _) => inner.should_retry(),
+            Status::Redirected(inner, _) | Status::Remapped(inner, _) => inner.should_retry(),
         }
     }
 }

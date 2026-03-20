@@ -32,8 +32,10 @@ pub(crate) struct ResponseStats {
     pub(crate) unsupported: usize,
     /// Number of timeouts
     pub(crate) timeouts: usize,
-    /// Redirects encountered while checking links
+    /// Number of redirects encountered while checking links
     pub(crate) redirects: usize,
+    /// Number of Url remappings performed
+    pub(crate) remaps: usize,
     /// Number of links excluded from the run (e.g. due to the `--exclude` flag)
     pub(crate) excludes: usize,
     /// Number of responses with an error status
@@ -81,6 +83,10 @@ impl ResponseStats {
             Status::Timeout(_) => self.timeouts += 1,
             Status::Redirected(inner, _) => {
                 self.redirects += 1;
+                self.increment_status_counters(inner);
+            }
+            Status::Remapped(inner, _) => {
+                self.remaps += 1;
                 self.increment_status_counters(inner);
             }
             Status::Excluded => self.excludes += 1,

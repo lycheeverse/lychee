@@ -4,7 +4,9 @@ use crate::{
     quirks::Quirks,
     ratelimit::HostPool,
     retry::RetryExt,
-    types::{redirect_history::RedirectHistory, uri::github::GithubUri},
+    types::{
+        redirect_history::RedirectHistory, remap_history::RemapHistory, uri::github::GithubUri,
+    },
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 use async_trait::async_trait;
@@ -53,6 +55,9 @@ pub(crate) struct WebsiteChecker {
     /// Keep track of HTTP redirections for reporting
     redirect_history: RedirectHistory,
 
+    /// Keep track of remaps for reporting
+    remap_history: Option<RemapHistory>,
+
     /// Optional host pool for per-host rate limiting.
     ///
     /// When present, HTTP requests will be routed through this pool for
@@ -72,6 +77,7 @@ impl WebsiteChecker {
         method: reqwest::Method,
         retry_wait_time: Duration,
         redirect_history: RedirectHistory,
+        remap_history: Option<RemapHistory>,
         max_retries: u64,
         accepted: HashSet<StatusCode>,
         github_client: Option<Octocrab>,
@@ -85,6 +91,7 @@ impl WebsiteChecker {
             github_client,
             plugin_request_chain,
             redirect_history,
+            remap_history,
             max_retries,
             retry_wait_time,
             accepted,
@@ -214,9 +221,14 @@ impl WebsiteChecker {
         ]);
 
         let status = self.check_website_inner(uri, &default_chain).await;
-        let status = self
+        let mut status = self
             .handle_insecure_url(uri, &default_chain, status)
             .await?;
+
+        if let Some(history) = &self.remap_history {
+            status = history.handle_remapped(&uri.url, status);
+        }
+
         Ok(self.redirect_history.handle_redirected(&uri.url, status))
     }
 
@@ -379,6 +391,7 @@ mod tests {
             Method::GET,
             Duration::ZERO,
             RedirectHistory::new(),
+            None,
             0,
             DEFAULT_ACCEPTED_STATUS_CODES.clone(),
             Some(client),

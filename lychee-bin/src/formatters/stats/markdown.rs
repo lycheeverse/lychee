@@ -92,11 +92,9 @@ fn markdown_response(response: &ResponseBody) -> Result<String> {
     // Add a separator between the URI and the additional details below.
     // Note: To make the links clickable in some terminals,
     // we add a space before the separator.
-    write!(formatted, " | {}", response.status)?;
+    let details = response.status.details();
+    write!(formatted, " | {details}")?;
 
-    if let Some(details) = response.status.details() {
-        write!(formatted, ": {details}")?;
-    }
     Ok(formatted)
 }
 
@@ -274,19 +272,19 @@ mod tests {
 
 ### Errors in https://example.com/
 
-* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> (at 1:1) | 404 Not Found: Not Found
+* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> (at 1:1) | 404 Not Found
 
 ## Timeouts per input
 
 ### Timeouts in https://example.com/
 
-* [TIMEOUT] <https://httpbin.org/delay/2> (at 1:1) | Timeout
+* [TIMEOUT] <https://httpbin.org/delay/2> (at 1:1) | Request timed out
 
 ## Redirects per input
 
 ### Redirects in https://example.com/
 
-* [200] <https://redirected.dev/> (at 1:1) | 200 OK: Followed 2 redirects. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
+* [200] <https://redirected.dev/> (at 1:1) | 200 OK | Followed 2 redirects. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 ## Suggestions per input
 
