@@ -121,20 +121,7 @@ impl Display for ResponseBody {
             return Ok(());
         }
 
-        // Format status and return early if empty
-        let status_output = self.status.to_string();
-        if status_output.is_empty() {
-            return Ok(());
-        }
-
-        // Write status with separator
-        write!(f, " | {status_output}")?;
-
-        // Add details if available
-        if let Some(details) = self.status.details() {
-            write!(f, ": {details}")
-        } else {
-            Ok(())
-        }
+        let details = self.status.details();
+        write!(f, " | {details}")
     }
 }

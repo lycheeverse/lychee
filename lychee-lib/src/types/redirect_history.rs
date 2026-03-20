@@ -94,6 +94,8 @@ impl RedirectHistory {
         }
     }
 
+    /// Wrap the given [`Status`] in [`Status::Redirected`]
+    /// if the given [`Url`] was redirected.
     pub(crate) fn handle_redirected(&self, url: &Url, status: Status) -> Status {
         if let Some(redirected) = self.get_resolved(url) {
             Status::Redirected(Box::new(status), redirected)

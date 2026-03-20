@@ -113,18 +113,18 @@ mod tests {
 <testsuites name="lychee link check results" tests="4" failures="1" errors="0">
     <testsuite name="lychee link check results" tests="4" disabled="1" errors="0" failures="1">
         <testcase name="Failed https://github.com/mre/idiomatic-rust-doesnt-exist-man" time="1.000" file="https://example.com/" line="1">
-            <failure message="https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found"/>
-            <system-out>https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found</system-out>
+            <failure message="https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found"/>
+            <system-out>https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found</system-out>
         </testcase>
         <testcase name="Excluded https://excluded.org/" time="0.042" file="https://example.com/">
-            <skipped message="https://excluded.org/"/>
-            <system-out>https://excluded.org/</system-out>
+            <skipped message="https://excluded.org/ | This is due to your &apos;exclude&apos; and &apos;include&apos; values"/>
+            <system-out>https://excluded.org/ | This is due to your &apos;exclude&apos; and &apos;include&apos; values</system-out>
         </testcase>
         <testcase name="Successful https://success.org/" time="1.000" file="https://example.com/">
             <system-out>https://success.org/</system-out>
         </testcase>
         <testcase name="Redirected https://redirected.dev/" time="1.000" file="https://example.com/" line="1">
-            <system-out>https://redirected.dev/ (at 1:1) | 200 OK: Followed 2 redirects. Redirects: https://1.dev/ --[308]--&gt; https://2.dev/ --[308]--&gt; http://redirected.dev/</system-out>
+            <system-out>https://redirected.dev/ (at 1:1) | 200 OK | Followed 2 redirects. Redirects: https://1.dev/ --[308]--&gt; https://2.dev/ --[308]--&gt; http://redirected.dev/</system-out>
         </testcase>
     </testsuite>
 </testsuites>

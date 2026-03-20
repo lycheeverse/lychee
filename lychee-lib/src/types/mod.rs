@@ -10,6 +10,7 @@ mod file;
 mod input;
 mod preprocessor;
 pub(crate) mod redirect_history;
+pub(crate) mod remap_history;
 mod request;
 mod request_error;
 pub(crate) mod resolver;

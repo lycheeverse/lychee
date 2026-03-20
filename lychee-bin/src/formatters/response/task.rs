@@ -35,7 +35,7 @@ mod task_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "- [ ] [ERROR] https://example.com/404 | URL cannot be empty: Empty URL found. Check for missing links or malformed markdown"
+            "- [ ] [ERROR] https://example.com/404 | Empty URL found but a URL must not be empty"
         );
     }
 
@@ -45,7 +45,7 @@ mod task_tests {
         let body = mock_response_body!(Status::Excluded, "https://example.com/not-checked");
         assert_eq!(
             formatter.format_response(&body),
-            "- [ ] [EXCLUDED] https://example.com/not-checked"
+            "- [ ] [EXCLUDED] https://example.com/not-checked | This is due to your 'exclude' and 'include' values"
         );
     }
 
@@ -64,7 +64,7 @@ mod task_tests {
         );
         assert_eq!(
             formatter.format_response(&body),
-            "- [ ] [200] https://example.com/redirect | 200 OK: Followed 1 redirect. Redirects: https://from.dev/ --[308]--> https://to.dev/"
+            "- [ ] [200] https://example.com/redirect | 200 OK | Followed 1 redirect. Redirects: https://from.dev/ --[308]--> https://to.dev/"
         );
     }
 

@@ -25,7 +25,10 @@ use log::debug;
 use regex::Regex;
 use url::Url;
 
-use crate::{ErrorKind, Result};
+use crate::{
+    ErrorKind, Result,
+    types::remap_history::{RemapHistory, Remapping},
+};
 
 /// Rules that remap matching URL patterns.
 ///
@@ -36,19 +39,29 @@ use crate::{ErrorKind, Result};
 /// # Notes
 /// See module level documentation of usage notes.
 #[derive(Debug, Clone)]
-pub struct Remaps(Vec<(Regex, String)>);
+pub struct Remaps {
+    patterns: Vec<(Regex, String)>,
+    history: RemapHistory,
+}
 
 impl Remaps {
     /// Create a new remapper
     #[must_use]
-    pub const fn new(patterns: Vec<(Regex, String)>) -> Self {
-        Self(patterns)
+    pub fn new(patterns: Vec<(Regex, String)>) -> Self {
+        Self {
+            patterns,
+            history: RemapHistory::new(),
+        }
+    }
+
+    pub(crate) fn get_history(&self) -> RemapHistory {
+        self.history.clone()
     }
 
     /// Returns an iterator over the rules.
     // `iter_mut` is deliberately avoided.
     pub fn iter(&self) -> std::slice::Iter<'_, (Regex, String)> {
-        self.0.iter()
+        self.patterns.iter()
     }
 
     /// Remap URL against remapping rules.
@@ -69,7 +82,12 @@ impl Remaps {
                     ))
                 })?;
 
-                debug!("Remapping {original} --> {new}");
+                let remapping = Remapping {
+                    original: original.clone(),
+                    new: new.clone(),
+                };
+                debug!("Remapping {remapping}");
+                self.history.record_remap(remapping);
                 return Ok(new);
             }
         }
@@ -79,13 +97,13 @@ impl Remaps {
     /// Returns `true` if there is no remapping rule defined.
     #[must_use]
     pub const fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.patterns.is_empty()
     }
 
     /// Get the number of remapping rules.
     #[must_use]
     pub const fn len(&self) -> usize {
-        self.0.len()
+        self.patterns.len()
     }
 }
 
@@ -93,7 +111,7 @@ impl Index<usize> for Remaps {
     type Output = (Regex, String);
 
     fn index(&self, index: usize) -> &(regex::Regex, String) {
-        &self.0[index]
+        &self.patterns[index]
     }
 }
 
@@ -139,7 +157,7 @@ impl<'a> IntoIterator for &'a Remaps {
     type IntoIter = std::slice::Iter<'a, (Regex, String)>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
+        self.patterns.iter()
     }
 }
 

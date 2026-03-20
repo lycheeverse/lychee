@@ -321,10 +321,10 @@ mod cli {
             .assert()
             .code(2)
             .stdout(contains(
-                "Unreachable mail address mailto:test@example.com: No MX records found for domain",
+                "mailto:test@example.com (at 1:1) | No MX records found for domain",
             ))
             .stdout(contains(
-                "Unreachable mail address mailto:idiomatic-rust-doesnt-exist-man@wikipedia.org: Mail server rejects the address",
+                "mailto:idiomatic-rust-doesnt-exist-man@wikipedia.org (at 1:18) | Mail server rejects the address",
             ))
             .stdout(contains("2 Errors"));
 
@@ -1381,7 +1381,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .stderr(contains(format!("[200] {}/ (at 1:1)\n", mock_server_ok.uri())))
             .stderr(contains(format!(
-                "[204] {}/ (at 2:1) | 204 No Content: No Content\n",
+                "[204] {}/ (at 2:1) | 204 No Content\n",
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
@@ -1515,7 +1515,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[TIMEOUT] {}/ (at 1:1) | Timeout"#,
+                r#"[TIMEOUT] {}/ (at 1:1)"#,
                 mock_server_timeout.uri()
             )));
 
@@ -1529,7 +1529,7 @@ The config file should contain every possible key for documentation purposes."
             .success()
             .code(0)
             .stdout(contains(format!(
-                r#"[TIMEOUT] {}/ (at 1:1) | Timeout"#,
+                r#"[TIMEOUT] {}/ (at 1:1)"#,
                 mock_server_timeout.uri()
             )));
 
@@ -1560,9 +1560,11 @@ The config file should contain every possible key for documentation purposes."
             .arg("-")
             .assert()
             .stderr(contains(format!(
-                "[IGNORED] {unsupported_url} (at 1:1) | Unsupported: Error creating request client"
+                "[IGNORED] {unsupported_url} (at 1:1) | Unsupported: Failed to create HTTP request client: builder error for url (slack://user)"
             )))
-            .stderr(contains(format!("[EXCLUDED] {excluded_url} (at 2:1)\n")));
+            .stderr(contains(format!(
+                "[EXCLUDED] {excluded_url} (at 2:1) | This is due to your 'exclude' and 'include' values\n"
+            )));
 
         // The cache file should be empty, because the only checked URL is
         // unsupported and we don't want to cache that. It might be supported in
@@ -1769,7 +1771,9 @@ The config file should contain every possible key for documentation purposes."
             .arg(test_path)
             .assert()
             .failure()
-            .stdout(contains("This URI is available in HTTPS protocol, but HTTP is provided. Use 'https://example.com/' instead"));
+            .stdout(contains(
+                "Insecure HTTP URL used, where 'https://rust-lang.org/' can be used instead",
+            ));
     }
 
     /// If `base-dir` is not set, an error should be thrown if we encounter
@@ -1785,7 +1789,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .stdout(contains("5 Error"))
-            .stdout(contains("Error building URL").count(5));
+            .stdout(contains("Cannot resolve root-relative link").count(5));
     }
 
     #[test]
@@ -1929,7 +1933,7 @@ The config file should contain every possible key for documentation purposes."
             // The error message should be descriptive and helpful
             .stderr(contains("Error checking URL https://example.com/: Cannot parse URL to URI: Error remapping URL: `The remapping pattern produced an invalid URL: invalid/`"))
             // The original URI is shown as root cause in stdout
-            .stdout(contains("The given URI is invalid: https://example.com/: Invalid URI format: 'https://example.com/'. Check URI syntax"));
+            .stdout(contains("The given URI is invalid, check URI syntax: https://example.com/"));
     }
 
     #[test]
@@ -3054,7 +3058,10 @@ The config file should contain every possible key for documentation purposes."
         let num_dir_links = 4;
         result
             .stdout(contains("Cannot find index file").count(num_dir_links))
-            .stdout(contains("No directory links are allowed").count(num_dir_links))
+            .stdout(
+                contains("Directory links are rejected because index_files is empty")
+                    .count(num_dir_links),
+            )
             .stdout(contains("0 OK"));
 
         // ... as should passing a number of empty index file names
@@ -3064,7 +3071,10 @@ The config file should contain every possible key for documentation purposes."
             .arg(",,,,,")
             .assert()
             .failure()
-            .stdout(contains("No directory links are allowed").count(num_dir_links))
+            .stdout(
+                contains("Directory links are rejected because index_files is empty")
+                    .count(num_dir_links),
+            )
             .stdout(contains("0 OK"));
     }
 
@@ -3570,7 +3580,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .code(2)
-            .stdout(contains("Preprocessor command 'program does not exist' failed: could not start: No such file or directory"));
+            .stdout(contains("Preprocessor command 'program does not exist' failed with 'could not start: No such file or directory (os error 2)'"));
     }
 
     #[test]
@@ -3585,7 +3595,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "Preprocessor command '{}' failed: exited with non-zero code: <empty stderr>",
+                "Preprocessor command '{}' failed with 'exited with non-zero code: <empty stderr>'",
                 script.as_os_str().to_str().unwrap()
             )));
 
@@ -3598,7 +3608,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "Preprocessor command '{}' failed: exited with non-zero code: Some error message",
+                "Preprocessor command '{}' failed with 'exited with non-zero code: Some error message'",
                 script.as_os_str().to_str().unwrap()
             )));
     }

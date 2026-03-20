@@ -174,23 +174,15 @@ fn get_dummy_stats() -> OutputStats {
     let response_stats = ResponseStats {
         total: 2,
         unique: 2,
-        successful: 0,
         errors: 1,
-        unknown: 0,
-        excludes: 0,
         timeouts: 1,
-        duration: Duration::ZERO,
-        unsupported: 0,
         redirects: 1,
-        cached: 0,
         suggestion_map,
         redirect_map,
-        success_map: HashMap::default(),
         error_map,
-        excluded_map: HashMap::default(),
         timeout_map,
         detailed_stats: true,
-        seen_uris: HashSet::new(),
+        ..Default::default()
     };
 
     let host_stats = Some(HostStatsMap::from(HashMap::from([(

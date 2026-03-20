@@ -342,7 +342,7 @@ impl ClientBuilder {
     pub fn client(self) -> Result<Client> {
         let redirect_history = RedirectHistory::new();
         let reqwest_client = self
-            .build_client(&redirect_history)?
+            .build_client(redirect_history.clone())?
             .build()
             .map_err(ErrorKind::BuildRequestClient)?;
 
@@ -383,6 +383,7 @@ impl ClientBuilder {
             self.method,
             self.retry_wait_time,
             redirect_history.clone(),
+            self.remaps.as_ref().map(Remaps::get_history),
             self.max_retries,
             self.accepted,
             github_client,
@@ -415,7 +416,7 @@ impl ClientBuilder {
                 let mut headers = self.default_headers()?;
                 headers.extend(config.headers.clone());
                 let client = self
-                    .build_client(redirect_history)?
+                    .build_client(redirect_history.clone())?
                     .default_headers(headers)
                     .build()
                     .map_err(ErrorKind::BuildRequestClient)?;
@@ -425,17 +426,14 @@ impl ClientBuilder {
     }
 
     /// Create a [`reqwest::ClientBuilder`] based on various fields
-    fn build_client(&self, redirect_history: &RedirectHistory) -> Result<reqwest::ClientBuilder> {
+    fn build_client(&self, redirect_history: RedirectHistory) -> Result<reqwest::ClientBuilder> {
         let mut builder = reqwest::ClientBuilder::new()
             .gzip(true)
             .default_headers(self.default_headers()?)
             .danger_accept_invalid_certs(self.allow_insecure)
             .connect_timeout(CONNECT_TIMEOUT)
             .tcp_keepalive(TCP_KEEPALIVE)
-            .redirect(redirect_policy(
-                redirect_history.clone(),
-                self.max_redirects,
-            ));
+            .redirect(redirect_policy(redirect_history, self.max_redirects));
 
         if let Some(cookie_jar) = self.cookie_jar.clone() {
             builder = builder.cookie_provider(cookie_jar);
@@ -829,7 +827,7 @@ mod tests {
     #[tokio::test]
     async fn test_require_https() {
         let client = ClientBuilder::builder().build().client().unwrap();
-        let res = client.check("http://example.com").await.unwrap();
+        let res = client.check("http://rust-lang.org/").await.unwrap();
         assert!(res.status().is_success());
 
         // Same request will fail if HTTPS is required
@@ -838,7 +836,7 @@ mod tests {
             .build()
             .client()
             .unwrap();
-        let res = client.check("http://example.com").await.unwrap();
+        let res = client.check("http://rust-lang.org/").await.unwrap();
         assert!(res.status().is_error());
     }
 
