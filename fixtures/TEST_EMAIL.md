@@ -1,3 +1,3 @@
 https://endler.dev
-octocat+github@github.com
+foobar@gmail.com
 mailto:info@wikipedia.org
