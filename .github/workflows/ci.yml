@@ -16,6 +16,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUSTFLAGS: -D warnings
+  RUSTDOCFLAGS: -D warnings
 
 jobs:
   typos:
@@ -56,6 +57,9 @@ jobs:
         run: cargo fmt --all --check
       - name: Run cargo clippy (deny warnings)
         run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Check rustdoc warnings (temporarily allow warnings)
+        run: cargo doc --workspace --no-deps
+        continue-on-error: true # remove this after warnings are fixed
       - uses: cargo-bins/cargo-binstall@main
       - name: Install cargo-msrv
         run: cargo binstall --no-confirm --force cargo-msrv
