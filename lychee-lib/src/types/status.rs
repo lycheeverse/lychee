@@ -173,7 +173,7 @@ impl Status {
             }
             Status::Remapped(inner, remapping) => {
                 let inner = inner.details();
-                format!("{inner} | Remapped: {remapping})")
+                format!("{inner} | Remapped: {remapping}")
             }
             Status::Error(e) => e.details(),
             Status::RequestError(e) => e.error().details(),
