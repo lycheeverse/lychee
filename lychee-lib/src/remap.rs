@@ -19,16 +19,30 @@
 // circumanstances. Thus the documentation should be about remapping URLs
 // (locations), not remapping URIs (identities).
 
-use std::ops::Index;
+use std::{fmt::Display, ops::Index};
 
 use log::debug;
 use regex::Regex;
+use serde::Serialize;
 use url::Url;
 
-use crate::{
-    ErrorKind, Result,
-    types::remap_history::{RemapHistory, Remapping},
-};
+use crate::{ErrorKind, Result, Uri};
+
+/// Records a single [`Uri`] remapping
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
+pub struct Remapping {
+    /// The original [`Uri`] before remapping
+    pub original: Uri,
+    /// The new [`Uri`] after applying [`Remaps`]
+    pub new: Uri,
+}
+
+impl Display for Remapping {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} --> {}", self.original, self.new)?;
+        Ok(())
+    }
+}
 
 /// Rules that remap matching URL patterns.
 ///
@@ -41,21 +55,13 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Remaps {
     patterns: Vec<(Regex, String)>,
-    history: RemapHistory,
 }
 
 impl Remaps {
     /// Create a new remapper
     #[must_use]
-    pub fn new(patterns: Vec<(Regex, String)>) -> Self {
-        Self {
-            patterns,
-            history: RemapHistory::new(),
-        }
-    }
-
-    pub(crate) fn get_history(&self) -> RemapHistory {
-        self.history.clone()
+    pub const fn new(patterns: Vec<(Regex, String)>) -> Self {
+        Self { patterns }
     }
 
     /// Returns an iterator over the rules.
@@ -64,15 +70,15 @@ impl Remaps {
         self.patterns.iter()
     }
 
-    /// Remap URL against remapping rules.
-    ///
-    /// If there is no matching rule, the original URL is returned.
+    /// Remap [`Uri`] as a side-effect, using the given patterns.
+    /// Return `None` if no rule matches.
+    /// Return `Some` if any rule applied.
     ///
     /// # Errors
     ///
     /// Returns an `Err` if the remapping rule produces an invalid URL.
     #[must_use = "Remapped URLs must be used"]
-    pub fn remap(&self, original: &Url) -> Result<Url> {
+    pub fn remap(&self, original: &Uri) -> Result<Option<Remapping>> {
         for (pattern, replacement) in self {
             if pattern.is_match(original.as_str()) {
                 let new = pattern.replace_all(original.as_str(), replacement);
@@ -84,14 +90,14 @@ impl Remaps {
 
                 let remapping = Remapping {
                     original: original.clone(),
-                    new: new.clone(),
+                    new: Uri { url: new },
                 };
                 debug!("Remapping {remapping}");
-                self.history.record_remap(remapping);
-                return Ok(new);
+                return Ok(Some(remapping));
             }
         }
-        Ok(original.clone())
+
+        Ok(None)
     }
 
     /// Returns `true` if there is no remapping rule defined.
@@ -170,39 +176,49 @@ mod tests {
     #[test]
     fn test_remap() {
         let input = "https://example.com";
-        let input_url = Url::try_from(input).unwrap();
+        let input_url = Uri::try_from(input).unwrap();
         let input_pattern = Regex::new(input).unwrap();
         let replacement = "http://127.0.0.1:8080";
         let remaps = Remaps::new(vec![(input_pattern, replacement.to_string())]);
 
         let output = remaps.remap(&input_url).unwrap();
 
-        assert_eq!(output, Url::try_from(replacement).unwrap());
+        assert_eq!(
+            output,
+            Some(Remapping {
+                new: Uri::try_from(replacement).unwrap(),
+                original: input_url
+            })
+        );
     }
 
     #[test]
     fn test_remap_path() {
-        let input = Url::try_from("file://../../issues").unwrap();
+        let input = Uri::try_from("file://../../issues").unwrap();
         let input_pattern = Regex::new(".*?../../issues").unwrap();
-        let replacement = Url::try_from("https://example.com").unwrap();
+        let replacement = Uri::try_from("https://example.com").unwrap();
         let remaps = Remaps::new(vec![(input_pattern, replacement.to_string())]);
 
         let output = remaps.remap(&input).unwrap();
 
-        assert_eq!(output, replacement);
+        assert_eq!(
+            output,
+            Some(Remapping {
+                new: replacement,
+                original: input
+            })
+        );
     }
 
     #[test]
     fn test_remap_skip() {
-        let input = Url::try_from("https://unrelated.example.com").unwrap();
+        let input = Uri::try_from("https://unrelated.example.com").unwrap();
         let pattern = Regex::new("https://example.com").unwrap();
-        let replacement = Url::try_from("http://127.0.0.1:8080").unwrap();
+        let replacement = Uri::try_from("http://127.0.0.1:8080").unwrap();
         let remaps = Remaps::new(vec![(pattern, replacement.to_string())]);
 
         let output = remaps.remap(&input).unwrap();
-
-        // URL was not modified
-        assert_eq!(input, output);
+        assert_eq!(output, None); // URL was not remapped
     }
 
     #[test]
@@ -227,9 +243,9 @@ mod tests {
         ];
 
         for (input, expected) in tests {
-            let input = Url::parse(input).unwrap();
+            let input = Uri::try_from(input).unwrap();
             let output = remaps.remap(&input).unwrap();
-            assert_eq!(output, Url::parse(expected).unwrap());
+            assert_eq!(output.unwrap().new, Uri::try_from(expected).unwrap());
         }
     }
 
@@ -238,9 +254,9 @@ mod tests {
     /// using capture groups.
     #[test]
     fn test_remap_capture_group() {
-        let input = Url::try_from("https://example.com/1/2/3").unwrap();
+        let input = Uri::try_from("https://example.com/1/2/3").unwrap();
         let input_pattern = Regex::new("https://example.com/.*?/(.*?)/.*").unwrap();
-        let replacement = Url::try_from("https://example.com/foo/$1/bar").unwrap();
+        let replacement = Uri::try_from("https://example.com/foo/$1/bar").unwrap();
 
         let remaps = Remaps::new(vec![(input_pattern, replacement.to_string())]);
 
@@ -248,15 +264,18 @@ mod tests {
 
         assert_eq!(
             output,
-            Url::try_from("https://example.com/foo/2/bar").unwrap()
+            Some(Remapping {
+                new: Uri::try_from("https://example.com/foo/2/bar").unwrap(),
+                original: input
+            })
         );
     }
 
     #[test]
     fn test_remap_named_capture() {
-        let input = Url::try_from("https://example.com/1/2/3").unwrap();
+        let input = Uri::try_from("https://example.com/1/2/3").unwrap();
         let input_pattern = Regex::new("https://example.com/.*?/(?P<foo>.*?)/.*").unwrap();
-        let replacement = Url::try_from("https://example.com/foo/$foo/bar").unwrap();
+        let replacement = Uri::try_from("https://example.com/foo/$foo/bar").unwrap();
 
         let remaps = Remaps::new(vec![(input_pattern, replacement.to_string())]);
 
@@ -264,13 +283,16 @@ mod tests {
 
         assert_eq!(
             output,
-            Url::try_from("https://example.com/foo/2/bar").unwrap()
+            Some(Remapping {
+                new: Uri::try_from("https://example.com/foo/2/bar").unwrap(),
+                original: input
+            })
         );
     }
 
     #[test]
     fn test_remap_named_capture_shorthand() {
-        let input = Url::try_from("https://example.com/1/2/3").unwrap();
+        let input = Uri::try_from("https://example.com/1/2/3").unwrap();
         #[allow(clippy::invalid_regex)]
         // Clippy acts up here, but this syntax is actually valid
         // See https://docs.rs/regex/latest/regex/index.html#grouping-and-flags
@@ -283,7 +305,10 @@ mod tests {
 
         assert_eq!(
             output,
-            Url::try_from("https://example.com/foo/2/bar").unwrap()
+            Some(Remapping {
+                new: Uri::try_from("https://example.com/foo/2/bar").unwrap(),
+                original: input
+            })
         );
     }
 }

@@ -5,7 +5,7 @@ use super::redirect_history::Redirects;
 use crate::ErrorKind;
 use crate::RequestError;
 use crate::ratelimit::CacheableResponse;
-use crate::types::remap_history::Remapping;
+use crate::remap::Remapping;
 use http::StatusCode;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
@@ -341,11 +341,9 @@ impl From<ErrorKind> for Status {
 #[cfg(test)]
 mod tests {
     use crate::{
-        CacheStatus, ErrorKind, Status,
-        types::{redirect_history::Redirects, remap_history::Remapping},
+        CacheStatus, ErrorKind, Status, Uri, remap::Remapping, types::redirect_history::Redirects,
     };
     use http::StatusCode;
-    use url::Url;
 
     #[test]
     fn test_status_serialization() {
@@ -436,16 +434,16 @@ mod tests {
     }
 
     fn get_nested(inner: Status) -> Status {
-        let dummy_url = Url::try_from("https://example.com").unwrap();
+        let dummy_uri = Uri::try_from("https://example.com").unwrap();
         Status::Redirected(
             Box::new(Status::Remapped(
                 Box::new(inner),
                 Remapping {
-                    original: dummy_url.clone(),
-                    new: dummy_url.clone(),
+                    original: dummy_uri.clone(),
+                    new: dummy_uri.clone(),
                 },
             )),
-            Redirects::new(dummy_url),
+            Redirects::new(dummy_uri.url),
         )
     }
 }

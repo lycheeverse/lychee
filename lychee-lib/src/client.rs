@@ -13,6 +13,7 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
+use crate::remap::Remapping;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use http::{
@@ -383,7 +384,6 @@ impl ClientBuilder {
             self.method,
             self.retry_wait_time,
             redirect_history.clone(),
-            self.remaps.as_ref().map(Remaps::get_history),
             self.max_retries,
             self.accepted,
             github_client,
@@ -540,7 +540,7 @@ impl Client {
             ..
         } = request.try_into()?;
 
-        self.remap(uri)?;
+        let remapping = self.remap(uri)?;
 
         if self.is_excluded(uri) {
             return Ok(Response::new(
@@ -554,12 +554,16 @@ impl Client {
 
         let start = std::time::Instant::now(); // Measure check time
 
-        let status = match uri.scheme() {
+        let mut status = match uri.scheme() {
             _ if uri.is_tel() => Status::Excluded, // We don't check tel: URIs
             _ if uri.is_file() => self.check_file(uri).await,
             _ if uri.is_mail() => self.check_mail(uri).await,
             _ => self.check_website(uri, credentials).await?,
         };
+
+        if let Some(remapping) = remapping {
+            status = Status::Remapped(Box::new(status), remapping);
+        }
 
         Ok(Response::new(
             uri.clone(),
@@ -575,16 +579,24 @@ impl Client {
         self.file_checker.check(uri).await
     }
 
-    /// Remap `uri` using the client-defined remapping rules.
+    /// Remap [`Uri`] as a side-effect, using the client-defined remapping rules.
+    /// Return `Some` only if a remapping was performed.
     ///
     /// # Errors
     ///
-    /// Returns an `Err` if the final, remapped `uri` is not a valid URI.
-    pub fn remap(&self, uri: &mut Uri) -> Result<()> {
-        if let Some(ref remaps) = self.remaps {
-            uri.url = remaps.remap(&uri.url)?;
+    /// Returns an `Err` if the remapped `uri` is not a valid URI.
+    pub fn remap(&self, uri: &mut Uri) -> Result<Option<Remapping>> {
+        match self.remaps {
+            Some(ref remaps) => {
+                let remapped = remaps.remap(uri)?;
+                if let Some(remapped) = &remapped {
+                    *uri = remapped.new.clone();
+                }
+
+                Ok(remapped)
+            }
+            None => Ok(None),
         }
-        Ok(())
     }
 
     /// Returns whether the given `uri` should be ignored from checking.
@@ -660,6 +672,7 @@ mod tests {
     use crate::{
         ErrorKind, Redirect, Redirects, Request, Status, Uri,
         chain::{ChainResult, Handler, RequestChain},
+        remap::{Remapping, Remaps},
     };
 
     #[tokio::test]
@@ -982,6 +995,35 @@ mod tests {
             );
         })
         .await;
+    }
+
+    #[tokio::test]
+    async fn test_remaps() {
+        let mapped = String::from("file:///nope");
+        let client = ClientBuilder::builder()
+            .remaps(Some(Remaps::new(vec![(
+                regex::Regex::new("http://example.org").unwrap(),
+                mapped.clone(),
+            )])))
+            .build()
+            .client()
+            .unwrap();
+
+        let input = Uri::try_from("http://example.org").unwrap();
+        let res = client.check(input.clone()).await.unwrap();
+
+        assert_eq!(
+            res.status(),
+            &Status::Remapped(
+                Box::new(Status::Error(ErrorKind::InvalidFilePath(
+                    format!("{mapped}/").try_into().unwrap(),
+                ))),
+                Remapping {
+                    original: input,
+                    new: format!("{mapped}/").try_into().unwrap(),
+                },
+            )
+        );
     }
 
     #[tokio::test]
