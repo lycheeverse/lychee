@@ -1001,10 +1001,10 @@ mod tests {
     async fn test_remaps() {
         let mapped = String::from("file:///nope");
         let client = ClientBuilder::builder()
-            .remaps(Some(Remaps::new(vec![(
+            .remaps(Remaps::new(vec![(
                 regex::Regex::new("http://example.org").unwrap(),
                 mapped.clone(),
-            )])))
+            )]))
             .build()
             .client()
             .unwrap();

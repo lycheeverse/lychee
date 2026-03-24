@@ -1906,7 +1906,6 @@ The config file should contain every possible key for documentation purposes."
     #[test]
     fn test_remap_named_capture() {
         cargo_bin_cmd!()
-            .arg("-vvv")
             .arg("--dump")
             .arg("--remap")
             .arg("https://github.com/(?P<org>.*)/(?P<repo>.*) https://gitlab.com/$org/$repo")
@@ -1915,9 +1914,27 @@ The config file should contain every possible key for documentation purposes."
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("https://gitlab.com/lycheeverse/lychee"))
-            // It is debugged when URIs are remapped
-            .stderr(contains("Remapping https://github.com/lycheeverse/lychee --> https://gitlab.com/lycheeverse/lychee"));
+            .stdout(contains("https://gitlab.com/lycheeverse/lychee"));
+    }
+
+    #[test]
+    fn test_erroneous_remap_with_redirect_real_world() {
+        cargo_bin_cmd!()
+            .arg("-vv")
+            .arg("--remap")
+            .arg("github.com rust-lang.org")
+            .arg("-")
+            .write_stdin("http://github.com/lycheeverse\n")
+            .env_clear()
+            .assert()
+            .failure()
+            .stdout(contains(r#"
+[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found (configurable with "accept" option) | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse | Remapped: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse
+"#))
+        // It is debugged when URIs are remapped
+        .stderr(contains("[DEBUG] Remapping http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse"))
+        // It is debugged when URL redirections are followed
+        .stderr(contains("[DEBUG] Following redirect to https://rust-lang.org/lycheeverse"));
     }
 
     #[test]
