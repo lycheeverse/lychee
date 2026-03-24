@@ -36,6 +36,7 @@ pub struct Collector {
     headers: HeaderMap,
     client: Client,
     preprocessor: Option<Preprocessor>,
+    user_agent: Option<String>,
 }
 
 impl Default for Collector {
@@ -60,6 +61,7 @@ impl Default for Collector {
             client: Client::new(),
             excluded_paths: PathExcludes::empty(),
             preprocessor: None,
+            user_agent: None,
         }
     }
 }
@@ -114,6 +116,7 @@ impl Collector {
             excluded_paths: PathExcludes::empty(),
             root_dir,
             base,
+            user_agent: None,
         })
     }
 
@@ -149,6 +152,13 @@ impl Collector {
     #[must_use]
     pub fn client(mut self, client: Client) -> Self {
         self.client = client;
+        self
+    }
+
+    /// Set the user agent to use when fetching remote input URLs
+    #[must_use]
+    pub fn user_agent(mut self, user_agent: String) -> Self {
+        self.user_agent = Some(user_agent);
         self
     }
 
@@ -225,10 +235,19 @@ impl Collector {
         let global_base = self.base;
         let excluded_paths = self.excluded_paths;
 
+        let resolver_client = if let Some(ref ua) = self.user_agent {
+            Client::builder()
+                .user_agent(ua.as_str())
+                .build()
+                .unwrap_or(self.client)
+        } else {
+            self.client
+        };
+
         let resolver = UrlContentResolver {
             basic_auth_extractor: self.basic_auth_extractor.clone(),
             headers: self.headers.clone(),
-            client: self.client,
+            client: resolver_client,
         };
 
         let extractor = Extractor::new(
@@ -597,6 +616,42 @@ mod tests {
         let expected_links = HashSet::from_iter([mail!("user@example.com")]);
 
         assert_eq!(links, expected_links);
+    }
+
+    #[tokio::test]
+    async fn test_user_agent_is_sent_for_remote_input_url() {
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/"))
+            .and(header("user-agent", "test-agent/1.0"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(r#"<a href="https://example.com">Link</a>"#),
+            )
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let url = Url::parse(&mock_server.uri()).unwrap();
+        let inputs = HashSet::from_iter([Input {
+            source: InputSource::RemoteUrl(Box::new(url)),
+            file_type_hint: Some(FileType::Html),
+        }]);
+
+        let links = Collector::new(None, BaseInfo::none())
+            .unwrap()
+            .user_agent("test-agent/1.0".to_string())
+            .collect_links_from_file_types(inputs, FileExtensions::default())
+            .map(|r| r.unwrap().uri)
+            .collect::<HashSet<_>>()
+            .await;
+
+        assert!(links.iter().any(|u| u.url.as_str().contains("example.com")));
+        // wiremock will panic here if the expected request was not received
     }
 
     #[tokio::test]
