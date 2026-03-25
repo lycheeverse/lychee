@@ -50,10 +50,8 @@ fn junit_testcases(stats: ResponseStats) -> Vec<TestCase> {
     let skipped = junit_testcases_group(stats.excluded_map, TestCaseStatus::skipped(), "Excluded");
     let successes =
         junit_testcases_group(stats.success_map, TestCaseStatus::success(), "Successful");
-    let redirected =
-        junit_testcases_group(stats.redirect_map, TestCaseStatus::success(), "Redirected");
 
-    [failures, skipped, successes, redirected].concat()
+    [failures, skipped, successes].concat()
 }
 
 fn junit_testcases_group(
@@ -110,8 +108,8 @@ mod tests {
         assert_eq!(
             result,
             r#"<?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="lychee link check results" tests="4" failures="1" errors="0">
-    <testsuite name="lychee link check results" tests="4" disabled="1" errors="0" failures="1">
+<testsuites name="lychee link check results" tests="3" failures="1" errors="0">
+    <testsuite name="lychee link check results" tests="3" disabled="1" errors="0" failures="1">
         <testcase name="Failed https://github.com/mre/idiomatic-rust-doesnt-exist-man" time="1.000" file="https://example.com/" line="1">
             <failure message="https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found"/>
             <system-out>https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found</system-out>
@@ -122,9 +120,6 @@ mod tests {
         </testcase>
         <testcase name="Successful https://success.org/" time="1.000" file="https://example.com/">
             <system-out>https://success.org/</system-out>
-        </testcase>
-        <testcase name="Redirected https://redirected.dev/" time="1.000" file="https://example.com/" line="1">
-            <system-out>https://redirected.dev/ (at 1:1) | 200 OK | Followed 2 redirects. Redirects: https://1.dev/ --[308]--&gt; https://2.dev/ --[308]--&gt; http://redirected.dev/</system-out>
         </testcase>
     </testsuite>
 </testsuites>

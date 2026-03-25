@@ -161,15 +161,7 @@ fn get_dummy_stats() -> OutputStats {
         code: StatusCode::PERMANENT_REDIRECT,
     });
 
-    let redirect_map = HashMap::from([(
-        source.clone(),
-        HashSet::from([ResponseBody {
-            uri: "https://redirected.dev".try_into().unwrap(),
-            status: Status::Redirected(Box::new(Status::Ok(StatusCode::OK)), redirects),
-            span: SPAN,
-            duration: DURATION,
-        }]),
-    )]);
+    let redirect_map = HashMap::from([(source.clone(), HashSet::from([redirects]))]);
 
     let response_stats = ResponseStats {
         total: 2,

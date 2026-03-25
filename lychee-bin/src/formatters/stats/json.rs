@@ -84,32 +84,17 @@ mod tests {
   "redirect_map": {
     "https://example.com/": [
       {
-        "url": "https://redirected.dev/",
-        "status": {
-          "text": "200 OK",
-          "code": 200,
-          "redirects": {
-            "origin": "https://1.dev/",
-            "redirects": [
-              {
-                "url": "https://2.dev/",
-                "code": 308
-              },
-              {
-                "url": "http://redirected.dev/",
-                "code": 308
-              }
-            ]
+        "origin": "https://1.dev/",
+        "redirects": [
+          {
+            "url": "https://2.dev/",
+            "code": 308
+          },
+          {
+            "url": "http://redirected.dev/",
+            "code": 308
           }
-        },
-        "span": {
-          "line": 1,
-          "column": 1
-        },
-        "duration": {
-          "secs": 1,
-          "nanos": 0
-        }
+        ]
       }
     ]
   },
