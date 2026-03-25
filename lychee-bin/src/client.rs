@@ -1,4 +1,4 @@
-use crate::options::{Config, HeaderMapExt};
+use crate::config::{Config, HeaderMapExt};
 use crate::parse::parse_remaps;
 use anyhow::{Context, Result};
 use http::{HeaderMap, StatusCode};
