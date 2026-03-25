@@ -1563,7 +1563,7 @@ The config file should contain every possible key for documentation purposes."
                 "[IGNORED] {unsupported_url} (at 1:1) | Unsupported: Failed to create HTTP request client: builder error for url (slack://user)"
             )))
             .stderr(contains(format!(
-                "[EXCLUDED] {excluded_url} (at 2:1) | This is due to your 'exclude' and 'include' values\n"
+                "[EXCLUDED] {excluded_url} (at 2:1) | This is due to your 'exclude' values\n"
             )));
 
         // The cache file should be empty, because the only checked URL is
