@@ -30,11 +30,16 @@ use crate::{ErrorKind, Result};
 /// This abstraction exists, because [`Response`] cannot easily be cached
 /// since it does not implement [`Clone`].
 #[derive(Debug, Clone)]
-pub(crate) struct CacheableResponse {
-    pub(crate) status: reqwest::StatusCode,
-    pub(crate) text: Option<String>,
-    pub(crate) headers: HeaderMap,
-    pub(crate) url: Url,
+pub struct CacheableResponse {
+    /// HTTP status code of the response.
+    pub status: reqwest::StatusCode,
+    /// Response body text. Only populated when `needs_body` was `true` in
+    /// [`HostPool::execute_request`].
+    pub text: Option<String>,
+    /// Response headers.
+    pub headers: HeaderMap,
+    /// Final URL after any redirects.
+    pub url: Url,
 }
 
 impl CacheableResponse {

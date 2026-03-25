@@ -1,7 +1,7 @@
 use crate::ErrorKind;
 use crate::Preprocessor;
 use crate::filter::PathExcludes;
-
+use crate::ratelimit::HostPool;
 use crate::types::resolver::UrlContentResolver;
 use crate::{
     BaseInfo, Input, LycheeResult, Request, RequestError, basic_auth::BasicAuthExtractor,
@@ -14,9 +14,9 @@ use futures::{
 };
 use http::HeaderMap;
 use par_stream::ParStreamExt;
-use reqwest::Client;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -33,8 +33,16 @@ pub struct Collector {
     root_dir: Option<PathBuf>,
     base: BaseInfo,
     excluded_paths: PathExcludes,
+    /// Custom headers forwarded to the resolver for remote input fetches.
+    /// Note: when a `host_pool` is set, per-host headers configured there
+    /// take precedence over these global headers for known hosts.
     headers: HeaderMap,
-    client: Client,
+    /// Shared host pool used to fetch remote input documents.
+    ///
+    /// Using the same pool as the link checker means that input URL fetches
+    /// use the configured user-agent, TLS settings, cookies, per-host rate
+    /// limits, and custom headers.
+    host_pool: Arc<HostPool>,
     preprocessor: Option<Preprocessor>,
 }
 
@@ -57,7 +65,7 @@ impl Default for Collector {
             root_dir: None,
             base: BaseInfo::none(),
             headers: HeaderMap::new(),
-            client: Client::new(),
+            host_pool: Arc::new(HostPool::default()),
             excluded_paths: PathExcludes::empty(),
             preprocessor: None,
         }
@@ -108,9 +116,7 @@ impl Collector {
             skip_ignored: true,
             preprocessor: None,
             headers: HeaderMap::new(),
-            client: Client::builder()
-                .build()
-                .map_err(ErrorKind::BuildRequestClient)?,
+            host_pool: Arc::new(HostPool::default()),
             excluded_paths: PathExcludes::empty(),
             root_dir,
             base,
@@ -145,10 +151,20 @@ impl Collector {
         self
     }
 
-    /// Set client to use for checking input URLs
+    /// Set the [`HostPool`] to use when fetching remote input URLs.
+    ///
+    /// Pass the pool from a fully-configured [`crate::Client`] so that input
+    /// fetches share the same user-agent, TLS settings, cookies, per-host
+    /// rate limits and headers as regular link checks:
+    ///
+    /// ```ignore
+    /// let lychee_client = ClientBuilder::builder()…build().client()?;
+    /// let collector = Collector::new(…)?
+    ///     .host_pool(lychee_client.host_pool());
+    /// ```
     #[must_use]
-    pub fn client(mut self, client: Client) -> Self {
-        self.client = client;
+    pub fn host_pool(mut self, host_pool: Arc<HostPool>) -> Self {
+        self.host_pool = host_pool;
         self
     }
 
@@ -228,7 +244,7 @@ impl Collector {
         let resolver = UrlContentResolver {
             basic_auth_extractor: self.basic_auth_extractor.clone(),
             headers: self.headers.clone(),
-            client: self.client,
+            host_pool: self.host_pool,
         };
 
         let extractor = Extractor::new(
