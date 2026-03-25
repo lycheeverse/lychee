@@ -3,8 +3,8 @@ use log::LevelFilter;
 use std::io::Write;
 
 use crate::{
+    config::OutputMode,
     formatters::{self, response::MAX_RESPONSE_OUTPUT_WIDTH},
-    options::OutputMode,
     verbosity::Verbosity,
 };
 

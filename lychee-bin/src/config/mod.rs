@@ -1,15 +1,28 @@
+//! Configuration for lychee.
+//!
+//! This module contains the structs and types for representing the lychee CLI
+//! options and the underlying file-based configuration.
+//!
+//! Submodules define components like header parsing, specific config file
+//! loaders (e.g. `lychee.toml`, `Cargo.toml`), and output formatting.
+
+pub(crate) mod header;
+pub(crate) mod loaders;
+pub(crate) mod output;
+pub(crate) mod tls;
+
+pub(crate) use header::*;
+pub(crate) use output::*;
+pub(crate) use tls::*;
+
 use crate::files_from::FilesFrom;
 use crate::generate::GenerateMode;
 use crate::parse::parse_base_info;
 use crate::verbosity::Verbosity;
-use anyhow::{Context, Error, Result, anyhow};
-use clap::builder::PossibleValuesParser;
-use clap::{Parser, builder::TypedValueParser};
+use anyhow::{Context, Result, anyhow};
+use clap::Parser;
+use clap::builder::{PossibleValuesParser, TypedValueParser};
 use const_format::formatcp;
-use http::{
-    HeaderMap,
-    header::{HeaderName, HeaderValue},
-};
 use lychee_lib::ratelimit::HostConfigs;
 use lychee_lib::{
     BaseInfo, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
@@ -17,22 +30,18 @@ use lychee_lib::{
     StatusCodeSelector, archive::Archive,
 };
 use lychee_lib::{DEFAULT_USER_AGENT, Preprocessor};
-use reqwest::tls;
 use secrecy::SecretString;
 use serde::{Deserialize, Deserializer};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::{fs, path::PathBuf, str::FromStr, time::Duration};
-use strum::{Display, EnumIter, EnumString, VariantNames};
+use std::{path::PathBuf, time::Duration};
+use strum::VariantNames;
 
 pub(crate) const LYCHEE_IGNORE_FILE: &str = ".lycheeignore";
 pub(crate) const LYCHEE_CACHE_FILE: &str = ".lycheecache";
-pub(crate) const LYCHEE_CONFIG_FILE: &str = "lychee.toml";
 
-const HELP_MSG_CACHE: &str = formatcp!(
-    "Use request cache stored on disk at `{}`",
-    LYCHEE_CACHE_FILE,
-);
+const HELP_MSG_CACHE: &str = formatcp!("Use request cache stored on disk at `{LYCHEE_CACHE_FILE}`");
+
 // We use a custom help message here because we want to show the default
 // value of the config file, but also be able to check if the user has
 // provided a custom value. If they didn't, we won't throw an error if
@@ -44,223 +53,8 @@ If given multiple times, the configs are merged and later
 occurrences take precedence over previous occurrences.
 
 [default: {}]",
-    LYCHEE_CONFIG_FILE,
+    loaders::lychee_toml::LYCHEE_CONFIG_FILE
 );
-#[derive(
-    Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq, Eq,
-)]
-#[non_exhaustive]
-pub(crate) enum TlsVersion {
-    #[serde(rename = "TLSv1_0")]
-    #[strum(serialize = "TLSv1_0")]
-    V1_0,
-    #[serde(rename = "TLSv1_1")]
-    #[strum(serialize = "TLSv1_1")]
-    V1_1,
-    #[serde(rename = "TLSv1_2")]
-    #[strum(serialize = "TLSv1_2")]
-    #[default]
-    V1_2,
-    #[serde(rename = "TLSv1_3")]
-    #[strum(serialize = "TLSv1_3")]
-    V1_3,
-}
-impl From<TlsVersion> for tls::Version {
-    fn from(ver: TlsVersion) -> Self {
-        match ver {
-            TlsVersion::V1_0 => tls::Version::TLS_1_0,
-            TlsVersion::V1_1 => tls::Version::TLS_1_1,
-            TlsVersion::V1_2 => tls::Version::TLS_1_2,
-            TlsVersion::V1_3 => tls::Version::TLS_1_3,
-        }
-    }
-}
-
-/// The format to use for the final status report
-#[derive(Debug, Deserialize, Default, Clone, Display, EnumIter, VariantNames, PartialEq)]
-#[non_exhaustive]
-#[strum(serialize_all = "snake_case")]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum StatsFormat {
-    #[default]
-    Compact,
-    Detailed,
-    Json,
-    Junit,
-    Markdown,
-}
-
-impl FromStr for StatsFormat {
-    type Err = Error;
-
-    fn from_str(format: &str) -> Result<Self, Self::Err> {
-        match format.to_lowercase().as_str() {
-            "compact" | "string" => Ok(StatsFormat::Compact),
-            "detailed" => Ok(StatsFormat::Detailed),
-            "json" => Ok(StatsFormat::Json),
-            "junit" => Ok(StatsFormat::Junit),
-            "markdown" | "md" => Ok(StatsFormat::Markdown),
-            _ => Err(anyhow!("Unknown format {format}")),
-        }
-    }
-}
-
-/// The different formatter modes
-///
-/// This decides over whether to use color,
-/// emojis, or plain text for the output.
-#[derive(
-    Debug, Deserialize, Default, Clone, Display, EnumIter, EnumString, VariantNames, PartialEq,
-)]
-#[non_exhaustive]
-pub(crate) enum OutputMode {
-    /// Plain text output.
-    ///
-    /// This is the most basic output mode for terminals that do not support
-    /// color or emojis. It can also be helpful for scripting or when you want
-    /// to pipe the output to another program.
-    #[serde(rename = "plain")]
-    #[strum(serialize = "plain", ascii_case_insensitive)]
-    Plain,
-
-    /// Colorful output.
-    ///
-    /// This mode uses colors to highlight the status of the requests.
-    /// It is useful for terminals that support colors and you want to
-    /// provide a more visually appealing output.
-    ///
-    /// This is the default output mode.
-    #[serde(rename = "color")]
-    #[strum(serialize = "color", ascii_case_insensitive)]
-    #[default]
-    Color,
-
-    /// Emoji output.
-    ///
-    /// This mode uses emojis to represent the status of the requests.
-    /// Some people may find this mode more intuitive and fun to use.
-    #[serde(rename = "emoji")]
-    #[strum(serialize = "emoji", ascii_case_insensitive)]
-    Emoji,
-
-    /// Task output.
-    ///
-    /// This mode uses Markdown-styled checkboxes to represent the status of the requests.
-    /// Some people may find this mode more intuitive and useful for task tracking.
-    #[serde(rename = "task")]
-    #[strum(serialize = "task", ascii_case_insensitive)]
-    Task,
-}
-
-impl OutputMode {
-    /// Returns `true` if the response format is `Plain`
-    pub(crate) const fn is_plain(&self) -> bool {
-        matches!(self, OutputMode::Plain)
-    }
-
-    /// Returns `true` if the response format is `Emoji`
-    pub(crate) const fn is_emoji(&self) -> bool {
-        matches!(self, OutputMode::Emoji)
-    }
-}
-
-/// Parse a single header into a [`HeaderName`] and [`HeaderValue`]
-///
-/// Headers are expected to be in format `Header-Name: Header-Value`.
-/// The header name and value are trimmed of whitespace.
-///
-/// If the header contains multiple colons, the part after the first colon is
-/// considered the value.
-///
-/// # Errors
-///
-/// This fails if the header does not contain exactly one `:` character or
-/// if the header name contains non-ASCII characters.
-fn parse_single_header(header: &str) -> Result<(HeaderName, HeaderValue)> {
-    let parts: Vec<&str> = header.splitn(2, ':').collect();
-    match parts.as_slice() {
-        [name, value] => {
-            let name = name.trim();
-            let name = HeaderName::from_str(name)
-                .map_err(|e| anyhow!("Unable to convert header name '{name}': {e}"))?;
-            let value = HeaderValue::from_str(value.trim())
-                .map_err(|e| anyhow!("Unable to read value of header with name '{name}': {e}"))?;
-            Ok((name, value))
-        }
-        _ => Err(anyhow!(
-            "Invalid header format. Expected colon-separated string in the format 'HeaderName: HeaderValue'"
-        )),
-    }
-}
-
-/// Parses a single HTTP header into a tuple of (String, String)
-///
-/// This does NOT merge multiple headers into one.
-#[derive(Clone, Debug)]
-struct HeaderParser;
-
-impl TypedValueParser for HeaderParser {
-    type Value = (String, String);
-
-    fn parse_ref(
-        &self,
-        _cmd: &clap::Command,
-        _arg: Option<&clap::Arg>,
-        value: &std::ffi::OsStr,
-    ) -> Result<Self::Value, clap::Error> {
-        let header_str = value.to_str().ok_or_else(|| {
-            clap::Error::raw(
-                clap::error::ErrorKind::InvalidValue,
-                "Header value contains invalid UTF-8",
-            )
-        })?;
-
-        match parse_single_header(header_str) {
-            Ok((name, value)) => {
-                let Ok(value) = value.to_str() else {
-                    return Err(clap::Error::raw(
-                        clap::error::ErrorKind::InvalidValue,
-                        "Header value contains invalid UTF-8",
-                    ));
-                };
-
-                Ok((name.to_string(), value.to_string()))
-            }
-            Err(e) => Err(clap::Error::raw(
-                clap::error::ErrorKind::InvalidValue,
-                e.to_string(),
-            )),
-        }
-    }
-}
-
-impl clap::builder::ValueParserFactory for HeaderParser {
-    type Parser = HeaderParser;
-    fn value_parser() -> Self::Parser {
-        HeaderParser
-    }
-}
-
-/// Extension trait for converting a Vec of header pairs to a `HeaderMap`
-pub(crate) trait HeaderMapExt {
-    /// Convert a collection of header key-value pairs to a `HeaderMap`
-    fn from_header_pairs(headers: &HashMap<String, String>) -> Result<HeaderMap, Error>;
-}
-
-impl HeaderMapExt for HeaderMap {
-    fn from_header_pairs(headers: &HashMap<String, String>) -> Result<HeaderMap, Error> {
-        let mut header_map = HeaderMap::new();
-        for (name, value) in headers {
-            let header_name = HeaderName::from_bytes(name.as_bytes())
-                .map_err(|e| anyhow!("Invalid header name '{name}': {e}"))?;
-            let header_value = HeaderValue::from_str(value)
-                .map_err(|e| anyhow!("Invalid header value '{value}': {e}"))?;
-            header_map.insert(header_name, header_value);
-        }
-        Ok(header_map)
-    }
-}
-
 /// lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses
 /// in local files and websites. It supports Markdown and HTML and works with other file formats.
 ///
@@ -855,47 +649,54 @@ impl Config {
     }
 
     fn load_from_file(path: &Path) -> Result<Config> {
-        // Read configuration file
-        let contents = fs::read_to_string(path)?;
-        toml::from_str(&contents).with_context(|| "Failed to parse configuration file")
+        loaders::load_from_file(path)
     }
 
+    /// Request timeout
     pub(crate) fn timeout(&self) -> Duration {
         let seconds = self.timeout.unwrap_or(DEFAULT_TIMEOUT_SECS);
         Duration::from_secs(seconds)
     }
 
+    /// Minimum wait time between retries of failed requests
     pub(crate) fn retry_wait_time(&self) -> Duration {
         let seconds = self.retry_wait_time.unwrap_or(DEFAULT_RETRY_WAIT_TIME_SECS);
         Duration::from_secs(seconds)
     }
 
+    /// HTTP method used for requests
     pub(crate) fn method(&self) -> String {
         let default_method: String = "get".into();
         self.method.clone().unwrap_or(default_method)
     }
 
+    /// Maximum age of cache entries
     pub(crate) fn max_cache_age(&self) -> std::time::Duration {
         const DEFAULT_MAX_CACHE_AGE: Duration = Duration::from_secs(60 * 60 * 24); // one day
         self.max_cache_age.unwrap_or(DEFAULT_MAX_CACHE_AGE)
     }
 
+    /// Level of verbosity for the output
     pub(crate) fn verbose(&self) -> Verbosity {
         self.verbose.clone().unwrap_or_default()
     }
 
+    /// Selected file extensions to check
     pub(crate) fn extensions(&self) -> FileExtensions {
         self.extensions.clone().unwrap_or_default()
     }
 
+    /// Archive to use for fallback
     pub(crate) fn archive(&self) -> Archive {
         self.archive.clone().unwrap_or_default()
     }
 
+    /// Mode to use for formatting the output
     pub(crate) fn mode(&self) -> OutputMode {
         self.mode.clone().unwrap_or_default()
     }
 
+    /// Format to use for the output report
     pub(crate) fn format(&self) -> StatsFormat {
         self.format.clone().unwrap_or_default()
     }
@@ -904,37 +705,44 @@ impl Config {
         self.max_concurrency = Some(concurrency);
     }
 
+    /// Maximum number of concurrent network requests
     pub(crate) fn max_concurrency(&self) -> usize {
         const DEFAULT_MAX_CONCURRENCY: usize = 128;
         self.max_concurrency.unwrap_or(DEFAULT_MAX_CONCURRENCY)
     }
 
+    /// Maximum number of allowed redirects
     pub(crate) fn max_redirects(&self) -> usize {
         self.max_redirects.unwrap_or(DEFAULT_MAX_REDIRECTS)
     }
 
+    /// Maximum number of retries per request
     pub(crate) fn max_retries(&self) -> u64 {
         self.max_retries.unwrap_or(DEFAULT_MAX_RETRIES)
     }
 
+    /// User agent used for requests
     pub(crate) fn user_agent(&self) -> String {
         self.user_agent
             .clone()
             .unwrap_or(DEFAULT_USER_AGENT.to_string())
     }
 
+    /// Status codes that shouldn't be cached
     pub(crate) fn cache_exclude_status(&self) -> StatusCodeSelector {
         self.cache_exclude_status
             .clone()
             .unwrap_or(StatusCodeSelector::empty())
     }
 
+    /// Status codes that are considered successful
     pub(crate) fn accept(&self) -> StatusCodeSelector {
         self.accept
             .clone()
             .unwrap_or(StatusCodeSelector::default_accepted())
     }
 
+    /// Custom headers to send with requests
     pub(crate) fn headers(&self) -> HashMap<String, String> {
         self.header.iter().cloned().collect()
     }
@@ -1041,8 +849,10 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::fs;
 
     use clap::{CommandFactory, FromArgMatches};
+    use http::HeaderMap;
     use lychee_lib::ratelimit::{HostConfig, HostKey};
     use regex::Regex;
 
@@ -1169,51 +979,6 @@ This convention also simplifies our default value testing."
     }
 
     #[test]
-    fn test_parse_custom_headers() {
-        assert_eq!(
-            parse_single_header("accept:text/html").unwrap(),
-            (
-                HeaderName::from_static("accept"),
-                HeaderValue::from_static("text/html")
-            )
-        );
-    }
-
-    #[test]
-    fn test_parse_custom_header_multiple_colons() {
-        assert_eq!(
-            parse_single_header("key:x-test:check=this").unwrap(),
-            (
-                HeaderName::from_static("key"),
-                HeaderValue::from_static("x-test:check=this")
-            )
-        );
-    }
-
-    #[test]
-    fn test_parse_custom_headers_with_equals() {
-        assert_eq!(
-            parse_single_header("key:x-test=check=this").unwrap(),
-            (
-                HeaderName::from_static("key"),
-                HeaderValue::from_static("x-test=check=this")
-            )
-        );
-    }
-
-    #[test]
-    /// We should not reveal potentially sensitive data contained in the headers.
-    /// See: [#1297](https://github.com/lycheeverse/lychee/issues/1297)
-    fn test_does_not_echo_sensitive_data() {
-        let error = parse_single_header("My-Header💣: secret")
-            .expect_err("Should not allow unicode as key");
-        assert!(!error.to_string().contains("secret"));
-
-        let error = parse_single_header("secret").expect_err("Should fail when no `:` given");
-        assert!(!error.to_string().contains("secret"));
-    }
-
-    #[test]
     fn test_header_parsing_and_merging() {
         // Simulate commandline arguments with multiple headers
         let args = vec![
@@ -1319,7 +1084,7 @@ This convention also simplifies our default value testing."
     }
 
     fn read_this_source_file() -> String {
-        fs::read_to_string("./src/options.rs")
+        fs::read_to_string("./src/config/mod.rs")
             .expect("Unable to read this source code file to string")
     }
 
