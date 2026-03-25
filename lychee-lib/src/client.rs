@@ -533,40 +533,31 @@ impl Client {
         ErrorKind: From<E>,
     {
         let Request {
-            ref mut uri,
+            mut uri,
             credentials,
             source,
             span,
             ..
         } = request.try_into()?;
 
-        let remapping = self.remap(uri)?;
-
-        if self.is_excluded(uri) {
-            return Ok(Response::new(
-                uri.clone(),
-                Status::Excluded,
-                source.into(),
-                span,
-                None,
-            ));
-        }
-
         let start = std::time::Instant::now(); // Measure check time
+        let remapping = self.remap(&mut uri)?;
 
-        let mut status = match uri.scheme() {
+        let status = match uri.scheme() {
+            _ if self.is_excluded(&uri) => Status::Excluded,
             _ if uri.is_tel() => Status::Excluded, // We don't check tel: URIs
-            _ if uri.is_file() => self.check_file(uri).await,
-            _ if uri.is_mail() => self.check_mail(uri).await,
-            _ => self.check_website(uri, credentials).await?,
+            _ if uri.is_file() => self.check_file(&uri).await,
+            _ if uri.is_mail() => self.check_mail(&uri).await,
+            _ => self.check_website(&uri, credentials).await?,
         };
 
-        if let Some(remapping) = remapping {
-            status = Status::Remapped(Box::new(status), remapping);
-        }
+        let status = match remapping {
+            Some(remapping) => Status::Remapped(Box::new(status), remapping),
+            None => status,
+        };
 
         Ok(Response::new(
-            uri.clone(),
+            uri,
             status,
             source.into(),
             span,

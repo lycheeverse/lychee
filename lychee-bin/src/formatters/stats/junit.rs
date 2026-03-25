@@ -117,8 +117,8 @@ mod tests {
             <system-out>https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found</system-out>
         </testcase>
         <testcase name="Excluded https://excluded.org/" time="0.042" file="https://example.com/">
-            <skipped message="https://excluded.org/ | This is due to your &apos;exclude&apos; and &apos;include&apos; values"/>
-            <system-out>https://excluded.org/ | This is due to your &apos;exclude&apos; and &apos;include&apos; values</system-out>
+            <skipped message="https://excluded.org/ | This is due to your &apos;exclude&apos; values"/>
+            <system-out>https://excluded.org/ | This is due to your &apos;exclude&apos; values</system-out>
         </testcase>
         <testcase name="Successful https://success.org/" time="1.000" file="https://example.com/">
             <system-out>https://success.org/</system-out>

@@ -161,7 +161,7 @@ impl Status {
             Status::RequestError(e) => e.error().details(),
             Status::UnknownMailStatus(reason) => reason.clone(),
             Status::Timeout(_) => "Request timed out".into(),
-            Status::Excluded => "This is due to your 'exclude' and 'include' values".into(),
+            Status::Excluded => "This is due to your 'exclude' values".into(),
             Status::Unsupported(_) | Status::Cached(_) | Status::UnknownStatusCode(_) => {
                 self.to_string()
             }
