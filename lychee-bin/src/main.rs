@@ -59,7 +59,7 @@
 #![deny(missing_docs)]
 
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, ErrorKind, IsTerminal};
+use std::io::{self, BufRead, BufReader, ErrorKind, IsTerminal, stdin};
 use std::path::PathBuf;
 
 use anyhow::{Context, Error, Result};
@@ -311,11 +311,11 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     //
     // When stdin is piped (`cat links.txt | lychee -`), `is_terminal()` returns
     // false, so the progress bar is shown normally.
-    let stdin_input = inputs.len() == 1
+    let is_stdin_input = inputs.len() == 1
         && inputs
             .iter()
             .any(|input| matches!(input.source, lychee_lib::InputSource::Stdin))
-        && std::io::stdin().is_terminal();
+        && stdin().is_terminal();
 
     // TODO: Remove this section after `--base` got removed with 1.0
     let base = match (opts.config.base.clone(), opts.config.base_url.clone()) {
@@ -384,7 +384,7 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         cache,
         requests,
         cfg: opts.config.clone(),
-        stdin_input,
+        is_stdin_input,
     };
 
     let exit_code = if opts.config.dump {
