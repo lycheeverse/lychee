@@ -80,11 +80,12 @@ mod cli {
 
     /// Parse lychee's json output to [`Value`].
     /// Additionally remove the non-deterministic duration to simplify subsequent assertions
-    fn stdout_to_json(stdout: &[u8]) -> Result<Value> {
-        let mut output_json = serde_json::from_slice::<Value>(stdout)?;
+    fn stdout_to_json(stdout: &[u8]) -> Value {
+        let mut output_json =
+            serde_json::from_slice::<Value>(stdout).expect("stdout is not valid JSON");
         remove_nondeterministic_duration(&mut output_json["success_map"]);
-        remove_nondeterministic_duration(&mut output_json["redirect_map"]);
-        return Ok(output_json);
+        remove_nondeterministic_duration(&mut output_json["excluded_map"]);
+        return output_json;
 
         fn remove_nondeterministic_duration(value: &mut Value) {
             let map = value.as_object_mut().expect("Expected object");
@@ -197,7 +198,7 @@ mod cli {
             .assert()
             .success();
         let output = cmd.output().unwrap();
-        let output_json = stdout_to_json(&output.stdout)?;
+        let output_json = stdout_to_json(&output.stdout);
 
         // Check that the output is valid JSON
         assert!(output_json.is_object());
@@ -257,7 +258,7 @@ mod cli {
         let output = cmd.output()?;
 
         // Check that the output is valid JSON
-        stdout_to_json(&output.stdout)?;
+        stdout_to_json(&output.stdout);
         Ok(())
     }
 
@@ -276,7 +277,7 @@ mod cli {
         let output = cmd.output()?;
 
         // Parse site error status from the error_map
-        let output_json = stdout_to_json(&output.stdout)?;
+        let output_json = stdout_to_json(&output.stdout);
         let site_error_status =
             &output_json["error_map"][&test_path.to_str().unwrap()][0]["status"];
 
@@ -901,9 +902,8 @@ mod cli {
 
     /// Test excludes
     #[test]
-    fn test_exclude_wildcard() -> Result<()> {
+    fn test_exclude_wildcard() {
         let test_path = fixtures_path!().join("TEST.md");
-
         cargo_bin_cmd!()
             .arg(test_path)
             .arg("--exclude")
@@ -911,14 +911,11 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("12 Excluded"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_exclude_multiple_urls() -> Result<()> {
+    fn test_exclude_multiple_urls() {
         let test_path = fixtures_path!().join("TEST.md");
-
         cargo_bin_cmd!()
             .arg(test_path)
             .arg("--exclude")
@@ -928,8 +925,6 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("4 Excluded"));
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -1918,7 +1913,7 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[test]
-    fn test_erroneous_remap_with_redirect_real_world() {
+    fn test_erroneous_remap_with_redirect() {
         cargo_bin_cmd!()
             .arg("-vv")
             .arg("--remap")
@@ -1951,6 +1946,42 @@ The config file should contain every possible key for documentation purposes."
             .stderr(contains("Error checking URL https://example.com/: Cannot parse URL to URI: Error remapping URL: `The remapping pattern produced an invalid URL: invalid/`"))
             // The original URI is shown as root cause in stdout
             .stdout(contains("The given URI is invalid, check URI syntax: https://example.com/"));
+    }
+
+    #[test]
+    fn test_remap_to_excluded() {
+        let stdout = cargo_bin_cmd!()
+            .arg("--remap=aaa bbb")
+            .arg("--exclude=bbb")
+            .arg("--format=json")
+            .arg("-")
+            .write_stdin("https://aaa.com")
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        let json = stdout_to_json(&stdout);
+        assert_eq!(json["remaps"], 1);
+        assert_eq!(json["excludes"], 1);
+        assert_eq!(
+            json["excluded_map"],
+            json!({
+            "stdin": [
+              {
+                "url": "https://bbb.com/",
+                "status": {
+                  "text": "Excluded",
+                  "details": "This is due to your 'exclude' values | Remapped: https://aaa.com/ --> https://bbb.com/"
+                },
+                "span": {
+                  "line": 1,
+                  "column": 1
+                },
+              }
+            ]})
+        );
     }
 
     #[test]
@@ -2579,7 +2610,8 @@ The config file should contain every possible key for documentation purposes."
             assert_eq!(json["total"], 1);
             assert_eq!(json["redirects"], 1); // there was one redirect
             assert_eq!(json["successful"], 1); // which resolved to a success
-            assert_eq!(json["redirect_map"], json!({}));
+            assert_eq!(json["redirect_map"], json!({})); // suppressed in non-verbose mode
+            assert_eq!(json["success_map"], json!({})); // suppressed in non-verbose mode
         })
         .await;
 
@@ -2591,6 +2623,17 @@ The config file should contain every possible key for documentation purposes."
             assert_eq!(json["redirects"], 1);
             assert_eq!(
                 json["redirect_map"],
+                json!({
+                "stdin":[{
+                    "origin": redirect_url,
+                    "redirects": [{
+                        "code": 308,
+                        "url": ok_url,
+                    }]
+                }]})
+            );
+            assert_eq!(
+                json["success_map"],
                 json!({
                 "stdin":[{
                     "span": {
@@ -2635,7 +2678,7 @@ The config file should contain every possible key for documentation purposes."
 
             let stderr = str::from_utf8(&output.stderr).unwrap().to_string();
 
-            (stdout_to_json(&output.stdout).unwrap(), stderr)
+            (stdout_to_json(&output.stdout), stderr)
         }
     }
 

@@ -155,7 +155,7 @@ https://original.dev/ --> https://suggestion.dev/
 
 
 Redirects in https://example.com/
-https://redirected.dev/ (at 1:1) | 200 OK | Followed 2 redirects. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
+https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 
 📊 Per-host Statistics

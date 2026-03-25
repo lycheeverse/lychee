@@ -229,12 +229,22 @@ impl Status {
         matches!(self.innermost(), Status::UnknownStatusCode(_))
     }
 
-    /// Extract the innermost [`Status`], handling nested variants.
+    /// Extract the innermost [`Status`], handling nested variants
     #[must_use]
     pub const fn innermost(&self) -> &Self {
         match self {
             Status::Redirected(inner, _) | Status::Remapped(inner, _) => inner.innermost(),
             other => other,
+        }
+    }
+
+    /// Extract (potentially nested) [`Redirects`]
+    #[must_use]
+    pub const fn redirects(&self) -> Option<&Redirects> {
+        match self {
+            Status::Remapped(inner, _) => inner.redirects(),
+            Status::Redirected(_, redirects) => Some(redirects),
+            _ => None,
         }
     }
 

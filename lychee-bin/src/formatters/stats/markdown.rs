@@ -120,15 +120,12 @@ impl Display for MarkdownResponseStats {
             markdown_response(response).map_err(|_| fmt::Error)
         })?;
 
-        write_stats_per_input(f, "Redirects", &stats.redirect_map, |response| {
-            markdown_response(response).map_err(|_| fmt::Error)
+        write_stats_per_input(f, "Redirects", &stats.redirect_map, |redirects| {
+            Ok(format!("* {redirects}"))
         })?;
 
         write_stats_per_input(f, "Suggestions", &stats.suggestion_map, |suggestion| {
-            Ok(format!(
-                "* {} --> {}",
-                suggestion.original, suggestion.suggestion
-            ))
+            Ok(format!("* {suggestion}"))
         })?;
 
         Ok(())
@@ -290,7 +287,7 @@ mod tests {
 
 ### Redirects in https://example.com/
 
-* [200] <https://redirected.dev/> (at 1:1) | 200 OK | Followed 2 redirects. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
+* https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 ## Suggestions per input
 
