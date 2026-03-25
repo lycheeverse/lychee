@@ -93,24 +93,6 @@ impl Serialize for Status {
     }
 }
 
-/// Check if a given [`Status`] matches the given pattern.
-/// This correctly handles nesting.
-macro_rules! status_matches {
-    ($self:expr, $pattern:pat) => {{
-        // Cannot use recursion at macro level, as macro expansion yields
-        // infinite recursion, hitting a recursion limit at compile time.
-        let mut current = $self;
-        loop {
-            match current {
-                Status::Redirected(inner, _) | Status::Remapped(inner, _) => {
-                    current = inner;
-                }
-                other => break matches!(other, $pattern),
-            }
-        }
-    }};
-}
-
 impl Status {
     /// Create a status object from a response and the set of accepted status codes
     #[must_use]
@@ -190,15 +172,18 @@ impl Status {
     #[inline]
     #[must_use]
     pub const fn is_success(&self) -> bool {
-        status_matches!(self, Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)))
+        matches!(
+            self.innermost(),
+            Status::Ok(_) | Status::Cached(CacheStatus::Ok(_))
+        )
     }
 
     /// Returns `true` if the check was not successful
     #[inline]
     #[must_use]
     pub const fn is_error(&self) -> bool {
-        status_matches!(
-            self,
+        matches!(
+            self.innermost(),
             Status::Error(_)
                 | Status::RequestError(_)
                 | Status::Cached(CacheStatus::Error(_))
@@ -210,8 +195,8 @@ impl Status {
     #[inline]
     #[must_use]
     pub const fn is_excluded(&self) -> bool {
-        status_matches!(
-            self,
+        matches!(
+            self.innermost(),
             Status::Excluded | Status::Cached(CacheStatus::Excluded)
         )
     }
@@ -220,15 +205,15 @@ impl Status {
     #[inline]
     #[must_use]
     pub const fn is_timeout(&self) -> bool {
-        status_matches!(self, Status::Timeout(_))
+        matches!(self.innermost(), Status::Timeout(_))
     }
 
     /// Returns `true` if a URI is unsupported
     #[inline]
     #[must_use]
     pub const fn is_unsupported(&self) -> bool {
-        status_matches!(
-            self,
+        matches!(
+            self.innermost(),
             Status::Unsupported(_) | Status::Cached(CacheStatus::Unsupported)
         )
     }
@@ -241,7 +226,16 @@ impl Status {
     #[inline]
     #[must_use]
     pub const fn is_unknown(&self) -> bool {
-        status_matches!(self, Status::UnknownStatusCode(_))
+        matches!(self.innermost(), Status::UnknownStatusCode(_))
+    }
+
+    /// Extract the innermost [`Status`], handling nested variants.
+    #[must_use]
+    pub const fn innermost(&self) -> &Self {
+        match self {
+            Status::Redirected(inner, _) | Status::Remapped(inner, _) => inner.innermost(),
+            other => other,
+        }
     }
 
     /// Return a unicode icon to visualize the status
