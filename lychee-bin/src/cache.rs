@@ -46,6 +46,10 @@ impl StoreExt for Cache {
             .has_headers(false)
             .from_path(path)?;
         for result in self {
+            // Do not serialize errors to disk. We always want to recheck failing links.
+            if matches!(result.value().status, CacheStatus::Error(_)) {
+                continue;
+            }
             wtr.serialize((result.key(), result.value()))?;
         }
         Ok(())
@@ -60,13 +64,21 @@ impl StoreExt for Cache {
             .has_headers(false)
             .from_path(path)?;
 
-        let map = DashMap::new();
+        let map = Cache::new();
         let current_ts = timestamp();
         for result in rdr.deserialize() {
             let (uri, value): (Uri, CacheValue) = result?;
             // Discard entries older than `max_age_secs`.
             // This allows gradually updating the cache over multiple runs.
             if current_ts - value.timestamp >= max_age_secs {
+                continue;
+            }
+
+            // Discard errors. Caching errors goes against typical CI workflows.
+            // If a link fails due to a network issue, a server outage, or if a previously
+            // failing link has been fixed, reading an error from the cache prevents lychee
+            // from realizing the link is now working.
+            if matches!(value.status, CacheStatus::Error(_)) {
                 continue;
             }
 
@@ -85,7 +97,6 @@ impl StoreExt for Cache {
 
 #[cfg(test)]
 mod tests {
-    use dashmap::DashMap;
     use http::StatusCode;
     use lychee_lib::{CacheStatus, StatusCodeSelector, StatusRange, Uri};
 
@@ -98,7 +109,7 @@ mod tests {
     fn test_excluded_status_not_reused_from_cache() {
         let uri: Uri = "https://example.com".try_into().unwrap();
 
-        let cache: Cache = DashMap::<Uri, CacheValue>::new();
+        let cache = Cache::new();
         cache.insert(
             uri.clone(),
             CacheValue {
@@ -115,5 +126,35 @@ mod tests {
 
         let cache = Cache::load(tmp.path(), u64::MAX, &excluder).unwrap();
         assert!(cache.get(&uri).is_none());
+    }
+
+    #[test]
+    fn test_errors_not_stored_in_cache() {
+        let uri: Uri = "https://example.com/error".try_into().unwrap();
+
+        let cache = Cache::new();
+        cache.insert(
+            uri.clone(),
+            CacheValue {
+                status: CacheStatus::Error(Some(StatusCode::INTERNAL_SERVER_ERROR)),
+                timestamp: timestamp(),
+            },
+        );
+        let uri_none: Uri = "https://example.com/none".try_into().unwrap();
+        cache.insert(
+            uri_none.clone(),
+            CacheValue {
+                status: CacheStatus::Error(None),
+                timestamp: timestamp(),
+            },
+        );
+
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        cache.store(tmp.path()).unwrap();
+
+        let excluder = StatusCodeSelector::empty();
+        let loaded_cache = Cache::load(tmp.path(), u64::MAX, &excluder).unwrap();
+        assert!(loaded_cache.get(&uri).is_none());
+        assert!(loaded_cache.get(&uri_none).is_none());
     }
 }
