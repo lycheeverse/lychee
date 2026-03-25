@@ -158,7 +158,7 @@ impl Collector {
     /// rate limits and headers as regular link checks:
     ///
     /// ```ignore
-    /// let lychee_client = ClientBuilder::builder()…build().client()?;
+    /// let lychee_client = ClientBuilder::builder().client()?;
     /// let collector = Collector::new(…)?
     ///     .host_pool(lychee_client.host_pool());
     /// ```
@@ -613,6 +613,48 @@ mod tests {
         let expected_links = HashSet::from_iter([mail!("user@example.com")]);
 
         assert_eq!(links, expected_links);
+    }
+
+    #[tokio::test]
+    async fn test_user_agent_is_sent_for_remote_input_url() {
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/"))
+            .and(header("user-agent", "test-agent/1.0"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(r#"<a href="https://example.com">Link</a>"#),
+            )
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let url = Url::parse(&mock_server.uri()).unwrap();
+        let inputs = std::collections::HashSet::from_iter([Input {
+            source: InputSource::RemoteUrl(Box::new(url)),
+            file_type_hint: Some(FileType::Html),
+        }]);
+
+        let client = crate::ClientBuilder::builder()
+            .user_agent("test-agent/1.0".to_string())
+            .build()
+            .client()
+            .unwrap();
+
+        let links = Collector::new(None, BaseInfo::none())
+            .unwrap()
+            .host_pool(client.host_pool())
+            .collect_links_from_file_types(inputs, crate::FileExtensions::default())
+            .map(|r| r.unwrap().uri)
+            .collect::<std::collections::HashSet<_>>()
+            .await;
+
+        assert!(links.iter().any(|u| u.url.as_str().contains("example.com")));
+        // wiremock will panic here if the expected request was not received
     }
 
     #[tokio::test]

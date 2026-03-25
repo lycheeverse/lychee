@@ -67,7 +67,7 @@ impl HostPool {
     /// Fails if:
     /// - The request URL has no valid hostname
     /// - The underlying HTTP request fails
-    pub async fn execute_request(
+    pub(crate) async fn execute_request(
         &self,
         request: Request,
         needs_body: bool,
