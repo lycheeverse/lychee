@@ -53,12 +53,6 @@ impl ConfigLoader for CargoTomlLoader {
         CARGO_CONFIG_FILE
     }
 
-    /// We use a generic TOML table to check for the presence of the
-    /// `lychee` configuration section. We don't want to strictly deserialize
-    /// into `Config` here, because if the user has a typo in their config
-    /// (e.g. `timeoutt = 10`), a strict deserialization would fail, and we
-    /// would incorrectly return `false`, causing lychee to silently ignore
-    /// the file instead of reporting the error.
     fn is_match(&self, contents: &str) -> bool {
         let Ok(table) = toml::from_str::<toml::Table>(contents) else {
             return false;
@@ -73,10 +67,6 @@ impl ConfigLoader for CargoTomlLoader {
             .is_some_and(|m| m.contains_key("lychee"))
     }
 
-    /// We strictly deserialize into our custom `CargoToml` envelope,
-    /// which contains our `Config` struct with `#[serde(deny_unknown_fields)]`.
-    /// Since we already know the section exists from `is_match`, any failure
-    /// here is a genuine configuration error that we want to bubble up.
     fn load(&self, contents: &str) -> Result<Config> {
         let cargo = toml::from_str::<CargoToml>(contents)
             .with_context(|| "Failed to parse lychee config from Cargo.toml")?;
