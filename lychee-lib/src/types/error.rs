@@ -202,6 +202,7 @@ impl ErrorKind {
     /// messages) and future changes are expected.
     #[must_use]
     #[allow(clippy::too_many_lines)]
+    #[allow(clippy::match_same_arms)]
     pub fn details(&self) -> Option<String> {
         match self {
             ErrorKind::NetworkRequest(e) => {
@@ -219,6 +220,7 @@ impl ErrorKind {
                     Some(e.to_string())
                 }
             }
+            ErrorKind::ReadInputUrlStatusCode(_) => None,
             ErrorKind::InvalidFilePath(_uri) => {
                 Some("File not found. Check if file exists and path is correct".to_string())
             }
@@ -348,7 +350,7 @@ impl ErrorKind {
                 ),
             }
             .into(),
-            ErrorKind::InvalidInput(_) | ErrorKind::ReadInputUrlStatusCode(_) => None, // Error message is already in the error itself
+            ErrorKind::InvalidInput(_) => None, // Error message is already in the error itself
             ErrorKind::PreprocessorError { command, reason } => Some(format!(
                 "Command '{command}' failed {reason}. Check value of the pre option"
             )),
