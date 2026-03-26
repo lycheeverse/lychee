@@ -61,7 +61,7 @@ where
         accept,
     ));
 
-    let hide_bar = params.cfg.no_progress;
+    let hide_bar = params.cfg.no_progress || params.is_stdin_input;
     let level = params.cfg.verbose().log_level();
 
     let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode());
