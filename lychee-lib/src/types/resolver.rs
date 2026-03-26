@@ -52,7 +52,7 @@ impl UrlContentResolver {
         let response = self.host_pool.execute_request(request, true).await?;
 
         if !response.status.is_success() {
-            return Err(crate::ErrorKind::ReadInputUrlStatusCode(response.status).into());
+            return Err(crate::ErrorKind::ReadInputUrlStatusCode(response.status));
         }
 
         // SAFETY: needs_body=true above guarantees text is populated on success.
