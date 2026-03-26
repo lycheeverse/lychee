@@ -24,6 +24,7 @@ mod tests {
 
     const EXPECTED_JSON: &str = r#"{
   "total": 2,
+  "unique": 2,
   "successful": 0,
   "unknown": 0,
   "unsupported": 0,
