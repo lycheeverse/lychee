@@ -340,10 +340,6 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         )
     })?;
 
-    // Build the lychee client first so we can share its HostPool with the
-    // collector. This ensures that fetching remote input documents uses the
-    // same user-agent, TLS settings, cookies, per-host rate limits and custom
-    // headers as regular link checks.
     let client = client::create(&opts.config, cookie_jar.as_deref())?;
 
     let mut collector = Collector::new(opts.config.root_dir.clone(), base.unwrap_or_default())?

@@ -2798,9 +2798,6 @@ The config file should contain every possible key for documentation purposes."
             .arg(server.uri())
             .assert()
             .success();
-
-        // wiremock will fail if the expected request was not received
-        server.verify().await;
     }
 
     #[tokio::test]
@@ -2825,8 +2822,9 @@ The config file should contain every possible key for documentation purposes."
         let user_agent = received_request
             .headers
             .get("user-agent")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("");
+            .expect("User agent missing")
+            .to_str()
+            .unwrap();
 
         assert!(
             user_agent.starts_with("lychee/"),

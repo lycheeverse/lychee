@@ -157,10 +157,12 @@ impl Collector {
     /// fetches share the same user-agent, TLS settings, cookies, per-host
     /// rate limits and headers as regular link checks:
     ///
-    /// ```ignore
-    /// let lychee_client = ClientBuilder::builder().client()?;
-    /// let collector = Collector::new(…)?
-    ///     .host_pool(lychee_client.host_pool());
+    /// ```
+    /// # use lychee_lib::{BaseInfo, ClientBuilder, Collector, ErrorKind};
+    /// let client = ClientBuilder::builder().build().client()?;
+    /// let collector = Collector::new(None, BaseInfo::none())?
+    ///     .host_pool(client.host_pool());
+    /// # Ok::<(), ErrorKind>(())
     /// ```
     #[must_use]
     pub fn host_pool(mut self, host_pool: Arc<HostPool>) -> Self {
@@ -621,13 +623,13 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let mock_server = MockServer::start().await;
+        let uri = Uri::try_from("https://example.com").unwrap();
 
         Mock::given(method("GET"))
             .and(path("/"))
             .and(header("user-agent", "test-agent/1.0"))
             .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_string(r#"<a href="https://example.com">Link</a>"#),
+                ResponseTemplate::new(200).set_body_string(format!(r#"<a href="{uri}">Link</a>"#)),
             )
             .expect(1)
             .mount(&mock_server)
@@ -653,8 +655,7 @@ mod tests {
             .collect::<std::collections::HashSet<_>>()
             .await;
 
-        assert!(links.iter().any(|u| u.url.as_str().contains("example.com")));
-        // wiremock will panic here if the expected request was not received
+        assert_eq!(links, HashSet::from([uri]));
     }
 
     #[tokio::test]
