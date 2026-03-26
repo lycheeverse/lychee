@@ -2776,6 +2776,62 @@ The config file should contain every possible key for documentation purposes."
         server.verify().await;
     }
 
+    #[tokio::test]
+    async fn test_user_agent_set_on_remote_input() {
+        // When a URL is passed directly as a CLI input, the configured user-agent
+        // should be sent in the request headers. Previously the resolver used a
+        // bare reqwest::Client with no user-agent at all.
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("user-agent", "test-agent/1.0"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1)
+                    .named("GET expecting user-agent header"),
+            )
+            .await;
+
+        cargo_bin_cmd!()
+            .arg("--user-agent")
+            .arg("test-agent/1.0")
+            .arg(server.uri())
+            .assert()
+            .success();
+    }
+
+    #[tokio::test]
+    async fn test_default_user_agent_set_on_remote_input() {
+        // Even without an explicit --user-agent, the default lychee user-agent
+        // should be sent when fetching a remote input URL.
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1),
+            )
+            .await;
+
+        cargo_bin_cmd!().arg(server.uri()).assert().success();
+
+        let received_requests = server.received_requests().await.unwrap();
+        assert_eq!(received_requests.len(), 1);
+
+        let received_request = &received_requests[0];
+        let user_agent = received_request
+            .headers
+            .get("user-agent")
+            .expect("User agent missing")
+            .to_str()
+            .unwrap();
+
+        assert!(
+            user_agent.starts_with("lychee/"),
+            "Expected user-agent to start with 'lychee/', got: {user_agent:?}"
+        );
+    }
+
     #[test]
     fn test_sorted_error_output() -> Result<()> {
         let temp_dir = tempfile::tempdir()?;
