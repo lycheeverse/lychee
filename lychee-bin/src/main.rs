@@ -134,6 +134,38 @@ fn read_lines(file: &File) -> Result<Vec<String>> {
         .collect())
 }
 
+/// Increase the maximum number of open files (if possible)
+///
+/// This is helpful to respect system limits and because lychee opens many files
+/// concurrently during link extraction and checking. If the hard limit is low,
+/// we might need to reduce the `max_concurrency` to prevent lychee from
+/// crashing with a "Too many open files" error
+/// (<https://github.com/lycheeverse/lychee/issues/1248>).
+///
+/// The relation is roughly:
+/// total FDs ≈ `max_concurrency` + `baseline_overhead`
+fn set_fd_limits(opts: &mut LycheeOptions) {
+    /// Baseline overhead accounts for stdin, stdout, stderr, lychee.toml,
+    /// .lycheeignore, .lycheecache, and reqwest + DNS handles.
+    const BASELINE_OVERHEAD: u64 = 15;
+
+    if let Ok(limit) = rlimit::increase_nofile_limit(u64::MAX) {
+        let available_fds = limit.saturating_sub(BASELINE_OVERHEAD) / 2;
+
+        // Casting to u64 is fine here for the comparison with available_fds
+        let requested_concurrency = opts.config.max_concurrency() as u64;
+        if requested_concurrency > available_fds {
+            let new_concurrency = available_fds.max(1) as usize;
+            warn!(
+                "System file descriptor limit is {limit} which is too low for the requested \
+                concurrency of {requested_concurrency}. Lowering `max_concurrency` to \
+                {new_concurrency} to prevent 'Too many open files' errors.",
+            );
+            opts.config.set_max_concurrency(new_concurrency);
+        }
+    }
+}
+
 /// Merge all provided config options into one.
 /// This includes the command-line args,
 /// the config file and the secrets file in that order.
@@ -179,6 +211,8 @@ fn load_config() -> Result<LycheeOptions> {
         let file = File::open(path)?;
         opts.config.exclude.append(&mut read_lines(&file)?);
     }
+
+    set_fd_limits(&mut opts);
 
     Ok(opts)
 }

@@ -3698,3 +3698,28 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .success();
     }
 }
+
+#[cfg(unix)]
+#[test]
+fn test_file_limit_low_concurrency() {
+    // See https://github.com/lycheeverse/lychee/issues/1248
+    use assert_cmd::cargo::CommandCargoExt;
+    use std::os::unix::process::CommandExt;
+
+    let mut cmd = std::process::Command::cargo_bin("lychee").unwrap();
+    cmd.arg("-v").arg("https://example.com");
+
+    unsafe {
+        cmd.pre_exec(|| {
+            // Set the soft and hard limit to a low value.
+            // 64 is enough to boot, but will trigger the max_concurrency lowering.
+            let _ = rlimit::setrlimit(rlimit::Resource::NOFILE, 64, 64);
+            Ok(())
+        });
+    }
+
+    let mut assert_cmd = assert_cmd::Command::from(cmd);
+    assert_cmd.assert().stderr(predicates::str::contains(
+        "System file descriptor limit is 64 which is too low for the requested concurrency of 128. Lowering `max_concurrency` to 24",
+    ));
+}
