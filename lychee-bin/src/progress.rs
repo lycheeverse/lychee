@@ -4,8 +4,8 @@ use lychee_lib::ResponseBody;
 use std::sync::{Arc, LazyLock};
 
 use crate::{
+    config::OutputMode,
     formatters::{get_progress_formatter, response::ResponseFormatter},
-    options::OutputMode,
 };
 
 #[derive(Clone)]
