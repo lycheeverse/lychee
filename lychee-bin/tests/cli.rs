@@ -3934,6 +3934,33 @@ exclude_path = ["exclude_pyproject.txt"]
         Ok(())
     }
     #[tokio::test]
+    async fn test_explicit_config_missing_section() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let package_json = dir.path().join("package.json");
+        std::fs::write(
+            &package_json,
+            r#"
+{
+    "name": "my-project",
+    "version": "1.0.0"
+}
+"#,
+        )?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("--config")
+            .arg(&package_json)
+            .arg("https://example.com")
+            .assert();
+
+        let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(output_err.contains("No valid lychee configuration found in"));
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_cargo_toml_preference() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let cargo = dir.path().join("Cargo.toml");
