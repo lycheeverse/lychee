@@ -3796,8 +3796,9 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
 
         Ok(())
     }
+
     #[tokio::test]
-    async fn test_cli_input_url_status_warning() -> Result<()> {
+    async fn test_cli_input_url_status_warning() {
         let mock_server = wiremock::MockServer::start().await;
 
         wiremock::Mock::given(wiremock::matchers::method("GET"))
@@ -3829,7 +3830,5 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
         // We should see a warning for the error URL, but not for the success URL
         assert!(output.contains("returned status code 404"));
         assert!(!output.contains("returned status code 200"));
-
-        Ok(())
     }
 }
