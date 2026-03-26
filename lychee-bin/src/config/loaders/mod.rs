@@ -4,7 +4,7 @@ pub(crate) mod package_json;
 pub(crate) mod pyproject_toml;
 
 use super::Config;
-use anyhow::Result;
+use anyhow::{Result, bail};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -78,10 +78,7 @@ pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
                         e
                     });
                 }
-                return Err(anyhow::anyhow!(
-                    "No valid lychee configuration found in {}",
-                    path.display()
-                ));
+                bail!("No valid lychee configuration found in {}", path.display());
             }
         }
     }
