@@ -38,6 +38,10 @@ pub enum ErrorKind {
     #[error("Cannot read input content from file `{1}`")]
     ReadFileInput(#[source] std::io::Error, PathBuf),
 
+    /// Error while reading an input URL
+    #[error("Cannot read input content from URL: status code {0}")]
+    ReadInputUrlStatusCode(StatusCode),
+
     /// Error while reading stdin as input
     #[error("Cannot read input content from stdin")]
     ReadStdinInput(#[from] std::io::Error),
@@ -198,6 +202,7 @@ impl ErrorKind {
     /// messages) and future changes are expected.
     #[must_use]
     #[allow(clippy::too_many_lines)]
+    #[allow(clippy::match_same_arms)]
     pub fn details(&self) -> Option<String> {
         match self {
             ErrorKind::NetworkRequest(e) => {
@@ -215,6 +220,7 @@ impl ErrorKind {
                     Some(e.to_string())
                 }
             }
+            ErrorKind::ReadInputUrlStatusCode(_) => None,
             ErrorKind::InvalidFilePath(_uri) => {
                 Some("File not found. Check if file exists and path is correct".to_string())
             }
@@ -398,6 +404,7 @@ impl PartialEq for ErrorKind {
             (Self::ReadFileInput(e1, s1), Self::ReadFileInput(e2, s2)) => {
                 e1.kind() == e2.kind() && s1 == s2
             }
+            (Self::ReadInputUrlStatusCode(e1), Self::ReadInputUrlStatusCode(e2)) => e1 == e2,
             (Self::ReadStdinInput(e1), Self::ReadStdinInput(e2)) => e1.kind() == e2.kind(),
             (Self::GithubRequest(e1), Self::GithubRequest(e2)) => e1.to_string() == e2.to_string(),
             (Self::InvalidGithubUrl(s1), Self::InvalidGithubUrl(s2)) => s1 == s2,
@@ -447,6 +454,8 @@ impl Hash for ErrorKind {
         match self {
             Self::RuntimeJoin(e) => e.to_string().hash(state),
             Self::ReadFileInput(e, s) => (e.kind(), s).hash(state),
+            Self::ReadInputUrlStatusCode(c) => c.hash(state),
+
             Self::ReadStdinInput(e) => e.kind().hash(state),
             Self::NetworkRequest(e) => e.to_string().hash(state),
             Self::ReadResponseBody(e) => e.to_string().hash(state),
