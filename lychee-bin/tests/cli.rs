@@ -1316,8 +1316,8 @@ The config file should contain every possible key for documentation purposes."
             "Missing OK entry in cache"
         );
         assert!(
-            data.contains(&format!("{}/,404", mock_server_err.uri())),
-            "Missing error entry in cache"
+            !data.contains(&format!("{}/,404", mock_server_err.uri())),
+            "Error entry should not be cached"
         );
 
         // Run again to verify cache behavior
@@ -1327,7 +1327,7 @@ The config file should contain every possible key for documentation purposes."
                 mock_server_ok.uri()
             )))
             .stderr(contains(format!(
-                "[404] {}/ (at 2:1) | Error (cached)\n",
+                "[404] {}/ (at 2:1) | Rejected status code: 404 Not Found (configurable with \"accept\" option)\n",
                 mock_server_err.uri()
             )));
 
@@ -1454,8 +1454,10 @@ The config file should contain every possible key for documentation purposes."
         // check content of cache file
         let data = fs::read_to_string(&cache_file)?;
         assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
-        assert!(data.contains(&format!("{}/,418", mock_server_teapot.uri())));
-        assert!(data.contains(&format!("{}/,500", mock_server_server_error.uri())));
+        // Because the first run DID NOT use `--accept`, 418 and 500 were both treated as errors.
+        // With our new error dropping logic, NEITHER gets cached in the first run.
+        assert!(!data.contains(&format!("{}/,418", mock_server_teapot.uri())));
+        assert!(!data.contains(&format!("{}/,500", mock_server_server_error.uri())));
 
         // run again to verify cache behavior
         // this time accept 418 and 500 as valid status codes
@@ -1466,11 +1468,11 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stderr(contains(format!(
-                "[418] {}/ (at 2:1) | OK (cached)",
+                "[418] {}/ (at 2:1) | 418 I'm a teapot: I'm a teapot",
                 mock_server_teapot.uri()
             )))
             .stderr(contains(format!(
-                "[500] {}/ (at 3:1) | OK (cached)",
+                "[500] {}/ (at 3:1) | 500 Internal Server Error: Internal Server Error",
                 mock_server_server_error.uri()
             )));
 
@@ -1601,8 +1603,11 @@ The config file should contain every possible key for documentation purposes."
         // If the status code was 999, the cache file should be empty
         // because we do not want to cache unknown status codes
         let buf = fs::read(&cache_file).unwrap();
-        let data = String::from_utf8(buf)?;
-        assert!(data.contains(",999,"));
+        assert!(
+            buf.is_empty(),
+            "cache file should be empty, but was {}",
+            String::from_utf8_lossy(&buf)
+        );
 
         Ok(())
     }
@@ -3752,5 +3757,43 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             )
             .assert()
             .success();
+    }
+
+    /// Verifies that loading an older, legacy `.lycheecache` file containing a cached error
+    /// correctly drops the error and successfully retries the link.
+    /// This ensures we don't break existing user CI workflows that have older cache files
+    /// stored before we stopped caching errors.
+    #[tokio::test]
+    async fn test_legacy_cache_file_ignores_errors() -> Result<()> {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
+        let cache_file = base_path.join(LYCHEE_CACHE_FILE);
+
+        // A server that is currently returning OK
+        let mock_server_ok = mock_server!(StatusCode::OK);
+
+        // Simulate an older `.lycheecache` where this exact URL previously failed with 404
+        // We use a future timestamp ({ts}) so it doesn't expire
+        fs::write(&cache_file, format!("{},404,{ts}\n", mock_server_ok.uri()))?;
+
+        let mut file = File::create(dir.path().join("input.txt"))?;
+        writeln!(file, "{}", mock_server_ok.uri())?;
+
+        // Run lychee. It should ignore the 404 from the cache, actually check the mock server (which returns 200), and succeed.
+        cargo_bin_cmd!()
+            .current_dir(base_path)
+            .arg("input.txt")
+            .arg("--cache")
+            .arg("--verbose")
+            .assert()
+            .success()
+            .stdout(contains("1 OK"))
+            .stdout(contains("0 Errors"));
+
+        Ok(())
     }
 }
