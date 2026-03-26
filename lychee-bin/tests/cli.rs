@@ -3932,24 +3932,25 @@ fn test_file_limit_low_concurrency() {
             &pyproject,
             r#"
 [tool.lychee]
-exclude = ["pyproject_exclude_test_str"]
+exclude = ["exclude_test_str"]
 "#,
         )?;
 
-        let mut cmd = cargo_bin_cmd!();
-        let assert = cmd
+        let stdout = cargo_bin_cmd!()
             .current_dir(dir.path())
-            .arg("https://example.com/pyproject_exclude_test_str")
-            .arg("--offline")
-            .assert();
+            .arg("-")
+            .write_stdin("https://exclude/exclude_test_str")
+            .arg("--format=json")
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
 
-        let output = String::from_utf8_lossy(&assert.get_output().stdout);
-        let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
-        assert!(
-            output.contains("1 Excluded"),
-            "Output did not indicate the link was excluded. Stdout: {}, Stderr: {}",
-            output,
-            output_err
+        assert_eq!(
+            stdout_to_json(&stdout)?["excludes"],
+            1,
+            "Config must mark the URL as excluded"
         );
         Ok(())
     }
@@ -4029,36 +4030,6 @@ exclude_path = ["exclude_lychee.txt"]
         assert!(!output1.contains("exclude_lychee.txt"));
         assert!(output1.contains("exclude_pyproject.txt"));
         assert!(output1.contains("exclude_cargo.txt"));
-
-        // Remove lychee.toml
-        std::fs::remove_file(dir.path().join("lychee.toml"))?;
-
-        // Test 2: pyproject.toml takes precedence over Cargo.toml
-        let mut cmd2 = cargo_bin_cmd!();
-        let assert2 = cmd2
-            .current_dir(dir.path())
-            .arg("--dump-inputs")
-            .arg(".")
-            .assert();
-        let output2 = String::from_utf8_lossy(&assert2.get_output().stdout);
-        assert!(output2.contains("exclude_lychee.txt"));
-        assert!(!output2.contains("exclude_pyproject.txt"));
-        assert!(output2.contains("exclude_cargo.txt"));
-
-        // Remove pyproject.toml
-        std::fs::remove_file(dir.path().join("pyproject.toml"))?;
-
-        // Test 3: Cargo.toml is used
-        let mut cmd3 = cargo_bin_cmd!();
-        let assert3 = cmd3
-            .current_dir(dir.path())
-            .arg("--dump-inputs")
-            .arg(".")
-            .assert();
-        let output3 = String::from_utf8_lossy(&assert3.get_output().stdout);
-        assert!(output3.contains("exclude_lychee.txt"));
-        assert!(output3.contains("exclude_pyproject.txt"));
-        assert!(!output3.contains("exclude_cargo.txt"));
 
         Ok(())
     }

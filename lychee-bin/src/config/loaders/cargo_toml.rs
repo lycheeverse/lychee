@@ -64,21 +64,13 @@ impl ConfigLoader for CargoTomlLoader {
             return false;
         };
 
-        let has_package = table
+        table
             .get("package")
+            .or(table.get("workspace"))
             .and_then(|t| t.as_table())
             .and_then(|t| t.get("metadata"))
             .and_then(|m| m.as_table())
-            .is_some_and(|m| m.contains_key("lychee"));
-
-        let has_workspace = table
-            .get("workspace")
-            .and_then(|t| t.as_table())
-            .and_then(|t| t.get("metadata"))
-            .and_then(|m| m.as_table())
-            .is_some_and(|m| m.contains_key("lychee"));
-
-        has_package || has_workspace
+            .is_some_and(|m| m.contains_key("lychee"))
     }
 
     /// We strictly deserialize into our custom `CargoToml` envelope,

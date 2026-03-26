@@ -26,7 +26,7 @@ pub(crate) const PACKAGE_JSON_CONFIG_FILE: &str = "package.json";
 /// A minimal representation of `package.json` that only parses the `lychee` key
 #[derive(Deserialize)]
 struct PackageJson {
-    lychee: Option<Config>,
+    lychee: Config,
 }
 
 pub(crate) struct PackageJsonLoader;
@@ -36,12 +36,6 @@ impl ConfigLoader for PackageJsonLoader {
         PACKAGE_JSON_CONFIG_FILE
     }
 
-    /// We use a generic JSON value to check for the presence of the
-    /// `lychee` configuration section. We don't want to strictly deserialize
-    /// into `Config` here, because if the user has a typo in their config
-    /// (e.g. `timeoutt = 10`), a strict deserialization would fail, and we
-    /// would incorrectly return `false`, causing lychee to silently ignore
-    /// the file instead of reporting the error.
     fn is_match(&self, contents: &str) -> bool {
         let Ok(value) = serde_json::from_str::<serde_json::Value>(contents) else {
             return false;
@@ -52,15 +46,11 @@ impl ConfigLoader for PackageJsonLoader {
             .is_some_and(|obj| obj.contains_key("lychee"))
     }
 
-    /// We strictly deserialize into our custom `PackageJson` envelope,
-    /// which contains our `Config` struct with `#[serde(deny_unknown_fields)]`.
-    /// Since we already know the section exists from `is_match`, any failure
-    /// here is a genuine configuration error that we want to bubble up.
     fn load(&self, contents: &str) -> Result<Config> {
         let package_json = serde_json::from_str::<PackageJson>(contents)
             .with_context(|| "Failed to parse lychee config from package.json")?;
 
-        Ok(package_json.lychee.unwrap_or_default())
+        Ok(package_json.lychee)
     }
 }
 

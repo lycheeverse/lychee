@@ -170,16 +170,6 @@ fn handle_fd_limits(opts: &mut LycheeOptions) {
     }
 }
 
-/// Find the default configuration file from the current directory.
-///
-/// This gets used as a fallback if no other config file is provided by the user.
-/// The order of testing the config files is significant: there will be no
-/// override between the config files, so the first "matching" file wins.
-///
-/// A file is considered matching if it:
-/// 1. Doesn't have any specific `config_sections` required (e.g. `lychee.toml`)
-/// 2. Contains a specific lychee section
-///
 /// Merge all provided config options into one.
 /// This includes the command-line args,
 /// the config file and the secrets file in that order.

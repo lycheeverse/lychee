@@ -34,28 +34,26 @@ pub(crate) trait ConfigLoader {
     fn load(&self, contents: &str) -> Result<Config>;
 }
 
+const LOADERS: [&dyn ConfigLoader; 4] = [
+    &lychee_toml::LycheeTomlLoader,
+    &pyproject_toml::PyprojectTomlLoader,
+    &cargo_toml::CargoTomlLoader,
+    &package_json::PackageJsonLoader,
+];
+
 /// Find the first matching default configuration file in the current directory.
 ///
 /// This checks for files like `lychee.toml`, `pyproject.toml`, `Cargo.toml`,
 /// and `package.json` in a defined order of precedence.
 pub(crate) fn find_default_config_file() -> Option<PathBuf> {
-    let loaders: [&dyn ConfigLoader; 4] = [
-        &lychee_toml::LycheeTomlLoader,
-        &pyproject_toml::PyprojectTomlLoader,
-        &cargo_toml::CargoTomlLoader,
-        &package_json::PackageJsonLoader,
-    ];
-
-    for loader in loaders {
-        let path = PathBuf::from(loader.filename());
-        if path.is_file() {
+    LOADERS
+        .into_iter()
+        .map(|loader| (loader, PathBuf::from(loader.filename())))
+        .filter(|(_, path)| path.is_file())
+        .find_map(|(loader, path)| {
             let contents = fs::read_to_string(&path).unwrap_or_default();
-            if loader.is_match(&contents) {
-                return Some(path);
-            }
-        }
-    }
-    None
+            loader.is_match(&contents).then_some(path)
+        })
 }
 
 /// Load the configuration from the given file path.
@@ -64,20 +62,13 @@ pub(crate) fn find_default_config_file() -> Option<PathBuf> {
 /// using the corresponding loader. Otherwise, it falls back to the default
 /// TOML loader.
 pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
-    let loaders: [&dyn ConfigLoader; 4] = [
-        &lychee_toml::LycheeTomlLoader,
-        &pyproject_toml::PyprojectTomlLoader,
-        &cargo_toml::CargoTomlLoader,
-        &package_json::PackageJsonLoader,
-    ];
-
     let contents = fs::read_to_string(path).map_err(|e| {
         log::warn!("Failed to read config file {}: {e}", path.display());
         anyhow::Error::from(e)
     })?;
 
     if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-        for loader in loaders {
+        for loader in LOADERS {
             if loader.filename() == filename {
                 if loader.is_match(&contents) {
                     return loader.load(&contents).map_err(|e| {
@@ -85,7 +76,10 @@ pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
                         e
                     });
                 }
-                return Ok(Config::default());
+                return Err(anyhow::anyhow!(
+                    "No valid lychee configuration found in {}",
+                    path.display()
+                ));
             }
         }
     }
