@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.23.0...lychee-v0.24.0) - 2026-03-26
+
+### Added
+
+- hide progress bar if input is `stdin` only ([#1938](https://github.com/lycheeverse/lychee/pull/1938))
+- Support sitemap.xml ([#2071](https://github.com/lycheeverse/lychee/pull/2071))
+- allow accepting timeouts ([#2063](https://github.com/lycheeverse/lychee/pull/2063))
+- Support multiple config files ([#2007](https://github.com/lycheeverse/lychee/pull/2007))
+
+### Other
+
+- Never cache errors on disk
+- Unify input URL fetching with the link-checker's HostPool ([#2100](https://github.com/lycheeverse/lychee/pull/2100))
+- Merge pull request #2098 from lycheeverse/dependabot/cargo/dependencies-94675db464
+- Fix Windows Absolute Path Parsing and Remove HTTP Assumption ([#1837](https://github.com/lycheeverse/lychee/pull/1837))
+- Adds shell completions for lychee ([#1972](https://github.com/lycheeverse/lychee/pull/1972))
+- Increase value for --max-redirects ([#2087](https://github.com/lycheeverse/lychee/pull/2087))
+- Remove raw mode ([#2086](https://github.com/lycheeverse/lychee/pull/2086))
+- Report input source errors rather than tokio panics ([#2074](https://github.com/lycheeverse/lychee/pull/2074))
+- *(deps)* bump the dependencies group with 3 updates
+- Add Tor Project's support website
+- Add JUnit format ([#2066](https://github.com/lycheeverse/lychee/pull/2066))
+- Prevent duplicate requests to the same URLs ([#2067](https://github.com/lycheeverse/lychee/pull/2067))
+- *(deps)* bump the dependencies group with 3 updates
+- add WaitGroup for waiting for a dynamic set of tasks  ([#2046](https://github.com/lycheeverse/lychee/pull/2046))
+- Show line & column numbers ([#2056](https://github.com/lycheeverse/lychee/pull/2056))
+- *(deps)* bump the dependencies group with 6 updates
+- Fix toc action ([#2055](https://github.com/lycheeverse/lychee/pull/2055))
+- [**breaking**] add BaseInfo for resolving links, delete Base, cleanup utils ([#2005](https://github.com/lycheeverse/lychee/pull/2005))
+- Document file format support ([#2052](https://github.com/lycheeverse/lychee/pull/2052))
+- Improve help message as proposed by @katrinafyi
+- *(deps)* bump the dependencies group with 8 updates
+- Update changelogs
+
 ## [0.23.0](https://github.com/lycheeverse/lychee/compare/lychee-v0.22.0...lychee-v0.23.0) - 2026-02-13
 
 ### Added
