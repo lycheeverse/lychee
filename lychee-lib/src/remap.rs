@@ -1,10 +1,10 @@
-//! Remapping rules which allow to map URLs matching a pattern to a different
+//! Remap rules which allow to map URLs matching a pattern to a different
 //! URL.
 //!
 //! # Notes
 //! Use in moderation as there are no sanity or performance guarantees.
 //!
-//! - There is no constraint on remapping rules upon instantiation or during
+//! - There is no constraint on remap rules upon instantiation or during
 //!   remapping. In particular, rules are checked sequentially so later rules
 //!   might contradict with earlier ones if they both match a URL.
 //! - A large rule set has a performance impact because the client needs to
@@ -30,14 +30,14 @@ use crate::{ErrorKind, Result, Uri};
 
 /// Records a single [`Uri`] remapping
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
-pub struct Remapping {
+pub struct Remap {
     /// The original [`Uri`] before remapping
     pub original: Uri,
     /// The new [`Uri`] after applying [`Remaps`]
     pub new: Uri,
 }
 
-impl Display for Remapping {
+impl Display for Remap {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} --> {}", self.original, self.new)?;
         Ok(())
@@ -76,9 +76,9 @@ impl Remaps {
     ///
     /// # Errors
     ///
-    /// Returns an `Err` if the remapping rule produces an invalid URL.
+    /// Returns an `Err` if the remap rule produces an invalid URL.
     #[must_use = "Remapped URLs must be used"]
-    pub fn remap(&self, original: &Uri) -> Result<Option<Remapping>> {
+    pub fn remap(&self, original: &Uri) -> Result<Option<Remap>> {
         for (pattern, replacement) in self {
             if pattern.is_match(original.as_str()) {
                 let new = pattern.replace_all(original.as_str(), replacement);
@@ -86,25 +86,25 @@ impl Remaps {
                     ErrorKind::InvalidUrlRemap(format!("the result `{new}` is not a valid URL"))
                 })?;
 
-                let remapping = Remapping {
+                let remap = Remap {
                     original: original.clone(),
                     new: Uri { url: new },
                 };
-                debug!("Remapping {remapping}");
-                return Ok(Some(remapping));
+                debug!("Remapping {remap}");
+                return Ok(Some(remap));
             }
         }
 
         Ok(None)
     }
 
-    /// Returns `true` if there is no remapping rule defined.
+    /// Returns `true` if there is no remap rule defined.
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.patterns.is_empty()
     }
 
-    /// Get the number of remapping rules.
+    /// Get the number of remap rules.
     #[must_use]
     pub const fn len(&self) -> usize {
         self.patterns.len()
@@ -122,7 +122,7 @@ impl Index<usize> for Remaps {
 impl TryFrom<&[String]> for Remaps {
     type Error = ErrorKind;
 
-    /// Try to convert a slice of `String`s to remapping rules.
+    /// Try to convert a slice of `String`s to remap rules.
     ///
     /// Each string should contain a Regex pattern and a URL, separated by
     /// whitespaces.
@@ -140,7 +140,7 @@ impl TryFrom<&[String]> for Remaps {
             let params: Vec<_> = remap.split_whitespace().collect();
             if params.len() != 2 {
                 return Err(ErrorKind::InvalidUrlRemap(format!(
-                    "Cannot parse into URI remapping, must be a Regex pattern and a URL separated by whitespaces: {remap}"
+                    "Cannot parse into URI remap rule, must be a Regex pattern and a URL separated by whitespaces: {remap}"
                 )));
             }
 
@@ -183,7 +183,7 @@ mod tests {
 
         assert_eq!(
             output,
-            Some(Remapping {
+            Some(Remap {
                 new: Uri::try_from(replacement).unwrap(),
                 original: input_url
             })
@@ -201,7 +201,7 @@ mod tests {
 
         assert_eq!(
             output,
-            Some(Remapping {
+            Some(Remap {
                 new: replacement,
                 original: input
             })
@@ -262,7 +262,7 @@ mod tests {
 
         assert_eq!(
             output,
-            Some(Remapping {
+            Some(Remap {
                 new: Uri::try_from("https://example.com/foo/2/bar").unwrap(),
                 original: input
             })
@@ -281,7 +281,7 @@ mod tests {
 
         assert_eq!(
             output,
-            Some(Remapping {
+            Some(Remap {
                 new: Uri::try_from("https://example.com/foo/2/bar").unwrap(),
                 original: input
             })
@@ -303,7 +303,7 @@ mod tests {
 
         assert_eq!(
             output,
-            Some(Remapping {
+            Some(Remap {
                 new: Uri::try_from("https://example.com/foo/2/bar").unwrap(),
                 original: input
             })

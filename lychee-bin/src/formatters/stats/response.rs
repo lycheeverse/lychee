@@ -36,7 +36,7 @@ pub(crate) struct ResponseStats {
     pub(crate) timeouts: usize,
     /// Number of redirects encountered while checking links
     pub(crate) redirects: usize,
-    /// Number of Url remappings performed
+    /// Number of Url remaps performed
     pub(crate) remaps: usize,
     /// Number of links excluded from the run (e.g. due to the `--exclude` flag)
     pub(crate) excludes: usize,
