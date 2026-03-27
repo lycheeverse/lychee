@@ -5,7 +5,7 @@ use super::redirect_history::Redirects;
 use crate::ErrorKind;
 use crate::RequestError;
 use crate::ratelimit::CacheableResponse;
-use crate::remap::Remapping;
+use crate::remap::Remap;
 use http::StatusCode;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
@@ -33,7 +33,7 @@ pub enum Status {
     /// Got redirected to different resource
     Redirected(Box<Status>, Redirects),
     /// The original [`Url`] was remapped in the link check process
-    Remapped(Box<Status>, Remapping),
+    Remapped(Box<Status>, Remap),
     /// The given status code is not known by lychee
     UnknownStatusCode(StatusCode),
     /// The given mail address could not be reliably identified.
@@ -153,9 +153,9 @@ impl Status {
                 let inner = inner.details();
                 format!("{inner} | Followed {count} {noun}. Redirects: {redirects}")
             }
-            Status::Remapped(inner, remapping) => {
+            Status::Remapped(inner, remap) => {
                 let inner = inner.details();
-                format!("{inner} | Remapped: {remapping}")
+                format!("{inner} | Remaps: {remap}")
             }
             Status::Error(e) => e.details(),
             Status::RequestError(e) => e.error().details(),
@@ -345,7 +345,7 @@ impl From<ErrorKind> for Status {
 #[cfg(test)]
 mod tests {
     use crate::{
-        CacheStatus, ErrorKind, Status, Uri, remap::Remapping, types::redirect_history::Redirects,
+        CacheStatus, ErrorKind, Status, Uri, remap::Remap, types::redirect_history::Redirects,
     };
     use http::StatusCode;
 
@@ -442,7 +442,7 @@ mod tests {
         Status::Redirected(
             Box::new(Status::Remapped(
                 Box::new(inner),
-                Remapping {
+                Remap {
                     original: dummy_uri.clone(),
                     new: dummy_uri.clone(),
                 },

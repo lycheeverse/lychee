@@ -39,7 +39,7 @@ where
             }
         };
 
-        // Apply URI remappings (if any)
+        // Apply URI remaps (if any)
         params.client.remap(&mut request.uri)?;
 
         let excluded = params.client.is_excluded(&request.uri);

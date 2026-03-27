@@ -1924,7 +1924,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .stdout(contains(r#"
-[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found (configurable with "accept" option) | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse | Remapped: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse
+[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found (configurable with "accept" option) | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse | Remaps: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse
 "#))
         // It is debugged when URIs are remapped
         .stderr(contains("[DEBUG] Remapping http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse"))
@@ -1943,7 +1943,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             // The error message should be descriptive and helpful
-            .stderr(contains("Error checking URL https://example.com/: Invalid remapping pattern: the result `invalid/` is not a valid URL"))
+            .stderr(contains("Error checking URL https://example.com/: Invalid remap pattern: the result `invalid/` is not a valid URL"))
             // The original URI is shown as root cause in stdout
             .stdout(contains("The given URI is invalid, check URI syntax: https://example.com/"));
     }
@@ -1973,7 +1973,7 @@ The config file should contain every possible key for documentation purposes."
                 "url": "https://bbb.com/",
                 "status": {
                   "text": "Excluded",
-                  "details": "This is due to your 'exclude' values | Remapped: https://aaa.com/ --> https://bbb.com/"
+                  "details": "This is due to your 'exclude' values | Remaps: https://aaa.com/ --> https://bbb.com/"
                 },
                 "span": {
                   "line": 1,

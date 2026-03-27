@@ -107,8 +107,8 @@ pub enum ErrorKind {
     #[error("Unsupported URI type: '{0}'")]
     UnsupportedUriType(String),
 
-    /// The given input can not be parsed into a valid URI remapping
-    #[error("Invalid remapping pattern: {0}")]
+    /// The given input can not be parsed into a valid URI remap
+    #[error("Invalid remap pattern: {0}")]
     InvalidUrlRemap(String),
 
     /// The given input is neither a valid file path nor a valid URL
@@ -255,7 +255,7 @@ impl ErrorKind {
                 format!("{self}. Only http, https, file, and mailto are supported")
             }
             ErrorKind::InvalidUrlRemap(_) => {
-                format!("{self}. Check remapping syntax")
+                format!("{self}. Check remap syntax")
             }
             ErrorKind::DirTraversal(_) => {
                 format!("{self}. Check directory permissions")
