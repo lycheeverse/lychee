@@ -1463,11 +1463,11 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stderr(contains(format!(
-                "[418] {}/ (at 2:1) | 418 I'm a teapot: I'm a teapot",
+                "[418] {}/ (at 2:1) | 418 I'm a teapot",
                 mock_server_teapot.uri()
             )))
             .stderr(contains(format!(
-                "[500] {}/ (at 3:1) | 500 Internal Server Error: Internal Server Error",
+                "[500] {}/ (at 3:1) | 500 Internal Server Error",
                 mock_server_server_error.uri()
             )));
 
@@ -1767,7 +1767,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .stdout(contains(
-                "Insecure HTTP URL used, where 'https://rust-lang.org/' can be used instead",
+                "Insecure HTTP URL used, where 'https://example.com/' can be used instead",
             ));
     }
 
@@ -1943,7 +1943,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             // The error message should be descriptive and helpful
-            .stderr(contains("Error checking URL https://example.com/: Cannot parse URL to URI: Error remapping URL: `The remapping pattern produced an invalid URL: invalid/`"))
+            .stderr(contains("Error checking URL https://example.com/: Invalid remapping pattern: the result `invalid/` is not a valid URL"))
             // The original URI is shown as root cause in stdout
             .stdout(contains("The given URI is invalid, check URI syntax: https://example.com/"));
     }

@@ -35,7 +35,7 @@ pub enum ErrorKind {
     RuntimeJoin(#[from] JoinError),
 
     /// Error while converting a file to an input
-    #[error("Cannot read input content from file `{1}`")]
+    #[error("Cannot read input content from file '{1}'")]
     ReadFileInput(#[source] std::io::Error, PathBuf),
 
     /// Error while reading stdin as input
@@ -108,7 +108,7 @@ pub enum ErrorKind {
     UnsupportedUriType(String),
 
     /// The given input can not be parsed into a valid URI remapping
-    #[error("Error remapping URL: `{0}`")]
+    #[error("Invalid remapping pattern: {0}")]
     InvalidUrlRemap(String),
 
     /// The given input is neither a valid file path nor a valid URL
@@ -220,7 +220,7 @@ impl ErrorKind {
                     "Path is a directory, not a file: '{}'. Check file path",
                     path.display()
                 ),
-                _ => format!("File read error for '{}': {}", path.display(), e),
+                _ => format!("File read error for '{}': {e}", path.display()),
             },
             ErrorKind::ParseUrl(e, _url) => {
                 let detail = match e {
