@@ -134,34 +134,39 @@ fn read_lines(file: &File) -> Result<Vec<String>> {
         .collect())
 }
 
-/// Increase the maximum number of open files (if possible)
+/// Handle the system's `RLIMIT_NOFILE` limit to prevent
+/// opening too many file descriptors and encountering runtime errors.
+/// (see <https://github.com/lycheeverse/lychee/issues/1248>)
 ///
-/// This is helpful to respect system limits and because lychee opens many files
-/// concurrently during link extraction and checking. If the hard limit is low,
-/// we might need to reduce the `max_concurrency` to prevent lychee from
-/// crashing with a "Too many open files" error
-/// (<https://github.com/lycheeverse/lychee/issues/1248>).
-///
-/// The relation is roughly:
-/// total FDs ≈ `max_concurrency` + `baseline_overhead`
-fn set_fd_limits(opts: &mut LycheeOptions) {
-    /// Baseline overhead accounts for stdin, stdout, stderr, lychee.toml,
-    /// .lycheeignore, .lycheecache, and reqwest + DNS handles.
-    const BASELINE_OVERHEAD: u64 = 15;
+/// 1. We try to increase the soft limit.
+/// 2. If the soft limit is low we reduce lychee's `max_concurrency` accordingly
+fn handle_fd_limits(opts: &mut LycheeOptions) {
+    use rlimit::{Resource, getrlimit, increase_nofile_limit};
+    /// Baseline overhead estimate to account for file descriptors
+    /// which are opened before lychee actually does any link checking.
+    /// Estimate is based on observing `lsof -p $(pgrep lychee)`.
+    const BASELINE_OVERHEAD: u64 = 20;
 
-    if let Ok(limit) = rlimit::increase_nofile_limit(u64::MAX) {
-        let available_fds = limit.saturating_sub(BASELINE_OVERHEAD) / 2;
+    if let Ok(soft_limit) = increase_nofile_limit(u64::MAX)
+        .or_else(|_| getrlimit(Resource::NOFILE).map(|(soft, _)| soft))
+    {
+        // The relation between `concurrency` and `soft_limit` is roughly:
+        // `soft_limit` ≈ `baseline_overhead` + `concurrency`
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "max_concurrency is small in practice"
+        )]
+        let concurrency = soft_limit.saturating_sub(BASELINE_OVERHEAD) as usize;
 
-        // Casting to u64 is fine here for the comparison with available_fds
-        let requested_concurrency = opts.config.max_concurrency() as u64;
-        if requested_concurrency > available_fds {
-            let new_concurrency = available_fds.max(1) as usize;
+        let requested_concurrency = opts.config.max_concurrency();
+        if requested_concurrency > concurrency {
+            let concurrency = concurrency.max(1);
             warn!(
-                "System file descriptor limit is {limit} which is too low for the requested \
+                "System file descriptor limit is {soft_limit} which is too low for the requested \
                 concurrency of {requested_concurrency}. Lowering `max_concurrency` to \
-                {new_concurrency} to prevent 'Too many open files' errors.",
+                {concurrency} to prevent 'Too many open files' errors.",
             );
-            opts.config.set_max_concurrency(new_concurrency);
+            opts.config.set_max_concurrency(concurrency);
         }
     }
 }
@@ -212,7 +217,7 @@ fn load_config() -> Result<LycheeOptions> {
         opts.config.exclude.append(&mut read_lines(&file)?);
     }
 
-    set_fd_limits(&mut opts);
+    handle_fd_limits(&mut opts);
 
     Ok(opts)
 }

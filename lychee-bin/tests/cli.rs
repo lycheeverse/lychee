@@ -3720,6 +3720,6 @@ fn test_file_limit_low_concurrency() {
 
     let mut assert_cmd = assert_cmd::Command::from(cmd);
     assert_cmd.assert().stderr(predicates::str::contains(
-        "System file descriptor limit is 64 which is too low for the requested concurrency of 128. Lowering `max_concurrency` to 24",
+        "System file descriptor limit is 64 which is too low for the requested concurrency of 128. Lowering `max_concurrency` to 44",
     ));
 }
