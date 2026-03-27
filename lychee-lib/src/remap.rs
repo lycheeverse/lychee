@@ -83,9 +83,7 @@ impl Remaps {
             if pattern.is_match(original.as_str()) {
                 let new = pattern.replace_all(original.as_str(), replacement);
                 let new = Url::parse(&new).map_err(|_| {
-                    ErrorKind::InvalidUrlRemap(format!(
-                        "The remapping pattern produced an invalid URL: {new}"
-                    ))
+                    ErrorKind::InvalidUrlRemap(format!("the result `{new}` is not a valid URL"))
                 })?;
 
                 let remapping = Remapping {
