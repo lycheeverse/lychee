@@ -1,12 +1,17 @@
-use crate::time::{self, Timestamp, timestamp};
-use anyhow::Result;
-use dashmap::DashMap;
-use lychee_lib::{CacheStatus, Status, StatusCodeSelector, Uri};
-use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::path::Path;
 
-/// Describes a response status that can be serialized to disk
-#[derive(Serialize, Deserialize)]
+use anyhow::Result;
+use http::StatusCode;
+
+use crate::time::{self, Timestamp, timestamp};
+use lychee_lib::cache::{Cache, CacheFut, CacheSetter};
+use lychee_lib::{CacheStatus, Status, StatusCodeSelector, Uri};
+
+/// An *in-memory* cached value. Compared to the on-disk cache, this
+/// stores a richer [`Status`] type for link checks which were performed
+/// within the current execution of lychee.
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct CacheValue {
     pub(crate) status: CacheStatus,
     pub(crate) timestamp: Timestamp,
@@ -23,54 +28,91 @@ impl From<&Status> for CacheValue {
 }
 
 /// The cache stores previous response codes for faster checking.
-///
-/// At the moment it is backed by `DashMap`, but this is an
-/// implementation detail, which should not be relied upon.
-pub(crate) type Cache = DashMap<Uri, CacheValue>;
+#[derive(Default, Debug)]
+pub(crate) struct LycheeCache(Cache<Uri, CacheValue>);
 
-pub(crate) trait StoreExt {
+impl LycheeCache {
+    pub(crate) fn lock_entry(
+        &self,
+        uri: &Uri,
+    ) -> Result<CacheSetter<CacheValue>, CacheFut<CacheValue>> {
+        if Self::is_bypassed_from_cache(uri) {
+            // make a no-op setter that is not stored in the cache
+            return Ok(CacheSetter::dissociated());
+        }
+        self.0.lock_entry(uri)
+    }
+
+    /// Returns whether the given [`Uri`] should bypass the cache entirely.
+    /// It will always be re-executed by lychee, even within the same lychee
+    /// run.
+    pub(crate) fn is_bypassed_from_cache(uri: &Uri) -> bool {
+        uri.is_file()
+    }
+
+    /// Returns `Some` if the given cache value should be kept when writing the
+    /// cache to disk.
+    ///
+    /// The cache value will be omitted (and this function will return `None`) if:
+    /// - The status is excluded.
+    /// - The status is unsupported.
+    /// - The status is unknown.
+    /// - The status code is excluded from the cache.
+    pub(crate) fn to_disk_cache_value(
+        cache_value: CacheValue,
+        cache_exclude_status: &HashSet<StatusCode>,
+    ) -> Option<(CacheStatus, Timestamp)> {
+        let CacheValue { status, timestamp } = cache_value;
+
+        if Option::<StatusCode>::from(status).is_some_and(|s| cache_exclude_status.contains(&s)) {
+            return Some((status, timestamp));
+        }
+        match status {
+            CacheStatus::Ok(_) | CacheStatus::Error(_) => Some((status, timestamp)),
+            CacheStatus::Excluded | CacheStatus::Unsupported => None,
+        }
+    }
+
     /// Store the cache under the given path. Update access timestamps
-    fn store<T: AsRef<Path>>(&self, path: T) -> Result<()>;
-
-    /// Load cache from path. Discard entries older than `max_age_secs`
-    fn load<T: AsRef<Path>>(
-        path: T,
-        max_age_secs: u64,
-        excluder: &StatusCodeSelector,
-    ) -> Result<Cache>;
-}
-
-impl StoreExt for Cache {
-    fn store<T: AsRef<Path>>(&self, path: T) -> Result<()> {
+    pub(crate) fn store(
+        self,
+        path: impl AsRef<Path>,
+        cache_exclude_status: &HashSet<StatusCode>,
+    ) -> Result<()> {
         let mut wtr = csv::WriterBuilder::new()
             .has_headers(false)
             .from_path(path)?;
-        for result in self {
+
+        for (k, v) in self.0.into_completed_entries() {
             // Do not serialize errors to disk. We always want to recheck failing links.
-            if matches!(result.value().status, CacheStatus::Error(_)) {
+            if matches!(v.status, CacheStatus::Error(_)) {
                 continue;
             }
-            wtr.serialize((result.key(), result.value()))?;
+            if let Some(v) = Self::to_disk_cache_value(v, cache_exclude_status) {
+                wtr.serialize((k, v))?;
+            }
         }
+
         Ok(())
     }
 
-    fn load<T: AsRef<Path>>(
+    /// Load cache from path. Discard entries older than `max_age_secs`
+    pub(crate) fn load<T: AsRef<Path>>(
         path: T,
         max_age_secs: u64,
         excluder: &StatusCodeSelector,
-    ) -> Result<Cache> {
+    ) -> Result<LycheeCache> {
         let mut rdr = csv::ReaderBuilder::new()
             .has_headers(false)
             .from_path(path)?;
 
-        let map = Cache::new();
+        let mut data = vec![];
         let current_ts = timestamp();
         for result in rdr.deserialize() {
-            let (uri, value): (Uri, CacheValue) = result?;
+            let (uri, status, timestamp): (Uri, CacheStatus, Timestamp) = result?;
             // Discard entries older than `max_age_secs`.
             // This allows gradually updating the cache over multiple runs.
-            if current_ts - value.timestamp >= max_age_secs {
+            if current_ts - timestamp >= max_age_secs {
                 continue;
             }
 
@@ -85,47 +127,53 @@ impl StoreExt for Cache {
             // Discard entries for status codes which have been excluded.
             // Without this check, an entry might be cached, then its status code is configured as
             // excluded, and in subsequent runs the cached value is still reused.
-            if value.status.is_excluded(excluder) {
+            if status.is_excluded(excluder) {
                 continue;
             }
 
-            map.insert(uri, value);
+            data.push((uri, CacheValue { status, timestamp }));
         }
-        Ok(map)
+        Ok(Self(data.into_iter().collect()))
+    }
+}
+
+impl FromIterator<(Uri, CacheValue)> for LycheeCache {
+    fn from_iter<It: IntoIterator<Item = (Uri, CacheValue)>>(iter: It) -> Self {
+        Self(iter.into_iter().collect())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use http::StatusCode;
-    use lychee_lib::{CacheStatus, StatusCodeSelector, StatusRange, Uri};
+    use std::collections::HashSet;
 
-    use crate::{
-        cache::{Cache, CacheValue, StoreExt},
-        time::timestamp,
-    };
+    use crate::LycheeCache;
+    use crate::{cache::CacheValue, time::timestamp};
+    use lychee_lib::{CacheStatus, StatusCodeSelector, StatusRange, Uri};
 
     #[test]
     fn test_excluded_status_not_reused_from_cache() {
         let uri: Uri = "https://example.com".try_into().unwrap();
 
-        let cache = Cache::new();
-        cache.insert(
+        let cache: LycheeCache = vec![(
             uri.clone(),
             CacheValue {
                 status: CacheStatus::Ok(StatusCode::TOO_MANY_REQUESTS),
                 timestamp: timestamp(),
             },
-        );
+        )]
+        .into_iter()
+        .collect();
 
         let tmp = tempfile::NamedTempFile::new().unwrap();
-        cache.store(tmp.path()).unwrap();
+        cache.store(tmp.path(), &HashSet::default()).unwrap();
 
         let mut excluder = StatusCodeSelector::empty();
         excluder.add_range(StatusRange::new(400, 500).unwrap());
 
-        let cache = Cache::load(tmp.path(), u64::MAX, &excluder).unwrap();
-        assert!(cache.get(&uri).is_none());
+        let cache = LycheeCache::load(tmp.path(), u64::MAX, &excluder).unwrap();
+        assert!(cache.lock_entry(&uri).is_ok());
     }
 
     #[test]

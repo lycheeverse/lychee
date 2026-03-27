@@ -91,7 +91,7 @@ mod verbosity;
 
 use crate::formatters::stats::{OutputStats, ResponseStats, output_statistics};
 use crate::{
-    cache::{Cache, StoreExt},
+    cache::LycheeCache,
     formatters::duration::Duration,
     generate::generate,
     options::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
@@ -195,7 +195,7 @@ fn load_cookie_jar(cfg: &Config) -> Result<Option<CookieJar>> {
 /// This returns an `Option` as starting without a cache is a common scenario
 /// and we silently discard errors on purpose
 #[must_use]
-fn load_cache(cfg: &Config) -> Option<Cache> {
+fn load_cache(cfg: &Config) -> Option<LycheeCache> {
     if !cfg.cache {
         return None;
     }
@@ -229,7 +229,7 @@ fn load_cache(cfg: &Config) -> Option<Cache> {
         }
     }
 
-    let cache = Cache::load(
+    let cache = LycheeCache::load(
         LYCHEE_CACHE_FILE,
         max_cache_age.as_secs(),
         &cfg.cache_exclude_status(),
@@ -401,7 +401,10 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         output_statistics(stats, &opts.config)?;
 
         if opts.config.cache {
-            cache.store(LYCHEE_CACHE_FILE)?;
+            cache.store(
+                LYCHEE_CACHE_FILE,
+                &opts.config.cache_exclude_status().into(),
+            )?;
         }
 
         if let Some(cookie_jar) = cookie_jar.as_ref() {

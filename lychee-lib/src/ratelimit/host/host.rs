@@ -21,6 +21,7 @@ use tokio::sync::Semaphore;
 
 use super::key::HostKey;
 use super::stats::HostStats;
+use crate::cache::Cache;
 use crate::Uri;
 use crate::types::Result;
 use crate::{
@@ -31,8 +32,8 @@ use crate::{
 /// Cap maximum backoff duration to reasonable limits
 const MAXIMUM_BACKOFF: Duration = Duration::from_secs(60);
 
-/// Per-host cache for storing request results
-type HostCache = DashMap<Uri, CacheableResponse>;
+/// Per-host cache for storing request results.
+type HostCache = Cache<Uri, CacheableResponse>;
 
 /// Represents a single host with its own rate limiting, concurrency control,
 /// HTTP client configuration, and request cache.
@@ -96,7 +97,7 @@ impl Host {
             client,
             stats: Mutex::new(HostStats::default()),
             backoff_duration: Mutex::new(Duration::from_millis(0)),
-            cache: DashMap::new(),
+            cache: Cache::new(),
             active_requests: DashMap::new(),
         }
     }
