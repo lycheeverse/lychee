@@ -38,8 +38,8 @@ indicatif = "0.18.4"
 log = "0.4.28"
 regex = "1.12.2"
 reqwest = "0.13.2"
-
 reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
+rlimit = "0.11.0"
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
@@ -56,7 +56,6 @@ tokio-stream = "0.1.18"
 toml = "1.0.7"
 url = "2.5.8"
 quick-junit = "0.6.0"
-
 
 [dev-dependencies]
 assert_cmd = "2.2.0"

@@ -134,6 +134,43 @@ fn read_lines(file: &File) -> Result<Vec<String>> {
         .collect())
 }
 
+/// Handle the system's `RLIMIT_NOFILE` limit to prevent
+/// opening too many file descriptors and encountering runtime errors.
+/// (see <https://github.com/lycheeverse/lychee/issues/1248>)
+///
+/// 1. We try to increase the soft limit.
+/// 2. If the soft limit is low we reduce lychee's `max_concurrency` accordingly
+fn handle_fd_limits(opts: &mut LycheeOptions) {
+    use rlimit::{Resource, getrlimit, increase_nofile_limit};
+    /// Baseline overhead estimate to account for file descriptors
+    /// which are opened before lychee actually does any link checking.
+    /// Estimate is based on observing `lsof -p $(pgrep lychee)`.
+    const BASELINE_OVERHEAD: u64 = 20;
+
+    if let Ok(soft_limit) = increase_nofile_limit(u64::MAX)
+        .or_else(|_| getrlimit(Resource::NOFILE).map(|(soft, _)| soft))
+    {
+        // The relation between `concurrency` and `soft_limit` is roughly:
+        // `soft_limit` ≈ `baseline_overhead` + `concurrency`
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "max_concurrency is small in practice"
+        )]
+        let concurrency = soft_limit.saturating_sub(BASELINE_OVERHEAD) as usize;
+
+        let requested_concurrency = opts.config.max_concurrency();
+        if requested_concurrency > concurrency {
+            let concurrency = concurrency.max(1);
+            warn!(
+                "System file descriptor limit is {soft_limit} which is too low for the requested \
+                concurrency of {requested_concurrency}. Lowering `max_concurrency` to \
+                {concurrency} to prevent 'Too many open files' errors.",
+            );
+            opts.config.set_max_concurrency(concurrency);
+        }
+    }
+}
+
 /// Merge all provided config options into one.
 /// This includes the command-line args,
 /// the config file and the secrets file in that order.
@@ -179,6 +216,8 @@ fn load_config() -> Result<LycheeOptions> {
         let file = File::open(path)?;
         opts.config.exclude.append(&mut read_lines(&file)?);
     }
+
+    handle_fd_limits(&mut opts);
 
     Ok(opts)
 }
