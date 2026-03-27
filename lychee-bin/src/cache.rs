@@ -84,6 +84,10 @@ impl LycheeCache {
             .from_path(path)?;
 
         for (k, v) in self.0.into_completed_entries() {
+            // Do not serialize errors to disk. We always want to recheck failing links.
+            if matches!(v.status, CacheStatus::Error(_)) {
+                continue;
+            }
             if let Some(v) = Self::to_disk_cache_value(v, cache_exclude_status) {
                 wtr.serialize((k, v))?;
             }
@@ -112,6 +116,14 @@ impl LycheeCache {
                 continue;
             }
 
+            // Discard errors. Caching errors goes against typical CI workflows.
+            // If a link fails due to a network issue, a server outage, or if a previously
+            // failing link has been fixed, reading an error from the cache prevents lychee
+            // from realizing the link is now working.
+            if matches!(value.status, CacheStatus::Error(_)) {
+                continue;
+            }
+
             // Discard entries for status codes which have been excluded.
             // Without this check, an entry might be cached, then its status code is configured as
             // excluded, and in subsequent runs the cached value is still reused.
@@ -133,7 +145,6 @@ impl FromIterator<(Uri, CacheValue)> for LycheeCache {
 
 #[cfg(test)]
 mod tests {
-
     use http::StatusCode;
     use std::collections::HashSet;
 
@@ -163,5 +174,35 @@ mod tests {
 
         let cache = LycheeCache::load(tmp.path(), u64::MAX, &excluder).unwrap();
         assert!(cache.lock_entry(&uri).is_ok());
+    }
+
+    #[test]
+    fn test_errors_not_stored_in_cache() {
+        let uri: Uri = "https://example.com/error".try_into().unwrap();
+
+        let cache = Cache::new();
+        cache.insert(
+            uri.clone(),
+            CacheValue {
+                status: CacheStatus::Error(Some(StatusCode::INTERNAL_SERVER_ERROR)),
+                timestamp: timestamp(),
+            },
+        );
+        let uri_none: Uri = "https://example.com/none".try_into().unwrap();
+        cache.insert(
+            uri_none.clone(),
+            CacheValue {
+                status: CacheStatus::Error(None),
+                timestamp: timestamp(),
+            },
+        );
+
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        cache.store(tmp.path()).unwrap();
+
+        let excluder = StatusCodeSelector::empty();
+        let loaded_cache = Cache::load(tmp.path(), u64::MAX, &excluder).unwrap();
+        assert!(loaded_cache.get(&uri).is_none());
+        assert!(loaded_cache.get(&uri_none).is_none());
     }
 }

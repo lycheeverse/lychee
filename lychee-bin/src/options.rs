@@ -88,7 +88,6 @@ pub(crate) enum StatsFormat {
     Json,
     Junit,
     Markdown,
-    Raw,
 }
 
 impl FromStr for StatsFormat {
@@ -101,7 +100,6 @@ impl FromStr for StatsFormat {
             "json" => Ok(StatsFormat::Json),
             "junit" => Ok(StatsFormat::Junit),
             "markdown" | "md" => Ok(StatsFormat::Markdown),
-            "raw" => Ok(StatsFormat::Raw),
             _ => Err(anyhow!("Unknown format {format}")),
         }
     }
@@ -380,7 +378,7 @@ pub(crate) struct Config {
     /// This is useful when the default extensions are not enough and you don't
     /// want to provide a long list of inputs (e.g. file1.html, file2.md, etc.)
     ///
-    /// [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt]
+    /// [default: md,mkd,mdx,mdown,mdwn,mkdn,mkdown,markdown,html,htm,css,txt,xml]
     #[arg(long, verbatim_doc_comment)]
     extensions: Option<FileExtensions>,
 
@@ -450,7 +448,7 @@ pub(crate) struct Config {
 
     /// Maximum number of allowed redirects
     ///
-    /// [default: 5]
+    /// [default: 10]
     #[arg(short, long)]
     max_redirects: Option<usize>,
 

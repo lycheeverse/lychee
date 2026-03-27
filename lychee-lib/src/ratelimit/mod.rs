@@ -31,9 +31,14 @@ use crate::{ErrorKind, Result};
 /// since it does not implement [`Clone`].
 #[derive(Debug, Clone)]
 pub(crate) struct CacheableResponse {
+    /// HTTP status code of the response.
     pub(crate) status: reqwest::StatusCode,
+    /// Response body text. Only populated when `needs_body` was `true` in
+    /// [`HostPool::execute_request`].
     pub(crate) text: Option<String>,
+    /// Response headers.
     pub(crate) headers: HeaderMap,
+    /// Final URL after any redirects.
     pub(crate) url: Url,
 }
 

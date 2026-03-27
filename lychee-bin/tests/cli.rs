@@ -691,13 +691,13 @@ mod cli {
     }
 
     #[test]
-    fn test_missing_file_ok_if_skip_missing() {
+    fn test_fails_if_input_file_missing_even_with_skip_missing() {
         let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
         cargo_bin_cmd!()
             .arg(&filename)
             .arg("--skip-missing")
             .assert()
-            .success();
+            .failure();
     }
 
     #[test]
@@ -1316,8 +1316,8 @@ The config file should contain every possible key for documentation purposes."
             "Missing OK entry in cache"
         );
         assert!(
-            data.contains(&format!("{}/,404", mock_server_err.uri())),
-            "Missing error entry in cache"
+            !data.contains(&format!("{}/,404", mock_server_err.uri())),
+            "Error entry should not be cached"
         );
 
         // Run again to verify cache behavior
@@ -1327,7 +1327,7 @@ The config file should contain every possible key for documentation purposes."
                 mock_server_ok.uri()
             )))
             .stderr(contains(format!(
-                "[404] {}/ (at 2:1) | Error (cached)\n",
+                "[404] {}/ (at 2:1) | Rejected status code: 404 Not Found (configurable with \"accept\" option)\n",
                 mock_server_err.uri()
             )));
 
@@ -1454,8 +1454,10 @@ The config file should contain every possible key for documentation purposes."
         // check content of cache file
         let data = fs::read_to_string(&cache_file)?;
         assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
-        assert!(data.contains(&format!("{}/,418", mock_server_teapot.uri())));
-        assert!(data.contains(&format!("{}/,500", mock_server_server_error.uri())));
+        // Because the first run DID NOT use `--accept`, 418 and 500 were both treated as errors.
+        // With our new error dropping logic, NEITHER gets cached in the first run.
+        assert!(!data.contains(&format!("{}/,418", mock_server_teapot.uri())));
+        assert!(!data.contains(&format!("{}/,500", mock_server_server_error.uri())));
 
         // run again to verify cache behavior
         // this time accept 418 and 500 as valid status codes
@@ -1466,11 +1468,11 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stderr(contains(format!(
-                "[418] {}/ (at 2:1) | OK (cached)",
+                "[418] {}/ (at 2:1) | 418 I'm a teapot: I'm a teapot",
                 mock_server_teapot.uri()
             )))
             .stderr(contains(format!(
-                "[500] {}/ (at 3:1) | OK (cached)",
+                "[500] {}/ (at 3:1) | 500 Internal Server Error: Internal Server Error",
                 mock_server_server_error.uri()
             )));
 
@@ -1601,8 +1603,11 @@ The config file should contain every possible key for documentation purposes."
         // If the status code was 999, the cache file should be empty
         // because we do not want to cache unknown status codes
         let buf = fs::read(&cache_file).unwrap();
-        let data = String::from_utf8(buf)?;
-        assert!(data.contains(",999,"));
+        assert!(
+            buf.is_empty(),
+            "cache file should be empty, but was {}",
+            String::from_utf8_lossy(&buf)
+        );
 
         Ok(())
     }
@@ -1816,11 +1821,39 @@ The config file should contain every possible key for documentation purposes."
 
     #[test]
     fn test_inputs_without_scheme() {
-        let test_path = fixtures_path!().join("TEST_HTTP.html");
         cargo_bin_cmd!()
             .arg("--dump")
             .arg("example.com")
-            .arg(&test_path)
+            .assert()
+            .failure()
+            .stderr(contains(
+                "Input 'example.com' not found as file and not a valid URL",
+            ));
+    }
+
+    // Regression test for https://github.com/lycheeverse/lychee/issues/972
+    // Absolute Windows paths like `C:\dir` were rejected with "URL scheme is not
+    // allowed" because the drive letter was parsed as a URL scheme.
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_absolute_path_accepted_as_file_input() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let path_str = dir.path().to_str().unwrap().to_owned();
+
+        // Sanity-check: the path must start with a drive letter (e.g. "C:\")
+        // for the regression to be meaningful.
+        assert!(
+            path_str.chars().nth(1) == Some(':'),
+            "Expected an absolute Windows path with a drive letter, got: {path_str}"
+        );
+
+        // The path exists, so lychee should accept it and attempt to check
+        // the links inside (there are none, so it exits successfully).
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(&path_str)
             .assert()
             .success();
     }
@@ -1971,7 +2004,9 @@ The config file should contain every possible key for documentation purposes."
             .arg("./NOT-A-REAL-TEST-FIXTURE.md")
             .assert()
             .failure()
-            .stderr(contains("Invalid file path: ./NOT-A-REAL-TEST-FIXTURE.md"));
+            .stderr(contains(
+                "Input './NOT-A-REAL-TEST-FIXTURE.md' not found as file and not a valid URL",
+            ));
     }
 
     #[test]
@@ -2776,6 +2811,62 @@ The config file should contain every possible key for documentation purposes."
         server.verify().await;
     }
 
+    #[tokio::test]
+    async fn test_user_agent_set_on_remote_input() {
+        // When a URL is passed directly as a CLI input, the configured user-agent
+        // should be sent in the request headers. Previously the resolver used a
+        // bare reqwest::Client with no user-agent at all.
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("user-agent", "test-agent/1.0"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1)
+                    .named("GET expecting user-agent header"),
+            )
+            .await;
+
+        cargo_bin_cmd!()
+            .arg("--user-agent")
+            .arg("test-agent/1.0")
+            .arg(server.uri())
+            .assert()
+            .success();
+    }
+
+    #[tokio::test]
+    async fn test_default_user_agent_set_on_remote_input() {
+        // Even without an explicit --user-agent, the default lychee user-agent
+        // should be sent when fetching a remote input URL.
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1),
+            )
+            .await;
+
+        cargo_bin_cmd!().arg(server.uri()).assert().success();
+
+        let received_requests = server.received_requests().await.unwrap();
+        assert_eq!(received_requests.len(), 1);
+
+        let received_request = &received_requests[0];
+        let user_agent = received_request
+            .headers
+            .get("user-agent")
+            .expect("User agent missing")
+            .to_str()
+            .unwrap();
+
+        assert!(
+            user_agent.starts_with("lychee/"),
+            "Expected user-agent to start with 'lychee/', got: {user_agent:?}"
+        );
+    }
+
     #[test]
     fn test_sorted_error_output() -> Result<()> {
         let temp_dir = tempfile::tempdir()?;
@@ -3141,8 +3232,6 @@ The config file should contain every possible key for documentation purposes."
     }
 
     /// URLs specified on the command line should also always be checked.
-    /// For example, sitemap URLs often end with `.xml` which is not
-    /// a file extension we would check by default.
     #[tokio::test]
     async fn test_url_inputs_always_get_checked_no_matter_their_extension() {
         let mock_server = wiremock::MockServer::start().await;
@@ -3158,7 +3247,7 @@ The config file should contain every possible key for documentation purposes."
         cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--dump")
-            .arg(format!("{}/sitemap.xml", mock_server.uri()))
+            .arg(format!("{}/some.svg", mock_server.uri()))
             .assert()
             .success()
             .stdout(contains(url))
@@ -3424,7 +3513,19 @@ The config file should contain every possible key for documentation purposes."
             .arg("http://website.invalid")
             .assert()
             .failure()
-            .code(1);
+            .code(1)
+            .stderr(contains("Error: Network error"));
+
+        // invalid domain name should be reported even if other tokio panics happen
+        // (e.g., due to send into closed channel).
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("https://a.invalid")
+            .write_stdin("http://example.com")
+            .assert()
+            .failure()
+            .code(1)
+            .stderr(contains("Error: Network error"));
 
         // maybe test with a directory with no write permissions? but there
         // doesn't seem to be an equivalent to chmod on the windows API:
@@ -3630,6 +3731,31 @@ The config file should contain every possible key for documentation purposes."
             .stdout(contains("https://lychee.cli.rs/another%20page"));
     }
 
+    #[test]
+    fn test_sitemap_xml() {
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("sitemap/sitemap.xml"))
+            .arg("-v")
+            .assert()
+            .success()
+            .stdout(contains("2 Total"))
+            .stdout(contains("2 OK"))
+            .stdout(contains("0 Errors"));
+    }
+
+    #[test]
+    fn test_sitemap_xml_warn() {
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("sitemap/not-a-sitemap.xml"))
+            .arg("-v")
+            .assert()
+            .success()
+            .stdout(contains("0 Total"))
+            .stdout(contains("0 OK"))
+            .stdout(contains("0 Errors"))
+            .stderr(contains("[WARN] No URLs found in XML input."));
+    }
+
     /// URLs should NOT be downloaded fully, unless fragment checking is on and the link has a fragment.
     #[test]
     fn test_large_file_lazy_download() {
@@ -3661,5 +3787,43 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             )
             .assert()
             .success();
+    }
+
+    /// Verifies that loading an older, legacy `.lycheecache` file containing a cached error
+    /// correctly drops the error and successfully retries the link.
+    /// This ensures we don't break existing user CI workflows that have older cache files
+    /// stored before we stopped caching errors.
+    #[tokio::test]
+    async fn test_legacy_cache_file_ignores_errors() -> Result<()> {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
+        let cache_file = base_path.join(LYCHEE_CACHE_FILE);
+
+        // A server that is currently returning OK
+        let mock_server_ok = mock_server!(StatusCode::OK);
+
+        // Simulate an older `.lycheecache` where this exact URL previously failed with 404
+        // We use a future timestamp ({ts}) so it doesn't expire
+        fs::write(&cache_file, format!("{},404,{ts}\n", mock_server_ok.uri()))?;
+
+        let mut file = File::create(dir.path().join("input.txt"))?;
+        writeln!(file, "{}", mock_server_ok.uri())?;
+
+        // Run lychee. It should ignore the 404 from the cache, actually check the mock server (which returns 200), and succeed.
+        cargo_bin_cmd!()
+            .current_dir(base_path)
+            .arg("input.txt")
+            .arg("--cache")
+            .arg("--verbose")
+            .assert()
+            .success()
+            .stdout(contains("1 OK"))
+            .stdout(contains("0 Errors"));
+
+        Ok(())
     }
 }

@@ -117,6 +117,7 @@ impl LinkExtractor {
             name,
             self_closing: _,
             attrs,
+            had_duplicate_attributes: _,
         }: Tag,
         line_number: usize,
     ) -> TokenSinkResult<()> {

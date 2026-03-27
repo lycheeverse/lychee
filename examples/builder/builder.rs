@@ -22,7 +22,7 @@ async fn main() -> Result<()> {
     let client = ClientBuilder::builder()
         .excludes(excludes)
         .includes(includes)
-        .max_redirects(3u8)
+        .max_redirects(10u8)
         .user_agent("custom useragent")
         .allow_insecure(true)
         .custom_headers(headers)

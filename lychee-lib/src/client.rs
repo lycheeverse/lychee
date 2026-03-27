@@ -37,8 +37,8 @@ use crate::{
     types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory},
 };
 
-/// Default number of redirects before a request is deemed as failed, 5.
-pub const DEFAULT_MAX_REDIRECTS: usize = 5;
+/// Default number of redirects that are followed.
+pub const DEFAULT_MAX_REDIRECTS: usize = 10;
 /// Default number of retries before a request is deemed as failed, 3.
 pub const DEFAULT_MAX_RETRIES: u64 = 3;
 /// Default wait time in seconds between retries, 1.

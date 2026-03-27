@@ -1,7 +1,7 @@
 use crate::ErrorKind;
 use crate::Preprocessor;
 use crate::filter::PathExcludes;
-
+use crate::ratelimit::HostPool;
 use crate::types::resolver::UrlContentResolver;
 use crate::{
     BaseInfo, Input, LycheeResult, Request, RequestError, basic_auth::BasicAuthExtractor,
@@ -14,9 +14,9 @@ use futures::{
 };
 use http::HeaderMap;
 use par_stream::ParStreamExt;
-use reqwest::Client;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Collector keeps the state of link collection
 /// It drives the link extraction from inputs
@@ -33,8 +33,16 @@ pub struct Collector {
     root_dir: Option<PathBuf>,
     base: BaseInfo,
     excluded_paths: PathExcludes,
+    /// Custom headers forwarded to the resolver for remote input fetches.
+    /// Note: when a `host_pool` is set, per-host headers configured there
+    /// take precedence over these global headers for known hosts.
     headers: HeaderMap,
-    client: Client,
+    /// Shared host pool used to fetch remote input documents.
+    ///
+    /// Using the same pool as the link checker means that input URL fetches
+    /// use the configured user-agent, TLS settings, cookies, per-host rate
+    /// limits, and custom headers.
+    host_pool: Arc<HostPool>,
     preprocessor: Option<Preprocessor>,
 }
 
@@ -57,7 +65,7 @@ impl Default for Collector {
             root_dir: None,
             base: BaseInfo::none(),
             headers: HeaderMap::new(),
-            client: Client::new(),
+            host_pool: Arc::new(HostPool::default()),
             excluded_paths: PathExcludes::empty(),
             preprocessor: None,
         }
@@ -108,9 +116,7 @@ impl Collector {
             skip_ignored: true,
             preprocessor: None,
             headers: HeaderMap::new(),
-            client: Client::builder()
-                .build()
-                .map_err(ErrorKind::BuildRequestClient)?,
+            host_pool: Arc::new(HostPool::default()),
             excluded_paths: PathExcludes::empty(),
             root_dir,
             base,
@@ -145,10 +151,22 @@ impl Collector {
         self
     }
 
-    /// Set client to use for checking input URLs
+    /// Set the [`HostPool`] to use when fetching remote input URLs.
+    ///
+    /// Pass the pool from a fully-configured [`crate::Client`] so that input
+    /// fetches share the same user-agent, TLS settings, cookies, per-host
+    /// rate limits and headers as regular link checks:
+    ///
+    /// ```
+    /// # use lychee_lib::{BaseInfo, ClientBuilder, Collector, ErrorKind};
+    /// let client = ClientBuilder::builder().build().client()?;
+    /// let collector = Collector::new(None, BaseInfo::none())?
+    ///     .host_pool(client.host_pool());
+    /// # Ok::<(), ErrorKind>(())
+    /// ```
     #[must_use]
-    pub fn client(mut self, client: Client) -> Self {
-        self.client = client;
+    pub fn host_pool(mut self, host_pool: Arc<HostPool>) -> Self {
+        self.host_pool = host_pool;
         self
     }
 
@@ -228,7 +246,7 @@ impl Collector {
         let resolver = UrlContentResolver {
             basic_auth_extractor: self.basic_auth_extractor.clone(),
             headers: self.headers.clone(),
-            client: self.client,
+            host_pool: self.host_pool,
         };
 
         let extractor = Extractor::new(
@@ -597,6 +615,47 @@ mod tests {
         let expected_links = HashSet::from_iter([mail!("user@example.com")]);
 
         assert_eq!(links, expected_links);
+    }
+
+    #[tokio::test]
+    async fn test_user_agent_is_sent_for_remote_input_url() {
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        let uri = Uri::try_from("https://example.com").unwrap();
+
+        Mock::given(method("GET"))
+            .and(path("/"))
+            .and(header("user-agent", "test-agent/1.0"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string(format!(r#"<a href="{uri}">Link</a>"#)),
+            )
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let url = Url::parse(&mock_server.uri()).unwrap();
+        let inputs = std::collections::HashSet::from_iter([Input {
+            source: InputSource::RemoteUrl(Box::new(url)),
+            file_type_hint: Some(FileType::Html),
+        }]);
+
+        let client = crate::ClientBuilder::builder()
+            .user_agent("test-agent/1.0".to_string())
+            .build()
+            .client()
+            .unwrap();
+
+        let links = Collector::new(None, BaseInfo::none())
+            .unwrap()
+            .host_pool(client.host_pool())
+            .collect_links_from_file_types(inputs, crate::FileExtensions::default())
+            .map(|r| r.unwrap().uri)
+            .collect::<std::collections::HashSet<_>>()
+            .await;
+
+        assert_eq!(links, HashSet::from([uri]));
     }
 
     #[tokio::test]

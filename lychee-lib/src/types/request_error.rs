@@ -14,20 +14,20 @@ static ERROR_URI: LazyLock<Uri> = LazyLock::new(|| Uri::try_from("error:").unwra
 pub enum RequestError {
     /// Unable to construct a URL for a link appearing within the given source.
     #[error("Error building URL for {0}: {2}")]
-    CreateRequestItem(RawUri, ResolvedInputSource, #[source] ErrorKind),
+    CreateRequestItem(Box<RawUri>, ResolvedInputSource, #[source] Box<ErrorKind>),
 
     /// Unable to load the content of an input source.
     #[error("Error reading input '{0}': {1}")]
-    GetInputContent(InputSource, #[source] ErrorKind),
+    GetInputContent(InputSource, #[source] Box<ErrorKind>),
 
     /// Unable to load an input source directly specified by the user.
     #[error("Error reading user input '{0}': {1}")]
-    UserInputContent(InputSource, #[source] ErrorKind),
+    UserInputContent(InputSource, #[source] Box<ErrorKind>),
 
     /// Unable to process URLs from an input source due to an error.
     /// This is for errors that happen after the input content was loaded.
     #[error("Error processing input '{0}': {1}")]
-    InputSourceError(InputSource, #[source] ErrorKind),
+    InputSourceError(InputSource, #[source] Box<ErrorKind>),
 }
 
 impl RequestError {
@@ -49,7 +49,7 @@ impl RequestError {
             Self::CreateRequestItem(_, _, e)
             | Self::GetInputContent(_, e)
             | Self::UserInputContent(_, e)
-            | Self::InputSourceError(_, e) => e,
+            | Self::InputSourceError(_, e) => *e,
         }
     }
 
@@ -74,7 +74,7 @@ impl RequestError {
     /// as an Err. This allows the error to be propagated back to the user.
     pub fn into_response(self) -> Result<Response, ErrorKind> {
         match self {
-            RequestError::UserInputContent(_, e) => Err(e),
+            RequestError::UserInputContent(_, e) => Err(*e),
             e => {
                 let src = e.input_source();
                 let span = match &e {

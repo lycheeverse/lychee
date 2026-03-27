@@ -1,4 +1,3 @@
-use log::warn;
 use reqwest::Url;
 use std::path::Path;
 use url::PathSegmentsMut;
@@ -66,13 +65,6 @@ fn try_parse_into_uri(
     // BACKWARDS COMPAT: delete trailing slash for file urls
     // Without this, then a local link like `README.md/` will fail.
     if url.scheme() == "file" {
-        if url.path() != "/" && url.path().ends_with('/') {
-            warn!(
-                "Removing trailing slash from file URL: {url}. {} {}",
-                "This lets the URL match both files and folders.",
-                "In future, a file URL ending in / might fail link checking if it points to a file."
-            );
-        }
         let _ = url
             .path_segments_mut()
             .as_mut()
@@ -102,7 +94,7 @@ pub(crate) fn create(
             // if a FsPath leads to an invalid URL.
             return vec![Err(RequestError::InputSourceError(
                 source.clone().into(),
-                e,
+                e.into(),
             ))];
         }
     };
@@ -115,8 +107,9 @@ pub(crate) fn create(
 
     uris.into_iter()
         .map(|raw_uri| {
-            create_request(&raw_uri, source, root_dir, base, extractor)
-                .map_err(|e| RequestError::CreateRequestItem(raw_uri.clone(), source.clone(), e))
+            create_request(&raw_uri, source, root_dir, base, extractor).map_err(|e| {
+                RequestError::CreateRequestItem(raw_uri.clone().into(), source.clone(), e.into())
+            })
         })
         .collect()
 }

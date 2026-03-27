@@ -59,7 +59,7 @@
 #![deny(missing_docs)]
 
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, ErrorKind};
+use std::io::{self, BufRead, BufReader, ErrorKind, IsTerminal, stdin};
 use std::path::PathBuf;
 
 use anyhow::{Context, Error, Result};
@@ -301,6 +301,22 @@ fn underlying_io_error_kind(error: &Error) -> Option<io::ErrorKind> {
 async fn run(opts: &LycheeOptions) -> Result<i32> {
     let inputs = opts.inputs()?;
 
+    // Hide the progress bar only when stdin is the sole input and it is
+    // interactive (TTY).
+    //
+    // We restrict this to the sole-input case because with mixed inputs like
+    // `lychee - README.md` the file is processed concurrently with stdin, so
+    // the order of completion is non-deterministic. Hiding the bar there would
+    // be confusing rather than helpful.
+    //
+    // When stdin is piped (`cat links.txt | lychee -`), `is_terminal()` returns
+    // false, so the progress bar is shown normally.
+    let is_stdin_input = inputs.len() == 1
+        && inputs
+            .iter()
+            .any(|input| matches!(input.source, lychee_lib::InputSource::Stdin))
+        && stdin().is_terminal();
+
     // TODO: Remove this section after `--base` got removed with 1.0
     let base = match (opts.config.base.clone(), opts.config.base_url.clone()) {
         (None, base_url) => base_url,
@@ -328,27 +344,6 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
         return Ok(exit_code as i32);
     }
 
-    let mut collector = Collector::new(opts.config.root_dir.clone(), base.unwrap_or_default())?
-        .skip_missing_inputs(opts.config.skip_missing)
-        .skip_hidden(!opts.config.hidden)
-        // be aware that "no ignore" means do *not* ignore files
-        .skip_ignored(!opts.config.no_ignore)
-        .include_verbatim(opts.config.include_verbatim)
-        .headers(HeaderMap::from_header_pairs(&opts.config.headers())?)
-        .excluded_paths(PathExcludes::new(opts.config.exclude_path.clone())?)
-        // File a bug if you rely on this envvar! It's going to go away eventually.
-        .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").is_ok_and(|x| x == "1"))
-        .include_wikilinks(opts.config.include_wikilinks)
-        .preprocessor(opts.config.preprocess.clone());
-
-    collector = if let Some(ref basic_auth) = opts.config.basic_auth {
-        collector.basic_auth_extractor(BasicAuthExtractor::new(basic_auth)?)
-    } else {
-        collector
-    };
-
-    let requests = collector.collect_links_from_file_types(inputs, opts.config.extensions());
-
     let cache = load_cache(&opts.config).unwrap_or_default();
 
     let cookie_jar = load_cookie_jar(&opts.config).with_context(|| {
@@ -362,11 +357,34 @@ async fn run(opts: &LycheeOptions) -> Result<i32> {
     })?;
 
     let client = client::create(&opts.config, cookie_jar.as_deref())?;
+
+    let mut collector = Collector::new(opts.config.root_dir.clone(), base.unwrap_or_default())?
+        .skip_missing_inputs(opts.config.skip_missing)
+        .skip_hidden(!opts.config.hidden)
+        // be aware that "no ignore" means do *not* ignore files
+        .skip_ignored(!opts.config.no_ignore)
+        .include_verbatim(opts.config.include_verbatim)
+        .headers(HeaderMap::from_header_pairs(&opts.config.headers())?)
+        .excluded_paths(PathExcludes::new(opts.config.exclude_path.clone())?)
+        // File a bug if you rely on this envvar! It's going to go away eventually.
+        .use_html5ever(std::env::var("LYCHEE_USE_HTML5EVER").is_ok_and(|x| x == "1"))
+        .include_wikilinks(opts.config.include_wikilinks)
+        .preprocessor(opts.config.preprocess.clone())
+        .host_pool(client.host_pool());
+
+    collector = if let Some(ref basic_auth) = opts.config.basic_auth {
+        collector.basic_auth_extractor(BasicAuthExtractor::new(basic_auth)?)
+    } else {
+        collector
+    };
+
+    let requests = collector.collect_links_from_file_types(inputs, opts.config.extensions());
     let params = CommandParams {
         client,
         cache,
         requests,
         cfg: opts.config.clone(),
+        is_stdin_input,
     };
 
     let exit_code = if opts.config.dump {
