@@ -15,7 +15,7 @@ impl ColorFormatter {
     /// response.
     fn status_color(status: &Status) -> &'static std::sync::LazyLock<console::Style> {
         match status {
-            Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) | Status::Redirected(_, _) => &GREEN,
+            Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => &GREEN,
             Status::Excluded
             | Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => &DIM,
@@ -25,6 +25,7 @@ impl ColorFormatter {
             Status::Error(_) | Status::RequestError(_) | Status::Cached(CacheStatus::Error(_)) => {
                 &PINK
             }
+            Status::Redirected(inner, _) | Status::Remapped(inner, _) => Self::status_color(inner),
         }
     }
 
@@ -94,7 +95,7 @@ mod tests {
         let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
         assert_eq!(
             formatted_response,
-            " [ERROR] https://example.com/404 | URL cannot be empty: Empty URL found. Check for missing links or malformed markdown"
+            " [ERROR] https://example.com/404 | Empty URL found but a URL must not be empty"
         );
     }
 
@@ -119,7 +120,7 @@ mod tests {
         let response = strip_ansi_codes(&formatter.format_response(&body));
         assert_eq!(
             response,
-            " [ERROR] https://example.com/404 | URL cannot be empty: Empty URL found. Check for missing links or malformed markdown"
+            " [ERROR] https://example.com/404 | Empty URL found but a URL must not be empty"
         );
     }
 }

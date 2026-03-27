@@ -80,11 +80,12 @@ mod cli {
 
     /// Parse lychee's json output to [`Value`].
     /// Additionally remove the non-deterministic duration to simplify subsequent assertions
-    fn stdout_to_json(stdout: &[u8]) -> Result<Value> {
-        let mut output_json = serde_json::from_slice::<Value>(stdout)?;
+    fn stdout_to_json(stdout: &[u8]) -> Value {
+        let mut output_json =
+            serde_json::from_slice::<Value>(stdout).expect("stdout is not valid JSON");
         remove_nondeterministic_duration(&mut output_json["success_map"]);
-        remove_nondeterministic_duration(&mut output_json["redirect_map"]);
-        return Ok(output_json);
+        remove_nondeterministic_duration(&mut output_json["excluded_map"]);
+        return output_json;
 
         fn remove_nondeterministic_duration(value: &mut Value) {
             let map = value.as_object_mut().expect("Expected object");
@@ -197,7 +198,7 @@ mod cli {
             .assert()
             .success();
         let output = cmd.output().unwrap();
-        let output_json = stdout_to_json(&output.stdout)?;
+        let output_json = stdout_to_json(&output.stdout);
 
         // Check that the output is valid JSON
         assert!(output_json.is_object());
@@ -257,7 +258,7 @@ mod cli {
         let output = cmd.output()?;
 
         // Check that the output is valid JSON
-        stdout_to_json(&output.stdout)?;
+        stdout_to_json(&output.stdout);
         Ok(())
     }
 
@@ -276,7 +277,7 @@ mod cli {
         let output = cmd.output()?;
 
         // Parse site error status from the error_map
-        let output_json = stdout_to_json(&output.stdout)?;
+        let output_json = stdout_to_json(&output.stdout);
         let site_error_status =
             &output_json["error_map"][&test_path.to_str().unwrap()][0]["status"];
 
@@ -321,10 +322,10 @@ mod cli {
             .assert()
             .code(2)
             .stdout(contains(
-                "Unreachable mail address mailto:test@example.com: No MX records found for domain",
+                "mailto:test@example.com (at 1:1) | No MX records found for domain",
             ))
             .stdout(contains(
-                "Unreachable mail address mailto:idiomatic-rust-doesnt-exist-man@wikipedia.org: Mail server rejects the address",
+                "mailto:idiomatic-rust-doesnt-exist-man@wikipedia.org (at 1:18) | Mail server rejects the address",
             ))
             .stdout(contains("2 Errors"));
 
@@ -901,9 +902,8 @@ mod cli {
 
     /// Test excludes
     #[test]
-    fn test_exclude_wildcard() -> Result<()> {
+    fn test_exclude_wildcard() {
         let test_path = fixtures_path!().join("TEST.md");
-
         cargo_bin_cmd!()
             .arg(test_path)
             .arg("--exclude")
@@ -911,14 +911,11 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("12 Excluded"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_exclude_multiple_urls() -> Result<()> {
+    fn test_exclude_multiple_urls() {
         let test_path = fixtures_path!().join("TEST.md");
-
         cargo_bin_cmd!()
             .arg(test_path)
             .arg("--exclude")
@@ -928,8 +925,6 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("4 Excluded"));
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -1381,7 +1376,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .stderr(contains(format!("[200] {}/ (at 1:1)\n", mock_server_ok.uri())))
             .stderr(contains(format!(
-                "[204] {}/ (at 2:1) | 204 No Content: No Content\n",
+                "[204] {}/ (at 2:1) | 204 No Content\n",
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
@@ -1468,11 +1463,11 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .success()
             .stderr(contains(format!(
-                "[418] {}/ (at 2:1) | 418 I'm a teapot: I'm a teapot",
+                "[418] {}/ (at 2:1) | 418 I'm a teapot",
                 mock_server_teapot.uri()
             )))
             .stderr(contains(format!(
-                "[500] {}/ (at 3:1) | 500 Internal Server Error: Internal Server Error",
+                "[500] {}/ (at 3:1) | 500 Internal Server Error",
                 mock_server_server_error.uri()
             )));
 
@@ -1515,7 +1510,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                r#"[TIMEOUT] {}/ (at 1:1) | Timeout"#,
+                r#"[TIMEOUT] {}/ (at 1:1)"#,
                 mock_server_timeout.uri()
             )));
 
@@ -1529,7 +1524,7 @@ The config file should contain every possible key for documentation purposes."
             .success()
             .code(0)
             .stdout(contains(format!(
-                r#"[TIMEOUT] {}/ (at 1:1) | Timeout"#,
+                r#"[TIMEOUT] {}/ (at 1:1)"#,
                 mock_server_timeout.uri()
             )));
 
@@ -1557,13 +1552,14 @@ The config file should contain every possible key for documentation purposes."
             .arg("--no-progress")
             .arg("--exclude")
             .arg(excluded_url)
-            .arg("--")
             .arg("-")
             .assert()
             .stderr(contains(format!(
-                "[IGNORED] {unsupported_url} (at 1:1) | Unsupported: Error creating request client"
+                "[IGNORED] {unsupported_url} (at 1:1) | Unsupported: Failed to create HTTP request client: builder error for url (slack://user)"
             )))
-            .stderr(contains(format!("[EXCLUDED] {excluded_url} (at 2:1)\n")));
+            .stderr(contains(format!(
+                "[EXCLUDED] {excluded_url} (at 2:1) | This is due to your 'exclude' values\n"
+            )));
 
         // The cache file should be empty, because the only checked URL is
         // unsupported and we don't want to cache that. It might be supported in
@@ -1770,7 +1766,9 @@ The config file should contain every possible key for documentation purposes."
             .arg(test_path)
             .assert()
             .failure()
-            .stdout(contains("This URI is available in HTTPS protocol, but HTTP is provided. Use 'https://example.com/' instead"));
+            .stdout(contains(
+                "Insecure HTTP URL used, where 'https://example.com/' can be used instead",
+            ));
     }
 
     /// If `base-dir` is not set, an error should be thrown if we encounter
@@ -1786,7 +1784,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .stdout(contains("5 Error"))
-            .stdout(contains("Error building URL").count(5));
+            .stdout(contains("Cannot resolve root-relative link").count(5));
     }
 
     #[test]
@@ -1836,7 +1834,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("--verbose")
             .arg("--exclude")
             .arg("example.com")
-            .arg("--")
             .arg(&test_path)
             .assert()
             .success()
@@ -1862,7 +1859,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("https://example.com http://127.0.0.1:8080")
             .arg("--remap")
             .arg("https://example.org https://staging.example.com")
-            .arg("--")
             .arg("-")
             .write_stdin("https://example.com\nhttps://example.org\nhttps://example.net\n")
             .env_clear()
@@ -1880,7 +1876,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("--dump")
             .arg("--remap")
             .arg("../../issues https://github.com/usnistgov/OSCAL/issues")
-            .arg("--")
             .arg("-")
             .write_stdin("../../issues\n")
             .env_clear()
@@ -1895,7 +1890,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("--dump")
             .arg("--remap")
             .arg("https://example.com/(.*) http://example.org/$1")
-            .arg("--")
             .arg("-")
             .write_stdin("https://example.com/foo\n")
             .env_clear()
@@ -1910,13 +1904,84 @@ The config file should contain every possible key for documentation purposes."
             .arg("--dump")
             .arg("--remap")
             .arg("https://github.com/(?P<org>.*)/(?P<repo>.*) https://gitlab.com/$org/$repo")
-            .arg("--")
             .arg("-")
             .write_stdin("https://github.com/lycheeverse/lychee\n")
             .env_clear()
             .assert()
             .success()
             .stdout(contains("https://gitlab.com/lycheeverse/lychee"));
+    }
+
+    #[test]
+    fn test_erroneous_remap_with_redirect() {
+        cargo_bin_cmd!()
+            .arg("-vv")
+            .arg("--remap")
+            .arg("github.com rust-lang.org")
+            .arg("-")
+            .write_stdin("http://github.com/lycheeverse\n")
+            .env_clear()
+            .assert()
+            .failure()
+            .stdout(contains(r#"
+[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found (configurable with "accept" option) | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse | Remaps: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse
+"#))
+        // It is debugged when URIs are remapped
+        .stderr(contains("[DEBUG] Remapping http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse"))
+        // It is debugged when URL redirections are followed
+        .stderr(contains("[DEBUG] Following redirect to https://rust-lang.org/lycheeverse"));
+    }
+
+    #[test]
+    fn test_remap_named_invalid() {
+        cargo_bin_cmd!()
+            .arg("--remap")
+            .arg("https://example.com invalid")
+            .arg("-")
+            .write_stdin("https://example.com")
+            .env_clear()
+            .assert()
+            .failure()
+            // The error message should be descriptive and helpful
+            .stderr(contains("Error checking URL https://example.com/: Invalid remap pattern: the result `invalid/` is not a valid URL"))
+            // The original URI is shown as root cause in stdout
+            .stdout(contains("The given URI is invalid, check URI syntax: https://example.com/"));
+    }
+
+    #[test]
+    fn test_remap_to_excluded() {
+        let stdout = cargo_bin_cmd!()
+            .arg("--remap=aaa bbb")
+            .arg("--exclude=bbb")
+            .arg("--format=json")
+            .arg("-")
+            .write_stdin("https://aaa.com")
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        let json = stdout_to_json(&stdout);
+        assert_eq!(json["remaps"], 1);
+        assert_eq!(json["excludes"], 1);
+        assert_eq!(
+            json["excluded_map"],
+            json!({
+            "stdin": [
+              {
+                "url": "https://bbb.com/",
+                "status": {
+                  "text": "Excluded",
+                  "details": "This is due to your 'exclude' values | Remaps: https://aaa.com/ --> https://bbb.com/"
+                },
+                "span": {
+                  "line": 1,
+                  "column": 1
+                },
+              }
+            ]})
+        );
     }
 
     #[test]
@@ -1930,7 +1995,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("--exclude-path")
             .arg(excluded_path_2)
             .arg("--dump")
-            .arg("--")
             .arg(&test_path)
             .assert()
             .success();
@@ -1953,7 +2017,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("--verbose")
             .arg("--exclude")
             .arg("example.*")
-            .arg("--")
             .arg("./TEST_DUMP_EXCLUDE.txt")
             .assert()
             .success()
@@ -1970,7 +2033,6 @@ The config file should contain every possible key for documentation purposes."
             .arg("--verbose")
             .arg("--exclude")
             .arg("example.*")
-            .arg("--")
             .arg("./NOT-A-REAL-TEST-FIXTURE.md")
             .assert()
             .failure()
@@ -2546,8 +2608,10 @@ The config file should contain every possible key for documentation purposes."
             let (json, stderr) = run(&redirect_url, false);
             assert!(stderr.contains("[WARN] lychee detected 1 redirect. You might want to consider replacing redirecting URLs"));
             assert_eq!(json["total"], 1);
-            assert_eq!(json["redirects"], 1);
-            assert_eq!(json["redirect_map"], json!({}));
+            assert_eq!(json["redirects"], 1); // there was one redirect
+            assert_eq!(json["successful"], 1); // which resolved to a success
+            assert_eq!(json["redirect_map"], json!({})); // suppressed in non-verbose mode
+            assert_eq!(json["success_map"], json!({})); // suppressed in non-verbose mode
         })
         .await;
 
@@ -2561,13 +2625,24 @@ The config file should contain every possible key for documentation purposes."
                 json["redirect_map"],
                 json!({
                 "stdin":[{
+                    "origin": redirect_url,
+                    "redirects": [{
+                        "code": 308,
+                        "url": ok_url,
+                    }]
+                }]})
+            );
+            assert_eq!(
+                json["success_map"],
+                json!({
+                "stdin":[{
                     "span": {
                         "column": 1,
                         "line": 1,
                     },
                     "status": {
                         "code": 200,
-                        "text": "Redirect",
+                        "text": "200 OK",
                         "redirects": {
                             "origin": redirect_url,
                             "redirects": [{
@@ -2603,7 +2678,7 @@ The config file should contain every possible key for documentation purposes."
 
             let stderr = str::from_utf8(&output.stderr).unwrap().to_string();
 
-            (stdout_to_json(&output.stdout).unwrap(), stderr)
+            (stdout_to_json(&output.stdout), stderr)
         }
     }
 
@@ -3043,7 +3118,10 @@ The config file should contain every possible key for documentation purposes."
         let num_dir_links = 4;
         result
             .stdout(contains("Cannot find index file").count(num_dir_links))
-            .stdout(contains("No directory links are allowed").count(num_dir_links))
+            .stdout(
+                contains("Directory links are rejected because index_files is empty")
+                    .count(num_dir_links),
+            )
             .stdout(contains("0 OK"));
 
         // ... as should passing a number of empty index file names
@@ -3053,7 +3131,10 @@ The config file should contain every possible key for documentation purposes."
             .arg(",,,,,")
             .assert()
             .failure()
-            .stdout(contains("No directory links are allowed").count(num_dir_links))
+            .stdout(
+                contains("Directory links are rejected because index_files is empty")
+                    .count(num_dir_links),
+            )
             .stdout(contains("0 OK"));
     }
 
@@ -3559,7 +3640,7 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             .code(2)
-            .stdout(contains("Preprocessor command 'program does not exist' failed: could not start: No such file or directory"));
+            .stdout(contains("Preprocessor command 'program does not exist' failed with 'could not start: No such file or directory (os error 2)'"));
     }
 
     #[test]
@@ -3574,7 +3655,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "Preprocessor command '{}' failed: exited with non-zero code: <empty stderr>",
+                "Preprocessor command '{}' failed with 'exited with non-zero code: <empty stderr>'",
                 script.as_os_str().to_str().unwrap()
             )));
 
@@ -3587,7 +3668,7 @@ The config file should contain every possible key for documentation purposes."
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "Preprocessor command '{}' failed: exited with non-zero code: Some error message",
+                "Preprocessor command '{}' failed with 'exited with non-zero code: Some error message'",
                 script.as_os_str().to_str().unwrap()
             )));
     }
