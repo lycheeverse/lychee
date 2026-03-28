@@ -284,7 +284,10 @@ async fn handle(
         Err(e) => return e.into_response(),
     };
 
-    let uri = request.uri.clone();
+    let mut uri = request.uri.clone();
+
+    // Use the remapped URI for the cache key. See #1818.
+    client.remap(&mut uri)?;
 
     // First check the persistent disk-based cache
     if let Some(v) = cache.get(&uri) {
@@ -367,8 +370,8 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
 #[cfg(test)]
 mod tests {
     use http::StatusCode;
-    use lychee_lib::{ClientBuilder, ErrorKind, Uri};
-
+    use lychee_lib::{ClientBuilder, ErrorKind, StatusCodeSelector, Uri};
+    use crate::parse::parse_remaps;
     use super::*;
 
     #[tokio::test]
@@ -431,5 +434,19 @@ mod tests {
             &Status::Ok(StatusCode::OK),
             &exclude
         ));
+    }
+
+    #[tokio::test]
+    async fn test_cache_uses_remapped_uri_as_key() {
+        let remaps = parse_remaps(&["https://wikipedia.org/ https://wikipedia.org/404".to_string()]).unwrap();
+        let client = ClientBuilder::builder().remaps(remaps).build().client().unwrap();
+        let cache = Cache::new();
+        let response = handle(&client,
+                              &cache,
+                              StatusCodeSelector::empty().into(),
+                              Ok(Request::try_from("https://wikipedia.org/").unwrap()),
+                              StatusCodeSelector::default_accepted().into()).await.unwrap();
+        assert!(matches!(response.status(), Status::Error(ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND))));
+        assert!(cache.contains_key(&Uri::try_from("https://wikipedia.org/404").unwrap()));
     }
 }
