@@ -369,10 +369,10 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::parse::parse_remaps;
     use http::StatusCode;
     use lychee_lib::{ClientBuilder, ErrorKind, StatusCodeSelector, Uri};
-    use crate::parse::parse_remaps;
-    use super::*;
 
     #[tokio::test]
     async fn test_invalid_url() {
@@ -438,15 +438,28 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_uses_remapped_uri_as_key() {
-        let remaps = parse_remaps(&["https://wikipedia.org/ https://wikipedia.org/404".to_string()]).unwrap();
-        let client = ClientBuilder::builder().remaps(remaps).build().client().unwrap();
+        let remaps =
+            parse_remaps(&["https://wikipedia.org/ https://wikipedia.org/404".to_string()])
+                .unwrap();
+        let client = ClientBuilder::builder()
+            .remaps(remaps)
+            .build()
+            .client()
+            .unwrap();
         let cache = Cache::new();
-        let response = handle(&client,
-                              &cache,
-                              StatusCodeSelector::empty().into(),
-                              Ok(Request::try_from("https://wikipedia.org/").unwrap()),
-                              StatusCodeSelector::default_accepted().into()).await.unwrap();
-        assert!(matches!(response.status(), Status::Error(ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND))));
+        let response = handle(
+            &client,
+            &cache,
+            StatusCodeSelector::empty().into(),
+            Ok(Request::try_from("https://wikipedia.org/").unwrap()),
+            StatusCodeSelector::default_accepted().into(),
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            response.status(),
+            Status::Error(ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND))
+        ));
         assert!(cache.contains_key(&Uri::try_from("https://wikipedia.org/404").unwrap()));
     }
 }
