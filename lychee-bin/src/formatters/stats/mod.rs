@@ -190,7 +190,7 @@ fn get_dummy_stats() -> OutputStats {
         excluded_map: HashMap::default(),
         timeout_map,
         detailed_stats: true,
-        seen_responses: HashSet::new(),
+        seen_uris: HashSet::new(),
     };
 
     let host_stats = Some(HostStatsMap::from(HashMap::from([(

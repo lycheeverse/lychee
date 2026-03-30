@@ -60,7 +60,7 @@ pub(crate) struct ResponseStats {
     pub(crate) detailed_stats: bool,
     /// Set for counting unique responses
     #[serde(skip)]
-    pub(crate) seen_responses: HashSet<Uri>,
+    pub(crate) seen_uris: HashSet<Uri>,
 }
 
 impl ResponseStats {
@@ -70,7 +70,7 @@ impl ResponseStats {
     pub(crate) fn extended() -> Self {
         Self {
             detailed_stats: true,
-            seen_responses: HashSet::new(),
+            seen_uris: HashSet::new(),
             ..Default::default()
         }
     }
@@ -119,7 +119,7 @@ impl ResponseStats {
 
     /// Update the stats with a new response
     pub(crate) fn add(&mut self, response: Response) {
-        if self.seen_responses.insert(response.body().uri.clone()) {
+        if self.seen_uris.insert(response.body().uri.clone()) {
             self.unique += 1;
         }
 
