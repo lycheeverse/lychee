@@ -220,7 +220,9 @@ impl ErrorKind {
                     Some(e.to_string())
                 }
             }
-            ErrorKind::ReadInputUrlStatusCode(_) => None,
+            ErrorKind::ReadInputUrlStatusCode(_code) => Some(
+                "To check links in error pages, download and check locally instead.".to_string(),
+            ),
             ErrorKind::InvalidFilePath(_uri) => {
                 Some("File not found. Check if file exists and path is correct".to_string())
             }
