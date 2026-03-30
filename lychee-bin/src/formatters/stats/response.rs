@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status};
+use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status, Uri};
 use serde::Serialize;
 
 use crate::formatters::suggestion::Suggestion;
@@ -24,6 +24,8 @@ use crate::formatters::suggestion::Suggestion;
 pub(crate) struct ResponseStats {
     /// Total number of responses
     pub(crate) total: usize,
+    /// Number of unique responses (i.e. responses with a unique URI)
+    pub(crate) unique: usize,
     /// Number of successful responses
     pub(crate) successful: usize,
     /// Number of responses with an unknown status
@@ -56,6 +58,9 @@ pub(crate) struct ResponseStats {
     pub(crate) duration: Duration,
     /// Also track successful and excluded responses
     pub(crate) detailed_stats: bool,
+    /// Set for counting unique responses
+    #[serde(skip)]
+    pub(crate) seen_uris: HashSet<Uri>,
 }
 
 impl ResponseStats {
@@ -65,6 +70,7 @@ impl ResponseStats {
     pub(crate) fn extended() -> Self {
         Self {
             detailed_stats: true,
+            seen_uris: HashSet::new(),
             ..Default::default()
         }
     }
@@ -113,6 +119,10 @@ impl ResponseStats {
 
     /// Update the stats with a new response
     pub(crate) fn add(&mut self, response: Response) {
+        if self.seen_uris.insert(response.body().uri.clone()) {
+            self.unique += 1;
+        }
+
         self.total += 1;
         self.increment_status_counters(response.status());
         self.add_response_status(response);

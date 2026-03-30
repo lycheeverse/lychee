@@ -3796,6 +3796,28 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
 
         Ok(())
     }
+
+    #[test]
+    fn test_no_double_count() {
+        let test_file_1 = fixtures_path!().join("double-count/index.md");
+        let test_file_2 = fixtures_path!().join("double-count/home.md");
+
+        cargo_bin_cmd!()
+            .arg(&test_file_1)
+            .arg(&test_file_2)
+            .assert()
+            .success()
+            .stdout(contains("6 Total"))
+            .stdout(contains("3 Unique"));
+
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(&test_file_1)
+            .arg(&test_file_2)
+            .assert()
+            .success()
+            .stdout(contains("resource-1.md").count(2));
+    }
 }
 
 #[cfg(unix)]
