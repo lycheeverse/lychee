@@ -5,6 +5,7 @@ use crate::{
 use async_trait::async_trait;
 use header::HeaderValue;
 use http::header;
+use log::debug;
 use regex::{Captures, Regex};
 use reqwest::{Request, Url};
 use std::{collections::HashMap, sync::LazyLock};
@@ -17,6 +18,10 @@ static YOUTUBE_SHORT_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?(youtu\.?be)").unwrap());
 static GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^https://github\.com/(?<user>.*?)/(?<repo>.*?)/blob/(?<path>.*?)/(?<file>.*\.(md|markdown)#.*)$")
+        .unwrap()
+});
+static GITHUB_BLOB_LINE_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^https://github\.com/(?<user>.*?)/(?<repo>.*?)/blob/(?<path>.*?)#L\d+(?:-L?\d+)?$")
         .unwrap()
 });
 
@@ -94,6 +99,13 @@ impl Default for Quirks {
                     request
                 },
             },
+            Quirk {
+                pattern: &GITHUB_BLOB_LINE_FRAGMENT_PATTERN,
+                rewrite: |mut request, _| {
+                    request.url_mut().set_fragment(None);
+                    request
+                },
+            },
         ];
         Self { quirks }
     }
@@ -106,6 +118,7 @@ impl Quirks {
     pub(crate) fn apply(&self, request: Request) -> Request {
         for quirk in &self.quirks {
             if let Some(captures) = quirk.pattern.captures(request.url().clone().as_str()) {
+                debug!("Applied URL quirk: {}", quirk.pattern.as_str());
                 return (quirk.rewrite)(request, captures);
             }
         }
