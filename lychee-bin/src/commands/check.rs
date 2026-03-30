@@ -284,29 +284,31 @@ async fn handle(
         Err(e) => return e.into_response(),
     };
 
-    let mut uri = request.uri.clone();
-
     // Use the remapped URI for the cache key. See #1818.
-    client.remap(&mut uri)?;
+    let cache_key = {
+        let mut uri = request.uri.clone();
+        client.remap(&mut uri)?;
+        uri
+    };
 
     // First check the persistent disk-based cache
-    if let Some(v) = cache.get(&uri) {
+    if let Some(v) = cache.get(&cache_key) {
         // Found a cached request
         // Overwrite cache status in case the URI is excluded in the
         // current run
-        let status = if client.is_excluded(&uri) {
+        let status = if client.is_excluded(&cache_key) {
             Status::Excluded
         } else {
             // Can't impl `Status::from(v.value().status)` here because the
             // `accepted` status codes might have changed from the previous run
             // and they may have an impact on the interpretation of the status
             // code.
-            client.host_pool().record_persistent_cache_hit(&uri);
+            client.host_pool().record_persistent_cache_hit(&cache_key);
             Status::from_cache_status(v.value().status, &accept)
         };
 
         return Ok(Response::new(
-            uri.clone(),
+            cache_key.clone(),
             status,
             request.source.into(),
             request.span,
@@ -321,11 +323,11 @@ async fn handle(
     // - Skip caching excluded links; they might not be excluded in the next run.
     // - Skip caching links for which the status code has been explicitly excluded from the cache.
     let status = response.status();
-    if ignore_cache(&uri, status, &cache_exclude_status) {
+    if ignore_cache(&cache_key, status, &cache_exclude_status) {
         return Ok(response);
     }
 
-    cache.insert(uri, status.into());
+    cache.insert(cache_key, status.into());
     Ok(response)
 }
 
