@@ -900,6 +900,10 @@ impl Config {
         self.format.clone().unwrap_or_default()
     }
 
+    pub(crate) const fn set_max_concurrency(&mut self, concurrency: usize) {
+        self.max_concurrency = Some(concurrency);
+    }
+
     pub(crate) fn max_concurrency(&self) -> usize {
         const DEFAULT_MAX_CONCURRENCY: usize = 128;
         self.max_concurrency.unwrap_or(DEFAULT_MAX_CONCURRENCY)
