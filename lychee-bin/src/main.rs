@@ -284,11 +284,11 @@ fn run_main() -> Result<i32> {
         }
         Err(e) => {
             // Check if this is a lychee error with details
-            if let Some(lychee_error) = e.downcast_ref::<LycheeErrorKind>() {
-                if let Some(details) = lychee_error.details() {
-                    error!("{e}: {details}");
-                    return Ok(ExitCode::UnexpectedFailure as i32);
-                }
+            if let Some(lychee_error) = e.downcast_ref::<LycheeErrorKind>()
+                && let Some(details) = lychee_error.details()
+            {
+                error!("{e}: {details}");
+                return Ok(ExitCode::UnexpectedFailure as i32);
             }
             Err(e)
         }
