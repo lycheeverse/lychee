@@ -1,6 +1,6 @@
 # lychee Code of Conduct
 
-lychee follows the Rust Code of Conduct. A copy can be found online [here](https://www.rust-lang.org/conduct.html).
+lychee follows the Rust Code of Conduct. A copy can be found online [here](https://rust-lang.org/policies/code-of-conduct/).
 
 ## Conduct
 
@@ -17,7 +17,7 @@ lychee follows the Rust Code of Conduct. A copy can be found online [here](https
   experiment with, make a fork and see how it works.
 - We will exclude you from interaction if you insult, demean or harass anyone. That is not
   welcome behavior. We interpret the term "harassment" as including the definition in the
-  [Citizen Code of Conduct](http://citizencodeofconduct.org/); if you have any lack of
+  [Citizen Code of Conduct](https://github.com/stumpsyn/policies/blob/master/citizen_code_of_conduct.md); if you have any lack of
   clarity about what might be included in that concept, please read their definition. In
   particular, we don't tolerate behavior that excludes people in socially marginalized groups.
 - Private harassment is also unacceptable. No matter who you are, if you feel you have been
