@@ -21,6 +21,7 @@ impl StatsFormatter for Json {
 #[cfg(test)]
 mod tests {
     use crate::formatters::stats::{Json, StatsFormatter, get_dummy_stats};
+    use pretty_assertions::assert_eq;
 
     const EXPECTED_JSON: &str = r#"{
   "total": 2,
@@ -30,6 +31,7 @@ mod tests {
   "unsupported": 0,
   "timeouts": 1,
   "redirects": 1,
+  "remaps": 0,
   "excludes": 0,
   "errors": 1,
   "cached": 0,
@@ -58,7 +60,8 @@ mod tests {
       {
         "url": "https://httpbin.org/delay/2",
         "status": {
-          "text": "Timeout"
+          "text": "Timeout",
+          "details": "Request timed out"
         },
         "span": {
           "line": 1,
@@ -82,32 +85,17 @@ mod tests {
   "redirect_map": {
     "https://example.com/": [
       {
-        "url": "https://redirected.dev/",
-        "status": {
-          "text": "Redirect",
-          "code": 200,
-          "redirects": {
-            "origin": "https://1.dev/",
-            "redirects": [
-              {
-                "url": "https://2.dev/",
-                "code": 308
-              },
-              {
-                "url": "http://redirected.dev/",
-                "code": 308
-              }
-            ]
+        "origin": "https://1.dev/",
+        "redirects": [
+          {
+            "url": "https://2.dev/",
+            "code": 308
+          },
+          {
+            "url": "http://redirected.dev/",
+            "code": 308
           }
-        },
-        "span": {
-          "line": 1,
-          "column": 1
-        },
-        "duration": {
-          "secs": 1,
-          "nanos": 0
-        }
+        ]
       }
     ]
   },

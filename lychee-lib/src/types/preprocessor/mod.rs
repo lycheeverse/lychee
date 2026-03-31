@@ -38,10 +38,11 @@ impl Preprocessor {
         if output.status.success() {
             from_utf8(output.stdout)
         } else {
-            let mut stderr = from_utf8(output.stderr)?;
+            let stderr = from_utf8(output.stderr)?;
+            let mut stderr = stderr.trim();
 
             if stderr.is_empty() {
-                stderr = "<empty stderr>".into();
+                stderr = "<empty stderr>";
             }
 
             Err(ErrorKind::PreprocessorError {

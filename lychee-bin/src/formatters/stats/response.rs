@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status, Uri};
+use lychee_lib::{CacheStatus, InputSource, Redirects, Response, ResponseBody, Status, Uri};
 use serde::Serialize;
 
 use crate::formatters::suggestion::Suggestion;
@@ -34,8 +34,10 @@ pub(crate) struct ResponseStats {
     pub(crate) unsupported: usize,
     /// Number of timeouts
     pub(crate) timeouts: usize,
-    /// Redirects encountered while checking links
+    /// Number of redirects encountered while checking links
     pub(crate) redirects: usize,
+    /// Number of Url remaps performed
+    pub(crate) remaps: usize,
     /// Number of links excluded from the run (e.g. due to the `--exclude` flag)
     pub(crate) excludes: usize,
     /// Number of responses with an error status
@@ -48,10 +50,10 @@ pub(crate) struct ResponseStats {
     pub(crate) error_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// Timed out responses
     pub(crate) timeout_map: HashMap<InputSource, HashSet<ResponseBody>>,
-    /// Replacement suggestions for failed responses (if `--suggest` is enabled)
+    /// [`Suggestion`]s for failed responses (if `--suggest` is enabled)
     pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
-    /// Redirected responses (if `detailed_stats` is enabled)
-    pub(crate) redirect_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// All [`Redirects`] independent of the response status (if `detailed_stats` is enabled)
+    pub(crate) redirect_map: HashMap<InputSource, HashSet<Redirects>>,
     /// Excluded responses (if `detailed_stats` is enabled)
     pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
     /// The time it took to perform the full run
@@ -85,7 +87,14 @@ impl ResponseStats {
             Status::Error(_) | Status::RequestError(_) => self.errors += 1,
             Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => self.unknown += 1,
             Status::Timeout(_) => self.timeouts += 1,
-            Status::Redirected(_, _) => self.redirects += 1,
+            Status::Redirected(inner, _) => {
+                self.redirects += 1;
+                self.increment_status_counters(inner);
+            }
+            Status::Remapped(inner, _) => {
+                self.remaps += 1;
+                self.increment_status_counters(inner);
+            }
             Status::Excluded => self.excludes += 1,
             Status::Unsupported(_) => self.unsupported += 1,
             Status::Cached(cache_status) => {
@@ -104,16 +113,28 @@ impl ResponseStats {
     fn add_response_status(&mut self, response: Response) {
         let status = response.status();
         let source: InputSource = response.source().clone();
-        let status_map_entry = match status {
-            _ if status.is_timeout() => self.timeout_map.entry(source).or_default(),
-            _ if status.is_error() => self.error_map.entry(source).or_default(),
-            Status::Ok(_) if self.detailed_stats => self.success_map.entry(source).or_default(),
-            Status::Excluded if self.detailed_stats => self.excluded_map.entry(source).or_default(),
-            Status::Redirected(_, _) if self.detailed_stats => {
-                self.redirect_map.entry(source).or_default()
-            }
-            _ => return,
+
+        if self.detailed_stats
+            && let Some(redirects) = status.redirects()
+        {
+            self.redirect_map
+                .entry(source.clone())
+                .or_default()
+                .insert(redirects.clone());
+        }
+
+        let status_map_entry = if status.is_timeout() {
+            self.timeout_map.entry(source).or_default()
+        } else if status.is_error() {
+            self.error_map.entry(source).or_default()
+        } else if status.is_excluded() {
+            self.excluded_map.entry(source).or_default()
+        } else if status.is_success() && self.detailed_stats {
+            self.success_map.entry(source).or_default()
+        } else {
+            return;
         };
+
         status_map_entry.insert(response.into_body());
     }
 

@@ -217,6 +217,7 @@ impl WebsiteChecker {
         let status = self
             .handle_insecure_url(uri, &default_chain, status)
             .await?;
+
         Ok(self.redirect_history.handle_redirected(&uri.url, status))
     }
 

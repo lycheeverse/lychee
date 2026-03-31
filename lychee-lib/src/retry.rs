@@ -110,12 +110,12 @@ impl RetryExt for Status {
             Status::Error(err) => err.should_retry(),
             Status::Ok(_)
             | Status::RequestError(_)
-            | Status::Redirected(_, _)
             | Status::UnknownStatusCode(_)
             | Status::UnknownMailStatus(_)
             | Status::Excluded
             | Status::Unsupported(_)
             | Status::Cached(_) => false,
+            Status::Redirected(inner, _) | Status::Remapped(inner, _) => inner.should_retry(),
         }
     }
 }

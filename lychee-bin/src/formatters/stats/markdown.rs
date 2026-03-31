@@ -96,11 +96,9 @@ fn markdown_response(response: &ResponseBody) -> Result<String> {
     // Add a separator between the URI and the additional details below.
     // Note: To make the links clickable in some terminals,
     // we add a space before the separator.
-    write!(formatted, " | {}", response.status)?;
+    let details = response.status.details();
+    write!(formatted, " | {details}")?;
 
-    if let Some(details) = response.status.details() {
-        write!(formatted, ": {details}")?;
-    }
     Ok(formatted)
 }
 
@@ -122,15 +120,12 @@ impl Display for MarkdownResponseStats {
             markdown_response(response).map_err(|_| fmt::Error)
         })?;
 
-        write_stats_per_input(f, "Redirects", &stats.redirect_map, |response| {
-            markdown_response(response).map_err(|_| fmt::Error)
+        write_stats_per_input(f, "Redirects", &stats.redirect_map, |redirects| {
+            Ok(format!("* {redirects}"))
         })?;
 
         write_stats_per_input(f, "Suggestions", &stats.suggestion_map, |suggestion| {
-            Ok(format!(
-                "* {} --> {}",
-                suggestion.original, suggestion.suggestion
-            ))
+            Ok(format!("* {suggestion}"))
         })?;
 
         Ok(())
@@ -280,19 +275,19 @@ mod tests {
 
 ### Errors in https://example.com/
 
-* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> (at 1:1) | 404 Not Found: Not Found
+* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> (at 1:1) | 404 Not Found
 
 ## Timeouts per input
 
 ### Timeouts in https://example.com/
 
-* [TIMEOUT] <https://httpbin.org/delay/2> (at 1:1) | Timeout
+* [TIMEOUT] <https://httpbin.org/delay/2> (at 1:1) | Request timed out
 
 ## Redirects per input
 
 ### Redirects in https://example.com/
 
-* [200] <https://redirected.dev/> (at 1:1) | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
+* https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 ## Suggestions per input
 

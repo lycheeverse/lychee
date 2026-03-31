@@ -176,8 +176,8 @@ mod tests {
             "Issues found in 2 inputs. Find details below.
 
 [https://example.com/]:
-[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found
-[TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Timeout
+[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found
+[TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Request timed out
 
 ℹ Suggestions
 https://original.dev/ --> https://suggestion.dev/
