@@ -57,10 +57,9 @@ impl ConfigLoader for CargoTomlLoader {
         let cargo = toml::from_str::<CargoToml>(contents)
             .with_context(|| "Failed to parse lychee config from Cargo.toml")?;
 
-        // Package metadata takes precedence over workspace metadata
-        // That's useful, because it allows users to define a
-        // workspace-wide default config and then override it in
-        // specific packages.
+        // Package metadata fully replaces workspace metadata (instead of merging).
+        // That's useful, because it allows users to define a workspace-wide
+        // default config and then override it in specific packages.
         let config = [cargo.package, cargo.workspace]
             .into_iter()
             .flatten()
