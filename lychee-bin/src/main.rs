@@ -182,8 +182,8 @@ fn load_config() -> Result<LycheeOptions> {
     if opts.config_files.is_empty() {
         // No config files provided via CLI; fall back on trying to load the
         // default config files from the current directory
-        if let Some(config_path) = config::loaders::find_default_config_file() {
-            opts.config = opts.config.merge_file(&config_path)?;
+        if let Some(default_config) = config::loaders::default_config_file() {
+            opts.config = opts.config.merge(default_config);
         }
     } else {
         let configs = opts.config_files.iter().rev(); // reverse so that later args have precedence

@@ -38,17 +38,18 @@ const LOADERS: [&dyn ConfigLoader; 4] = [
     &package_json::PackageJsonLoader,
 ];
 
-/// Find the first matching default configuration file in the current directory.
+/// Find the first matching default configuration file in the current directory
+/// and return the parsed configuration it contains.
 ///
 /// This checks for files like `lychee.toml`, `pyproject.toml`, `Cargo.toml`,
 /// and `package.json` in a defined order of precedence.
-pub(crate) fn find_default_config_file() -> Option<PathBuf> {
+pub(crate) fn default_config_file() -> Option<Config> {
     for loader in LOADERS {
         let path = PathBuf::from(loader.filename());
         if path.is_file() {
             let contents = fs::read_to_string(&path).unwrap_or_default();
-            if let Ok(ConfigMatch::Found(_)) = loader.load(&contents) {
-                return Some(path);
+            if let Ok(ConfigMatch::Found(config)) = loader.load(&contents) {
+                return Some(*config);
             }
         }
     }
@@ -67,13 +68,14 @@ pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
     if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
         for loader in LOADERS {
             if loader.filename() == filename {
+                let path = path.display();
                 match loader
                     .load(&contents)
-                    .with_context(|| format!("Failed to load config from {}", path.display()))?
+                    .with_context(|| format!("Failed to load config from {path}"))?
                 {
                     ConfigMatch::Found(config) => return Ok(*config),
                     ConfigMatch::NotFound => {
-                        bail!("No valid lychee configuration found in {}", path.display())
+                        bail!("No valid lychee configuration found in {path}")
                     }
                 }
             }
