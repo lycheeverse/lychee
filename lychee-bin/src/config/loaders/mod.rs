@@ -65,24 +65,18 @@ pub(crate) fn load_from_file(path: &Path) -> Result<Config> {
     let contents = fs::read_to_string(path)
         .with_context(|| format!("Failed to read config file {}", path.display()))?;
 
-    if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
-        for loader in LOADERS {
-            if loader.filename() == filename {
-                let path = path.display();
-                match loader
-                    .load(&contents)
-                    .with_context(|| format!("Failed to load config from {path}"))?
-                {
-                    ConfigMatch::Found(config) => return Ok(*config),
-                    ConfigMatch::NotFound => {
-                        bail!("No valid lychee configuration found in {path}")
-                    }
-                }
-            }
-        }
-    }
+    let filename = path.file_name().and_then(|n| n.to_str());
+    let loader = if let Some(filename) = filename {
+        LOADERS
+            .iter()
+            .find(|loader| filename == loader.filename())
+            .copied()
+            .unwrap_or(&lychee_toml::LycheeTomlLoader)
+    } else {
+        &lychee_toml::LycheeTomlLoader
+    };
 
-    match lychee_toml::LycheeTomlLoader
+    match loader
         .load(&contents)
         .with_context(|| format!("Failed to load config from {}", path.display()))?
     {
