@@ -11,7 +11,7 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-use crate::cache::Cache;
+use crate::cache::LycheeCache;
 use crate::options::Config;
 use lychee_lib::RequestError;
 use lychee_lib::{Client, Request};
@@ -19,7 +19,7 @@ use lychee_lib::{Client, Request};
 /// Parameters passed to every command
 pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request, RequestError>>> {
     pub(crate) client: Client,
-    pub(crate) cache: Cache,
+    pub(crate) cache: LycheeCache,
     pub(crate) requests: S,
     pub(crate) cfg: Config,
     pub(crate) is_stdin_input: bool,

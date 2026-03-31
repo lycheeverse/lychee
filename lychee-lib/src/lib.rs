@@ -79,6 +79,8 @@ pub mod ratelimit;
 /// local IPs or e-mail addresses
 pub mod filter;
 
+pub mod cache;
+
 pub mod waiter;
 
 #[cfg(test)]
