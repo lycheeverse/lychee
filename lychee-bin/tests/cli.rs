@@ -3898,31 +3898,6 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .success()
             .stdout(contains("resource-1.md").count(2));
     }
-}
-
-#[cfg(unix)]
-#[test]
-fn test_file_limit_low_concurrency() {
-    // See https://github.com/lycheeverse/lychee/issues/1248
-    use assert_cmd::cargo::CommandCargoExt;
-    use std::os::unix::process::CommandExt;
-
-    let mut cmd = std::process::Command::cargo_bin("lychee").unwrap();
-    cmd.arg("-v").arg("https://example.com");
-
-    unsafe {
-        cmd.pre_exec(|| {
-            // Set the soft and hard limit to a low value.
-            // 64 is enough to boot, but will trigger the max_concurrency lowering.
-            let _ = rlimit::setrlimit(rlimit::Resource::NOFILE, 64, 64);
-            Ok(())
-        });
-    }
-
-    let mut assert_cmd = assert_cmd::Command::from(cmd);
-    assert_cmd.assert().stderr(predicates::str::contains(
-        "System file descriptor limit is 64 which is too low for the requested concurrency of 128. Lowering `max_concurrency` to 44",
-    ));
 
     #[tokio::test]
     async fn test_pyproject_toml() -> Result<()> {
@@ -3948,7 +3923,7 @@ exclude = ["exclude_test_str"]
             .clone();
 
         assert_eq!(
-            stdout_to_json(&stdout)?["excludes"],
+            stdout_to_json(&stdout)["excludes"],
             1,
             "Config must mark the URL as excluded"
         );
@@ -3984,6 +3959,7 @@ exclude = ["cargo_exclude_test_str"]
         );
         Ok(())
     }
+
     #[tokio::test]
     async fn test_config_precedence() -> Result<()> {
         let dir = tempfile::tempdir()?;
@@ -4033,6 +4009,7 @@ exclude_path = ["exclude_lychee.txt"]
 
         Ok(())
     }
+
     #[tokio::test]
     async fn test_explicit_pyproject_config() -> Result<()> {
         let dir = tempfile::tempdir()?;
@@ -4062,6 +4039,7 @@ exclude_path = ["exclude_pyproject.txt"]
         assert!(output.contains("keep.txt"));
         Ok(())
     }
+
     #[tokio::test]
     async fn test_explicit_config_missing_section() -> Result<()> {
         let dir = tempfile::tempdir()?;
@@ -4087,7 +4065,7 @@ exclude_path = ["exclude_pyproject.txt"]
             .assert();
 
         let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
-        assert!(output_err.contains("No valid lychee configuration found"));
+        assert!(output_err.contains("No valid lychee configuration found in"));
 
         // Test pyproject.toml without [tool.lychee] section
         let pyproject_toml = dir.path().join("pyproject.toml");
@@ -4111,7 +4089,7 @@ line-length = 88
             .assert();
 
         let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
-        assert!(output_err.contains("No valid lychee configuration found"));
+        assert!(output_err.contains("No valid lychee configuration found in"));
 
         // Test Cargo.toml without lychee metadata sections
         let cargo_toml = dir.path().join("Cargo.toml");
@@ -4119,11 +4097,13 @@ line-length = 88
             &cargo_toml,
             r#"
 [package]
-name = "some-project"
+name = "my-project"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
+anyhow = "1.0"
+"#,
         )?;
 
         let mut cmd = cargo_bin_cmd!();
@@ -4174,4 +4154,29 @@ exclude_path = ["exclude_package.txt"]
         assert!(output.contains("exclude_workspace.txt"));
         Ok(())
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn test_file_limit_low_concurrency() {
+    // See https://github.com/lycheeverse/lychee/issues/1248
+    use assert_cmd::cargo::CommandCargoExt;
+    use std::os::unix::process::CommandExt;
+
+    let mut cmd = std::process::Command::cargo_bin("lychee").unwrap();
+    cmd.arg("-v").arg("https://example.com");
+
+    unsafe {
+        cmd.pre_exec(|| {
+            // Set the soft and hard limit to a low value.
+            // 64 is enough to boot, but will trigger the max_concurrency lowering.
+            let _ = rlimit::setrlimit(rlimit::Resource::NOFILE, 64, 64);
+            Ok(())
+        });
+    }
+
+    let mut assert_cmd = assert_cmd::Command::from(cmd);
+    assert_cmd.assert().stderr(predicates::str::contains(
+        "System file descriptor limit is 64 which is too low for the requested concurrency of 128. Lowering `max_concurrency` to 44",
+    ));
 }
