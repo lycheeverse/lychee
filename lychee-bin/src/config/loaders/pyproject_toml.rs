@@ -18,7 +18,7 @@
 //! timeout = 10
 //! ```
 
-use super::ConfigLoader;
+use super::{ConfigLoader, ConfigMatch};
 use crate::config::Config;
 use anyhow::{Context, Result};
 use serde::Deserialize;
@@ -32,7 +32,7 @@ struct PyprojectToml {
 
 #[derive(Deserialize)]
 struct Tool {
-    lychee: Config,
+    lychee: Option<Config>,
 }
 
 pub(crate) struct PyprojectTomlLoader;
@@ -42,24 +42,14 @@ impl ConfigLoader for PyprojectTomlLoader {
         PYPROJECT_CONFIG_FILE
     }
 
-    fn is_match(&self, contents: &str) -> bool {
-        let Ok(table) = toml::from_str::<toml::Table>(contents) else {
-            return false;
-        };
-
-        table
-            .get("tool")
-            .and_then(|t| t.as_table())
-            .is_some_and(|t| t.contains_key("lychee"))
-    }
-
-    fn load(&self, contents: &str) -> Result<Config> {
+    fn load(&self, contents: &str) -> Result<ConfigMatch> {
         let pyproject = toml::from_str::<PyprojectToml>(contents)
             .with_context(|| "Failed to parse [tool.lychee] from pyproject.toml")?;
 
-        let config = pyproject.tool.map(|t| t.lychee).unwrap_or_default();
-
-        Ok(config)
+        match pyproject.tool.and_then(|t| t.lychee) {
+            Some(config) => Ok(ConfigMatch::Found(Box::new(config))),
+            None => Ok(ConfigMatch::NotFound),
+        }
     }
 }
 
@@ -68,30 +58,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_is_match() {
-        let toml = r"
-        [tool.lychee]
-        verbose = true
-        ";
-        assert!(PyprojectTomlLoader.is_match(toml));
-    }
-
-    #[test]
-    fn test_is_not_match() {
-        let toml = r"
-        [tool.black]
-        line-length = 88
-        ";
-        assert!(!PyprojectTomlLoader.is_match(toml));
-    }
-
-    #[test]
     fn test_load_config() {
         let toml = r#"
         [tool.lychee]
         exclude = ["foo"]
         "#;
-        let config = PyprojectTomlLoader.load(toml).unwrap();
-        assert_eq!(config.exclude, vec!["foo".to_string()]);
+        let result = PyprojectTomlLoader.load(toml).unwrap();
+        match result {
+            ConfigMatch::Found(config) => assert_eq!(config.exclude, vec!["foo".to_string()]),
+            ConfigMatch::NotFound => panic!("Expected config to be found"),
+        }
+    }
+
+    #[test]
+    fn test_load_no_lychee_config() {
+        let toml = r"
+        [tool.black]
+        line-length = 88
+        ";
+        let result = PyprojectTomlLoader.load(toml).unwrap();
+        match result {
+            ConfigMatch::NotFound => (),
+            ConfigMatch::Found(_) => panic!("Expected no config to be found"),
+        }
+    }
+
+    #[test]
+    fn test_load_no_tool_section() {
+        let toml = r#"
+        [build-system]
+        requires = ["setuptools"]
+        "#;
+        let result = PyprojectTomlLoader.load(toml).unwrap();
+        match result {
+            ConfigMatch::NotFound => (),
+            ConfigMatch::Found(_) => panic!("Expected no config to be found"),
+        }
     }
 }

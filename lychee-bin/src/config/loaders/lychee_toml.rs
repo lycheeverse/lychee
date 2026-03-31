@@ -14,8 +14,7 @@
 //! timeout = 10
 //! ```
 
-use super::ConfigLoader;
-use crate::config::Config;
+use super::{ConfigLoader, ConfigMatch};
 use anyhow::{Context, Result};
 
 pub(crate) const LYCHEE_CONFIG_FILE: &str = "lychee.toml";
@@ -27,16 +26,13 @@ impl ConfigLoader for LycheeTomlLoader {
         LYCHEE_CONFIG_FILE
     }
 
-    /// A dedicated `lychee.toml` file is assumed to always be
-    /// a valid match, as it has no other purpose than configuring lychee.
-    fn is_match(&self, _contents: &str) -> bool {
-        true
-    }
-
     /// We strictly deserialize the entire file directly into our `Config` struct.
     /// Any failure here is a genuine configuration error that we want to bubble up.
-    fn load(&self, contents: &str) -> Result<Config> {
-        toml::from_str(contents).with_context(|| "Failed to parse configuration file")
+    /// A dedicated `lychee.toml` file is assumed to always contain lychee configuration.
+    fn load(&self, contents: &str) -> Result<ConfigMatch> {
+        let config =
+            toml::from_str(contents).with_context(|| "Failed to parse configuration file")?;
+        Ok(ConfigMatch::Found(Box::new(config)))
     }
 }
 
@@ -45,18 +41,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_is_match() {
-        assert!(LycheeTomlLoader.is_match(""));
-        assert!(LycheeTomlLoader.is_match("some random string"));
-    }
-
-    #[test]
     fn test_load_config() {
         let toml = r#"
         exclude = ["foo"]
         "#;
-        let config = LycheeTomlLoader.load(toml).unwrap();
-        assert_eq!(config.exclude, vec!["foo".to_string()]);
+        let result = LycheeTomlLoader.load(toml).unwrap();
+        match result {
+            ConfigMatch::Found(config) => assert_eq!(config.exclude, vec!["foo".to_string()]),
+            ConfigMatch::NotFound => panic!("Expected config to be found"),
+        }
     }
 
     #[test]

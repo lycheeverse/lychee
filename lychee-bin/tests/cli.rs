@@ -4065,6 +4065,8 @@ exclude_path = ["exclude_pyproject.txt"]
     #[tokio::test]
     async fn test_explicit_config_missing_section() -> Result<()> {
         let dir = tempfile::tempdir()?;
+
+        // Test package.json without lychee section
         let package_json = dir.path().join("package.json");
         std::fs::write(
             &package_json,
@@ -4085,7 +4087,56 @@ exclude_path = ["exclude_pyproject.txt"]
             .assert();
 
         let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(output_err.contains("No valid lychee configuration found"));
+
+        // Test pyproject.toml without [tool.lychee] section
+        let pyproject_toml = dir.path().join("pyproject.toml");
+        std::fs::write(
+            &pyproject_toml,
+            r#"
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[tool.black]
+line-length = 88
+"#,
+        )?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("--config")
+            .arg(&pyproject_toml)
+            .arg("https://example.com")
+            .assert();
+
+        let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(output_err.contains("No valid lychee configuration found"));
+
+        // Test Cargo.toml without lychee metadata sections
+        let cargo_toml = dir.path().join("Cargo.toml");
+        std::fs::write(
+            &cargo_toml,
+            r#"
+[package]
+name = "some-project"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+        )?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("--config")
+            .arg(&cargo_toml)
+            .arg("https://example.com")
+            .assert();
+
+        let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
         assert!(output_err.contains("No valid lychee configuration found in"));
+
         Ok(())
     }
 
