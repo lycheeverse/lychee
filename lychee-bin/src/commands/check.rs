@@ -252,7 +252,7 @@ async fn check_url(client: &Client, request: Request) -> Response {
     let source = request.source.clone();
     let span = request.span;
     client.check(request).await.unwrap_or_else(|e| {
-        log::error!("Error checking URL {uri}: Cannot parse URL to URI: {e}");
+        log::error!("Error checking URL {uri}: {e}");
         Response::new(
             uri.clone(),
             Status::Error(ErrorKind::InvalidURI(uri.clone())),
