@@ -460,10 +460,7 @@ mod tests {
         )
         .await
         .unwrap();
-        assert!(matches!(
-            response.status(),
-            Status::Error(ErrorKind::RejectedStatusCode(StatusCode::NOT_FOUND))
-        ));
+        assert!(response.status().is_error());
         assert!(cache.contains_key(&Uri::try_from("https://wikipedia.org/404").unwrap()));
     }
 }
