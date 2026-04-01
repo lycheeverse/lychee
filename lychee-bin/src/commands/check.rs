@@ -308,7 +308,7 @@ async fn handle(
         };
 
         return Ok(Response::new(
-            cache_key.clone(),
+            cache_key,
             status,
             request.source.into(),
             request.span,
