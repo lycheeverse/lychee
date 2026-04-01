@@ -284,7 +284,9 @@ async fn handle(
         Err(e) => return e.into_response(),
     };
 
-    // Use the remapped URI for the cache key. See #1818.
+    // The cache key should be the actual URL which gets requested, i.e. after remaps.
+    // If using the original URL then the cache is at risk of being incorrect if remaps
+    // change between runs. The cached status code comes from the actual URL anyway.
     let cache_key = {
         let mut uri = request.uri.clone();
         client.remap(&mut uri)?;
