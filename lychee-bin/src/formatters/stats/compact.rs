@@ -7,6 +7,7 @@ use std::{
     time::Duration,
 };
 
+use crate::config;
 use crate::formatters::{
     color::{BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, NORMAL, color},
     get_response_formatter,
@@ -14,13 +15,12 @@ use crate::formatters::{
     response::ResponseFormatter,
     stats::{OutputStats, ResponseStats},
 };
-use crate::options;
 
 use super::StatsFormatter;
 
 struct CompactResponseStats {
     stats: ResponseStats,
-    mode: options::OutputMode,
+    mode: config::OutputMode,
 }
 
 impl Display for CompactResponseStats {
@@ -129,11 +129,11 @@ fn write_if_any(
 }
 
 pub(crate) struct Compact {
-    mode: options::OutputMode,
+    mode: config::OutputMode,
 }
 
 impl Compact {
-    pub(crate) const fn new(mode: options::OutputMode) -> Self {
+    pub(crate) const fn new(mode: config::OutputMode) -> Self {
         Self { mode }
     }
 }
@@ -154,8 +154,8 @@ impl StatsFormatter for Compact {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::OutputMode;
     use crate::formatters::stats::{StatsFormatter, get_dummy_stats};
-    use crate::options::OutputMode;
     use regex::Regex;
 
     use super::*;

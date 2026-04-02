@@ -3839,7 +3839,6 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .assert()
             .success();
     }
-
     /// Verifies that loading an older, legacy `.lycheecache` file containing a cached error
     /// correctly drops the error and successfully retries the link.
     /// This ensures we don't break existing user CI workflows that have older cache files
@@ -3898,6 +3897,262 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .assert()
             .success()
             .stdout(contains("resource-1.md").count(2));
+    }
+
+    #[tokio::test]
+    async fn test_pyproject_toml() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let pyproject = dir.path().join("pyproject.toml");
+        std::fs::write(
+            &pyproject,
+            r#"
+[tool.lychee]
+exclude = ["exclude_test_str"]
+"#,
+        )?;
+
+        let stdout = cargo_bin_cmd!()
+            .current_dir(dir.path())
+            .arg("-")
+            .write_stdin("https://exclude/exclude_test_str")
+            .arg("--format=json")
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+
+        assert_eq!(
+            stdout_to_json(&stdout)["excludes"],
+            1,
+            "Config must mark the URL as excluded"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cargo_toml() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let cargo = dir.path().join("Cargo.toml");
+        std::fs::write(
+            &cargo,
+            r#"
+[workspace.metadata.lychee]
+exclude = ["cargo_exclude_test_str"]
+"#,
+        )?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("https://example.com/cargo_exclude_test_str")
+            .arg("--offline")
+            .assert();
+
+        let output = String::from_utf8_lossy(&assert.get_output().stdout);
+        let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(
+            output.contains("1 Excluded"),
+            "Output did not indicate the link was excluded. Stdout: {}, Stderr: {}",
+            output,
+            output_err
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_config_precedence() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+
+        // Create 3 dummy files
+        std::fs::write(dir.path().join("exclude_lychee.txt"), "")?;
+        std::fs::write(dir.path().join("exclude_pyproject.txt"), "")?;
+        std::fs::write(dir.path().join("exclude_cargo.txt"), "")?;
+
+        // Cargo.toml
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            r#"
+[workspace.metadata.lychee]
+exclude_path = ["exclude_cargo.txt"]
+"#,
+        )?;
+
+        // pyproject.toml
+        std::fs::write(
+            dir.path().join("pyproject.toml"),
+            r#"
+[tool.lychee]
+exclude_path = ["exclude_pyproject.txt"]
+"#,
+        )?;
+
+        // lychee.toml
+        std::fs::write(
+            dir.path().join("lychee.toml"),
+            r#"
+exclude_path = ["exclude_lychee.txt"]
+"#,
+        )?;
+
+        // Test 1: lychee.toml takes precedence over all
+        let mut cmd1 = cargo_bin_cmd!();
+        let assert1 = cmd1
+            .current_dir(dir.path())
+            .arg("--dump-inputs")
+            .arg(".")
+            .assert();
+        let output1 = String::from_utf8_lossy(&assert1.get_output().stdout);
+        assert!(!output1.contains("exclude_lychee.txt"));
+        assert!(output1.contains("exclude_pyproject.txt"));
+        assert!(output1.contains("exclude_cargo.txt"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_explicit_pyproject_config() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let pyproject = dir.path().join("pyproject.toml");
+        std::fs::write(
+            &pyproject,
+            r#"
+[tool.lychee]
+exclude_path = ["exclude_pyproject.txt"]
+"#,
+        )?;
+
+        std::fs::write(dir.path().join("exclude_pyproject.txt"), "")?;
+        std::fs::write(dir.path().join("keep.txt"), "")?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("--config")
+            .arg(&pyproject)
+            .arg("--dump-inputs")
+            .arg(".")
+            .assert();
+
+        let output = String::from_utf8_lossy(&assert.get_output().stdout);
+        assert!(!output.contains("exclude_pyproject.txt"));
+        assert!(output.contains("keep.txt"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_explicit_config_missing_section() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+
+        // Test package.json without lychee section
+        let package_json = dir.path().join("package.json");
+        std::fs::write(
+            &package_json,
+            r#"
+{
+    "name": "my-project",
+    "version": "1.0.0"
+}
+"#,
+        )?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("--config")
+            .arg(&package_json)
+            .arg("https://example.com")
+            .assert();
+
+        let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(output_err.contains("No valid lychee configuration found in"));
+
+        // Test pyproject.toml without [tool.lychee] section
+        let pyproject_toml = dir.path().join("pyproject.toml");
+        std::fs::write(
+            &pyproject_toml,
+            r#"
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[tool.black]
+line-length = 88
+"#,
+        )?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("--config")
+            .arg(&pyproject_toml)
+            .arg("https://example.com")
+            .assert();
+
+        let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(output_err.contains("No valid lychee configuration found in"));
+
+        // Test Cargo.toml without lychee metadata sections
+        let cargo_toml = dir.path().join("Cargo.toml");
+        std::fs::write(
+            &cargo_toml,
+            r#"
+[package]
+name = "my-project"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+"#,
+        )?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("--config")
+            .arg(&cargo_toml)
+            .arg("https://example.com")
+            .assert();
+
+        let output_err = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(output_err.contains("No valid lychee configuration found in"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cargo_toml_preference() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let cargo = dir.path().join("Cargo.toml");
+
+        // We expect package.metadata to take precedence over workspace.metadata
+        std::fs::write(
+            &cargo,
+            r#"
+[workspace.metadata.lychee]
+exclude_path = ["exclude_workspace.txt"]
+
+[package.metadata.lychee]
+exclude_path = ["exclude_package.txt"]
+"#,
+        )?;
+
+        std::fs::write(dir.path().join("exclude_workspace.txt"), "")?;
+        std::fs::write(dir.path().join("exclude_package.txt"), "")?;
+
+        let mut cmd = cargo_bin_cmd!();
+        let assert = cmd
+            .current_dir(dir.path())
+            .arg("--dump-inputs")
+            .arg(".")
+            .assert();
+
+        let output = String::from_utf8_lossy(&assert.get_output().stdout);
+
+        // package was excluded, workspace was not (because it was overridden and not merged)
+        assert!(!output.contains("exclude_package.txt"));
+        assert!(output.contains("exclude_workspace.txt"));
+        Ok(())
     }
 }
 

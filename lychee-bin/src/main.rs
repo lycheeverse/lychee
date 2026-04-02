@@ -60,7 +60,6 @@
 
 use std::fs::{self, File};
 use std::io::{self, BufRead, BufReader, ErrorKind, IsTerminal, stdin};
-use std::path::PathBuf;
 
 use anyhow::{Context, Error, Result};
 use clap::{Parser, crate_version};
@@ -71,7 +70,7 @@ use log::{error, info, warn};
 
 use lychee_lib::filter::PathExcludes;
 
-use options::{HeaderMapExt, LYCHEE_CONFIG_FILE};
+use config::HeaderMapExt;
 use ring as _; // required for apple silicon
 
 use lychee_lib::BasicAuthExtractor;
@@ -81,9 +80,9 @@ use lychee_lib::CookieJar;
 mod cache;
 mod client;
 mod commands;
+mod config;
 mod files_from;
 mod formatters;
-mod options;
 mod parse;
 mod progress;
 mod time;
@@ -92,9 +91,9 @@ mod verbosity;
 use crate::formatters::stats::{OutputStats, ResponseStats, output_statistics};
 use crate::{
     cache::{Cache, StoreExt},
+    config::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
     formatters::duration::Duration,
     generate::generate,
-    options::{Config, LYCHEE_CACHE_FILE, LYCHEE_IGNORE_FILE, LycheeOptions},
 };
 
 /// A C-like enum that can be cast to `i32` and used as process exit code.
@@ -181,10 +180,10 @@ fn load_config() -> Result<LycheeOptions> {
     init_logging(&opts.config.verbose(), &opts.config.mode());
 
     if opts.config_files.is_empty() {
-        // Fall back on trying to load the default config file from the current directory
-        let default_config = PathBuf::from(LYCHEE_CONFIG_FILE);
-        if default_config.is_file() {
-            opts.config = opts.config.merge_file(&default_config)?;
+        // No config files provided via CLI; fall back on trying to load the
+        // default config files from the current directory
+        if let Some(default_config) = config::loaders::default_config_file()? {
+            opts.config = opts.config.merge(default_config);
         }
     } else {
         let configs = opts.config_files.iter().rev(); // reverse so that later args have precedence

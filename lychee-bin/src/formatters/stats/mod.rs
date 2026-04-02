@@ -23,7 +23,7 @@ use std::{
     io::{Write, stdout},
 };
 
-use crate::{formatters::get_stats_formatter, options::Config};
+use crate::{config::Config, formatters::get_stats_formatter};
 use anyhow::{Context, Result};
 use lychee_lib::{InputSource, ratelimit::HostStatsMap};
 

@@ -1,11 +1,11 @@
 use super::StatsFormatter;
 use crate::{
+    config,
     formatters::{
         get_response_formatter,
         host_stats::DetailedHostStats,
         stats::{OutputStats, ResponseStats},
     },
-    options,
 };
 
 use anyhow::Result;
@@ -35,7 +35,7 @@ fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -
 /// encapsulate additional context.
 struct DetailedResponseStats {
     stats: ResponseStats,
-    mode: options::OutputMode,
+    mode: config::OutputMode,
 }
 
 impl Display for DetailedResponseStats {
@@ -98,11 +98,11 @@ fn write_stats<T: Display>(
 }
 
 pub(crate) struct Detailed {
-    mode: options::OutputMode,
+    mode: config::OutputMode,
 }
 
 impl Detailed {
-    pub(crate) const fn new(mode: options::OutputMode) -> Self {
+    pub(crate) const fn new(mode: config::OutputMode) -> Self {
         Self { mode }
     }
 }
@@ -124,7 +124,7 @@ impl StatsFormatter for Detailed {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{formatters::stats::get_dummy_stats, options::OutputMode};
+    use crate::{config::OutputMode, formatters::stats::get_dummy_stats};
     use pretty_assertions::assert_eq;
 
     #[test]
