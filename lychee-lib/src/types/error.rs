@@ -107,8 +107,9 @@ pub enum ErrorKind {
     #[error("Unsupported URI type: '{0}'")]
     UnsupportedUriType(String),
 
-    /// The given input can not be parsed into a valid URI remap
-    #[error("Invalid remap pattern: {0}")]
+    /// The given input can not be parsed into a valid URI remap, or applying a remap
+    /// led to an invalid URL.
+    #[error("Invalid remap: {0}")]
     InvalidUrlRemap(String),
 
     /// The given input is neither a valid file path nor a valid URL
