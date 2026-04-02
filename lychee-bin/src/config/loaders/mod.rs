@@ -50,7 +50,7 @@ pub(crate) fn default_config_file() -> Result<Option<Config>> {
             let contents = fs::read_to_string(&path).unwrap_or_default();
             match loader.load(&contents) {
                 Ok(ConfigMatch::Found(config)) => return Ok(Some(*config)),
-                Ok(ConfigMatch::NotFound) => continue,
+                Ok(ConfigMatch::NotFound) => (),
                 Err(e) => {
                     return Err(e.context(format!(
                         "Cannot load configuration file: {}",
