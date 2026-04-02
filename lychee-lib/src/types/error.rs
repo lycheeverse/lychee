@@ -39,7 +39,9 @@ pub enum ErrorKind {
     ReadFileInput(#[source] std::io::Error, PathBuf),
 
     /// Error while reading an input URL
-    #[error("Cannot read input content from URL: status code {0}")]
+    #[error(
+        "Cannot read input content from URL: status code {0}. To check links in error pages, download and check locally instead."
+    )]
     ReadInputUrlStatusCode(StatusCode),
 
     /// Error while reading stdin as input
@@ -220,9 +222,7 @@ impl ErrorKind {
                     Some(e.to_string())
                 }
             }
-            ErrorKind::ReadInputUrlStatusCode(_code) => Some(
-                "To check links in error pages, download and check locally instead.".to_string(),
-            ),
+            ErrorKind::ReadInputUrlStatusCode(_) => None,
             ErrorKind::InvalidFilePath(_uri) => {
                 Some("File not found. Check if file exists and path is correct".to_string())
             }

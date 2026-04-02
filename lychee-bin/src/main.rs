@@ -69,7 +69,6 @@ use formatters::log::init_logging;
 use http::HeaderMap;
 use log::{error, info, warn};
 
-use lychee_lib::ErrorKind as LycheeErrorKind;
 use lychee_lib::filter::PathExcludes;
 
 use options::{HeaderMapExt, LYCHEE_CONFIG_FILE};
@@ -282,17 +281,7 @@ fn run_main() -> Result<i32> {
         Err(e) if Some(ErrorKind::BrokenPipe) == underlying_io_error_kind(&e) => {
             exit(ExitCode::Success as i32);
         }
-        Err(e) => {
-            // Check if this is a lychee error with details
-            if let Some(lychee_error) = e.downcast_ref::<LycheeErrorKind>()
-                && let Some(details) = lychee_error.details()
-            {
-                error!("{e}: {details}");
-                return Ok(ExitCode::UnexpectedFailure as i32);
-            }
-            Err(e)
-        }
-        Ok(exit_code) => Ok(exit_code),
+        res => res,
     }
 }
 

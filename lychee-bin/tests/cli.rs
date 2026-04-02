@@ -3828,7 +3828,7 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
         let output = String::from_utf8_lossy(&assert.get_output().stderr);
 
         // We should see an error for the error URL, but not for the success URL
-        assert!(output.contains("Cannot read input content from URL: status code 404"));
+        assert!(output.contains("Cannot read input content from URL: status code 404 Not Found. To check links in error pages, download and check locally instead."));
         assert!(!output.contains("Cannot read input content from URL: status code 200"));
     }
 }
