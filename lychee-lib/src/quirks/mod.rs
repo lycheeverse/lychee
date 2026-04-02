@@ -139,7 +139,9 @@ mod tests {
     use header::HeaderValue;
     use http::{Method, header};
     use reqwest::{Request, Url};
+    use rstest::rstest;
 
+    use super::GITHUB_BLOB_LINE_FRAGMENT_PATTERN;
     use super::Quirks;
 
     #[derive(Debug)]
@@ -251,6 +253,45 @@ mod tests {
                 MockRequest::new(Method::GET, Url::parse(expect).unwrap())
             );
         }
+    }
+
+    #[rstest]
+    // Standard single line
+    #[case(
+        "https://github.com/lycheeverse/lychee/blob/master/README.md#L10",
+        true
+    )]
+    // Standard range with double 'L'
+    #[case(
+        "https://github.com/lycheeverse/lychee/blob/master/src/main.rs#L10-L20",
+        true
+    )]
+    // Shorthand range (no second 'L')
+    #[case(
+        "https://github.com/lycheeverse/lychee/blob/master/src/lib.rs#L5-15",
+        true
+    )]
+    // Deeply nested path
+    #[case(
+        "https://github.com/user/repo/blob/feat/branch/path/to/file.txt#L1",
+        true
+    )]
+    // Should NOT match: Markdown fragment (handled by the other regex)
+    #[case(
+        "https://github.com/user/repo/blob/master/README.md#installation",
+        false
+    )]
+    // Should NOT match: Raw blob without line numbers
+    #[case("https://github.com/user/repo/blob/master/src/main.rs", false)]
+    // Should NOT match: Normal website URL
+    #[case("https://github.com/user/repo", false)]
+    fn test_github_blob_line_fragment_regex(#[case] url: &str, #[case] expected: bool) {
+        assert_eq!(
+            GITHUB_BLOB_LINE_FRAGMENT_PATTERN.is_match(url),
+            expected,
+            "Github blob line regex : {}",
+            url
+        );
     }
 
     #[test]
