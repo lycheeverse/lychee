@@ -1,17 +1,93 @@
+use log::info;
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
+    borrow::Cow,
+    collections::{HashMap, HashSet, hash_map::Entry},
     path::Path,
     sync::Arc,
 };
 
 use crate::{
-    extract::{html::html5gum::extract_html_fragments, markdown::extract_markdown_fragments},
-    types::FileType,
     Result,
+    extract::{html::html5gum::extract_html_fragments, markdown::extract_markdown_fragments},
+    types::{ErrorKind, FileType},
 };
 use percent_encoding::percent_decode_str;
 use tokio::{fs, sync::Mutex};
 use url::Url;
+
+/// Holds the content and file type of the fragment input.
+pub(crate) struct FragmentInput<'a> {
+    pub content: Cow<'a, str>,
+    pub file_type: FileType,
+}
+
+impl FragmentInput<'_> {
+    pub(crate) async fn from_path(path: &Path) -> Result<Self> {
+        let content = fs::read_to_string(path)
+            .await
+            .map_err(|err| ErrorKind::ReadFileInput(err, path.to_path_buf()))?;
+        let file_type = FileType::from(path);
+        Ok(Self {
+            content: Cow::Owned(content),
+            file_type,
+        })
+    }
+}
+
+/// A fragment builder that expands the given fragments into a list of candidates.
+struct FragmentBuilder {
+    variants: Vec<String>,
+    decoded: Vec<String>,
+}
+
+impl FragmentBuilder {
+    fn new(fragment: &str, url: &Url, file_type: FileType) -> Result<Self> {
+        let mut variants = vec![fragment.into()];
+        // For GitHub links, add "user-content-" prefix to the fragments.
+        // The following cases cannot be handled unless we simulate with a headless browser:
+        // - markdown files from any specific path (includes "blob/master/README.md")
+        // - "issuecomment" fragments from the GitHub issue pages
+        if url
+            .host_str()
+            .is_some_and(|host| host.ends_with("github.com"))
+        {
+            variants.push(format!("user-content-{fragment}"));
+        }
+
+        // Only store the percent-decoded variants if it's different from the original
+        // fragment. This avoids storing and comparing the same fragment twice.
+        let mut decoded = Vec::new();
+        for frag in &variants {
+            let mut require_alloc = false;
+            let mut fragment_decoded: Cow<'_, str> = match percent_decode_str(frag).decode_utf8()? {
+                Cow::Borrowed(s) => s.into(),
+                Cow::Owned(s) => {
+                    require_alloc = true;
+                    s.into()
+                }
+            };
+            if file_type == FileType::Markdown {
+                let lowercase = fragment_decoded.to_lowercase();
+                if lowercase != fragment_decoded {
+                    fragment_decoded = lowercase.into();
+                    require_alloc = true;
+                }
+            }
+            if require_alloc {
+                decoded.push(fragment_decoded.into());
+            }
+        }
+
+        Ok(Self { variants, decoded })
+    }
+
+    fn any_matches(&self, fragments: &HashSet<String>) -> bool {
+        self.variants
+            .iter()
+            .chain(self.decoded.iter())
+            .any(|frag| fragments.contains(frag))
+    }
+}
 
 /// Holds a cache of fragments for a given URL.
 ///
@@ -37,44 +113,44 @@ impl FragmentChecker {
         }
     }
 
-    /// Checks if the given path contains the given fragment.
+    /// Checks if the given [`FragmentInput`] contains the given fragment.
     ///
     /// Returns false, if there is a fragment in the link which is not empty or "top"
     /// and the path is to a Markdown file, which doesn't contain the given fragment.
     /// (Empty # and #top fragments are always valid, triggering the browser to scroll to top.)
     ///
     /// In all other cases, returns true.
-    pub(crate) async fn check(&self, path: &Path, url: &Url) -> Result<bool> {
+    pub(crate) async fn check(&self, input: FragmentInput<'_>, url: &Url) -> Result<bool> {
         let Some(fragment) = url.fragment() else {
             return Ok(true);
         };
         if fragment.is_empty() || fragment.eq_ignore_ascii_case("top") {
             return Ok(true);
-        };
-        let mut fragment_decoded = percent_decode_str(fragment).decode_utf8()?;
+        }
+
         let url_without_frag = Self::remove_fragment(url.clone());
 
-        let file_type = FileType::from(path);
+        let FragmentInput { content, file_type } = input;
         let extractor = match file_type {
             FileType::Markdown => extract_markdown_fragments,
             FileType::Html => extract_html_fragments,
-            FileType::Plaintext => return Ok(true),
+            FileType::Css | FileType::Plaintext | FileType::Xml => {
+                info!("Skipping fragment check for {url} within a {file_type} file");
+                return Ok(true);
+            }
         };
-        if file_type == FileType::Markdown {
-            fragment_decoded = fragment_decoded.to_lowercase().into();
-        }
+
+        let fragment_candidates = FragmentBuilder::new(fragment, url, file_type)?;
         match self.cache.lock().await.entry(url_without_frag) {
             Entry::Vacant(entry) => {
-                let content = fs::read_to_string(path).await?;
                 let file_frags = extractor(&content);
-                let contains_fragment =
-                    file_frags.contains(fragment) || file_frags.contains(&fragment_decoded as &str);
+                let contains_fragment = fragment_candidates.any_matches(&file_frags);
                 entry.insert(file_frags);
                 Ok(contains_fragment)
             }
             Entry::Occupied(entry) => {
-                Ok(entry.get().contains(fragment)
-                    || entry.get().contains(&fragment_decoded as &str))
+                let file_frags = entry.get();
+                Ok(fragment_candidates.any_matches(file_frags))
             }
         }
     }

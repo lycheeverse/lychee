@@ -9,11 +9,14 @@ use http::StatusCode;
 use lychee_lib::{InputSource, ResponseBody, Status};
 use std::fmt::Write;
 use tabled::{
-    settings::{object::Segment, Alignment, Modify, Style},
     Table, Tabled,
+    settings::{Alignment, Modify, Style, object::Segment},
 };
 
-use crate::stats::ResponseStats;
+use crate::formatters::{
+    host_stats::MarkdownHostStats,
+    stats::{OutputStats, ResponseStats},
+};
 
 #[derive(Tabled)]
 struct StatsTableEntry {
@@ -26,32 +29,40 @@ struct StatsTableEntry {
 fn stats_table(stats: &ResponseStats) -> String {
     let stats = vec![
         StatsTableEntry {
-            status: "\u{1f50d} Total",
+            status: "🔍 Total",
             count: stats.total,
         },
         StatsTableEntry {
-            status: "\u{2705} Successful",
+            status: "🔗 Unique",
+            count: stats.unique,
+        },
+        StatsTableEntry {
+            status: "✅ Successful",
             count: stats.successful,
         },
         StatsTableEntry {
-            status: "\u{23f3} Timeouts",
+            status: "⏳ Timeouts",
             count: stats.timeouts,
         },
         StatsTableEntry {
-            status: "\u{1f500} Redirected",
+            status: "🔀 Redirected",
             count: stats.redirects,
         },
         StatsTableEntry {
-            status: "\u{1f47b} Excluded",
+            status: "👻 Excluded",
             count: stats.excludes,
         },
         StatsTableEntry {
-            status: "\u{2753} Unknown",
+            status: "❓ Unknown",
             count: stats.unknown,
         },
         StatsTableEntry {
-            status: "\u{1f6ab} Errors",
+            status: "🚫 Errors",
             count: stats.errors,
+        },
+        StatsTableEntry {
+            status: "⛔ Unsupported",
+            count: stats.unsupported,
         },
     ];
     let style = Style::markdown();
@@ -72,6 +83,10 @@ fn markdown_response(response: &ResponseBody) -> Result<String> {
         response.uri,
     );
 
+    if let Some(span) = response.span {
+        formatted = format!("{formatted} (at {span})");
+    }
+
     if let Status::Ok(StatusCode::OK) = response.status {
         // Don't print anything else if the status code is 200.
         // The output gets too verbose then.
@@ -81,11 +96,9 @@ fn markdown_response(response: &ResponseBody) -> Result<String> {
     // Add a separator between the URI and the additional details below.
     // Note: To make the links clickable in some terminals,
     // we add a space before the separator.
-    write!(formatted, " | {}", response.status)?;
+    let details = response.status.details();
+    write!(formatted, " | {details}")?;
 
-    if let Some(details) = response.status.details() {
-        write!(formatted, ": {details}")?;
-    }
     Ok(formatted)
 }
 
@@ -100,14 +113,19 @@ impl Display for MarkdownResponseStats {
         writeln!(f, "{}", stats_table(&self.0))?;
 
         write_stats_per_input(f, "Errors", &stats.error_map, |response| {
-            markdown_response(response).map_err(|_e| fmt::Error)
+            markdown_response(response).map_err(|_| fmt::Error)
+        })?;
+
+        write_stats_per_input(f, "Timeouts", &stats.timeout_map, |response| {
+            markdown_response(response).map_err(|_| fmt::Error)
+        })?;
+
+        write_stats_per_input(f, "Redirects", &stats.redirect_map, |redirects| {
+            Ok(format!("* {redirects}"))
         })?;
 
         write_stats_per_input(f, "Suggestions", &stats.suggestion_map, |suggestion| {
-            Ok(format!(
-                "* {} --> {}",
-                suggestion.original, suggestion.suggestion
-            ))
+            Ok(format!("* {suggestion}"))
         })?;
 
         Ok(())
@@ -146,110 +164,136 @@ impl Markdown {
 }
 
 impl StatsFormatter for Markdown {
-    fn format(&self, stats: ResponseStats) -> Result<Option<String>> {
-        let markdown = MarkdownResponseStats(stats);
-        Ok(Some(markdown.to_string()))
+    fn format(&self, stats: OutputStats) -> Result<String> {
+        let response_stats = MarkdownResponseStats(stats.response_stats);
+        let host_stats = MarkdownHostStats {
+            host_stats: stats.host_stats,
+        };
+
+        Ok(format!("{response_stats}\n{host_stats}"))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
+    use std::time::Duration;
 
     use http::StatusCode;
-    use lychee_lib::{CacheStatus, InputSource, Response, ResponseBody, Status, Uri};
-    use reqwest::Url;
+    use lychee_lib::RawUriSpan;
+    use lychee_lib::{CacheStatus, ResponseBody, Status, Uri};
+    use pretty_assertions::assert_eq;
 
-    use crate::archive::Suggestion;
+    use crate::formatters::stats::get_dummy_stats;
 
     use super::*;
+
+    const SPAN: Option<RawUriSpan> = Some(RawUriSpan {
+        line: NonZeroUsize::MIN,
+        column: Some(NonZeroUsize::MIN),
+    });
+    const DURATION: Option<Duration> = Some(Duration::from_secs(1));
 
     #[test]
     fn test_markdown_response_ok() {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
             status: Status::Ok(StatusCode::OK),
+            span: SPAN,
+            duration: DURATION,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(markdown, "* [200] <http://example.com/>");
+        assert_eq!(markdown, "* [200] <http://example.com/> (at 1:1)");
     }
 
     #[test]
     fn test_markdown_response_cached_ok() {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
-            status: Status::Cached(CacheStatus::Ok(200)),
+            status: Status::Cached(CacheStatus::Ok(StatusCode::OK)),
+            span: SPAN,
+            duration: DURATION,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(markdown, "* [200] <http://example.com/> | OK (cached)");
+        assert_eq!(
+            markdown,
+            "* [200] <http://example.com/> (at 1:1) | OK (cached)"
+        );
     }
 
     #[test]
     fn test_markdown_response_cached_err() {
         let response = ResponseBody {
             uri: Uri::try_from("http://example.com").unwrap(),
-            status: Status::Cached(CacheStatus::Error(Some(400))),
+            status: Status::Cached(CacheStatus::Error(Some(StatusCode::BAD_REQUEST))),
+            span: SPAN,
+            duration: DURATION,
         };
         let markdown = markdown_response(&response).unwrap();
-        assert_eq!(markdown, "* [400] <http://example.com/> | Error (cached)");
+        assert_eq!(
+            markdown,
+            "* [400] <http://example.com/> (at 1:1) | Error (cached)"
+        );
     }
 
     #[test]
     fn test_render_stats() {
         let stats = ResponseStats::default();
         let table = stats_table(&stats);
-        let expected = "| Status        | Count |
-|---------------|-------|
-| 🔍 Total      | 0     |
-| ✅ Successful | 0     |
-| ⏳ Timeouts   | 0     |
-| 🔀 Redirected | 0     |
-| 👻 Excluded   | 0     |
-| ❓ Unknown    | 0     |
-| 🚫 Errors     | 0     |";
+        let expected = "| Status         | Count |
+|----------------|-------|
+| 🔍 Total       | 0     |
+| 🔗 Unique      | 0     |
+| ✅ Successful  | 0     |
+| ⏳ Timeouts    | 0     |
+| 🔀 Redirected  | 0     |
+| 👻 Excluded    | 0     |
+| ❓ Unknown     | 0     |
+| 🚫 Errors      | 0     |
+| ⛔ Unsupported | 0     |";
         assert_eq!(table, expected.to_string());
     }
 
     #[test]
     fn test_render_summary() {
-        let mut stats = ResponseStats::default();
-        let response = Response::new(
-            Uri::try_from("http://127.0.0.1").unwrap(),
-            Status::Cached(CacheStatus::Error(Some(404))),
-            InputSource::Stdin,
-        );
-        stats.add(response);
-        stats
-            .suggestion_map
-            .entry((InputSource::Stdin).clone())
-            .or_default()
-            .insert(Suggestion {
-                suggestion: Url::parse("https://example.com/suggestion").unwrap(),
-                original: Url::parse("https://example.com/original").unwrap(),
-            });
-        let summary = MarkdownResponseStats(stats);
+        let summary = MarkdownResponseStats(get_dummy_stats().response_stats);
         let expected = "# Summary
 
-| Status        | Count |
-|---------------|-------|
-| 🔍 Total      | 1     |
-| ✅ Successful | 0     |
-| ⏳ Timeouts   | 0     |
-| 🔀 Redirected | 0     |
-| 👻 Excluded   | 0     |
-| ❓ Unknown    | 0     |
-| 🚫 Errors     | 1     |
+| Status         | Count |
+|----------------|-------|
+| 🔍 Total       | 2     |
+| 🔗 Unique      | 2     |
+| ✅ Successful  | 0     |
+| ⏳ Timeouts    | 1     |
+| 🔀 Redirected  | 1     |
+| 👻 Excluded    | 0     |
+| ❓ Unknown     | 0     |
+| 🚫 Errors      | 1     |
+| ⛔ Unsupported | 0     |
 
 ## Errors per input
 
-### Errors in stdin
+### Errors in https://example.com/
 
-* [404] <http://127.0.0.1/> | Error (cached)
+* [404] <https://github.com/mre/idiomatic-rust-doesnt-exist-man> (at 1:1) | 404 Not Found
+
+## Timeouts per input
+
+### Timeouts in https://example.com/
+
+* [TIMEOUT] <https://httpbin.org/delay/2> (at 1:1) | Request timed out
+
+## Redirects per input
+
+### Redirects in https://example.com/
+
+* https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 ## Suggestions per input
 
-### Suggestions in stdin
+### Suggestions in https://example.com/
 
-* https://example.com/original --> https://example.com/suggestion
+* https://original.dev/ --> https://suggestion.dev/
 ";
         assert_eq!(summary.to_string(), expected.to_string());
     }

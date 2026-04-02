@@ -5,7 +5,7 @@
 //!
 //! The chain is implemented as a vector of [`Handler`] handlers. It is
 //! traversed by calling [`Chain::traverse`], which will call
-//! [`Handler::chain`] on each handler in the chain consecutively.
+//! [`Handler::handle`] on each handler in the chain consecutively.
 //!
 //! To add external handlers, you can implement the [`Handler`] trait and add
 //! the handler to the chain.

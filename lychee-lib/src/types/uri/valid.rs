@@ -62,7 +62,7 @@ impl Uri {
     /// each as a percent-encoded ASCII string.
     ///
     /// Return `None` for cannot-be-a-base URLs.
-    pub fn path_segments(&self) -> Option<std::str::Split<char>> {
+    pub fn path_segments(&self) -> Option<std::str::Split<'_, char>> {
         self.url.path_segments()
     }
 
@@ -254,8 +254,8 @@ impl TryFrom<&str> for Uri {
                     // which will allow `Url::parse` to parse them.
                     if let Ok(uri) = Url::parse(&format!("mailto:{s}")) {
                         return Ok(uri.into());
-                    };
-                };
+                    }
+                }
 
                 // We do not handle relative URLs here, as we do not know the base URL.
                 Err(ErrorKind::ParseUrl(err, s.to_owned()))
@@ -282,11 +282,12 @@ impl Display for Uri {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{mail, website};
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, Ipv6Addr},
     };
+    use test_utils::mail;
+    use test_utils::website;
 
     #[test]
     fn test_ipv4_uri_is_loopback() {
@@ -305,11 +306,11 @@ mod tests {
         assert!(Uri::try_from("").is_err());
         assert_eq!(
             Uri::try_from("https://example.com"),
-            Ok(website("https://example.com"))
+            Ok(website!("https://example.com"))
         );
         assert_eq!(
             Uri::try_from("https://example.com/@test/testing"),
-            Ok(website("https://example.com/@test/testing"))
+            Ok(website!("https://example.com/@test/testing"))
         );
     }
 
@@ -317,15 +318,15 @@ mod tests {
     fn test_uri_from_email_str() {
         assert_eq!(
             Uri::try_from("mail@example.com"),
-            Ok(mail("mail@example.com"))
+            Ok(mail!("mail@example.com"))
         );
         assert_eq!(
             Uri::try_from("mailto:mail@example.com"),
-            Ok(mail("mail@example.com"))
+            Ok(mail!("mail@example.com"))
         );
         assert_eq!(
             Uri::try_from("mail@example.com?foo=bar"),
-            Ok(mail("mail@example.com?foo=bar"))
+            Ok(mail!("mail@example.com?foo=bar"))
         );
     }
 
@@ -340,42 +341,42 @@ mod tests {
     #[test]
     fn test_uri_host_ip_v4() {
         assert_eq!(
-            website("http://127.0.0.1").host_ip(),
-            Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))
+            website!("http://127.0.0.1").host_ip(),
+            Some(IpAddr::V4(Ipv4Addr::LOCALHOST))
         );
     }
 
     #[test]
     fn test_uri_host_ip_v6() {
         assert_eq!(
-            website("https://[2020::0010]").host_ip(),
+            website!("https://[2020::0010]").host_ip(),
             Some(IpAddr::V6(Ipv6Addr::new(0x2020, 0, 0, 0, 0, 0, 0, 0x10)))
         );
     }
 
     #[test]
     fn test_uri_host_ip_no_ip() {
-        assert!(website("https://some.cryptic/url").host_ip().is_none());
+        assert!(website!("https://some.cryptic/url").host_ip().is_none());
     }
 
     #[test]
     fn test_localhost() {
         assert_eq!(
-            website("http://127.0.0.1").host_ip(),
-            Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))
+            website!("http://127.0.0.1").host_ip(),
+            Some(IpAddr::V4(Ipv4Addr::LOCALHOST))
         );
     }
 
     #[test]
     fn test_convert_to_https() {
         assert_eq!(
-            website("http://example.com").to_https().unwrap(),
-            website("https://example.com")
+            website!("http://example.com").to_https().unwrap(),
+            website!("https://example.com")
         );
 
         assert_eq!(
-            website("https://example.com").to_https().unwrap(),
-            website("https://example.com")
+            website!("https://example.com").to_https().unwrap(),
+            website!("https://example.com")
         );
     }
 

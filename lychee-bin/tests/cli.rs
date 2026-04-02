@@ -1,30 +1,36 @@
 #[cfg(test)]
 mod cli {
-    use std::{
-        collections::{HashMap, HashSet},
-        error::Error,
-        fs::{self, File},
-        io::Write,
-        path::{Path, PathBuf},
-        time::Duration,
-    };
-
     use anyhow::anyhow;
-    use assert_cmd::Command;
+    use assert_cmd::{assert::Assert, cargo::cargo_bin_cmd, output::OutputOkExt};
     use assert_json_diff::assert_json_include;
-    use http::StatusCode;
+    use http::{Method, StatusCode};
     use lychee_lib::{InputSource, ResponseBody};
     use predicates::{
-        prelude::{predicate, PredicateBooleanExt},
+        prelude::PredicateBooleanExt,
         str::{contains, is_empty},
     };
     use pretty_assertions::assert_eq;
     use regex::Regex;
     use serde::Serialize;
-    use serde_json::Value;
-    use tempfile::NamedTempFile;
+    use serde_json::{Value, json};
+    use std::{
+        collections::{HashMap, HashSet},
+        error::Error,
+        fs::{self, File},
+        io::{BufRead, Write},
+        ops::Not,
+        path::Path,
+        time::{Duration, Instant},
+    };
+    use tempfile::{NamedTempFile, tempdir};
+    use test_utils::{fixtures_path, mock_server, redirecting_mock_server, root_path};
+    use url::Url;
+
     use uuid::Uuid;
-    use wiremock::{matchers::basic_auth, Mock, ResponseTemplate};
+    use wiremock::{
+        Mock, Request, ResponseTemplate,
+        matchers::{basic_auth, method},
+    };
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -33,18 +39,7 @@ mod cli {
     // constant.
     const LYCHEE_CACHE_FILE: &str = ".lycheecache";
 
-    /// Helper macro to create a mock server which returns a custom status code.
-    macro_rules! mock_server {
-        ($status:expr $(, $func:tt ($($arg:expr),*))*) => {{
-            let mock_server = wiremock::MockServer::start().await;
-            let response_template = wiremock::ResponseTemplate::new(http::StatusCode::from($status));
-            let template = response_template$(.$func($($arg),*))*;
-            wiremock::Mock::given(wiremock::matchers::method("GET")).respond_with(template).mount(&mock_server).await;
-            mock_server
-        }};
-    }
-
-    /// Helper macro to create a mock server which returns a 200 OK and a custom response body.
+    /// Create a mock server which returns a 200 OK and a custom response body.
     macro_rules! mock_response {
         ($body:expr) => {{
             let mock_server = wiremock::MockServer::start().await;
@@ -57,22 +52,76 @@ mod cli {
         }};
     }
 
-    /// Gets the "main" binary name (e.g. `lychee`)
-    fn main_command() -> Command {
-        Command::cargo_bin(env!("CARGO_PKG_NAME")).expect("Couldn't get cargo package name")
+    /// Convert a relative path to an absolute path string
+    /// starting from a base directory.
+    fn path_str(base: &Path, relative_path: &str) -> String {
+        base.join(relative_path).to_string_lossy().to_string()
     }
 
-    /// Helper function to get the root path of the project.
-    fn root_path() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .to_path_buf()
+    /// Assert actual output lines equals to expected lines.
+    /// Order of the lines is ignored.
+    fn assert_lines_eq<S: AsRef<str> + Ord>(result: Assert, mut expected_lines: Vec<S>) {
+        let output = &result.get_output().stdout;
+        let mut actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+
+        actual_lines.sort();
+        expected_lines.sort();
+
+        let expected_lines: Vec<String> = expected_lines
+            .into_iter()
+            .map(|l| l.as_ref().to_owned())
+            .collect();
+
+        assert_eq!(actual_lines, expected_lines);
     }
 
-    /// Helper function to get the path to the fixtures directory.
-    fn fixtures_path() -> PathBuf {
-        root_path().join("fixtures")
+    /// Parse lychee's json output to [`Value`].
+    /// Additionally remove the non-deterministic duration to simplify subsequent assertions
+    fn stdout_to_json(stdout: &[u8]) -> Value {
+        let mut output_json =
+            serde_json::from_slice::<Value>(stdout).expect("stdout is not valid JSON");
+        remove_nondeterministic_duration(&mut output_json["success_map"]);
+        remove_nondeterministic_duration(&mut output_json["excluded_map"]);
+        return output_json;
+
+        fn remove_nondeterministic_duration(value: &mut Value) {
+            let map = value.as_object_mut().expect("Expected object");
+            map.iter_mut().for_each(|(_, v)| {
+                v.as_array_mut()
+                    .expect("Expected array of objects")
+                    .iter_mut()
+                    .for_each(|a| {
+                        a.as_object_mut()
+                            .expect("Expected object")
+                            .remove("duration")
+                            .expect("Value of 'duration' not present");
+                    });
+            });
+        }
+    }
+
+    /// Test the output of the JSON format.
+    macro_rules! test_json_output {
+        ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
+            let mut cmd = cargo_bin_cmd!();
+            let test_path = fixtures_path!().join($test_file);
+            let outfile = format!("{}.json", uuid::Uuid::new_v4());
+
+            let result = cmd$(.arg($arg))*.arg("--output").arg(&outfile).arg("--format").arg("json").arg(test_path).assert();
+
+            let output = std::fs::read_to_string(&outfile)?;
+            std::fs::remove_file(outfile)?;
+
+            let actual: Value = serde_json::from_str(&output)?;
+            let expected: Value = serde_json::to_value(&$expected)?;
+
+            result.success();
+            assert_json_include!(actual: actual, expected: expected);
+            Ok(())
+        }};
     }
 
     #[derive(Default, Serialize)]
@@ -93,39 +142,28 @@ mod cli {
         excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
     }
 
-    /// Helper macro to test the output of the JSON format.
-    macro_rules! test_json_output {
-        ($test_file:expr, $expected:expr $(, $arg:expr)*) => {{
-            let mut cmd = main_command();
-            let test_path = fixtures_path().join($test_file);
-            let outfile = format!("{}.json", uuid::Uuid::new_v4());
-
-            cmd$(.arg($arg))*.arg("--output").arg(&outfile).arg("--format").arg("json").arg(test_path).assert().success();
-
-            let output = std::fs::read_to_string(&outfile)?;
-            std::fs::remove_file(outfile)?;
-
-            let actual: Value = serde_json::from_str(&output)?;
-            let expected: Value = serde_json::to_value(&$expected)?;
-
-            assert_json_include!(actual: actual, expected: expected);
-            Ok(())
-        }};
-    }
-
     /// Test that the default report output format (compact) and mode (color)
     /// prints the failed URLs as well as their status codes on error. Make
     /// sure that the status code only occurs once.
-    #[test]
-    fn test_compact_output_format_contains_status() -> Result<()> {
-        let test_path = fixtures_path().join("TEST_INVALID_URLS.html");
+    #[tokio::test]
+    async fn test_compact_output_format_contains_status() -> Result<()> {
+        let not_found = mock_server!(StatusCode::NOT_FOUND);
+        let internal_server_error = mock_server!(StatusCode::INTERNAL_SERVER_ERROR);
+        let bad_gateway = mock_server!(StatusCode::BAD_GATEWAY);
+        let contents = format!(
+            "{} {} {}",
+            &not_found.uri(),
+            &internal_server_error.uri(),
+            &bad_gateway.uri(),
+        );
 
-        let mut cmd = main_command();
-        cmd.arg("--format")
+        let mut cmd = cargo_bin_cmd!();
+        cmd.write_stdin(contents)
+            .arg("-")
+            .arg("--format")
             .arg("compact")
             .arg("--mode")
             .arg("color")
-            .arg(test_path)
             .env("FORCE_COLOR", "1")
             .assert()
             .failure()
@@ -136,19 +174,7 @@ mod cli {
         // Check that the output contains the status code (once) and the URL
         let output_str = String::from_utf8_lossy(&output.stdout);
 
-        // The expected output is as follows:
-        // "Find details below."
-        // [EMPTY LINE]
-        // [path/to/file]:
-        //      [400] https://httpbin.org/status/404
-        //      [500] https://httpbin.org/status/500
-        //      [502] https://httpbin.org/status/502
-        // (the order of the URLs may vary)
-
-        // Check that the output contains the file path
-        assert!(output_str.contains("TEST_INVALID_URLS.html"));
-
-        let re = Regex::new(r"\s{5}\[\d{3}\] https://httpbin\.org/status/\d{3}").unwrap();
+        let re = Regex::new(r"\s{5}\[\d{3}\] http://.* | Rejected status code").unwrap();
         let matches: Vec<&str> = re.find_iter(&output_str).map(|m| m.as_str()).collect();
 
         // Check that the status code occurs only once
@@ -162,7 +188,7 @@ mod cli {
     async fn test_json_output() -> Result<()> {
         // Server that returns a bunch of 200 OK responses
         let mock_server_ok = mock_server!(StatusCode::OK);
-        let mut cmd = main_command();
+        let mut cmd = cargo_bin_cmd!();
         cmd.arg("--format")
             .arg("json")
             .arg("-vv")
@@ -172,7 +198,7 @@ mod cli {
             .assert()
             .success();
         let output = cmd.output().unwrap();
-        let output_json = serde_json::from_slice::<Value>(&output.stdout)?;
+        let output_json = stdout_to_json(&output.stdout);
 
         // Check that the output is valid JSON
         assert!(output_json.is_object());
@@ -183,8 +209,7 @@ mod cli {
         assert!(output_json.get("excluded_map").is_some());
 
         // Check the success map
-        let success_map = output_json["success_map"].as_object().unwrap();
-        assert_eq!(success_map.len(), 1);
+        let success_map = &output_json["success_map"];
 
         // Get the actual URL from the mock server for comparison
         let mock_url = mock_server_ok.uri();
@@ -193,6 +218,10 @@ mod cli {
         let expected_success_map = serde_json::json!({
             "stdin": [
                 {
+                    "span": {
+                        "column": 1,
+                        "line": 1,
+                    },
                     "status": {
                         "code": 200,
                         "text": "200 OK"
@@ -204,8 +233,7 @@ mod cli {
 
         // Compare the actual success map with the expected one
         assert_eq!(
-            success_map,
-            expected_success_map.as_object().unwrap(),
+            *success_map, expected_success_map,
             "Success map doesn't match expected structure"
         );
 
@@ -217,9 +245,9 @@ mod cli {
     /// See https://github.com/lycheeverse/lychee/issues/1355
     #[test]
     fn test_valid_json_output_to_stdout_on_error() -> Result<()> {
-        let test_path = fixtures_path().join("TEST_GITHUB_404.md");
+        let test_path = fixtures_path!().join("TEST_GITHUB_404.md");
 
-        let mut cmd = main_command();
+        let mut cmd = cargo_bin_cmd!();
         cmd.arg("--format")
             .arg("json")
             .arg(test_path)
@@ -230,15 +258,15 @@ mod cli {
         let output = cmd.output()?;
 
         // Check that the output is valid JSON
-        assert!(serde_json::from_slice::<Value>(&output.stdout).is_ok());
+        stdout_to_json(&output.stdout);
         Ok(())
     }
 
     #[test]
     fn test_detailed_json_output_on_error() -> Result<()> {
-        let test_path = fixtures_path().join("TEST_DETAILED_JSON_OUTPUT_ERROR.md");
+        let test_path = fixtures_path!().join("TEST_DETAILED_JSON_OUTPUT_ERROR.md");
 
-        let mut cmd = main_command();
+        let mut cmd = cargo_bin_cmd!();
         cmd.arg("--format")
             .arg("json")
             .arg(&test_path)
@@ -248,16 +276,13 @@ mod cli {
 
         let output = cmd.output()?;
 
-        // Check that the output is valid JSON
-        assert!(serde_json::from_slice::<Value>(&output.stdout).is_ok());
-
         // Parse site error status from the error_map
-        let output_json = serde_json::from_slice::<Value>(&output.stdout).unwrap();
+        let output_json = stdout_to_json(&output.stdout);
         let site_error_status =
             &output_json["error_map"][&test_path.to_str().unwrap()][0]["status"];
 
         assert_eq!(
-            "error sending request for url (https://expired.badssl.com/) Maybe a certificate error?",
+            "SSL certificate expired. Site needs to renew certificate",
             site_error_status["details"]
         );
         Ok(())
@@ -277,13 +302,38 @@ mod cli {
     }
 
     #[test]
+    fn test_local_directories() -> Result<()> {
+        test_json_output!(
+            "TEST_LOCAL_DIRECTORIES.md",
+            MockResponseStats {
+                total: 4,
+                successful: 4,
+                ..MockResponseStats::default()
+            }
+        )
+    }
+
+    #[test]
     fn test_email() -> Result<()> {
+        cargo_bin_cmd!()
+            .write_stdin("test@example.com idiomatic-rust-doesnt-exist-man@wikipedia.org")
+            .arg("--include-mail")
+            .arg("-")
+            .assert()
+            .code(2)
+            .stdout(contains(
+                "mailto:test@example.com (at 1:1) | No MX records found for domain",
+            ))
+            .stdout(contains(
+                "mailto:idiomatic-rust-doesnt-exist-man@wikipedia.org (at 1:18) | Mail server rejects the address",
+            ))
+            .stdout(contains("2 Errors"));
+
         test_json_output!(
             "TEST_EMAIL.md",
             MockResponseStats {
-                total: 5,
-                excludes: 0,
-                successful: 5,
+                total: 3,
+                successful: 3,
                 ..MockResponseStats::default()
             },
             "--include-mail"
@@ -295,42 +345,38 @@ mod cli {
         test_json_output!(
             "TEST_EMAIL.md",
             MockResponseStats {
-                total: 5,
-                excludes: 3,
-                successful: 2,
+                total: 3,
+                excludes: 2,
+                successful: 1,
                 ..MockResponseStats::default()
             }
         )
     }
 
     #[test]
-    fn test_email_html_with_subject() -> Result<()> {
-        let mut cmd = main_command();
-        let input = fixtures_path().join("TEST_EMAIL_QUERY_PARAMS.html");
+    fn test_email_html_with_subject() {
+        let input = fixtures_path!().join("TEST_EMAIL_QUERY_PARAMS.html");
 
-        cmd.arg("--dump")
+        cargo_bin_cmd!()
+            .arg("--dump")
             .arg(input)
             .arg("--include-mail")
             .assert()
             .success()
             .stdout(contains("hello@example.org?subject=%5BHello%5D"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_email_markdown_with_subject() -> Result<()> {
-        let mut cmd = main_command();
-        let input = fixtures_path().join("TEST_EMAIL_QUERY_PARAMS.md");
+    fn test_email_markdown_with_subject() {
+        let input = fixtures_path!().join("TEST_EMAIL_QUERY_PARAMS.md");
 
-        cmd.arg("--dump")
+        cargo_bin_cmd!()
+            .arg("--dump")
             .arg(input)
             .arg("--include-mail")
             .assert()
             .success()
             .stdout(contains("hello@example.org?subject=%5BHello%5D"));
-
-        Ok(())
     }
 
     #[test]
@@ -360,13 +406,13 @@ mod cli {
     /// Test unsupported URI schemes
     #[test]
     fn test_unsupported_uri_schemes_are_ignored() {
-        let mut cmd = main_command();
-        let test_schemes_path = fixtures_path().join("TEST_SCHEMES.txt");
+        let test_schemes_path = fixtures_path!().join("TEST_SCHEMES.txt");
 
         // Exclude file link because it doesn't exist on the filesystem.
         // (File URIs are absolute paths, which we don't have.)
         // Nevertheless, the `file` scheme should be recognized.
-        cmd.arg(test_schemes_path)
+        cargo_bin_cmd!()
+            .arg(test_schemes_path)
             .arg("--exclude")
             .arg("file://")
             .env_clear()
@@ -379,10 +425,10 @@ mod cli {
 
     #[test]
     fn test_resolve_paths() {
-        let mut cmd = main_command();
-        let dir = fixtures_path().join("resolve_paths");
+        let dir = fixtures_path!().join("resolve_paths");
 
-        cmd.arg("--offline")
+        cargo_bin_cmd!()
+            .arg("--offline")
             .arg("--base-url")
             .arg(&dir)
             .arg(dir.join("index.html"))
@@ -395,13 +441,28 @@ mod cli {
 
     #[test]
     fn test_resolve_paths_from_root_dir() {
-        let mut cmd = main_command();
-        let dir = fixtures_path().join("resolve_paths_from_root_dir");
+        let dir = fixtures_path!().join("resolve_paths_from_root_dir");
 
-        cmd.arg("--offline")
+        cargo_bin_cmd!()
+            .arg("--offline")
             .arg("--include-fragments")
             .arg("--root-dir")
             .arg(&dir)
+            .arg(dir.join("nested").join("index.html"))
+            .env_clear()
+            .assert()
+            .failure()
+            .stdout(contains("7 Total"))
+            .stdout(contains("5 OK"))
+            .stdout(contains("2 Errors"));
+
+        // test with a relative root-dir argument too
+        cargo_bin_cmd!()
+            .current_dir(dir.parent().unwrap())
+            .arg("--offline")
+            .arg("--include-fragments")
+            .arg("--root-dir")
+            .arg(dir.file_name().unwrap())
             .arg(dir.join("nested").join("index.html"))
             .env_clear()
             .assert()
@@ -413,27 +474,86 @@ mod cli {
 
     #[test]
     fn test_resolve_paths_from_root_dir_and_base_url() {
-        let mut cmd = main_command();
-        let dir = fixtures_path();
+        let dir = fixtures_path!();
 
-        cmd.arg("--offline")
+        cargo_bin_cmd!()
+            .arg("--offline")
             .arg("--root-dir")
             .arg("/resolve_paths")
             .arg("--base-url")
             .arg(&dir)
-            .arg(dir.join("resolve_paths").join("index.html"))
+            .arg(dir.join("resolve_paths").join("index2.html"))
             .env_clear()
             .assert()
             .success()
-            .stdout(contains("3 Total"))
-            .stdout(contains("3 OK"));
+            .stdout(contains("5 Total"))
+            .stdout(contains("5 OK"));
+    }
+
+    #[test]
+    fn test_resolve_paths_from_root_dir_and_local_base_url() {
+        let dir = fixtures_path!();
+
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--root-dir")
+            .arg("/root")
+            .arg("--base-url")
+            .arg("/base/")
+            .arg(dir.join("resolve_paths").join("index2.html"))
+            .env_clear()
+            .assert()
+            .success()
+            .stdout(contains("file:///base/root"))
+            .stdout(contains("file:///base/root/about"))
+            .stdout(contains("file:///base/resolve_paths/index.html"))
+            .stdout(contains("file:///base/root/another%20page#y"))
+            .stdout(contains("file:///base/resolve_paths/same%20folder.html#x"));
+    }
+
+    #[test]
+    fn test_root_relative_with_remote_base_url_and_root_dir() {
+        // When both are set and base-url is remote, root-relative links
+        // should resolve against the remote base, not the local root-dir.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--dump")
+            .arg("--base-url=https://example.com/docs/")
+            .arg("--root-dir=/tmp")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/page)")
+            .assert()
+            .success()
+            .stdout(contains("https://example.com/page"));
+    }
+
+    #[test]
+    fn test_nonexistent_root_dir() {
+        cargo_bin_cmd!()
+            .arg("--root-dir")
+            .arg("i don't exist blah blah")
+            .arg("http://example.com")
+            .assert()
+            .failure()
+            .stderr(contains("Invalid root directory"))
+            .code(1);
+
+        let file = NamedTempFile::new().unwrap();
+        cargo_bin_cmd!()
+            .arg("--root-dir")
+            .arg(file.path())
+            .arg("http://example.com")
+            .assert()
+            .failure()
+            .stderr(contains("Invalid root directory"))
+            .code(1);
     }
 
     #[test]
     fn test_youtube_quirk() {
         let url = "https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7";
 
-        main_command()
+        cargo_bin_cmd!()
             .write_stdin(url)
             .arg("--verbose")
             .arg("--no-progress")
@@ -448,7 +568,7 @@ mod cli {
     fn test_crates_io_quirk() {
         let url = "https://crates.io/crates/lychee";
 
-        main_command()
+        cargo_bin_cmd!()
             .write_stdin(url)
             .arg("--verbose")
             .arg("--no-progress")
@@ -466,7 +586,7 @@ mod cli {
     fn test_ignored_hosts() {
         let url = "https://twitter.com/zarfeblong/status/1339742840142872577";
 
-        main_command()
+        cargo_bin_cmd!()
             .write_stdin(url)
             .arg("--verbose")
             .arg("--no-progress")
@@ -485,8 +605,8 @@ mod cli {
         let mut file = File::create(&file_path)?;
         writeln!(file, "{}", mock_server.uri())?;
 
-        let mut cmd = main_command();
-        cmd.arg(file_path)
+        cargo_bin_cmd!()
+            .arg(file_path)
             .write_stdin(mock_server.uri())
             .assert()
             .failure()
@@ -497,10 +617,10 @@ mod cli {
 
     #[test]
     fn test_schemes() {
-        let mut cmd = main_command();
-        let test_schemes_path = fixtures_path().join("TEST_SCHEMES.md");
+        let test_schemes_path = fixtures_path!().join("TEST_SCHEMES.md");
 
-        cmd.arg(test_schemes_path)
+        cargo_bin_cmd!()
+            .arg(test_schemes_path)
             .arg("--scheme")
             .arg("https")
             .arg("--scheme")
@@ -514,55 +634,18 @@ mod cli {
     }
 
     #[test]
-    fn test_caching_single_file() {
-        let mut cmd = main_command();
-        // Repetitions in one file shall all be checked and counted only once.
-        let test_schemes_path_1 = fixtures_path().join("TEST_REPETITION_1.txt");
-
-        cmd.arg(&test_schemes_path_1)
-            .env_clear()
-            .assert()
-            .success()
-            .stdout(contains("1 Total"))
-            .stdout(contains("1 OK"));
-    }
-
-    #[test]
-    // Test that two identical requests don't get executed twice.
-    fn test_caching_across_files() -> Result<()> {
-        // Repetitions across multiple files shall all be checked only once.
-        let repeated_uris = fixtures_path().join("TEST_REPETITION_*.txt");
-
-        test_json_output!(
-            repeated_uris,
-            MockResponseStats {
-                total: 2,
-                cached: 1,
-                successful: 2,
-                excludes: 0,
-                ..MockResponseStats::default()
-            },
-            // Two requests to the same URI may be executed in parallel. As a
-            // result, the response might not be cached and the test would be
-            // flaky. Therefore limit the concurrency to one request at a time.
-            "--max-concurrency",
-            "1"
-        )
-    }
-
-    #[test]
     fn test_failure_github_404_no_token() {
-        let mut cmd = main_command();
-        let test_github_404_path = fixtures_path().join("TEST_GITHUB_404.md");
+        let test_github_404_path = fixtures_path!().join("TEST_GITHUB_404.md");
 
-        cmd.arg(test_github_404_path)
+        cargo_bin_cmd!()
+            .arg(test_github_404_path)
             .arg("--no-progress")
             .env_clear()
             .assert()
             .failure()
             .code(2)
             .stdout(contains(
-                "[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man | Network error: Not Found"
+                r#"[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 3:9) | Rejected status code: 404 Not Found (configurable with "accept" option)"#
             ))
             .stderr(contains(
                 "There were issues with GitHub URLs. You could try setting a GitHub token and running lychee again.",
@@ -571,10 +654,10 @@ mod cli {
 
     #[tokio::test]
     async fn test_stdin_input() {
-        let mut cmd = main_command();
         let mock_server = mock_server!(StatusCode::OK);
 
-        cmd.arg("-")
+        cargo_bin_cmd!()
+            .arg("-")
             .write_stdin(mock_server.uri())
             .assert()
             .success();
@@ -582,10 +665,10 @@ mod cli {
 
     #[tokio::test]
     async fn test_stdin_input_failure() {
-        let mut cmd = main_command();
         let mock_server = mock_server!(StatusCode::INTERNAL_SERVER_ERROR);
 
-        cmd.arg("-")
+        cargo_bin_cmd!()
+            .arg("-")
             .write_stdin(mock_server.uri())
             .assert()
             .failure()
@@ -594,13 +677,13 @@ mod cli {
 
     #[tokio::test]
     async fn test_stdin_input_multiple() {
-        let mut cmd = main_command();
         let mock_server_a = mock_server!(StatusCode::OK);
         let mock_server_b = mock_server!(StatusCode::OK);
 
         // this behavior (treating multiple `-` as separate inputs) is the same as most CLI tools
         // that accept `-` as stdin, e.g. `cat`, `bat`, `grep` etc.
-        cmd.arg("-")
+        cargo_bin_cmd!()
+            .arg("-")
             .arg("-")
             .write_stdin(mock_server_a.uri())
             .write_stdin(mock_server_b.uri())
@@ -609,56 +692,111 @@ mod cli {
     }
 
     #[test]
-    fn test_missing_file_ok_if_skip_missing() {
-        let mut cmd = main_command();
+    fn test_fails_if_input_file_missing_even_with_skip_missing() {
         let filename = format!("non-existing-file-{}", uuid::Uuid::new_v4());
-
-        cmd.arg(&filename).arg("--skip-missing").assert().success();
+        cargo_bin_cmd!()
+            .arg(&filename)
+            .arg("--skip-missing")
+            .assert()
+            .failure();
     }
 
     #[test]
     fn test_skips_hidden_files_by_default() {
-        main_command()
-            .arg(fixtures_path().join("hidden/"))
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("hidden/"))
             .assert()
             .success()
             .stdout(contains("0 Total"));
+
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(fixtures_path!().join("hidden/"))
+            .assert()
+            .stdout("")
+            .success();
+
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg(fixtures_path!().join("hidden/"))
+            .assert()
+            .stdout("")
+            .success();
     }
 
     #[test]
     fn test_include_hidden_file() {
-        main_command()
-            .arg(fixtures_path().join("hidden/"))
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("hidden/"))
             .arg("--hidden")
             .assert()
             .success()
-            .stdout(contains("1 Total"));
+            .stdout(contains("2 Total"));
+
+        let result = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--hidden")
+            .arg(fixtures_path!().join("hidden/"))
+            .assert()
+            .success();
+
+        assert_lines_eq(
+            result,
+            vec!["https://rust-lang.org/", "https://rust-lang.org/"],
+        );
     }
 
     #[test]
     fn test_skips_ignored_files_by_default() {
-        main_command()
-            .arg(fixtures_path().join("ignore/"))
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("ignore/"))
             .assert()
             .success()
             .stdout(contains("0 Total"));
+
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(fixtures_path!().join("ignore/"))
+            .assert()
+            .success()
+            .stdout("");
+
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg(fixtures_path!().join("ignore/"))
+            .assert()
+            .success()
+            .stdout("");
     }
 
     #[test]
     fn test_include_ignored_file() {
-        main_command()
-            .arg(fixtures_path().join("ignore/"))
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("ignore/"))
             .arg("--no-ignore")
             .assert()
             .success()
             .stdout(contains("1 Total"));
+
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--no-ignore")
+            .arg(fixtures_path!().join("ignore/"))
+            .assert()
+            .success()
+            .stdout(contains("wikipedia.org"));
+
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg("--no-ignore")
+            .arg(fixtures_path!().join("ignore/"))
+            .assert()
+            .success()
+            .stdout(contains("ignored-file.md"));
     }
 
     #[tokio::test]
     async fn test_glob() -> Result<()> {
-        // using Result to be able to use `?`
-        let mut cmd = main_command();
-
         let dir = tempfile::tempdir()?;
         let mock_server_a = mock_server!(StatusCode::OK);
         let mock_server_b = mock_server!(StatusCode::OK);
@@ -668,7 +806,8 @@ mod cli {
         writeln!(file_a, "{}", mock_server_a.uri().as_str())?;
         writeln!(file_b, "{}", mock_server_b.uri().as_str())?;
 
-        cmd.arg(dir.path().join("*.md"))
+        cargo_bin_cmd!()
+            .arg(dir.path().join("*.md"))
             .arg("--verbose")
             .assert()
             .success()
@@ -680,8 +819,6 @@ mod cli {
     #[cfg(target_os = "linux")] // MacOS and Windows have case-insensitive filesystems
     #[tokio::test]
     async fn test_glob_ignore_case() -> Result<()> {
-        let mut cmd = main_command();
-
         let dir = tempfile::tempdir()?;
         let mock_server_a = mock_server!(StatusCode::OK);
         let mock_server_b = mock_server!(StatusCode::OK);
@@ -691,7 +828,8 @@ mod cli {
         writeln!(file_a, "{}", mock_server_a.uri().as_str())?;
         writeln!(file_b, "{}", mock_server_b.uri().as_str())?;
 
-        cmd.arg(dir.path().join("[r]eadme.md"))
+        cargo_bin_cmd!()
+            .arg(dir.path().join("[r]eadme.md"))
             .arg("--verbose")
             .arg("--glob-ignore-case")
             .assert()
@@ -703,8 +841,6 @@ mod cli {
 
     #[tokio::test]
     async fn test_glob_recursive() -> Result<()> {
-        let mut cmd = main_command();
-
         let dir = tempfile::tempdir()?;
         let subdir_level_1 = tempfile::tempdir_in(&dir)?;
         let subdir_level_2 = tempfile::tempdir_in(&subdir_level_1)?;
@@ -714,8 +850,8 @@ mod cli {
 
         writeln!(file, "{}", mock_server.uri().as_str())?;
 
-        // ** should be a recursive glob
-        cmd.arg(dir.path().join("**/*.md"))
+        cargo_bin_cmd!()
+            .arg(dir.path().join("**/*.md")) // ** should be a recursive glob
             .arg("--verbose")
             .assert()
             .success()
@@ -741,11 +877,11 @@ mod cli {
     /// Test writing output of `--dump` command to file
     #[test]
     fn test_dump_to_file() -> Result<()> {
-        let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST.md");
+        let test_path = fixtures_path!().join("TEST.md");
         let outfile = format!("{}", Uuid::new_v4());
 
-        cmd.arg("--output")
+        cargo_bin_cmd!()
+            .arg("--output")
             .arg(&outfile)
             .arg("--dump")
             .arg("--include-mail")
@@ -766,26 +902,22 @@ mod cli {
 
     /// Test excludes
     #[test]
-    fn test_exclude_wildcard() -> Result<()> {
-        let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST.md");
-
-        cmd.arg(test_path)
+    fn test_exclude_wildcard() {
+        let test_path = fixtures_path!().join("TEST.md");
+        cargo_bin_cmd!()
+            .arg(test_path)
             .arg("--exclude")
             .arg(".*")
             .assert()
             .success()
             .stdout(contains("12 Excluded"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_exclude_multiple_urls() -> Result<()> {
-        let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST.md");
-
-        cmd.arg(test_path)
+    fn test_exclude_multiple_urls() {
+        let test_path = fixtures_path!().join("TEST.md");
+        cargo_bin_cmd!()
+            .arg(test_path)
             .arg("--exclude")
             .arg("https://en.wikipedia.org/*")
             .arg("--exclude")
@@ -793,16 +925,14 @@ mod cli {
             .assert()
             .success()
             .stdout(contains("4 Excluded"));
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_empty_config() -> Result<()> {
+    async fn test_empty_config() {
         let mock_server = mock_server!(StatusCode::OK);
-        let config = fixtures_path().join("configs").join("empty.toml");
-        let mut cmd = main_command();
-        cmd.arg("--config")
+        let config = fixtures_path!().join("configs").join("empty.toml");
+        cargo_bin_cmd!()
+            .arg("--config")
             .arg(config)
             .arg("-")
             .write_stdin(mock_server.uri())
@@ -811,8 +941,17 @@ mod cli {
             .success()
             .stdout(contains("1 Total"))
             .stdout(contains("1 OK"));
+    }
 
-        Ok(())
+    #[test]
+    fn test_invalid_default_config() {
+        let test_path = fixtures_path!().join("configs");
+        let mut cmd = cargo_bin_cmd!();
+        cmd.current_dir(test_path)
+            .arg(".")
+            .assert()
+            .failure()
+            .stderr(contains("Cannot load configuration file"));
     }
 
     #[tokio::test]
@@ -822,8 +961,8 @@ mod cli {
         let mut config = NamedTempFile::new()?;
         writeln!(config, "include_mail = false")?;
 
-        let mut cmd = main_command();
-        cmd.arg("--config")
+        cargo_bin_cmd!()
+            .arg("--config")
             .arg(config.path().to_str().unwrap())
             .arg("-")
             .write_stdin(test_mail_address)
@@ -836,8 +975,8 @@ mod cli {
         let mut config = NamedTempFile::new()?;
         writeln!(config, "include_mail = true")?;
 
-        let mut cmd = main_command();
-        cmd.arg("--config")
+        cargo_bin_cmd!()
+            .arg("--config")
             .arg(config.path().to_str().unwrap())
             .arg("-")
             .write_stdin(test_mail_address)
@@ -853,9 +992,9 @@ mod cli {
     #[tokio::test]
     async fn test_cache_config() -> Result<()> {
         let mock_server = mock_server!(StatusCode::OK);
-        let config = fixtures_path().join("configs").join("cache.toml");
-        let mut cmd = main_command();
-        cmd.arg("--config")
+        let config = fixtures_path!().join("configs").join("cache.toml");
+        cargo_bin_cmd!()
+            .arg("--config")
             .arg(config)
             .arg("-")
             .write_stdin(mock_server.uri())
@@ -870,25 +1009,103 @@ mod cli {
 
     #[tokio::test]
     async fn test_invalid_config() {
-        let config = fixtures_path().join("configs").join("invalid.toml");
-        let mut cmd = main_command();
-        cmd.arg("--config")
+        let config = fixtures_path!().join("configs").join("invalid.toml");
+        cargo_bin_cmd!()
+            .arg("--config")
             .arg(config)
             .arg("-")
             .env_clear()
             .assert()
             .failure()
-            .stderr(predicate::str::contains("Cannot load configuration file"))
-            .stderr(predicate::str::contains("Failed to parse"))
-            .stderr(predicate::str::contains("TOML parse error"))
-            .stderr(predicate::str::contains("expected newline"));
+            .stderr(contains("Cannot load configuration file"))
+            .stderr(contains("Failed to parse"))
+            .stderr(contains("TOML parse error"));
+    }
+
+    #[tokio::test]
+    async fn test_configs_precedence() {
+        let path = fixtures_path!().join("configs");
+
+        cargo_bin_cmd!()
+            .current_dir(&path)
+            .arg(".")
+            .arg("--config")
+            .arg("precedence-compact.toml")
+            .arg("--config")
+            .arg("precedence-json.toml") // later config takes precedence
+            .assert()
+            .success()
+            .stdout(contains(r#""total": 1,"#))
+            .stdout(contains("1 Total").not());
+
+        cargo_bin_cmd!()
+            .current_dir(path)
+            .arg(".")
+            .arg("--config")
+            .arg("precedence-json.toml")
+            .arg("--config")
+            .arg("precedence-compact.toml") // later config takes precedence
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains(r#""total": 1,"#).not());
+    }
+
+    #[tokio::test]
+    async fn test_cli_option_precedence() {
+        let path = fixtures_path!().join("configs");
+
+        cargo_bin_cmd!()
+            .current_dir(&path)
+            .arg(".")
+            // the CLI args always have precedence over config files
+            .arg("--format")
+            .arg("json")
+            .arg("--config")
+            .arg("precedence-compact.toml")
+            .assert()
+            .success()
+            .stdout(contains(r#""total": 1,"#))
+            .stdout(contains("1 Total").not());
+    }
+
+    #[tokio::test]
+    async fn test_config_merging() {
+        let path = fixtures_path!().join("configs");
+        cargo_bin_cmd!()
+            .current_dir(&path)
+            .write_stdin("https://a.dev https://b.dev")
+            .arg("-")
+            .arg("--config")
+            .arg("exclude-a.toml")
+            .arg("--config")
+            .arg("exclude-b.toml")
+            .assert()
+            .success()
+            .stdout(contains("2 Excluded"));
+    }
+
+    #[tokio::test]
+    async fn test_config_invalid_keys() {
+        let mock_server = mock_server!(StatusCode::OK);
+        let config = fixtures_path!().join("configs").join("invalid-key.toml");
+        cargo_bin_cmd!()
+            .arg("--config")
+            .arg(config)
+            .arg("-")
+            .write_stdin(mock_server.uri())
+            .env_clear()
+            .assert()
+            .failure()
+            .code(3)
+            .stderr(contains("unknown field `this_is_invalid`, expected one of"));
     }
 
     #[tokio::test]
     async fn test_missing_config_error() {
         let mock_server = mock_server!(StatusCode::OK);
-        let mut cmd = main_command();
-        cmd.arg("--config")
+        cargo_bin_cmd!()
+            .arg("--config")
             .arg("config.does.not.exist.toml")
             .arg("-")
             .write_stdin(mock_server.uri())
@@ -899,24 +1116,68 @@ mod cli {
 
     #[tokio::test]
     async fn test_config_example() {
-        let mock_server = mock_server!(StatusCode::OK);
-        let config = root_path().join("lychee.example.toml");
-        let mut cmd = main_command();
-        cmd.arg("--config")
+        let config = root_path!().join("lychee.example.toml");
+        cargo_bin_cmd!()
+            .current_dir(root_path!())
+            .arg("--config")
             .arg(config)
             .arg("-")
-            .write_stdin(mock_server.uri())
             .env_clear()
             .assert()
             .success();
     }
 
+    #[test]
+    #[cfg(unix)]
+    fn test_all_arguments_in_config() -> Result<()> {
+        let help_cmd = cargo_bin_cmd!()
+            .env_clear()
+            .arg("--help")
+            .assert()
+            .success();
+        let help_text = std::str::from_utf8(&help_cmd.get_output().stdout)?;
+
+        let regex = test_utils::arg_regex_help!()?;
+        let excluded = [
+            "base",         // deprecated
+            "exclude_file", // deprecated
+            "config",       // not part of config
+            "quiet",        // not part of config
+            "help",         // special clap argument
+            "version",      // special clap argument
+        ];
+
+        let arguments: Vec<String> = help_text
+            .lines()
+            .filter_map(|line| {
+                let captures = regex.captures(line)?;
+                captures.name("long").map(|m| m.as_str())
+            })
+            .map(|arg| arg.replace("-", "_"))
+            .filter(|arg| !excluded.contains(&arg.as_str()))
+            .collect();
+
+        let config = root_path!().join("lychee.example.toml");
+        let values: toml::Table = toml::from_str(&std::fs::read_to_string(config)?)?;
+
+        for argument in arguments {
+            if !values.contains_key(&argument) {
+                panic!(
+                    "Key '{argument}' missing in config.
+The config file should contain every possible key for documentation purposes."
+                )
+            }
+        }
+
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_config_smoketest() {
         let mock_server = mock_server!(StatusCode::OK);
-        let config = fixtures_path().join("configs").join("smoketest.toml");
-        let mut cmd = main_command();
-        cmd.arg("--config")
+        let config = fixtures_path!().join("configs").join("smoketest.toml");
+        cargo_bin_cmd!()
+            .arg("--config")
             .arg(config)
             .arg("-")
             .write_stdin(mock_server.uri())
@@ -928,9 +1189,9 @@ mod cli {
     #[tokio::test]
     async fn test_config_accept() {
         let mock_server = mock_server!(StatusCode::OK);
-        let config = fixtures_path().join("configs").join("accept.toml");
-        let mut cmd = main_command();
-        cmd.arg("--config")
+        let config = fixtures_path!().join("configs").join("accept.toml");
+        cargo_bin_cmd!()
+            .arg("--config")
             .arg(config)
             .arg("-")
             .write_stdin(mock_server.uri())
@@ -939,12 +1200,25 @@ mod cli {
             .success();
     }
 
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn test_config_files_from() {
+        let dir = fixtures_path!().join("configs").join("files_from");
+        let result = cargo_bin_cmd!()
+            .current_dir(dir)
+            .arg("/dev/null") // at least one input arg is required. this could be changed in the future
+            .arg("--dump")
+            .assert()
+            .success();
+
+        assert_lines_eq(result, vec!["https://wikipedia.org/"]);
+    }
+
     #[test]
     fn test_lycheeignore_file() -> Result<()> {
-        let mut cmd = main_command();
-        let test_path = fixtures_path().join("lycheeignore");
+        let test_path = fixtures_path!().join("lycheeignore");
 
-        let cmd = cmd
+        let cmd = cargo_bin_cmd!()
             .current_dir(test_path)
             .arg("--dump")
             .arg("TEST.md")
@@ -962,11 +1236,12 @@ mod cli {
 
     #[test]
     fn test_lycheeignore_and_exclude_file() -> Result<()> {
-        let mut cmd = main_command();
-        let test_path = fixtures_path().join("lycheeignore");
+        let test_path = fixtures_path!().join("lycheeignore");
         let excludes_path = test_path.join("normal-exclude-file");
 
-        cmd.current_dir(test_path)
+        cargo_bin_cmd!()
+            .current_dir(test_path)
+            .arg("--insecure")
             .arg("TEST.md")
             .arg("--exclude-file")
             .arg(excludes_path)
@@ -980,12 +1255,13 @@ mod cli {
 
     #[tokio::test]
     async fn test_lycheecache_file() -> Result<()> {
-        let base_path = fixtures_path().join("cache");
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Ensure clean state
         if cache_file.exists() {
-            println!("Removing cache file before test: {:?}", cache_file);
+            println!("Removing cache file before test: {cache_file:?}");
             fs::remove_file(&cache_file)?;
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
@@ -1005,10 +1281,10 @@ mod cli {
         file.sync_all()?;
 
         // Create and run command
-        let mut cmd = main_command();
-        cmd.current_dir(&base_path)
+        let mut cmd = cargo_bin_cmd!();
+        cmd.current_dir(base_path)
             .arg(&file_path)
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--no-progress")
             .arg("--cache")
             .arg("--exclude")
@@ -1028,35 +1304,31 @@ mod cli {
 
         // Check cache contents
         let data = fs::read_to_string(&cache_file)?;
-        println!("Cache file contents: {}", data);
+        println!("Cache file contents: {data}");
 
         assert!(
             data.contains(&format!("{}/,200", mock_server_ok.uri())),
             "Missing OK entry in cache"
         );
         assert!(
-            data.contains(&format!("{}/,404", mock_server_err.uri())),
-            "Missing error entry in cache"
+            !data.contains(&format!("{}/,404", mock_server_err.uri())),
+            "Error entry should not be cached"
         );
 
         // Run again to verify cache behavior
         cmd.assert()
             .stderr(contains(format!(
-                "[200] {}/ | OK (cached)\n",
+                "[200] {}/ (at 1:1) | OK (cached)\n",
                 mock_server_ok.uri()
             )))
             .stderr(contains(format!(
-                "[404] {}/ | Error (cached)\n",
+                "[404] {}/ (at 2:1) | Rejected status code: 404 Not Found (configurable with \"accept\" option)\n",
                 mock_server_err.uri()
             )));
 
         // Clean up
         fs::remove_file(&cache_file).map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to remove cache file: {:?}, error: {}",
-                cache_file,
-                e
-            )
+            anyhow::anyhow!("Failed to remove cache file: {cache_file:?}, error: {e}")
         })?;
 
         Ok(())
@@ -1064,7 +1336,8 @@ mod cli {
 
     #[tokio::test]
     async fn test_lycheecache_exclude_custom_status_codes() -> Result<()> {
-        let base_path = fixtures_path().join("cache");
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Unconditionally remove cache file if it exists
@@ -1081,11 +1354,13 @@ mod cli {
         writeln!(file, "{}", mock_server_no_content.uri().as_str())?;
         writeln!(file, "{}", mock_server_too_many_requests.uri().as_str())?;
 
-        let mut cmd = main_command();
+        let mut cmd = cargo_bin_cmd!();
         let test_cmd = cmd
-            .current_dir(&base_path)
+            .current_dir(base_path)
             .arg(dir.path().join("c.md"))
-            .arg("--verbose")
+            .arg("-vv")
+            .arg("--max-retries")
+            .arg("0")
             .arg("--no-progress")
             .arg("--cache")
             .arg("--cache-exclude-status")
@@ -1099,13 +1374,13 @@ mod cli {
         // Run first without cache to generate the cache file
         test_cmd
             .assert()
-            .stderr(contains(format!("[200] {}/\n", mock_server_ok.uri())))
+            .stderr(contains(format!("[200] {}/ (at 1:1)\n", mock_server_ok.uri())))
             .stderr(contains(format!(
-                "[204] {}/ | 204 No Content: No Content\n",
+                "[204] {}/ (at 2:1) | 204 No Content\n",
                 mock_server_no_content.uri()
             )))
             .stderr(contains(format!(
-                "[429] {}/ | Network error: Too Many Requests\n",
+                "[429] {}/ (at 3:1) | Rejected status code: 429 Too Many Requests (configurable with \"accept\" option)",
                 mock_server_too_many_requests.uri()
             )));
 
@@ -1127,7 +1402,7 @@ mod cli {
 
     #[tokio::test]
     async fn test_lycheecache_accept_custom_status_codes() -> Result<()> {
-        let base_path = fixtures_path().join("cache_accept_custom_status_codes");
+        let base_path = fixtures_path!().join("cache_accept_custom_status_codes");
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Unconditionally remove cache file if it exists
@@ -1144,11 +1419,11 @@ mod cli {
         writeln!(file, "{}", mock_server_teapot.uri().as_str())?;
         writeln!(file, "{}", mock_server_server_error.uri().as_str())?;
 
-        let mut cmd = main_command();
+        let mut cmd = cargo_bin_cmd!();
         let test_cmd = cmd
-            .current_dir(&base_path)
+            .current_dir(base_path)
             .arg(dir.path().join("c.md"))
-            .arg("--verbose")
+            .arg("-vv")
             .arg("--cache");
 
         assert!(
@@ -1163,19 +1438,21 @@ mod cli {
             .failure()
             .code(2)
             .stdout(contains(format!(
-                "[418] {}/ | Network error: I\'m a teapot",
+                r#"[418] {}/ (at 2:1) | Rejected status code: 418 I'm a teapot (configurable with "accept" option)"#,
                 mock_server_teapot.uri()
             )))
             .stdout(contains(format!(
-                "[500] {}/ | Network error: Internal Server Error",
+                r#"[500] {}/ (at 3:1) | Rejected status code: 500 Internal Server Error (configurable with "accept" option)"#,
                 mock_server_server_error.uri()
             )));
 
         // check content of cache file
         let data = fs::read_to_string(&cache_file)?;
         assert!(data.contains(&format!("{}/,200", mock_server_ok.uri())));
-        assert!(data.contains(&format!("{}/,418", mock_server_teapot.uri())));
-        assert!(data.contains(&format!("{}/,500", mock_server_server_error.uri())));
+        // Because the first run DID NOT use `--accept`, 418 and 500 were both treated as errors.
+        // With our new error dropping logic, NEITHER gets cached in the first run.
+        assert!(!data.contains(&format!("{}/,418", mock_server_teapot.uri())));
+        assert!(!data.contains(&format!("{}/,500", mock_server_server_error.uri())));
 
         // run again to verify cache behavior
         // this time accept 418 and 500 as valid status codes
@@ -1186,11 +1463,11 @@ mod cli {
             .assert()
             .success()
             .stderr(contains(format!(
-                "[418] {}/ | OK (cached)",
+                "[418] {}/ (at 2:1) | 418 I'm a teapot",
                 mock_server_teapot.uri()
             )))
             .stderr(contains(format!(
-                "[500] {}/ | OK (cached)",
+                "[500] {}/ (at 3:1) | 500 Internal Server Error",
                 mock_server_server_error.uri()
             )));
 
@@ -1201,8 +1478,63 @@ mod cli {
     }
 
     #[tokio::test]
+    async fn test_accept_overrides_defaults_not_additive() -> Result<()> {
+        let mock_server_200 = mock_server!(StatusCode::OK);
+
+        cargo_bin_cmd!()
+            .arg("--accept")
+            .arg("404") // ONLY accept 404 - should reject 200 as we overwrite the default
+            .arg("-")
+            .write_stdin(mock_server_200.uri())
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains(format!(
+                r#"[200] {}/ (at 1:1) | Rejected status code: 200 OK (configurable with "accept" option)"#,
+                mock_server_200.uri()
+            )));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_accept_timeout() -> Result<()> {
+        let mock_server_timeout = mock_server!(StatusCode::OK, set_delay(Duration::from_secs(30)));
+
+        cargo_bin_cmd!()
+            .arg("--max-retries=0")
+            .arg("--timeout=1")
+            .arg("-")
+            .write_stdin(mock_server_timeout.uri())
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains(format!(
+                r#"[TIMEOUT] {}/ (at 1:1)"#,
+                mock_server_timeout.uri()
+            )));
+
+        cargo_bin_cmd!()
+            .arg("--max-retries=0")
+            .arg("--timeout=1")
+            .arg("--accept-timeouts")
+            .arg("-")
+            .write_stdin(mock_server_timeout.uri())
+            .assert()
+            .success()
+            .code(0)
+            .stdout(contains(format!(
+                r#"[TIMEOUT] {}/ (at 1:1)"#,
+                mock_server_timeout.uri()
+            )));
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_skip_cache_unsupported() -> Result<()> {
-        let base_path = fixtures_path().join("cache");
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
         // Unconditionally remove cache file if it exists
@@ -1212,21 +1544,22 @@ mod cli {
         let excluded_url = "https://example.com/";
 
         // run first without cache to generate the cache file
-        main_command()
-            .current_dir(&base_path)
+        cargo_bin_cmd!()
+            .current_dir(base_path)
             .write_stdin(format!("{unsupported_url}\n{excluded_url}"))
             .arg("--cache")
             .arg("--verbose")
             .arg("--no-progress")
             .arg("--exclude")
             .arg(excluded_url)
-            .arg("--")
             .arg("-")
             .assert()
             .stderr(contains(format!(
-                "[IGNORED] {unsupported_url} | Unsupported: Error creating request client"
+                "[IGNORED] {unsupported_url} (at 1:1) | Unsupported: Failed to create HTTP request client: builder error for url (slack://user)"
             )))
-            .stderr(contains(format!("[EXCLUDED] {excluded_url}\n")));
+            .stderr(contains(format!(
+                "[EXCLUDED] {excluded_url} (at 2:1) | This is due to your 'exclude' values\n"
+            )));
 
         // The cache file should be empty, because the only checked URL is
         // unsupported and we don't want to cache that. It might be supported in
@@ -1240,80 +1573,135 @@ mod cli {
         Ok(())
     }
 
-    /// Unknown status codes should be skipped and not cached by default
-    /// The reason is that we don't know if they are valid or not
-    /// and even if they are invalid, we don't know if they will be valid in the
-    /// future.
-    ///
-    /// Since we cannot test this with our mock server (because hyper panics on
-    /// invalid status codes) we use LinkedIn as a test target.
-    ///
-    /// Unfortunately, LinkedIn does not always return 999, so this is a flaky
-    /// test. We only check that the cache file doesn't contain any invalid
-    /// status codes.
+    /// Unknown status codes are cached as well.
     #[tokio::test]
-    async fn test_skip_cache_unknown_status_code() -> Result<()> {
-        let base_path = fixtures_path().join("cache");
+    async fn test_cache_unknown_status_code() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
         let cache_file = base_path.join(LYCHEE_CACHE_FILE);
 
-        // Unconditionally remove cache file if it exists
-        let _ = fs::remove_file(&cache_file);
+        let mock_server = wiremock::MockServer::start().await;
 
-        // https://linkedin.com returns 999 for unknown status codes
-        // use this as a test target
-        let unknown_url = "https://www.linkedin.com/company/corrode";
+        Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(ResponseTemplate::new(999))
+            .mount(&mock_server)
+            .await;
 
         // run first without cache to generate the cache file
-        main_command()
-            .current_dir(&base_path)
-            .write_stdin(unknown_url.to_string())
+        cargo_bin_cmd!()
+            .current_dir(base_path)
+            .write_stdin(mock_server.uri())
             .arg("--cache")
-            .arg("--verbose")
-            .arg("--no-progress")
-            .arg("--")
             .arg("-")
             .assert()
-            // LinkedIn does not always return 999, so we cannot check for that
-            // .stderr(contains(format!("[999] {unknown_url} | Unknown status")))
-            ;
+            .failure();
 
         // If the status code was 999, the cache file should be empty
         // because we do not want to cache unknown status codes
         let buf = fs::read(&cache_file).unwrap();
-        if !buf.is_empty() {
-            let data = String::from_utf8(buf)?;
-            // The cache file should not contain any invalid status codes
-            // In that case, we expect a single entry with status code 200
-            assert!(!data.contains("999"));
-            assert!(data.contains("200"));
-        }
-
-        // clear the cache file
-        fs::remove_file(&cache_file)?;
+        assert!(
+            buf.is_empty(),
+            "cache file should be empty, but was {}",
+            String::from_utf8_lossy(&buf)
+        );
 
         Ok(())
     }
 
-    #[test]
-    fn test_verbatim_skipped_by_default() -> Result<()> {
-        let mut cmd = main_command();
-        let input = fixtures_path().join("TEST_CODE_BLOCKS.md");
+    #[tokio::test]
+    async fn test_no_duplicate_requests() {
+        let server = wiremock::MockServer::start().await;
+        let count = 100; // given 100 duplicate URLs
+        let cached = "99.0%"; // we expect 99 out of 100 to be cached
 
-        cmd.arg(input)
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(|_: &_| {
+                // Simulate real-world delay.
+                // Keep the delay to prove how we make use of synchronization
+                // primitives to prevent duplicate requests.
+                ResponseTemplate::new(200).set_delay(Duration::from_secs(1))
+            })
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        cargo_bin_cmd!()
+            .write_stdin(format!("{} ", server.uri()).repeat(count))
+            .arg("-")
+            .arg("--host-stats")
+            // the request interval must not have an affect on duplicates
+            .arg("--host-request-interval=1s")
+            .assert()
+            .success()
+            .stdout(contains("100.0% success"))
+            .stdout(contains(format!("{cached} cached")));
+    }
+
+    #[tokio::test]
+    async fn test_process_internal_host_caching() -> Result<()> {
+        // Note that this process-internal per-host caching
+        // has no direct relation to the lychee cache file
+        // where state can be persisted between multiple invocations.
+        let server = wiremock::MockServer::start().await;
+
+        // Return one rate-limited response to make sure that
+        // such a response isn't cached.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(ResponseTemplate::new(429))
+            .up_to_n_times(2)
+            .mount(&server)
+            .await;
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let temp_dir = tempfile::tempdir()?;
+        for i in 0..4 {
+            let test_md1 = temp_dir.path().join(format!("test{i}.md"));
+            let duplicate_url_content = format!("{}\n{}", server.uri(), server.uri());
+            fs::write(&test_md1, duplicate_url_content)?;
+        }
+
+        cargo_bin_cmd!()
+            .arg(temp_dir.path())
+            .arg("--host-stats")
+            .assert()
+            .success()
+            .stdout(contains("8 Total"))
+            .stdout(contains("8 OK"))
+            .stdout(contains("0 Errors"))
+            // Per-host statistics
+            // 2 rate limited + 8 OK
+            .stdout(contains("10 reqs"))
+            .stdout(contains("80.0% success"))
+            // 2 rate limited, 1 OK, 7 cached
+            .stdout(contains("70.0% cached"));
+
+        server.verify().await;
+        Ok(())
+    }
+
+    #[test]
+    fn test_verbatim_skipped_by_default() {
+        let input = fixtures_path!().join("TEST_CODE_BLOCKS.md");
+
+        cargo_bin_cmd!()
+            .arg(input)
             .arg("--dump")
             .assert()
             .success()
             .stdout(is_empty());
-
-        Ok(())
     }
 
     #[test]
-    fn test_include_verbatim() -> Result<()> {
-        let mut cmd = main_command();
-        let input = fixtures_path().join("TEST_CODE_BLOCKS.md");
+    fn test_include_verbatim() {
+        let input = fixtures_path!().join("TEST_CODE_BLOCKS.md");
 
-        cmd.arg("--include-verbatim")
+        cargo_bin_cmd!()
+            .arg("--include-verbatim")
             .arg(input)
             .arg("--dump")
             .assert()
@@ -1321,47 +1709,41 @@ mod cli {
             .stdout(contains("http://127.0.0.1/block"))
             .stdout(contains("http://127.0.0.1/inline"))
             .stdout(contains("http://127.0.0.1/bash"));
-
-        Ok(())
     }
     #[tokio::test]
-    async fn test_verbatim_skipped_by_default_via_file() -> Result<()> {
-        let file = fixtures_path().join("TEST_VERBATIM.html");
+    async fn test_verbatim_skipped_by_default_via_file() {
+        let file = fixtures_path!().join("TEST_VERBATIM.html");
 
-        main_command()
+        cargo_bin_cmd!()
             .arg("--dump")
             .arg(file)
             .assert()
             .success()
             .stdout(is_empty());
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_verbatim_skipped_by_default_via_remote_url() -> Result<()> {
-        let mut cmd = main_command();
-        let file = fixtures_path().join("TEST_VERBATIM.html");
-        let body = fs::read_to_string(file)?;
+    async fn test_verbatim_skipped_by_default_via_remote_url() {
+        let file = fixtures_path!().join("TEST_VERBATIM.html");
+        let body = fs::read_to_string(file).unwrap();
         let mock_server = mock_response!(body);
 
-        cmd.arg("--dump")
+        cargo_bin_cmd!()
+            .arg("--dump")
             .arg(mock_server.uri())
             .assert()
             .success()
             .stdout(is_empty());
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_include_verbatim_via_remote_url() -> Result<()> {
-        let mut cmd = main_command();
-        let file = fixtures_path().join("TEST_VERBATIM.html");
-        let body = fs::read_to_string(file)?;
+    async fn test_include_verbatim_via_remote_url() {
+        let file = fixtures_path!().join("TEST_VERBATIM.html");
+        let body = fs::read_to_string(file).unwrap();
         let mock_server = mock_response!(body);
 
-        cmd.arg("--include-verbatim")
+        cargo_bin_cmd!()
+            .arg("--include-verbatim")
             .arg("--dump")
             .arg(mock_server.uri())
             .assert()
@@ -1372,64 +1754,86 @@ mod cli {
             .stdout(contains("http://www.example.com/kbd"))
             .stdout(contains("http://www.example.com/var"))
             .stdout(contains("http://www.example.com/script"));
-        Ok(())
     }
 
     #[test]
-    fn test_require_https() -> Result<()> {
-        let mut cmd = main_command();
-        let test_path = fixtures_path().join("TEST_HTTP.html");
-        cmd.arg(&test_path).assert().success();
+    fn test_require_https() {
+        let test_path = fixtures_path!().join("TEST_HTTP.html");
+        cargo_bin_cmd!().arg(&test_path).assert().success();
 
-        let mut cmd = main_command();
-        cmd.arg("--require-https").arg(test_path).assert().failure();
-
-        Ok(())
+        cargo_bin_cmd!()
+            .arg("--require-https")
+            .arg(test_path)
+            .assert()
+            .failure()
+            .stdout(contains(
+                "Insecure HTTP URL used, where 'https://example.com/' can be used instead",
+            ));
     }
 
-    /// If `base-dir` is not set, don't throw an error in case we encounter
+    /// If `base-dir` is not set, an error should be thrown if we encounter
     /// an absolute local link (e.g. `/about`) within a file.
-    /// Instead, simply ignore the link.
     #[test]
-    fn test_ignore_absolute_local_links_without_base() -> Result<()> {
-        let mut cmd = main_command();
+    fn test_absolute_local_links_without_base() {
+        let offline_dir = fixtures_path!().join("offline");
 
-        let offline_dir = fixtures_path().join("offline");
-
-        cmd.arg("--offline")
+        cargo_bin_cmd!()
+            .arg("--offline")
             .arg(offline_dir.join("index.html"))
             .env_clear()
             .assert()
-            .success()
-            .stdout(contains("0 Total"));
-
-        Ok(())
+            .failure()
+            .stdout(contains("5 Error"))
+            .stdout(contains("Cannot resolve root-relative link").count(5));
     }
 
     #[test]
-    fn test_inputs_without_scheme() -> Result<()> {
-        let test_path = fixtures_path().join("TEST_HTTP.html");
-        let mut cmd = main_command();
-
-        cmd.arg("--dump")
+    fn test_inputs_without_scheme() {
+        cargo_bin_cmd!()
+            .arg("--dump")
             .arg("example.com")
-            .arg(&test_path)
-            .arg("https://example.org")
+            .assert()
+            .failure()
+            .stderr(contains(
+                "Input 'example.com' not found as file and not a valid URL",
+            ));
+    }
+
+    // Regression test for https://github.com/lycheeverse/lychee/issues/972
+    // Absolute Windows paths like `C:\dir` were rejected with "URL scheme is not
+    // allowed" because the drive letter was parsed as a URL scheme.
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_absolute_path_accepted_as_file_input() {
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let path_str = dir.path().to_str().unwrap().to_owned();
+
+        // Sanity-check: the path must start with a drive letter (e.g. "C:\")
+        // for the regression to be meaningful.
+        assert!(
+            path_str.chars().nth(1) == Some(':'),
+            "Expected an absolute Windows path with a drive letter, got: {path_str}"
+        );
+
+        // The path exists, so lychee should accept it and attempt to check
+        // the links inside (there are none, so it exits successfully).
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(&path_str)
             .assert()
             .success();
-        Ok(())
     }
 
     #[test]
-    fn test_print_excluded_links_in_verbose_mode() -> Result<()> {
-        let test_path = fixtures_path().join("TEST_DUMP_EXCLUDE.txt");
-        let mut cmd = main_command();
-
-        cmd.arg("--dump")
+    fn test_print_excluded_links_in_verbose_mode() {
+        let test_path = fixtures_path!().join("TEST_DUMP_EXCLUDE.txt");
+        cargo_bin_cmd!()
+            .arg("--dump")
             .arg("--verbose")
             .arg("--exclude")
             .arg("example.com")
-            .arg("--")
             .arg(&test_path)
             .assert()
             .success()
@@ -1445,19 +1849,16 @@ mod cli {
                 "https://example.com/foo/bar ({}) [excluded]",
                 test_path.display()
             )));
-        Ok(())
     }
 
     #[test]
-    fn test_remap_uri() -> Result<()> {
-        let mut cmd = main_command();
-
-        cmd.arg("--dump")
+    fn test_remap_uri() {
+        cargo_bin_cmd!()
+            .arg("--dump")
             .arg("--remap")
             .arg("https://example.com http://127.0.0.1:8080")
             .arg("--remap")
             .arg("https://example.org https://staging.example.com")
-            .arg("--")
             .arg("-")
             .write_stdin("https://example.com\nhttps://example.org\nhttps://example.net\n")
             .env_clear()
@@ -1466,139 +1867,191 @@ mod cli {
             .stdout(contains("http://127.0.0.1:8080/"))
             .stdout(contains("https://staging.example.com/"))
             .stdout(contains("https://example.net/"));
-
-        Ok(())
     }
 
     #[test]
     #[ignore = "Skipping test until https://github.com/robinst/linkify/pull/58 is merged"]
-    fn test_remap_path() -> Result<()> {
-        let mut cmd = main_command();
-
-        cmd.arg("--dump")
+    fn test_remap_path() {
+        cargo_bin_cmd!()
+            .arg("--dump")
             .arg("--remap")
             .arg("../../issues https://github.com/usnistgov/OSCAL/issues")
-            .arg("--")
             .arg("-")
             .write_stdin("../../issues\n")
             .env_clear()
             .assert()
             .success()
             .stdout(contains("https://github.com/usnistgov/OSCAL/issues"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_remap_capture() -> Result<()> {
-        let mut cmd = main_command();
-
-        cmd.arg("--dump")
+    fn test_remap_capture() {
+        cargo_bin_cmd!()
+            .arg("--dump")
             .arg("--remap")
             .arg("https://example.com/(.*) http://example.org/$1")
-            .arg("--")
             .arg("-")
             .write_stdin("https://example.com/foo\n")
             .env_clear()
             .assert()
             .success()
             .stdout(contains("http://example.org/foo"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_remap_named_capture() -> Result<()> {
-        let mut cmd = main_command();
-
-        cmd.arg("--dump")
+    fn test_remap_named_capture() {
+        cargo_bin_cmd!()
+            .arg("--dump")
             .arg("--remap")
             .arg("https://github.com/(?P<org>.*)/(?P<repo>.*) https://gitlab.com/$org/$repo")
-            .arg("--")
             .arg("-")
             .write_stdin("https://github.com/lycheeverse/lychee\n")
             .env_clear()
             .assert()
             .success()
             .stdout(contains("https://gitlab.com/lycheeverse/lychee"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_excluded_paths() -> Result<()> {
-        let test_path = fixtures_path().join("exclude-path");
+    fn test_erroneous_remap_with_redirect() {
+        cargo_bin_cmd!()
+            .arg("-vv")
+            .arg("--remap")
+            .arg("github.com rust-lang.org")
+            .arg("-")
+            .write_stdin("http://github.com/lycheeverse\n")
+            .env_clear()
+            .assert()
+            .failure()
+            .stdout(contains(r#"
+[404] http://rust-lang.org/lycheeverse (at 1:1) | Rejected status code: 404 Not Found (configurable with "accept" option) | Followed 1 redirect. Redirects: http://rust-lang.org/lycheeverse --[301]--> https://rust-lang.org/lycheeverse | Remaps: http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse
+"#))
+        // It is debugged when URIs are remapped
+        .stderr(contains("[DEBUG] Remapping http://github.com/lycheeverse --> http://rust-lang.org/lycheeverse"))
+        // It is debugged when URL redirections are followed
+        .stderr(contains("[DEBUG] Following redirect to https://rust-lang.org/lycheeverse"));
+    }
 
-        let excluded_path1 = test_path.join("dir1");
-        let excluded_path2 = test_path.join("dir2").join("subdir");
-        let mut cmd = main_command();
+    #[test]
+    fn test_remap_named_invalid() {
+        cargo_bin_cmd!()
+            .arg("--remap")
+            .arg("https://example.com invalid")
+            .arg("-")
+            .write_stdin("https://example.com")
+            .env_clear()
+            .assert()
+            .failure()
+            // The error message should be descriptive and helpful
+            .stderr(contains("Error checking URL https://example.com/: Invalid remap pattern: the result `invalid/` is not a valid URL"))
+            // The original URI is shown as root cause in stdout
+            .stdout(contains("The given URI is invalid, check URI syntax: https://example.com/"));
+    }
 
-        cmd.arg("--exclude-path")
-            .arg(&excluded_path1)
-            .arg("--exclude-path")
-            .arg(&excluded_path2)
-            .arg("--")
-            .arg(&test_path)
+    #[test]
+    fn test_remap_to_excluded() {
+        let stdout = cargo_bin_cmd!()
+            .arg("--remap=aaa bbb")
+            .arg("--exclude=bbb")
+            .arg("--format=json")
+            .arg("-")
+            .write_stdin("https://aaa.com")
             .assert()
             .success()
-            // Links in excluded files are not taken into account in the total
-            // number of links.
-            .stdout(contains("1 Total"))
-            .stdout(contains("1 OK"));
+            .get_output()
+            .stdout
+            .clone();
 
-        Ok(())
+        let json = stdout_to_json(&stdout);
+        assert_eq!(json["remaps"], 1);
+        assert_eq!(json["excludes"], 1);
+        assert_eq!(
+            json["excluded_map"],
+            json!({
+            "stdin": [
+              {
+                "url": "https://bbb.com/",
+                "status": {
+                  "text": "Excluded",
+                  "details": "This is due to your 'exclude' values | Remaps: https://aaa.com/ --> https://bbb.com/"
+                },
+                "span": {
+                  "line": 1,
+                  "column": 1
+                },
+              }
+            ]})
+        );
     }
 
     #[test]
-    fn test_handle_relative_paths_as_input() -> Result<()> {
-        let test_path = fixtures_path();
-        let mut cmd = main_command();
+    fn test_excluded_paths_regex() {
+        let test_path = fixtures_path!().join("exclude-path");
+        let excluded_path_1 = "\\/excluded?\\/"; // exclude paths containing a directory "exclude" and "excluded"
+        let excluded_path_2 = "(\\.mdx|\\.txt)$"; // exclude .mdx and .txt files
+        let result = cargo_bin_cmd!()
+            .arg("--exclude-path")
+            .arg(excluded_path_1)
+            .arg("--exclude-path")
+            .arg(excluded_path_2)
+            .arg("--dump")
+            .arg(&test_path)
+            .assert()
+            .success();
 
-        cmd.current_dir(&test_path)
+        assert_lines_eq(
+            result,
+            vec![
+                "https://test.md/to-be-included-outer",
+                "https://test.md/to-be-included-inner",
+            ],
+        );
+    }
+
+    #[test]
+    fn test_handle_relative_paths_as_input() {
+        let test_path = fixtures_path!();
+
+        cargo_bin_cmd!()
+            .current_dir(&test_path)
             .arg("--verbose")
             .arg("--exclude")
             .arg("example.*")
-            .arg("--")
             .arg("./TEST_DUMP_EXCLUDE.txt")
             .assert()
             .success()
             .stdout(contains("3 Total"))
             .stdout(contains("3 Excluded"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_handle_nonexistent_relative_paths_as_input() -> Result<()> {
-        let test_path = fixtures_path();
-        let mut cmd = main_command();
+    fn test_handle_nonexistent_relative_paths_as_input() {
+        let test_path = fixtures_path!();
 
-        cmd.current_dir(&test_path)
+        cargo_bin_cmd!()
+            .current_dir(&test_path)
             .arg("--verbose")
             .arg("--exclude")
             .arg("example.*")
-            .arg("--")
             .arg("./NOT-A-REAL-TEST-FIXTURE.md")
             .assert()
             .failure()
-            .stderr(contains("Invalid file path: ./NOT-A-REAL-TEST-FIXTURE.md"));
-
-        Ok(())
+            .stderr(contains(
+                "Input './NOT-A-REAL-TEST-FIXTURE.md' not found as file and not a valid URL",
+            ));
     }
 
     #[test]
-    fn test_prevent_too_many_redirects() -> Result<()> {
-        let mut cmd = main_command();
-        let url = "https://httpstat.us/308";
+    fn test_prevent_too_many_redirects() {
+        let url = "https://http.codes/308";
 
-        cmd.write_stdin(url)
+        cargo_bin_cmd!()
+            .write_stdin(url)
             .arg("--max-redirects")
             .arg("0")
             .arg("-")
             .assert()
             .failure();
-
-        Ok(())
     }
 
     #[test]
@@ -1608,8 +2061,8 @@ mod cli {
 
         for _ in 0..3 {
             // This can be flaky. Try up to 3 times
-            let mut cmd = main_command();
-            let input = fixtures_path().join("INTERNET_ARCHIVE.md");
+            let mut cmd = cargo_bin_cmd!();
+            let input = fixtures_path!().join("INTERNET_ARCHIVE.md");
 
             cmd.arg("--no-progress").arg("--suggest").arg(input);
 
@@ -1635,18 +2088,24 @@ mod cli {
     }
 
     #[tokio::test]
-    async fn test_basic_auth() -> Result<()> {
+    async fn test_basic_auth() {
         let username = "username";
         let password = "password123";
 
         let mock_server = wiremock::MockServer::start().await;
-        Mock::given(basic_auth(username, password))
-            .respond_with(ResponseTemplate::new(200))
+
+        Mock::given(method("GET"))
+            .and(basic_auth(username, password))
+            .respond_with(ResponseTemplate::new(200)) // Authenticated requests are accepted
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .respond_with(|_: &_| panic!("Received unauthenticated request"))
             .mount(&mock_server)
             .await;
 
         // Configure the command to use the BasicAuthExtractor
-        main_command()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--basic-auth")
             .arg(format!("{} {username}:{password}", mock_server.uri()))
@@ -1657,11 +2116,19 @@ mod cli {
             .stdout(contains("1 Total"))
             .stdout(contains("1 OK"));
 
-        Ok(())
+        // Websites as direct arguments must also use authentication
+        cargo_bin_cmd!()
+            .arg(mock_server.uri())
+            .arg("--verbose")
+            .arg("--basic-auth")
+            .arg(format!("{} {username}:{password}", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("0 Total")); // Mock server returns no body, so there are no URLs to check
     }
 
     #[tokio::test]
-    async fn test_multi_basic_auth() -> Result<()> {
+    async fn test_multi_basic_auth() {
         let username1 = "username";
         let password1 = "password123";
         let mock_server1 = wiremock::MockServer::start().await;
@@ -1680,7 +2147,7 @@ mod cli {
             .await;
 
         // Configure the command to use the BasicAuthExtractor
-        main_command()
+        cargo_bin_cmd!()
             .arg("--verbose")
             .arg("--basic-auth")
             .arg(format!("{} {username1}:{password1}", mock_server1.uri()))
@@ -1692,16 +2159,14 @@ mod cli {
             .success()
             .stdout(contains("2 Total"))
             .stdout(contains("2 OK"));
-
-        Ok(())
     }
 
     #[tokio::test]
     async fn test_cookie_jar() -> Result<()> {
         // Create a random cookie jar file
         let cookie_jar = NamedTempFile::new()?;
-        let mut cmd = main_command();
-        cmd.arg("--cookie-jar")
+        cargo_bin_cmd!()
+            .arg("--cookie-jar")
             .arg(cookie_jar.path().to_str().unwrap())
             .arg("-")
             // Using Google as a test target because I couldn't
@@ -1719,27 +2184,53 @@ mod cli {
         assert!(all_cookies.iter().all(|c| c.domain() == Some("google.com")));
         Ok(())
     }
-    #[test]
-    fn test_dump_inputs_glob_md() -> Result<()> {
-        let pattern = fixtures_path().join("**/*.md");
 
-        let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
+    #[test]
+    fn test_dump_inputs_does_not_include_duplicates() {
+        let pattern = fixtures_path!().join("dump_inputs/markdown.md");
+
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg(&pattern)
+            .arg(&pattern)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/dump_inputs/markdown.md").count(1));
+    }
+
+    #[test]
+    fn test_dump_inputs_glob_does_not_include_duplicates() {
+        let pattern1 = fixtures_path!().join("**/markdown.*");
+        let pattern2 = fixtures_path!().join("**/*.md");
+
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg(pattern1)
+            .arg(pattern2)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/dump_inputs/markdown.md").count(1));
+    }
+
+    #[test]
+    fn test_dump_inputs_glob_md() {
+        let pattern = fixtures_path!().join("**/*.md");
+
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
             .arg(pattern)
             .assert()
             .success()
             .stdout(contains("fixtures/dump_inputs/subfolder/file2.md"))
             .stdout(contains("fixtures/dump_inputs/markdown.md"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_dump_inputs_glob_all() -> Result<()> {
-        let pattern = fixtures_path().join("**/*");
+    fn test_dump_inputs_glob_all() {
+        let pattern = fixtures_path!().join("**/*");
 
-        let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
             .arg(pattern)
             .assert()
             .success()
@@ -1747,108 +2238,281 @@ mod cli {
             .stdout(contains("fixtures/dump_inputs/subfolder/file2.md"))
             .stdout(contains("fixtures/dump_inputs/subfolder"))
             .stdout(contains("fixtures/dump_inputs/markdown.md"))
-            .stdout(contains("fixtures/dump_inputs/subfolder/example.bin"))
             .stdout(contains("fixtures/dump_inputs/some_file.txt"));
-
-        Ok(())
     }
 
     #[test]
-    fn test_dump_inputs_glob_exclude_path() -> Result<()> {
-        let pattern = fixtures_path().join("**/*");
+    fn test_dump_inputs_glob_exclude_path() {
+        let pattern = fixtures_path!().join("**/*");
 
-        let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
             .arg(pattern)
             .arg("--exclude-path")
-            .arg(fixtures_path().join("dump_inputs/subfolder"))
+            .arg(fixtures_path!().join("dump_inputs/subfolder"))
             .assert()
             .success()
             .stdout(contains("fixtures/dump_inputs/subfolder/test.html").not())
             .stdout(contains("fixtures/dump_inputs/subfolder/file2.md").not())
             .stdout(contains("fixtures/dump_inputs/subfolder").not());
-
-        Ok(())
     }
 
     #[test]
-    fn test_dump_inputs_url() -> Result<()> {
-        let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
+    fn test_dump_inputs_url() {
+        let result = cargo_bin_cmd!()
+            .arg("--dump-inputs")
             .arg("https://example.com")
             .assert()
-            .success()
-            .stdout(contains("https://example.com"));
+            .success();
 
-        Ok(())
+        assert_lines_eq(result, vec!["https://example.com/"]);
     }
 
     #[test]
-    fn test_dump_inputs_path() -> Result<()> {
-        let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
-            .arg("fixtures")
+    fn test_dump_inputs_path() {
+        let result = cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg(fixtures_path!().join("dump_inputs"))
+            .assert()
+            .success();
+
+        let base_path = fixtures_path!().join("dump_inputs");
+        let expected_lines = [
+            "some_file.txt",
+            "subfolder/file2.md",
+            "subfolder/test.html",
+            "markdown.md",
+        ]
+        .iter()
+        .map(|p| path_str(&base_path, p))
+        .collect();
+
+        assert_lines_eq(result, expected_lines);
+    }
+
+    // Ensures that dumping stdin does not panic and results in an empty output
+    // as `stdin` is not a path
+    #[test]
+    fn test_dump_inputs_with_extensions() {
+        let test_dir = fixtures_path!().join("dump_inputs");
+
+        let output = cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg("--extensions")
+            .arg("md,txt")
+            .arg(test_dir)
             .assert()
             .success()
-            .stdout(contains("fixtures"));
+            .get_output()
+            .stdout
+            .clone();
 
-        Ok(())
+        let mut actual_lines: Vec<String> = output
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+        actual_lines.sort();
+
+        let base_path = fixtures_path!().join("dump_inputs");
+        let mut expected_lines = vec![
+            path_str(&base_path, "some_file.txt"),
+            path_str(&base_path, "subfolder/file2.md"),
+            path_str(&base_path, "markdown.md"),
+        ];
+        expected_lines.sort();
+
+        assert_eq!(actual_lines, expected_lines);
+
+        // Verify example.bin is not included
+        for line in &actual_lines {
+            assert!(
+                !line.contains("example.bin"),
+                "Should not contain example.bin: {line}"
+            );
+        }
     }
 
     #[test]
-    fn test_dump_inputs_stdin() -> Result<()> {
-        let mut cmd = main_command();
-        cmd.arg("--dump-inputs")
+    fn test_dump_inputs_skip_hidden() {
+        let test_dir = fixtures_path!().join("hidden");
+
+        // Test default behavior (skip hidden)
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg(&test_dir)
+            .assert()
+            .success()
+            .stdout(is_empty());
+
+        // Test with --hidden flag
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg("--hidden")
+            .arg(test_dir)
+            .assert()
+            .success()
+            .stdout(contains("hidden/.file.md"))
+            .stdout(contains("hidden/.hidden/file.md"));
+    }
+
+    #[test]
+    fn test_dump_inputs_individual_file() {
+        let test_file = fixtures_path!().join("TEST.md");
+
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg(&test_file)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/TEST.md"));
+    }
+
+    #[test]
+    fn test_dump_inputs_stdin() {
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
             .arg("-")
             .assert()
             .success()
-            .stdout(contains("Stdin"));
+            .stdout(contains("<stdin>"));
+    }
 
-        Ok(())
+    #[test]
+    fn test_fragments_regression() {
+        let input = fixtures_path!().join("FRAGMENT_REGRESSION.md");
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments")
+            .arg("--verbose")
+            .arg(input)
+            .assert()
+            .failure();
     }
 
     #[test]
     fn test_fragments() {
-        let mut cmd = main_command();
-        let input = fixtures_path().join("fragments");
+        let input = fixtures_path!().join("fragments");
+        let result = cargo_bin_cmd!()
+            .arg("--include-fragments")
+            .arg("--format=json")
+            .arg("-vv")
+            .arg(input)
+            .assert()
+            .failure();
 
-        cmd.arg("--verbose")
+        let output = std::str::from_utf8(&result.get_output().stdout).unwrap();
+        let json: Value = serde_json::from_str(output).unwrap();
+
+        let actual_successes = extract_urls(&json["success_map"]);
+        let actual_errors = extract_urls(&json["error_map"]);
+
+        let expected_successes = vec![
+            "fixtures/fragments/empty_dir",
+            "fixtures/fragments/empty_file#fragment", // XXX: is this a bug? a fragment in an empty file is being treated as valid
+            "fixtures/fragments/file1.md#code-heading",
+            "fixtures/fragments/file1.md#explicit-fragment",
+            "fixtures/fragments/file1.md#f%C3%BCnf-s%C3%9C%C3%9Fe-%C3%84pfel",
+            "fixtures/fragments/file1.md#f%C3%BCnf-s%C3%BC%C3%9Fe-%C3%A4pfel",
+            "fixtures/fragments/file1.md#fragment-1",
+            "fixtures/fragments/file1.md#fragment-2",
+            "fixtures/fragments/file1.md#IGNORE-CASING",
+            "fixtures/fragments/file1.md#kebab-case-fragment",
+            "fixtures/fragments/file1.md#kebab-case-fragment-1",
+            "fixtures/fragments/file1.md#lets-wear-a-hat-%C3%AAtre",
+            "fixtures/fragments/file2.md#",
+            "fixtures/fragments/file2.md#custom-id",
+            "fixtures/fragments/file2.md#fragment-1",
+            "fixtures/fragments/file2.md#top",
+            "fixtures/fragments/file.html#",
+            "fixtures/fragments/file.html#a-word",
+            "fixtures/fragments/file.html#in-the-beginning",
+            "fixtures/fragments/file.html#tangent%3A-kustomize",
+            "fixtures/fragments/file.html#top",
+            "fixtures/fragments/file.html#Upper-%C3%84%C3%96%C3%B6",
+            "fixtures/fragments/sub_dir",
+            "fixtures/fragments/zero.bin",
+            "fixtures/fragments/zero.bin#",
+            "fixtures/fragments/zero.bin#fragment",
+            "https://github.com/lycheeverse/lychee#table-of-contents",
+            "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin",
+            "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#",
+            // zero.bin#fragment succeeds because fragment checking is skipped for this URL
+            "https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment",
+        ];
+
+        let expected_errors = vec![
+            "fixtures/fragments/sub_dir_non_existing_1",
+            "fixtures/fragments/sub_dir#non-existing-fragment-2",
+            "fixtures/fragments/sub_dir#a-link-inside-index-html-inside-sub-dir",
+            "fixtures/fragments/empty_dir#non-existing-fragment-3",
+            "fixtures/fragments/file2.md#missing-fragment",
+            "fixtures/fragments/sub_dir#non-existing-fragment-1",
+            "fixtures/fragments/sub_dir_non_existing_2",
+            "fixtures/fragments/file1.md#missing-fragment",
+            "fixtures/fragments/empty_dir#non-existing-fragment-4",
+            "fixtures/fragments/file.html#in-the-end",
+            "fixtures/fragments/file.html#in-THE-begiNNing",
+            "https://github.com/lycheeverse/lychee#non-existent-anchor",
+        ];
+
+        assert_eq!(actual_successes.len(), expected_successes.len());
+        assert_eq!(actual_errors.len(), expected_errors.len());
+
+        for good_url in expected_successes {
+            assert!(
+                actual_successes.iter().any(|url| url.ends_with(good_url)),
+                "Expected {good_url} to be a success"
+            );
+        }
+
+        for bad_url in &expected_errors {
+            assert!(
+                actual_errors.iter().any(|url| url.ends_with(bad_url)),
+                "Expected {bad_url} to be an error"
+            );
+        }
+
+        fn extract_urls(json: &Value) -> HashSet<&str> {
+            json.as_object()
+                .unwrap()
+                .into_iter()
+                .flat_map(|(_, file)| {
+                    file.as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|o| o.as_object().unwrap()["url"].as_str().unwrap())
+                })
+                .collect()
+        }
+    }
+
+    #[test]
+    fn test_fragments_when_accept_error_status_codes() {
+        let input = fixtures_path!().join("TEST_FRAGMENT_ERR_CODE.md");
+
+        // it's common for user to accept 429, but let's test with 404 since
+        // triggering 429 may annoy the server
+        cargo_bin_cmd!()
+            .arg("-vv")
+            .arg("--accept=200,404")
             .arg("--include-fragments")
             .arg(input)
             .assert()
-            .failure()
-            .stderr(contains("fixtures/fragments/file1.md#fragment-1"))
-            .stderr(contains("fixtures/fragments/file1.md#fragment-2"))
-            .stderr(contains("fixtures/fragments/file1.md#code-heading"))
-            .stderr(contains("fixtures/fragments/file2.md#custom-id"))
-            .stderr(contains("fixtures/fragments/file1.md#missing-fragment"))
-            .stderr(contains("fixtures/fragments/file2.md#fragment-1"))
-            .stderr(contains("fixtures/fragments/file1.md#kebab-case-fragment"))
+            .success()
             .stderr(contains(
-                "fixtures/fragments/file1.md#lets-wear-a-hat-%C3%AAtre",
+                "https://en.wikipedia.org/wiki/Should404#ignore-fragment",
             ))
-            .stderr(contains("fixtures/fragments/file2.md#missing-fragment"))
-            .stderr(contains("fixtures/fragments/empty_file#fragment"))
-            .stderr(contains("fixtures/fragments/file.html#a-word"))
-            .stderr(contains("fixtures/fragments/file.html#in-the-beginning"))
-            .stderr(contains("fixtures/fragments/file.html#in-the-end"))
-            .stderr(contains(
-                "fixtures/fragments/file1.md#kebab-case-fragment-1",
-            ))
-            .stderr(contains("fixtures/fragments/file.html#top"))
-            .stderr(contains("fixtures/fragments/file2.md#top"))
-            .stdout(contains("25 Total"))
-            .stdout(contains("21 OK"))
-            // 4 failures because of missing fragments
-            .stdout(contains("4 Errors"));
+            .stdout(contains("0 Errors"))
+            .stdout(contains("1 OK"))
+            .stdout(contains("1 Total"));
     }
 
     #[test]
     fn test_text_fragments() {
-        let mut cmd = main_command();
         let input = "https://developer.mozilla.org/en-US/docs/Web/URI/Fragment/Text_fragments#:~:text=without%20relying%20on%20the%20presence%20of%20IDs";
 
-        cmd.arg("--verbose")
+        cargo_bin_cmd!()
+            .arg("--verbose")
             .arg("--include-text-fragments")
             .arg(input)
             .assert()
@@ -1858,15 +2522,33 @@ mod cli {
 
     #[test]
     fn test_fallback_extensions() {
-        let mut cmd = main_command();
-        let input = fixtures_path().join("fallback-extensions");
+        let input = fixtures_path!().join("fallback-extensions");
 
-        cmd.arg("--verbose")
+        cargo_bin_cmd!()
+            .arg("--verbose")
             .arg("--fallback-extensions=htm,html")
             .arg(input)
             .assert()
             .success()
             .stdout(contains("0 Errors"));
+    }
+
+    #[test]
+    fn test_fragments_fallback_extensions() {
+        let input = fixtures_path!().join("fragments-fallback-extensions");
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments")
+            .arg("--fallback-extensions=html")
+            .arg("--no-progress")
+            .arg("--offline")
+            .arg("-v")
+            .arg(input)
+            .assert()
+            .failure()
+            .stdout(contains("3 Total"))
+            .stdout(contains("1 OK"))
+            .stdout(contains("2 Errors"));
     }
 
     /// Test relative paths
@@ -1884,7 +2566,7 @@ mod cli {
     /// Note that the relative path is not resolved to the root of the server
     /// but relative to the file that contains the link.
     #[tokio::test]
-    async fn test_resolve_relative_paths_in_subfolder() -> Result<()> {
+    async fn test_resolve_relative_paths_in_subfolder() {
         let mock_server = wiremock::MockServer::start().await;
 
         let body = r#"<a href="next.html">next</a>"#;
@@ -1900,41 +2582,121 @@ mod cli {
             .mount(&mock_server)
             .await;
 
-        let mut cmd = main_command();
-        cmd.arg("--verbose")
+        cargo_bin_cmd!()
+            .arg("--verbose")
             .arg(format!("{}/test/index.html", mock_server.uri()))
             .assert()
             .success()
             .stdout(contains("1 Total"))
             .stdout(contains("0 Errors"));
-
-        Ok(())
     }
 
     #[tokio::test]
     async fn test_json_format_in_config() -> Result<()> {
         let mock_server = mock_server!(StatusCode::OK);
-        let config = fixtures_path().join("configs").join("format.toml");
-        let mut cmd = main_command();
-        cmd.arg("--config")
+        let config = fixtures_path!().join("configs").join("format.toml");
+        let output = cargo_bin_cmd!()
+            .arg("--config")
             .arg(config)
             .arg("-")
             .write_stdin(mock_server.uri())
             .env_clear()
             .assert()
-            .success();
+            .success()
+            .get_output()
+            .clone();
 
         // Check that the output is in JSON format
-        let output = cmd.output().unwrap();
-        let output = std::str::from_utf8(&output.stdout).unwrap();
-        let json: serde_json::Value = serde_json::from_str(output)?;
+        let output = std::str::from_utf8(&output.stdout)?;
+        let json: Value = serde_json::from_str(output)?;
         assert_eq!(json["total"], 1);
 
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_retry() -> Result<()> {
+    async fn test_redirect_json() {
+        // Non-verbose mode
+        redirecting_mock_server!(async |redirect_url: Url, _| {
+            let (json, stderr) = run(&redirect_url, false);
+            assert!(stderr.contains("[WARN] lychee detected 1 redirect. You might want to consider replacing redirecting URLs"));
+            assert_eq!(json["total"], 1);
+            assert_eq!(json["redirects"], 1); // there was one redirect
+            assert_eq!(json["successful"], 1); // which resolved to a success
+            assert_eq!(json["redirect_map"], json!({})); // suppressed in non-verbose mode
+            assert_eq!(json["success_map"], json!({})); // suppressed in non-verbose mode
+        })
+        .await;
+
+        // Verbose mode
+        redirecting_mock_server!(async |redirect_url: Url, ok_url| {
+            let (json, stderr) = run(&redirect_url, true);
+            assert!(stderr.contains("WARN").not());
+            assert_eq!(json["total"], 1);
+            assert_eq!(json["redirects"], 1);
+            assert_eq!(
+                json["redirect_map"],
+                json!({
+                "stdin":[{
+                    "origin": redirect_url,
+                    "redirects": [{
+                        "code": 308,
+                        "url": ok_url,
+                    }]
+                }]})
+            );
+            assert_eq!(
+                json["success_map"],
+                json!({
+                "stdin":[{
+                    "span": {
+                        "column": 1,
+                        "line": 1,
+                    },
+                    "status": {
+                        "code": 200,
+                        "text": "200 OK",
+                        "redirects": {
+                            "origin": redirect_url,
+                            "redirects": [{
+                                "code": 308,
+                                "url": ok_url,
+                            }]
+                        },
+                    },
+                    "url": redirect_url
+                }]})
+            );
+        })
+        .await;
+
+        fn run(url: &Url, verbose: bool) -> (Value, String) {
+            let mut binding = cargo_bin_cmd!();
+            let mut base = binding.arg("-");
+
+            if verbose {
+                base = base.arg("--verbose");
+            }
+
+            let output = base
+                .arg("--format")
+                .arg("json")
+                .write_stdin(url.as_str())
+                .env_clear()
+                .assert()
+                .success()
+                .get_output()
+                .clone()
+                .unwrap();
+
+            let stderr = str::from_utf8(&output.stderr).unwrap().to_string();
+
+            (stdout_to_json(&output.stdout), stderr)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_retry() {
         let mock_server = wiremock::MockServer::start().await;
 
         wiremock::Mock::given(wiremock::matchers::method("GET"))
@@ -1948,30 +2710,243 @@ mod cli {
             .mount(&mock_server)
             .await;
 
-        let mut cmd = main_command();
-        cmd.arg("-")
+        cargo_bin_cmd!()
+            .arg("-")
             .write_stdin(mock_server.uri())
             .assert()
             .success();
+    }
 
-        Ok(())
+    #[tokio::test]
+    async fn test_retry_rate_limit_headers() {
+        const RETRY_DELAY: Duration = Duration::from_secs(1);
+        const TOLERANCE: Duration = Duration::from_millis(500);
+        let server = wiremock::MockServer::start().await;
+
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(
+                ResponseTemplate::new(429)
+                    .append_header("Retry-After", RETRY_DELAY.as_secs().to_string()),
+            )
+            .expect(1)
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+
+        let start = Instant::now();
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(move |_: &Request| {
+                let delta = Instant::now().duration_since(start);
+                assert!(delta > RETRY_DELAY);
+                assert!(delta < RETRY_DELAY + TOLERANCE);
+                ResponseTemplate::new(200)
+            })
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        cargo_bin_cmd!()
+            // Direct args are not using the host pool, they are resolved earlier via Collector
+            .arg("-")
+            // Retry wait times are added on top of host-specific backoff timeout
+            .arg("--retry-wait-time")
+            .arg("0")
+            .write_stdin(server.uri())
+            .assert()
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn test_no_header_set_on_input() {
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1),
+            )
+            .await;
+
+        cargo_bin_cmd!()
+            .arg("--verbose")
+            .arg(server.uri())
+            .assert()
+            .success();
+
+        let received_requests = server.received_requests().await.unwrap();
+        assert_eq!(received_requests.len(), 1);
+
+        let received_request = &received_requests[0];
+        assert_eq!(received_request.method, Method::GET);
+        assert_eq!(received_request.url.path(), "/");
+
+        // Make sure the request does not contain the custom header
+        assert!(!received_request.headers.contains_key("X-Foo"));
+    }
+
+    #[tokio::test]
+    async fn test_header_set_on_input() {
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("X-Foo", "Bar"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1)
+                    .named("GET expecting custom header"),
+            )
+            .await;
+
+        cargo_bin_cmd!()
+            .arg("--verbose")
+            .arg("--header")
+            .arg("X-Foo: Bar")
+            .arg(server.uri())
+            .assert()
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn test_multi_header_set_on_input() {
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("X-Foo", "Bar"))
+                    .and(wiremock::matchers::header("X-Bar", "Baz"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1)
+                    .named("GET expecting custom header"),
+            )
+            .await;
+
+        cargo_bin_cmd!()
+            .arg("--verbose")
+            .arg("--header")
+            .arg("X-Foo: Bar")
+            .arg("--header")
+            .arg("X-Bar: Baz")
+            .arg(server.uri())
+            .assert()
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn test_header_set_in_config() {
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("X-Foo", "Bar"))
+                    .and(wiremock::matchers::header("X-Bar", "Baz"))
+                    .and(wiremock::matchers::header("X-Host-Specific", "Foo"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1)
+                    .named("GET expecting custom header"),
+            )
+            .await;
+
+        let config = fixtures_path!().join("configs").join("headers.toml");
+        cargo_bin_cmd!()
+            .arg("--verbose")
+            .arg("--config")
+            .arg(config)
+            .arg("-")
+            .write_stdin(server.uri())
+            .assert()
+            .success();
+
+        // Check that the server received the request with the header
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn test_user_agent_set_on_remote_input() {
+        // When a URL is passed directly as a CLI input, the configured user-agent
+        // should be sent in the request headers. Previously the resolver used a
+        // bare reqwest::Client with no user-agent at all.
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .and(wiremock::matchers::header("user-agent", "test-agent/1.0"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1)
+                    .named("GET expecting user-agent header"),
+            )
+            .await;
+
+        cargo_bin_cmd!()
+            .arg("--user-agent")
+            .arg("test-agent/1.0")
+            .arg(server.uri())
+            .assert()
+            .success();
+    }
+
+    #[tokio::test]
+    async fn test_default_user_agent_set_on_remote_input() {
+        // Even without an explicit --user-agent, the default lychee user-agent
+        // should be sent when fetching a remote input URL.
+        let server = wiremock::MockServer::start().await;
+        server
+            .register(
+                wiremock::Mock::given(wiremock::matchers::method("GET"))
+                    .respond_with(wiremock::ResponseTemplate::new(200))
+                    .expect(1),
+            )
+            .await;
+
+        cargo_bin_cmd!().arg(server.uri()).assert().success();
+
+        let received_requests = server.received_requests().await.unwrap();
+        assert_eq!(received_requests.len(), 1);
+
+        let received_request = &received_requests[0];
+        let user_agent = received_request
+            .headers
+            .get("user-agent")
+            .expect("User agent missing")
+            .to_str()
+            .unwrap();
+
+        assert!(
+            user_agent.starts_with("lychee/"),
+            "Expected user-agent to start with 'lychee/', got: {user_agent:?}"
+        );
     }
 
     #[test]
     fn test_sorted_error_output() -> Result<()> {
-        let test_files = ["TEST_GITHUB_404.md", "TEST_INVALID_URLS.html"];
+        let temp_dir = tempfile::tempdir()?;
+        let a_md = temp_dir.path().join("a.md");
+        let b_md = temp_dir.path().join("b.md");
 
+        fs::write(&a_md, "https://example.com/a\nhttps://example.com/b")?;
+        fs::write(&b_md, "https://example.com/1\nhttps://example.com/2")?;
+
+        let test_files = ["a.md", "b.md"];
         let test_urls = [
-            "https://httpbin.org/status/404",
-            "https://httpbin.org/status/500",
-            "https://httpbin.org/status/502",
+            "https://example.com/a",
+            "https://example.com/b",
+            "https://example.com/1",
+            "https://example.com/2",
         ];
 
-        let cmd = &mut main_command()
+        let cmd = &mut cargo_bin_cmd!()
             .arg("--format")
             .arg("compact")
-            .arg(fixtures_path().join(test_files[1]))
-            .arg(fixtures_path().join(test_files[0]))
+            .arg(b_md)
+            .arg(a_md)
             .assert()
             .failure()
             .code(2);
@@ -1981,8 +2956,7 @@ mod cli {
 
         // Check that the input sources are sorted
         for file in test_files {
-            assert!(output.contains(file));
-
+            assert!(output.contains(file), "{file} not found in lychee output");
             let next_position = output.find(file).unwrap();
 
             assert!(next_position > position);
@@ -1993,8 +2967,7 @@ mod cli {
 
         // Check that the responses are sorted
         for url in test_urls {
-            assert!(output.contains(url));
-
+            assert!(output.contains(url), "{url} not found in lychee output");
             let next_position = output.find(url).unwrap();
 
             assert!(next_position > position);
@@ -2006,10 +2979,10 @@ mod cli {
 
     #[test]
     fn test_extract_url_ending_with_period_file() {
-        let test_path = fixtures_path().join("LINK_PERIOD.html");
+        let test_path = fixtures_path!().join("LINK_PERIOD.html");
 
-        let mut cmd = main_command();
-        cmd.arg("--dump")
+        cargo_bin_cmd!()
+            .arg("--dump")
             .arg(test_path)
             .assert()
             .success()
@@ -2018,14 +2991,950 @@ mod cli {
 
     #[tokio::test]
     async fn test_extract_url_ending_with_period_webserver() {
-        let mut cmd = main_command();
         let body = r#"<a href="https://www.example.com/smth.">link</a>"#;
         let mock_server = mock_response!(body);
 
-        cmd.arg("--dump")
+        cargo_bin_cmd!()
+            .arg("--dump")
             .arg(mock_server.uri())
             .assert()
             .success()
             .stdout(contains("https://www.example.com/smth."));
     }
+
+    #[test]
+    fn test_wikilink_extract_when_specified() {
+        let test_path = fixtures_path!().join("TEST_WIKI.md");
+
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg("--include-wikilinks")
+            .arg("--base-url")
+            .arg(fixtures_path!())
+            .arg(test_path)
+            .assert()
+            .success()
+            .stdout(contains("LycheeWikilink"));
+    }
+
+    #[test]
+    fn test_wikilink_dont_extract_when_not_specified() {
+        let test_path = fixtures_path!().join("TEST_WIKI.md");
+
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(test_path)
+            .assert()
+            .success()
+            .stdout(is_empty());
+    }
+
+    #[test]
+    fn test_index_files_default() {
+        let input = fixtures_path!().join("filechecker/dir_links.md");
+
+        // the dir links in this file all exist.
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--verbose")
+            .assert()
+            .success();
+
+        // ... but checking fragments will find none, because dirs
+        // have no fragments and no index file given.
+        let dir_links_with_fragment = 2;
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--include-fragments")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot find fragment").count(dir_links_with_fragment))
+            .stdout(contains("#").count(dir_links_with_fragment));
+    }
+
+    #[test]
+    fn test_index_files_specified() {
+        let input = fixtures_path!().join("filechecker/dir_links.md");
+
+        // passing `--index-files index.html,index.htm` should reject all links
+        // to /empty_dir because it doesn't have the index file
+        let result = cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--index-files")
+            .arg("index.html,index.htm")
+            .arg("--verbose")
+            .assert()
+            .failure();
+
+        let empty_dir_links = 2;
+        let index_dir_links = 2;
+        result
+            .stdout(contains("Cannot find index file").count(empty_dir_links))
+            .stdout(contains("/empty_dir").count(empty_dir_links))
+            .stdout(contains("(index.html, or index.htm)").count(empty_dir_links))
+            .stdout(contains(format!("{index_dir_links} OK")));
+
+        // within the error message, formatting of the index file name list should
+        // omit empty names.
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--index-files")
+            .arg(",index.html,,,index.htm,")
+            .assert()
+            .failure()
+            .stdout(contains("(index.html, or index.htm)").count(empty_dir_links));
+    }
+
+    #[test]
+    fn test_index_files_dot_in_list() {
+        let input = fixtures_path!().join("filechecker/dir_links.md");
+
+        // passing `.` in the index files list should accept a directory
+        // even if no other index file is found.
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--index-files")
+            .arg("index.html,.")
+            .assert()
+            .success()
+            .stdout(contains("4 OK"));
+
+        // checking fragments will accept the index_dir#fragment link,
+        // but reject empty_dir#fragment because empty_dir doesn’t have
+        // index.html.
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--index-files")
+            .arg("index.html,.")
+            .arg("--include-fragments")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot find fragment").count(1))
+            .stdout(contains("empty_dir#fragment").count(1))
+            .stdout(contains("index_dir#fragment").count(0))
+            .stdout(contains("3 OK"));
+    }
+
+    #[test]
+    fn test_index_files_empty_list() {
+        let input = fixtures_path!().join("filechecker/dir_links.md");
+
+        // passing an empty list to --index-files should reject /all/
+        // directory links.
+        let result = cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--index-files")
+            .arg("")
+            .assert()
+            .failure();
+
+        let num_dir_links = 4;
+        result
+            .stdout(contains("Cannot find index file").count(num_dir_links))
+            .stdout(
+                contains("Directory links are rejected because index_files is empty")
+                    .count(num_dir_links),
+            )
+            .stdout(contains("0 OK"));
+
+        // ... as should passing a number of empty index file names
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--index-files")
+            .arg(",,,,,")
+            .assert()
+            .failure()
+            .stdout(
+                contains("Directory links are rejected because index_files is empty")
+                    .count(num_dir_links),
+            )
+            .stdout(contains("0 OK"));
+    }
+
+    #[test]
+    fn test_skip_binary_input() {
+        // A path containing a binary file
+        let inputs = fixtures_path!().join("invalid_utf8");
+
+        // Run the command with the binary input
+        let result = cargo_bin_cmd!()
+            .arg("-vv")
+            .arg(&inputs)
+            .assert()
+            .success()
+            .stdout(contains("1 Total"))
+            .stdout(contains("1 OK"))
+            .stdout(contains("0 Errors"));
+
+        result
+            .stderr(contains(format!(
+                "Skipping file with invalid UTF-8 content: {}",
+                inputs.join("invalid_utf8.txt").display()
+            )))
+            .stderr(contains("https://example.com/"));
+    }
+
+    /// Checks that the `--dump-inputs` command does not panic
+    /// when given a path that contains invalid UTF-8 characters.
+    ///
+    /// The command should still succeed and output the paths of the files it
+    /// found, including those with invalid UTF-8, which will be skipped during
+    /// processing.
+    #[test]
+    fn test_dump_invalid_utf8_inputs() {
+        // A path containing a binary file
+        let inputs = fixtures_path!().join("invalid_utf8");
+
+        // Run the command with the binary input
+        cargo_bin_cmd!()
+            .arg("--dump-inputs")
+            .arg(inputs)
+            .assert()
+            .success()
+            .stdout(contains("fixtures/invalid_utf8/index.html"))
+            .stdout(contains("fixtures/invalid_utf8/invalid_utf8.txt"));
+    }
+
+    /// Check that files specified via glob patterns are always checked
+    /// no matter their extension. I.e. extensions are ignored for files
+    /// explicitly specified by the user.
+    ///
+    /// See https://github.com/lycheeverse/lychee-action/issues/305
+    #[test]
+    fn test_globbed_files_are_always_checked() {
+        let input = fixtures_path!().join("glob_dir/**/*.tsx");
+
+        // The directory contains:
+        // - example.ts
+        // - example.tsx
+        // - example.md
+        // - example.html
+        // But the user only specified the .tsx file via the glob pattern.
+        cargo_bin_cmd!()
+            .arg("--verbose")
+            // Only check ts, js, and html files by default.
+            // However, all files explicitly specified by the user
+            // should always be checked so this should be ignored.
+            .arg("--extensions=ts,js,html")
+            .arg(input)
+            .assert()
+            .failure()
+            .stdout(contains("1 Total"))
+            .stderr(contains("https://example.com/glob_dir/tsx"));
+    }
+
+    #[test]
+    fn test_extensions_work_on_glob_files_directory() {
+        let input = fixtures_path!().join("glob_dir");
+
+        // Make sure all files matching the given extensions are checked
+        // if we specify a directory (and not a glob pattern).
+        cargo_bin_cmd!()
+            .arg("--verbose")
+            .arg("--extensions=ts,html")
+            .arg(input)
+            .assert()
+            .failure()
+            .stdout(contains("2 Total"))
+            // Note: The space is intentional to avoid matching tsx.
+            .stderr(contains("https://example.com/glob_dir/ts "))
+            // TSX files are ignored because we did not specify
+            // that extension. So `https://example.com/tsx"` should be missing from the output.
+            .stderr(contains("https://example.com/glob_dir/tsx").not())
+            // Markdown is also ignored because we did not specify that extension.
+            .stderr(contains("https://example.com/glob_dir/md").not())
+            .stderr(contains("https://example.com/glob_dir/html"));
+    }
+
+    /// We define two inputs, one being a glob pattern, the other a directory path.
+    /// The extensions should only apply to the directory path, not the glob pattern.
+    #[test]
+    fn test_extensions_apply_to_files_not_globs() {
+        let glob_input = fixtures_path!().join("glob_dir/**/*.tsx");
+        let dir_input = fixtures_path!().join("example_dir");
+
+        cargo_bin_cmd!()
+            .arg("--verbose")
+            .arg("--extensions=html,md")
+            .arg(glob_input)
+            .arg(dir_input)
+            .assert()
+            .failure()
+            .stdout(contains("3 Total"))
+            // Only TSX files are matched by the glob pattern.
+            .stderr(contains("https://example.com/glob_dir/tsx"))
+            .stderr(contains("https://example.com/glob_dir/ts ").not())
+            .stderr(contains("https://example.com/glob_dir/md").not())
+            .stderr(contains("https://example.com/glob_dir/html").not())
+            // For the example_dir, the extensions should apply.
+            .stderr(contains("https://example.com/example_dir/html"))
+            .stderr(contains("https://example.com/example_dir/md"))
+            // TS files in example_dir are ignored because we did not specify that extension.
+            .stderr(contains("https://example.com/example_dir/ts ").not())
+            // TSX files in example_dir are ignored because we did not specify that extension.
+            .stderr(contains("https://example.com/example_dir/tsx").not());
+    }
+
+    /// Individual files should always be checked, even if their
+    /// extension does not match the given extensions.
+    #[test]
+    fn test_file_inputs_always_get_checked_no_matter_their_extension() {
+        let ts_input_file = fixtures_path!().join("glob_dir/example.ts");
+        let md_input_file = fixtures_path!().join("glob_dir/example.md");
+
+        cargo_bin_cmd!()
+            .arg("--verbose")
+            .arg("--dump")
+            .arg("--extensions=html,md")
+            .arg(ts_input_file)
+            .arg(md_input_file)
+            .assert()
+            .success()
+            .stderr("") // Ensure stderr is empty
+            .stdout(contains("https://example.com/glob_dir/ts"))
+            .stdout(contains("https://example.com/glob_dir/md"));
+    }
+
+    /// URLs specified on the command line should also always be checked.
+    #[tokio::test]
+    async fn test_url_inputs_always_get_checked_no_matter_their_extension() {
+        let mock_server = wiremock::MockServer::start().await;
+        let url = "https://example.com"; // URL to be dumped
+
+        Mock::given(method("GET"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string(format!("<a href=\"{url}\">hi</a>")),
+            )
+            .mount(&mock_server)
+            .await;
+
+        cargo_bin_cmd!()
+            .arg("--verbose")
+            .arg("--dump")
+            .arg(format!("{}/some.svg", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains(url))
+            .stderr("");
+    }
+
+    #[test]
+    fn test_files_from_file() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let files_list_path = temp_dir.path().join("files.txt");
+        let test_md = temp_dir.path().join("test.md");
+
+        // Create test files
+        fs::write(&test_md, "# Test\n[link](https://example.com)")?;
+        fs::write(&files_list_path, test_md.to_string_lossy().as_ref())?;
+
+        cargo_bin_cmd!()
+            .arg("--files-from")
+            .arg(&files_list_path)
+            .arg("--dump-inputs")
+            .assert()
+            .success()
+            .stdout(contains(test_md.to_string_lossy().as_ref()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_files_from_stdin() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let test_md = temp_dir.path().join("test.md");
+
+        // Create test file
+        fs::write(&test_md, "# Test\n[link](https://example.com)")?;
+
+        cargo_bin_cmd!()
+            .arg("--files-from")
+            .arg("-")
+            .arg("--dump-inputs")
+            .write_stdin(test_md.to_string_lossy().as_ref())
+            .assert()
+            .success()
+            .stdout(contains(test_md.to_string_lossy().as_ref()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_files_from_with_comments_and_empty_lines() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let files_list_path = temp_dir.path().join("files.txt");
+        let test_md = temp_dir.path().join("test.md");
+
+        // Create test files
+        fs::write(&test_md, "# Test\n[link](https://example.com)")?;
+        fs::write(
+            &files_list_path,
+            format!(
+                "# Comment line\n\n{}\n# Another comment\n",
+                test_md.display()
+            ),
+        )?;
+
+        cargo_bin_cmd!()
+            .arg("--files-from")
+            .arg(&files_list_path)
+            .arg("--dump-inputs")
+            .assert()
+            .success()
+            .stdout(contains(test_md.to_string_lossy().as_ref()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_files_from_combined_with_regular_inputs() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let files_list_path = temp_dir.path().join("files.txt");
+        let test_md1 = temp_dir.path().join("test1.md");
+        let test_md2 = temp_dir.path().join("test2.md");
+
+        // Create test files
+        fs::write(&test_md1, "# Test 1")?;
+        fs::write(&test_md2, "# Test 2")?;
+        fs::write(&files_list_path, test_md1.to_string_lossy().as_ref())?;
+
+        let mut cmd = cargo_bin_cmd!();
+        cmd.arg("--files-from")
+            .arg(&files_list_path)
+            .arg(&test_md2) // Regular input argument
+            .arg("--dump-inputs")
+            .assert()
+            .success()
+            .stdout(contains(test_md1.to_string_lossy().as_ref()))
+            .stdout(contains(test_md2.to_string_lossy().as_ref()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_files_from_nonexistent_file_error() {
+        cargo_bin_cmd!()
+            .arg("--files-from")
+            .arg("/nonexistent/file.txt")
+            .arg("--dump-inputs")
+            .assert()
+            .failure()
+            .stderr(contains("Cannot open --files-from file"));
+    }
+
+    /// Test the --default-extension option for files without extensions
+    #[test]
+    fn test_default_extension_option() -> Result<()> {
+        let mut file_without_ext = NamedTempFile::new()?;
+        // Create markdown content but with no file extension
+        writeln!(file_without_ext, "# Test File")?;
+        writeln!(file_without_ext, "[Example](https://example.com)")?;
+        writeln!(file_without_ext, "[Local](local.md)")?;
+
+        // Test with --default-extension md
+        cargo_bin_cmd!()
+            .arg("--default-extension")
+            .arg("md")
+            .arg("--dump")
+            .arg(file_without_ext.path())
+            .assert()
+            .success()
+            .stdout(contains("https://example.com"));
+
+        let mut html_file_without_ext = NamedTempFile::new()?;
+        // Create HTML content but with no file extension
+        writeln!(html_file_without_ext, "<html><body>")?;
+        writeln!(
+            html_file_without_ext,
+            "<a href=\"https://html-example.com\">HTML Link</a>"
+        )?;
+        writeln!(html_file_without_ext, "</body></html>")?;
+
+        // Test with --default-extension html
+        cargo_bin_cmd!()
+            .arg("--default-extension")
+            .arg("html")
+            .arg("--dump")
+            .arg(html_file_without_ext.path())
+            .assert()
+            .success()
+            .stdout(contains("https://html-example.com"));
+
+        Ok(())
+    }
+
+    /// Test that unknown --default-extension values are handled gracefully
+    #[test]
+    fn test_default_extension_unknown_value() {
+        let mut file_without_ext = NamedTempFile::new().unwrap();
+        // Create file content with a link that should be extracted as plaintext
+        writeln!(file_without_ext, "# Test").unwrap();
+        writeln!(file_without_ext, "Visit https://example.org for more info").unwrap();
+
+        // Unknown extensions should fall back to default behavior (plaintext)
+        // and still extract links from the content
+        cargo_bin_cmd!()
+            .arg("--default-extension")
+            .arg("unknown")
+            .arg("--dump")
+            .arg(file_without_ext.path())
+            .assert()
+            .success()
+            .stdout(contains("https://example.org")); // Should extract the link as plaintext
+    }
+
+    #[test]
+    fn test_wikilink_fixture_obsidian_style() {
+        let input = fixtures_path!().join("wiki/obsidian-style.md");
+
+        // testing without fragments should not yield failures
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path!())
+            .assert()
+            .success()
+            .stdout(contains("4 OK"));
+    }
+
+    #[test]
+    fn test_wikilink_fixture_wikilink_non_existent() {
+        let input = fixtures_path!().join("wiki/Non-existent.md");
+
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path!())
+            .assert()
+            .failure()
+            .stdout(contains("3 Errors"));
+    }
+
+    #[test]
+    fn test_wikilink_fixture_with_fragments_obsidian_style_fixtures_excluded() {
+        let input = fixtures_path!().join("wiki/obsidian-style-plus-headers.md");
+
+        // fragments should resolve all headers
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path!())
+            .assert()
+            .success()
+            .stdout(contains("4 OK"));
+    }
+
+    #[test]
+    fn test_wikilink_fixture_with_fragments_obsidian_style() {
+        let input = fixtures_path!().join("wiki/obsidian-style-plus-headers.md");
+
+        // fragments should resolve all headers
+        cargo_bin_cmd!()
+            .arg(&input)
+            .arg("--include-wikilinks")
+            .arg("--include-fragments")
+            .arg("--fallback-extensions")
+            .arg("md")
+            .arg("--base-url")
+            .arg(fixtures_path!())
+            .assert()
+            .success()
+            .stdout(contains("4 OK"));
+    }
+
+    /// An input which matches nothing should print a warning and continue.
+    #[test]
+    fn test_input_matching_nothing_warns() -> Result<()> {
+        let empty_dir = tempdir()?;
+
+        cargo_bin_cmd!()
+            .arg(format!("{}", empty_dir.path().to_string_lossy()))
+            .arg(format!("{}/*", empty_dir.path().to_string_lossy()))
+            .arg("non-existing-path/*")
+            .arg("*.non-existing-extension")
+            .arg("non-existing-file-name???")
+            .assert()
+            .success()
+            .stderr(contains("No files found").count(5));
+
+        Ok(())
+    }
+
+    // An input which is invalid (no permission directory or invalid glob)
+    // should fail as a CLI error, not a link checking error.
+    #[test]
+    fn test_invalid_user_input_source() -> Result<()> {
+        cargo_bin_cmd!()
+            .arg("http://website.invalid")
+            .assert()
+            .failure()
+            .code(1)
+            .stderr(contains("Error: Network error"));
+
+        // invalid domain name should be reported even if other tokio panics happen
+        // (e.g., due to send into closed channel).
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("https://a.invalid")
+            .write_stdin("http://example.com")
+            .assert()
+            .failure()
+            .code(1)
+            .stderr(contains("Error: Network error"));
+
+        // maybe test with a directory with no write permissions? but there
+        // doesn't seem to be an equivalent to chmod on the windows API:
+        // https://doc.rust-lang.org/std/fs/struct.Permissions.html
+
+        cargo_bin_cmd!()
+            .arg("invalid-glob[")
+            .assert()
+            .failure()
+            .code(1);
+
+        Ok(())
+    }
+
+    /// Invalid glob patterns should be checked and reported as a CLI parsing
+    /// error before link checking.
+    #[test]
+    fn test_invalid_glob_fails_parse() {
+        cargo_bin_cmd!()
+            .arg("invalid-unmatched-brackets[")
+            .assert()
+            .stderr(contains("Cannot parse input"))
+            .failure()
+            .code(1); // cli parsing error code
+    }
+
+    /// Preprocessing with `cat` is like an identity function because it
+    /// outputs its input without any changes.
+    #[test]
+    fn test_pre_cat() {
+        let file = fixtures_path!().join("TEST.md");
+        let pre_with_cat = cargo_bin_cmd!()
+            .arg("--preprocess")
+            .arg("cat")
+            .arg("--dump")
+            .arg(&file)
+            .assert()
+            .success();
+
+        let no_pre = cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(&file)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .lines()
+            .map(|line| line.unwrap().to_string())
+            .collect();
+
+        assert_lines_eq(pre_with_cat, no_pre);
+    }
+
+    #[test]
+    fn test_pre_invalid_command() {
+        let file = fixtures_path!().join("TEST.md");
+        cargo_bin_cmd!()
+            .arg("--preprocess")
+            .arg("program does not exist")
+            .arg(file)
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains("Preprocessor command 'program does not exist' failed with 'could not start: No such file or directory (os error 2)'"));
+    }
+
+    #[test]
+    fn test_pre_error() {
+        let file = fixtures_path!().join("TEST.md");
+        let script = fixtures_path!().join("pre").join("no_error_message.sh");
+        cargo_bin_cmd!()
+            .arg("--preprocess")
+            .arg(&script)
+            .arg(&file)
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains(format!(
+                "Preprocessor command '{}' failed with 'exited with non-zero code: <empty stderr>'",
+                script.as_os_str().to_str().unwrap()
+            )));
+
+        let script = fixtures_path!().join("pre").join("error_message.sh");
+        cargo_bin_cmd!()
+            .arg("--preprocess")
+            .arg(&script)
+            .arg(file)
+            .assert()
+            .failure()
+            .code(2)
+            .stdout(contains(format!(
+                "Preprocessor command '{}' failed with 'exited with non-zero code: Some error message'",
+                script.as_os_str().to_str().unwrap()
+            )));
+    }
+
+    #[test]
+    fn test_mdx_file() {
+        let file = fixtures_path!().join("mdx").join("test.mdx");
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(&file)
+            .assert()
+            .success()
+            .stdout(contains("https://example.com"));
+    }
+
+    #[test]
+    fn test_local_base_url_bug_1896() -> Result<()> {
+        // https://github.com/lycheeverse/lychee/issues/1896
+        let dir = tempdir()?;
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--dump")
+            .arg("--base-url")
+            .arg(dir.path())
+            .arg("--default-extension")
+            .arg("md")
+            .write_stdin("[a](b.html#a)")
+            .assert()
+            .success()
+            .stdout(contains("b.html#a"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_relative_url_parse_errors() -> Result<()> {
+        let dir = tempdir()?;
+
+        // without root-dir, fails to resolve in all cases
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--default-extension=md")
+            .write_stdin("[a](a)")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot parse 'a' into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/a)")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot resolve root-relative link '/a': To resolve root-relative links in local files, provide a root dir"));
+
+        // with root-dir, locally-relative links can still fail because
+        // there is no current base URL
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--root-dir")
+            .arg(dir.path())
+            .arg("--default-extension=md")
+            .write_stdin("[a](a)")
+            .assert()
+            .failure()
+            .stdout(contains("Cannot parse 'a' into a URL: relative URL without a base: This relative link was found inside an input source that has no base location"));
+
+        // with root-dir, root-relative links should succeed
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--root-dir")
+            .arg(dir.path())
+            .arg("--default-extension=md")
+            .write_stdin("[a](/)")
+            .assert()
+            .success();
+
+        // with an explicit base-url, root-relative and locally-relative links work. yay!
+        // both should become relative to the base-url.
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("-vv")
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg("--default-extension=md")
+            .write_stdin("[a](/)")
+            .assert()
+            .success()
+            .stderr(contains("https://lychee.cli.rs/"));
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("-vv")
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg("--default-extension=md")
+            .write_stdin("[a](.)")
+            .assert()
+            .success()
+            .stderr(contains("https://lychee.cli.rs/"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_base_url_applies_to_local() {
+        cargo_bin_cmd!()
+            .arg("--base-url=https://lychee.cli.rs/")
+            .arg(fixtures_path!().join("resolve_paths/index.html"))
+            .assert()
+            .failure()
+            .stdout(contains("https://lychee.cli.rs/another%20page"));
+    }
+
+    #[test]
+    fn test_sitemap_xml() {
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("sitemap/sitemap.xml"))
+            .arg("-v")
+            .assert()
+            .success()
+            .stdout(contains("2 Total"))
+            .stdout(contains("2 OK"))
+            .stdout(contains("0 Errors"));
+    }
+
+    #[test]
+    fn test_sitemap_xml_warn() {
+        cargo_bin_cmd!()
+            .arg(fixtures_path!().join("sitemap/not-a-sitemap.xml"))
+            .arg("-v")
+            .assert()
+            .success()
+            .stdout(contains("0 Total"))
+            .stdout(contains("0 OK"))
+            .stdout(contains("0 Errors"))
+            .stderr(contains("[WARN] No URLs found in XML input."));
+    }
+
+    /// URLs should NOT be downloaded fully, unless fragment checking is on and the link has a fragment.
+    #[test]
+    fn test_large_file_lazy_download() {
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--include-fragments")
+            .arg("--timeout=5")
+            .write_stdin(
+                "
+https://proof.ovh.net/files/10Gb.dat
+https://proof.ovh.net/files/1Gb.dat
+https://proof.ovh.net/files/1Mb.dat
+https://lychee.cli.rs/guides/cli/#options
+            ",
+            )
+            .assert()
+            .success();
+
+        cargo_bin_cmd!()
+            .arg("-")
+            .arg("--timeout=5")
+            .write_stdin(
+                "
+https://proof.ovh.net/files/10Gb.dat#fragments-ignored
+https://proof.ovh.net/files/1Gb.dat#fragments-ignored
+https://proof.ovh.net/files/1Mb.dat#fragments-ignored
+https://lychee.cli.rs/guides/cli/#fragments-ignored
+            ",
+            )
+            .assert()
+            .success();
+    }
+
+    /// Verifies that loading an older, legacy `.lycheecache` file containing a cached error
+    /// correctly drops the error and successfully retries the link.
+    /// This ensures we don't break existing user CI workflows that have older cache files
+    /// stored before we stopped caching errors.
+    #[tokio::test]
+    async fn test_legacy_cache_file_ignores_errors() -> Result<()> {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let dir = tempfile::tempdir()?;
+        let base_path = dir.path();
+        let cache_file = base_path.join(LYCHEE_CACHE_FILE);
+
+        // A server that is currently returning OK
+        let mock_server_ok = mock_server!(StatusCode::OK);
+
+        // Simulate an older `.lycheecache` where this exact URL previously failed with 404
+        // We use a future timestamp ({ts}) so it doesn't expire
+        fs::write(&cache_file, format!("{},404,{ts}\n", mock_server_ok.uri()))?;
+
+        let mut file = File::create(dir.path().join("input.txt"))?;
+        writeln!(file, "{}", mock_server_ok.uri())?;
+
+        // Run lychee. It should ignore the 404 from the cache, actually check the mock server (which returns 200), and succeed.
+        cargo_bin_cmd!()
+            .current_dir(base_path)
+            .arg("input.txt")
+            .arg("--cache")
+            .arg("--verbose")
+            .assert()
+            .success()
+            .stdout(contains("1 OK"))
+            .stdout(contains("0 Errors"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_no_double_count() {
+        let test_file_1 = fixtures_path!().join("double-count/index.md");
+        let test_file_2 = fixtures_path!().join("double-count/home.md");
+
+        cargo_bin_cmd!()
+            .arg(&test_file_1)
+            .arg(&test_file_2)
+            .assert()
+            .success()
+            .stdout(contains("6 Total"))
+            .stdout(contains("3 Unique"));
+
+        cargo_bin_cmd!()
+            .arg("--dump")
+            .arg(&test_file_1)
+            .arg(&test_file_2)
+            .assert()
+            .success()
+            .stdout(contains("resource-1.md").count(2));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn test_file_limit_low_concurrency() {
+    // See https://github.com/lycheeverse/lychee/issues/1248
+    use assert_cmd::cargo::CommandCargoExt;
+    use std::os::unix::process::CommandExt;
+
+    let mut cmd = std::process::Command::cargo_bin("lychee").unwrap();
+    cmd.arg("-v").arg("https://example.com");
+
+    unsafe {
+        cmd.pre_exec(|| {
+            // Set the soft and hard limit to a low value.
+            // 64 is enough to boot, but will trigger the max_concurrency lowering.
+            let _ = rlimit::setrlimit(rlimit::Resource::NOFILE, 64, 64);
+            Ok(())
+        });
+    }
+
+    let mut assert_cmd = assert_cmd::Command::from(cmd);
+    assert_cmd.assert().stderr(predicates::str::contains(
+        "System file descriptor limit is 64 which is too low for the requested concurrency of 128. Lowering `max_concurrency` to 44",
+    ));
 }

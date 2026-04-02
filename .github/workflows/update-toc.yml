@@ -2,16 +2,16 @@ name: Update Table of Contents
 
 on:
   push:
-    branches:
-      - master
 
 jobs:
   update-toc:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Generate Table of Contents
         uses: technote-space/toc-generator@v4

@@ -1,27 +1,52 @@
 //! Extract links and fragments from markdown documents
 use std::collections::{HashMap, HashSet};
 
-use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, TextMergeStream};
+use log::warn;
+use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, TextMergeWithOffset};
 
-use crate::{extract::plaintext::extract_raw_uri_from_plaintext, types::uri::raw::RawUri};
+use crate::{
+    checker::wikilink::wikilink,
+    extract::{html::html5gum::extract_html_with_span, plaintext::extract_raw_uri_from_plaintext},
+    types::uri::raw::{
+        OffsetSpanProvider, RawUri, RawUriSpan, SourceSpanProvider, SpanProvider as _,
+    },
+};
 
-use super::html::html5gum::{extract_html, extract_html_fragments};
+use super::html::html5gum::extract_html_fragments;
 
 /// Returns the default markdown extensions used by lychee.
 /// Sadly, `|` is not const for `Options` so we can't use a const global.
 fn md_extensions() -> Options {
-    Options::ENABLE_HEADING_ATTRIBUTES | Options::ENABLE_MATH
+    Options::ENABLE_HEADING_ATTRIBUTES
+        | Options::ENABLE_MATH
+        | Options::ENABLE_WIKILINKS
+        | Options::ENABLE_FOOTNOTES
 }
 
 /// Extract unparsed URL strings from a Markdown string.
-pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUri> {
+// TODO: Refactor the extractor to reduce the complexity and number of lines.
+#[allow(clippy::too_many_lines)]
+pub(crate) fn extract_markdown(
+    input: &str,
+    include_verbatim: bool,
+    include_wikilinks: bool,
+) -> Vec<RawUri> {
     // In some cases it is undesirable to extract links from within code blocks,
     // which is why we keep track of entries and exits while traversing the input.
     let mut inside_code_block = false;
+    let mut inside_link_block = false;
+    let mut inside_wikilink_block = false;
 
-    let parser = TextMergeStream::new(Parser::new_ext(input, md_extensions()));
+    // HTML blocks come in chunks from pulldown_cmark, so we need to accumulate them
+    let mut inside_html_block = false;
+    let mut html_block_buffer = String::new();
+    let mut html_block_start_offset = 0;
+
+    let span_provider = SourceSpanProvider::from_input(input);
+    let parser =
+        TextMergeWithOffset::new(Parser::new_ext(input, md_extensions()).into_offset_iter());
     parser
-        .filter_map(|event| match event {
+        .filter_map(|(event, span)| match event {
             // A link.
             Event::Start(Tag::Link {
                 link_type,
@@ -35,14 +60,8 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
                     // Inline link like `[foo](bar)`
                     // This is the most common link type
                     LinkType::Inline => {
-                        Some(vec![RawUri {
-                            text: dest_url.to_string(),
-                            // Emulate `<a href="...">` tag here to be compatible with
-                            // HTML links. We might consider using the actual Markdown
-                            // `LinkType` for better granularity in the future
-                            element: Some("a".to_string()),
-                            attribute: Some("href".to_string()),
-                        }])
+                        inside_link_block = true;
+                        Some(raw_uri(&dest_url, span_provider.span(span.start)))
                     }
                     // Reference without destination in the document, but resolved by the `broken_link_callback`
                     LinkType::Reference |
@@ -55,38 +74,48 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
                     // Shortcut link like `[foo]`
                     LinkType::Shortcut |
                     // Shortcut without destination in the document, but resolved by the `broken_link_callback`
-                    LinkType::ShortcutUnknown |
+                    LinkType::ShortcutUnknown => {
+                        inside_link_block = true;
+                        // For reference links, create RawUri directly to handle relative file paths
+                        // that linkify doesn't recognize as URLs
+                        Some(raw_uri(&dest_url, span_provider.span(span.start)))
+                    },
                     // Autolink like `<http://foo.bar/baz>`
                     LinkType::Autolink |
                     // Email address in autolink like `<john@example.org>`
-                    LinkType::Email =>
-                     Some(extract_raw_uri_from_plaintext(&dest_url)),
+                    LinkType::Email => {
+                        let span_provider = get_email_span_provider(&span_provider, &span, link_type);
+                        Some(extract_raw_uri_from_plaintext(&dest_url, &span_provider))
+                    }
                     // Wiki URL (`[[http://example.com]]`)
-                    // This element is currently not matched and I'm not sure why.
-                    // However, we keep it in here for future compatibility with
-                    // markup5ever.
-                    LinkType::WikiLink { has_pothole: _ } => {
-                        Some(vec![RawUri {
-                            text: dest_url.to_string(),
-                            element: Some("a".to_string()),
-                            attribute: Some("href".to_string()),
-                        }])
+                    LinkType::WikiLink { has_pothole } => {
+                        // Exclude WikiLinks if not explicitly enabled
+                        if !include_wikilinks {
+                            return None;
+                        }
+                        inside_wikilink_block = true;
+                        // Ignore gitlab toc notation: https://docs.gitlab.com/user/markdown/#table-of-contents
+                        if ["_TOC_".to_string(), "TOC".to_string()].contains(&dest_url.to_string()) {
+                            return None;
+                        }
+
+                        if let Ok(wikilink) = wikilink(&dest_url, has_pothole) {
+                            Some(vec![RawUri {
+                                text: wikilink.to_string(),
+                                element: Some("a".to_string()),
+                                attribute: Some("wikilink".to_string()),
+                                // wiki links start with `[[`, so offset the span by `2`
+                                span: span_provider.span(span.start + 2)
+                            }])
+                        } else {
+                            warn!("The wikilink destination url {dest_url} could not be cleaned by removing potholes and fragments");
+                            None
+                        }
                     }
                 }
             }
 
-            // An image.
-            // The first field is the link type, the second the destination URL and the third is a title.
-            Event::Start(Tag::Image { dest_url, .. }) => {
-                Some(vec![RawUri {
-                    text: dest_url.to_string(),
-                    // Emulate `<img src="...">` tag here to be compatible with
-                    // HTML links. We might consider using the actual Markdown
-                    // `LinkType` for better granularity in the future
-                    element: Some("img".to_string()),
-                    attribute: Some("src".to_string()),
-                }])
-            }
+            Event::Start(Tag::Image { dest_url, .. }) => Some(extract_image(&dest_url, span_provider.span(span.start))),
 
             // A code block (inline or fenced).
             Event::Start(Tag::CodeBlock(_)) => {
@@ -100,28 +129,90 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
 
             // A text node.
             Event::Text(txt) => {
-                if inside_code_block && !include_verbatim {
+                if inside_wikilink_block
+                    || (inside_link_block && !include_verbatim)
+                    || (inside_code_block && !include_verbatim) {
                     None
                 } else {
-                    Some(extract_raw_uri_from_plaintext(&txt))
+                    Some(extract_raw_uri_from_plaintext(
+                        &txt,
+                        &OffsetSpanProvider { offset: span.start, inner: &span_provider }
+                    ))
+                }
+            }
+
+            // Start of an HTML block
+            Event::Start(Tag::HtmlBlock) => {
+                inside_html_block = true;
+                html_block_buffer.clear();
+                html_block_start_offset = span.start;
+                None
+            }
+
+            // End of an HTML block - process accumulated HTML
+            Event::End(TagEnd::HtmlBlock) => {
+                inside_html_block = false;
+                if html_block_buffer.is_empty() {
+                    None
+                } else {
+                    Some(extract_html_with_span(
+                        &html_block_buffer,
+                        include_verbatim,
+                        OffsetSpanProvider {
+                            offset: html_block_start_offset,
+                            inner: &span_provider
+                        }
+                    ))
                 }
             }
 
             // An HTML node
-            Event::Html(html) | Event::InlineHtml(html) => {
-                // This won't exclude verbatim links right now, because HTML gets passed in chunks
-                // by pulldown_cmark. So excluding `<pre>` and `<code>` is not handled right now.
-                Some(extract_html(&html, include_verbatim))
+            Event::Html(html) => {
+                if inside_html_block {
+                    // Accumulate HTML chunks within a block
+                    html_block_buffer.push_str(&html);
+                    None
+                } else {
+                    // Standalone HTML (not part of a block) - process immediately
+                    Some(extract_html_with_span(
+                        &html,
+                        include_verbatim,
+                        OffsetSpanProvider { offset: span.start, inner: &span_provider }
+                    ))
+                }
+            }
+
+            // Inline HTML (not part of a block)
+            Event::InlineHtml(html) => {
+                Some(extract_html_with_span(
+                    &html,
+                    include_verbatim,
+                    OffsetSpanProvider { offset: span.start, inner: &span_provider }
+                ))
             }
 
             // An inline code node.
             Event::Code(code) => {
                 if include_verbatim {
-                    Some(extract_raw_uri_from_plaintext(&code))
+                    // inline code starts with '`', so offset the span by `1`.
+                    Some(extract_raw_uri_from_plaintext(
+                        &code,
+                        &OffsetSpanProvider { offset: span.start + 1, inner: &span_provider }
+                    ))
                 } else {
                     None
                 }
             }
+
+            Event::End(TagEnd::Link) => {
+                inside_link_block = false;
+                inside_wikilink_block = false;
+                None
+            }
+
+            // Skip footnote references and definitions explicitly - they're not links to check
+            #[allow(clippy::match_same_arms)]
+            Event::FootnoteReference(_) | Event::Start(Tag::FootnoteDefinition(_)) | Event::End(TagEnd::FootnoteDefinition) => None,
 
             // Silently skip over other events
             _ => None,
@@ -130,7 +221,57 @@ pub(crate) fn extract_markdown(input: &str, include_verbatim: bool) -> Vec<RawUr
         .collect()
 }
 
-/// Extract fragments/anchors/fragments from a Markdown string.
+fn get_email_span_provider<'a>(
+    span_provider: &'a SourceSpanProvider<'_>,
+    span: &std::ops::Range<usize>,
+    link_type: LinkType,
+) -> OffsetSpanProvider<'a> {
+    let offset = match link_type {
+        // We don't know how the link starts, so don't offset the span.
+        LinkType::Reference | LinkType::CollapsedUnknown | LinkType::ShortcutUnknown => 0,
+        // These start all with `[` or `<`, so offset the span by `1`.
+        LinkType::ReferenceUnknown
+        | LinkType::Collapsed
+        | LinkType::Shortcut
+        | LinkType::Autolink
+        | LinkType::Email => 1,
+        _ => {
+            debug_assert!(false, "Unexpected email link type: {link_type:?}");
+            0
+        }
+    };
+
+    OffsetSpanProvider {
+        offset: span.start + offset,
+        inner: span_provider,
+    }
+}
+
+/// Emulate `<img src="...">` tag to be compatible with HTML links.
+/// We might consider using the actual Markdown `LinkType` for better granularity in the future.
+fn extract_image(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
+    vec![RawUri {
+        text: dest_url.to_string(),
+        element: Some("img".to_string()),
+        attribute: Some("src".to_string()),
+        span,
+    }]
+}
+
+/// Emulate `<a href="...">` tag to be compatible with HTML links.
+/// We might consider using the actual Markdown `LinkType` for better granularity in the future.
+fn raw_uri(dest_url: &CowStr<'_>, span: RawUriSpan) -> Vec<RawUri> {
+    vec![RawUri {
+        text: dest_url.to_string(),
+        element: Some("a".to_string()),
+        attribute: Some("href".to_string()),
+        // Sadly, we don't know how long the `foo` part in `[foo](bar)` is,
+        // so the span points to the `[` and not to the `b`.
+        span,
+    }]
+}
+
+/// Extract fragments/anchors from a Markdown string.
 ///
 /// Fragments are generated from headings using the same unique kebab case method as GitHub.
 /// If a [heading attribute](https://github.com/raphlinus/pulldown-cmark/blob/master/specs/heading_attrs.txt)
@@ -167,7 +308,7 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
             Event::Text(text) | Event::Code(text) => {
                 if in_heading {
                     heading_text.push_str(&text);
-                };
+                }
             }
 
             // An HTML node
@@ -219,6 +360,8 @@ impl HeadingIdGenerator {
 
 #[cfg(test)]
 mod tests {
+    use crate::types::uri::raw::span;
+
     use super::*;
 
     const MD_INPUT: &str = r#"
@@ -263,15 +406,17 @@ or inline like `https://bar.org` for instance.
                 text: "https://foo.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(4, 19),
             },
             RawUri {
                 text: "http://example.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(18, 1),
             },
         ];
 
-        let uris = extract_markdown(MD_INPUT, false);
+        let uris = extract_markdown(MD_INPUT, false, false);
         assert_eq!(uris, expected);
     }
 
@@ -282,30 +427,33 @@ or inline like `https://bar.org` for instance.
                 text: "https://foo.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(4, 19),
             },
             RawUri {
                 text: "https://bar.com/123".to_string(),
                 element: None,
                 attribute: None,
+                span: span(11, 1),
             },
             RawUri {
                 text: "https://bar.org".to_string(),
                 element: None,
                 attribute: None,
+                span: span(14, 17),
             },
             RawUri {
                 text: "http://example.com".to_string(),
                 element: Some("a".to_string()),
                 attribute: Some("href".to_string()),
+                span: span(18, 1),
             },
         ];
 
-        let uris = extract_markdown(MD_INPUT, true);
+        let uris = extract_markdown(MD_INPUT, true, false);
         assert_eq!(uris, expected);
     }
 
     #[test]
-    #[ignore]
     fn test_skip_verbatim_html() {
         let input = "
 <code>
@@ -317,7 +465,7 @@ Some pre-formatted http://pre.com
 
         let expected = vec![];
 
-        let uris = extract_markdown(input, false);
+        let uris = extract_markdown(input, false, false);
         assert_eq!(uris, expected);
     }
 
@@ -350,7 +498,7 @@ $$
 [\psi](\mathbf{L})
 $$
 ";
-        let uris = extract_markdown(input, true);
+        let uris = extract_markdown(input, true, false);
         assert!(uris.is_empty());
     }
 
@@ -358,7 +506,7 @@ $$
     fn test_single_word_footnote_is_not_detected_as_link() {
         let markdown = "This footnote is[^actually] a link.\n\n[^actually]: not";
         let expected = vec![];
-        let uris = extract_markdown(markdown, true);
+        let uris = extract_markdown(markdown, true, false);
         assert_eq!(uris, expected);
     }
 
@@ -369,8 +517,9 @@ $$
             text: "https://example.com/_/foo".to_string(),
             element: None,
             attribute: None,
+            span: span(1, 1),
         }];
-        let uris = extract_markdown(markdown, true);
+        let uris = extract_markdown(markdown, true, false);
         assert_eq!(uris, expected);
     }
 
@@ -381,8 +530,9 @@ $$
             text: "https://example.com/_".to_string(),
             element: None,
             attribute: None,
+            span: span(1, 1),
         }];
-        let uris = extract_markdown(markdown, true);
+        let uris = extract_markdown(markdown, true, false);
         assert_eq!(uris, expected);
     }
 
@@ -391,13 +541,289 @@ $$
         let markdown = r"[[https://example.com/destination]]";
         let expected = vec![RawUri {
             text: "https://example.com/destination".to_string(),
-            // This should be a link element, but is currently matched as plaintext
-            element: None,
-            attribute: None,
-            // element: Some("a".to_string()),
-            // attribute: Some("href".to_string()),
+            element: Some("a".to_string()),
+            attribute: Some("wikilink".to_string()),
+            span: span(1, 3),
         }];
-        let uris = extract_markdown(markdown, true);
+        let uris = extract_markdown(markdown, true, true);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_multiple_wiki_links() {
+        let markdown = r"[[https://example.com/destination]][[https://example.com/source]]";
+        let expected = vec![
+            RawUri {
+                text: "https://example.com/destination".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("wikilink".to_string()),
+                span: span(1, 3),
+            },
+            RawUri {
+                text: "https://example.com/source".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("wikilink".to_string()),
+                span: span(1, 38),
+            },
+        ];
+        let uris = extract_markdown(markdown, true, true);
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_ignore_gitlab_toc() {
+        let markdown = r"[[_TOC_]][TOC]";
+        let uris = extract_markdown(markdown, true, true);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_link_text_not_checked() {
+        // Test that link text is not extracted as a separate link by default
+        let markdown =
+            r"[https://lycheerepublic.gov/notexist (archive.org link)](https://example.com)";
+        let uris = extract_markdown(markdown, false, false);
+
+        // Should only extract the destination URL, not the link text
+        let expected = vec![RawUri {
+            text: "https://example.com".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("href".to_string()),
+            span: span(1, 1),
+        }];
+
+        assert_eq!(uris, expected);
+        assert_eq!(
+            uris.len(),
+            1,
+            "Should only find destination URL, not link text"
+        );
+    }
+
+    #[test]
+    fn test_link_text_checked_with_include_verbatim() {
+        // Test that link text IS extracted when include_verbatim is true
+        let markdown =
+            r"[https://lycheerepublic.gov/notexist (archive.org link)](https://example.com)";
+        let uris = extract_markdown(markdown, true, false);
+
+        // Should extract both the link text AND the destination URL
+        let expected = vec![
+            RawUri {
+                text: "https://example.com".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+                span: span(1, 1),
+            },
+            RawUri {
+                text: "https://lycheerepublic.gov/notexist".to_string(),
+                element: None,
+                attribute: None,
+                span: span(1, 2),
+            },
+        ];
+
+        assert_eq!(
+            uris.len(),
+            2,
+            "Should find both destination URL and link text"
+        );
+        // Check that both expected URLs are present (order might vary)
+        for expected_uri in expected {
+            assert!(
+                uris.contains(&expected_uri),
+                "Missing expected URI: {expected_uri:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_reference_links_extraction() {
+        // Test that all types of reference links are extracted correctly
+        let markdown = r"
+Inline link: [link1](target1.md)
+
+Reference link: [link2][ref2]
+Collapsed link: [link3][]
+Shortcut link: [link4]
+
+[ref2]: target2.md
+[link3]: target3.md
+[link4]: target4.md
+";
+        let uris = extract_markdown(markdown, false, false);
+
+        let expected = vec![
+            RawUri {
+                text: "target1.md".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+                span: span(2, 14),
+            },
+            RawUri {
+                text: "target2.md".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+                span: span(4, 17),
+            },
+            RawUri {
+                text: "target3.md".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("href".to_string()),
+                span: span(5, 17),
+            },
+            RawUri {
+                text: "target4.md".to_string(),
+                element: Some("a".to_string()),
+                span: span(6, 16),
+                attribute: Some("href".to_string()),
+            },
+        ];
+
+        assert_eq!(uris.len(), 4, "Should extract all four link types");
+
+        // Check that all expected URIs are present (order might vary)
+        for expected_uri in expected {
+            assert!(
+                uris.contains(&expected_uri),
+                "Missing expected URI: {expected_uri:?}. Found: {uris:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_clean_wikilink() {
+        let markdown = r"
+[[foo|bar]]
+[[foo#bar]]
+[[foo#bar|baz]]
+";
+        let uris = extract_markdown(markdown, true, true);
+        let expected = vec![
+            RawUri {
+                text: "foo".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("wikilink".to_string()),
+                span: span(2, 3),
+            },
+            RawUri {
+                text: "foo".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("wikilink".to_string()),
+                span: span(3, 3),
+            },
+            RawUri {
+                text: "foo".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("wikilink".to_string()),
+                span: span(4, 3),
+            },
+        ];
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_nested_html() {
+        let input = r#"<Foo>
+          <Bar href="https://example.com" >
+          Some text
+          </Bar>
+        </Foo>"#;
+
+        let expected = vec![RawUri {
+            text: "https://example.com".to_string(),
+            element: Some("bar".to_string()),
+            attribute: Some("href".to_string()),
+            span: span(2, 22),
+        }];
+
+        let uris = extract_markdown(input, false, false);
+
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_wikilink_extraction_returns_none_on_empty_links() {
+        let markdown = r"
+[[|bar]]
+[[#bar]]
+[[#bar|baz]]
+";
+
+        let uris = extract_markdown(markdown, true, true);
+        assert!(uris.is_empty());
+    }
+
+    #[test]
+    fn test_mdx_multiline_jsx() {
+        let input = r#"<CardGroup cols={1}>
+  <Card
+    title="Example"
+    href="https://example.com"
+  >
+    Some text
+  </Card>
+</CardGroup>"#;
+
+        let expected = vec![RawUri {
+            text: "https://example.com".to_string(),
+            element: Some("card".to_string()),
+            attribute: Some("href".to_string()),
+            span: span(4, 11),
+        }];
+
+        let uris = extract_markdown(input, false, false);
+
+        assert_eq!(uris, expected);
+    }
+
+    // Test that Markdown links inside HTML blocks are still parsed correctly.
+    // pulldown_cmark parses block-level HTML tags as separate HTML blocks, so
+    // Markdown content between them is processed normally.
+    #[test]
+    fn test_markdown_inside_html_block() {
+        let input = r"<div>
+
+[markdown link](https://example.com/markdown)
+
+</div>
+
+<span>[another link](https://example.com/another)</span>";
+
+        let uris = extract_markdown(input, false, false);
+
+        // Verify both Markdown links are extracted
+        let expected_urls = vec![
+            "https://example.com/markdown",
+            "https://example.com/another",
+        ];
+
+        assert_eq!(uris.len(), 2, "Should extract both Markdown links");
+
+        for expected_url in expected_urls {
+            assert!(
+                uris.iter().any(|u| u.text == expected_url),
+                "Should find URL: {expected_url}"
+            );
+        }
+
+        // Verify they're recognized as Markdown links (i.e. element: "a", attribute: "href")
+        for uri in &uris {
+            assert_eq!(uri.element, Some("a".to_string()));
+            assert_eq!(uri.attribute, Some("href".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_remove_wikilink_potholes_and_fragments() {
+        let markdown = r"[[foo#bar|baz]]";
+        let uris = extract_markdown(markdown, true, true);
+        let expected = vec![RawUri {
+            text: "foo".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("wikilink".to_string()),
+            span: span(1, 3),
+        }];
         assert_eq!(uris, expected);
     }
 }

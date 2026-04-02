@@ -18,7 +18,7 @@ RUN apt-get update \
         "latest") echo "https://github.com/lycheeverse/lychee/releases/latest/download";; \
         *) echo "https://github.com/lycheeverse/lychee/releases/download/$LYCHEE_VERSION";; \
         esac) \
-    && wget -q -O - "$BASE_URL/lychee-$ARCH-unknown-linux-gnu.tar.gz" | tar -xz lychee \
+    && wget -O - "$BASE_URL/lychee-$ARCH-unknown-linux-gnu.tar.gz" | tar -xz lychee \
     && chmod +x lychee
 
 FROM debian:bookworm-slim

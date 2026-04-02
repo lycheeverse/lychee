@@ -13,49 +13,50 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
+use crate::remap::Remap;
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use http::{
-    header::{HeaderMap, HeaderValue},
     StatusCode,
+    header::{HeaderMap, HeaderValue},
 };
-use log::{debug, warn};
+use log::debug;
 use octocrab::Octocrab;
 use regex::RegexSet;
-use reqwest::{header, redirect};
+use reqwest::{header, redirect, tls};
 use reqwest_cookie_store::CookieStoreMutex;
 use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
+    BaseInfo, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
     chain::RequestChain,
-    checker::file::FileChecker,
-    checker::{mail::MailChecker, website::WebsiteChecker},
-    filter::{Excludes, Filter, Includes},
+    checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
+    filter::Filter,
+    ratelimit::{ClientMap, HostConfigs, HostKey, HostPool, RateLimitConfig},
     remap::Remaps,
-    utils::fragment_checker::FragmentChecker,
-    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
+    types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory},
 };
 
-/// Default number of redirects before a request is deemed as failed, 5.
-pub const DEFAULT_MAX_REDIRECTS: usize = 5;
+/// Default number of redirects that are followed.
+pub const DEFAULT_MAX_REDIRECTS: usize = 10;
 /// Default number of retries before a request is deemed as failed, 3.
 pub const DEFAULT_MAX_RETRIES: u64 = 3;
 /// Default wait time in seconds between retries, 1.
-pub const DEFAULT_RETRY_WAIT_TIME_SECS: usize = 1;
+pub const DEFAULT_RETRY_WAIT_TIME_SECS: u64 = 1;
 /// Default timeout in seconds before a request is deemed as failed, 20.
-pub const DEFAULT_TIMEOUT_SECS: usize = 20;
+pub const DEFAULT_TIMEOUT_SECS: u64 = 20;
 /// Default user agent, `lychee-<PKG_VERSION>`.
 pub const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"));
 
 // Constants currently not configurable by the user.
 /// A timeout for only the connect phase of a [`Client`].
-const CONNECT_TIMEOUT: u64 = 10;
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// TCP keepalive.
 ///
 /// See <https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/overview.html> for more
 /// information.
-const TCP_KEEPALIVE: u64 = 60;
+const TCP_KEEPALIVE: Duration = Duration::from_secs(60);
 
 /// Builder for [`Client`].
 ///
@@ -81,7 +82,7 @@ pub struct ClientBuilder {
     ///
     /// # Usage Notes
     ///
-    /// Use with caution because a large set of remapping rules may cause
+    /// Use with caution because a large set of remap rules may cause
     /// performance issues.
     ///
     /// Furthermore rules are executed sequentially and multiple mappings for
@@ -90,7 +91,25 @@ pub struct ClientBuilder {
     remaps: Option<Remaps>,
 
     /// Automatically append file extensions to `file://` URIs as needed
+    ///
+    /// This option takes effect on `file://` URIs which do not exist.
     fallback_extensions: Vec<String>,
+
+    /// Index file names to use when resolving `file://` URIs which point to
+    /// directories.
+    ///
+    /// For local directory links, if this is non-`None`, then at least one
+    /// index file from this list must exist in order for the link to be
+    /// considered valid. Index files names are required to match regular
+    /// files, aside from the special `.` name which will match the
+    /// directory itself.
+    ///
+    /// If `None`, index file checking is disabled and directory links are valid
+    /// as long as the directory exists on disk.
+    ///
+    /// In the [`ClientBuilder`], this defaults to `None`.
+    #[builder(default = None)]
+    index_files: Option<Vec<String>>,
 
     /// Links matching this set of regular expressions are **always** checked.
     ///
@@ -192,6 +211,9 @@ pub struct ClientBuilder {
     #[builder(default = DEFAULT_MAX_RETRIES)]
     max_retries: u64,
 
+    /// Minimum accepted TLS version.
+    min_tls_version: Option<tls::Version>,
+
     /// User-agent used for checking links.
     ///
     /// Defaults to [`DEFAULT_USER_AGENT`].
@@ -237,16 +259,17 @@ pub struct ClientBuilder {
     /// Set of accepted return codes / status codes.
     ///
     /// Unmatched return codes/ status codes are deemed as errors.
-    accepted: Option<HashSet<StatusCode>>,
+    #[builder(default = DEFAULT_ACCEPTED_STATUS_CODES.clone())]
+    accepted: HashSet<StatusCode>,
 
-    /// Response timeout per request in seconds.
+    /// Response timeout per request.
     timeout: Option<Duration>,
 
     /// Base for resolving paths.
     ///
     /// E.g. if the base is `/home/user/` and the path is `file.txt`, the
     /// resolved path would be `/home/user/file.txt`.
-    base: Option<Base>,
+    base: BaseInfo,
 
     /// Initial time between retries of failed requests.
     ///
@@ -280,16 +303,24 @@ pub struct ClientBuilder {
 
     /// Enable the checking of text fragment in a website
     include_text_fragments: bool,
+    /// Enable the checking of wikilinks in markdown files.
+    /// Note that base must not be `None` if you set this `true`.
+    include_wikilinks: bool,
 
     /// Requests run through this chain where each item in the chain
     /// can modify the request. A chained item can also decide to exit
     /// early and return a status, so that subsequent chain items are
     /// skipped and the lychee-internal request chain is not activated.
     plugin_request_chain: RequestChain,
+
+    /// Global rate limiting configuration that applies as defaults to all hosts
+    rate_limit_config: RateLimitConfig,
+
+    /// Per-host configuration overrides
+    hosts: HostConfigs,
 }
 
 impl Default for ClientBuilder {
-    #[must_use]
     #[inline]
     fn default() -> Self {
         Self::builder().build()
@@ -312,55 +343,20 @@ impl ClientBuilder {
     ///
     /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors
     pub fn client(self) -> Result<Client> {
-        let Self {
-            user_agent,
-            custom_headers: mut headers,
-            ..
-        } = self;
+        let redirect_history = RedirectHistory::new();
+        let reqwest_client = self
+            .build_client(redirect_history.clone())?
+            .build()
+            .map_err(ErrorKind::BuildRequestClient)?;
 
-        if let Some(prev_user_agent) =
-            headers.insert(header::USER_AGENT, HeaderValue::try_from(&user_agent)?)
-        {
-            debug!(
-                "Found user-agent in headers: {}. Overriding it with {user_agent}.",
-                prev_user_agent.to_str().unwrap_or("�"),
-            );
-        };
+        let client_map = self.build_host_clients(&redirect_history)?;
 
-        headers.insert(
-            header::TRANSFER_ENCODING,
-            HeaderValue::from_static("chunked"),
+        let host_pool = HostPool::new(
+            self.rate_limit_config,
+            self.hosts,
+            reqwest_client,
+            client_map,
         );
-
-        // Custom redirect policy to enable logging of redirects.
-        let max_redirects = self.max_redirects;
-        let redirect_policy = redirect::Policy::custom(move |attempt| {
-            if attempt.previous().len() > max_redirects {
-                attempt.error("too many redirects")
-            } else {
-                debug!("Redirecting to {}", attempt.url());
-                attempt.follow()
-            }
-        });
-
-        let mut builder = reqwest::ClientBuilder::new()
-            .gzip(true)
-            .default_headers(headers)
-            .danger_accept_invalid_certs(self.allow_insecure)
-            .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
-            .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
-            .redirect(redirect_policy);
-
-        if let Some(cookie_jar) = self.cookie_jar {
-            builder = builder.cookie_provider(cookie_jar);
-        }
-
-        let reqwest_client = match self.timeout {
-            Some(t) => builder.timeout(t),
-            None => builder,
-        }
-        .build()
-        .map_err(ErrorKind::NetworkRequest)?;
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(
@@ -375,8 +371,8 @@ impl ClientBuilder {
         };
 
         let filter = Filter {
-            includes: self.includes.map(|regex| Includes { regex }),
-            excludes: self.excludes.map(|regex| Excludes { regex }),
+            includes: self.includes.map(Into::into),
+            excludes: self.excludes.map(Into::into),
             schemes: self.schemes,
             // exclude_all_private option turns on all "private" excludes,
             // including private IPs, link-local IPs and loopback IPs
@@ -389,28 +385,108 @@ impl ClientBuilder {
         let website_checker = WebsiteChecker::new(
             self.method,
             self.retry_wait_time,
+            redirect_history.clone(),
             self.max_retries,
-            reqwest_client,
             self.accepted,
             github_client,
             self.require_https,
             self.include_text_fragments,
             self.plugin_request_chain,
+            self.include_fragments,
+            Arc::new(host_pool),
         );
 
         Ok(Client {
             remaps: self.remaps,
             filter,
-            email_checker: MailChecker::new(),
+            email_checker: MailChecker::new(self.timeout),
             website_checker,
             file_checker: FileChecker::new(
-                self.base,
+                &self.base,
                 self.fallback_extensions,
+                self.index_files,
                 self.include_fragments,
-            ),
-            fragment_checker: FragmentChecker::new(),
+                self.include_wikilinks,
+            )?,
         })
     }
+
+    /// Build the host-specific clients with their host-specific headers
+    fn build_host_clients(&self, redirect_history: &RedirectHistory) -> Result<ClientMap> {
+        self.hosts
+            .iter()
+            .map(|(host, config)| {
+                let mut headers = self.default_headers()?;
+                headers.extend(config.headers.clone());
+                let client = self
+                    .build_client(redirect_history.clone())?
+                    .default_headers(headers)
+                    .build()
+                    .map_err(ErrorKind::BuildRequestClient)?;
+                Ok((HostKey::from(host.as_str()), client))
+            })
+            .collect()
+    }
+
+    /// Create a [`reqwest::ClientBuilder`] based on various fields
+    fn build_client(&self, redirect_history: RedirectHistory) -> Result<reqwest::ClientBuilder> {
+        let mut builder = reqwest::ClientBuilder::new()
+            .gzip(true)
+            .default_headers(self.default_headers()?)
+            .danger_accept_invalid_certs(self.allow_insecure)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .tcp_keepalive(TCP_KEEPALIVE)
+            .redirect(redirect_policy(redirect_history, self.max_redirects));
+
+        if let Some(cookie_jar) = self.cookie_jar.clone() {
+            builder = builder.cookie_provider(cookie_jar);
+        }
+
+        if let Some(min_tls) = self.min_tls_version {
+            builder = builder.min_tls_version(min_tls);
+        }
+
+        if let Some(timeout) = self.timeout {
+            builder = builder.timeout(timeout);
+        }
+
+        Ok(builder)
+    }
+
+    fn default_headers(&self) -> Result<HeaderMap> {
+        let user_agent = self.user_agent.clone();
+        let mut headers = self.custom_headers.clone();
+
+        if let Some(prev_user_agent) =
+            headers.insert(header::USER_AGENT, HeaderValue::try_from(&user_agent)?)
+        {
+            debug!(
+                "Found user-agent in headers: {}. Overriding it with {user_agent}.",
+                prev_user_agent.to_str().unwrap_or("�"),
+            );
+        }
+
+        headers.insert(
+            header::TRANSFER_ENCODING,
+            HeaderValue::from_static("chunked"),
+        );
+
+        Ok(headers)
+    }
+}
+
+/// Create our custom [`redirect::Policy`] in order to stop following redirects
+/// once `max_redirects` is reached and to record redirections for reporting.
+fn redirect_policy(redirect_history: RedirectHistory, max_redirects: usize) -> redirect::Policy {
+    redirect::Policy::custom(move |attempt| {
+        if attempt.previous().len() > max_redirects {
+            attempt.stop()
+        } else {
+            redirect_history.record_redirects(&attempt);
+            debug!("Following redirect to {}", attempt.url());
+            attempt.follow()
+        }
+    })
 }
 
 /// Handles incoming requests and returns responses.
@@ -419,10 +495,10 @@ impl ClientBuilder {
 /// options.
 #[derive(Debug, Clone)]
 pub struct Client {
-    /// Optional remapping rules for URIs matching pattern.
+    /// Optional remap rules for URIs matching pattern.
     remaps: Option<Remaps>,
 
-    /// Rules to decided whether each link should be checked or ignored.
+    /// Rules to decide whether a given link should be checked or ignored.
     filter: Filter,
 
     /// A checker for website URLs.
@@ -433,12 +509,15 @@ pub struct Client {
 
     /// A checker for email URLs.
     email_checker: MailChecker,
-
-    /// Caches Fragments
-    fragment_checker: FragmentChecker,
 }
 
 impl Client {
+    /// Get `HostPool`
+    #[must_use]
+    pub fn host_pool(&self) -> Arc<HostPool> {
+        self.website_checker.host_pool()
+    }
+
     /// Check a single request.
     ///
     /// `request` can be either a [`Request`] or a type that can be converted
@@ -457,36 +536,36 @@ impl Client {
         ErrorKind: From<E>,
     {
         let Request {
-            ref mut uri,
+            mut uri,
             credentials,
             source,
+            span,
             ..
         } = request.try_into()?;
 
-        // Allow filtering based on element and attribute
-        // if !self.filter.is_allowed(uri) {
-        //     return Ok(Response::new(
-        //         uri.clone(),
-        //         Status::Excluded,
-        //         source,
-        //     ));
-        // }
-
-        self.remap(uri)?;
-
-        if self.is_excluded(uri) {
-            return Ok(Response::new(uri.clone(), Status::Excluded, source));
-        }
+        let start = std::time::Instant::now(); // Measure check time
+        let remap = self.remap(&mut uri)?;
 
         let status = match uri.scheme() {
-            // We don't check tel: URIs
-            _ if uri.is_tel() => Status::Excluded,
-            _ if uri.is_file() => self.check_file(uri).await,
-            _ if uri.is_mail() => self.check_mail(uri).await,
-            _ => self.check_website(uri, credentials).await?,
+            _ if self.is_excluded(&uri) => Status::Excluded,
+            _ if uri.is_tel() => Status::Excluded, // We don't check tel: URIs
+            _ if uri.is_file() => self.check_file(&uri).await,
+            _ if uri.is_mail() => self.check_mail(&uri).await,
+            _ => self.check_website(&uri, credentials).await?,
         };
 
-        Ok(Response::new(uri.clone(), status, source))
+        let status = match remap {
+            Some(remap) => Status::Remapped(Box::new(status), remap),
+            None => status,
+        };
+
+        Ok(Response::new(
+            uri,
+            status,
+            source.into(),
+            span,
+            Some(start.elapsed()),
+        ))
     }
 
     /// Check a single file using the file checker.
@@ -494,16 +573,24 @@ impl Client {
         self.file_checker.check(uri).await
     }
 
-    /// Remap `uri` using the client-defined remapping rules.
+    /// Remap [`Uri`] as a side-effect, using the client-defined remap rules.
+    /// Return `Some` only if a remap was performed.
     ///
     /// # Errors
     ///
-    /// Returns an `Err` if the final, remapped `uri` is not a valid URI.
-    pub fn remap(&self, uri: &mut Uri) -> Result<()> {
-        if let Some(ref remaps) = self.remaps {
-            uri.url = remaps.remap(&uri.url)?;
+    /// Returns an `Err` if the remapped `uri` is not a valid URI.
+    pub fn remap(&self, uri: &mut Uri) -> Result<Option<Remap>> {
+        match self.remaps {
+            Some(ref remaps) => {
+                let remapped = remaps.remap(uri)?;
+                if let Some(remapped) = &remapped {
+                    *uri = remapped.new.clone();
+                }
+
+                Ok(remapped)
+            }
+            None => Ok(None),
         }
-        Ok(())
     }
 
     /// Returns whether the given `uri` should be ignored from checking.
@@ -532,18 +619,6 @@ impl Client {
     /// Checks a `mailto` URI.
     pub async fn check_mail(&self, uri: &Uri) -> Status {
         self.email_checker.check_mail(uri).await
-    }
-
-    /// Checks a `file` URI's fragment.
-    pub async fn check_fragment(&self, path: &Path, uri: &Uri) -> Status {
-        match self.fragment_checker.check(path, &uri.url).await {
-            Ok(true) => Status::Ok(StatusCode::OK),
-            Ok(false) => ErrorKind::InvalidFragment(uri.clone()).into(),
-            Err(err) => {
-                warn!("Skipping fragment check due to the following error: {err}");
-                Status::Ok(StatusCode::OK)
-            }
-        }
     }
 }
 
@@ -576,48 +651,53 @@ mod tests {
     };
 
     use async_trait::async_trait;
-    use http::{header::HeaderMap, StatusCode};
+    use http::{StatusCode, header::HeaderMap};
     use reqwest::header;
     use tempfile::tempdir;
-    use wiremock::matchers::path;
+    use test_utils::get_mock_client_response;
+    use test_utils::mock_server;
+    use test_utils::redirecting_mock_server;
+    use wiremock::{
+        Mock,
+        matchers::{method, path},
+    };
 
     use super::ClientBuilder;
     use crate::{
+        ErrorKind, Redirect, Redirects, Request, Status, Uri,
         chain::{ChainResult, Handler, RequestChain},
-        mock_server,
-        test_utils::get_mock_client_response,
-        ErrorKind, Request, Status, Uri,
+        remap::{Remap, Remaps},
     };
 
     #[tokio::test]
     async fn test_nonexistent() {
         let mock_server = mock_server!(StatusCode::NOT_FOUND);
-        let res = get_mock_client_response(mock_server.uri()).await;
+        let res = get_mock_client_response!(mock_server.uri()).await;
 
         assert!(res.status().is_error());
     }
 
     #[tokio::test]
     async fn test_nonexistent_with_path() {
-        let res = get_mock_client_response("http://127.0.0.1/invalid").await;
+        let res = get_mock_client_response!("http://127.0.0.1/invalid").await;
         assert!(res.status().is_error());
     }
 
     #[tokio::test]
     async fn test_github() {
-        let res = get_mock_client_response("https://github.com/lycheeverse/lychee").await;
+        let res = get_mock_client_response!("https://github.com/lycheeverse/lychee").await;
         assert!(res.status().is_success());
     }
 
     #[tokio::test]
     async fn test_github_nonexistent_repo() {
-        let res = get_mock_client_response("https://github.com/lycheeverse/not-lychee").await;
+        let res = get_mock_client_response!("https://github.com/lycheeverse/not-lychee").await;
         assert!(res.status().is_error());
     }
 
     #[tokio::test]
     async fn test_github_nonexistent_file() {
-        let res = get_mock_client_response(
+        let res = get_mock_client_response!(
             "https://github.com/lycheeverse/lychee/blob/master/NON_EXISTENT_FILE.md",
         )
         .await;
@@ -627,10 +707,10 @@ mod tests {
     #[tokio::test]
     async fn test_youtube() {
         // This is applying a quirk. See the quirks module.
-        let res = get_mock_client_response("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
+        let res = get_mock_client_response!("https://www.youtube.com/watch?v=NlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
         assert!(res.status().is_success());
 
-        let res = get_mock_client_response("https://www.youtube.com/watch?v=invalidNlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
+        let res = get_mock_client_response!("https://www.youtube.com/watch?v=invalidNlKuICiT470&list=PLbWDhxwM_45mPVToqaIZNbZeIzFchsKKQ&index=7").await;
         assert!(res.status().is_error());
     }
 
@@ -640,7 +720,7 @@ mod tests {
             .try_into()
             .unwrap();
 
-        let res = get_mock_client_response(r.clone()).await;
+        let res = get_mock_client_response!(r.clone()).await;
         assert_eq!(res.status().code(), Some(401.try_into().unwrap()));
 
         r.credentials = Some(crate::BasicAuthCredentials {
@@ -648,21 +728,24 @@ mod tests {
             password: "pass".into(),
         });
 
-        let res = get_mock_client_response(r).await;
-        assert!(res.status().is_success());
+        let res = get_mock_client_response!(r).await;
+        assert!(matches!(
+            res.status(),
+            Status::Redirected(inner, _) if **inner == Status::Ok(StatusCode::OK)
+        ));
     }
 
     #[tokio::test]
     async fn test_non_github() {
         let mock_server = mock_server!(StatusCode::OK);
-        let res = get_mock_client_response(mock_server.uri()).await;
+        let res = get_mock_client_response!(mock_server.uri()).await;
 
         assert!(res.status().is_success());
     }
 
     #[tokio::test]
     async fn test_invalid_ssl() {
-        let res = get_mock_client_response("https://expired.badssl.com/").await;
+        let res = get_mock_client_response!("https://expired.badssl.com/").await;
 
         assert!(res.status().is_error());
 
@@ -685,7 +768,7 @@ mod tests {
         File::create(file).unwrap();
         let uri = format!("file://{}", dir.path().join("temp").to_str().unwrap());
 
-        let res = get_mock_client_response(uri).await;
+        let res = get_mock_client_response!(uri).await;
         assert!(res.status().is_success());
     }
 
@@ -751,7 +834,7 @@ mod tests {
     #[tokio::test]
     async fn test_require_https() {
         let client = ClientBuilder::builder().build().client().unwrap();
-        let res = client.check("http://example.com").await.unwrap();
+        let res = client.check("http://rust-lang.org/").await.unwrap();
         assert!(res.status().is_success());
 
         // Same request will fail if HTTPS is required
@@ -760,7 +843,7 @@ mod tests {
             .build()
             .client()
             .unwrap();
-        let res = client.check("http://example.com").await.unwrap();
+        let res = client.check("http://rust-lang.org/").await.unwrap();
         assert!(res.status().is_error());
     }
 
@@ -777,6 +860,7 @@ mod tests {
 
         let client = ClientBuilder::builder()
             .timeout(checker_timeout)
+            .max_retries(0u64)
             .build()
             .client()
             .unwrap();
@@ -964,64 +1048,91 @@ mod tests {
     async fn test_max_redirects() {
         let mock_server = wiremock::MockServer::start().await;
 
-        let ok_uri = format!("{}/ok", &mock_server.uri());
         let redirect_uri = format!("{}/redirect", &mock_server.uri());
-
-        // Set up permanent redirect loop
         let redirect = wiremock::ResponseTemplate::new(StatusCode::PERMANENT_REDIRECT)
-            .insert_header("Location", ok_uri.as_str());
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .insert_header("Location", redirect_uri.as_str());
+
+        let redirect_count = 15usize;
+        let initial_invocation = 1;
+
+        // Set up infinite redirect loop
+        Mock::given(method("GET"))
             .and(path("/redirect"))
-            .respond_with(redirect)
+            .respond_with(move |_: &_| redirect.clone())
+            .expect(initial_invocation + redirect_count as u64)
             .mount(&mock_server)
             .await;
 
-        let ok = wiremock::ResponseTemplate::new(StatusCode::OK);
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .and(path("/ok"))
-            .respond_with(ok)
-            .mount(&mock_server)
-            .await;
-
-        let client = ClientBuilder::builder()
-            .max_redirects(0_usize)
+        let res = ClientBuilder::builder()
+            .max_redirects(redirect_count)
             .build()
             .client()
+            .unwrap()
+            .check(redirect_uri.clone())
+            .await
             .unwrap();
 
-        let res = client.check(redirect_uri.clone()).await.unwrap();
-        assert!(res.status().is_error());
-
-        let client = ClientBuilder::builder()
-            .max_redirects(1_usize)
-            .build()
-            .client()
-            .unwrap();
-
-        let res = client.check(redirect_uri).await.unwrap();
-        assert!(res.status().is_success());
+        assert!(matches!(
+            res.status(),
+            Status::Redirected(inner, redirects) if **inner == Status::Error(
+                ErrorKind::RejectedStatusCode(StatusCode::PERMANENT_REDIRECT)
+            ) && redirects.count() == redirect_count,
+        ));
     }
 
     #[tokio::test]
-    async fn test_limit_max_redirects() {
-        let mock_server = wiremock::MockServer::start().await;
+    async fn test_redirects() {
+        redirecting_mock_server!(async |redirect_url: Url, ok_url| {
+            let res = ClientBuilder::builder()
+                .max_redirects(1_usize)
+                .build()
+                .client()
+                .unwrap()
+                .check(Uri::from((redirect_url).clone()))
+                .await
+                .unwrap();
 
-        // Set up permanent redirect loop
-        let template = wiremock::ResponseTemplate::new(StatusCode::PERMANENT_REDIRECT)
-            .insert_header("Location", mock_server.uri().as_str());
-        wiremock::Mock::given(wiremock::matchers::method("GET"))
-            .respond_with(template)
-            .mount(&mock_server)
-            .await;
+            let mut redirects = Redirects::new(redirect_url);
+            redirects.push(Redirect {
+                url: ok_url,
+                code: StatusCode::PERMANENT_REDIRECT,
+            });
 
+            assert_eq!(
+                res.status(),
+                &Status::Redirected(Box::new(Status::Ok(StatusCode::OK)), redirects)
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_remaps() {
+        let mapped = String::from("file:///nope");
         let client = ClientBuilder::builder()
-            .max_redirects(0_usize)
+            .remaps(Remaps::new(vec![(
+                regex::Regex::new("http://example.org").unwrap(),
+                mapped.clone(),
+            )]))
             .build()
             .client()
             .unwrap();
 
-        let res = client.check(mock_server.uri()).await.unwrap();
-        assert!(res.status().is_error());
+        let input = Uri::try_from("http://example.org").unwrap();
+        let res = client.check(input.clone()).await.unwrap();
+
+        assert_eq!(
+            res.status(),
+            &Status::Remapped(
+                Box::new(Status::Error(ErrorKind::InvalidFilePath(
+                    format!("{mapped}/").try_into().unwrap(),
+                ))),
+                Remap {
+                    original: input,
+                    new: format!("{mapped}/").try_into().unwrap(),
+                },
+            )
+        );
     }
 
     #[tokio::test]

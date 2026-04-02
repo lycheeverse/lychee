@@ -1,63 +1,57 @@
 use std::collections::HashSet;
-use std::io::{self, Write};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use futures::StreamExt;
-use indicatif::ProgressBar;
-use indicatif::ProgressStyle;
+use http::StatusCode;
+use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
+use lychee_lib::InputSource;
+use lychee_lib::RequestError;
+use lychee_lib::Status;
+use lychee_lib::archive::Archive;
+use lychee_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::{Client, ErrorKind, Request, Response, Uri};
-use lychee_lib::{InputSource, Result};
-use lychee_lib::{ResponseBody, Status};
 
-use crate::archive::{Archive, Suggestion};
-use crate::formatters::get_response_formatter;
-use crate::formatters::response::ResponseFormatter;
-use crate::options::OutputMode;
-use crate::parse::parse_duration_secs;
-use crate::verbosity::Verbosity;
-use crate::{cache::Cache, stats::ResponseStats, ExitCode};
+use crate::formatters::stats::ResponseStats;
+use crate::formatters::suggestion::Suggestion;
+use crate::progress::Progress;
+use crate::{ExitCode, cache::Cache};
 
 use super::CommandParams;
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
-) -> Result<(ResponseStats, Arc<Cache>, ExitCode)>
+) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind>
 where
-    S: futures::Stream<Item = Result<Request>>,
+    S: futures::Stream<Item = Result<Request, RequestError>>,
 {
     // Setup
-    let (send_req, recv_req) = mpsc::channel(params.cfg.max_concurrency);
-    let (send_resp, recv_resp) = mpsc::channel(params.cfg.max_concurrency);
-    let max_concurrency = params.cfg.max_concurrency;
+    let max_concurrency = params.cfg.max_concurrency();
+    let (send_req, recv_req) = mpsc::channel(max_concurrency);
+    let (send_resp, recv_resp) = mpsc::channel(max_concurrency);
+    let (waiter, wait_guard) = WaitGroup::new();
 
-    // Measure check time
-    let start = std::time::Instant::now();
+    let start = std::time::Instant::now(); // Measure check time
 
-    let stats = if params.cfg.verbose.log_level() >= log::Level::Info {
+    let stats = if params.cfg.verbose().log_level() >= log::Level::Info {
         ResponseStats::extended()
     } else {
         ResponseStats::default()
     };
-    let cache_ref = params.cache.clone();
 
     let client = params.client;
     let cache = params.cache;
-    let cache_exclude_status = params.cfg.cache_exclude_status.into_set();
-    let accept = params.cfg.accept.into_set();
-
-    let pb = if params.cfg.no_progress || params.cfg.verbose.log_level() >= log::Level::Info {
-        None
-    } else {
-        Some(init_progress_bar("Extracting links"))
-    };
+    let cache_exclude_status = params.cfg.cache_exclude_status().into();
+    let accept = params.cfg.accept().into();
+    let accept_timeouts = params.cfg.accept_timeouts;
 
     // Start receiving requests
-    tokio::spawn(request_channel_task(
+    let request_handle = tokio::spawn(request_channel_task(
         recv_req,
         send_resp,
         max_concurrency,
@@ -67,81 +61,83 @@ where
         accept,
     ));
 
-    // Set the default formatter for progress bar output
-    let formatter_default = OutputMode::default();
+    let hide_bar = params.cfg.no_progress || params.is_stdin_input;
+    let level = params.cfg.verbose().log_level();
 
-    // Make it easier to add new formatters in the future (without breaking the progress bar)
-    let allowed_output_modes = [OutputMode::Emoji, OutputMode::Plain, OutputMode::Color];
-
-    let formatter = get_response_formatter(if allowed_output_modes.contains(&params.cfg.mode) {
-        &params.cfg.mode
-    } else {
-        &formatter_default
-    });
-
-    let show_results_task = tokio::spawn(progress_bar_task(
+    let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode());
+    let stats_handle = tokio::spawn(collect_responses(
         recv_resp,
-        params.cfg.verbose,
-        pb.clone(),
-        formatter,
+        send_req.clone(),
+        waiter,
+        progress.clone(),
         stats,
     ));
 
-    // Wait until all messages are sent
-    send_inputs_loop(params.requests, send_req, pb).await?;
+    // Send requests into the channel. Note that this will run within the main task
+    // and doesn't start until awaited.
+    let send_task = send_requests(params.requests, wait_guard, send_req, &progress);
 
-    // Wait until all responses are received
-    let result = show_results_task.await?;
-    let (pb, mut stats) = result?;
+    // Waits for all futures to finish, either normally or due to panic.
+    let (stats_result, request_result, send_result) =
+        futures::join!(stats_handle, request_handle, send_task);
 
-    // Store elapsed time in stats
-    stats.duration_secs = start.elapsed().as_secs();
+    // Fatal user errors are here so check it first.
+    let mut stats: ResponseStats = stats_result??;
+
+    let (cache, client) = request_result?;
+    send_result.expect("sending input requests failed");
+
+    stats.duration = start.elapsed();
 
     // Note that print statements may interfere with the progress bar, so this
     // must go before printing the stats
-    if let Some(pb) = &pb {
-        pb.finish_with_message("Finished extracting links");
-    }
+    progress.finish("Finished extracting links");
 
     if params.cfg.suggest {
+        let progress = Progress::new(
+            "Searching for alternatives",
+            hide_bar,
+            level,
+            &params.cfg.mode(),
+        );
         suggest_archived_links(
-            params.cfg.archive.unwrap_or_default(),
+            params.cfg.archive(),
             &mut stats,
-            !params.cfg.no_progress,
+            progress,
             max_concurrency,
-            parse_duration_secs(params.cfg.timeout),
+            params.cfg.timeout(),
         )
         .await;
     }
 
-    let code = if stats.is_success() {
+    let is_success = if accept_timeouts {
+        stats.is_success_ignoring_timeouts()
+    } else {
+        stats.is_success()
+    };
+    let code = if is_success {
         ExitCode::Success
     } else {
         ExitCode::LinkCheckFailure
     };
-    Ok((stats, cache_ref, code))
+
+    Ok((stats, cache, code, client.host_pool()))
 }
 
 async fn suggest_archived_links(
     archive: Archive,
     stats: &mut ResponseStats,
-    show_progress: bool,
+    progress: Progress,
     max_concurrency: usize,
     timeout: Duration,
 ) {
     let failed_urls = &get_failed_urls(stats);
-    let bar = if show_progress {
-        let bar = init_progress_bar("Searching for alternatives");
-        bar.set_length(failed_urls.len() as u64);
-        Some(bar)
-    } else {
-        None
-    };
+    progress.set_length(failed_urls.len() as u64);
 
     let suggestions = Mutex::new(&mut stats.suggestion_map);
 
     futures::stream::iter(failed_urls)
-        .map(|(input, url)| (input, url, archive.get_link(url, timeout)))
+        .map(|(input, url)| (input, url, archive.get_archive_snapshot(url, timeout)))
         .for_each_concurrent(max_concurrency, |(input, url, future)| async {
             if let Ok(Some(suggestion)) = future.await {
                 suggestions
@@ -155,94 +151,79 @@ async fn suggest_archived_links(
                     });
             }
 
-            if let Some(bar) = &bar {
-                bar.inc(1);
-            }
+            progress.update(None);
         })
         .await;
 
-    if let Some(bar) = &bar {
-        bar.finish_with_message("Finished searching for alternatives");
-    }
+    progress.finish("Finished searching for alternatives");
 }
 
 // drops the `send_req` channel on exit
 // required for the receiver task to end, which closes send_resp, which allows
 // the show_results_task to finish
-async fn send_inputs_loop<S>(
-    requests: S,
-    send_req: mpsc::Sender<Result<Request>>,
-    bar: Option<ProgressBar>,
-) -> Result<()>
-where
-    S: futures::Stream<Item = Result<Request>>,
-{
+async fn send_requests(
+    requests: impl futures::Stream<Item = Result<Request, RequestError>>,
+    guard: WaitGuard,
+    send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
+    progress: &Progress,
+) -> Result<(), ()> {
     tokio::pin!(requests);
     while let Some(request) = requests.next().await {
-        let request = request?;
-        if let Some(pb) = &bar {
-            pb.inc_length(1);
-            pb.set_message(request.to_string());
-        };
+        progress.inc_length(1);
         send_req
-            .send(Ok(request))
+            .send((guard.clone(), request))
             .await
-            .expect("Cannot send request");
+            .map_err(|_| ())?;
     }
     Ok(())
 }
 
 /// Reads from the request channel and updates the progress bar status
-async fn progress_bar_task(
-    mut recv_resp: mpsc::Receiver<Response>,
-    verbose: Verbosity,
-    pb: Option<ProgressBar>,
-    formatter: Box<dyn ResponseFormatter>,
+async fn collect_responses(
+    recv_resp: mpsc::Receiver<(WaitGuard, Result<Response, ErrorKind>)>,
+    send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
+    waiter: WaitGroup,
+    progress: Progress,
     mut stats: ResponseStats,
-) -> Result<(Option<ProgressBar>, ResponseStats)> {
-    while let Some(response) = recv_resp.recv().await {
-        show_progress(
-            &mut io::stderr(),
-            pb.as_ref(),
-            &response,
-            formatter.as_ref(),
-            &verbose,
-        )?;
+) -> Result<ResponseStats, ErrorKind> {
+    // Wrap recv_resp until the WaitGroup finishes, at which time the
+    // recv_resp_until_done stream will be closed. The correctness of
+    // WaitGroup guarantees that if the waiter finishes, every channel
+    // with a WaitGuard must be empty.
+    let mut recv_resp_until_done = ReceiverStream::new(recv_resp)
+        .take_until(waiter.wait())
+        .boxed();
+
+    while let Some((_guard, response)) = recv_resp_until_done.next().await {
+        let response = response?;
+        progress.update(Some(response.body()));
         stats.add(response);
     }
-    Ok((pb, stats))
-}
 
-fn init_progress_bar(initial_message: &'static str) -> ProgressBar {
-    let bar = ProgressBar::new_spinner().with_style(
-        ProgressStyle::with_template("{spinner:.162} {pos}/{len:.238} {bar:.162/238} {wide_msg}")
-            .expect("Valid progress bar")
-            .progress_chars("━ ━"),
-    );
-    bar.set_length(0);
-    bar.set_message(initial_message);
-    // report status _at least_ every 500ms
-    bar.enable_steady_tick(Duration::from_millis(500));
-    bar
+    // unused for now, but will be used for recursion eventually. by holding
+    // an extra `send_req` endpoint, we prevent the natural termination when
+    // each channel finishes and closes. instead, we rely on the WaitGroup to
+    // break the cyclic channels.
+    let _ = send_req;
+    Ok(stats)
 }
 
 async fn request_channel_task(
-    recv_req: mpsc::Receiver<Result<Request>>,
-    send_resp: mpsc::Sender<Response>,
+    recv_req: mpsc::Receiver<(WaitGuard, Result<Request, RequestError>)>,
+    send_resp: mpsc::Sender<(WaitGuard, Result<Response, ErrorKind>)>,
     max_concurrency: usize,
     client: Client,
-    cache: Arc<Cache>,
-    cache_exclude_status: HashSet<u16>,
-    accept: HashSet<u16>,
-) {
+    cache: Cache,
+    cache_exclude_status: HashSet<StatusCode>,
+    accept: HashSet<StatusCode>,
+) -> (Cache, Client) {
     StreamExt::for_each_concurrent(
         ReceiverStream::new(recv_req),
         max_concurrency,
-        |request: Result<Request>| async {
-            let request = request.expect("cannot read request");
+        |(guard, request): (WaitGuard, Result<Request, RequestError>)| async {
             let response = handle(
                 &client,
-                cache.clone(),
+                &cache,
                 cache_exclude_status.clone(),
                 request,
                 accept.clone(),
@@ -250,12 +231,14 @@ async fn request_channel_task(
             .await;
 
             send_resp
-                .send(response)
+                .send((guard, response))
                 .await
                 .expect("cannot send response to queue");
         },
     )
     .await;
+
+    (cache, client)
 }
 
 /// Check a URL and return a response.
@@ -267,25 +250,43 @@ async fn check_url(client: &Client, request: Request) -> Response {
     // Request was not cached; run a normal check
     let uri = request.uri.clone();
     let source = request.source.clone();
+    let span = request.span;
     client.check(request).await.unwrap_or_else(|e| {
-        log::error!("Error checking URL {uri}: Cannot parse URL to URI: {e}");
+        log::error!("Error checking URL {uri}: {e}");
         Response::new(
             uri.clone(),
             Status::Error(ErrorKind::InvalidURI(uri.clone())),
-            source,
+            source.into(),
+            span,
+            None,
         )
     })
 }
 
 /// Handle a single request
+///
+/// # Errors
+///
+/// An Err is returned if and only if there was an error while loading
+/// a *user-provided* input argument. Other errors, including errors in
+/// link resolution and in resolved inputs, will be returned as Ok with
+/// a failed response.
 async fn handle(
     client: &Client,
-    cache: Arc<Cache>,
-    cache_exclude_status: HashSet<u16>,
-    request: Request,
-    accept: HashSet<u16>,
-) -> Response {
+    cache: &Cache,
+    cache_exclude_status: HashSet<StatusCode>,
+    request: Result<Request, RequestError>,
+    accept: HashSet<StatusCode>,
+) -> Result<Response, ErrorKind> {
+    // Note that the RequestError cases bypass the cache.
+    let request = match request {
+        Ok(x) => x,
+        Err(e) => return e.into_response(),
+    };
+
     let uri = request.uri.clone();
+
+    // First check the persistent disk-based cache
     if let Some(v) = cache.get(&uri) {
         // Found a cached request
         // Overwrite cache status in case the URI is excluded in the
@@ -297,27 +298,32 @@ async fn handle(
             // `accepted` status codes might have changed from the previous run
             // and they may have an impact on the interpretation of the status
             // code.
+            client.host_pool().record_persistent_cache_hit(&uri);
             Status::from_cache_status(v.value().status, &accept)
         };
-        return Response::new(uri.clone(), status, request.source);
+
+        return Ok(Response::new(
+            uri.clone(),
+            status,
+            request.source.into(),
+            request.span,
+            None,
+        ));
     }
 
-    // Request was not cached; run a normal check
     let response = check_url(client, request).await;
 
-    // - Never cache filesystem access as it is fast already so caching has no
-    //   benefit.
-    // - Skip caching unsupported URLs as they might be supported in a
-    //   future run.
+    // - Never cache filesystem access as it is fast already so caching has no benefit.
+    // - Skip caching unsupported URLs as they might be supported in a future run.
     // - Skip caching excluded links; they might not be excluded in the next run.
     // - Skip caching links for which the status code has been explicitly excluded from the cache.
     let status = response.status();
     if ignore_cache(&uri, status, &cache_exclude_status) {
-        return response;
+        return Ok(response);
     }
 
     cache.insert(uri, status.into());
-    response
+    Ok(response)
 }
 
 /// Returns `true` if the response should be ignored in the cache.
@@ -328,10 +334,10 @@ async fn handle(
 /// - The status is unsupported.
 /// - The status is unknown.
 /// - The status code is excluded from the cache.
-fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<u16>) -> bool {
+fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<StatusCode>) -> bool {
     let status_code_excluded = status
         .code()
-        .is_some_and(|code| cache_exclude_status.contains(&code.as_u16()));
+        .is_some_and(|code| cache_exclude_status.contains(&code));
 
     uri.is_file()
         || status.is_excluded()
@@ -340,45 +346,11 @@ fn ignore_cache(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<u16>)
         || status_code_excluded
 }
 
-fn show_progress(
-    output: &mut dyn Write,
-    progress_bar: Option<&ProgressBar>,
-    response: &Response,
-    formatter: &dyn ResponseFormatter,
-    verbose: &Verbosity,
-) -> Result<()> {
-    // In case the log level is set to info, we want to show the detailed
-    // response output. Otherwise, we only show the essential information
-    // (typically the status code and the URL, but this is dependent on the
-    // formatter).
-    let out = if verbose.log_level() >= log::Level::Info {
-        formatter.format_detailed_response(response.body())
-    } else {
-        formatter.format_response(response.body())
-    };
-
-    if let Some(pb) = progress_bar {
-        pb.inc(1);
-        pb.set_message(out.clone());
-        if verbose.log_level() >= log::Level::Info {
-            pb.println(out);
-        }
-    } else if verbose.log_level() >= log::Level::Info
-        || (!response.status().is_success() && !response.status().is_excluded())
-    {
-        writeln!(output, "{out}")?;
-    }
-    Ok(())
-}
-
 fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
     stats
         .error_map
         .iter()
-        .flat_map(|(source, set)| {
-            set.iter()
-                .map(move |ResponseBody { uri, status: _ }| (source, uri))
-        })
+        .flat_map(|(source, set)| set.iter().map(move |body| (source, &body.uri)))
         .filter_map(|(source, uri)| {
             if uri.is_data() || uri.is_mail() || uri.is_file() {
                 None
@@ -394,57 +366,10 @@ fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{formatters::get_response_formatter, options};
     use http::StatusCode;
-    use log::info;
-    use lychee_lib::{CacheStatus, ClientBuilder, ErrorKind, InputSource, Uri};
+    use lychee_lib::{ClientBuilder, ErrorKind, Uri};
 
     use super::*;
-
-    #[test]
-    fn test_skip_cached_responses_in_progress_output() {
-        let mut buf = Vec::new();
-        let response = Response::new(
-            Uri::try_from("http://127.0.0.1").unwrap(),
-            Status::Cached(CacheStatus::Ok(200)),
-            InputSource::Stdin,
-        );
-        let formatter = get_response_formatter(&options::OutputMode::Plain);
-        show_progress(
-            &mut buf,
-            None,
-            &response,
-            formatter.as_ref(),
-            &Verbosity::default(),
-        )
-        .unwrap();
-
-        info!("{:?}", String::from_utf8_lossy(&buf));
-        assert!(buf.is_empty());
-    }
-
-    #[test]
-    fn test_show_cached_responses_in_progress_debug_output() {
-        let mut buf = Vec::new();
-        let response = Response::new(
-            Uri::try_from("http://127.0.0.1").unwrap(),
-            Status::Cached(CacheStatus::Ok(200)),
-            InputSource::Stdin,
-        );
-        let formatter = get_response_formatter(&options::OutputMode::Plain);
-        show_progress(
-            &mut buf,
-            None,
-            &response,
-            formatter.as_ref(),
-            &Verbosity::debug(),
-        )
-        .unwrap();
-
-        assert!(!buf.is_empty());
-        let buf = String::from_utf8_lossy(&buf);
-        assert_eq!(buf, "[200] http://127.0.0.1/ | OK (cached)\n");
-    }
 
     #[tokio::test]
     async fn test_invalid_url() {
@@ -499,7 +424,7 @@ mod tests {
     #[test]
     fn test_cache_ignore_excluded_status() {
         // Cache is ignored for excluded status codes
-        let exclude = [StatusCode::OK.as_u16()].iter().copied().collect();
+        let exclude = HashSet::from([StatusCode::OK]);
 
         assert!(ignore_cache(
             &Uri::try_from("https://[::1]").unwrap(),

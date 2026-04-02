@@ -2,14 +2,13 @@ use async_trait::async_trait;
 use std::str::FromStr;
 
 use headers::authorization::Credentials;
-use headers::{authorization::Basic, Authorization};
+use headers::{Authorization, authorization::Basic};
 use http::header::AUTHORIZATION;
 use reqwest::Request;
 use serde::Deserialize;
 use thiserror::Error;
 
 use crate::chain::{ChainResult, Handler};
-use crate::Status;
 
 #[derive(Copy, Clone, Debug, Error, PartialEq)]
 pub enum BasicAuthCredentialsParseError {
@@ -22,7 +21,9 @@ pub enum BasicAuthCredentialsParseError {
     #[error("Missing basic auth username")]
     MissingUsername,
 
-    #[error("Too many values separated by colon. Expected 2, got {0}. Valid form is '<username>:<password>'")]
+    #[error(
+        "Too many values separated by colon. Expected 2, got {0}. Valid form is '<username>:<password>'"
+    )]
     TooManyParts(usize),
 }
 
@@ -72,15 +73,20 @@ impl BasicAuthCredentials {
     pub fn to_authorization(&self) -> Authorization<Basic> {
         Authorization::basic(&self.username, &self.password)
     }
+
+    /// Append the credentials as headers to a `Request`
+    pub fn append_to_request(&self, request: &mut Request) {
+        request
+            .headers_mut()
+            .append(AUTHORIZATION, self.to_authorization().0.encode());
+    }
 }
 
 #[async_trait]
-impl Handler<Request, Status> for Option<BasicAuthCredentials> {
-    async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Status> {
+impl<Response> Handler<Request, Response> for Option<BasicAuthCredentials> {
+    async fn handle(&mut self, mut request: Request) -> ChainResult<Request, Response> {
         if let Some(credentials) = self {
-            request
-                .headers_mut()
-                .append(AUTHORIZATION, credentials.to_authorization().0.encode());
+            credentials.append_to_request(&mut request);
         }
 
         ChainResult::Next(request)

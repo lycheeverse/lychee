@@ -1,20 +1,18 @@
 [package]
 name = "client_pool"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [[example]]
 name = "client_pool"
 path = "client_pool.rs"
 
 [dependencies]
-futures = "0.3.31"
-tokio-stream = "0.1.17"
+futures = "0.3.32"
+tokio-stream = "0.1.18"
 lychee-lib = { path = "../../lychee-lib", default-features = false }
-tokio = { version = "1.44.1", features = ["full"] }
+tokio = { version = "1.50.0", features = ["full"] }
 
 [features]
 email-check = ["lychee-lib/email-check"]
-native-tls = ["lychee-lib/native-tls"]
-rustls-tls = ["lychee-lib/rustls-tls"]
-default = ["native-tls", "email-check"]
+default = []

@@ -1,21 +1,27 @@
 use super::StatsFormatter;
-use crate::{formatters::get_response_formatter, options, stats::ResponseStats};
+use crate::{
+    formatters::{
+        get_response_formatter,
+        host_stats::DetailedHostStats,
+        stats::{OutputStats, ResponseStats},
+    },
+    options,
+};
 
 use anyhow::Result;
-use pad::{Alignment, PadStr};
-use std::fmt::{self, Display};
-
+use lychee_lib::InputSource;
+use std::{
+    collections::HashSet,
+    fmt::{self, Display},
+};
 // Maximum padding for each entry in the final statistics output
-const MAX_PADDING: usize = 20;
+const WIDTH: usize = 20;
 
 fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -> fmt::Result {
-    let fill = title.chars().count();
     f.write_str(title)?;
-    f.write_str(
-        &stat
-            .to_string()
-            .pad(MAX_PADDING - fill, '.', Alignment::Right, false),
-    )?;
+
+    let spacing = WIDTH.saturating_sub(title.chars().count());
+    f.write_str(format!("{stat:.>spacing$}").as_str())?;
 
     if newline {
         f.write_str("\n")?;
@@ -35,50 +41,60 @@ struct DetailedResponseStats {
 impl Display for DetailedResponseStats {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let stats = &self.stats;
-        let separator = "-".repeat(MAX_PADDING + 1);
+        let separator = "-".repeat(WIDTH + 1);
 
-        writeln!(f, "\u{1f4dd} Summary")?; // 📝
+        writeln!(f, "📝 Summary")?;
         writeln!(f, "{separator}")?;
-        write_stat(f, "\u{1f50d} Total", stats.total, true)?; // 🔍
-        write_stat(f, "\u{2705} Successful", stats.successful, true)?; // ✅
-        write_stat(f, "\u{23f3} Timeouts", stats.timeouts, true)?; // ⏳
-        write_stat(f, "\u{1f500} Redirected", stats.redirects, true)?; // 🔀
-        write_stat(f, "\u{1f47b} Excluded", stats.excludes, true)?; // 👻
-        write_stat(f, "\u{2753} Unknown", stats.unknown, true)?; //❓
-        write_stat(f, "\u{1f6ab} Errors", stats.errors, false)?; // 🚫
+        write_stat(f, "🔍 Total", stats.total, true)?;
+        write_stat(f, "🔗 Unique", stats.unique, true)?;
+        write_stat(f, "✅ Successful", stats.successful, true)?;
+        write_stat(f, "⏳ Timeouts", stats.timeouts, true)?;
+        write_stat(f, "🔀 Redirected", stats.redirects, true)?;
+        write_stat(f, "👻 Excluded", stats.excludes, true)?;
+        write_stat(f, "❓ Unknown", stats.unknown, true)?;
+        write_stat(f, "🚫 Errors", stats.errors, true)?;
+        write_stat(f, "⛔ Unsupported", stats.errors, false)?;
 
         let response_formatter = get_response_formatter(&self.mode);
 
-        for (source, responses) in super::sort_stat_map(&stats.error_map) {
+        for (source, responses) in
+            super::sort_stats_iter(stats.error_map.iter().chain(stats.timeout_map.iter()))
+        {
             // Using leading newlines over trailing ones (e.g. `writeln!`)
             // lets us avoid extra newlines without any additional logic.
             write!(f, "\n\nErrors in {source}")?;
 
             for response in responses {
-                write!(
-                    f,
-                    "\n{}",
-                    response_formatter.format_detailed_response(response)
-                )?;
+                write!(f, "\n{}", response_formatter.format_response(response))?;
             }
 
-            if let Some(suggestions) = stats.suggestion_map.get(source) {
-                // Sort suggestions
-                let mut sorted_suggestions: Vec<_> = suggestions.iter().collect();
-                sorted_suggestions.sort_by(|a, b| {
-                    let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
-                    human_sort::compare(&a, &b)
-                });
-
-                writeln!(f, "\nSuggestions in {source}")?;
-                for suggestion in sorted_suggestions {
-                    writeln!(f, "{suggestion}")?;
-                }
-            }
+            write_stats(f, "Suggestions", source, stats.suggestion_map.get(source))?;
+            write_stats(f, "Redirects", source, stats.redirect_map.get(source))?;
         }
 
         Ok(())
     }
+}
+
+fn write_stats<T: Display>(
+    f: &mut fmt::Formatter<'_>,
+    title: &str,
+    source: &InputSource,
+    set: Option<&HashSet<T>>,
+) -> Result<(), fmt::Error> {
+    if let Some(items) = set {
+        let mut sorted: Vec<_> = items.iter().collect();
+        sorted.sort_by(|a, b| {
+            let (a, b) = (a.to_string().to_lowercase(), b.to_string().to_lowercase());
+            numeric_sort::cmp(&a, &b)
+        });
+
+        writeln!(f, "\n\n{title} in {source}")?;
+        for item in sorted {
+            writeln!(f, "{item}")?;
+        }
+    }
+    Ok(())
 }
 
 pub(crate) struct Detailed {
@@ -92,73 +108,67 @@ impl Detailed {
 }
 
 impl StatsFormatter for Detailed {
-    fn format(&self, stats: ResponseStats) -> Result<Option<String>> {
-        let detailed = DetailedResponseStats {
-            stats,
+    fn format(&self, stats: OutputStats) -> Result<String> {
+        let response_stats = DetailedResponseStats {
+            stats: stats.response_stats,
             mode: self.mode.clone(),
         };
-        Ok(Some(detailed.to_string()))
+        let host_stats = DetailedHostStats {
+            host_stats: stats.host_stats,
+        };
+
+        Ok(format!("{response_stats}\n{host_stats}"))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::options::OutputMode;
-    use http::StatusCode;
-    use lychee_lib::{InputSource, ResponseBody, Status, Uri};
-    use std::collections::{HashMap, HashSet};
-    use url::Url;
+    use crate::{formatters::stats::get_dummy_stats, options::OutputMode};
+    use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_detailed_formatter_github_404() {
-        let err1 = ResponseBody {
-            uri: Uri::try_from("https://github.com/mre/idiomatic-rust-doesnt-exist-man").unwrap(),
-            status: Status::Ok(StatusCode::NOT_FOUND),
-        };
-
-        let err2 = ResponseBody {
-            uri: Uri::try_from("https://github.com/mre/boom").unwrap(),
-            status: Status::Ok(StatusCode::INTERNAL_SERVER_ERROR),
-        };
-
-        let mut error_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
-        let source = InputSource::RemoteUrl(Box::new(Url::parse("https://example.com").unwrap()));
-        error_map.insert(source, HashSet::from_iter(vec![err1, err2]));
-
-        let stats = ResponseStats {
-            total: 2,
-            successful: 0,
-            errors: 2,
-            unknown: 0,
-            excludes: 0,
-            timeouts: 0,
-            duration_secs: 0,
-            unsupported: 0,
-            redirects: 0,
-            cached: 0,
-            suggestion_map: HashMap::default(),
-            success_map: HashMap::default(),
-            error_map,
-            excluded_map: HashMap::default(),
-            detailed_stats: true,
-        };
-
+    fn test_detailed_formatter() {
         let formatter = Detailed::new(OutputMode::Plain);
-        let result = formatter.format(stats).unwrap().unwrap();
+        let result = formatter.format(get_dummy_stats()).unwrap();
 
-        // Check for the presence of expected content
-        assert!(result.contains("📝 Summary"));
-        assert!(result.contains("🔍 Total............2"));
-        assert!(result.contains("✅ Successful.......0"));
-        assert!(result.contains("⏳ Timeouts.........0"));
-        assert!(result.contains("🔀 Redirected.......0"));
-        assert!(result.contains("👻 Excluded.........0"));
-        assert!(result.contains("❓ Unknown..........0"));
-        assert!(result.contains("🚫 Errors...........2"));
-        assert!(result.contains("Errors in https://example.com/"));
-        assert!(result
-            .contains("https://github.com/mre/idiomatic-rust-doesnt-exist-man | 404 Not Found"));
-        assert!(result.contains("https://github.com/mre/boom | 500 Internal Server Error"));
+        assert_eq!(
+            result,
+            "📝 Summary
+---------------------
+🔍 Total............2
+🔗 Unique...........2
+✅ Successful.......0
+⏳ Timeouts.........1
+🔀 Redirected.......1
+👻 Excluded.........0
+❓ Unknown..........0
+🚫 Errors...........1
+⛔ Unsupported......1
+
+Errors in https://example.com/
+[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found
+[TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Request timed out
+
+Suggestions in https://example.com/
+https://original.dev/ --> https://suggestion.dev/
+
+
+Redirects in https://example.com/
+https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
+
+
+📊 Per-host Statistics
+---------------------
+
+Host: example.com
+  Total requests: 5
+  Successful: 3 (60.0%)
+  Rate limited: 1 (429 Too Many Requests)
+  Server errors (5xx): 1
+  Cache hit rate: 20.0%
+  Cache hits: 1, misses: 4
+"
+        );
     }
 }

@@ -12,12 +12,12 @@ pub(crate) use task::TaskFormatter;
 
 /// Desired total width of formatted string for color formatter
 ///
-/// The longest string, which needs to be formatted, is currently `[Excluded]`
-/// which is 10 characters long (including brackets).
+/// The longest string, which needs to be formatted, is currently `EXCLUDED`
+/// which is 8 characters long.
 ///
 /// Keep in sync with `Status::code_as_string`, which converts status codes to
 /// strings.
-pub(crate) const MAX_RESPONSE_OUTPUT_WIDTH: usize = 10;
+pub(crate) const MAX_RESPONSE_OUTPUT_WIDTH: usize = 8;
 
 /// A trait for formatting a response body
 ///
@@ -27,13 +27,4 @@ pub(crate) const MAX_RESPONSE_OUTPUT_WIDTH: usize = 10;
 pub(crate) trait ResponseFormatter: Send + Sync {
     /// Format the response body into a human-readable string
     fn format_response(&self, body: &ResponseBody) -> String;
-
-    /// Detailed response formatter (defaults to the normal formatter)
-    ///
-    /// This can be used for output modes which want to provide more detailed
-    /// information. It is also used if the output is set to verbose mode
-    /// (i.e. `-v`, `-vv` and above).
-    fn format_detailed_response(&self, body: &ResponseBody) -> String {
-        self.format_response(body)
-    }
 }

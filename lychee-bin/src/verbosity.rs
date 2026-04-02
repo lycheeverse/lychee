@@ -1,6 +1,7 @@
 use log::Level;
 use log::LevelFilter;
 use serde::Deserialize;
+use std::str::FromStr;
 
 /// Control the verbosity of the CLI output
 ///
@@ -56,9 +57,10 @@ impl Verbosity {
         level_enum(self.verbosity()).to_level_filter()
     }
 
-    #[allow(clippy::cast_possible_wrap)]
-    const fn verbosity(&self) -> i8 {
-        level_value(log::Level::Warn) - (self.quiet as i8) + (self.verbose as i8)
+    const fn verbosity(&self) -> u8 {
+        level_value(log::Level::Warn)
+            .saturating_sub(self.quiet)
+            .saturating_add(self.verbose)
     }
 
     const fn verbose_help() -> &'static str {
@@ -78,17 +80,6 @@ impl Verbosity {
     }
 }
 
-#[cfg(test)]
-impl Verbosity {
-    pub(crate) const fn debug() -> Self {
-        Self {
-            #[allow(clippy::cast_sign_loss)]
-            verbose: level_value(log::Level::Debug) as u8,
-            quiet: 0,
-        }
-    }
-}
-
 // Implement Deserialize for `Verbosity`
 // This can be deserialized from a string like "warn", "warning", or "Warning"
 // for example
@@ -98,27 +89,29 @@ impl<'de> Deserialize<'de> for Verbosity {
     where
         D: serde::Deserializer<'de>,
     {
-        let s = String::deserialize(deserializer)?;
-        let level = match s.to_lowercase().as_str() {
-            "error" => Level::Error,
-            "warn" | "warning" => Level::Warn,
-            "info" => Level::Info,
-            "debug" => Level::Debug,
-            "trace" => Level::Trace,
-            level => {
-                return Err(serde::de::Error::custom(format!(
-                    "invalid log level `{level}`"
-                )))
-            }
+        let custom_error = || {
+            use serde::de::Error;
+            D::Error::custom(
+                r#"invalid verbosity value, expected one of "error", "warn", "info", "debug", or "trace""#,
+            )
         };
+
+        let level = String::deserialize(deserializer).map_err(|_| custom_error())?;
+        let level = if level.eq_ignore_ascii_case("warning") {
+            "warn"
+        } else {
+            &level
+        };
+        let level = log::Level::from_str(level).map_err(|_| custom_error())?;
+
         Ok(Verbosity {
-            verbose: level_value(level) as u8,
+            verbose: level_value(level),
             quiet: 0,
         })
     }
 }
 
-const fn level_value(level: Level) -> i8 {
+const fn level_value(level: Level) -> u8 {
     match level {
         log::Level::Error => 0,
         log::Level::Warn => 1,
@@ -128,7 +121,7 @@ const fn level_value(level: Level) -> i8 {
     }
 }
 
-const fn level_enum(verbosity: i8) -> log::Level {
+const fn level_enum(verbosity: u8) -> log::Level {
     match verbosity {
         0 => log::Level::Error,
         1 => log::Level::Warn,

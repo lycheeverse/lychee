@@ -46,10 +46,6 @@ impl FileExtensions {
     pub fn contains<T: Into<String>>(&self, file_extension: T) -> bool {
         self.0.contains(&file_extension.into())
     }
-}
-
-impl TryFrom<FileExtensions> for Types {
-    type Error = super::ErrorKind;
 
     /// Build the current list of file extensions into a file type matcher.
     ///
@@ -57,10 +53,12 @@ impl TryFrom<FileExtensions> for Types {
     ///
     /// Fails if an extension is `all` or otherwise contains any character that
     /// is not a Unicode letter or number.
-    fn try_from(value: FileExtensions) -> super::Result<Self> {
+    pub fn build(self, skip_hidden: bool) -> super::Result<Types> {
         let mut types_builder = TypesBuilder::new();
-        for ext in value.0.clone() {
-            types_builder.add(&ext, &format!("*.{ext}"))?;
+        let prefix = if skip_hidden { "[!.]" } else { "" };
+
+        for ext in self.0 {
+            types_builder.add(&ext, &format!("{prefix}*.{ext}"))?;
         }
         Ok(types_builder.select("all").build()?)
     }
@@ -83,7 +81,9 @@ impl From<FileType> for FileExtensions {
         match file_type {
             FileType::Html => FileType::html_extensions(),
             FileType::Markdown => FileType::markdown_extensions(),
+            FileType::Css => FileType::css_extensions(),
             FileType::Plaintext => FileType::plaintext_extensions(),
+            FileType::Xml => FileType::xml_extensions(),
         }
     }
 }
@@ -111,14 +111,31 @@ impl std::str::FromStr for FileExtensions {
 }
 
 /// `FileType` defines which file types lychee can handle
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize, Default)]
 pub enum FileType {
     /// File in HTML format
     Html,
     /// File in Markdown format
     Markdown,
+    /// File in CSS format
+    Css,
+    /// File in XML format (used for sitemaps)
+    Xml,
     /// Generic text file without syntax-specific parsing
+    #[default]
     Plaintext,
+}
+
+impl std::fmt::Display for FileType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FileType::Html => write!(f, "HTML"),
+            FileType::Markdown => write!(f, "Markdown"),
+            FileType::Css => write!(f, "CSS"),
+            FileType::Plaintext => write!(f, "plaintext"),
+            FileType::Xml => write!(f, "XML"),
+        }
+    }
 }
 
 impl FileType {
@@ -130,8 +147,14 @@ impl FileType {
     /// All known HTML extensions
     const HTML_EXTENSIONS: &'static [&'static str] = &["htm", "html"];
 
+    /// All known CSS extensions
+    const CSS_EXTENSIONS: &'static [&'static str] = &["css"];
+
     /// All known plaintext extensions
     const PLAINTEXT_EXTENSIONS: &'static [&'static str] = &["txt"];
+
+    /// All known XML extensions
+    const XML_EXTENSIONS: &'static [&'static str] = &["xml"];
 
     /// Default extensions which are checked by lychee
     #[must_use]
@@ -139,7 +162,9 @@ impl FileType {
         let mut extensions = FileExtensions::empty();
         extensions.extend(Self::markdown_extensions());
         extensions.extend(Self::html_extensions());
+        extensions.extend(Self::css_extensions());
         extensions.extend(Self::plaintext_extensions());
+        extensions.extend(Self::xml_extensions());
         extensions
     }
 
@@ -161,6 +186,15 @@ impl FileType {
             .collect()
     }
 
+    /// All known CSS extensions
+    #[must_use]
+    pub fn css_extensions() -> FileExtensions {
+        Self::CSS_EXTENSIONS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
+    }
+
     /// All known plaintext extensions
     #[must_use]
     pub fn plaintext_extensions() -> FileExtensions {
@@ -170,26 +204,32 @@ impl FileType {
             .collect()
     }
 
+    /// All known XML extensions
+    #[must_use]
+    pub fn xml_extensions() -> FileExtensions {
+        Self::XML_EXTENSIONS
+            .iter()
+            .map(|&s| s.to_string())
+            .collect()
+    }
+
     /// Get the [`FileType`] from an extension string
-    fn from_extension(ext: &str) -> Option<Self> {
-        let ext = ext.to_lowercase();
+    #[must_use]
+    pub fn from_extension(extension: &str) -> Option<Self> {
+        let ext = extension.to_lowercase();
         if Self::MARKDOWN_EXTENSIONS.contains(&ext.as_str()) {
             Some(Self::Markdown)
         } else if Self::HTML_EXTENSIONS.contains(&ext.as_str()) {
             Some(Self::Html)
+        } else if Self::CSS_EXTENSIONS.contains(&ext.as_str()) {
+            Some(Self::Css)
         } else if Self::PLAINTEXT_EXTENSIONS.contains(&ext.as_str()) {
             Some(Self::Plaintext)
+        } else if Self::XML_EXTENSIONS.contains(&ext.as_str()) {
+            Some(Self::Xml)
         } else {
             None
         }
-    }
-}
-
-impl Default for FileType {
-    fn default() -> Self {
-        // This is the default file type when no other type can be determined.
-        // It represents a generic text file with no specific syntax.
-        Self::Plaintext
     }
 }
 
@@ -223,24 +263,21 @@ mod tests {
 
     #[test]
     fn test_extension() {
-        assert_eq!(FileType::from(Path::new("foo.md")), FileType::Markdown);
-        assert_eq!(FileType::from(Path::new("foo.MD")), FileType::Markdown);
-        assert_eq!(FileType::from(Path::new("foo.mdx")), FileType::Markdown);
+        assert_eq!(FileType::from("foo.md"), FileType::Markdown);
+        assert_eq!(FileType::from("foo.MD"), FileType::Markdown);
+        assert_eq!(FileType::from("foo.mdx"), FileType::Markdown);
 
-        assert_eq!(
-            FileType::from(Path::new("test.unknown")),
-            FileType::Plaintext
-        );
-        assert_eq!(FileType::from(Path::new("test")), FileType::Plaintext);
-        assert_eq!(FileType::from(Path::new("test.txt")), FileType::Plaintext);
-        assert_eq!(FileType::from(Path::new("README.TXT")), FileType::Plaintext);
+        // Test that a file without an extension is considered plaintext
+        assert_eq!(FileType::from("README"), FileType::Plaintext);
+        assert_eq!(FileType::from("test"), FileType::Plaintext);
 
-        assert_eq!(FileType::from(Path::new("test.htm")), FileType::Html);
-        assert_eq!(FileType::from(Path::new("index.html")), FileType::Html);
-        assert_eq!(
-            FileType::from(Path::new("http://foo.com/index.html")),
-            FileType::Html
-        );
+        assert_eq!(FileType::from("test.unknown"), FileType::Plaintext);
+        assert_eq!(FileType::from("test.txt"), FileType::Plaintext);
+        assert_eq!(FileType::from("README.TXT"), FileType::Plaintext);
+
+        assert_eq!(FileType::from("test.htm"), FileType::Html);
+        assert_eq!(FileType::from("index.html"), FileType::Html);
+        assert_eq!(FileType::from("http://foo.com/index.html"), FileType::Html);
     }
 
     #[test]
@@ -251,13 +288,16 @@ mod tests {
         assert!(extensions.contains("html"));
         assert!(extensions.contains("markdown"));
         assert!(extensions.contains("htm"));
+        assert!(extensions.contains("css"));
         // Test that the count matches our static arrays
         let all_extensions: Vec<_> = extensions.into();
         assert_eq!(
             all_extensions.len(),
             FileType::MARKDOWN_EXTENSIONS.len()
                 + FileType::HTML_EXTENSIONS.len()
+                + FileType::CSS_EXTENSIONS.len()
                 + FileType::PLAINTEXT_EXTENSIONS.len()
+                + FileType::XML_EXTENSIONS.len()
         );
     }
 
@@ -283,5 +323,25 @@ mod tests {
         assert!(!is_url(Path::new("foo/bar/baz")));
         assert!(!is_url(Path::new("file:///foo/bar.txt")));
         assert!(!is_url(Path::new("ftp://foo.com")));
+    }
+
+    #[test]
+    fn test_from_extension() {
+        // Valid extensions
+        assert_eq!(FileType::from_extension("html"), Some(FileType::Html));
+        assert_eq!(FileType::from_extension("HTML"), Some(FileType::Html));
+        assert_eq!(FileType::from_extension("htm"), Some(FileType::Html));
+        assert_eq!(
+            FileType::from_extension("markdown"),
+            Some(FileType::Markdown)
+        );
+        assert_eq!(FileType::from_extension("md"), Some(FileType::Markdown));
+        assert_eq!(FileType::from_extension("MD"), Some(FileType::Markdown));
+        assert_eq!(FileType::from_extension("txt"), Some(FileType::Plaintext));
+        assert_eq!(FileType::from_extension("TXT"), Some(FileType::Plaintext));
+
+        // Unknown extension
+        assert_eq!(FileType::from_extension("unknown"), None);
+        assert_eq!(FileType::from_extension("xyz"), None);
     }
 }

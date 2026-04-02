@@ -16,12 +16,19 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   RUSTFLAGS: -D warnings
+  RUSTDOCFLAGS: -D warnings
 
 jobs:
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: crate-ci/typos@v1.44.0
+
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@nextest
       - uses: Swatinem/rust-cache@v2
@@ -29,41 +36,46 @@ jobs:
         run: cargo check --locked
       - name: Test
         run: make test
+      # Verify shell completions can be generated without errors
+      - name: Check shell completions can be generated
+        run: |
+          ./target/debug/lychee --generate complete-bash > /dev/null
+          ./target/debug/lychee --generate complete-zsh > /dev/null
+          ./target/debug/lychee --generate complete-fish > /dev/null
+          ./target/debug/lychee --generate complete-elvish > /dev/null
+          ./target/debug/lychee --generate complete-powershell > /dev/null
 
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
       - name: Run cargo fmt (check if all code is rustfmt-ed)
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all --check
       - name: Run cargo clippy (deny warnings)
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-targets --all-features -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Check rustdoc warnings (temporarily allow warnings)
+        run: cargo doc --workspace --no-deps
+        continue-on-error: true # remove this after warnings are fixed
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Install cargo-msrv
+        run: cargo binstall --no-confirm --force cargo-msrv
+      - name: Check cargo-msrv version
+        run: cargo msrv --version
+      - name: Verify the MSRV
+        run: make verify
 
   publish-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: cargo fetch
-        uses: actions-rs/cargo@v1
-        with:
-          command: fetch
+        run: cargo fetch
       - name: cargo publish lychee-lib
-        uses: actions-rs/cargo@v1
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        with:
-          command: publish
-          args: --dry-run --manifest-path lychee-lib/Cargo.toml
+        run: cargo publish --dry-run --manifest-path lychee-lib/Cargo.toml
 
       # Can't check lychee binary as it depends on the lib above
       # and `--dry-run` doesn't allow unpublished crates yet.
@@ -76,8 +88,6 @@ jobs:
       #
       # - name: cargo publish lychee
       #   uses: actions-rs/cargo@v1
-      #   env:
-      #     CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
       #   with:
       #     command: publish
       #     args: --dry-run --manifest-path lychee-bin/Cargo.toml
@@ -85,23 +95,12 @@ jobs:
   check-feature-flags:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Check that rustls-tls feature doesn't depend on OpenSSL
-        run: test -z "$( cargo tree --package lychee --no-default-features --features rustls-tls --prefix none | sed -n '/^openssl-sys /p' )"
+      - name: Check that lychee doesn't depend on OpenSSL
+        run: test -z "$( cargo tree --package lychee --no-default-features --prefix none | sed -n '/^openssl-sys /p' )"
       - name: Run cargo check with default features
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --workspace --all-targets
+        run: cargo check --workspace --all-targets
       - name: Run cargo check with all features
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --workspace --all-targets --all-features
-      - name: Run cargo check with rustls-tls feature
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --workspace --all-targets --no-default-features --features rustls-tls
+        run: cargo check --workspace --all-targets --all-features

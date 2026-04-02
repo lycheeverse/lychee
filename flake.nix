@@ -40,9 +40,9 @@
         {
           default = pkgs.mkShell {
             packages = [
-              pkgs.pkg-config
-              pkgs.openssl
               rust
+              pkgs.cargo-nextest
+              pkgs.cargo-msrv
             ];
           };
         }

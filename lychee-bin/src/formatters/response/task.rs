@@ -13,20 +13,13 @@ impl ResponseFormatter for TaskFormatter {
 mod task_tests {
     use super::*;
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, Status, Uri};
-
-    // Helper function to create a ResponseBody with a given status and URI
-    fn mock_response_body(status: Status, uri: &str) -> ResponseBody {
-        ResponseBody {
-            uri: Uri::try_from(uri).unwrap(),
-            status,
-        }
-    }
+    use lychee_lib::{ErrorKind, Redirect, Redirects, Status, Uri};
+    use test_utils::mock_response_body;
 
     #[test]
     fn test_format_response_with_ok_status() {
         let formatter = TaskFormatter;
-        let body = mock_response_body(Status::Ok(StatusCode::OK), "https://example.com");
+        let body = mock_response_body!(Status::Ok(StatusCode::OK), "https://example.com");
         assert_eq!(
             formatter.format_response(&body),
             "- [ ] [200] https://example.com/"
@@ -36,43 +29,49 @@ mod task_tests {
     #[test]
     fn test_format_response_with_error_status() {
         let formatter = TaskFormatter;
-        let body = mock_response_body(
-            Status::Error(ErrorKind::InvalidUrlHost),
+        let body = mock_response_body!(
+            Status::Error(ErrorKind::EmptyUrl),
             "https://example.com/404",
         );
         assert_eq!(
             formatter.format_response(&body),
-            "- [ ] [ERROR] https://example.com/404 | URL is missing a host"
+            "- [ ] [ERROR] https://example.com/404 | Empty URL found but a URL must not be empty"
         );
     }
 
     #[test]
     fn test_format_response_with_excluded_status() {
         let formatter = TaskFormatter;
-        let body = mock_response_body(Status::Excluded, "https://example.com/not-checked");
+        let body = mock_response_body!(Status::Excluded, "https://example.com/not-checked");
         assert_eq!(
             formatter.format_response(&body),
-            "- [ ] [EXCLUDED] https://example.com/not-checked"
+            "- [ ] [EXCLUDED] https://example.com/not-checked | This is due to your 'exclude' values"
         );
     }
 
     #[test]
     fn test_format_response_with_redirect_status() {
         let formatter = TaskFormatter;
-        let body = mock_response_body(
-            Status::Redirected(StatusCode::MOVED_PERMANENTLY),
+        let mut redirects = Redirects::new("https://from.dev".try_into().unwrap());
+        redirects.push(Redirect {
+            url: "https://to.dev".try_into().unwrap(),
+            code: StatusCode::PERMANENT_REDIRECT,
+        });
+
+        let body = mock_response_body!(
+            Status::Redirected(Box::new(Status::Ok(StatusCode::OK)), redirects),
             "https://example.com/redirect",
         );
         assert_eq!(
             formatter.format_response(&body),
-            "- [ ] [301] https://example.com/redirect | Redirect (301 Moved Permanently): Moved Permanently"
+            "- [ ] [200] https://example.com/redirect | 200 OK | Followed 1 redirect. Redirects: https://from.dev/ --[308]--> https://to.dev/"
         );
     }
 
     #[test]
     fn test_format_response_with_unknown_status_code() {
         let formatter = TaskFormatter;
-        let body = mock_response_body(
+        let body = mock_response_body!(
             Status::UnknownStatusCode(StatusCode::from_u16(999).unwrap()),
             "https://example.com/unknown",
         );

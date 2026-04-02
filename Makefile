@@ -1,5 +1,5 @@
 # Needed SHELL since I'm using zsh
-SHELL := /bin/bash
+SHELL := /usr/bin/env bash
 IMAGE_NAME := "lycheeverse/lychee"
 
 .PHONY: help
@@ -26,6 +26,18 @@ clean: ## Clean up build artifacts
 build: ## Build Rust code locally
 	cargo build
 
+.PHONY: completions
+completions: ## Update shell completions
+	@echo "Building release binary..."
+	@cargo build --release
+	@echo "Generating completions..."
+	@target/release/lychee --generate complete-bash > lychee-bin/complete/lychee.bash
+	@target/release/lychee --generate complete-elvish > lychee-bin/complete/lychee.elv
+	@target/release/lychee --generate complete-fish > lychee-bin/complete/lychee.fish
+	@target/release/lychee --generate complete-powershell > lychee-bin/complete/_lychee.ps1
+	@target/release/lychee --generate complete-zsh > lychee-bin/complete/_lychee
+	@echo "All completions updated in lychee-bin/complete/"
+
 .PHONY: install
 install: ## Install project locally
 	cargo install --path lychee-bin --locked
@@ -36,18 +48,27 @@ run: ## Run project locally
 
 .PHONY: docs
 docs: ## Generate and show documentation
-	cargo doc --open 
+	cargo doc --open
 
 .PHONY: lint
 lint: ## Run linter
 	cargo fmt --all -- --check
 	cargo clippy --all-targets --all-features -- -D warnings
 
+.PHONY: lint-fix
+lint-fix: ## Fix linter issues
+	cargo fmt --all
+	cargo clippy --all-targets --all-features --fix --allow-dirty --allow-staged
+
 .PHONY: test
 test: ## Run tests
-	cargo nextest run --all-targets --all-features --filter-expr '!test(test_exclude_example_domains)'
-	cargo nextest run --filter-expr 'test(test_exclude_example_domains)'
+	cargo nextest run --all-targets --all-features
+	cargo nextest run
 	cargo test --doc
+
+.PHONY: bench
+bench: ## Run benchmarks
+	cargo bench
 
 .PHONY: doc
 doc: ## Open documentation
@@ -55,6 +76,15 @@ doc: ## Open documentation
 
 .PHONY: screencast
 screencast: ## Create a screencast for the docs
-	termsvg rec --command=assets/screencast.sh recording.asc 
+	termsvg rec --command=assets/screencast.sh recording.asc
 	termsvg export --minify recording.asc --output=assets/screencast.svg
 	rm recording.asc
+
+.PHONY: verify
+verify: ## Verify the MSRV
+	cargo msrv --path lychee-lib verify
+	cargo msrv --path lychee-bin verify
+
+.PHONY: readme
+readme: ## Updates README.md with `lychee --help`
+	scripts/update_readme.py

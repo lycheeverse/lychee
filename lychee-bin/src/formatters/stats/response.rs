@@ -1,0 +1,272 @@
+// Disable lint, clippy thinks that InputSource has inner mutability, but this seems like a false positive
+#![allow(clippy::mutable_key_type)]
+
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
+
+use lychee_lib::{CacheStatus, InputSource, Redirects, Response, ResponseBody, Status, Uri};
+use serde::Serialize;
+
+use crate::formatters::suggestion::Suggestion;
+
+/// Response statistics
+///
+/// This struct contains various counters for the responses received during a
+/// run. It also contains maps to store the responses for each status (success,
+/// error, excluded, etc.) and the sources of the responses.
+///
+/// The `detailed_stats` field indicates whether detailed statistics are shown.
+/// `success_map`, `redirect_map` and `excluded_map` remain empty if detailed
+/// statistics are disabled. This depends on the verbosity mode.
+#[derive(Default, Serialize, Debug)]
+pub(crate) struct ResponseStats {
+    /// Total number of responses
+    pub(crate) total: usize,
+    /// Number of unique responses (i.e. responses with a unique URI)
+    pub(crate) unique: usize,
+    /// Number of successful responses
+    pub(crate) successful: usize,
+    /// Number of responses with an unknown status
+    pub(crate) unknown: usize,
+    /// Number of responses, which lychee does not support right now
+    pub(crate) unsupported: usize,
+    /// Number of timeouts
+    pub(crate) timeouts: usize,
+    /// Number of redirects encountered while checking links
+    pub(crate) redirects: usize,
+    /// Number of Url remaps performed
+    pub(crate) remaps: usize,
+    /// Number of links excluded from the run (e.g. due to the `--exclude` flag)
+    pub(crate) excludes: usize,
+    /// Number of responses with an error status
+    pub(crate) errors: usize,
+    /// Number of responses that were cached from a previous run
+    pub(crate) cached: usize,
+    /// Successful responses (if `detailed_stats` is enabled)
+    pub(crate) success_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// Failed responses
+    pub(crate) error_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// Timed out responses
+    pub(crate) timeout_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// [`Suggestion`]s for failed responses (if `--suggest` is enabled)
+    pub(crate) suggestion_map: HashMap<InputSource, HashSet<Suggestion>>,
+    /// All [`Redirects`] independent of the response status (if `detailed_stats` is enabled)
+    pub(crate) redirect_map: HashMap<InputSource, HashSet<Redirects>>,
+    /// Excluded responses (if `detailed_stats` is enabled)
+    pub(crate) excluded_map: HashMap<InputSource, HashSet<ResponseBody>>,
+    /// The time it took to perform the full run
+    pub(crate) duration: Duration,
+    /// Also track successful and excluded responses
+    pub(crate) detailed_stats: bool,
+    /// Set for counting unique responses
+    #[serde(skip)]
+    pub(crate) seen_uris: HashSet<Uri>,
+}
+
+impl ResponseStats {
+    #[inline]
+    /// Create a new `ResponseStats` instance with extended statistics counters
+    /// enabled
+    pub(crate) fn extended() -> Self {
+        Self {
+            detailed_stats: true,
+            seen_uris: HashSet::new(),
+            ..Default::default()
+        }
+    }
+
+    /// Increment the counters for the given status
+    ///
+    /// This function is used to update the counters (success, error, etc.)
+    /// based on the given response status.
+    pub(crate) const fn increment_status_counters(&mut self, status: &Status) {
+        match status {
+            Status::Ok(_) => self.successful += 1,
+            Status::Error(_) | Status::RequestError(_) => self.errors += 1,
+            Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => self.unknown += 1,
+            Status::Timeout(_) => self.timeouts += 1,
+            Status::Redirected(inner, _) => {
+                self.redirects += 1;
+                self.increment_status_counters(inner);
+            }
+            Status::Remapped(inner, _) => {
+                self.remaps += 1;
+                self.increment_status_counters(inner);
+            }
+            Status::Excluded => self.excludes += 1,
+            Status::Unsupported(_) => self.unsupported += 1,
+            Status::Cached(cache_status) => {
+                self.cached += 1;
+                match cache_status {
+                    CacheStatus::Ok(_) => self.successful += 1,
+                    CacheStatus::Error(_) => self.errors += 1,
+                    CacheStatus::Excluded => self.excludes += 1,
+                    CacheStatus::Unsupported => self.unsupported += 1,
+                }
+            }
+        }
+    }
+
+    /// Add a response status to the appropriate map (success, fail, excluded)
+    fn add_response_status(&mut self, response: Response) {
+        let status = response.status();
+        let source: InputSource = response.source().clone();
+
+        if self.detailed_stats
+            && let Some(redirects) = status.redirects()
+        {
+            self.redirect_map
+                .entry(source.clone())
+                .or_default()
+                .insert(redirects.clone());
+        }
+
+        let status_map_entry = if status.is_timeout() {
+            self.timeout_map.entry(source).or_default()
+        } else if status.is_error() {
+            self.error_map.entry(source).or_default()
+        } else if status.is_excluded() {
+            self.excluded_map.entry(source).or_default()
+        } else if status.is_success() && self.detailed_stats {
+            self.success_map.entry(source).or_default()
+        } else {
+            return;
+        };
+
+        status_map_entry.insert(response.into_body());
+    }
+
+    /// Update the stats with a new response
+    pub(crate) fn add(&mut self, response: Response) {
+        if self.seen_uris.insert(response.body().uri.clone()) {
+            self.unique += 1;
+        }
+
+        self.total += 1;
+        self.increment_status_counters(response.status());
+        self.add_response_status(response);
+    }
+
+    #[inline]
+    /// Check if the entire run was successful
+    pub(crate) fn is_success(&self) -> bool {
+        self.error_map.is_empty() && self.timeout_map.is_empty()
+    }
+
+    #[inline]
+    /// Check if the entire run was successful, ignoring timeouts
+    pub(crate) fn is_success_ignoring_timeouts(&self) -> bool {
+        self.error_map.is_empty()
+    }
+
+    #[inline]
+    #[cfg(test)]
+    /// Check if no responses were received
+    const fn is_empty(&self) -> bool {
+        self.total == 0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use std::collections::{HashMap, HashSet};
+
+    use http::StatusCode;
+    use lychee_lib::{ErrorKind, InputSource, Response, ResponseBody, Status, Uri};
+    use reqwest::Url;
+
+    use super::ResponseStats;
+
+    fn website(url: &str) -> Uri {
+        Uri::from(Url::parse(url).expect("Expected valid Website URI"))
+    }
+
+    // Generate a fake response with a given status code
+    // Don't use a mock server for this, as it's not necessary
+    // and it's a lot faster to just generate a fake response
+    fn mock_response(status: Status) -> Response {
+        let uri = website("https://some-url.com/ok");
+        Response::new(uri, status, InputSource::Stdin, None, None)
+    }
+
+    fn dummy_ok() -> Response {
+        mock_response(Status::Ok(StatusCode::OK))
+    }
+
+    fn dummy_error() -> Response {
+        mock_response(Status::Error(ErrorKind::InvalidStatusCode(1000)))
+    }
+
+    fn dummy_excluded() -> Response {
+        mock_response(Status::Excluded)
+    }
+
+    #[tokio::test]
+    async fn test_stats_is_empty() {
+        let mut stats = ResponseStats::default();
+        assert!(stats.is_empty());
+
+        stats.add(dummy_error());
+
+        assert!(!stats.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_stats() {
+        let mut stats = ResponseStats::default();
+        assert!(stats.success_map.is_empty());
+        assert!(stats.excluded_map.is_empty());
+
+        stats.add(dummy_error());
+        stats.add(dummy_ok());
+
+        let response = dummy_error();
+        let expected_error_map: HashMap<InputSource, HashSet<ResponseBody>> =
+            HashMap::from_iter([(
+                response.source().clone(),
+                HashSet::from_iter([response.into_body()]),
+            )]);
+        assert_eq!(stats.error_map, expected_error_map);
+
+        assert!(stats.success_map.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_detailed_stats() {
+        let mut stats = ResponseStats::extended();
+        assert!(stats.success_map.is_empty());
+        assert!(stats.error_map.is_empty());
+        assert!(stats.excluded_map.is_empty());
+
+        stats.add(dummy_error());
+        stats.add(dummy_excluded());
+        stats.add(dummy_ok());
+
+        let mut expected_error_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
+        let response = dummy_error();
+        let entry = expected_error_map
+            .entry(response.source().clone())
+            .or_default();
+        entry.insert(response.into_body());
+        assert_eq!(stats.error_map, expected_error_map);
+
+        let mut expected_success_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
+        let response = dummy_ok();
+        let entry = expected_success_map
+            .entry(response.source().clone())
+            .or_default();
+        entry.insert(response.into_body());
+        assert_eq!(stats.success_map, expected_success_map);
+
+        let mut expected_excluded_map: HashMap<InputSource, HashSet<ResponseBody>> = HashMap::new();
+        let response = dummy_excluded();
+        let entry = expected_excluded_map
+            .entry(response.source().clone())
+            .or_default();
+        entry.insert(response.into_body());
+        assert_eq!(stats.excluded_map, expected_excluded_map);
+    }
+}

@@ -1,22 +1,22 @@
 use std::{collections::HashSet, fmt::Display};
 
+use super::CacheStatus;
+use super::redirect_history::Redirects;
+use crate::ErrorKind;
+use crate::RequestError;
+use crate::ratelimit::CacheableResponse;
+use crate::remap::Remap;
 use http::StatusCode;
-use reqwest::Response;
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 
-use crate::ErrorKind;
-
-use super::CacheStatus;
-
-const ICON_OK: &str = "\u{2714}"; // ✔
-const ICON_REDIRECTED: &str = "\u{21c4}"; // ⇄
-const ICON_EXCLUDED: &str = "\u{003f}"; // ?
+const ICON_OK: &str = "✔";
+const ICON_EXCLUDED: &str = "?";
 const ICON_UNSUPPORTED: &str = "\u{003f}"; // ? (using same icon, but under different name for explicitness)
-const ICON_UNKNOWN: &str = "\u{003f}"; // ?
-const ICON_ERROR: &str = "\u{2717}"; // ✗
-const ICON_TIMEOUT: &str = "\u{29d6}"; // ⧖
-const ICON_CACHED: &str = "\u{21bb}"; // ↻
+const ICON_UNKNOWN: &str = "?";
+const ICON_ERROR: &str = "✗";
+const ICON_TIMEOUT: &str = "⧖";
+const ICON_CACHED: &str = "↻";
 
 /// Response status of the request.
 #[allow(variant_size_differences)]
@@ -26,12 +26,20 @@ pub enum Status {
     Ok(StatusCode),
     /// Failed request
     Error(ErrorKind),
+    /// Request could not be built
+    RequestError(RequestError),
     /// Request timed out
     Timeout(Option<StatusCode>),
     /// Got redirected to different resource
-    Redirected(StatusCode),
+    Redirected(Box<Status>, Redirects),
+    /// The original [`Url`] was remapped in the link check process
+    Remapped(Box<Status>, Remap),
     /// The given status code is not known by lychee
     UnknownStatusCode(StatusCode),
+    /// The given mail address could not be reliably identified.
+    /// This normally happens due to restrictive measures by
+    /// mail servers (blocklisting) or your ISP (port filtering).
+    UnknownMailStatus(String),
     /// Resource was excluded from checking
     Excluded,
     /// The request type is currently not supported,
@@ -46,14 +54,16 @@ impl Display for Status {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Status::Ok(code) => write!(f, "{code}"),
-            Status::Redirected(code) => write!(f, "Redirect ({code})"),
             Status::UnknownStatusCode(code) => write!(f, "Unknown status ({code})"),
+            Status::UnknownMailStatus(_) => write!(f, "Unknown mail status"),
             Status::Timeout(Some(code)) => write!(f, "Timeout ({code})"),
             Status::Timeout(None) => f.write_str("Timeout"),
             Status::Unsupported(e) => write!(f, "Unsupported: {e}"),
             Status::Error(e) => write!(f, "{e}"),
+            Status::RequestError(e) => write!(f, "{e}"),
             Status::Cached(status) => write!(f, "{status}"),
-            Status::Excluded => Ok(()),
+            Status::Excluded => f.write_str("Excluded"),
+            Status::Redirected(inner, _) | Status::Remapped(inner, _) => Status::fmt(inner, f),
         }
     }
 }
@@ -64,37 +74,34 @@ impl Serialize for Status {
         S: Serializer,
     {
         let mut s;
+
         if let Some(code) = self.code() {
             s = serializer.serialize_struct("Status", 2)?;
             s.serialize_field("text", &self.to_string())?;
             s.serialize_field("code", &code.as_u16())?;
-        } else if let Some(details) = self.details() {
+        } else {
             s = serializer.serialize_struct("Status", 2)?;
             s.serialize_field("text", &self.to_string())?;
-            s.serialize_field("details", &details.to_string())?;
-        } else {
-            s = serializer.serialize_struct("Status", 1)?;
-            s.serialize_field("text", &self.to_string())?;
+            s.serialize_field("details", &self.details())?;
         }
+
+        if let Status::Redirected(_, redirects) = self {
+            s.serialize_field("redirects", redirects)?;
+        }
+
         s.end()
     }
 }
 
 impl Status {
-    #[must_use]
     /// Create a status object from a response and the set of accepted status codes
-    pub fn new(response: &Response, accepted: Option<HashSet<StatusCode>>) -> Self {
-        let code = response.status();
-
-        if let Some(true) = accepted.map(|a| a.contains(&code)) {
-            Self::Ok(code)
+    #[must_use]
+    pub(crate) fn new(response: &CacheableResponse, accepted: &HashSet<StatusCode>) -> Self {
+        let status = response.status;
+        if accepted.contains(&status) {
+            Self::Ok(status)
         } else {
-            match response.error_for_status_ref() {
-                Ok(_) if code.is_success() => Self::Ok(code),
-                Ok(_) if code.is_redirection() => Self::Redirected(code),
-                Ok(_) => Self::UnknownStatusCode(code),
-                Err(e) => e.into(),
-            }
+            Self::Error(ErrorKind::RejectedStatusCode(status))
         }
     }
 
@@ -108,19 +115,19 @@ impl Status {
     /// because they are provided by the user and can be invalid according to
     /// the HTTP spec and IANA, but the user might still want to accept them.
     #[must_use]
-    pub fn from_cache_status(s: CacheStatus, accepted: &HashSet<u16>) -> Self {
+    pub fn from_cache_status(s: CacheStatus, accepted: &HashSet<StatusCode>) -> Self {
         match s {
             CacheStatus::Ok(code) => {
                 if matches!(s, CacheStatus::Ok(_)) || accepted.contains(&code) {
                     return Self::Cached(CacheStatus::Ok(code));
-                };
+                }
                 Self::Cached(CacheStatus::Error(Some(code)))
             }
             CacheStatus::Error(code) => {
-                if let Some(code) = code {
-                    if accepted.contains(&code) {
-                        return Self::Cached(CacheStatus::Ok(code));
-                    };
+                if let Some(code) = code
+                    && accepted.contains(&code)
+                {
+                    return Self::Cached(CacheStatus::Ok(code));
                 }
                 Self::Cached(CacheStatus::Error(code))
             }
@@ -137,99 +144,141 @@ impl Status {
     /// It is modeled after reqwest's `details` method.
     #[must_use]
     #[allow(clippy::match_same_arms)]
-    pub fn details(&self) -> Option<String> {
+    pub fn details(&self) -> String {
         match &self {
-            Status::Ok(code) => code.canonical_reason().map(String::from),
-            Status::Redirected(code) => code.canonical_reason().map(String::from),
+            Status::Ok(code) => code.to_string(),
+            Status::Redirected(inner, redirects) => {
+                let count = redirects.count();
+                let noun = if count == 1 { "redirect" } else { "redirects" };
+                let inner = inner.details();
+                format!("{inner} | Followed {count} {noun}. Redirects: {redirects}")
+            }
+            Status::Remapped(inner, remap) => {
+                let inner = inner.details();
+                format!("{inner} | Remaps: {remap}")
+            }
             Status::Error(e) => e.details(),
-            Status::Timeout(_) => None,
-            Status::UnknownStatusCode(_) => None,
-            Status::Unsupported(_) => None,
-            Status::Cached(_) => None,
-            Status::Excluded => None,
+            Status::RequestError(e) => e.error().details(),
+            Status::UnknownMailStatus(reason) => reason.clone(),
+            Status::Timeout(_) => "Request timed out".into(),
+            Status::Excluded => "This is due to your 'exclude' values".into(),
+            Status::Unsupported(_) | Status::Cached(_) | Status::UnknownStatusCode(_) => {
+                self.to_string()
+            }
         }
     }
 
-    #[inline]
-    #[must_use]
     /// Returns `true` if the check was successful
-    pub const fn is_success(&self) -> bool {
-        matches!(self, Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)))
-    }
-
     #[inline]
     #[must_use]
-    /// Returns `true` if the check was not successful
-    pub const fn is_error(&self) -> bool {
+    pub const fn is_success(&self) -> bool {
         matches!(
-            self,
-            Status::Error(_) | Status::Cached(CacheStatus::Error(_)) | Status::Timeout(_)
+            self.innermost(),
+            Status::Ok(_) | Status::Cached(CacheStatus::Ok(_))
         )
     }
 
+    /// Returns `true` if the check was not successful
     #[inline]
     #[must_use]
+    pub const fn is_error(&self) -> bool {
+        matches!(
+            self.innermost(),
+            Status::Error(_)
+                | Status::RequestError(_)
+                | Status::Cached(CacheStatus::Error(_))
+                | Status::Timeout(_)
+        )
+    }
+
     /// Returns `true` if the check was excluded
+    #[inline]
+    #[must_use]
     pub const fn is_excluded(&self) -> bool {
         matches!(
-            self,
+            self.innermost(),
             Status::Excluded | Status::Cached(CacheStatus::Excluded)
         )
     }
 
+    /// Returns `true` if a check took too long to complete
     #[inline]
     #[must_use]
-    /// Returns `true` if a check took too long to complete
     pub const fn is_timeout(&self) -> bool {
-        matches!(self, Status::Timeout(_))
+        matches!(self.innermost(), Status::Timeout(_))
     }
 
+    /// Returns `true` if a URI is unsupported
     #[inline]
     #[must_use]
-    /// Returns `true` if a URI is unsupported
     pub const fn is_unsupported(&self) -> bool {
         matches!(
-            self,
+            self.innermost(),
             Status::Unsupported(_) | Status::Cached(CacheStatus::Unsupported)
         )
     }
 
+    /// Returns true if the status code is unknown
+    /// (i.e. not a valid HTTP status code)
+    ///
+    /// For example, `200` is a valid HTTP status code,
+    /// while `999` is not.
+    #[inline]
     #[must_use]
-    /// Return a unicode icon to visualize the status
-    pub const fn icon(&self) -> &str {
+    pub const fn is_unknown(&self) -> bool {
+        matches!(self.innermost(), Status::UnknownStatusCode(_))
+    }
+
+    /// Extract the innermost [`Status`], handling nested variants
+    #[must_use]
+    pub const fn innermost(&self) -> &Self {
         match self {
-            Status::Ok(_) => ICON_OK,
-            Status::Redirected(_) => ICON_REDIRECTED,
-            Status::UnknownStatusCode(_) => ICON_UNKNOWN,
-            Status::Excluded => ICON_EXCLUDED,
-            Status::Error(_) => ICON_ERROR,
-            Status::Timeout(_) => ICON_TIMEOUT,
-            Status::Unsupported(_) => ICON_UNSUPPORTED,
-            Status::Cached(_) => ICON_CACHED,
+            Status::Redirected(inner, _) | Status::Remapped(inner, _) => inner.innermost(),
+            other => other,
         }
     }
 
+    /// Extract (potentially nested) [`Redirects`]
     #[must_use]
+    pub const fn redirects(&self) -> Option<&Redirects> {
+        match self {
+            Status::Remapped(inner, _) => inner.redirects(),
+            Status::Redirected(_, redirects) => Some(redirects),
+            _ => None,
+        }
+    }
+
+    /// Return a unicode icon to visualize the status
+    #[must_use]
+    pub const fn icon(&self) -> &str {
+        match self {
+            Status::Ok(_) => ICON_OK,
+            Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) => ICON_UNKNOWN,
+            Status::Excluded => ICON_EXCLUDED,
+            Status::Error(_) | Status::RequestError(_) => ICON_ERROR,
+            Status::Timeout(_) => ICON_TIMEOUT,
+            Status::Unsupported(_) => ICON_UNSUPPORTED,
+            Status::Cached(_) => ICON_CACHED,
+            Status::Redirected(inner, _) | Status::Remapped(inner, _) => inner.icon(),
+        }
+    }
+
     /// Return the HTTP status code (if any)
+    #[must_use]
     pub fn code(&self) -> Option<StatusCode> {
         match self {
             Status::Ok(code)
-            | Status::Redirected(code)
             | Status::UnknownStatusCode(code)
-            | Status::Timeout(Some(code)) => Some(*code),
-            Status::Error(kind) | Status::Unsupported(kind) => {
-                if let Some(error) = kind.reqwest_error() {
-                    error.status()
-                } else {
-                    None
-                }
-            }
-            Status::Cached(CacheStatus::Ok(code) | CacheStatus::Error(Some(code))) => {
-                match StatusCode::from_u16(*code) {
-                    Ok(code) => Some(code),
-                    Err(_) => None,
-                }
-            }
+            | Status::Timeout(Some(code))
+            | Status::Cached(CacheStatus::Ok(code) | CacheStatus::Error(Some(code))) => Some(*code),
+            Status::Error(kind) | Status::Unsupported(kind) => match kind {
+                ErrorKind::RejectedStatusCode(status_code) => Some(*status_code),
+                _ => match kind.reqwest_error() {
+                    Some(error) => error.status(),
+                    None => None,
+                },
+            },
+            Status::Redirected(inner, _) => inner.code(),
             _ => None,
         }
     }
@@ -238,83 +287,87 @@ impl Status {
     #[must_use]
     pub fn code_as_string(&self) -> String {
         match self {
-            Status::Ok(code) | Status::Redirected(code) | Status::UnknownStatusCode(code) => {
-                code.as_str().to_string()
-            }
+            Status::Ok(code) | Status::UnknownStatusCode(code) => code.as_u16().to_string(),
+            Status::UnknownMailStatus(_) => "UNKNOWN".to_string(),
             Status::Excluded => "EXCLUDED".to_string(),
             Status::Error(e) => match e {
-                ErrorKind::NetworkRequest(e)
-                | ErrorKind::ReadResponseBody(e)
-                | ErrorKind::BuildRequestClient(e) => match e.status() {
-                    Some(code) => code.as_str().to_string(),
-                    None => "ERROR".to_string(),
-                },
+                ErrorKind::RejectedStatusCode(code) => code.as_u16().to_string(),
+                ErrorKind::ReadResponseBody(e) | ErrorKind::BuildRequestClient(e) => {
+                    match e.status() {
+                        Some(code) => code.as_u16().to_string(),
+                        None => "ERROR".to_string(),
+                    }
+                }
                 _ => "ERROR".to_string(),
             },
+            Status::RequestError(_) => "ERROR".to_string(),
             Status::Timeout(code) => match code {
-                Some(code) => code.as_str().to_string(),
+                Some(code) => code.as_u16().to_string(),
                 None => "TIMEOUT".to_string(),
             },
             Status::Unsupported(_) => "IGNORED".to_string(),
             Status::Cached(cache_status) => match cache_status {
-                CacheStatus::Ok(code) => code.to_string(),
+                CacheStatus::Ok(code) => code.as_u16().to_string(),
                 CacheStatus::Error(code) => match code {
-                    Some(code) => code.to_string(),
+                    Some(code) => code.as_u16().to_string(),
                     None => "ERROR".to_string(),
                 },
                 CacheStatus::Excluded => "EXCLUDED".to_string(),
                 CacheStatus::Unsupported => "IGNORED".to_string(),
             },
+            Status::Redirected(inner, _) | Status::Remapped(inner, _) => inner.code_as_string(),
         }
-    }
-
-    /// Returns true if the status code is unknown
-    /// (i.e. not a valid HTTP status code)
-    ///
-    /// For example, `200` is a valid HTTP status code,
-    /// while `999` is not.
-    #[must_use]
-    pub const fn is_unknown(&self) -> bool {
-        matches!(self, Status::UnknownStatusCode(_))
     }
 }
 
 impl From<ErrorKind> for Status {
     fn from(e: ErrorKind) -> Self {
-        Self::Error(e)
-    }
-}
-
-impl From<reqwest::Error> for Status {
-    fn from(e: reqwest::Error) -> Self {
-        if e.is_timeout() {
-            Self::Timeout(e.status())
-        } else if e.is_redirect() {
-            Self::Error(ErrorKind::TooManyRedirects(e))
-        } else if e.is_builder() {
-            Self::Unsupported(ErrorKind::BuildRequestClient(e))
-        } else if e.is_body() || e.is_decode() {
-            Self::Unsupported(ErrorKind::ReadResponseBody(e))
-        } else {
-            Self::Error(ErrorKind::NetworkRequest(e))
+        match e {
+            ErrorKind::InvalidUrlHost => Status::Unsupported(ErrorKind::InvalidUrlHost),
+            ErrorKind::NetworkRequest(e)
+            | ErrorKind::ReadResponseBody(e)
+            | ErrorKind::BuildRequestClient(e) => {
+                if e.is_timeout() {
+                    Self::Timeout(e.status())
+                } else if e.is_builder() {
+                    Self::Unsupported(ErrorKind::BuildRequestClient(e))
+                } else if e.is_body() || e.is_decode() {
+                    Self::Unsupported(ErrorKind::ReadResponseBody(e))
+                } else {
+                    Self::Error(ErrorKind::NetworkRequest(e))
+                }
+            }
+            e => Self::Error(e),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{CacheStatus, ErrorKind, Status};
+    use crate::{
+        CacheStatus, ErrorKind, Status, Uri, remap::Remap, types::redirect_history::Redirects,
+    };
     use http::StatusCode;
 
     #[test]
     fn test_status_serialization() {
         let status_ok = Status::Ok(StatusCode::from_u16(200).unwrap());
         let serialized_with_code = serde_json::to_string(&status_ok).unwrap();
-        assert_eq!("{\"text\":\"200 OK\",\"code\":200}", serialized_with_code);
+        assert_eq!(r#"{"text":"200 OK","code":200}"#, serialized_with_code);
+
+        let status_error = Status::Error(ErrorKind::EmptyUrl);
+        let serialized_with_error = serde_json::to_string(&status_error).unwrap();
+        assert_eq!(
+            r#"{"text":"Empty URL found but a URL must not be empty","details":"Empty URL found but a URL must not be empty"}"#,
+            serialized_with_error
+        );
 
         let status_timeout = Status::Timeout(None);
         let serialized_without_code = serde_json::to_string(&status_timeout).unwrap();
-        assert_eq!("{\"text\":\"Timeout\"}", serialized_without_code);
+        assert_eq!(
+            r#"{"text":"Timeout","details":"Request timed out"}"#,
+            serialized_without_code
+        );
     }
 
     #[test]
@@ -338,14 +391,22 @@ mod tests {
             999
         );
         assert_eq!(
-            Status::Redirected(StatusCode::from_u16(300).unwrap())
-                .code()
-                .unwrap(),
+            Status::Redirected(
+                Box::new(Status::Ok(StatusCode::from_u16(300).unwrap())),
+                Redirects::new("http://example.com".try_into().unwrap())
+            )
+            .code()
+            .unwrap(),
             300
         );
-        assert_eq!(Status::Cached(CacheStatus::Ok(200)).code().unwrap(), 200);
         assert_eq!(
-            Status::Cached(CacheStatus::Error(Some(404)))
+            Status::Cached(CacheStatus::Ok(StatusCode::OK))
+                .code()
+                .unwrap(),
+            200
+        );
+        assert_eq!(
+            Status::Cached(CacheStatus::Error(Some(StatusCode::NOT_FOUND)))
                 .code()
                 .unwrap(),
             404
@@ -363,5 +424,30 @@ mod tests {
     fn test_status_unknown() {
         assert!(Status::UnknownStatusCode(StatusCode::from_u16(999).unwrap()).is_unknown());
         assert!(!Status::Ok(StatusCode::from_u16(200).unwrap()).is_unknown());
+    }
+
+    #[test]
+    fn test_inner_status() {
+        let erroneous = get_nested(Status::Error(ErrorKind::EmptyUrl));
+        assert!(erroneous.is_error());
+        assert!(!erroneous.is_success());
+
+        let success = get_nested(Status::Ok(200.try_into().unwrap()));
+        assert!(success.is_success());
+        assert!(!success.is_error());
+    }
+
+    fn get_nested(inner: Status) -> Status {
+        let dummy_uri = Uri::try_from("https://example.com").unwrap();
+        Status::Redirected(
+            Box::new(Status::Remapped(
+                Box::new(inner),
+                Remap {
+                    original: dummy_uri.clone(),
+                    new: dummy_uri.clone(),
+                },
+            )),
+            Redirects::new(dummy_uri.url),
+        )
     }
 }

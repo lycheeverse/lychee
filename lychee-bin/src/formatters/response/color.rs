@@ -1,8 +1,8 @@
 use lychee_lib::{CacheStatus, ResponseBody, Status};
 
-use crate::formatters::color::{DIM, GREEN, NORMAL, PINK, YELLOW};
+use crate::formatters::color::{DIM, GREEN, PINK, YELLOW};
 
-use super::{ResponseFormatter, MAX_RESPONSE_OUTPUT_WIDTH};
+use super::{MAX_RESPONSE_OUTPUT_WIDTH, ResponseFormatter};
 
 /// A colorized formatter for the response body
 ///
@@ -13,15 +13,19 @@ pub(crate) struct ColorFormatter;
 impl ColorFormatter {
     /// Determine the color for formatted output based on the status of the
     /// response.
-    fn status_color(status: &Status) -> &'static once_cell::sync::Lazy<console::Style> {
+    fn status_color(status: &Status) -> &'static std::sync::LazyLock<console::Style> {
         match status {
             Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => &GREEN,
             Status::Excluded
             | Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => &DIM,
-            Status::Redirected(_) => &NORMAL,
-            Status::UnknownStatusCode(_) | Status::Timeout(_) => &YELLOW,
-            Status::Error(_) | Status::Cached(CacheStatus::Error(_)) => &PINK,
+            Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) | Status::Timeout(_) => {
+                &YELLOW
+            }
+            Status::Error(_) | Status::RequestError(_) | Status::Cached(CacheStatus::Error(_)) => {
+                &PINK
+            }
+            Status::Redirected(inner, _) | Status::Remapped(inner, _) => Self::status_color(inner),
         }
     }
 
@@ -36,12 +40,7 @@ impl ColorFormatter {
         // Calculate the effective padding. Ensure it's non-negative to avoid panic.
         let padding = MAX_RESPONSE_OUTPUT_WIDTH.saturating_sub(status_code_or_text.len() + 2); // +2 for brackets
 
-        format!(
-            "{}[{:>width$}]",
-            " ".repeat(padding),
-            status_code_or_text,
-            width = status_code_or_text.len()
-        )
+        format!("{}[{}]", " ".repeat(padding), status_code_or_text)
     }
 
     /// Color and format the response status.
@@ -55,14 +54,6 @@ impl ColorFormatter {
 impl ResponseFormatter for ColorFormatter {
     fn format_response(&self, body: &ResponseBody) -> String {
         let colored_status = ColorFormatter::format_response_status(&body.status);
-        format!("{} {}", colored_status, body.uri)
-    }
-
-    /// Provide some more detailed information about the response
-    /// This prints the entire response body, including the exact error message
-    /// (if available).
-    fn format_detailed_response(&self, body: &ResponseBody) -> String {
-        let colored_status = ColorFormatter::format_response_status(&body.status);
         format!("{colored_status} {body}")
     }
 }
@@ -73,18 +64,11 @@ mod tests {
     use http::StatusCode;
     use lychee_lib::{ErrorKind, Status, Uri};
     use pretty_assertions::assert_eq;
+    use test_utils::mock_response_body;
 
     /// Helper function to strip ANSI color codes for tests
     fn strip_ansi_codes(s: &str) -> String {
         console::strip_ansi_codes(s).to_string()
-    }
-
-    // Helper function to create a ResponseBody with a given status and URI
-    fn mock_response_body(status: Status, uri: &str) -> ResponseBody {
-        ResponseBody {
-            uri: Uri::try_from(uri).unwrap(),
-            status,
-        }
     }
 
     #[test]
@@ -96,20 +80,23 @@ mod tests {
     #[test]
     fn test_format_response_with_ok_status() {
         let formatter = ColorFormatter;
-        let body = mock_response_body(Status::Ok(StatusCode::OK), "https://example.com");
+        let body = mock_response_body!(Status::Ok(StatusCode::OK), "https://example.com");
         let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
-        assert_eq!(formatted_response, "     [200] https://example.com/");
+        assert_eq!(formatted_response, "   [200] https://example.com/");
     }
 
     #[test]
     fn test_format_response_with_error_status() {
         let formatter = ColorFormatter;
-        let body = mock_response_body(
-            Status::Error(ErrorKind::InvalidUrlHost),
+        let body = mock_response_body!(
+            Status::Error(ErrorKind::EmptyUrl),
             "https://example.com/404",
         );
         let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
-        assert_eq!(formatted_response, "   [ERROR] https://example.com/404");
+        assert_eq!(
+            formatted_response,
+            " [ERROR] https://example.com/404 | Empty URL found but a URL must not be empty"
+        );
     }
 
     #[test]
@@ -117,23 +104,23 @@ mod tests {
         let formatter = ColorFormatter;
         let long_uri =
             "https://example.com/some/very/long/path/to/a/resource/that/exceeds/normal/lengths";
-        let body = mock_response_body(Status::Ok(StatusCode::OK), long_uri);
+        let body = mock_response_body!(Status::Ok(StatusCode::OK), long_uri);
         let formatted_response = strip_ansi_codes(&formatter.format_response(&body));
         assert!(formatted_response.contains(long_uri));
     }
 
     #[test]
-    fn test_detailed_response_output() {
+    fn test_error_response_output() {
         let formatter = ColorFormatter;
-        let body = mock_response_body(
-            Status::Error(ErrorKind::InvalidUrlHost),
+        let body = mock_response_body!(
+            Status::Error(ErrorKind::EmptyUrl),
             "https://example.com/404",
         );
 
-        let response = strip_ansi_codes(&formatter.format_detailed_response(&body));
+        let response = strip_ansi_codes(&formatter.format_response(&body));
         assert_eq!(
             response,
-            "   [ERROR] https://example.com/404 | URL is missing a host"
+            " [ERROR] https://example.com/404 | Empty URL found but a URL must not be empty"
         );
     }
 }

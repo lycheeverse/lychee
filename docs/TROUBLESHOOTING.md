@@ -48,15 +48,16 @@ Some sites expect one or more custom headers to return a valid response. \
 For example, crates.io expects a `Accept: text/html` header or else it \
 will [return a 404](https://github.com/rust-lang/crates.io/issues/788).
 
-To fix that you can pass additional headers like so: `--header "accept=text/html"`. \
+To fix that you can pass additional headers like so: `--header "Accept: text/html"`. \
 You can use that argument multiple times to add more headers. \
-Or, you can accept all content/MIME types: `--header "accept=*/*"`.
+Or, you can accept all content/MIME types: `--header "Accept: */*"`.
 
 See more info about the Accept header
 [over at MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept).
 
 ## Unreachable Mail Address
 
+You can check email addresses by providing the `--include-mail` flag.
 We use https://github.com/reacherhq/check-if-email-exists for email checking.
 You can test your mail address with curl:
 
@@ -70,6 +71,5 @@ You can test your mail address with curl:
 
 Some settings on your mail server (such as `SPF` Policy, `DNSBL`) may prevent
 your email from being verified. If you have an error with checking a working
-email, you can disable this check using the [commandline
-parameter](https://github.com/lycheeverse/lychee#commandline-parameters)
-`--exclude-mail`.
+email, you can exclude specific addresses with the `--exclude` flag or skip
+all email addresses by removing the `--include-mail` flag.

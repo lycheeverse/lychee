@@ -1,36 +1,44 @@
-mod excludes;
-mod includes;
+mod regex_filter;
 
-use once_cell::sync::Lazy;
 use regex::RegexSet;
 use std::collections::HashSet;
+use std::sync::LazyLock;
 
-pub use excludes::Excludes;
-pub use includes::Includes;
+/// Include configuration for the link checker.
+/// You can include links based on regex patterns.
+pub type Includes = regex_filter::RegexFilter;
+
+/// Exclude configuration for the link checker.
+/// You can ignore links based on regex patterns.
+pub type Excludes = regex_filter::RegexFilter;
+
+/// You can exclude paths and files based on regex patterns.
+pub type PathExcludes = regex_filter::RegexFilter;
 
 use crate::Uri;
 
-#[cfg(all(not(test), not(feature = "check_example_domains")))]
 /// These domains are explicitly defined by RFC 2606, section 3 Reserved Example
 /// Second Level Domain Names for describing example cases and should not be
 /// dereferenced as they should not have content.
-static EXAMPLE_DOMAINS: Lazy<HashSet<&'static str>> =
-    Lazy::new(|| HashSet::from_iter(["example.com", "example.org", "example.net", "example.edu"]));
-
 #[cfg(all(not(test), not(feature = "check_example_domains")))]
+static EXAMPLE_DOMAINS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
+    HashSet::from_iter(["example.com", "example.org", "example.net", "example.edu"])
+});
+
 /// We also exclude the example TLDs in section 2 of the same RFC.
 /// This exclusion gets subsumed by the `check_example_domains` feature.
-static EXAMPLE_TLDS: Lazy<HashSet<&'static str>> =
-    Lazy::new(|| HashSet::from_iter([".test", ".example", ".invalid", ".localhost"]));
+#[cfg(all(not(test), not(feature = "check_example_domains")))]
+static EXAMPLE_TLDS: LazyLock<HashSet<&'static str>> =
+    LazyLock::new(|| HashSet::from_iter([".test", ".example", ".invalid", ".localhost"]));
 
 // Allow usage of example domains in tests
 #[cfg(any(test, feature = "check_example_domains"))]
-static EXAMPLE_DOMAINS: Lazy<HashSet<&'static str>> = Lazy::new(HashSet::new);
+static EXAMPLE_DOMAINS: LazyLock<HashSet<&'static str>> = LazyLock::new(HashSet::new);
 
 #[cfg(any(test, feature = "check_example_domains"))]
-static EXAMPLE_TLDS: Lazy<HashSet<&'static str>> = Lazy::new(HashSet::new);
+static EXAMPLE_TLDS: LazyLock<HashSet<&'static str>> = LazyLock::new(HashSet::new);
 
-static UNSUPPORTED_DOMAINS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+static UNSUPPORTED_DOMAINS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     HashSet::from_iter([
         // Twitter requires an account to view tweets
         // https://news.ycombinator.com/item?id=36540957
@@ -40,32 +48,33 @@ static UNSUPPORTED_DOMAINS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 
 /// Pre-defined exclusions for known false-positives
 const FALSE_POSITIVE_PAT: &[&str] = &[
-    r"^https?://schemas.openxmlformats.org",
-    r"^https?://schemas.zune.net",
-    r"^https?://www.w3.org/1999/xhtml",
-    r"^https?://www.w3.org/1999/xlink",
-    r"^https?://www.w3.org/2000/svg",
-    r"^https?://ogp.me/ns#",
-    r"^https?://schemas.microsoft.com",
-    r"^https?://(.*)/xmlrpc.php$",
+    r"^https?://schemas\.openxmlformats\.org",
+    r"^https?://schemas\.microsoft\.com",
+    r"^https?://schemas\.zune\.net",
+    r"^https?://www\.w3\.org/1999/xhtml",
+    r"^https?://www\.w3\.org/1999/xlink",
+    r"^https?://www\.w3\.org/2000/svg",
+    r"^https?://www\.w3\.org/2001/XMLSchema-instance",
+    r"^https?://ogp\.me/ns#",
+    r"^https?://(.*)/xmlrpc\.php$",
 ];
 
-static FALSE_POSITIVE_SET: Lazy<RegexSet> =
-    Lazy::new(|| regex::RegexSet::new(FALSE_POSITIVE_PAT).expect("Failed to create RegexSet"));
+static FALSE_POSITIVE_SET: LazyLock<RegexSet> =
+    LazyLock::new(|| regex::RegexSet::new(FALSE_POSITIVE_PAT).expect("Failed to create RegexSet"));
 
-#[inline]
-#[must_use]
 /// The given input is a well-known false-positive, which won't be checked by
 /// default. This behavior can be explicitly overwritten by defining an
 /// `Include` pattern, which will match on a false positive
+#[inline]
+#[must_use]
 pub fn is_false_positive(input: &str) -> bool {
     FALSE_POSITIVE_SET.is_match(input)
 }
 
-#[inline]
-#[must_use]
 /// Check if the host belongs to a known example domain as defined in
 /// [RFC 2606](https://datatracker.ietf.org/doc/html/rfc2606)
+#[inline]
+#[must_use]
 pub fn is_example_domain(uri: &Uri) -> bool {
     match uri.domain() {
         Some(domain) => {
@@ -92,9 +101,9 @@ pub fn is_example_domain(uri: &Uri) -> bool {
     }
 }
 
+/// Check if the host belongs to a known unsupported domain
 #[inline]
 #[must_use]
-/// Check if the host belongs to a known unsupported domain
 pub fn is_unsupported_domain(uri: &Uri) -> bool {
     if let Some(domain) = uri.domain() {
         // It is not enough to use `UNSUPPORTED_DOMAINS.contains(domain)` here
@@ -252,15 +261,12 @@ impl Filter {
 
 #[cfg(test)]
 mod tests {
-    use regex::RegexSet;
     use reqwest::Url;
+    use test_utils::{mail, website};
     use url::Host;
 
     use super::{Excludes, Filter, Includes};
-    use crate::{
-        test_utils::{mail, website},
-        Uri,
-    };
+    use crate::Uri;
 
     // Note: the standard library, as of Rust stable 1.47.0, does not expose
     // "link-local" or "private" IPv6 checks. However, one might argue
@@ -335,46 +341,42 @@ mod tests {
         // In this case, only the requests matching the include set will be checked
         let filter = Filter::default();
 
-        assert!(!filter.is_excluded(&website("https://example.com")));
+        assert!(!filter.is_excluded(&website!("https://example.com")));
     }
 
     #[test]
     fn test_false_positives() {
         let filter = Filter::default();
 
-        assert!(filter.is_excluded(&website("http://www.w3.org/1999/xhtml")));
-        assert!(filter.is_excluded(&website(
+        assert!(filter.is_excluded(&website!("http://www.w3.org/1999/xhtml")));
+        assert!(filter.is_excluded(&website!(
             "http://schemas.openxmlformats.org/markup-compatibility/2006"
         )));
-        assert!(!filter.is_excluded(&website("https://example.com")));
+        assert!(!filter.is_excluded(&website!("https://example.com")));
     }
 
     #[test]
     fn test_overwrite_false_positives() {
-        let includes = Includes {
-            regex: RegexSet::new([r"http://www.w3.org/1999/xhtml"]).unwrap(),
-        };
+        let includes = Includes::new([r"http://www.w3.org/1999/xhtml"]).unwrap();
         let filter = Filter {
             includes: Some(includes),
             ..Filter::default()
         };
-        assert!(!filter.is_excluded(&website("http://www.w3.org/1999/xhtml")));
+        assert!(!filter.is_excluded(&website!("http://www.w3.org/1999/xhtml")));
     }
 
     #[test]
     fn test_include_regex() {
-        let includes = Includes {
-            regex: RegexSet::new([r"foo.example.com"]).unwrap(),
-        };
+        let includes = Includes::new([r"foo.example.com"]).unwrap();
         let filter = Filter {
             includes: Some(includes),
             ..Filter::default()
         };
 
         // Only the requests matching the include set will be checked
-        assert!(!filter.is_excluded(&website("https://foo.example.com")));
-        assert!(filter.is_excluded(&website("https://bar.example.com")));
-        assert!(filter.is_excluded(&website("https://example.com")));
+        assert!(!filter.is_excluded(&website!("https://foo.example.com")));
+        assert!(filter.is_excluded(&website!("https://bar.example.com")));
+        assert!(filter.is_excluded(&website!("https://example.com")));
     }
 
     #[test]
@@ -383,9 +385,9 @@ mod tests {
             ..Filter::default()
         };
 
-        assert!(filter.is_excluded(&mail("mail@example.com")));
-        assert!(filter.is_excluded(&mail("foo@bar.dev")));
-        assert!(!filter.is_excluded(&website("http://bar.dev")));
+        assert!(filter.is_excluded(&mail!("mail@example.com")));
+        assert!(filter.is_excluded(&mail!("foo@bar.dev")));
+        assert!(!filter.is_excluded(&website!("http://bar.dev")));
     }
 
     #[test]
@@ -395,36 +397,31 @@ mod tests {
             ..Filter::default()
         };
 
-        assert!(!filter.is_excluded(&mail("mail@example.com")));
-        assert!(!filter.is_excluded(&mail("foo@bar.dev")));
-        assert!(!filter.is_excluded(&website("http://bar.dev")));
+        assert!(!filter.is_excluded(&mail!("mail@example.com")));
+        assert!(!filter.is_excluded(&mail!("foo@bar.dev")));
+        assert!(!filter.is_excluded(&website!("http://bar.dev")));
     }
 
     #[test]
     fn test_exclude_regex() {
-        let excludes = Excludes {
-            regex: RegexSet::new([r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap(),
-        };
+        let excludes =
+            Excludes::new([r"github.com", r"[a-z]+\.(org|net)", r"@example.com"]).unwrap();
         let filter = Filter {
             excludes: Some(excludes),
             ..Filter::default()
         };
 
-        assert!(filter.is_excluded(&website("https://github.com")));
-        assert!(filter.is_excluded(&website("http://exclude.org")));
-        assert!(filter.is_excluded(&mail("mail@example.com")));
+        assert!(filter.is_excluded(&website!("https://github.com")));
+        assert!(filter.is_excluded(&website!("http://exclude.org")));
+        assert!(filter.is_excluded(&mail!("mail@example.com")));
 
-        assert!(!filter.is_excluded(&website("http://bar.dev")));
-        assert!(filter.is_excluded(&mail("foo@bar.dev")));
+        assert!(!filter.is_excluded(&website!("http://bar.dev")));
+        assert!(filter.is_excluded(&mail!("foo@bar.dev")));
     }
     #[test]
     fn test_exclude_include_regex() {
-        let includes = Includes {
-            regex: RegexSet::new([r"foo.example.com"]).unwrap(),
-        };
-        let excludes = Excludes {
-            regex: RegexSet::new([r"example.com"]).unwrap(),
-        };
+        let includes = Includes::new([r"foo.example.com"]).unwrap();
+        let excludes = Excludes::new([r"example.com"]).unwrap();
         let filter = Filter {
             includes: Some(includes),
             excludes: Some(excludes),
@@ -432,24 +429,24 @@ mod tests {
         };
 
         // Includes take preference over excludes
-        assert!(!filter.is_excluded(&website("https://foo.example.com")),);
+        assert!(!filter.is_excluded(&website!("https://foo.example.com")),);
 
-        assert!(filter.is_excluded(&website("https://example.com")));
-        assert!(filter.is_excluded(&website("https://bar.example.com")));
+        assert!(filter.is_excluded(&website!("https://example.com")));
+        assert!(filter.is_excluded(&website!("https://bar.example.com")));
     }
 
     #[test]
     fn test_excludes_no_private_ips_by_default() {
         let filter = Filter::default();
 
-        assert!(!filter.is_excluded(&website(V4_PRIVATE_CLASS_A)));
-        assert!(!filter.is_excluded(&website(V4_PRIVATE_CLASS_B)));
-        assert!(!filter.is_excluded(&website(V4_PRIVATE_CLASS_C)));
-        assert!(!filter.is_excluded(&website(V4_LINK_LOCAL_1)));
-        assert!(!filter.is_excluded(&website(V4_LINK_LOCAL_2)));
-        assert!(!filter.is_excluded(&website(V4_LOOPBACK)));
-        assert!(!filter.is_excluded(&website(V6_LOOPBACK)));
-        assert!(!filter.is_excluded(&website("http://localhost")));
+        assert!(!filter.is_excluded(&website!(V4_PRIVATE_CLASS_A)));
+        assert!(!filter.is_excluded(&website!(V4_PRIVATE_CLASS_B)));
+        assert!(!filter.is_excluded(&website!(V4_PRIVATE_CLASS_C)));
+        assert!(!filter.is_excluded(&website!(V4_LINK_LOCAL_1)));
+        assert!(!filter.is_excluded(&website!(V4_LINK_LOCAL_2)));
+        assert!(!filter.is_excluded(&website!(V4_LOOPBACK)));
+        assert!(!filter.is_excluded(&website!(V6_LOOPBACK)));
+        assert!(!filter.is_excluded(&website!("http://localhost")));
     }
 
     #[test]
@@ -459,9 +456,9 @@ mod tests {
             ..Filter::default()
         };
 
-        assert!(filter.is_excluded(&website(V4_PRIVATE_CLASS_A)));
-        assert!(filter.is_excluded(&website(V4_PRIVATE_CLASS_B)));
-        assert!(filter.is_excluded(&website(V4_PRIVATE_CLASS_C)));
+        assert!(filter.is_excluded(&website!(V4_PRIVATE_CLASS_A)));
+        assert!(filter.is_excluded(&website!(V4_PRIVATE_CLASS_B)));
+        assert!(filter.is_excluded(&website!(V4_PRIVATE_CLASS_C)));
     }
 
     #[test]
@@ -471,8 +468,8 @@ mod tests {
             ..Filter::default()
         };
 
-        assert!(filter.is_excluded(&website(V4_LINK_LOCAL_1)));
-        assert!(filter.is_excluded(&website(V4_LINK_LOCAL_2)));
+        assert!(filter.is_excluded(&website!(V4_LINK_LOCAL_1)));
+        assert!(filter.is_excluded(&website!(V4_LINK_LOCAL_2)));
     }
 
     #[test]
@@ -482,9 +479,9 @@ mod tests {
             ..Filter::default()
         };
 
-        assert!(filter.is_excluded(&website(V4_LOOPBACK)));
-        assert!(filter.is_excluded(&website(V6_LOOPBACK)));
-        assert!(filter.is_excluded(&website("http://localhost")));
+        assert!(filter.is_excluded(&website!(V4_LOOPBACK)));
+        assert!(filter.is_excluded(&website!(V6_LOOPBACK)));
+        assert!(filter.is_excluded(&website!("http://localhost")));
     }
 
     #[test]
@@ -496,7 +493,7 @@ mod tests {
         };
 
         // if these were pure IPv4, we would exclude
-        assert!(!filter.is_excluded(&website(V6_MAPPED_V4_PRIVATE_CLASS_A)));
-        assert!(!filter.is_excluded(&website(V6_MAPPED_V4_LINK_LOCAL)));
+        assert!(!filter.is_excluded(&website!(V6_MAPPED_V4_PRIVATE_CLASS_A)));
+        assert!(!filter.is_excluded(&website!(V6_MAPPED_V4_LINK_LOCAL)));
     }
 }

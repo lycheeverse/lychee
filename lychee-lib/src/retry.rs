@@ -18,21 +18,10 @@ pub(crate) trait RetryExt {
 
 impl RetryExt for reqwest::StatusCode {
     /// Try to map a `reqwest` response into `Retryable`.
-    #[allow(clippy::if_same_then_else)]
     fn should_retry(&self) -> bool {
-        let status = *self;
-        if status.is_server_error() {
-            true
-        } else if status.is_client_error()
-            && status != StatusCode::REQUEST_TIMEOUT
-            && status != StatusCode::TOO_MANY_REQUESTS
-        {
-            false
-        } else if status.is_success() {
-            false
-        } else {
-            status == StatusCode::REQUEST_TIMEOUT || status == StatusCode::TOO_MANY_REQUESTS
-        }
+        self.is_server_error()
+            || self == &StatusCode::REQUEST_TIMEOUT
+            || self == &StatusCode::TOO_MANY_REQUESTS
     }
 }
 
@@ -87,7 +76,7 @@ impl RetryExt for http::Error {
         let inner = self.get_ref();
         inner
             .source()
-            .and_then(<(dyn std::error::Error + 'static)>::downcast_ref)
+            .and_then(<dyn std::error::Error + 'static>::downcast_ref)
             .is_some_and(should_retry_io)
     }
 }
@@ -106,23 +95,27 @@ impl RetryExt for ErrorKind {
         {
             source.should_retry()
         } else {
-            false
+            matches!(
+                self,
+                Self::RejectedStatusCode(StatusCode::TOO_MANY_REQUESTS)
+            )
         }
     }
 }
 
 impl RetryExt for Status {
-    #[allow(clippy::match_same_arms)]
     fn should_retry(&self) -> bool {
         match self {
-            Status::Ok(_) => false,
-            Status::Error(err) => err.should_retry(),
             Status::Timeout(_) => true,
-            Status::Redirected(_) => false,
-            Status::UnknownStatusCode(_) => false,
-            Status::Excluded => false,
-            Status::Unsupported(_) => false,
-            Status::Cached(_) => false,
+            Status::Error(err) => err.should_retry(),
+            Status::Ok(_)
+            | Status::RequestError(_)
+            | Status::UnknownStatusCode(_)
+            | Status::UnknownMailStatus(_)
+            | Status::Excluded
+            | Status::Unsupported(_)
+            | Status::Cached(_) => false,
+            Status::Redirected(inner, _) | Status::Remapped(inner, _) => inner.should_retry(),
         }
     }
 }

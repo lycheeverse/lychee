@@ -1,11 +1,18 @@
-use crate::types::{uri::raw::RawUri, FileType, InputContent};
+use crate::types::{
+    FileType, InputContent,
+    uri::raw::{RawUri, SourceSpanProvider},
+};
 
+pub mod css;
 pub mod html;
 pub mod markdown;
 mod plaintext;
+pub mod xml;
 
+use css::extract_css;
 use markdown::extract_markdown;
 use plaintext::extract_raw_uri_from_plaintext;
+use xml::extract_xml;
 
 /// A handler for extracting links from various input formats like Markdown and
 /// HTML. Allocations should be avoided if possible as this is a
@@ -14,6 +21,7 @@ use plaintext::extract_raw_uri_from_plaintext;
 pub struct Extractor {
     use_html5ever: bool,
     include_verbatim: bool,
+    include_wikilinks: bool,
 }
 
 impl Extractor {
@@ -30,27 +38,35 @@ impl Extractor {
     ///   For more information, consult the `pulldown_cmark` documentation about code blocks
     ///   [here](https://docs.rs/pulldown-cmark/latest/pulldown_cmark/enum.CodeBlockKind.html)
     #[must_use]
-    pub const fn new(use_html5ever: bool, include_verbatim: bool) -> Self {
+    pub const fn new(use_html5ever: bool, include_verbatim: bool, include_wikilinks: bool) -> Self {
         Self {
             use_html5ever,
             include_verbatim,
+            include_wikilinks,
         }
     }
 
     /// Main entrypoint for extracting links from various sources
-    /// (Markdown, HTML, and plaintext)
+    /// (Markdown, HTML, CSS, and plaintext)
     #[must_use]
     pub fn extract(&self, input_content: &InputContent) -> Vec<RawUri> {
+        let content = &input_content.content;
         match input_content.file_type {
-            FileType::Markdown => extract_markdown(&input_content.content, self.include_verbatim),
+            FileType::Markdown => {
+                extract_markdown(content, self.include_verbatim, self.include_wikilinks)
+            }
             FileType::Html => {
                 if self.use_html5ever {
-                    html::html5ever::extract_html(&input_content.content, self.include_verbatim)
+                    html::html5ever::extract_html(content, self.include_verbatim)
                 } else {
-                    html::html5gum::extract_html(&input_content.content, self.include_verbatim)
+                    html::html5gum::extract_html(content, self.include_verbatim)
                 }
             }
-            FileType::Plaintext => extract_raw_uri_from_plaintext(&input_content.content),
+            FileType::Css => extract_css(content, &SourceSpanProvider::from_input(content)),
+            FileType::Plaintext => {
+                extract_raw_uri_from_plaintext(content, &SourceSpanProvider::from_input(content))
+            }
+            FileType::Xml => extract_xml(content, &SourceSpanProvider::from_input(content)),
         }
     }
 }
@@ -60,19 +76,22 @@ mod tests {
     use pretty_assertions::assert_eq;
     use reqwest::Url;
     use std::{collections::HashSet, path::Path};
+    use test_utils::{fixtures_path, load_fixture, mail, website};
 
     use super::*;
     use crate::{
-        test_utils::{load_fixture, mail, website},
-        types::{FileType, InputContent, InputSource},
-        utils::url::find_links,
         Uri,
+        types::{
+            FileType, InputContent, ResolvedInputSource,
+            uri::raw::{RawUriSpan, span},
+        },
+        utils::url::find_links,
     };
 
     fn extract_uris(input: &str, file_type: FileType) -> HashSet<Uri> {
         let input_content = InputContent::from_string(input, file_type);
 
-        let extractor = Extractor::new(false, false);
+        let extractor = Extractor::new(false, false, false);
         let uris_html5gum: HashSet<Uri> = extractor
             .extract(&input_content)
             .into_iter()
@@ -84,7 +103,7 @@ mod tests {
             uris
         };
 
-        let extractor = Extractor::new(true, false);
+        let extractor = Extractor::new(true, false, false);
         let uris_html5ever: HashSet<Uri> = extractor
             .extract(&input_content)
             .into_iter()
@@ -142,7 +161,7 @@ mod tests {
     fn test_skip_markdown_email() {
         let input = "Get in touch - [Contact Us](mailto:test@test.com)";
         let links = extract_uris(input, FileType::Markdown);
-        let expected = IntoIterator::into_iter([mail("test@test.com")]).collect::<HashSet<Uri>>();
+        let expected = IntoIterator::into_iter([mail!("test@test.com")]).collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected);
     }
@@ -161,9 +180,9 @@ mod tests {
         let links: HashSet<Uri> = extract_uris(input, FileType::Plaintext);
 
         let expected = IntoIterator::into_iter([
-            website("https://endler.dev"),
-            website("https://hello-rust.show/foo/bar?lol=1"),
-            mail("test@example.com"),
+            website!("https://endler.dev"),
+            website!("https://hello-rust.show/foo/bar?lol=1"),
+            mail!("test@example.com"),
         ])
         .collect::<HashSet<Uri>>();
 
@@ -181,15 +200,15 @@ mod tests {
 
     #[test]
     fn test_extract_html5_not_valid_xml() {
-        let input = load_fixture("TEST_HTML5.html");
+        let input = load_fixture!("TEST_HTML5.html");
         let links = extract_uris(&input, FileType::Html);
 
         let expected_links = IntoIterator::into_iter([
-            website("https://example.com/head/home"),
-            website("https://example.com/css/style_full_url.css"),
+            website!("https://example.com/head/home"),
+            website!("https://example.com/css/style_full_url.css"),
             // the body links wouldn't be present if the file was parsed strictly as XML
-            website("https://example.com/body/a"),
-            website("https://example.com/body/div_empty_a"),
+            website!("https://example.com/body/a"),
+            website!("https://example.com/body/div_empty_a"),
         ])
         .collect::<HashSet<Uri>>();
 
@@ -198,7 +217,7 @@ mod tests {
 
     #[test]
     fn test_extract_relative_url() {
-        let source = InputSource::RemoteUrl(Box::new(
+        let source = ResolvedInputSource::RemoteUrl(Box::new(
             Url::parse("https://example.com/some-post").unwrap(),
         ));
 
@@ -216,7 +235,7 @@ mod tests {
         };
 
         for use_html5ever in [true, false] {
-            let extractor = Extractor::new(use_html5ever, false);
+            let extractor = Extractor::new(use_html5ever, false, false);
             let links = extractor.extract(input_content);
 
             let urls = links
@@ -237,10 +256,10 @@ mod tests {
     #[test]
     fn test_extract_html5_lowercase_doctype() {
         // this has been problematic with previous XML based parser
-        let input = load_fixture("TEST_HTML5_LOWERCASE_DOCTYPE.html");
+        let input = load_fixture!("TEST_HTML5_LOWERCASE_DOCTYPE.html");
         let links = extract_uris(&input, FileType::Html);
 
-        let expected_links = IntoIterator::into_iter([website("https://example.com/body/a")])
+        let expected_links = IntoIterator::into_iter([website!("https://example.com/body/a")])
             .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
@@ -249,16 +268,16 @@ mod tests {
     #[test]
     fn test_extract_html5_minified() {
         // minified HTML with some quirky elements such as href attribute values specified without quotes
-        let input = load_fixture("TEST_HTML5_MINIFIED.html");
+        let input = load_fixture!("TEST_HTML5_MINIFIED.html");
         let links = extract_uris(&input, FileType::Html);
 
         let expected_links = IntoIterator::into_iter([
-            website("https://example.com/"),
-            website("https://example.com/favicon.ico"),
+            website!("https://example.com/"),
+            website!("https://example.com/favicon.ico"),
             // Note that we exclude `preconnect` links:
-            // website("https://fonts.externalsite.com"),
-            website("https://example.com/docs/"),
-            website("https://example.com/forum"),
+            // website!("https://fonts.externalsite.com"),
+            website!("https://example.com/docs/"),
+            website!("https://example.com/forum"),
         ])
         .collect::<HashSet<Uri>>();
 
@@ -268,10 +287,10 @@ mod tests {
     #[test]
     fn test_extract_html5_malformed() {
         // malformed links shouldn't stop the parser from further parsing
-        let input = load_fixture("TEST_HTML5_MALFORMED_LINKS.html");
+        let input = load_fixture!("TEST_HTML5_MALFORMED_LINKS.html");
         let links = extract_uris(&input, FileType::Html);
 
-        let expected_links = IntoIterator::into_iter([website("https://example.com/valid")])
+        let expected_links = IntoIterator::into_iter([website!("https://example.com/valid")])
             .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
@@ -280,14 +299,14 @@ mod tests {
     #[test]
     fn test_extract_html5_custom_elements() {
         // the element name shouldn't matter for attributes like href, src, cite etc
-        let input = load_fixture("TEST_HTML5_CUSTOM_ELEMENTS.html");
+        let input = load_fixture!("TEST_HTML5_CUSTOM_ELEMENTS.html");
         let links = extract_uris(&input, FileType::Html);
 
         let expected_links = IntoIterator::into_iter([
-            website("https://example.com/some-weird-element"),
-            website("https://example.com/even-weirder-src"),
-            website("https://example.com/even-weirder-href"),
-            website("https://example.com/citations"),
+            website!("https://example.com/some-weird-element"),
+            website!("https://example.com/even-weirder-src"),
+            website!("https://example.com/even-weirder-href"),
+            website!("https://example.com/citations"),
         ])
         .collect::<HashSet<Uri>>();
 
@@ -301,8 +320,8 @@ mod tests {
         let links = extract_uris(&input, FileType::Plaintext);
 
         let expected_links = IntoIterator::into_iter([
-            website("https://example.com/@test/test"),
-            website("http://otherdomain.com/test/@test"),
+            website!("https://example.com/@test/test"),
+            website!("http://otherdomain.com/test/@test"),
         ])
         .collect::<HashSet<Uri>>();
 
@@ -315,9 +334,85 @@ mod tests {
         let links = extract_uris(input, FileType::Plaintext);
 
         let expected_links =
-            IntoIterator::into_iter([website("https://www.apache.org/licenses/LICENSE-2.0")])
+            IntoIterator::into_iter([website!("https://www.apache.org/licenses/LICENSE-2.0")])
                 .collect::<HashSet<Uri>>();
 
         assert_eq!(links, expected_links);
+    }
+
+    #[test]
+    fn test_extract_css_from_style_tag() {
+        // Test case from issue #1485
+        let input = r#"<html>
+   <head>
+      <style>
+         div {
+             background-image: url("./lychee.png");
+         }
+      </style>
+   </head>
+</html>"#;
+        let input_content = InputContent::from_string(input, FileType::Html);
+        let extractor = Extractor::new(false, false, false);
+        let raw_uris = extractor.extract(&input_content);
+        assert_eq!(raw_uris, vec![css_url("./lychee.png", span(5, 32))]);
+    }
+
+    #[test]
+    fn test_extract_css_from_css_file() {
+        let input = r#"
+.example {
+    background-image: url("./image.png");
+    background: url('/absolute/path.jpg');
+}
+@import url(https://example.com/style.css);
+"#;
+        let input_content = InputContent::from_string(input, FileType::Css);
+        let extractor = Extractor::new(false, false, false);
+        let raw_uris = extractor.extract(&input_content);
+        assert_eq!(
+            raw_uris,
+            vec![
+                css_url("./image.png", span(3, 23)),
+                css_url("/absolute/path.jpg", span(4, 17)),
+                css_url("https://example.com/style.css", span(6, 9)),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_extract_multiple_css_urls_from_style_tag() {
+        let input = r#"<html>
+   <head>
+      <style>
+         .background {
+             background-image: url("./bg.png");
+         }
+         @font-face {
+             src: url(../fonts/font.woff2);
+         }
+      </style>
+   </head>
+</html>"#;
+        let input_content = InputContent::from_string(input, FileType::Html);
+        let extractor = Extractor::new(false, false, false);
+        let raw_uris = extractor.extract(&input_content);
+
+        assert_eq!(
+            raw_uris,
+            vec![
+                css_url("./bg.png", span(5, 32)),
+                css_url("../fonts/font.woff2", span(8, 19)),
+            ]
+        );
+    }
+
+    fn css_url(text: &str, span: RawUriSpan) -> RawUri {
+        RawUri {
+            text: text.into(),
+            element: Some("style".into()),
+            attribute: Some("url".into()),
+            span,
+        }
     }
 }

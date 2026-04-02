@@ -14,23 +14,24 @@ impl EmojiFormatter {
     const fn emoji_for_status(status: &Status) -> &'static str {
         match status {
             Status::Ok(_) | Status::Cached(CacheStatus::Ok(_)) => "✅",
-            Status::Excluded
-            | Status::Unsupported(_)
+            Status::Excluded => "👻",
+            Status::Unsupported(_)
             | Status::Cached(CacheStatus::Excluded | CacheStatus::Unsupported) => "🚫",
-            Status::Redirected(_) => "↪️",
-            Status::UnknownStatusCode(_) | Status::Timeout(_) => "⚠️",
-            Status::Error(_) | Status::Cached(CacheStatus::Error(_)) => "❌",
+            Status::UnknownStatusCode(_) | Status::UnknownMailStatus(_) | Status::Timeout(_) => {
+                "⚠️"
+            }
+            Status::Error(_) | Status::RequestError(_) | Status::Cached(CacheStatus::Error(_)) => {
+                "❌"
+            }
+            Status::Redirected(inner, _) | Status::Remapped(inner, _) => {
+                Self::emoji_for_status(inner)
+            }
         }
     }
 }
 
 impl ResponseFormatter for EmojiFormatter {
     fn format_response(&self, body: &ResponseBody) -> String {
-        let emoji = EmojiFormatter::emoji_for_status(&body.status);
-        format!("{} {}", emoji, body.uri)
-    }
-
-    fn format_detailed_response(&self, body: &ResponseBody) -> String {
         let emoji = EmojiFormatter::emoji_for_status(&body.status);
         format!("{emoji} {body}")
     }
@@ -40,83 +41,77 @@ impl ResponseFormatter for EmojiFormatter {
 mod emoji_tests {
     use super::*;
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, Status, Uri};
-
-    // Helper function to create a ResponseBody with a given status and URI
-    fn mock_response_body(status: Status, uri: &str) -> ResponseBody {
-        ResponseBody {
-            uri: Uri::try_from(uri).unwrap(),
-            status,
-        }
-    }
+    use lychee_lib::{ErrorKind, Redirects, Status, Uri};
+    use test_utils::mock_response_body;
 
     #[test]
     fn test_format_response_with_ok_status() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body(Status::Ok(StatusCode::OK), "https://example.com");
+        let body = mock_response_body!(Status::Ok(StatusCode::OK), "https://example.com");
         assert_eq!(formatter.format_response(&body), "✅ https://example.com/");
     }
 
     #[test]
     fn test_format_response_with_error_status() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body(
-            Status::Error(ErrorKind::InvalidUrlHost),
+        let body = mock_response_body!(
+            Status::Error(ErrorKind::EmptyUrl),
             "https://example.com/404",
         );
         assert_eq!(
             formatter.format_response(&body),
-            "❌ https://example.com/404"
+            "❌ https://example.com/404 | Empty URL found but a URL must not be empty"
         );
     }
 
     #[test]
     fn test_format_response_with_excluded_status() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body(Status::Excluded, "https://example.com/not-checked");
+        let body = mock_response_body!(Status::Excluded, "https://example.com/not-checked");
         assert_eq!(
             formatter.format_response(&body),
-            "🚫 https://example.com/not-checked"
+            "👻 https://example.com/not-checked | This is due to your 'exclude' values"
         );
     }
 
     #[test]
     fn test_format_response_with_redirect_status() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body(
-            Status::Redirected(StatusCode::MOVED_PERMANENTLY),
+        let body = mock_response_body!(
+            Status::Redirected(
+                Box::new(Status::Ok(StatusCode::OK)),
+                Redirects::new("https://example.com/redirect".try_into().unwrap())
+            ),
             "https://example.com/redirect",
         );
         assert_eq!(
             formatter.format_response(&body),
-            "↪️ https://example.com/redirect"
+            "✅ https://example.com/redirect | 200 OK | Followed 0 redirects. Redirects: https://example.com/redirect"
         );
     }
 
     #[test]
     fn test_format_response_with_unknown_status_code() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body(
+        let body = mock_response_body!(
             Status::UnknownStatusCode(StatusCode::from_u16(999).unwrap()),
             "https://example.com/unknown",
         );
         assert_eq!(
             formatter.format_response(&body),
-            "⚠️ https://example.com/unknown"
+            "⚠️ https://example.com/unknown | Unknown status (999 <unknown status code>)"
         );
     }
 
     #[test]
-    fn test_detailed_response_output() {
+    fn test_error_response_output() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body(
-            Status::Error(ErrorKind::InvalidUrlHost),
+        let body = mock_response_body!(
+            Status::Error(ErrorKind::EmptyUrl),
             "https://example.com/404",
         );
 
-        // Just assert the output contains the string
-        assert!(formatter
-            .format_detailed_response(&body)
-            .ends_with("| URL is missing a host"));
+        // Just assert the output contains the expected error message
+        assert!(formatter.format_response(&body).contains("Empty URL found"));
     }
 }

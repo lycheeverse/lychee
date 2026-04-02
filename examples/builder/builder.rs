@@ -1,5 +1,5 @@
-use http::header::{self, HeaderMap};
 use http::StatusCode;
+use http::header::{self, HeaderMap};
 use lychee_lib::{ClientBuilder, Result};
 use regex::RegexSet;
 use reqwest::Method;
@@ -9,23 +9,20 @@ use std::{collections::HashSet, time::Duration};
 #[allow(clippy::trivial_regex)]
 async fn main() -> Result<()> {
     // Excludes
-    let excludes = Some(RegexSet::new([r"example"]).unwrap());
+    let excludes = Some(RegexSet::new(["rust"]).unwrap());
     // Includes take precedence over excludes
-    let includes = Some(RegexSet::new([r"example.com"]).unwrap());
+    let includes = Some(RegexSet::new([r"rust-lang\.org"]).unwrap());
 
     // Set custom request headers
     let mut headers = HeaderMap::new();
     headers.insert(header::ACCEPT, "text/html".parse().unwrap());
 
-    let accepted = Some(HashSet::from_iter(vec![
-        StatusCode::OK,
-        StatusCode::NO_CONTENT,
-    ]));
+    let accepted = HashSet::from_iter(vec![StatusCode::OK, StatusCode::NO_CONTENT]);
 
     let client = ClientBuilder::builder()
         .excludes(excludes)
         .includes(includes)
-        .max_redirects(3u8)
+        .max_redirects(10u8)
         .user_agent("custom useragent")
         .allow_insecure(true)
         .custom_headers(headers)
@@ -39,7 +36,7 @@ async fn main() -> Result<()> {
         .build()
         .client()?;
 
-    let response = client.check("https://example.com").await?;
+    let response = client.check("https://rust-lang.org").await?;
     dbg!(&response);
     assert!(response.status().is_success());
     Ok(())

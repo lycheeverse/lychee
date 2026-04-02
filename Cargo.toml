@@ -1,9 +1,9 @@
 [workspace]
-members = ["lychee-bin", "lychee-lib", "examples/*", "benches"]
+members = ["lychee-bin", "lychee-lib", "examples/*", "benches", "test-utils"]
 resolver = "2"
 
 [workspace.package]
-version = "0.18.1"
+version = "0.23.0"
 
 [profile.release]
 debug = true

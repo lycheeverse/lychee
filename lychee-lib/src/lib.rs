@@ -14,7 +14,7 @@
 //! ```
 //!
 //! For more specific use-cases you can build a lychee client yourself,
-//! using the `ClientBuilder` which can be used to
+//! using the [`ClientBuilder`] which can be used to
 //! configure and run your own link checker and grants full flexibility:
 //!
 //! ```
@@ -50,6 +50,11 @@
 #[cfg(doctest)]
 doc_comment::doctest!("../../README.md");
 
+#[cfg(all(test, not(doctest)))]
+use tokio_stream as _;
+
+/// Check online archives to try and restore broken links
+pub mod archive;
 mod basic_auth;
 pub mod chain;
 mod checker;
@@ -66,6 +71,9 @@ pub mod extract;
 
 pub mod remap;
 
+/// Per-host rate limiting and concurrency control
+pub mod ratelimit;
+
 /// Filters are a way to define behavior when encountering
 /// URIs that need to be treated differently, such as
 /// local IPs or e-mail addresses
@@ -75,17 +83,11 @@ pub mod filter;
 /// marked content
 pub mod textfrag;
 
-/// Test utilities
-#[cfg(test)]
-#[macro_use]
-pub mod test_utils;
+pub mod waiter;
 
 #[cfg(test)]
 use doc_comment as _; // required for doctest
 use ring as _; // required for apple silicon
-
-#[cfg(feature = "native-tls")]
-use openssl_sys as _; // required for vendored-openssl feature
 
 #[doc(inline)]
 pub use crate::{
@@ -94,15 +96,16 @@ pub use crate::{
     chain::{ChainResult, Handler},
     // Constants get exposed so that the CLI can use the same defaults as the library
     client::{
-        check, Client, ClientBuilder, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
-        DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT,
+        Client, ClientBuilder, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
+        DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, DEFAULT_USER_AGENT, check,
     },
     collector::Collector,
     filter::{Excludes, Filter, Includes},
     types::{
-        uri::valid::Uri, AcceptRange, AcceptRangeError, Base, BasicAuthCredentials,
-        BasicAuthSelector, CacheStatus, CookieJar, ErrorKind, FileExtensions, FileType, Input,
-        InputContent, InputSource, Request, Response, ResponseBody, Result, Status,
-        StatusCodeExcluder, StatusCodeSelector,
+        BaseInfo, BasicAuthCredentials, BasicAuthSelector, CacheStatus, CookieJar, ErrorKind,
+        FileExtensions, FileType, Input, InputContent, InputResolver, InputSource, LycheeResult,
+        Preprocessor, Redirect, Redirects, Request, RequestError, ResolvedInputSource, Response,
+        ResponseBody, Result, Status, StatusCodeSelector, StatusRange, StatusRangeError,
+        uri::raw::RawUri, uri::raw::RawUriSpan, uri::valid::Uri,
     },
 };

@@ -17,12 +17,12 @@ This is a test file for the fragment loader.
 [Link to missing fragment in file2](file2.md#missing-fragment)
 
 ### `Code` ``Heading
+
 [Link to code heading](#code-heading)
 
 ## HTML Fragments
 
-Explicit fragment links are currently not supported.
-Therefore we put the test into a code block for now to prevent false positives.
+Explicit fragment links are also supported.
 
 <a id="explicit-fragment"></a>
 
@@ -63,3 +63,50 @@ without related HTML element. Browser will scroll to the top of the page.
 [Alternative link to top of file2](file2.md#top)
 
 ##### Lets wear a hat: être
+
+A link to the non-existing fragment: [try](https://github.com/lycheeverse/lychee#non-existent-anchor).
+
+
+# Sub directory
+
+- Link to a sub directory
+  - Good: [With trailing slash](sub_dir/)
+  - Good: [Without trailing slash](sub_dir)
+- Link to a fragment to index.html in sub directory
+  - Good: [With trailing slash](sub_dir/#a-link-inside-index-html-inside-sub-dir)
+  - Good: [Without trailing slash](sub_dir#a-link-inside-index-html-inside-sub-dir)
+- Link to a non-existing fragment in a sub directory
+  - Bad: [With trailing slash](sub_dir/#non-existing-fragment-1)
+  - Bad: [Without trailing slash](sub_dir#non-existing-fragment-2)
+- Link to a non-existing sub directory
+  - Bad: [With trailing slash](sub_dir_non_existing_1/)
+  - Bad: [Without trailing slash](sub_dir_non_existing_2)
+- Link to a empty directory
+  - Good: [With trailing slash](empty_dir/)
+  - Good: [Without trailing slash](empty_dir)
+- Link to a fragment in a non-existing sub directory
+  - Bad: [With trailing slash](empty_dir/#non-existing-fragment-3)
+  - Bad: [Without trailing slash](empty_dir#non-existing-fragment-4)
+
+# Binary data URLs checks
+
+Fragment checking tries to scan the (whole) content/response body for HTML element IDs.
+This fails for binary data and can cause unnecessary traffic for remote URLs.
+
+## Without fragment
+
+Fragment checking is skipped if the URL does not actually contain a fragment.
+Even with fragment checking enabled, the following links must hence succeed:
+
+[Link to local binary file without fragment](zero.bin)
+[Link to local binary file with empty fragment](zero.bin#)
+[Link to remote binary file without fragment](https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin)
+[Link to remote binary file with empty fragment](https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#)
+
+## With fragment
+
+Fragment checking is skipped if the Content-Type header is not "text/html", "text/markdown", or "text/plain" with ".md" URL path ending.
+Hence, despite containing fragments which cannot be checked in binary files, the following links are expected to succeed with a HTTP 200 status:
+
+[Link to local binary file with fragment](zero.bin#fragment)
+[Link to remote binary file with fragment](https://raw.githubusercontent.com/lycheeverse/lychee/master/fixtures/fragments/zero.bin#fragment)

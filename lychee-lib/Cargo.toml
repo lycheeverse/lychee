@@ -1,91 +1,93 @@
 [package]
 name = "lychee-lib"
-authors = ["Matthias Endler <matthias@endler.dev>"]
+authors = ["Matthias Endler <matthias@endler.dev>", "Thomas Zahner <thomas.zahner@protonmail.ch>"]
 description = "A fast, async link checker"
 documentation = "https://docs.rs/lychee_lib"
-edition = "2021"
+edition = "2024"
 homepage = "https://github.com/lycheeverse/lychee"
 keywords = ["link", "checker", "cli", "link-checker", "validator"]
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/lycheeverse/lychee"
 readme = "../README.md"
 version.workspace = true
+rust-version = "1.88.0"
 
 [dependencies]
 async-stream = "0.3.6"
 async-trait = "0.1.88"
-cached = "0.55.1"
-check-if-email-exists = { version = "0.9.1", optional = true }
-cookie_store = "0.21.1"
+cookie_store = "0.22.1"
+dashmap = { version = "6.1.0" }
 email_address = "0.2.9"
 fancy-regex = "0.14.0"
-futures = "0.3.31"
-glob = "0.3.2"
-headers = "0.4.0"
-html5ever = "0.30.0"
-html5gum = "0.7.0"
-http = "1.3.1"
-hyper = "1.6.0"
-ignore = "0.4.23"
+futures = "0.3.32"
+glob = "0.3.3"
+governor = "0.10.4"
+headers = "0.4.1"
+html5ever = "0.39.0"
+html5gum = "0.8.3"
+http = "1.4.0"
+httpdate = "1.0.3"
+humantime-serde = "1.1.1"
+hyper = "1.8.1"
+ignore = "0.4.25"
 ip_network = "0.4.1"
 linkify = "0.10.0"
-log = "0.4.27"
-octocrab = "0.44.0"
-once_cell = "1.21.3"
-openssl-sys = { version = "0.9.106", optional = true }
-path-clean = "1.0.1"
-percent-encoding = "2.3.1"
-pulldown-cmark = "0.13.0"
-regex = "1.11.1"
-# Use trust-dns to avoid lookup failures on high concurrency
-# https://github.com/seanmonstar/reqwest/issues/296
-reqwest = { version = "0.12.15", default-features = false, features = [
-    "gzip",
-    "trust-dns",
-    "cookies",
+log = "0.4.28"
+mailify-lib = { version = "0.2.0", optional = true }
+octocrab = { version = "0.49.7", default-features = false, features = [
+    "default-client",
+    "follow-redirect",
+    "jwt-rust-crypto",
+    "retry",
+    "rustls",
+    # "rustls-ring",
+    # Enabling `rustls-ring` leads to runtime panics.
+    # This is covered by `test_github_client_integration`.
+    "timeout",
+    "tracing",
 ] }
-reqwest_cookie_store = { version = "0.8.0", features = ["serde"] }
+percent-encoding = "2.3.1"
+pulldown-cmark = "0.13.3"
+quick-xml = "0.39.2"
+regex = "1.12.2"
+reqwest = { version = "0.13.2", features = ["json", "gzip"] }
+reqwest_cookie_store = { version = "0.10.0", features = ["serde"] }
 # Make build work on Apple Silicon.
 # See https://github.com/briansmith/ring/issues/1163
 # This is necessary for the homebrew build
 # https://github.com/Homebrew/homebrew-core/pull/70216
 ring = "0.17.14"
 secrecy = "0.10.3"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_with = "3.12.0"
-shellexpand = "3.1.0"
-thiserror = "2.0.12"
-tokio = { version = "1.44.1", features = ["full"] }
-toml = "0.8.20"
-typed-builder = "0.21.0"
-url = { version = "2.5.4", features = ["serde"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_with = "3.18.0"
+shellexpand = "3.1.2"
+strum = { version = "0.28.0", features = ["derive"] }
+thiserror = "2.0.18"
+tokio = { version = "1.50.0", features = ["full"] }
+toml = "1.1.0"
+typed-builder = "0.23.2"
+url = { version = "2.5.8", features = ["serde"] }
+walkdir = "2.5.0"
 
 [dependencies.par-stream]
 version = "0.10.2"
 features = ["runtime-tokio"]
 
 [dev-dependencies]
-doc-comment = "0.3.3"
-tempfile = "3.19.1"
-wiremock = "0.6.3"
-serde_json = "1.0.140"
-rstest = "0.25.0"
-toml = "0.8.20"
+doc-comment = "0.3.4"
 pretty_assertions = "1.4.1"
+rstest = "0.26.1"
+serde_json = "1.0.149"
+tempfile = "3.27.0"
+test-utils = { path = "../test-utils" }
+tokio-stream = "0.1.18"
+toml = "1.1.0"
+wiremock = "0.6.5"
 
 [features]
 
-# Enable checking email addresses. Requires the native-tls feature.
-email-check = ["check-if-email-exists"]
-
-# Use platform-native TLS.
-native-tls = ["openssl-sys", "reqwest/native-tls"]
-
-# Use Rustls TLS.
-rustls-tls = ["reqwest/rustls-tls-native-roots"]
-
-# Compile and statically link a copy of OpenSSL.
-vendored-openssl = ["openssl-sys/vendored"]
+# Enable checking email addresses.
+email-check = ["mailify-lib"]
 
 # Feature flag to include checking reserved example domains
 # as per RFC 2606, section 3.
@@ -94,4 +96,4 @@ vendored-openssl = ["openssl-sys/vendored"]
 # See https://users.rust-lang.org/t/36630
 check_example_domains = []
 
-default = ["native-tls", "email-check"]
+default = ["email-check"]
