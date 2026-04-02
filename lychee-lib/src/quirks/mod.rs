@@ -32,6 +32,7 @@ fn query(request: &Request) -> HashMap<String, String> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Quirk {
+    pub(crate) name: &'static str,
     pub(crate) pattern: &'static LazyLock<Regex>,
     pub(crate) rewrite: fn(Request, Captures) -> Request,
 }
@@ -45,6 +46,7 @@ impl Default for Quirks {
     fn default() -> Self {
         let quirks = vec![
             Quirk {
+                name: "add accept header for crates.io",
                 pattern: &CRATES_PATTERN,
                 rewrite: |mut request, _| {
                     request
@@ -54,6 +56,7 @@ impl Default for Quirks {
                 },
             },
             Quirk {
+                name: "check YouTube IDs via thumbnail",
                 pattern: &YOUTUBE_PATTERN,
                 rewrite: |mut request, _| {
                     // Extract video id if it's a video page
@@ -75,6 +78,7 @@ impl Default for Quirks {
                 },
             },
             Quirk {
+                name: "check YouTube IDs via thumbnail (short link)",
                 pattern: &YOUTUBE_SHORT_PATTERN,
                 rewrite: |mut request, _| {
                     // Short links use the path as video id
@@ -88,6 +92,7 @@ impl Default for Quirks {
                 },
             },
             Quirk {
+                name: "delete line number fragments in GitHub links",
                 pattern: &GITHUB_BLOB_LINE_FRAGMENT_PATTERN,
                 rewrite: |mut request, _| {
                     request.url_mut().set_fragment(None);
@@ -95,6 +100,7 @@ impl Default for Quirks {
                 },
             },
             Quirk {
+                name: "fetch raw GitHub Markdown files",
                 pattern: &GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN,
                 rewrite: |mut request, captures| {
                     let mut raw_url = String::new();
@@ -118,7 +124,7 @@ impl Quirks {
     pub(crate) fn apply(&self, request: Request) -> Request {
         for quirk in &self.quirks {
             if let Some(captures) = quirk.pattern.captures(request.url().clone().as_str()) {
-                debug!("Applied URL quirk: {}", quirk.pattern.as_str());
+                debug!("Applied quirk '{}' to {}", quirk.name, request.url());
                 return (quirk.rewrite)(request, captures);
             }
         }
