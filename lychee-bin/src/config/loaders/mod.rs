@@ -33,16 +33,13 @@ pub(crate) trait ConfigLoader {
 
 const LOADERS: [&dyn ConfigLoader; 4] = [
     &lychee_toml::LycheeTomlLoader,
-    &pyproject_toml::PyprojectTomlLoader,
     &cargo_toml::CargoTomlLoader,
+    &pyproject_toml::PyprojectTomlLoader,
     &package_json::PackageJsonLoader,
 ];
 
 /// Find the first matching default configuration file in the current directory
 /// and return the parsed configuration it contains.
-///
-/// This checks for files like `lychee.toml`, `pyproject.toml`, `Cargo.toml`,
-/// and `package.json` in a defined order of precedence.
 pub(crate) fn default_config_file() -> Result<Option<Config>> {
     for loader in LOADERS {
         let path = PathBuf::from(loader.filename());
