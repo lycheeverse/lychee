@@ -262,24 +262,26 @@ async fn handle(
         Err(e) => return e.into_response(),
     };
 
-    let uri = request.uri.clone();
-    let source = request.source.clone();
-    let span = request.span;
-
     // Applies remaps. The cache key should be the actual URL which gets
     // requested, i.e. after remaps. If using the original URL then the
     // cache is at risk of being incorrect if remaps change between runs.
     // The cached status code comes from the actual URL anyway.
-    let request = match client.prepare_request(request) {
-        Ok(request) => request,
-        Err(e) => {
-            return Ok(Response::new(
-                uri,
-                Status::Error(e),
-                source.into(),
-                span,
-                None,
-            ));
+    let request = {
+        let uri = request.uri.clone();
+        let source = request.source.clone();
+        let span = request.span;
+
+        match client.prepare_request(request) {
+            Ok(request) => request,
+            Err(e) => {
+                return Ok(Response::new(
+                    uri,
+                    Status::Error(e),
+                    source.into(),
+                    span,
+                    None,
+                ));
+            }
         }
     };
     let uri = request.uri.clone();
