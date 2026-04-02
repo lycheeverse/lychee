@@ -602,7 +602,7 @@ impl Client {
             return Ok(request);
         };
 
-        let remapped = remaps.remap(&mut request.uri)?;
+        let remapped = remaps.remap(&request.uri)?;
         if let Some(remapped) = &remapped {
             request.uri = remapped.new.clone();
         }
