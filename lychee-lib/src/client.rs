@@ -516,6 +516,11 @@ impl Client {
 
     /// Prepares the given request by performing early transformations configured
     /// within lychee. For instance, this applies the configured remaps.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an error occured during the transformations, e.g., if
+    /// it led to an invalid URI.
     pub fn prepare_request(&self, request: Request) -> Result<Request> {
         let request = self.remap(request)?;
         if let Some(remap) = &request.remap {
@@ -524,8 +529,13 @@ impl Client {
         Ok(request)
     }
 
-    /// Checks a prepared request.
-    pub async fn check_prepared_request(&self, request: Request) -> Result<Response> {
+    /// Checks a prepared request, without performing any local transformation of
+    /// the request.
+    ///
+    /// At this point in the link checking process, any failures will be considered
+    /// link checking failures rather than errors. Hence, this function always returns
+    /// a [`Response`], but the response may have an error [`Status`].
+    pub async fn check_prepared_request(&self, request: Request) -> Response {
         let Request {
             uri,
             credentials,
@@ -542,7 +552,7 @@ impl Client {
             _ if uri.is_tel() => Status::Excluded, // We don't check tel: URIs
             _ if uri.is_file() => self.check_file(&uri).await,
             _ if uri.is_mail() => self.check_mail(&uri).await,
-            _ => self.check_website(&uri, credentials).await?,
+            _ => self.check_website(&uri, credentials).await,
         };
 
         let status = match remap {
@@ -550,13 +560,7 @@ impl Client {
             None => status,
         };
 
-        Ok(Response::new(
-            uri,
-            status,
-            source.into(),
-            span,
-            Some(start.elapsed()),
-        ))
+        Response::new(uri, status, source.into(), span, Some(start.elapsed()))
     }
 
     /// Check a single request.
@@ -576,7 +580,7 @@ impl Client {
         ErrorKind: From<E>,
     {
         let prepared = self.prepare_request(request.try_into()?)?;
-        let response = self.check_prepared_request(prepared).await?;
+        let response = self.check_prepared_request(prepared).await;
         Ok(response)
     }
 
@@ -626,7 +630,7 @@ impl Client {
         &self,
         uri: &Uri,
         credentials: Option<BasicAuthCredentials>,
-    ) -> Result<Status> {
+    ) -> Status {
         self.website_checker.check_website(uri, credentials).await
     }
 

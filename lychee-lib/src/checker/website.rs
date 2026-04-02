@@ -206,7 +206,7 @@ impl WebsiteChecker {
         &self,
         uri: &Uri,
         credentials: Option<BasicAuthCredentials>,
-    ) -> Result<Status, ErrorKind> {
+    ) -> Status {
         let default_chain: RequestChain = Chain::new(vec![
             Box::<Quirks>::default(),
             Box::new(credentials),
@@ -214,11 +214,9 @@ impl WebsiteChecker {
         ]);
 
         let status = self.check_website_inner(uri, &default_chain).await;
-        let status = self
-            .handle_insecure_url(uri, &default_chain, status)
-            .await?;
+        let status = self.handle_insecure_url(uri, &default_chain, status).await;
 
-        Ok(self.redirect_history.handle_redirected(&uri.url, status))
+        self.redirect_history.handle_redirected(&uri.url, status)
     }
 
     /// Mark HTTP URLs as insecure, if the user required HTTPS
@@ -228,23 +226,27 @@ impl WebsiteChecker {
         uri: &Uri,
         default_chain: &Chain<Request, Status>,
         status: Status,
-    ) -> Result<Status, ErrorKind> {
+    ) -> Status {
         if self.require_https
             && uri.scheme() == "http"
             && let Status::Ok(_) = status
         {
-            let https_uri = uri.to_https()?;
+            let Ok(https_uri) = uri.to_https() else {
+                // setting url to https should never fail
+                return Status::Error(ErrorKind::InvalidURI(uri.clone()));
+            };
+
             let is_https_available = self
                 .check_website_inner(&https_uri, default_chain)
                 .await
                 .is_success();
 
             if is_https_available {
-                return Ok(Status::Error(ErrorKind::InsecureURL(https_uri)));
+                return Status::Error(ErrorKind::InsecureURL(https_uri));
             }
         }
 
-        Ok(status)
+        status
     }
 
     /// Checks the given URI of a website.

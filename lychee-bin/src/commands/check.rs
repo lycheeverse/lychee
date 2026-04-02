@@ -307,16 +307,7 @@ async fn handle(
         ));
     }
 
-    let response = client.check(request).await.unwrap_or_else(|e| {
-        log::error!("Error checking URL {uri}: {e}");
-        Response::new(
-            uri.clone(),
-            Status::Error(ErrorKind::InvalidURI(uri.clone())),
-            source.into(),
-            span,
-            None,
-        )
-    });
+    let response = client.check_prepared_request(request).await;
 
     // - Never cache filesystem access as it is fast already so caching has no benefit.
     // - Skip caching unsupported URLs as they might be supported in a future run.
@@ -381,7 +372,7 @@ mod tests {
     async fn test_invalid_url() {
         let client = ClientBuilder::builder().build().client().unwrap();
         let uri = Uri::try_from("http://\"").unwrap();
-        let response = client.check_website(&uri, None).await.unwrap();
+        let response = client.check_website(&uri, None).await;
         assert!(matches!(
             response,
             Status::Unsupported(ErrorKind::BuildRequestClient(_))
