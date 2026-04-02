@@ -541,7 +541,7 @@ impl Client {
         } = request.try_into()?;
 
         let start = std::time::Instant::now(); // Measure check time
-        let remap = self.remap(&mut uri)?;
+        let remap = self.remap(&mut uri)?.inspect(|r| debug!("Remapping {r}"));
 
         let status = match uri.scheme() {
             _ if self.is_excluded(&uri) => Status::Excluded,
