@@ -289,10 +289,7 @@ mod tests {
         true
     )]
     // Should match: Markdown file with line number fragment
-    #[case(
-        "https://github.com/user/repo/blob/master/README.md#L2",
-        true
-    )]
+    #[case("https://github.com/user/repo/blob/master/README.md#L2", true)]
     // Should NOT match: Markdown fragment (handled by the other regex)
     #[case(
         "https://github.com/user/repo/blob/master/README.md#installation",
