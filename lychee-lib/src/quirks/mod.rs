@@ -303,8 +303,7 @@ mod tests {
         assert_eq!(
             GITHUB_BLOB_LINE_FRAGMENT_PATTERN.is_match(url),
             expected,
-            "Github blob line regex : {}",
-            url
+            "Github blob line regex had unexpected outcome for {url}"
         );
     }
 
