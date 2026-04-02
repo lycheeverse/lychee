@@ -1,3 +1,4 @@
+use log::debug;
 use log::error;
 use log::warn;
 use lychee_lib::Request;
@@ -40,7 +41,10 @@ where
         };
 
         // Apply URI remaps (if any)
-        params.client.remap(&mut request.uri)?;
+        params
+            .client
+            .remap(&mut request.uri)?
+            .inspect(|r| debug!("Remapping {r}"));
 
         let excluded = params.client.is_excluded(&request.uri);
 

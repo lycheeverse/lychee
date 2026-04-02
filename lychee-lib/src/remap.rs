@@ -21,7 +21,6 @@
 
 use std::{fmt::Display, ops::Index};
 
-use log::debug;
 use regex::Regex;
 use serde::Serialize;
 use url::Url;
@@ -39,8 +38,7 @@ pub struct Remap {
 
 impl Display for Remap {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} --> {}", self.original, self.new)?;
-        Ok(())
+        write!(f, "{} --> {}", self.original, self.new)
     }
 }
 
@@ -90,7 +88,6 @@ impl Remaps {
                     original: original.clone(),
                     new: Uri { url: new },
                 };
-                debug!("Remapping {remap}");
                 return Ok(Some(remap));
             }
         }
