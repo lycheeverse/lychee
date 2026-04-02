@@ -88,6 +88,13 @@ impl Default for Quirks {
                 },
             },
             Quirk {
+                pattern: &GITHUB_BLOB_LINE_FRAGMENT_PATTERN,
+                rewrite: |mut request, _| {
+                    request.url_mut().set_fragment(None);
+                    request
+                },
+            },
+            Quirk {
                 pattern: &GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN,
                 rewrite: |mut request, captures| {
                     let mut raw_url = String::new();
@@ -96,13 +103,6 @@ impl Default for Quirks {
                         &mut raw_url,
                     );
                     *request.url_mut() = Url::parse(&raw_url).unwrap();
-                    request
-                },
-            },
-            Quirk {
-                pattern: &GITHUB_BLOB_LINE_FRAGMENT_PATTERN,
-                rewrite: |mut request, _| {
-                    request.url_mut().set_fragment(None);
                     request
                 },
             },
@@ -242,6 +242,12 @@ mod tests {
                 "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md#features",
                 "https://raw.githubusercontent.com/lycheeverse/lychee/v0.15.0/README.md#features",
             ),
+            (
+                // GITHUB_BLOB_LINE_FRAGMENT_PATTERN should have precedence over
+                // GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN for line-number fragments.
+                "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md#L1",
+                "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md",
+            ),
         ];
         for (origin, expect) in &cases {
             let url = Url::parse(origin).unwrap();
@@ -274,6 +280,11 @@ mod tests {
     // Deeply nested path
     #[case(
         "https://github.com/user/repo/blob/feat/branch/path/to/file.txt#L1",
+        true
+    )]
+    // Should match: Markdown file with line number fragment
+    #[case(
+        "https://github.com/user/repo/blob/master/README.md#L2",
         true
     )]
     // Should NOT match: Markdown fragment (handled by the other regex)
