@@ -7,6 +7,7 @@ use std::{
     time::Duration,
 };
 
+use crate::config;
 use crate::formatters::{
     color::{BOLD_GREEN, BOLD_PINK, BOLD_YELLOW, DIM, NORMAL, color},
     get_response_formatter,
@@ -14,13 +15,12 @@ use crate::formatters::{
     response::ResponseFormatter,
     stats::{OutputStats, ResponseStats},
 };
-use crate::options;
 
 use super::StatsFormatter;
 
 struct CompactResponseStats {
     stats: ResponseStats,
-    mode: options::OutputMode,
+    mode: config::OutputMode,
 }
 
 impl Display for CompactResponseStats {
@@ -55,6 +55,7 @@ impl Display for CompactResponseStats {
 
         color!(f, NORMAL, "🔍 {} Total", stats.total)?;
         color!(f, DIM, " (in {})", format_duration(stats.duration))?;
+        color!(f, NORMAL, " 🔗 {} Unique", stats.unique)?;
         color!(f, BOLD_GREEN, " ✅ {} OK", stats.successful)?;
 
         let total_errors = stats.errors;
@@ -128,11 +129,11 @@ fn write_if_any(
 }
 
 pub(crate) struct Compact {
-    mode: options::OutputMode,
+    mode: config::OutputMode,
 }
 
 impl Compact {
-    pub(crate) const fn new(mode: options::OutputMode) -> Self {
+    pub(crate) const fn new(mode: config::OutputMode) -> Self {
         Self { mode }
     }
 }
@@ -153,8 +154,8 @@ impl StatsFormatter for Compact {
 
 #[cfg(test)]
 mod tests {
+    use crate::config::OutputMode;
     use crate::formatters::stats::{StatsFormatter, get_dummy_stats};
-    use crate::options::OutputMode;
     use regex::Regex;
 
     use super::*;
@@ -175,13 +176,13 @@ mod tests {
             "Issues found in 2 inputs. Find details below.
 
 [https://example.com/]:
-[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found
-[TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Timeout
+[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found
+[TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Request timed out
 
 ℹ Suggestions
 https://original.dev/ --> https://suggestion.dev/
 
-🔍 2 Total (in 0s) ✅ 0 OK 🚫 1 Error ⏳ 1 Timeouts 🔀 1 Redirects
+🔍 2 Total (in 0s) 🔗 2 Unique ✅ 0 OK 🚫 1 Error ⏳ 1 Timeouts 🔀 1 Redirects
 
 📊 Per-host Statistics
 ────────────────────────────────────────────────────────────

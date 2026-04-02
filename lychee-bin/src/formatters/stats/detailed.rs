@@ -1,11 +1,11 @@
 use super::StatsFormatter;
 use crate::{
+    config,
     formatters::{
         get_response_formatter,
         host_stats::DetailedHostStats,
         stats::{OutputStats, ResponseStats},
     },
-    options,
 };
 
 use anyhow::Result;
@@ -35,7 +35,7 @@ fn write_stat(f: &mut fmt::Formatter, title: &str, stat: usize, newline: bool) -
 /// encapsulate additional context.
 struct DetailedResponseStats {
     stats: ResponseStats,
-    mode: options::OutputMode,
+    mode: config::OutputMode,
 }
 
 impl Display for DetailedResponseStats {
@@ -46,6 +46,7 @@ impl Display for DetailedResponseStats {
         writeln!(f, "📝 Summary")?;
         writeln!(f, "{separator}")?;
         write_stat(f, "🔍 Total", stats.total, true)?;
+        write_stat(f, "🔗 Unique", stats.unique, true)?;
         write_stat(f, "✅ Successful", stats.successful, true)?;
         write_stat(f, "⏳ Timeouts", stats.timeouts, true)?;
         write_stat(f, "🔀 Redirected", stats.redirects, true)?;
@@ -97,11 +98,11 @@ fn write_stats<T: Display>(
 }
 
 pub(crate) struct Detailed {
-    mode: options::OutputMode,
+    mode: config::OutputMode,
 }
 
 impl Detailed {
-    pub(crate) const fn new(mode: options::OutputMode) -> Self {
+    pub(crate) const fn new(mode: config::OutputMode) -> Self {
         Self { mode }
     }
 }
@@ -123,7 +124,7 @@ impl StatsFormatter for Detailed {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{formatters::stats::get_dummy_stats, options::OutputMode};
+    use crate::{config::OutputMode, formatters::stats::get_dummy_stats};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -136,6 +137,7 @@ mod tests {
             "📝 Summary
 ---------------------
 🔍 Total............2
+🔗 Unique...........2
 ✅ Successful.......0
 ⏳ Timeouts.........1
 🔀 Redirected.......1
@@ -145,15 +147,15 @@ mod tests {
 ⛔ Unsupported......1
 
 Errors in https://example.com/
-[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found: Not Found
-[TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Timeout
+[404] https://github.com/mre/idiomatic-rust-doesnt-exist-man (at 1:1) | 404 Not Found
+[TIMEOUT] https://httpbin.org/delay/2 (at 1:1) | Request timed out
 
 Suggestions in https://example.com/
 https://original.dev/ --> https://suggestion.dev/
 
 
 Redirects in https://example.com/
-https://redirected.dev/ (at 1:1) | Redirect: Followed 2 redirects resolving to the final status of: OK. Redirects: https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
+https://1.dev/ --[308]--> https://2.dev/ --[308]--> http://redirected.dev/
 
 
 📊 Per-host Statistics

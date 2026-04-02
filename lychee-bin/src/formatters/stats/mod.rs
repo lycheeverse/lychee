@@ -23,7 +23,7 @@ use std::{
     io::{Write, stdout},
 };
 
-use crate::{formatters::get_stats_formatter, options::Config};
+use crate::{config::Config, formatters::get_stats_formatter};
 use anyhow::{Context, Result};
 use lychee_lib::{InputSource, ratelimit::HostStatsMap};
 
@@ -161,34 +161,20 @@ fn get_dummy_stats() -> OutputStats {
         code: StatusCode::PERMANENT_REDIRECT,
     });
 
-    let redirect_map = HashMap::from([(
-        source.clone(),
-        HashSet::from([ResponseBody {
-            uri: "https://redirected.dev".try_into().unwrap(),
-            status: Status::Redirected(StatusCode::OK, redirects),
-            span: SPAN,
-            duration: DURATION,
-        }]),
-    )]);
+    let redirect_map = HashMap::from([(source.clone(), HashSet::from([redirects]))]);
 
     let response_stats = ResponseStats {
         total: 2,
-        successful: 0,
+        unique: 2,
         errors: 1,
-        unknown: 0,
-        excludes: 0,
         timeouts: 1,
-        duration: Duration::ZERO,
-        unsupported: 0,
         redirects: 1,
-        cached: 0,
         suggestion_map,
         redirect_map,
-        success_map: HashMap::default(),
         error_map,
-        excluded_map: HashMap::default(),
         timeout_map,
         detailed_stats: true,
+        ..Default::default()
     };
 
     let host_stats = Some(HostStatsMap::from(HashMap::from([(
