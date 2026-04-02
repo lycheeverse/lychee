@@ -43,17 +43,24 @@ const LOADERS: [&dyn ConfigLoader; 4] = [
 ///
 /// This checks for files like `lychee.toml`, `pyproject.toml`, `Cargo.toml`,
 /// and `package.json` in a defined order of precedence.
-pub(crate) fn default_config_file() -> Option<Config> {
+pub(crate) fn default_config_file() -> Result<Option<Config>> {
     for loader in LOADERS {
         let path = PathBuf::from(loader.filename());
         if path.is_file() {
             let contents = fs::read_to_string(&path).unwrap_or_default();
-            if let Ok(ConfigMatch::Found(config)) = loader.load(&contents) {
-                return Some(*config);
+            match loader.load(&contents) {
+                Ok(ConfigMatch::Found(config)) => return Ok(Some(*config)),
+                Ok(ConfigMatch::NotFound) => continue,
+                Err(e) => {
+                    return Err(e.context(format!(
+                        "Cannot load configuration file: {}",
+                        path.display()
+                    )));
+                }
             }
         }
     }
-    None
+    Ok(None)
 }
 
 /// Load the configuration from the given file path.
