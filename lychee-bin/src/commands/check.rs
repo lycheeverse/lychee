@@ -272,10 +272,10 @@ async fn handle(
     // The cached status code comes from the actual URL anyway.
     let request = match client.prepare_request(request) {
         Ok(request) => request,
-        Err(_) => {
+        Err(e) => {
             return Ok(Response::new(
                 uri.clone(),
-                Status::Error(ErrorKind::InvalidURI(uri.clone())),
+                Status::Error(e),
                 source.into(),
                 span,
                 None,

@@ -519,7 +519,7 @@ impl Client {
     ///
     /// # Errors
     ///
-    /// Returns an error if an error occured during the transformations, e.g., if
+    /// Returns an error if an error occurred during the transformations, e.g., if
     /// it led to an invalid URI.
     pub fn prepare_request(&self, request: Request) -> Result<Request> {
         let request = self.remap(request)?;
