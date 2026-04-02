@@ -274,7 +274,7 @@ async fn handle(
         Ok(request) => request,
         Err(e) => {
             return Ok(Response::new(
-                uri.clone(),
+                uri,
                 Status::Error(e),
                 source.into(),
                 span,
@@ -282,6 +282,7 @@ async fn handle(
             ));
         }
     };
+    let uri = request.uri.clone();
 
     if let Some(v) = cache.get(&request.uri) {
         // Found a cached request
@@ -432,25 +433,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_uses_remapped_uri_as_key() {
-        let remaps =
-            parse_remaps(&["https://wikipedia.org/ https://wikipedia.org/404".to_string()])
-                .unwrap();
+        let remaps = parse_remaps(&["/404 /200".to_string()]).unwrap();
         let client = ClientBuilder::builder()
             .remaps(remaps)
             .build()
             .client()
             .unwrap();
         let cache = Cache::new();
+
         let response = handle(
             &client,
             &cache,
             StatusCodeSelector::empty().into(),
-            Ok(Request::try_from("https://wikipedia.org/").unwrap()),
+            Ok(Request::try_from("https://httpbin.org/status/404").unwrap()),
             StatusCodeSelector::default_accepted().into(),
         )
         .await
         .unwrap();
-        assert!(response.status().is_error());
-        assert!(cache.contains_key(&Uri::try_from("https://wikipedia.org/404").unwrap()));
+
+        assert!(response.status().is_success());
+        assert!(cache.contains_key(&Uri::try_from("https://httpbin.org/status/200").unwrap()));
     }
 }
