@@ -1,6 +1,6 @@
 use std::{borrow::Cow, convert::TryFrom, fmt::Display};
 
-use crate::{BasicAuthCredentials, ErrorKind, Uri, types::uri::raw::RawUriSpan};
+use crate::{BasicAuthCredentials, ErrorKind, Uri, remap::Remap, types::uri::raw::RawUriSpan};
 
 use super::ResolvedInputSource;
 
@@ -28,6 +28,9 @@ pub struct Request {
 
     /// Basic auth credentials
     pub credentials: Option<BasicAuthCredentials>,
+
+    /// Remap applied, if any.
+    pub remap: Option<Remap>,
 }
 
 impl Request {
@@ -43,6 +46,7 @@ impl Request {
             attribute: None,
             span: None,
             credentials: None,
+            remap: None,
         }
     }
 

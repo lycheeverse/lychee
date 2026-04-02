@@ -241,28 +241,6 @@ async fn request_channel_task(
     (cache, client)
 }
 
-/// Check a URL and return a response.
-///
-/// # Errors
-///
-/// This can fail when the URL could not be parsed to a URI.
-async fn check_url(client: &Client, request: Request) -> Response {
-    // Request was not cached; run a normal check
-    let uri = request.uri.clone();
-    let source = request.source.clone();
-    let span = request.span;
-    client.check(request).await.unwrap_or_else(|e| {
-        log::error!("Error checking URL {uri}: {e}");
-        Response::new(
-            uri.clone(),
-            Status::Error(ErrorKind::InvalidURI(uri.clone())),
-            source.into(),
-            span,
-            None,
-        )
-    })
-}
-
 /// Handle a single request
 ///
 /// # Errors
@@ -284,37 +262,44 @@ async fn handle(
         Err(e) => return e.into_response(),
     };
 
-    // The cache key should be the actual URL which gets requested, i.e. after remaps.
-    // If using the original URL then the cache is at risk of being incorrect if remaps
-    // change between runs. The cached status code comes from the actual URL anyway.
-    let cache_key = {
-        let mut uri = request.uri.clone();
-        match client.remap(&mut uri) {
-            Ok(_) => Some(uri),
-            Err(_) => None,
+    let uri = request.uri.clone();
+    let source = request.source.clone();
+    let span = request.span;
+
+    // Applies remaps. The cache key should be the actual URL which gets
+    // requested, i.e. after remaps. If using the original URL then the
+    // cache is at risk of being incorrect if remaps change between runs.
+    // The cached status code comes from the actual URL anyway.
+    let request = match client.prepare_request(request) {
+        Ok(request) => request,
+        Err(_) => {
+            return Ok(Response::new(
+                uri.clone(),
+                Status::Error(ErrorKind::InvalidURI(uri.clone())),
+                source.into(),
+                span,
+                None,
+            ));
         }
     };
 
-    // First check the persistent disk-based cache
-    if let Some(cache_key) = &cache_key
-        && let Some(v) = cache.get(cache_key)
-    {
+    if let Some(v) = cache.get(&request.uri) {
         // Found a cached request
         // Overwrite cache status in case the URI is excluded in the
         // current run
-        let status = if client.is_excluded(cache_key) {
+        let status = if client.is_excluded(&request.uri) {
             Status::Excluded
         } else {
             // Can't impl `Status::from(v.value().status)` here because the
             // `accepted` status codes might have changed from the previous run
             // and they may have an impact on the interpretation of the status
             // code.
-            client.host_pool().record_persistent_cache_hit(cache_key);
+            client.host_pool().record_persistent_cache_hit(&request.uri);
             Status::from_cache_status(v.value().status, &accept)
         };
 
         return Ok(Response::new(
-            cache_key.clone(),
+            request.uri,
             status,
             request.source.into(),
             request.span,
@@ -322,20 +307,27 @@ async fn handle(
         ));
     }
 
-    let response = check_url(client, request).await;
+    let response = client.check(request).await.unwrap_or_else(|e| {
+        log::error!("Error checking URL {uri}: {e}");
+        Response::new(
+            uri.clone(),
+            Status::Error(ErrorKind::InvalidURI(uri.clone())),
+            source.into(),
+            span,
+            None,
+        )
+    });
 
-    if let Some(cache_key) = cache_key {
-        // - Never cache filesystem access as it is fast already so caching has no benefit.
-        // - Skip caching unsupported URLs as they might be supported in a future run.
-        // - Skip caching excluded links; they might not be excluded in the next run.
-        // - Skip caching links for which the status code has been explicitly excluded from the cache.
-        let status = response.status();
-        if ignore_cache(&cache_key, status, &cache_exclude_status) {
-            return Ok(response);
-        }
-
-        cache.insert(cache_key, status.into());
+    // - Never cache filesystem access as it is fast already so caching has no benefit.
+    // - Skip caching unsupported URLs as they might be supported in a future run.
+    // - Skip caching excluded links; they might not be excluded in the next run.
+    // - Skip caching links for which the status code has been explicitly excluded from the cache.
+    let status = response.status();
+    if ignore_cache(&uri, status, &cache_exclude_status) {
+        return Ok(response);
     }
+
+    cache.insert(uri, status.into());
 
     Ok(response)
 }

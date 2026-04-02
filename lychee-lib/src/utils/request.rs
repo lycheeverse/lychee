@@ -38,6 +38,7 @@ fn create_request(
         attribute,
         span,
         credentials,
+        remap: None,
     })
 }
 

@@ -1,4 +1,3 @@
-use log::debug;
 use log::error;
 use log::warn;
 use lychee_lib::Request;
@@ -32,7 +31,7 @@ where
             return Err(e.into_error());
         }
 
-        let mut request = match request {
+        let request = match request {
             Ok(x) => x,
             Err(e) => {
                 warn!("{e}");
@@ -40,11 +39,7 @@ where
             }
         };
 
-        // Apply URI remaps (if any)
-        params
-            .client
-            .remap(&mut request.uri)?
-            .inspect(|r| debug!("Remapping {r}"));
+        let request = params.client.prepare_request(request)?;
 
         let excluded = params.client.is_excluded(&request.uri);
 

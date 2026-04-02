@@ -13,7 +13,6 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use crate::remap::Remap;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use http::{
@@ -515,33 +514,28 @@ impl Client {
         self.website_checker.host_pool()
     }
 
-    /// Check a single request.
-    ///
-    /// `request` can be either a [`Request`] or a type that can be converted
-    /// into it. In any case, it must represent a valid URI.
-    ///
-    /// # Errors
-    ///
-    /// Returns an `Err` if:
-    /// - `request` does not represent a valid URI.
-    /// - Encrypted connection for a HTTP URL is available but unused. (Only
-    ///   checked when `Client::require_https` is `true`.)
-    #[allow(clippy::missing_panics_doc)]
-    pub async fn check<T, E>(&self, request: T) -> Result<Response>
-    where
-        Request: TryFrom<T, Error = E>,
-        ErrorKind: From<E>,
-    {
+    /// Prepares the given request by performing early transformations configured
+    /// within lychee. For instance, this applies the configured remaps.
+    pub fn prepare_request(&self, request: Request) -> Result<Request> {
+        let request = self.remap(request)?;
+        if let Some(remap) = &request.remap {
+            debug!("Remapping {remap}");
+        }
+        Ok(request)
+    }
+
+    /// Checks a prepared request.
+    pub async fn check_prepared_request(&self, request: Request) -> Result<Response> {
         let Request {
-            mut uri,
+            uri,
             credentials,
             source,
             span,
+            remap,
             ..
-        } = request.try_into()?;
+        } = request;
 
         let start = std::time::Instant::now(); // Measure check time
-        let remap = self.remap(&mut uri)?.inspect(|r| debug!("Remapping {r}"));
 
         let status = match uri.scheme() {
             _ if self.is_excluded(&uri) => Status::Excluded,
@@ -565,29 +559,52 @@ impl Client {
         ))
     }
 
+    /// Check a single request.
+    ///
+    /// `request` can be either a [`Request`] or a type that can be converted
+    /// into it. In any case, it must represent a valid URI.
+    ///
+    /// # Errors
+    ///
+    /// Returns an `Err` if:
+    /// - `request` does not represent a valid URI.
+    /// - Encrypted connection for a HTTP URL is available but unused. (Only
+    ///   checked when `Client::require_https` is `true`.)
+    pub async fn check<T, E>(&self, request: T) -> Result<Response>
+    where
+        Request: TryFrom<T, Error = E>,
+        ErrorKind: From<E>,
+    {
+        let prepared = self.prepare_request(request.try_into()?)?;
+        let response = self.check_prepared_request(prepared).await?;
+        Ok(response)
+    }
+
     /// Check a single file using the file checker.
     pub async fn check_file(&self, uri: &Uri) -> Status {
         self.file_checker.check(uri).await
     }
 
-    /// Remap [`Uri`] as a side-effect, using the client-defined remap rules.
-    /// Return `Some` only if a remap was performed.
+    /// Remap [`Request`] using the client-defined remap rules. Return `Ok`
+    /// if a remap was successful or if no remap was matched. If a remap was
+    /// applied, the request's `uri` and `remap` fields are updated and it
+    /// is returned.
     ///
     /// # Errors
     ///
     /// Returns an `Err` if the remapped `uri` is not a valid URI.
-    pub fn remap(&self, uri: &mut Uri) -> Result<Option<Remap>> {
-        match self.remaps {
-            Some(ref remaps) => {
-                let remapped = remaps.remap(uri)?;
-                if let Some(remapped) = &remapped {
-                    *uri = remapped.new.clone();
-                }
+    pub(crate) fn remap(&self, mut request: Request) -> Result<Request> {
+        let Some(remaps) = &self.remaps else {
+            return Ok(request);
+        };
 
-                Ok(remapped)
-            }
-            None => Ok(None),
+        let remapped = remaps.remap(&mut request.uri)?;
+        if let Some(remapped) = &remapped {
+            request.uri = remapped.new.clone();
         }
+        request.remap = remapped;
+
+        Ok(request)
     }
 
     /// Returns whether the given `uri` should be ignored from checking.
