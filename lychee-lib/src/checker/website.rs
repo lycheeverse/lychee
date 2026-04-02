@@ -1,3 +1,4 @@
+use crate::textfrag::{FragmentDirectiveError, check_text_fragments};
 use crate::{
     BasicAuthCredentials, ErrorKind, FileType, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
@@ -10,7 +11,8 @@ use crate::{
 use async_trait::async_trait;
 use http::{Method, StatusCode};
 use octocrab::Octocrab;
-use reqwest::{Request, header::CONTENT_TYPE};
+use reqwest::Request;
+use reqwest::header::CONTENT_TYPE;
 use std::{borrow::Cow, collections::HashSet, path::Path, sync::Arc, time::Duration};
 use url::Url;
 
@@ -41,6 +43,11 @@ pub(crate) struct WebsiteChecker {
     ///
     /// This would treat unencrypted links as errors when HTTPS is available.
     require_https: bool,
+
+    /// Verify Text Fragment for a website - Text Fragments are placed `[url::Url]`'s
+    /// starting with fragment directive `:~:` and followed by text directive
+    /// using the template **text=[prefix-,start,end,-suffix]**
+    validate_text_fragments: bool,
 
     /// Whether to check the existence of fragments in the response HTML files.
     ///
@@ -76,6 +83,7 @@ impl WebsiteChecker {
         accepted: HashSet<StatusCode>,
         github_client: Option<Octocrab>,
         require_https: bool,
+        validate_text_fragments: bool,
         plugin_request_chain: RequestChain,
         include_fragments: bool,
         host_pool: Arc<HostPool>,
@@ -89,6 +97,7 @@ impl WebsiteChecker {
             retry_wait_time,
             accepted,
             require_https,
+            validate_text_fragments,
             include_fragments,
             fragment_checker: FragmentChecker::new(),
             host_pool,
@@ -116,10 +125,71 @@ impl WebsiteChecker {
         status
     }
 
+    /// Validates if the text fragment directive defined text data is present in the `site_data` or not
+    ///
+    /// `Status::OK` is returned if the text directive check successfully completed for
+    /// all the directives
+    ///
+    /// # Errors
+    /// - `TextFragmentPartialSuccess` - if the text directive check was successful for one
+    ///   or more of the directives but not all
+    /// - `TextFragmentsCheckError` - if all the text directives check failed
+    /// - `FragmentDirectiveProcessingError` - when the directive processing failed in gathering
+    ///   the text directives from `[url:Url]`'s fragment string
+    fn check_text_fragments(site_data: &str, url: &Url) -> Status {
+        // If check has failed - map the error to `ErrorKind` and return
+        if let Err(res) = check_text_fragments(site_data, url) {
+            match res {
+                FragmentDirectiveError::PartialOk(_e) => {
+                    return Status::Error(ErrorKind::TextFragmentPartialSuccess);
+                }
+                FragmentDirectiveError::NotFoundError => {
+                    return Status::Error(ErrorKind::TextFragmentsCheckError);
+                }
+                FragmentDirectiveError::DirectiveProcessingError => {
+                    return Status::Error(ErrorKind::FragmentDirectiveProcessingError);
+                }
+            }
+        };
+
+        Status::Ok(StatusCode::OK)
+    }
+
     /// Check a URI using [reqwest](https://github.com/seanmonstar/reqwest).
+    ///
+    /// If Fragment Directive check is enabled and the URL has fragment directive,
+    /// Fragment Directive checker is run to validate the response against directives given
+    ///
+    /// **NOTE:**
+    /// `has_fragment_directive()` call on url shall fail for the below conditions:
+    /// - if there is no fragment delimiter **:~:** in the Url's fragment
+    ///   (malformed delimiter wil also be treated as *no* fragment directive)
+    ///
+    /// If there is no `fragment_directive` for the Url, the request status will be returned
+    ///
+    /// # Errors
+    /// - `TextFragmentPartialSuccess` - if the fragment check succeeds partially
+    /// - `TextFragmentChecksError` - if the fragment check failed
+    /// - Response status, as returned by the server for no fragment directive in Url's fragment
     async fn check_default(&self, request: Request) -> Status {
         let method = request.method().clone();
         let request_url = request.url().clone();
+
+        /*
+        let url = request.url().clone();
+
+        match self.reqwest_client.execute(request).await {
+            Ok(response) => {
+                let status = Status::new(&response, self.accepted.clone());
+                if self.validate_text_fragments && url.has_fragment_directive() {
+                    if let Ok(site_data) = response.text().await {
+                        return WebsiteChecker::check_text_fragments(&site_data, &url);
+                    }
+                }
+                status
+        */
+
+        todo!();
 
         let check_request_fragments = self.include_fragments
             && method == Method::GET
@@ -383,6 +453,7 @@ mod tests {
             0,
             DEFAULT_ACCEPTED_STATUS_CODES.clone(),
             Some(client),
+            false,
             false,
             RequestChain::default(),
             false,

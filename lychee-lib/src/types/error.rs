@@ -173,6 +173,18 @@ pub enum ErrorKind {
     #[error("Unable to parse status code selector: {0}")]
     StatusCodeSelectorError(#[from] StatusCodeSelectorError),
 
+    /// Text Fragments check partial success
+    #[error("Text Fragments Partial Success")]
+    TextFragmentPartialSuccess,
+
+    /// Text Fragments check error
+    #[error("Text Fragments verification error")]
+    TextFragmentsCheckError,
+
+    /// Fragment Directive processing error - usually occurs if the directive
+    /// is malformed in the `[url:Url]`'s fragment string
+    #[error("Fragment Directive processing error")]
+    FragmentDirectiveProcessingError,
     /// Preprocessor command error
     #[error("Preprocessor command '{command}' failed with '{reason}'")]
     PreprocessorError {
@@ -313,6 +325,9 @@ impl ErrorKind {
                 command: _,
                 reason: _,
             } => self.to_string(),
+            ErrorKind::TextFragmentPartialSuccess
+            | ErrorKind::TextFragmentsCheckError
+            | ErrorKind::FragmentDirectiveProcessingError => todo!(),
         }
     }
 
@@ -387,6 +402,11 @@ impl PartialEq for ErrorKind {
             (Self::InvalidBase(b1, e1), Self::InvalidBase(b2, e2)) => b1 == b2 && e1 == e2,
             (Self::InvalidUrlRemap(r1), Self::InvalidUrlRemap(r2)) => r1 == r2,
             (Self::EmptyUrl, Self::EmptyUrl) => true,
+            (Self::TextFragmentsCheckError, Self::TextFragmentsCheckError) => true,
+            (Self::TextFragmentPartialSuccess, Self::TextFragmentPartialSuccess) => true,
+            (Self::FragmentDirectiveProcessingError, Self::FragmentDirectiveProcessingError) => {
+                true
+            }
             (Self::RejectedStatusCode(c1), Self::RejectedStatusCode(c2)) => c1 == c2,
 
             _ => false,
@@ -441,6 +461,13 @@ impl Hash for ErrorKind {
             Self::BasicAuthExtractorError(e) => e.to_string().hash(state),
             Self::Cookies(e) => e.hash(state),
             Self::StatusCodeSelectorError(e) => e.to_string().hash(state),
+            Self::TextFragmentsCheckError => "Text Fragments Check Error".hash(state),
+            Self::TextFragmentPartialSuccess => {
+                "Text Fragments Partial Check Succeeded".hash(state);
+            }
+            Self::FragmentDirectiveProcessingError => {
+                "Error processing Fragment Directive in the fragment string".hash(state);
+            }
             Self::PreprocessorError { command, reason } => (command, reason).hash(state),
             Self::WikilinkNotFound(uri, pathbuf) => (uri, pathbuf).hash(state),
             Self::WikilinkInvalidBase(e) => e.hash(state),

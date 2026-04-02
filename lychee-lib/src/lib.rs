@@ -79,6 +79,10 @@ pub mod ratelimit;
 /// local IPs or e-mail addresses
 pub mod filter;
 
+/// Text fragments allow the web page to highlight the text fragment directive
+/// marked content
+pub mod textfrag;
+
 pub mod waiter;
 
 #[cfg(test)]

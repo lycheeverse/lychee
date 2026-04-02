@@ -2508,6 +2508,19 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[test]
+    fn test_text_fragments() {
+        let input = "https://developer.mozilla.org/en-US/docs/Web/URI/Fragment/Text_fragments#:~:text=without%20relying%20on%20the%20presence%20of%20IDs";
+
+        cargo_bin_cmd!()
+            .arg("--verbose")
+            .arg("--include-text-fragments")
+            .arg(input)
+            .assert()
+            .success()
+            .stdout(contains("0 Errors"));
+    }
+
+    #[test]
     fn test_fallback_extensions() {
         let input = fixtures_path!().join("fallback-extensions");
 
