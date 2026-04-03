@@ -150,13 +150,13 @@ fn handle_fd_limits(opts: &mut LycheeOptions) {
     const BASELINE_OVERHEAD: u64 = 20;
 
     #[cfg(unix)]
-    let limit_result = increase_nofile_limit(u64::MAX).or_else(|_| getrlimit(Resource::NOFILE).map(|(soft, _)| soft));
+    let limit_result = increase_nofile_limit(u64::MAX)
+        .or_else(|_| getrlimit(Resource::NOFILE).map(|(soft, _)| soft));
 
     #[cfg(not(unix))]
     let limit_result = increase_nofile_limit(u64::MAX);
 
-    if let Ok(soft_limit) = limit_result
-    {
+    if let Ok(soft_limit) = limit_result {
         // The relation between `concurrency` and `soft_limit` is roughly:
         // `soft_limit` ≈ `baseline_overhead` + `concurrency`
         #[expect(
