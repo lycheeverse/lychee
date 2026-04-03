@@ -3942,8 +3942,10 @@ exclude = ["cargo_exclude_test_str"]
 "#,
         )?;
 
-        let mut file = std::fs::File::create(dir.path().join("input.txt"))?;
-        std::io::Write::write_all(&mut file, b"https://example.com/cargo_exclude_test_str")?;
+        std::fs::write(
+            dir.path().join("input.txt"),
+            "https://example.com/cargo_exclude_test_str",
+        )?;
 
         let mut cmd = cargo_bin_cmd!();
         let assert = cmd
