@@ -150,7 +150,7 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Use Cross
-        if: matrix.os == 'ubuntu-latest' && matrix.target != ''
+        if: matrix.os == 'ubuntu-latest' && matrix.target != 'x86_64-unknown-linux-gnu'
         shell: bash
         run: |
           # Use cross for Linux cross-compilation
