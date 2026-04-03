@@ -143,16 +143,6 @@ jobs:
             sudo apt-get update && sudo apt-get install -y binutils-aarch64-linux-gnu
           fi
 
-      - name: Install OpenSSL (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: bash
-        run: |
-          vcpkg install openssl-windows:x64-windows
-          vcpkg install openssl:x64-windows-static
-          vcpkg integrate install
-          echo "X86_64_PC_WINDOWS_MSVC_OPENSSL_DIR=c:/vcpkg/installed/x64-windows-static" >> $GITHUB_ENV
-          echo "OPENSSL_STATIC=1" >> $GITHUB_ENV
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -183,11 +173,7 @@ jobs:
       - name: Build release binary
         shell: bash
         run: |
-          if [[ "${{ matrix.os }}" == ubuntu-* ]]; then
-            ${{ env.CARGO }} build --verbose --release --features vendored-openssl ${{ env.TARGET_FLAGS }}
-          else
-            ${{ env.CARGO }} build --verbose --release ${{ env.TARGET_FLAGS }}
-          fi
+          ${{ env.CARGO }} build --verbose --release ${{ env.TARGET_FLAGS }}
           if [[ "${{ matrix.os }}" == windows-* ]]; then
             bin="target/${{ matrix.target }}/release/lychee.exe"
           else
