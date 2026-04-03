@@ -13,7 +13,6 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
-use crate::remap::Remap;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use http::{
@@ -515,6 +514,55 @@ impl Client {
         self.website_checker.host_pool()
     }
 
+    /// Prepares the given request by performing early transformations configured
+    /// within lychee. For instance, this applies the configured remaps.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an error occurred during the transformations, e.g., if
+    /// it led to an invalid URI.
+    pub fn prepare_request(&self, request: Request) -> Result<Request> {
+        let request = self.remap(request)?;
+        if let Some(remap) = &request.remap {
+            debug!("Remapping {remap}");
+        }
+        Ok(request)
+    }
+
+    /// Checks a prepared request, without performing any local transformation of
+    /// the request.
+    ///
+    /// At this point in the link checking process, any failures will be considered
+    /// link checking failures rather than errors. Hence, this function always returns
+    /// a [`Response`], but the response may have an error [`Status`].
+    pub async fn check_prepared_request(&self, request: Request) -> Response {
+        let Request {
+            uri,
+            credentials,
+            source,
+            span,
+            remap,
+            ..
+        } = request;
+
+        let start = std::time::Instant::now(); // Measure check time
+
+        let status = match uri.scheme() {
+            _ if self.is_excluded(&uri) => Status::Excluded,
+            _ if uri.is_tel() => Status::Excluded, // We don't check tel: URIs
+            _ if uri.is_file() => self.check_file(&uri).await,
+            _ if uri.is_mail() => self.check_mail(&uri).await,
+            _ => self.check_website(&uri, credentials).await,
+        };
+
+        let status = match remap {
+            Some(remap) => Status::Remapped(Box::new(status), remap),
+            None => status,
+        };
+
+        Response::new(uri, status, source.into(), span, Some(start.elapsed()))
+    }
+
     /// Check a single request.
     ///
     /// `request` can be either a [`Request`] or a type that can be converted
@@ -526,43 +574,14 @@ impl Client {
     /// - `request` does not represent a valid URI.
     /// - Encrypted connection for a HTTP URL is available but unused. (Only
     ///   checked when `Client::require_https` is `true`.)
-    #[allow(clippy::missing_panics_doc)]
     pub async fn check<T, E>(&self, request: T) -> Result<Response>
     where
         Request: TryFrom<T, Error = E>,
         ErrorKind: From<E>,
     {
-        let Request {
-            mut uri,
-            credentials,
-            source,
-            span,
-            ..
-        } = request.try_into()?;
-
-        let start = std::time::Instant::now(); // Measure check time
-        let remap = self.remap(&mut uri)?.inspect(|r| debug!("Remapping {r}"));
-
-        let status = match uri.scheme() {
-            _ if self.is_excluded(&uri) => Status::Excluded,
-            _ if uri.is_tel() => Status::Excluded, // We don't check tel: URIs
-            _ if uri.is_file() => self.check_file(&uri).await,
-            _ if uri.is_mail() => self.check_mail(&uri).await,
-            _ => self.check_website(&uri, credentials).await?,
-        };
-
-        let status = match remap {
-            Some(remap) => Status::Remapped(Box::new(status), remap),
-            None => status,
-        };
-
-        Ok(Response::new(
-            uri,
-            status,
-            source.into(),
-            span,
-            Some(start.elapsed()),
-        ))
+        let prepared = self.prepare_request(request.try_into()?)?;
+        let response = self.check_prepared_request(prepared).await;
+        Ok(response)
     }
 
     /// Check a single file using the file checker.
@@ -570,24 +589,26 @@ impl Client {
         self.file_checker.check(uri).await
     }
 
-    /// Remap [`Uri`] as a side-effect, using the client-defined remap rules.
-    /// Return `Some` only if a remap was performed.
+    /// Remap [`Request`] using the client-defined remap rules. Return `Ok`
+    /// if a remap was successful or if no remap was matched. If a remap was
+    /// applied, the request's `uri` and `remap` fields are updated and it
+    /// is returned.
     ///
     /// # Errors
     ///
     /// Returns an `Err` if the remapped `uri` is not a valid URI.
-    pub fn remap(&self, uri: &mut Uri) -> Result<Option<Remap>> {
-        match self.remaps {
-            Some(ref remaps) => {
-                let remapped = remaps.remap(uri)?;
-                if let Some(remapped) = &remapped {
-                    *uri = remapped.new.clone();
-                }
+    pub(crate) fn remap(&self, mut request: Request) -> Result<Request> {
+        let Some(remaps) = &self.remaps else {
+            return Ok(request);
+        };
 
-                Ok(remapped)
-            }
-            None => Ok(None),
+        let remapped = remaps.remap(&request.uri)?;
+        if let Some(remapped) = &remapped {
+            request.uri = remapped.new.clone();
         }
+        request.remap = remapped;
+
+        Ok(request)
     }
 
     /// Returns whether the given `uri` should be ignored from checking.
@@ -609,7 +630,7 @@ impl Client {
         &self,
         uri: &Uri,
         credentials: Option<BasicAuthCredentials>,
-    ) -> Result<Status> {
+    ) -> Status {
         self.website_checker.check_website(uri, credentials).await
     }
 

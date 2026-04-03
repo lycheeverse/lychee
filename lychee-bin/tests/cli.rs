@@ -1943,9 +1943,9 @@ The config file should contain every possible key for documentation purposes."
             .assert()
             .failure()
             // The error message should be descriptive and helpful
-            .stderr(contains("Error checking URL https://example.com/: Invalid remap pattern: the result `invalid/` is not a valid URL"))
-            // The original URI is shown as root cause in stdout
-            .stdout(contains("The given URI is invalid, check URI syntax: https://example.com/"));
+            .stdout(contains(
+                "Invalid remap: the result `invalid/` is not a valid URL",
+            ));
     }
 
     #[test]
