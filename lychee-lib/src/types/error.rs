@@ -230,7 +230,7 @@ impl ErrorKind {
             // TODO: This returns an empty string as a sentinel value because it's handled as a
             // fatal application error rather than a link-level error. In the future, we should
             // return an Option<String> or separate application errors from library errors.
-            ErrorKind::ReadInputUrlStatusCode(_) => "".to_string(),
+            ErrorKind::ReadInputUrlStatusCode(_) => String::new(),
             ErrorKind::ParseUrl(e, _url) => {
                 let detail = match e {
                     url::ParseError::RelativeUrlWithoutBase => {
