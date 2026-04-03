@@ -141,22 +141,13 @@ fn read_lines(file: &File) -> Result<Vec<String>> {
 /// 2. If the soft limit is low we reduce lychee's `max_concurrency` accordingly
 fn handle_fd_limits(opts: &mut LycheeOptions) {
     use rlimit::increase_nofile_limit;
-    #[cfg(unix)]
-    use rlimit::{Resource, getrlimit};
 
     /// Baseline overhead estimate to account for file descriptors
     /// which are opened before lychee actually does any link checking.
     /// Estimate is based on observing `lsof -p $(pgrep lychee)`.
     const BASELINE_OVERHEAD: u64 = 20;
 
-    #[cfg(unix)]
-    let limit_result = increase_nofile_limit(u64::MAX)
-        .or_else(|_| getrlimit(Resource::NOFILE).map(|(soft, _)| soft));
-
-    #[cfg(not(unix))]
-    let limit_result = increase_nofile_limit(u64::MAX);
-
-    if let Ok(soft_limit) = limit_result {
+    if let Ok(soft_limit) = increase_nofile_limit(u64::MAX) {
         // The relation between `concurrency` and `soft_limit` is roughly:
         // `soft_limit` ≈ `baseline_overhead` + `concurrency`
         #[expect(
