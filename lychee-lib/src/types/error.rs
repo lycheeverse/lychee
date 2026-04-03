@@ -37,6 +37,11 @@ pub enum ErrorKind {
     /// Error while converting a file to an input
     #[error("Cannot read input content from file '{1}'")]
     ReadFileInput(#[source] std::io::Error, PathBuf),
+    /// Error while reading an input URL
+    #[error(
+        "Cannot read input content from URL: status code {0}. To check links in error pages, download and check locally instead."
+    )]
+    ReadInputUrlStatusCode(StatusCode),
 
     /// Error while reading stdin as input
     #[error("Cannot read content from stdin: {0}")]
@@ -222,6 +227,15 @@ impl ErrorKind {
                 ),
                 _ => format!("File read error for '{}': {e}", path.display()),
             },
+            // This `details()` method never gets called for incorrect CLI
+            // inputs, so whatever we put here, it won't be shown to the user.
+            //
+            // This returns an empty string as a sentinel value because it's handled as a
+            // fatal application error rather than a link-level error.
+            //
+            // TODO: In the future, we should return an Option<String> or separate
+            // application errors from library errors.
+            ErrorKind::ReadInputUrlStatusCode(_) => String::new(),
             ErrorKind::ParseUrl(e, _url) => {
                 let detail = match e {
                     url::ParseError::RelativeUrlWithoutBase => {
@@ -356,6 +370,7 @@ impl PartialEq for ErrorKind {
             (Self::ReadFileInput(e1, s1), Self::ReadFileInput(e2, s2)) => {
                 e1.kind() == e2.kind() && s1 == s2
             }
+            (Self::ReadInputUrlStatusCode(e1), Self::ReadInputUrlStatusCode(e2)) => e1 == e2,
             (Self::ReadStdinInput(e1), Self::ReadStdinInput(e2)) => e1.kind() == e2.kind(),
             (Self::GithubRequest(e1), Self::GithubRequest(e2)) => e1.to_string() == e2.to_string(),
             (Self::InvalidGithubUrl(s1), Self::InvalidGithubUrl(s2)) => s1 == s2,
@@ -405,6 +420,7 @@ impl Hash for ErrorKind {
         match self {
             Self::RuntimeJoin(e) => e.to_string().hash(state),
             Self::ReadFileInput(e, s) => (e.kind(), s).hash(state),
+            Self::ReadInputUrlStatusCode(c) => c.hash(state),
             Self::ReadStdinInput(e) => e.kind().hash(state),
             Self::NetworkRequest(e) => e.to_string().hash(state),
             Self::ReadResponseBody(e) => e.to_string().hash(state),

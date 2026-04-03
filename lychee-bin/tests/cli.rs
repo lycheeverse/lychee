@@ -3942,10 +3942,15 @@ exclude = ["cargo_exclude_test_str"]
 "#,
         )?;
 
+        std::fs::write(
+            dir.path().join("input.txt"),
+            "https://example.com/cargo_exclude_test_str",
+        )?;
+
         let mut cmd = cargo_bin_cmd!();
         let assert = cmd
             .current_dir(dir.path())
-            .arg("https://example.com/cargo_exclude_test_str")
+            .arg("input.txt")
             .arg("--offline")
             .assert();
 
