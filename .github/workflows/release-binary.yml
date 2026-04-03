@@ -150,6 +150,8 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Use Cross
+        # Skip cross for x86_64-unknown-linux-gnu since it's the native host target.
+        # Building it via cross fails on aws-lc-sys due to an outdated gcc in the cross image.
         if: matrix.os == 'ubuntu-latest' && matrix.target != 'x86_64-unknown-linux-gnu'
         shell: bash
         run: |
