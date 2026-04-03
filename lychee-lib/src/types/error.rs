@@ -227,9 +227,14 @@ impl ErrorKind {
                 ),
                 _ => format!("File read error for '{}': {e}", path.display()),
             },
-            // TODO: This returns an empty string as a sentinel value because it's handled as a
-            // fatal application error rather than a link-level error. In the future, we should
-            // return an Option<String> or separate application errors from library errors.
+            // This `details()` method never gets called for incorrect CLI
+            // inputs, so whatever we put here, it won't be shown to the user.
+            //
+            // This returns an empty string as a sentinel value because it's handled as a
+            // fatal application error rather than a link-level error.
+            //
+            // TODO: In the future, we should return an Option<String> or separate
+            // application errors from library errors.
             ErrorKind::ReadInputUrlStatusCode(_) => String::new(),
             ErrorKind::ParseUrl(e, _url) => {
                 let detail = match e {
