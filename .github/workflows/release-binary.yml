@@ -29,8 +29,8 @@ jobs:
     name: create-release
     runs-on: ubuntu-latest
     outputs:
-      tag_name: ${{ steps.get_release.outputs.tag_name }}
-      upload_url: ${{ steps.get_release.outputs.upload_url }}
+      tag_name: ${{ steps.get_release.outputs.tag_name || 'test-tag' }}
+      upload_url: ${{ steps.get_release.outputs.upload_url || '' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -40,7 +40,7 @@ jobs:
         uses: bruceadams/get-release@v1.3.2
         # Skip step if not in the official repository as it would fail.
         # Instead fail at the end of this workflow.
-        if: ${{ github.repository == 'lycheeverse/lychee' }}
+        if: ${{ github.repository == 'lycheeverse/lychee' && github.event_name == 'release' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
