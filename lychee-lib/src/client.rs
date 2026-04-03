@@ -13,6 +13,7 @@
     clippy::default_trait_access,
     clippy::used_underscore_binding
 )]
+use crate::remap::Remap;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use http::{
@@ -28,33 +29,34 @@ use secrecy::{ExposeSecret, SecretString};
 use typed_builder::TypedBuilder;
 
 use crate::{
-    Base, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
+    BaseInfo, BasicAuthCredentials, ErrorKind, Request, Response, Result, Status, Uri,
     chain::RequestChain,
     checker::{file::FileChecker, mail::MailChecker, website::WebsiteChecker},
     filter::Filter,
+    ratelimit::{ClientMap, HostConfigs, HostKey, HostPool, RateLimitConfig},
     remap::Remaps,
     types::{DEFAULT_ACCEPTED_STATUS_CODES, redirect_history::RedirectHistory},
 };
 
-/// Default number of redirects before a request is deemed as failed, 5.
-pub const DEFAULT_MAX_REDIRECTS: usize = 5;
+/// Default number of redirects that are followed.
+pub const DEFAULT_MAX_REDIRECTS: usize = 10;
 /// Default number of retries before a request is deemed as failed, 3.
 pub const DEFAULT_MAX_RETRIES: u64 = 3;
 /// Default wait time in seconds between retries, 1.
-pub const DEFAULT_RETRY_WAIT_TIME_SECS: usize = 1;
+pub const DEFAULT_RETRY_WAIT_TIME_SECS: u64 = 1;
 /// Default timeout in seconds before a request is deemed as failed, 20.
-pub const DEFAULT_TIMEOUT_SECS: usize = 20;
+pub const DEFAULT_TIMEOUT_SECS: u64 = 20;
 /// Default user agent, `lychee-<PKG_VERSION>`.
 pub const DEFAULT_USER_AGENT: &str = concat!("lychee/", env!("CARGO_PKG_VERSION"));
 
 // Constants currently not configurable by the user.
 /// A timeout for only the connect phase of a [`Client`].
-const CONNECT_TIMEOUT: u64 = 10;
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// TCP keepalive.
 ///
 /// See <https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/overview.html> for more
 /// information.
-const TCP_KEEPALIVE: u64 = 60;
+const TCP_KEEPALIVE: Duration = Duration::from_secs(60);
 
 /// Builder for [`Client`].
 ///
@@ -80,7 +82,7 @@ pub struct ClientBuilder {
     ///
     /// # Usage Notes
     ///
-    /// Use with caution because a large set of remapping rules may cause
+    /// Use with caution because a large set of remap rules may cause
     /// performance issues.
     ///
     /// Furthermore rules are executed sequentially and multiple mappings for
@@ -260,14 +262,14 @@ pub struct ClientBuilder {
     #[builder(default = DEFAULT_ACCEPTED_STATUS_CODES.clone())]
     accepted: HashSet<StatusCode>,
 
-    /// Response timeout per request in seconds.
+    /// Response timeout per request.
     timeout: Option<Duration>,
 
     /// Base for resolving paths.
     ///
     /// E.g. if the base is `/home/user/` and the path is `file.txt`, the
     /// resolved path would be `/home/user/file.txt`.
-    base: Option<Base>,
+    base: BaseInfo,
 
     /// Initial time between retries of failed requests.
     ///
@@ -299,11 +301,21 @@ pub struct ClientBuilder {
     /// Enable the checking of fragments in links.
     include_fragments: bool,
 
+    /// Enable the checking of wikilinks in markdown files.
+    /// Note that base must not be `None` if you set this `true`.
+    include_wikilinks: bool,
+
     /// Requests run through this chain where each item in the chain
     /// can modify the request. A chained item can also decide to exit
     /// early and return a status, so that subsequent chain items are
     /// skipped and the lychee-internal request chain is not activated.
     plugin_request_chain: RequestChain,
+
+    /// Global rate limiting configuration that applies as defaults to all hosts
+    rate_limit_config: RateLimitConfig,
+
+    /// Per-host configuration overrides
+    hosts: HostConfigs,
 }
 
 impl Default for ClientBuilder {
@@ -329,53 +341,20 @@ impl ClientBuilder {
     ///
     /// [here]: https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#errors
     pub fn client(self) -> Result<Client> {
-        let Self {
-            user_agent,
-            custom_headers: mut headers,
-            ..
-        } = self;
-
-        if let Some(prev_user_agent) =
-            headers.insert(header::USER_AGENT, HeaderValue::try_from(&user_agent)?)
-        {
-            debug!(
-                "Found user-agent in headers: {}. Overriding it with {user_agent}.",
-                prev_user_agent.to_str().unwrap_or("�"),
-            );
-        }
-
-        headers.insert(
-            header::TRANSFER_ENCODING,
-            HeaderValue::from_static("chunked"),
-        );
-
         let redirect_history = RedirectHistory::new();
+        let reqwest_client = self
+            .build_client(redirect_history.clone())?
+            .build()
+            .map_err(ErrorKind::BuildRequestClient)?;
 
-        let mut builder = reqwest::ClientBuilder::new()
-            .gzip(true)
-            .default_headers(headers)
-            .danger_accept_invalid_certs(self.allow_insecure)
-            .connect_timeout(Duration::from_secs(CONNECT_TIMEOUT))
-            .tcp_keepalive(Duration::from_secs(TCP_KEEPALIVE))
-            .redirect(redirect_policy(
-                redirect_history.clone(),
-                self.max_redirects,
-            ));
+        let client_map = self.build_host_clients(&redirect_history)?;
 
-        if let Some(cookie_jar) = self.cookie_jar {
-            builder = builder.cookie_provider(cookie_jar);
-        }
-
-        if let Some(min_tls) = self.min_tls_version {
-            builder = builder.min_tls_version(min_tls);
-        }
-
-        let reqwest_client = match self.timeout {
-            Some(t) => builder.timeout(t),
-            None => builder,
-        }
-        .build()
-        .map_err(ErrorKind::BuildRequestClient)?;
+        let host_pool = HostPool::new(
+            self.rate_limit_config,
+            self.hosts,
+            reqwest_client,
+            client_map,
+        );
 
         let github_client = match self.github_token.as_ref().map(ExposeSecret::expose_secret) {
             Some(token) if !token.is_empty() => Some(
@@ -406,26 +385,90 @@ impl ClientBuilder {
             self.retry_wait_time,
             redirect_history.clone(),
             self.max_retries,
-            reqwest_client,
             self.accepted,
             github_client,
             self.require_https,
             self.plugin_request_chain,
             self.include_fragments,
+            Arc::new(host_pool),
         );
 
         Ok(Client {
             remaps: self.remaps,
             filter,
-            email_checker: MailChecker::new(),
+            email_checker: MailChecker::new(self.timeout),
             website_checker,
             file_checker: FileChecker::new(
-                self.base,
+                &self.base,
                 self.fallback_extensions,
                 self.index_files,
                 self.include_fragments,
-            ),
+                self.include_wikilinks,
+            )?,
         })
+    }
+
+    /// Build the host-specific clients with their host-specific headers
+    fn build_host_clients(&self, redirect_history: &RedirectHistory) -> Result<ClientMap> {
+        self.hosts
+            .iter()
+            .map(|(host, config)| {
+                let mut headers = self.default_headers()?;
+                headers.extend(config.headers.clone());
+                let client = self
+                    .build_client(redirect_history.clone())?
+                    .default_headers(headers)
+                    .build()
+                    .map_err(ErrorKind::BuildRequestClient)?;
+                Ok((HostKey::from(host.as_str()), client))
+            })
+            .collect()
+    }
+
+    /// Create a [`reqwest::ClientBuilder`] based on various fields
+    fn build_client(&self, redirect_history: RedirectHistory) -> Result<reqwest::ClientBuilder> {
+        let mut builder = reqwest::ClientBuilder::new()
+            .gzip(true)
+            .default_headers(self.default_headers()?)
+            .danger_accept_invalid_certs(self.allow_insecure)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .tcp_keepalive(TCP_KEEPALIVE)
+            .redirect(redirect_policy(redirect_history, self.max_redirects));
+
+        if let Some(cookie_jar) = self.cookie_jar.clone() {
+            builder = builder.cookie_provider(cookie_jar);
+        }
+
+        if let Some(min_tls) = self.min_tls_version {
+            builder = builder.min_tls_version(min_tls);
+        }
+
+        if let Some(timeout) = self.timeout {
+            builder = builder.timeout(timeout);
+        }
+
+        Ok(builder)
+    }
+
+    fn default_headers(&self) -> Result<HeaderMap> {
+        let user_agent = self.user_agent.clone();
+        let mut headers = self.custom_headers.clone();
+
+        if let Some(prev_user_agent) =
+            headers.insert(header::USER_AGENT, HeaderValue::try_from(&user_agent)?)
+        {
+            debug!(
+                "Found user-agent in headers: {}. Overriding it with {user_agent}.",
+                prev_user_agent.to_str().unwrap_or("�"),
+            );
+        }
+
+        headers.insert(
+            header::TRANSFER_ENCODING,
+            HeaderValue::from_static("chunked"),
+        );
+
+        Ok(headers)
     }
 }
 
@@ -436,8 +479,7 @@ fn redirect_policy(redirect_history: RedirectHistory, max_redirects: usize) -> r
         if attempt.previous().len() > max_redirects {
             attempt.stop()
         } else {
-            let redirects = &[attempt.previous(), &[attempt.url().clone()]].concat();
-            redirect_history.record_redirects(redirects);
+            redirect_history.record_redirects(&attempt);
             debug!("Following redirect to {}", attempt.url());
             attempt.follow()
         }
@@ -450,7 +492,7 @@ fn redirect_policy(redirect_history: RedirectHistory, max_redirects: usize) -> r
 /// options.
 #[derive(Debug, Clone)]
 pub struct Client {
-    /// Optional remapping rules for URIs matching pattern.
+    /// Optional remap rules for URIs matching pattern.
     remaps: Option<Remaps>,
 
     /// Rules to decide whether a given link should be checked or ignored.
@@ -467,6 +509,12 @@ pub struct Client {
 }
 
 impl Client {
+    /// Get `HostPool`
+    #[must_use]
+    pub fn host_pool(&self) -> Arc<HostPool> {
+        self.website_checker.host_pool()
+    }
+
     /// Check a single request.
     ///
     /// `request` can be either a [`Request`] or a type that can be converted
@@ -485,27 +533,36 @@ impl Client {
         ErrorKind: From<E>,
     {
         let Request {
-            ref mut uri,
+            mut uri,
             credentials,
             source,
+            span,
             ..
         } = request.try_into()?;
 
-        self.remap(uri)?;
-
-        if self.is_excluded(uri) {
-            return Ok(Response::new(uri.clone(), Status::Excluded, source.into()));
-        }
+        let start = std::time::Instant::now(); // Measure check time
+        let remap = self.remap(&mut uri)?.inspect(|r| debug!("Remapping {r}"));
 
         let status = match uri.scheme() {
-            // We don't check tel: URIs
-            _ if uri.is_tel() => Status::Excluded,
-            _ if uri.is_file() => self.check_file(uri).await,
-            _ if uri.is_mail() => self.check_mail(uri).await,
-            _ => self.check_website(uri, credentials).await?,
+            _ if self.is_excluded(&uri) => Status::Excluded,
+            _ if uri.is_tel() => Status::Excluded, // We don't check tel: URIs
+            _ if uri.is_file() => self.check_file(&uri).await,
+            _ if uri.is_mail() => self.check_mail(&uri).await,
+            _ => self.check_website(&uri, credentials).await?,
         };
 
-        Ok(Response::new(uri.clone(), status, source.into()))
+        let status = match remap {
+            Some(remap) => Status::Remapped(Box::new(status), remap),
+            None => status,
+        };
+
+        Ok(Response::new(
+            uri,
+            status,
+            source.into(),
+            span,
+            Some(start.elapsed()),
+        ))
     }
 
     /// Check a single file using the file checker.
@@ -513,16 +570,24 @@ impl Client {
         self.file_checker.check(uri).await
     }
 
-    /// Remap `uri` using the client-defined remapping rules.
+    /// Remap [`Uri`] as a side-effect, using the client-defined remap rules.
+    /// Return `Some` only if a remap was performed.
     ///
     /// # Errors
     ///
-    /// Returns an `Err` if the final, remapped `uri` is not a valid URI.
-    pub fn remap(&self, uri: &mut Uri) -> Result<()> {
-        if let Some(ref remaps) = self.remaps {
-            uri.url = remaps.remap(&uri.url)?;
+    /// Returns an `Err` if the remapped `uri` is not a valid URI.
+    pub fn remap(&self, uri: &mut Uri) -> Result<Option<Remap>> {
+        match self.remaps {
+            Some(ref remaps) => {
+                let remapped = remaps.remap(uri)?;
+                if let Some(remapped) = &remapped {
+                    *uri = remapped.new.clone();
+                }
+
+                Ok(remapped)
+            }
+            None => Ok(None),
         }
-        Ok(())
     }
 
     /// Returns whether the given `uri` should be ignored from checking.
@@ -596,8 +661,9 @@ mod tests {
 
     use super::ClientBuilder;
     use crate::{
-        ErrorKind, Request, Status, Uri,
+        ErrorKind, Redirect, Redirects, Request, Status, Uri,
         chain::{ChainResult, Handler, RequestChain},
+        remap::{Remap, Remaps},
     };
 
     #[tokio::test]
@@ -662,7 +728,7 @@ mod tests {
         let res = get_mock_client_response!(r).await;
         assert!(matches!(
             res.status(),
-            Status::Redirected(StatusCode::OK, _)
+            Status::Redirected(inner, _) if **inner == Status::Ok(StatusCode::OK)
         ));
     }
 
@@ -765,7 +831,7 @@ mod tests {
     #[tokio::test]
     async fn test_require_https() {
         let client = ClientBuilder::builder().build().client().unwrap();
-        let res = client.check("http://example.com").await.unwrap();
+        let res = client.check("http://rust-lang.org/").await.unwrap();
         assert!(res.status().is_success());
 
         // Same request will fail if HTTPS is required
@@ -774,7 +840,7 @@ mod tests {
             .build()
             .client()
             .unwrap();
-        let res = client.check("http://example.com").await.unwrap();
+        let res = client.check("http://rust-lang.org/").await.unwrap();
         assert!(res.status().is_error());
     }
 
@@ -791,6 +857,7 @@ mod tests {
 
         let client = ClientBuilder::builder()
             .timeout(checker_timeout)
+            .max_retries(0u64)
             .build()
             .client()
             .unwrap();
@@ -887,17 +954,17 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
+        assert!(matches!(
             res.status(),
-            &Status::Error(ErrorKind::RejectedStatusCode(
-                StatusCode::PERMANENT_REDIRECT
-            ))
-        );
+            Status::Redirected(inner, redirects) if **inner == Status::Error(
+                ErrorKind::RejectedStatusCode(StatusCode::PERMANENT_REDIRECT)
+            ) && redirects.count() == redirect_count,
+        ));
     }
 
     #[tokio::test]
     async fn test_redirects() {
-        redirecting_mock_server!(async |redirect_url: Url, ok_ur| {
+        redirecting_mock_server!(async |redirect_url: Url, ok_url| {
             let res = ClientBuilder::builder()
                 .max_redirects(1_usize)
                 .build()
@@ -907,12 +974,47 @@ mod tests {
                 .await
                 .unwrap();
 
+            let mut redirects = Redirects::new(redirect_url);
+            redirects.push(Redirect {
+                url: ok_url,
+                code: StatusCode::PERMANENT_REDIRECT,
+            });
+
             assert_eq!(
                 res.status(),
-                &Status::Redirected(StatusCode::OK, vec![redirect_url, ok_ur].into())
+                &Status::Redirected(Box::new(Status::Ok(StatusCode::OK)), redirects)
             );
         })
         .await;
+    }
+
+    #[tokio::test]
+    async fn test_remaps() {
+        let mapped = String::from("file:///nope");
+        let client = ClientBuilder::builder()
+            .remaps(Remaps::new(vec![(
+                regex::Regex::new("http://example.org").unwrap(),
+                mapped.clone(),
+            )]))
+            .build()
+            .client()
+            .unwrap();
+
+        let input = Uri::try_from("http://example.org").unwrap();
+        let res = client.check(input.clone()).await.unwrap();
+
+        assert_eq!(
+            res.status(),
+            &Status::Remapped(
+                Box::new(Status::Error(ErrorKind::InvalidFilePath(
+                    format!("{mapped}/").try_into().unwrap(),
+                ))),
+                Remap {
+                    original: input,
+                    new: format!("{mapped}/").try_into().unwrap(),
+                },
+            )
+        );
     }
 
     #[tokio::test]

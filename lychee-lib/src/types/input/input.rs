@@ -13,6 +13,7 @@ use crate::{ErrorKind, LycheeResult};
 use async_stream::try_stream;
 use futures::stream::{Stream, StreamExt};
 use log::debug;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, stdin};
 
@@ -101,9 +102,9 @@ impl Input {
             let source = self.source.clone();
 
             let user_input_error =
-                move |e: ErrorKind| RequestError::UserInputContent(source.clone(), e);
+                move |e: ErrorKind| RequestError::UserInputContent(source.clone(), e.into());
             let discovered_input_error =
-                |e: ErrorKind| RequestError::GetInputContent(self.source.clone(), e);
+                |e: ErrorKind| RequestError::GetInputContent(self.source.clone(), e.into());
 
             // Handle simple cases that don't need resolution. Also, perform
             // simple *stateful* checks for more complex input sources.
@@ -120,19 +121,19 @@ impl Input {
                     return;
                 }
                 InputSource::FsPath(ref path) => {
+                    // We check if the file is readable before processing. This catches
+                    // permission errors and missing files early.
                     let is_readable = if path.is_dir() {
                         path.read_dir()
                             .map(|_| ())
                             .map_err(|e| ErrorKind::DirTraversal(ignore::Error::Io(e)))
                     } else {
-                        // This checks existence without requiring an open. Opening here,
-                        // then re-opening later, might cause problems with pipes. This
-                        // does not validate permissions.
+                        // We check existence without opening the file to avoid issues with
+                        // pipes and special files. This does not validate permissions.
                         path.metadata()
                             .map(|_| ())
                             .map_err(|e| ErrorKind::ReadFileInput(e, path.clone()))
                     };
-
                     is_readable.map_err(user_input_error)?;
                 }
                 InputSource::Stdin => {
@@ -271,7 +272,10 @@ impl Input {
         let mut content = String::new();
         let mut stdin = stdin();
 
-        debug!("Reading content from stdin"); // useful info when nothing piped and process blocks
+        if std::io::stdin().is_terminal() {
+            // useful info when nothing piped and process blocks
+            debug!("Reading content from stdin");
+        }
         stdin.read_to_string(&mut content).await?;
 
         let input_content = InputContent {
@@ -352,7 +356,7 @@ mod tests {
 
         let input = Input::from_value(test_file);
         assert!(input.is_err());
-        assert!(matches!(input, Err(ErrorKind::InvalidFile(PathBuf { .. }))));
+        assert!(matches!(input, Err(ErrorKind::InvalidInput(_))));
     }
 
     #[test]
@@ -383,10 +387,11 @@ mod tests {
     #[test]
     fn test_url_without_scheme() {
         let input = Input::from_value("example.com");
-        assert_eq!(
-            input.unwrap().source.to_string(),
-            String::from("http://example.com/")
-        );
+        assert!(matches!(input, Err(ErrorKind::InvalidInput(_))));
+        if let Err(error) = input {
+            let error_msg = error.to_string();
+            assert!(error_msg.contains("Use full URL"));
+        }
     }
 
     // Ensure that a Windows file path is not mistaken for a URL.
@@ -398,8 +403,8 @@ mod tests {
         let input = input.unwrap_err();
 
         match input {
-            ErrorKind::InvalidFile(_) => (),
-            _ => panic!("Should have received InvalidFile error"),
+            ErrorKind::InvalidInput(_) => (),
+            _ => panic!("Should have received InvalidInput error, got: {input:?}"),
         }
     }
 
@@ -455,23 +460,35 @@ mod tests {
     }
 
     #[test]
-    fn test_url_scheme_check_failing() {
-        // Invalid schemes
+    fn test_url_scheme_check_passing() {
+        // Valid schemes should be accepted (future compatibility)
         assert!(matches!(
             Input::from_value("ftp://example.com"),
-            Err(ErrorKind::InvalidFile(_))
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
         ));
         assert!(matches!(
             Input::from_value("httpx://example.com"),
-            Err(ErrorKind::InvalidFile(_))
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
         ));
         assert!(matches!(
             Input::from_value("file:///path/to/file"),
-            Err(ErrorKind::InvalidFile(_))
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
         ));
         assert!(matches!(
             Input::from_value("mailto:user@example.com"),
-            Err(ErrorKind::InvalidFile(_))
+            Ok(Input {
+                source: InputSource::RemoteUrl(_),
+                ..
+            })
         ));
     }
 
@@ -480,7 +497,7 @@ mod tests {
         // Non-URL inputs
         assert!(matches!(
             Input::from_value("./local/path"),
-            Err(ErrorKind::InvalidFile(_))
+            Err(ErrorKind::InvalidInput(_))
         ));
         assert!(matches!(
             Input::from_value("*.md"),

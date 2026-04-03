@@ -238,7 +238,6 @@ impl<S: SpanProvider> LinkExtractor<S> {
         if let Some(name) = self.current_attributes.get("name") {
             self.fragments.insert(name.to_string());
         }
-
         self.current_attributes.clear();
     }
 }

@@ -57,9 +57,10 @@ impl Verbosity {
         level_enum(self.verbosity()).to_level_filter()
     }
 
-    #[allow(clippy::cast_possible_wrap)]
-    const fn verbosity(&self) -> i8 {
-        level_value(log::Level::Warn) - (self.quiet as i8) + (self.verbose as i8)
+    const fn verbosity(&self) -> u8 {
+        level_value(log::Level::Warn)
+            .saturating_sub(self.quiet)
+            .saturating_add(self.verbose)
     }
 
     const fn verbose_help() -> &'static str {
@@ -104,13 +105,13 @@ impl<'de> Deserialize<'de> for Verbosity {
         let level = log::Level::from_str(level).map_err(|_| custom_error())?;
 
         Ok(Verbosity {
-            verbose: level_value(level) as u8,
+            verbose: level_value(level),
             quiet: 0,
         })
     }
 }
 
-const fn level_value(level: Level) -> i8 {
+const fn level_value(level: Level) -> u8 {
     match level {
         log::Level::Error => 0,
         log::Level::Warn => 1,
@@ -120,7 +121,7 @@ const fn level_value(level: Level) -> i8 {
     }
 }
 
-const fn level_enum(verbosity: i8) -> log::Level {
+const fn level_enum(verbosity: u8) -> log::Level {
     match verbosity {
         0 => log::Level::Error,
         1 => log::Level::Warn,

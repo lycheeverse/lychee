@@ -103,9 +103,7 @@ fn analyze_basic_reqwest_error(error: &reqwest::Error) -> Option<String> {
     if let Some(status) = error.status() {
         let reason = status.canonical_reason().unwrap_or("Unknown");
         return Some(format!(
-            "HTTP {}: {} - check URL and server status",
-            status.as_u16(),
-            reason
+            "HTTP {status}: {reason} - check URL and server status",
         ));
     }
 
@@ -397,28 +395,5 @@ fn fallback_reqwest_analysis(error: &reqwest::Error) -> String {
         "Response decoding failed. Server returned invalid data".to_string()
     } else {
         format!("Request failed: {error}")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::ErrorKind;
-
-    /// Test that `ErrorKind::details()` properly uses the new analysis
-    #[test]
-    fn test_error_kind_details_integration() {
-        // Test rejected status code
-        let status_error = ErrorKind::RejectedStatusCode(http::StatusCode::NOT_FOUND);
-        assert_eq!(status_error.details(), Some("Not Found".to_string()));
-
-        // Test that network request errors would use analyze_error_chain
-        // (actual reqwest::Error creation is complex, so we test the integration point)
-
-        // For other error types, ensure they still work
-        let test_error = ErrorKind::EmptyUrl;
-        assert_eq!(
-            test_error.details(),
-            Some("Empty URL found. Check for missing links or malformed markdown".to_string())
-        );
     }
 }

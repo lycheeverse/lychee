@@ -1,9 +1,11 @@
 //! Extract links and fragments from markdown documents
 use std::collections::{HashMap, HashSet};
 
+use log::warn;
 use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, TextMergeWithOffset};
 
 use crate::{
+    checker::wikilink::wikilink,
     extract::{html::html5gum::extract_html_with_span, plaintext::extract_raw_uri_from_plaintext},
     types::uri::raw::{
         OffsetSpanProvider, RawUri, RawUriSpan, SourceSpanProvider, SpanProvider as _,
@@ -86,7 +88,7 @@ pub(crate) fn extract_markdown(
                         Some(extract_raw_uri_from_plaintext(&dest_url, &span_provider))
                     }
                     // Wiki URL (`[[http://example.com]]`)
-                    LinkType::WikiLink { has_pothole: _ } => {
+                    LinkType::WikiLink { has_pothole } => {
                         // Exclude WikiLinks if not explicitly enabled
                         if !include_wikilinks {
                             return None;
@@ -97,8 +99,18 @@ pub(crate) fn extract_markdown(
                             return None;
                         }
 
-                        // wiki links start with `[[`, so offset the span by `2`
-                        Some(raw_uri(&dest_url, span_provider.span(span.start + 2)))
+                        if let Ok(wikilink) = wikilink(&dest_url, has_pothole) {
+                            Some(vec![RawUri {
+                                text: wikilink.to_string(),
+                                element: Some("a".to_string()),
+                                attribute: Some("wikilink".to_string()),
+                                // wiki links start with `[[`, so offset the span by `2`
+                                span: span_provider.span(span.start + 2)
+                            }])
+                        } else {
+                            warn!("The wikilink destination url {dest_url} could not be cleaned by removing potholes and fragments");
+                            None
+                        }
                     }
                 }
             }
@@ -530,7 +542,7 @@ $$
         let expected = vec![RawUri {
             text: "https://example.com/destination".to_string(),
             element: Some("a".to_string()),
-            attribute: Some("href".to_string()),
+            attribute: Some("wikilink".to_string()),
             span: span(1, 3),
         }];
         let uris = extract_markdown(markdown, true, true);
@@ -544,13 +556,13 @@ $$
             RawUri {
                 text: "https://example.com/destination".to_string(),
                 element: Some("a".to_string()),
-                attribute: Some("href".to_string()),
+                attribute: Some("wikilink".to_string()),
                 span: span(1, 3),
             },
             RawUri {
                 text: "https://example.com/source".to_string(),
                 element: Some("a".to_string()),
-                attribute: Some("href".to_string()),
+                attribute: Some("wikilink".to_string()),
                 span: span(1, 38),
             },
         ];
@@ -680,6 +692,37 @@ Shortcut link: [link4]
     }
 
     #[test]
+    fn test_clean_wikilink() {
+        let markdown = r"
+[[foo|bar]]
+[[foo#bar]]
+[[foo#bar|baz]]
+";
+        let uris = extract_markdown(markdown, true, true);
+        let expected = vec![
+            RawUri {
+                text: "foo".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("wikilink".to_string()),
+                span: span(2, 3),
+            },
+            RawUri {
+                text: "foo".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("wikilink".to_string()),
+                span: span(3, 3),
+            },
+            RawUri {
+                text: "foo".to_string(),
+                element: Some("a".to_string()),
+                attribute: Some("wikilink".to_string()),
+                span: span(4, 3),
+            },
+        ];
+        assert_eq!(uris, expected);
+    }
+
+    #[test]
     fn test_nested_html() {
         let input = r#"<Foo>
           <Bar href="https://example.com" >
@@ -697,6 +740,18 @@ Shortcut link: [link4]
         let uris = extract_markdown(input, false, false);
 
         assert_eq!(uris, expected);
+    }
+
+    #[test]
+    fn test_wikilink_extraction_returns_none_on_empty_links() {
+        let markdown = r"
+[[|bar]]
+[[#bar]]
+[[#bar|baz]]
+";
+
+        let uris = extract_markdown(markdown, true, true);
+        assert!(uris.is_empty());
     }
 
     #[test]
@@ -757,5 +812,18 @@ Shortcut link: [link4]
             assert_eq!(uri.element, Some("a".to_string()));
             assert_eq!(uri.attribute, Some("href".to_string()));
         }
+    }
+
+    #[test]
+    fn test_remove_wikilink_potholes_and_fragments() {
+        let markdown = r"[[foo#bar|baz]]";
+        let uris = extract_markdown(markdown, true, true);
+        let expected = vec![RawUri {
+            text: "foo".to_string(),
+            element: Some("a".to_string()),
+            attribute: Some("wikilink".to_string()),
+            span: span(1, 3),
+        }];
+        assert_eq!(uris, expected);
     }
 }

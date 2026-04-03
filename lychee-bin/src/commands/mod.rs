@@ -10,19 +10,19 @@ pub(crate) use dump_inputs::dump_inputs;
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use crate::cache::Cache;
-use crate::options::Config;
+use crate::config::Config;
 use lychee_lib::RequestError;
 use lychee_lib::{Client, Request};
 
 /// Parameters passed to every command
 pub(crate) struct CommandParams<S: futures::Stream<Item = Result<Request, RequestError>>> {
     pub(crate) client: Client,
-    pub(crate) cache: Arc<Cache>,
+    pub(crate) cache: Cache,
     pub(crate) requests: S,
     pub(crate) cfg: Config,
+    pub(crate) is_stdin_input: bool,
 }
 
 /// Creates a writer that outputs to a file or stdout.
