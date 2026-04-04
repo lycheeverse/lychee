@@ -118,17 +118,17 @@ impl Default for Quirks {
 }
 
 impl Quirks {
-    /// Apply quirks to a given request. Only the first quirk regex pattern
-    /// matching the URL will be applied. The rest will be discarded for
-    /// simplicity reasons. This limitation might be lifted in the future.
-    pub(crate) fn apply(&self, request: Request) -> Request {
+    /// Apply quirks to the given request, if applicable.
+    ///
+    /// Quirks are applied in sequence. The URL produced by earlier quirks can
+    /// be transformed by later quirks.
+    pub(crate) fn apply(&self, mut request: Request) -> Request {
         for quirk in &self.quirks {
             if let Some(captures) = quirk.pattern.captures(request.url().clone().as_str()) {
                 debug!("Applied quirk '{}' to {}", quirk.name, request.url());
-                return (quirk.rewrite)(request, captures);
+                request = (quirk.rewrite)(request, captures);
             }
         }
-        // Request was not modified
         request
     }
 }
