@@ -128,6 +128,8 @@ fn get_dummy_stats() -> OutputStats {
                 .try_into()
                 .unwrap(),
             status: Status::Ok(StatusCode::NOT_FOUND),
+            redirects: None,
+            remap: None,
             span: SPAN,
             duration: DURATION,
         }]),
@@ -138,6 +140,8 @@ fn get_dummy_stats() -> OutputStats {
         HashSet::from([ResponseBody {
             uri: "https://httpbin.org/delay/2".try_into().unwrap(),
             status: Status::Timeout(None),
+            redirects: None,
+            remap: None,
             span: SPAN,
             duration: DURATION,
         }]),
@@ -210,7 +214,15 @@ mod tests {
     fn make_test_response(url_str: &str, source: InputSource) -> Response {
         let uri = Uri::from(make_test_url(url_str));
 
-        Response::new(uri, Status::Error(ErrorKind::EmptyUrl), source, None, None)
+        Response::new(
+            uri,
+            Status::Error(ErrorKind::EmptyUrl),
+            None,
+            None,
+            source,
+            None,
+            None,
+        )
     }
 
     #[test]

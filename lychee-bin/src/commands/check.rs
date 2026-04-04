@@ -255,7 +255,9 @@ async fn check_url(client: &Client, request: Request) -> Response {
         log::error!("Error checking URL {uri}: {e}");
         Response::new(
             uri.clone(),
-            Status::Error(ErrorKind::InvalidURI(uri.clone())),
+            Status::Error(ErrorKind::InvalidURI(uri)),
+            None,
+            None,
             source.into(),
             span,
             None,
@@ -316,6 +318,8 @@ async fn handle(
         return Ok(Response::new(
             cache_key.clone(),
             status,
+            None,
+            None,
             request.source.into(),
             request.span,
             None,
@@ -389,9 +393,9 @@ mod tests {
     async fn test_invalid_url() {
         let client = ClientBuilder::builder().build().client().unwrap();
         let uri = Uri::try_from("http://\"").unwrap();
-        let response = client.check_website(&uri, None).await.unwrap();
+        let (status, _redirects) = client.check_website(&uri, None).await.unwrap();
         assert!(matches!(
-            response,
+            status,
             Status::Unsupported(ErrorKind::BuildRequestClient(_))
         ));
     }
