@@ -1,4 +1,3 @@
-use crate::ErrorKind;
 use crate::Preprocessor;
 use crate::filter::PathExcludes;
 use crate::ratelimit::HostPool;
@@ -98,10 +97,7 @@ impl Collector {
                 }
             }
             (Some(root_dir), base) => {
-                let root_dir_exists = root_dir.read_dir().map(|_| ());
-                let root_dir = root_dir_exists
-                    .and_then(|()| std::path::absolute(&root_dir))
-                    .map_err(|e| ErrorKind::InvalidRootDir(root_dir, e))?;
+                let root_dir = std::path::absolute(&root_dir).unwrap_or(root_dir);
                 (Some(root_dir), base)
             }
             (None, base) => (None, base),
