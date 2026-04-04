@@ -3765,16 +3765,13 @@ https://gist.githubusercontent.com-fake/
             .assert()
             .success();
 
-        // BUG: in the first three lines, /TMP appearing twice is incorrect and due to https://github.com/lycheeverse/lychee/issues/1964
         assert_eq!(
             normalise_url_lines(
                 &proc.get_output().stdout,
                 &[&fixture.to_string_lossy(), "/TMP"]
             ),
             "
-file:///TMP/a/b/ROOT/TMP/a/b/ROOT/root
-file:///TMP/a/b/ROOT/TMP/a/up-up
-file:///TMP/a/b/ROOT/TMP/up-up-up
+file:///TMP/a/b/ROOT/root
 file:///TMP/a/b/ROOT/server/1/2/encoded%24%2A%28%20%29%5B%20%5D.html
 file:///TMP/a/b/ROOT/server/1/2/file.md#self
 file:///TMP/a/b/ROOT/server/1/2/query.html?boop=20
@@ -3782,6 +3779,8 @@ file:///TMP/a/b/ROOT/server/1/2/relative.html
 file:///TMP/a/b/ROOT/server/1/2/sub/dir/index.html
 file:///TMP/a/b/ROOT/server/1/up-one.html
 file:///TMP/a/b/ROOT/server/up-two.html
+file:///TMP/a/b/ROOT/up-up
+file:///TMP/a/b/ROOT/up-up-up
             "
             .trim()
         );
@@ -3894,10 +3893,10 @@ https://gist.githubusercontent.com/server/up
                 ]
             ),
             "
-[mock-server]/TMP/a/b/c/ROOT/root
-[mock-server]/TMP/a/b/up-up
-[mock-server]/TMP/a/up-up-up
+[mock-server]/root
 [mock-server]/server/up-two.html
+[mock-server]/up-up
+[mock-server]/up-up-up
 file:///TMP/a/b/c/ROOT/server/1/2/encoded%24%2A%28%20%29%5B%20%5D.html
 file:///TMP/a/b/c/ROOT/server/1/2/file.md#self
 file:///TMP/a/b/c/ROOT/server/1/2/query.html?boop=20
@@ -3907,7 +3906,6 @@ file:///TMP/a/b/c/ROOT/server/1/up-one.html
             "
             .trim()
         );
-        // BUG: TMP appearing inside server URLS is incorrect and due to https://github.com/lycheeverse/lychee/issues/1964
     }
 
     #[test]
