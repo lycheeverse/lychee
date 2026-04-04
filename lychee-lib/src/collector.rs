@@ -12,6 +12,7 @@ use futures::{
     stream::{self, Stream},
 };
 use http::HeaderMap;
+use log::warn;
 use par_stream::ParStreamExt;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -98,6 +99,12 @@ impl Collector {
             }
             (Some(root_dir), base) => {
                 let root_dir = std::path::absolute(&root_dir).unwrap_or(root_dir);
+                if !root_dir.is_dir() {
+                    warn!(
+                        "Root dir '{}' does not exist or is not a directory",
+                        root_dir.to_string_lossy()
+                    );
+                }
                 (Some(root_dir), base)
             }
             (None, base) => (None, base),
