@@ -4,7 +4,10 @@ use crate::{
     quirks::Quirks,
     ratelimit::HostPool,
     retry::RetryExt,
-    types::{redirect_history::RedirectHistory, uri::github::GithubUri},
+    types::{
+        redirect_history::{RedirectHistory, Redirects},
+        uri::github::GithubUri,
+    },
     utils::fragment_checker::{FragmentChecker, FragmentInput},
 };
 use async_trait::async_trait;
@@ -206,7 +209,7 @@ impl WebsiteChecker {
         &self,
         uri: &Uri,
         credentials: Option<BasicAuthCredentials>,
-    ) -> Result<Status, ErrorKind> {
+    ) -> Result<(Status, Option<Redirects>), ErrorKind> {
         let default_chain: RequestChain = Chain::new(vec![
             Box::<Quirks>::default(),
             Box::new(credentials),
@@ -218,7 +221,8 @@ impl WebsiteChecker {
             .handle_insecure_url(uri, &default_chain, status)
             .await?;
 
-        Ok(self.redirect_history.handle_redirected(&uri.url, status))
+        let redirects = self.redirect_history.resolve(&uri.url);
+        Ok((status, redirects))
     }
 
     /// Mark HTTP URLs as insecure, if the user required HTTPS

@@ -68,10 +68,14 @@ mod plain_tests {
             code: StatusCode::PERMANENT_REDIRECT,
         });
 
-        let body = mock_response_body!(
-            Status::Redirected(Box::new(Status::Ok(StatusCode::OK)), redirects),
-            "https://example.com/redirect",
-        );
+        let body = ResponseBody {
+            uri: Uri::try_from("https://example.com/redirect").unwrap(),
+            status: Status::Ok(StatusCode::OK),
+            redirects: Some(redirects),
+            remap: None,
+            span: None,
+            duration: None,
+        };
         assert_eq!(
             formatter.format_response(&body),
             "[200] https://example.com/redirect | 200 OK | Followed 1 redirect. Redirects: https://from.dev/ --[308]--> https://to.dev/"

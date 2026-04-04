@@ -113,9 +113,6 @@ impl From<&Status> for CacheStatus {
             Status::Ok(code) | Status::UnknownStatusCode(code) => Self::Ok(*code),
             Status::Excluded => Self::Excluded,
             Status::Unsupported(_) => Self::Unsupported,
-            Status::Redirected(inner, _) | Status::Remapped(inner, _) => {
-                Self::from(inner as &Status)
-            }
             Status::Timeout(code) => Self::Error(*code),
             Status::Error(e) => match e {
                 ErrorKind::RejectedStatusCode(code) => Self::Error(Some(*code)),

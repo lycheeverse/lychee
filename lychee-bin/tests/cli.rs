@@ -1965,23 +1965,17 @@ The config file should contain every possible key for documentation purposes."
         let json = stdout_to_json(&stdout);
         assert_eq!(json["remaps"], 1);
         assert_eq!(json["excludes"], 1);
+        let excluded = &json["excluded_map"]["stdin"][0];
+        assert_eq!(excluded["url"], "https://bbb.com/");
+        assert_eq!(excluded["status"]["text"], "Excluded");
         assert_eq!(
-            json["excluded_map"],
-            json!({
-            "stdin": [
-              {
-                "url": "https://bbb.com/",
-                "status": {
-                  "text": "Excluded",
-                  "details": "This is due to your 'exclude' values | Remaps: https://aaa.com/ --> https://bbb.com/"
-                },
-                "span": {
-                  "line": 1,
-                  "column": 1
-                },
-              }
-            ]})
+            excluded["status"]["details"],
+            "This is due to your 'exclude' values"
         );
+        assert_eq!(excluded["remap"]["original"]["url"], "https://aaa.com/");
+        assert_eq!(excluded["remap"]["new"]["url"], "https://bbb.com/");
+        assert_eq!(excluded["span"]["line"], 1);
+        assert_eq!(excluded["span"]["column"], 1);
     }
 
     #[test]
@@ -2636,6 +2630,13 @@ The config file should contain every possible key for documentation purposes."
                 json["success_map"],
                 json!({
                 "stdin":[{
+                    "redirects": {
+                        "origin": redirect_url,
+                        "redirects": [{
+                            "code": 308,
+                            "url": ok_url,
+                        }]
+                    },
                     "span": {
                         "column": 1,
                         "line": 1,
@@ -2643,13 +2644,6 @@ The config file should contain every possible key for documentation purposes."
                     "status": {
                         "code": 200,
                         "text": "200 OK",
-                        "redirects": {
-                            "origin": redirect_url,
-                            "redirects": [{
-                                "code": 308,
-                                "url": ok_url,
-                            }]
-                        },
                     },
                     "url": redirect_url
                 }]})
