@@ -140,6 +140,8 @@ mod tests {
             HashSet::from([ResponseBody {
                 uri: "https://success.org".try_into().unwrap(),
                 status: Status::Ok(StatusCode::OK),
+                redirects: None,
+                remap: None,
                 span: None,
                 duration: Some(Duration::from_secs(1)),
             }]),
@@ -150,6 +152,8 @@ mod tests {
             HashSet::from([ResponseBody {
                 uri: "https://excluded.org".try_into().unwrap(),
                 status: Status::Excluded,
+                redirects: None,
+                remap: None,
                 span: None,
                 duration: Some(Duration::from_millis(42)),
             }]),

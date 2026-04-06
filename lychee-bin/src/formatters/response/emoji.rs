@@ -23,9 +23,6 @@ impl EmojiFormatter {
             Status::Error(_) | Status::RequestError(_) | Status::Cached(CacheStatus::Error(_)) => {
                 "❌"
             }
-            Status::Redirected(inner, _) | Status::Remapped(inner, _) => {
-                Self::emoji_for_status(inner)
-            }
         }
     }
 }
@@ -41,7 +38,7 @@ impl ResponseFormatter for EmojiFormatter {
 mod emoji_tests {
     use super::*;
     use http::StatusCode;
-    use lychee_lib::{ErrorKind, Redirects, Status, Uri};
+    use lychee_lib::{ErrorKind, Redirects, ResponseBody, Status, Uri};
     use test_utils::mock_response_body;
 
     #[test]
@@ -77,13 +74,15 @@ mod emoji_tests {
     #[test]
     fn test_format_response_with_redirect_status() {
         let formatter = EmojiFormatter;
-        let body = mock_response_body!(
-            Status::Redirected(
-                Box::new(Status::Ok(StatusCode::OK)),
-                Redirects::new("https://example.com/redirect".try_into().unwrap())
-            ),
-            "https://example.com/redirect",
-        );
+        let redirects = Redirects::new("https://example.com/redirect".try_into().unwrap());
+        let body = ResponseBody {
+            uri: Uri::try_from("https://example.com/redirect").unwrap(),
+            status: Status::Ok(StatusCode::OK),
+            redirects: Some(redirects),
+            remap: None,
+            span: None,
+            duration: None,
+        };
         assert_eq!(
             formatter.format_response(&body),
             "✅ https://example.com/redirect | 200 OK | Followed 0 redirects. Redirects: https://example.com/redirect"
