@@ -49,10 +49,11 @@ impl Cache {
     }
 
     /// Store the cache under the given path. Update access timestamps
-    pub(crate) fn store<T: AsRef<Path>>(&self, path: T) -> Result<()> {
+    pub(crate) fn store(&self, path: impl AsRef<Path>) -> Result<()> {
         let mut wtr = csv::WriterBuilder::new()
             .has_headers(false)
             .from_path(path)?;
+
         for result in &self.0 {
             // Do not serialize errors to disk. We always want to recheck failing links.
             if matches!(result.value().status, CacheStatus::Error(_)) {
@@ -60,12 +61,13 @@ impl Cache {
             }
             wtr.serialize((result.key(), result.value()))?;
         }
+
         Ok(())
     }
 
     /// Load cache from path. Discard entries older than `max_age_secs`
-    pub(crate) fn load<T: AsRef<Path>>(
-        path: T,
+    pub(crate) fn load(
+        path: impl AsRef<Path>,
         max_age_secs: u64,
         excluder: &StatusCodeSelector,
     ) -> Result<Cache> {
@@ -75,6 +77,7 @@ impl Cache {
 
         let map = Cache::new();
         let current_ts = timestamp();
+
         for result in rdr.deserialize() {
             let (uri, value): (Uri, CacheValue) = result?;
             // Discard entries older than `max_age_secs`.
@@ -100,6 +103,7 @@ impl Cache {
 
             map.insert(uri, value);
         }
+
         Ok(map)
     }
 
