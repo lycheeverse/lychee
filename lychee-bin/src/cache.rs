@@ -120,10 +120,7 @@ impl Cache {
         // change between runs. The cached status code comes from the actual URL anyway.
         let cache_key = {
             let mut uri = request.uri.clone();
-            match client.remap(&mut uri) {
-                Ok(_) => Some(uri),
-                Err(_) => None,
-            }
+            client.remap(&mut uri).is_ok().then_some(uri)
         };
 
         if let Some(cache_key) = &cache_key
