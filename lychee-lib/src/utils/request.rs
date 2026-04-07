@@ -29,7 +29,6 @@ fn create_request(
     let element = raw_uri.element.clone();
     let attribute = raw_uri.attribute.clone();
     let span = Some(raw_uri.span);
-    let credentials = extract_credentials(extractor, &uri);
 
     Ok(Request {
         uri,
@@ -37,7 +36,6 @@ fn create_request(
         element,
         attribute,
         span,
-        credentials,
     })
 }
 

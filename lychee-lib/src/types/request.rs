@@ -25,9 +25,6 @@ pub struct Request {
 
     /// Where the URI is located
     pub span: Option<RawUriSpan>,
-
-    /// Basic auth credentials
-    pub credentials: Option<BasicAuthCredentials>,
 }
 
 impl Request {
@@ -42,7 +39,6 @@ impl Request {
             element: None,
             attribute: None,
             span: None,
-            credentials: None,
         }
     }
 
@@ -64,13 +60,6 @@ impl Request {
     #[must_use]
     pub const fn with_span(mut self, span: RawUriSpan) -> Self {
         self.span = Some(span);
-        self
-    }
-
-    /// Set [`Self::credentials`]
-    #[must_use]
-    pub fn with_credentials(mut self, credentials: BasicAuthCredentials) -> Self {
-        self.credentials = Some(credentials);
         self
     }
 }

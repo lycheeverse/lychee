@@ -1,5 +1,7 @@
 use crate::{
     BasicAuthCredentials, ErrorKind, FileType, FragmentCheckerOptions, Status, Uri,
+    BasicAuthCredentials, BasicAuthExtractor, ErrorKind, FileType, Status, Uri,
+    basic_auth::BasicAuthExtractorError,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     quirks::Quirks,
     ratelimit::HostPool,
@@ -61,6 +63,9 @@ pub(crate) struct WebsiteChecker {
     /// When present, HTTP requests will be routed through this pool for
     /// rate limiting. When None, requests go directly through `reqwest_client`.
     host_pool: Arc<HostPool>,
+
+    /// Basic auth extractor to obtain credentials from.
+    basic_auth: BasicAuthExtractor,
 }
 
 impl WebsiteChecker {
@@ -82,6 +87,7 @@ impl WebsiteChecker {
         plugin_request_chain: RequestChain,
         fragment_checker_options: FragmentCheckerOptions,
         host_pool: Arc<HostPool>,
+        basic_auth: BasicAuthExtractor,
     ) -> Self {
         Self {
             method,
@@ -95,6 +101,7 @@ impl WebsiteChecker {
             fragment_checker_options,
             fragment_checker: FragmentChecker::new(),
             host_pool,
+            basic_auth,
         }
     }
 
@@ -209,8 +216,9 @@ impl WebsiteChecker {
     pub(crate) async fn check_website(
         &self,
         uri: &Uri,
-        credentials: Option<BasicAuthCredentials>,
     ) -> (Status, Option<Redirects>) {
+        let credentials = self.basic_auth.matches(uri);
+
         let default_chain: RequestChain = Chain::new(vec![
             Box::<Quirks>::default(),
             Box::new(credentials),
@@ -352,6 +360,7 @@ mod tests {
 
     use crate::{
         FragmentCheckerOptions, Uri,
+        BasicAuthExtractor, Uri,
         chain::RequestChain,
         checker::website::WebsiteChecker,
         ratelimit::HostPool,
@@ -390,6 +399,7 @@ mod tests {
             RequestChain::default(),
             FragmentCheckerOptions::default(),
             Arc::new(host_pool),
+            BasicAuthExtractor::empty(),
         )
     }
 }
