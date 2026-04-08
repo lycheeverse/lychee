@@ -15,6 +15,7 @@ use lychee_lib::archive::Archive;
 use lychee_lib::ratelimit::HostPool;
 use lychee_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::{Client, ErrorKind, Request, Response};
+use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::CommandParams;
@@ -58,18 +59,45 @@ pub(crate) async fn check(
     let early_return_owned = SetOnce::<ErrorKind>::new();
     let early_return = &early_return_owned;
 
+    // bypass channel for errors that occur while building requests
+    let (request_error_send, request_error_recv) =
+        mpsc::channel::<(WaitGuard, Response)>(max_concurrency);
+
     let (waiter, wait_guard) = WaitGroup::new();
 
     // note that this stream closure *owns* a wait guard, so we must drop the closure
     // after it's finished to avoid deadlock. this is done using then `.chain()` combinator.
     let initial_requests = requests
-        .map(move |request| -> Option<(WaitGuard, Request)> {
-            progress.inc_length(1);
-            let request = request.map_err(|e| early_return.set(e.into_error())).ok()?;
-            Some((wait_guard.clone(), request))
-        })
-        .filter_map(futures::future::ready) // had borrow checker problems with `async move` closure
+        .map(
+            move |request| -> (WaitGuard, Result<Request, RequestError>) {
+                progress.inc_length(1);
+                (wait_guard.clone(), request)
+            },
+        )
         .chain(futures::stream::empty());
+
+    // split initial requests into: valid requests, fatal user input errors, and non-fatal request
+    // building errors.
+    let valid_initial_requests = initial_requests
+        .map(move |(g, r)| (g, r, request_error_send.clone()))
+        .chain(futures::stream::empty())
+        .filter_map(
+            async |(guard, request, request_error_send)| -> Option<(WaitGuard, Request)> {
+                match request.map_err(RequestError::into_response) {
+                    Ok(request) => return Some((guard, request)),
+                    Err(Ok(response)) => {
+                        request_error_send
+                            .send((guard, response))
+                            .await
+                            .expect("request_error_send");
+                    }
+                    Err(Err(user_input_error)) => {
+                        early_return.set(user_input_error).unwrap_or(());
+                    }
+                };
+                None
+            },
+        );
 
     let (recursive_channel_send, recursive_channel_recv) =
         mpsc::unbounded_channel::<(WaitGuard, Request)>();
@@ -83,7 +111,7 @@ pub(crate) async fn check(
 
     // combine recursive requests and input requests.
     let combined_requests = futures::stream::select_with_strategy(
-        initial_requests,
+        valid_initial_requests,
         UnboundedReceiverStream::new(recursive_channel_recv).take_until(waiter.wait()),
         |()| futures::stream::PollNext::Right, // prefer requests from recursive channel
     );
@@ -101,8 +129,13 @@ pub(crate) async fn check(
         })
         .buffer_unordered(max_concurrency);
 
+    let combined_responses = futures::stream::select_with_strategy(
+        responses,
+        ReceiverStream::new(request_error_recv),
+        |()| futures::stream::PollNext::Right,
+    );
     // increment stats and extract recursive uris from responses.
-    let recursive_uris = responses.map(|(guard, response)| -> Vec<(WaitGuard, Request)> {
+    let recursive_uris = combined_responses.map(|(guard, response)| -> Vec<(WaitGuard, Request)> {
         progress.update(Some(response.body()));
         stats.add(response);
 
