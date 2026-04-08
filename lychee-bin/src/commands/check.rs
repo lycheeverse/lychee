@@ -80,7 +80,6 @@ pub(crate) async fn check2(
 
     let recursive_sink = futures::sink::drain().with(
         |(guard, req)| -> futures::future::Ready<Result<(), Never>> {
-
             progress.inc_length(1);
             match send_recursive_req.send((guard, req)) {
                 Ok(()) => (),
@@ -108,26 +107,23 @@ pub(crate) async fn check2(
     // perform requests. note this is the only part of this function that happens concurrently.
     let responses = combined_requests
         .map(
-            async |(guard, request)| -> (WaitGuard, Result<Response, ErrorKind>) {
+            async |(guard, request)| -> Result<(WaitGuard, Response), ErrorKind> {
                 let response =
                     handle(&client, &cache, &cache_exclude_status, request, &accept).await;
-                (guard, response)
+                response.map(|response| (guard, response))
             },
         )
         .buffer_unordered(max_concurrency);
 
-    let recursive_uris = responses.map(
-        |(guard, response)| -> Result<Vec<(WaitGuard, Request)>, ErrorKind> {
-            let response = response?;
-            progress.update(Some(response.body()));
-            stats.add(response);
+    let recursive_uris = responses.map_ok(|(guard, response)| -> Vec<(WaitGuard, Request)> {
+        progress.update(Some(response.body()));
+        stats.add(response);
 
-            let recursive_uris = vec![];
-            let _ = guard;
+        let recursive_uris = vec![];
+        let _ = guard;
 
-            Ok(recursive_uris)
-        },
-    );
+        recursive_uris
+    });
 
     // send recursive uris back to the sink. try_for_each returns immediately if a
     // top-level error is encountered.
