@@ -9,6 +9,7 @@ use futures::Stream;
 use futures::StreamExt;
 use futures::TryFutureExt;
 use futures::TryStreamExt;
+use futures::future::Either;
 use futures::never::Never;
 use futures::stream;
 use http::StatusCode;
@@ -16,6 +17,7 @@ use log::warn;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
 use tokio::pin;
+use tokio::sync::SetOnce;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -34,7 +36,7 @@ use crate::{ExitCode, cache::Cache};
 
 use super::CommandParams;
 
-pub(crate) async fn check2(
+pub(crate) async fn check(
     params: CommandParams<impl Stream<Item = Result<Request, RequestError>>>,
 ) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind> {
     let CommandParams {
@@ -45,6 +47,8 @@ pub(crate) async fn check2(
         is_stdin_input,
     } = params;
 
+    /**** Config options, progress bar, and stats ****/
+
     let max_concurrency = cfg.max_concurrency();
 
     let level = cfg.verbose().log_level();
@@ -53,94 +57,119 @@ pub(crate) async fn check2(
     let accept = cfg.accept().into();
     let cache_exclude_status = cfg.cache_exclude_status().into();
 
-    let (send_recursive_req_unused, recv_recursive_req) =
-        mpsc::unbounded_channel::<(WaitGuard, Request)>();
-    let send_recursive_req = &send_recursive_req_unused;
-
     let progress = Progress::new("Extracting links", hide_bar, level, &cfg.mode());
     let progress = &progress;
 
-    let mut stats_owned = if cfg.verbose().log_level() >= log::Level::Info {
-        ResponseStats::extended()
-    } else {
-        ResponseStats::default()
+    let mut stats = match cfg.verbose().log_level() >= log::Level::Info {
+        true => ResponseStats::extended(),
+        false => ResponseStats::default(),
     };
-    let stats = &mut stats_owned;
 
+    /*** Channels for recursive requests and early return ****/
+
+    let (recursive_channel_send, recursive_channel_recv) =
+        mpsc::unbounded_channel::<(WaitGuard, Request)>();
+
+    let send_recursive_req = |(guard, req)| {
+        progress.inc_length(1);
+        recursive_channel_send
+            .send((guard, req))
+            .unwrap_or_else(|e| warn!("unable to send recursive uri {:?} - channel closed?", e.0));
+    };
+
+    let early_return = SetOnce::<ErrorKind>::new();
     let (waiter, wait_guard) = WaitGroup::new();
 
-    // note that this stream closure OWNs a wait guard, so we rely on the stream being dropped
-    // after it's finished to drop its wait guard.
-    let initial_requests = requests.map(
-        move |request| -> (WaitGuard, Result<Request, RequestError>) {
+    // note that this stream closure *owns* a wait guard, so we must drop the closure
+    // after its finished to avoid deadlock. this is done using then `.chain()` combinator.
+    let initial_requests = requests
+        .filter_map(async |request| -> Option<(WaitGuard, Request)> {
             progress.inc_length(1);
-            (wait_guard.clone(), request)
-        },
+            let request = request.map_err(|e| early_return.set(e.into_error())).ok()?;
+            Some((wait_guard.clone(), request))
+        })
+        .chain(stream::empty());
+
+    // combine recursive requests and input requests.
+    let combined_requests = stream::select_with_strategy(
+        initial_requests,
+        UnboundedReceiverStream::new(recursive_channel_recv).take_until(waiter.wait()),
+        |_: &mut ()| stream::PollNext::Right, // prefer requests from recursive channel
     );
 
-    let recursive_sink = futures::sink::drain().with(
-        |(guard, req)| -> futures::future::Ready<Result<(), Never>> {
-            progress.inc_length(1);
-            match send_recursive_req.send((guard, req)) {
-                Ok(()) => (),
-                Err(e) => {
-                    warn!("unable to send recursive {:?} - channel closed?", e.0);
-                }
-            };
-
-            futures::future::ok(())
-        },
-    );
-    let recursive_sink = &recursive_sink;
-
-    let recursive_receiver_stream = UnboundedReceiverStream::new(recv_recursive_req)
-        .map(|(guard, req)| (guard, Ok(req)))
-        .take_until(waiter.wait());
-
-    // prefer to take from recursive requests before input requests. input
-    // requests could come from a dir or glob walker which is computed on-demand,
-    // whereas recursive requests exist in the queue and take memory.
-    let prefer_left = |_: &mut ()| stream::PollNext::Left;
-    let combined_requests =
-        stream::select_with_strategy(recursive_receiver_stream, initial_requests, prefer_left);
-
-    // perform requests. note this is the only part of this function that happens concurrently.
+    // perform requests. note this is the only part of the main pipeline that happens concurrently.
     let responses = combined_requests
-        .map(
-            async |(guard, request)| -> Result<(WaitGuard, Response), ErrorKind> {
-                let response =
-                    handle(&client, &cache, &cache_exclude_status, request, &accept).await;
-                response.map(|response| (guard, response))
-            },
-        )
+        .map(async |(guard, request)| -> (WaitGuard, Response) {
+            let check_url = |request| check_url(&client, request);
+            let response = cache
+                .handle(&client, &cache_exclude_status, &accept, request, check_url)
+                .await;
+            (guard, response)
+        })
         .buffer_unordered(max_concurrency);
 
-    let recursive_uris = responses.map_ok(|(guard, response)| -> Vec<(WaitGuard, Request)> {
+    let recursive_uris = responses.map(|(guard, response)| -> Vec<(WaitGuard, Request)> {
         progress.update(Some(response.body()));
         stats.add(response);
 
-        let recursive_uris = vec![];
+        let recursive_uris = vec![]; // currently unused.
         let _ = guard;
 
         recursive_uris
     });
 
-    // send recursive uris back to the sink. try_for_each returns immediately if a
-    // top-level error is encountered.
-    recursive_uris
-        .try_for_each(async move |uris| {
-            let iter = uris.into_iter().map(Ok);
-            let recursive_sink = recursive_sink.clone();
-            pin!(recursive_sink);
-            let Ok(()) = recursive_sink.send_all(&mut stream::iter(iter)).await;
-            Ok(())
-        })
-        .await?;
+    // send recursive uris back to the initial channel.
+    let all_done = recursive_uris
+        .for_each(async |uris| uris.into_iter().for_each(send_recursive_req))
+        .boxed_local();
 
-    Err(ErrorKind::InvalidUrlHost)
+    let has_early_return = early_return.wait().boxed_local();
+
+    let start = std::time::Instant::now();
+
+    // this `await` is where execution begins. all streams start running and
+    // we wait for `all_done` or an early return with an error value.
+    match futures::future::select(all_done, has_early_return).await {
+        Either::Left(((), _)) => (),
+
+        // NOTE: We need to drop `remaining_tasks` so that the `early_return` borrows
+        // will be dropped and we can re-take ownership. This relies on an unbroken
+        // chain of ownership between all the streams. In particular, an intermediate
+        // stream cannot use `pin!` because dropping a pin does not drop the inner value.
+        remaining_tasks => {
+            drop(remaining_tasks);
+            progress.finish("Error while fetching initial inputs");
+            return Err(early_return.into_inner().expect("should set after wait()"));
+        }
+    };
+
+    progress.finish("Finished processing links");
+    stats.duration = start.elapsed();
+
+    if cfg.suggest {
+        let progress = Progress::new("Searching for alternatives", hide_bar, level, &cfg.mode());
+        suggest_archived_links(
+            cfg.archive(),
+            &mut stats,
+            progress,
+            max_concurrency,
+            cfg.timeout(),
+        )
+        .await;
+    }
+
+    let is_success = match cfg.accept_timeouts {
+        true => stats.is_success_ignoring_timeouts(),
+        false => stats.is_success(),
+    };
+    let code = match is_success {
+        true => ExitCode::Success,
+        false => ExitCode::LinkCheckFailure,
+    };
+    Ok((stats, cache, code, client.host_pool()))
 }
 
-pub(crate) async fn check<S>(
+pub(crate) async fn check_old<S>(
     params: CommandParams<S>,
 ) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind>
 where
@@ -337,10 +366,11 @@ async fn request_channel_task(
         ReceiverStream::new(recv_req),
         max_concurrency,
         |(guard, request): (WaitGuard, Result<Request, RequestError>)| async {
+            let request = request.expect("old code path. to be deleted after refactor.");
             let response = handle(&client, &cache, &cache_exclude_status, request, &accept).await;
 
             send_resp
-                .send((guard, response))
+                .send((guard, Ok(response)))
                 .await
                 .expect("cannot send response to queue");
         },
@@ -384,15 +414,9 @@ async fn handle(
     client: &Client,
     cache: &Cache,
     cache_exclude_status: &HashSet<StatusCode>,
-    request: Result<Request, RequestError>,
+    request: Request,
     accept: &HashSet<StatusCode>,
-) -> Result<Response, ErrorKind> {
-    // Note that the RequestError cases bypass the cache.
-    let request = match request {
-        Ok(x) => x,
-        Err(e) => return e.into_response(),
-    };
-
+) -> Response {
     cache
         .handle(client, cache_exclude_status, accept, request, |request| {
             check_url(client, request)
@@ -450,11 +474,10 @@ mod tests {
             &client,
             &cache,
             &StatusCodeSelector::empty().into(),
-            Ok(Request::try_from("https://wikipedia.org/").unwrap()),
+            Request::try_from("https://wikipedia.org/").unwrap(),
             &StatusCodeSelector::default_accepted().into(),
         )
-        .await
-        .unwrap();
+        .await;
         assert!(response.status().is_error());
         assert!(cache.contains_key(&Uri::try_from("https://wikipedia.org/404").unwrap()));
     }
