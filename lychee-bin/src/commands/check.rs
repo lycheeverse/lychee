@@ -25,6 +25,7 @@ use crate::progress::Progress;
 use crate::{ExitCode, cache::Cache};
 
 #[allow(clippy::match_bool, reason = "more readable and compact")]
+#[allow(clippy::too_many_lines, reason = "for now...")]
 pub(crate) async fn check(
     params: CommandParams<impl Stream<Item = Result<Request, RequestError>>>,
 ) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind> {
@@ -83,7 +84,7 @@ pub(crate) async fn check(
                     Ok(request) => return Some((guard, request)),
                     Err(Err(user_input_error)) => early_return.set(user_input_error).unwrap_or(()),
                     Err(Ok(resp)) => request_error_send.send((guard, resp)).await.unwrap(),
-                };
+                }
                 None
             },
         );
