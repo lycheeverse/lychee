@@ -117,7 +117,7 @@ pub(crate) async fn check(
         .for_each(async |uris| uris.into_iter().for_each(send_recursive_req))
         .boxed_local();
 
-    let has_early_return = early_return.wait().boxed_local();
+    let has_early_return = early_return.wait().map(|_| ()).boxed_local();
 
     let start = std::time::Instant::now();
 
@@ -267,14 +267,16 @@ mod tests {
             .client()
             .unwrap();
         let cache = Cache::new();
-        let response = handle(
-            &client,
-            &cache,
-            &StatusCodeSelector::empty().into(),
-            Request::try_from("https://wikipedia.org/").unwrap(),
-            &StatusCodeSelector::default_accepted().into(),
-        )
-        .await;
+        let request = Request::try_from("https://wikipedia.org/").unwrap();
+        let response = cache
+            .handle(
+                &client,
+                &StatusCodeSelector::empty().into(),
+                &StatusCodeSelector::default_accepted().into(),
+                request,
+                |r| check_url(&client, r),
+            )
+            .await;
         assert!(response.status().is_error());
         assert!(cache.contains_key(&Uri::try_from("https://wikipedia.org/404").unwrap()));
     }
