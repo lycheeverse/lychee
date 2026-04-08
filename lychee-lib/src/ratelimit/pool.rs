@@ -202,7 +202,7 @@ impl HostPool {
             match crate::ratelimit::HostKey::try_from(uri) {
                 Ok(key) => {
                     let host = self.get_or_create_host(key);
-                    host.record_persistent_cache_hit();
+                    host.record_cache_hit();
                 }
                 Err(e) => {
                     log::debug!("Failed to record cache hit for {uri}: {e}");
