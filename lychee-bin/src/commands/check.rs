@@ -55,7 +55,7 @@ pub(crate) async fn check2(
 
     let (send_recursive_req_unused, recv_recursive_req) =
         mpsc::unbounded_channel::<(WaitGuard, Request)>();
-    let send_recursive_req_unused = &send_recursive_req_unused;
+    let send_recursive_req = &send_recursive_req_unused;
 
     let progress = Progress::new("Extracting links", hide_bar, level, &cfg.mode());
     let progress = &progress;
@@ -69,7 +69,7 @@ pub(crate) async fn check2(
 
     let (waiter, wait_guard) = WaitGroup::new();
 
-    // note that this stream closure owns a wait guard, so we rely on the stream being dropped
+    // note that this stream closure OWNs a wait guard, so we rely on the stream being dropped
     // after it's finished to drop its wait guard.
     let initial_requests = requests.map(
         move |request| -> (WaitGuard, Result<Request, RequestError>) {
@@ -78,20 +78,21 @@ pub(crate) async fn check2(
         },
     );
 
-    let recursive_sink_go = async move |(), (guard, req)| -> Result<(), Never> {
-        progress.inc_length(1);
+    let recursive_sink = futures::sink::drain().with(
+        |(guard, req)| -> futures::future::Ready<Result<(), Never>> {
 
-        match send_recursive_req_unused.send((guard, req)) {
-            Ok(()) => (),
-            Err(e) => {
-                warn!("unable to send recursive {:?} - channel closed?", e.0);
-            }
-        };
+            progress.inc_length(1);
+            match send_recursive_req.send((guard, req)) {
+                Ok(()) => (),
+                Err(e) => {
+                    warn!("unable to send recursive {:?} - channel closed?", e.0);
+                }
+            };
 
-        Ok(())
-    };
-    let recursive_sink = futures::sink::unfold((), recursive_sink_go);
-    pin!(recursive_sink);
+            futures::future::ok(())
+        },
+    );
+    let recursive_sink = &recursive_sink;
 
     let recursive_receiver_stream = UnboundedReceiverStream::new(recv_recursive_req)
         .map(|(guard, req)| (guard, Ok(req)))
@@ -127,16 +128,18 @@ pub(crate) async fn check2(
             Ok(recursive_uris)
         },
     );
-    pin!(recursive_uris);
 
-    // send recursive uris back to the sink. this returns immediately if a
+    // send recursive uris back to the sink. try_for_each returns immediately if a
     // top-level error is encountered.
-    while let Some(result) = recursive_uris.next().await {
-        let rec_uris = result?;
-
-        let iter = rec_uris.into_iter().map(Ok);
-        let Ok(()) = recursive_sink.send_all(&mut stream::iter(iter)).await;
-    }
+    recursive_uris
+        .try_for_each(async move |uris| {
+            let iter = uris.into_iter().map(Ok);
+            let recursive_sink = recursive_sink.clone();
+            pin!(recursive_sink);
+            let Ok(()) = recursive_sink.send_all(&mut stream::iter(iter)).await;
+            Ok(())
+        })
+        .await?;
 
     Err(ErrorKind::InvalidUrlHost)
 }
