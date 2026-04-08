@@ -47,9 +47,7 @@ async fn run_rate_limit_test(
 
     assert!(
         elapsed >= expected_min_duration,
-        "Rate limiting failed! Expected at least {expected}ms, got {actual}ms",
-        expected = expected_min_duration.as_millis(),
-        actual = elapsed.as_millis()
+        "Rate limit headers were not respected! Expected minimum delay of {expected_min_duration:?}, but got {elapsed:?}"
     );
 }
 
@@ -112,6 +110,47 @@ async fn test_ietf_draft_exhausted() {
         Duration::from_millis(1900),
     )
     .await;
+}
+
+#[tokio::test]
+async fn test_retry_rate_limit_headers() {
+    const RETRY_DELAY: Duration = Duration::from_secs(1);
+    const TOLERANCE: Duration = Duration::from_millis(500);
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .respond_with(
+            ResponseTemplate::new(429)
+                .insert_header("Retry-After", RETRY_DELAY.as_secs().to_string().as_str()),
+        )
+        .expect(1)
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+
+    let start = Instant::now();
+    Mock::given(method("GET"))
+        .respond_with(move |_: &wiremock::Request| {
+            let delta = Instant::now().duration_since(start);
+            assert!(delta >= RETRY_DELAY);
+            assert!(delta < RETRY_DELAY + TOLERANCE);
+            ResponseTemplate::new(200)
+        })
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let mut cmd = Command::cargo_bin("lychee").unwrap();
+    cmd.arg("-")
+        // Retry wait times are added on top of host-specific backoff timeout
+        .arg("--retry-wait-time")
+        .arg("0")
+        .write_stdin(server.uri())
+        .assert()
+        .success();
+
+    // Check that the server received the request with the header
+    server.verify().await;
 }
 
 #[tokio::test]
