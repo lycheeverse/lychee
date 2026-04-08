@@ -13,7 +13,6 @@
 //! - [`HostStats`]: Statistics tracking for each host
 
 mod config;
-mod headers;
 mod host;
 mod pool;
 
