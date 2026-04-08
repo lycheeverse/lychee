@@ -48,7 +48,6 @@ pub(crate) async fn check(
     let cache_exclude_status = cfg.cache_exclude_status().into();
 
     let progress = Progress::new("Extracting links", hide_bar, level, &cfg.mode());
-    let progress = &progress;
 
     let mut stats = match cfg.verbose().log_level() >= log::Level::Info {
         true => ResponseStats::extended(),
@@ -57,8 +56,7 @@ pub(crate) async fn check(
 
     /*** Input streams and channels (both initial and recursive) ****/
 
-    let early_return_owned = SetOnce::<ErrorKind>::new();
-    let early_return = &early_return_owned;
+    let early_return = SetOnce::<ErrorKind>::new();
 
     // bypass channel for errors that occur while building requests
     let (request_error_send, request_error_recv) =
@@ -152,7 +150,7 @@ pub(crate) async fn check(
         remaining_tasks @ Either::Right(_) => {
             drop(remaining_tasks);
             progress.finish("Error while fetching initial inputs");
-            return Err(early_return_owned.into_inner().expect("wait() finished"));
+            return Err(early_return.into_inner().expect("wait() finished"));
         }
     }
 
