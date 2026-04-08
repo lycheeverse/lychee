@@ -4,19 +4,14 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use futures::FutureExt;
-use futures::SinkExt;
 use futures::Stream;
 use futures::StreamExt;
-use futures::TryFutureExt;
-use futures::TryStreamExt;
 use futures::future::Either;
-use futures::never::Never;
 use futures::stream;
 use http::StatusCode;
 use log::warn;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
-use tokio::pin;
 use tokio::sync::SetOnce;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -65,7 +60,23 @@ pub(crate) async fn check(
         false => ResponseStats::default(),
     };
 
-    /*** Channels for recursive requests and early return ****/
+    /*** Input streams and channels (both initial and recursive) ****/
+
+    let early_return_owned = SetOnce::<ErrorKind>::new();
+    let early_return = &early_return_owned;
+
+    let (waiter, wait_guard) = WaitGroup::new();
+
+    // note that this stream closure *owns* a wait guard, so we must drop the closure
+    // after it's finished to avoid deadlock. this is done using then `.chain()` combinator.
+    let initial_requests = requests
+        .map(move |request| -> Option<(WaitGuard, Request)> {
+            progress.inc_length(1);
+            let request = request.map_err(|e| early_return.set(e.into_error())).ok()?;
+            Some((wait_guard.clone(), request))
+        })
+        .filter_map(futures::future::ready) // had borrow checker problems with `async move` closure
+        .chain(stream::empty());
 
     let (recursive_channel_send, recursive_channel_recv) =
         mpsc::unbounded_channel::<(WaitGuard, Request)>();
@@ -77,19 +88,6 @@ pub(crate) async fn check(
             .unwrap_or_else(|e| warn!("unable to send recursive uri {:?} - channel closed?", e.0));
     };
 
-    let early_return = SetOnce::<ErrorKind>::new();
-    let (waiter, wait_guard) = WaitGroup::new();
-
-    // note that this stream closure *owns* a wait guard, so we must drop the closure
-    // after its finished to avoid deadlock. this is done using then `.chain()` combinator.
-    let initial_requests = requests
-        .filter_map(async |request| -> Option<(WaitGuard, Request)> {
-            progress.inc_length(1);
-            let request = request.map_err(|e| early_return.set(e.into_error())).ok()?;
-            Some((wait_guard.clone(), request))
-        })
-        .chain(stream::empty());
-
     // combine recursive requests and input requests.
     let combined_requests = stream::select_with_strategy(
         initial_requests,
@@ -97,10 +95,12 @@ pub(crate) async fn check(
         |_: &mut ()| stream::PollNext::Right, // prefer requests from recursive channel
     );
 
-    // perform requests. note this is the only part of the main pipeline that happens concurrently.
+    /*** Main link checking pipeline ****/
+
+    // perform requests. this is the only part of the main pipeline that happens concurrently.
     let responses = combined_requests
         .map(async |(guard, request)| -> (WaitGuard, Response) {
-            let check_url = |request| check_url(&client, request);
+            let check_url = |r| check_url(&client, r);
             let response = cache
                 .handle(&client, &cache_exclude_status, &accept, request, check_url)
                 .await;
@@ -108,6 +108,7 @@ pub(crate) async fn check(
         })
         .buffer_unordered(max_concurrency);
 
+    // increment stats and extract recursive uris from responses.
     let recursive_uris = responses.map(|(guard, response)| -> Vec<(WaitGuard, Request)> {
         progress.update(Some(response.body()));
         stats.add(response);
@@ -139,9 +140,11 @@ pub(crate) async fn check(
         remaining_tasks => {
             drop(remaining_tasks);
             progress.finish("Error while fetching initial inputs");
-            return Err(early_return.into_inner().expect("should set after wait()"));
+            return Err(early_return_owned.into_inner().expect("wait() finished"));
         }
     };
+
+    /*** Finalising stats and archive suggestion ****/
 
     progress.finish("Finished processing links");
     stats.duration = start.elapsed();
