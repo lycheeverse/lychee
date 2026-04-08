@@ -133,7 +133,7 @@ impl Cache {
         let status = response.status();
 
         if let Some(cache_key) = cache_key
-            && !should_ignore(&cache_key, status, &cache_exclude_status)
+            && !should_ignore(&cache_key, status, cache_exclude_status)
         {
             self.insert(cache_key, status.into());
         }

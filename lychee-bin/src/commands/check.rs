@@ -1,36 +1,29 @@
-use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use futures::FutureExt;
-use futures::Stream;
-use futures::StreamExt;
-use futures::future::Either;
-use futures::stream;
-use http::StatusCode;
+use futures::{FutureExt, Stream, StreamExt, future::Either};
 use log::warn;
-use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
 use tokio::sync::SetOnce;
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
 
 use lychee_lib::InputSource;
 use lychee_lib::RequestError;
 use lychee_lib::Status;
 use lychee_lib::archive::Archive;
+use lychee_lib::ratelimit::HostPool;
 use lychee_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::{Client, ErrorKind, Request, Response};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
+use crate::CommandParams;
 use crate::formatters::stats::ResponseStats;
 use crate::formatters::suggestion::Suggestion;
 use crate::progress::Progress;
 use crate::{ExitCode, cache::Cache};
 
-use super::CommandParams;
-
+#[allow(clippy::match_bool, reason = "more readable and compact")]
 pub(crate) async fn check(
     params: CommandParams<impl Stream<Item = Result<Request, RequestError>>>,
 ) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind> {
@@ -76,7 +69,7 @@ pub(crate) async fn check(
             Some((wait_guard.clone(), request))
         })
         .filter_map(futures::future::ready) // had borrow checker problems with `async move` closure
-        .chain(stream::empty());
+        .chain(futures::stream::empty());
 
     let (recursive_channel_send, recursive_channel_recv) =
         mpsc::unbounded_channel::<(WaitGuard, Request)>();
@@ -89,10 +82,10 @@ pub(crate) async fn check(
     };
 
     // combine recursive requests and input requests.
-    let combined_requests = stream::select_with_strategy(
+    let combined_requests = futures::stream::select_with_strategy(
         initial_requests,
         UnboundedReceiverStream::new(recursive_channel_recv).take_until(waiter.wait()),
-        |_: &mut ()| stream::PollNext::Right, // prefer requests from recursive channel
+        |()| futures::stream::PollNext::Right, // prefer requests from recursive channel
     );
 
     /*** Main link checking pipeline ****/
@@ -137,12 +130,12 @@ pub(crate) async fn check(
         // will be dropped and we can re-take ownership. This relies on an unbroken
         // chain of ownership between all the streams. In particular, an intermediate
         // stream cannot use `pin!` because dropping a pin does not drop the inner value.
-        remaining_tasks => {
+        remaining_tasks @ Either::Right(_) => {
             drop(remaining_tasks);
             progress.finish("Error while fetching initial inputs");
             return Err(early_return_owned.into_inner().expect("wait() finished"));
         }
-    };
+    }
 
     /*** Finalising stats and archive suggestion ****/
 
@@ -169,106 +162,6 @@ pub(crate) async fn check(
         true => ExitCode::Success,
         false => ExitCode::LinkCheckFailure,
     };
-    Ok((stats, cache, code, client.host_pool()))
-}
-
-pub(crate) async fn check_old<S>(
-    params: CommandParams<S>,
-) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind>
-where
-    S: futures::Stream<Item = Result<Request, RequestError>>,
-{
-    // Setup
-    let max_concurrency = params.cfg.max_concurrency();
-    let (send_req, recv_req) = mpsc::channel(max_concurrency);
-    let (send_resp, recv_resp) = mpsc::channel(max_concurrency);
-    let (waiter, wait_guard) = WaitGroup::new();
-
-    let start = std::time::Instant::now(); // Measure check time
-
-    let stats = if params.cfg.verbose().log_level() >= log::Level::Info {
-        ResponseStats::extended()
-    } else {
-        ResponseStats::default()
-    };
-
-    let client = params.client;
-    let cache = params.cache;
-    let cache_exclude_status = params.cfg.cache_exclude_status().into();
-    let accept = params.cfg.accept().into();
-    let accept_timeouts = params.cfg.accept_timeouts;
-
-    // Start receiving requests
-    let request_handle = tokio::spawn(request_channel_task(
-        recv_req,
-        send_resp,
-        max_concurrency,
-        client,
-        cache,
-        cache_exclude_status,
-        accept,
-    ));
-
-    let hide_bar = params.cfg.no_progress || params.is_stdin_input;
-    let level = params.cfg.verbose().log_level();
-
-    let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode());
-    let stats_handle = tokio::spawn(collect_responses(
-        recv_resp,
-        send_req.clone(),
-        waiter,
-        progress.clone(),
-        stats,
-    ));
-
-    // Send requests into the channel. Note that this will run within the main task
-    // and doesn't start until awaited.
-    let send_task = send_requests(params.requests, wait_guard, send_req, &progress);
-
-    // Waits for all futures to finish, either normally or due to panic.
-    let (stats_result, request_result, send_result) =
-        futures::join!(stats_handle, request_handle, send_task);
-
-    // Fatal user errors are here so check it first.
-    let mut stats: ResponseStats = stats_result??;
-
-    let (cache, client) = request_result?;
-    send_result.expect("sending input requests failed");
-
-    stats.duration = start.elapsed();
-
-    // Note that print statements may interfere with the progress bar, so this
-    // must go before printing the stats
-    progress.finish("Finished extracting links");
-
-    if params.cfg.suggest {
-        let progress = Progress::new(
-            "Searching for alternatives",
-            hide_bar,
-            level,
-            &params.cfg.mode(),
-        );
-        suggest_archived_links(
-            params.cfg.archive(),
-            &mut stats,
-            progress,
-            max_concurrency,
-            params.cfg.timeout(),
-        )
-        .await;
-    }
-
-    let is_success = if accept_timeouts {
-        stats.is_success_ignoring_timeouts()
-    } else {
-        stats.is_success()
-    };
-    let code = if is_success {
-        ExitCode::Success
-    } else {
-        ExitCode::LinkCheckFailure
-    };
-
     Ok((stats, cache, code, client.host_pool()))
 }
 
@@ -306,83 +199,6 @@ async fn suggest_archived_links(
     progress.finish("Finished searching for alternatives");
 }
 
-// drops the `send_req` channel on exit
-// required for the receiver task to end, which closes send_resp, which allows
-// the show_results_task to finish
-async fn send_requests(
-    requests: impl futures::Stream<Item = Result<Request, RequestError>>,
-    guard: WaitGuard,
-    send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
-    progress: &Progress,
-) -> Result<(), ()> {
-    tokio::pin!(requests);
-    while let Some(request) = requests.next().await {
-        progress.inc_length(1);
-        send_req
-            .send((guard.clone(), request))
-            .await
-            .map_err(|_| ())?;
-    }
-    Ok(())
-}
-
-/// Reads from the request channel and updates the progress bar status
-async fn collect_responses(
-    recv_resp: mpsc::Receiver<(WaitGuard, Result<Response, ErrorKind>)>,
-    send_req: mpsc::Sender<(WaitGuard, Result<Request, RequestError>)>,
-    waiter: WaitGroup,
-    progress: Progress,
-    mut stats: ResponseStats,
-) -> Result<ResponseStats, ErrorKind> {
-    // Wrap recv_resp until the WaitGroup finishes, at which time the
-    // recv_resp_until_done stream will be closed. The correctness of
-    // WaitGroup guarantees that if the waiter finishes, every channel
-    // with a WaitGuard must be empty.
-    let mut recv_resp_until_done = ReceiverStream::new(recv_resp)
-        .take_until(waiter.wait())
-        .boxed();
-
-    while let Some((_guard, response)) = recv_resp_until_done.next().await {
-        let response = response?;
-        progress.update(Some(response.body()));
-        stats.add(response);
-    }
-
-    // unused for now, but will be used for recursion eventually. by holding
-    // an extra `send_req` endpoint, we prevent the natural termination when
-    // each channel finishes and closes. instead, we rely on the WaitGroup to
-    // break the cyclic channels.
-    let _ = send_req;
-    Ok(stats)
-}
-
-async fn request_channel_task(
-    recv_req: mpsc::Receiver<(WaitGuard, Result<Request, RequestError>)>,
-    send_resp: mpsc::Sender<(WaitGuard, Result<Response, ErrorKind>)>,
-    max_concurrency: usize,
-    client: Client,
-    cache: Cache,
-    cache_exclude_status: HashSet<StatusCode>,
-    accept: HashSet<StatusCode>,
-) -> (Cache, Client) {
-    StreamExt::for_each_concurrent(
-        ReceiverStream::new(recv_req),
-        max_concurrency,
-        |(guard, request): (WaitGuard, Result<Request, RequestError>)| async {
-            let request = request.expect("old code path. to be deleted after refactor.");
-            let response = handle(&client, &cache, &cache_exclude_status, request, &accept).await;
-
-            send_resp
-                .send((guard, Ok(response)))
-                .await
-                .expect("cannot send response to queue");
-        },
-    )
-    .await;
-
-    (cache, client)
-}
-
 /// Check a URL and return a response.
 ///
 /// # Errors
@@ -403,28 +219,6 @@ async fn check_url(client: &Client, request: Request) -> Response {
             None,
         )
     })
-}
-
-/// Handle a single request
-///
-/// # Errors
-///
-/// An Err is returned if and only if there was an error while loading
-/// a *user-provided* input argument. Other errors, including errors in
-/// link resolution and in resolved inputs, will be returned as Ok with
-/// a failed response.
-async fn handle(
-    client: &Client,
-    cache: &Cache,
-    cache_exclude_status: &HashSet<StatusCode>,
-    request: Request,
-    accept: &HashSet<StatusCode>,
-) -> Response {
-    cache
-        .handle(client, cache_exclude_status, accept, request, |request| {
-            check_url(client, request)
-        })
-        .await
 }
 
 fn get_failed_urls(stats: &mut ResponseStats) -> Vec<(InputSource, Url)> {
