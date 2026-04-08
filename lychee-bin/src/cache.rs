@@ -110,7 +110,7 @@ impl Cache {
     pub(crate) async fn handle<F: Future<Output = Response>>(
         &self,
         client: &Client,
-        cache_exclude_status: HashSet<StatusCode>,
+        cache_exclude_status: &HashSet<StatusCode>,
         accept: &HashSet<StatusCode>,
         request: Request,
         check: impl Fn(Request) -> F,

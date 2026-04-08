@@ -3,10 +3,19 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
+use futures::FutureExt;
+use futures::SinkExt;
+use futures::Stream;
 use futures::StreamExt;
+use futures::TryFutureExt;
+use futures::TryStreamExt;
+use futures::never::Never;
+use futures::stream;
 use http::StatusCode;
+use log::warn;
 use lychee_lib::ratelimit::HostPool;
 use reqwest::Url;
+use tokio::pin;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -16,6 +25,7 @@ use lychee_lib::Status;
 use lychee_lib::archive::Archive;
 use lychee_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::{Client, ErrorKind, Request, Response};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::formatters::stats::ResponseStats;
 use crate::formatters::suggestion::Suggestion;
@@ -23,6 +33,102 @@ use crate::progress::Progress;
 use crate::{ExitCode, cache::Cache};
 
 use super::CommandParams;
+
+pub(crate) async fn check2(
+    params: CommandParams<impl Stream<Item = Result<Request, RequestError>>>,
+) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind> {
+    let CommandParams {
+        client,
+        cache,
+        requests,
+        cfg,
+        is_stdin_input,
+    } = params;
+
+    let max_concurrency = cfg.max_concurrency();
+
+    let level = cfg.verbose().log_level();
+    let hide_bar = cfg.no_progress || is_stdin_input;
+
+    let accept = cfg.accept().into();
+    let cache_exclude_status = cfg.cache_exclude_status().into();
+
+    let (send_recursive_req_unused, recv_recursive_req) =
+        mpsc::unbounded_channel::<(WaitGuard, Request)>();
+
+    let progress = Progress::new("Extracting links", hide_bar, level, &cfg.mode());
+    let progress = &progress;
+
+    let mut stats_owned = if cfg.verbose().log_level() >= log::Level::Info {
+        ResponseStats::extended()
+    } else {
+        ResponseStats::default()
+    };
+    let stats = &mut stats_owned;
+
+    let (waiter, wait_guard) = WaitGroup::new();
+
+    // note that this stream closure owns a wait guard, so we rely on the stream being dropped
+    // after it's finished to drop its wait guard.
+    let initial_requests = requests.map(
+        move |request| -> (WaitGuard, Result<Request, RequestError>) {
+            progress.inc_length(1);
+            (wait_guard.clone(), request)
+        },
+    );
+
+    let recursive_sink_go = async move |(), (guard, req)| -> Result<(), Never> {
+        progress.inc_length(1);
+
+        match send_recursive_req_unused.send((guard, req)) {
+            Ok(()) => (),
+            Err(e) => {
+                warn!("unable to send recursive {:?} - channel closed?", e.0);
+            }
+        };
+
+        Ok(())
+    };
+    let recursive_sink = futures::sink::unfold((), recursive_sink_go);
+    pin!(recursive_sink);
+
+    // prefer to take from recursive requests before input requests. input
+    // requests could come from a dir or glob walker which can be computed on-demand,
+    // whereas recursive requests exist in the queue and take memory.
+    let combined_requests = stream::select_with_strategy(
+        UnboundedReceiverStream::new(recv_recursive_req).map(|(guard, req)| (guard, Ok(req))),
+        initial_requests,
+        |_: &mut ()| stream::PollNext::Left,
+    );
+
+    let x = combined_requests
+        .map(
+            async |(guard, request)| -> (WaitGuard, Result<Response, ErrorKind>) {
+                let response =
+                    handle(&client, &cache, &cache_exclude_status, request, &accept).await;
+                (guard, response)
+            },
+        )
+        .buffer_unordered(max_concurrency)
+        .map(
+            |(guard, response)| -> Result<Vec<(WaitGuard, Request)>, ErrorKind> {
+                let response = response?;
+                progress.update(Some(response.body()));
+                stats.add(response);
+
+                let recursive_uris = vec![];
+
+                Ok(recursive_uris)
+            },
+        )
+        .try_for_each(async move |recursive_uris| {
+            let Ok(()) = recursive_sink.send_all(&mut stream::empty()).await;
+            Ok(())
+        })
+        .await;
+
+    Err(ErrorKind::InvalidUrlHost)
+}
 
 pub(crate) async fn check<S>(
     params: CommandParams<S>,
@@ -221,14 +327,7 @@ async fn request_channel_task(
         ReceiverStream::new(recv_req),
         max_concurrency,
         |(guard, request): (WaitGuard, Result<Request, RequestError>)| async {
-            let response = handle(
-                &client,
-                &cache,
-                cache_exclude_status.clone(),
-                request,
-                &accept,
-            )
-            .await;
+            let response = handle(&client, &cache, &cache_exclude_status, request, &accept).await;
 
             send_resp
                 .send((guard, response))
@@ -274,7 +373,7 @@ async fn check_url(client: &Client, request: Request) -> Response {
 async fn handle(
     client: &Client,
     cache: &Cache,
-    cache_exclude_status: HashSet<StatusCode>,
+    cache_exclude_status: &HashSet<StatusCode>,
     request: Result<Request, RequestError>,
     accept: &HashSet<StatusCode>,
 ) -> Result<Response, ErrorKind> {
@@ -284,10 +383,10 @@ async fn handle(
         Err(e) => return e.into_response(),
     };
 
-    let check = async |request: Request| check_url(client, request).await;
-
     cache
-        .handle(client, cache_exclude_status, accept, request, check)
+        .handle(client, cache_exclude_status, accept, request, |request| {
+            check_url(client, request)
+        })
         .await
 }
 
@@ -340,7 +439,7 @@ mod tests {
         let response = handle(
             &client,
             &cache,
-            StatusCodeSelector::empty().into(),
+            &StatusCodeSelector::empty().into(),
             Ok(Request::try_from("https://wikipedia.org/").unwrap()),
             &StatusCodeSelector::default_accepted().into(),
         )
