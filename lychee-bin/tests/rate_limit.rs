@@ -3,6 +3,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+/// Small tolerance for scheduler flakiness in CI environments
+const EPSILON: Duration = Duration::from_millis(100);
+
 /// A little helper, which sets up a mock server, runs lychee, and measures the
 /// execution time to make sure that the correct rate-limit backoffs were
 /// applied.
@@ -13,6 +16,7 @@ async fn run_rate_limit_test(
     expected_min_duration: Duration,
 ) {
     let mock_server = MockServer::start().await;
+    let request_times = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
     // Register each path to respond with the provided headers
     for path_str in paths {
@@ -21,9 +25,13 @@ async fn run_rate_limit_test(
             template = template.insert_header(*key, *value);
         }
 
+        let request_times = request_times.clone();
         Mock::given(method("GET"))
             .and(path(*path_str))
-            .respond_with(template)
+            .respond_with(move |_: &wiremock::Request| {
+                request_times.lock().unwrap().push(Instant::now());
+                template.clone()
+            })
             .mount(&mock_server)
             .await;
     }
@@ -34,7 +42,6 @@ async fn run_rate_limit_test(
         .collect();
 
     // Measure how long lychee takes to process the URLs
-    let start = Instant::now();
     let mut cmd = Command::cargo_bin("lychee").unwrap();
     cmd.arg("-")
         .arg("--max-concurrency")
@@ -43,7 +50,11 @@ async fn run_rate_limit_test(
         .assert()
         .success();
 
-    let elapsed = start.elapsed();
+    let times = request_times.lock().unwrap();
+    let elapsed = times
+        .last()
+        .unwrap()
+        .duration_since(*times.first().unwrap());
 
     assert!(
         elapsed >= expected_min_duration,
@@ -67,8 +78,7 @@ async fn test_github_rate_limit_exhausted() {
             ("x-ratelimit-reset", &reset_time.to_string()),
         ],
         &["/1", "/2"],
-        // Give 100ms leeway for scheduler flakiness in CI environments
-        Duration::from_millis(1900),
+        Duration::from_secs(2) - EPSILON,
     )
     .await;
 }
@@ -92,7 +102,7 @@ async fn test_gitlab_rate_limit_exhausted() {
             ("RateLimit-Observed", "100"),
         ],
         &["/1", "/2"],
-        Duration::from_millis(1900),
+        Duration::from_secs(2) - EPSILON,
     )
     .await;
 }
@@ -107,7 +117,7 @@ async fn test_ietf_draft_exhausted() {
             ("RateLimit-Reset", "2"),
         ],
         &["/1", "/2"],
-        Duration::from_millis(1900),
+        Duration::from_secs(2) - EPSILON,
     )
     .await;
 }
@@ -159,7 +169,7 @@ async fn test_retry_after_seconds() {
         200,
         &[("Retry-After", "2")],
         &["/1", "/2"],
-        Duration::from_millis(1900),
+        Duration::from_secs(2) - EPSILON,
     )
     .await;
 }
