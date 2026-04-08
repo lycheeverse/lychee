@@ -55,6 +55,7 @@ pub(crate) async fn check2(
 
     let (send_recursive_req_unused, recv_recursive_req) =
         mpsc::unbounded_channel::<(WaitGuard, Request)>();
+    let send_recursive_req_unused = &send_recursive_req_unused;
 
     let progress = Progress::new("Extracting links", hide_bar, level, &cfg.mode());
     let progress = &progress;
@@ -92,16 +93,19 @@ pub(crate) async fn check2(
     let recursive_sink = futures::sink::unfold((), recursive_sink_go);
     pin!(recursive_sink);
 
-    // prefer to take from recursive requests before input requests. input
-    // requests could come from a dir or glob walker which can be computed on-demand,
-    // whereas recursive requests exist in the queue and take memory.
-    let combined_requests = stream::select_with_strategy(
-        UnboundedReceiverStream::new(recv_recursive_req).map(|(guard, req)| (guard, Ok(req))),
-        initial_requests,
-        |_: &mut ()| stream::PollNext::Left,
-    );
+    let recursive_receiver_stream = UnboundedReceiverStream::new(recv_recursive_req)
+        .map(|(guard, req)| (guard, Ok(req)))
+        .take_until(waiter.wait());
 
-    let x = combined_requests
+    // prefer to take from recursive requests before input requests. input
+    // requests could come from a dir or glob walker which is computed on-demand,
+    // whereas recursive requests exist in the queue and take memory.
+    let prefer_left = |_: &mut ()| stream::PollNext::Left;
+    let combined_requests =
+        stream::select_with_strategy(recursive_receiver_stream, initial_requests, prefer_left);
+
+    // perform requests. note this is the only part of this function that happens concurrently.
+    let responses = combined_requests
         .map(
             async |(guard, request)| -> (WaitGuard, Result<Response, ErrorKind>) {
                 let response =
@@ -109,23 +113,30 @@ pub(crate) async fn check2(
                 (guard, response)
             },
         )
-        .buffer_unordered(max_concurrency)
-        .map(
-            |(guard, response)| -> Result<Vec<(WaitGuard, Request)>, ErrorKind> {
-                let response = response?;
-                progress.update(Some(response.body()));
-                stats.add(response);
+        .buffer_unordered(max_concurrency);
 
-                let recursive_uris = vec![];
+    let recursive_uris = responses.map(
+        |(guard, response)| -> Result<Vec<(WaitGuard, Request)>, ErrorKind> {
+            let response = response?;
+            progress.update(Some(response.body()));
+            stats.add(response);
 
-                Ok(recursive_uris)
-            },
-        )
-        .try_for_each(async move |recursive_uris| {
-            let Ok(()) = recursive_sink.send_all(&mut stream::empty()).await;
-            Ok(())
-        })
-        .await;
+            let recursive_uris = vec![];
+            let _ = guard;
+
+            Ok(recursive_uris)
+        },
+    );
+    pin!(recursive_uris);
+
+    // send recursive uris back to the sink. this returns immediately if a
+    // top-level error is encountered.
+    while let Some(result) = recursive_uris.next().await {
+        let rec_uris = result?;
+
+        let iter = rec_uris.into_iter().map(Ok);
+        let Ok(()) = recursive_sink.send_all(&mut stream::iter(iter)).await;
+    }
 
     Err(ErrorKind::InvalidUrlHost)
 }
