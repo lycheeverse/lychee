@@ -68,16 +68,12 @@ pub(crate) async fn check(
     // note that this stream closure *owns* a wait guard, so we must drop the closure
     // after it's finished to avoid deadlock. this is done using then `.chain()` combinator.
     let initial_requests = requests
-        .map(
-            move |request| -> (WaitGuard, Result<Request, RequestError>) {
-                progress.inc_length(1);
-                (wait_guard.clone(), request)
-            },
-        )
-        .chain(futures::stream::empty());
+        .map(move |request| (wait_guard.clone(), request))
+        .chain(futures::stream::empty())
+        .inspect(|_| progress.inc_length(1));
 
     // split initial requests into: valid requests, fatal user input errors, and non-fatal request
-    // building errors.
+    // building errors. this owns request_error_send.
     let valid_initial_requests = initial_requests
         .map(move |(g, r)| (g, r, request_error_send.clone()))
         .chain(futures::stream::empty())
@@ -85,15 +81,8 @@ pub(crate) async fn check(
             async |(guard, request, request_error_send)| -> Option<(WaitGuard, Request)> {
                 match request.map_err(RequestError::into_response) {
                     Ok(request) => return Some((guard, request)),
-                    Err(Ok(response)) => {
-                        request_error_send
-                            .send((guard, response))
-                            .await
-                            .expect("request_error_send");
-                    }
-                    Err(Err(user_input_error)) => {
-                        early_return.set(user_input_error).unwrap_or(());
-                    }
+                    Err(Err(user_input_error)) => early_return.set(user_input_error).unwrap_or(()),
+                    Err(Ok(resp)) => request_error_send.send((guard, resp)).await.unwrap(),
                 };
                 None
             },
