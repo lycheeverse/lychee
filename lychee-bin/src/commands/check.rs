@@ -65,17 +65,18 @@ pub(crate) async fn check(
         .inspect(|_| progress.inc_length(1))
         .map(move |request| (request, wait_guard.clone()))
         .chain(futures::stream::empty())
-        .map(
-            |(request, guard)| match request.map_err(RequestError::into_response) {
-                Ok(request) => Ok((guard, request)),
-                Err(Ok(req_error_response)) => Err(Ok((guard, req_error_response))),
-                Err(Err(user_input_error)) => Err(Err((guard, user_input_error))),
-            },
-        )
-        .partition_result::<(WaitGuard, Request), Result<_, _>>();
+        .map(|(request, guard)| match request {
+            Ok(request) => Ok((guard, request)),
+            Err(request_error) => Err((guard, request_error)),
+        })
+        .partition_result::<(WaitGuard, Request), (WaitGuard, RequestError)>();
 
-    let (request_error_responses, mut fatal_errors) =
-        early_errors.partition_result::<(WaitGuard, Response), (WaitGuard, ErrorKind)>();
+    let (request_error_responses, mut fatal_errors) = early_errors
+        .map(|(guard, error)| match error.into_response() {
+            Ok(request_error_response) => Ok((guard, request_error_response)),
+            Err(fatal_error) => Err((guard, fatal_error)),
+        })
+        .partition_result::<(WaitGuard, Response), (WaitGuard, ErrorKind)>();
 
     let (recursive_channel_send, recursive_channel_recv) =
         mpsc::unbounded_channel::<(WaitGuard, Request)>();
@@ -134,9 +135,9 @@ pub(crate) async fn check(
     match futures::future::select(all_done, fatal_errors.next()).await {
         Either::Left(((), _)) => (),
         Either::Right((None, remaining)) => remaining.await,
-        Either::Right((Some((_guard, err)), _remaining)) => {
+        Either::Right((Some((_guard, fatal_error)), _remaining)) => {
             progress.finish("Error while fetching initial inputs");
-            return Err(err);
+            return Err(fatal_error);
         }
     }
 
