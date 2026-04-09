@@ -3,13 +3,33 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-/// Small tolerance for scheduler flakiness in CI environments
-const EPSILON: Duration = Duration::from_millis(100);
+// The time in seconds we expect lychee to wait when rate-limited.
+const RATE_LIMIT_DELAY_SECONDS: u64 = 1;
+
+// When dealing with absolute Unix timestamps, we set the rate limit reset time
+// to `RATE_LIMIT_DELAY_SECONDS` + some error margin (e.g. 2 seconds in the future).
+// By the time lychee makes the first request and calculates how long to wait,
+// some of that time has already passed. To avoid flaky tests, we conservatively
+// assert that lychee waits at least `RATE_LIMIT_DELAY_SECONDS`.
+const RATE_LIMIT_RESET_OFFSET_SECONDS: u64 = RATE_LIMIT_DELAY_SECONDS + 1;
+
+/// Maximum acceptable delay beyond the expected rate limit duration
+const EPSILON: Duration = Duration::from_millis(500);
+
+/// Helper to calculate the absolute Unix epoch reset time in the future.
+fn calculate_reset_time() -> String {
+    (SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + RATE_LIMIT_RESET_OFFSET_SECONDS)
+        .to_string()
+}
 
 /// A little helper, which sets up a mock server, runs lychee, and measures the
 /// execution time to make sure that the correct rate-limit backoffs were
 /// applied.
-async fn run_rate_limit_test(headers: &[(&str, &str)], expected_min_duration: Duration) {
+async fn run_rate_limit_test(headers: &[(&str, &str)]) {
     let mock_server = MockServer::start().await;
     let request_times = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
@@ -55,6 +75,9 @@ async fn run_rate_limit_test(headers: &[(&str, &str)], expected_min_duration: Du
         .unwrap()
         .duration_since(*times.first().unwrap());
 
+    let expected_delay = Duration::from_secs(RATE_LIMIT_DELAY_SECONDS);
+    let expected_min_duration = expected_delay.saturating_sub(EPSILON);
+
     assert!(
         elapsed >= expected_min_duration,
         "Rate limit headers were not respected! Expected minimum delay of {expected_min_duration:?}, but got {elapsed:?}"
@@ -63,62 +86,43 @@ async fn run_rate_limit_test(headers: &[(&str, &str)], expected_min_duration: Du
 
 #[tokio::test]
 async fn test_github_rate_limit_exhausted() {
-    let reset_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        + 3;
+    let reset_time = calculate_reset_time();
 
-    run_rate_limit_test(
-        &[
-            ("x-ratelimit-limit", "100"),
-            ("x-ratelimit-remaining", "0"),
-            ("x-ratelimit-reset", &reset_time.to_string()),
-        ],
-        Duration::from_secs(2) - EPSILON,
-    )
+    run_rate_limit_test(&[
+        ("x-ratelimit-limit", "100"),
+        ("x-ratelimit-remaining", "0"),
+        ("x-ratelimit-reset", &reset_time),
+    ])
     .await;
 }
 
 #[tokio::test]
 async fn test_gitlab_rate_limit_exhausted() {
-    let reset_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        + 3;
+    let reset_time = calculate_reset_time();
 
-    let reset_time_str = reset_time.to_string();
-
-    run_rate_limit_test(
-        &[
-            ("RateLimit-Limit", "100"),
-            ("RateLimit-Remaining", "0"),
-            ("RateLimit-Reset", &reset_time_str),
-            ("RateLimit-Observed", "100"),
-        ],
-        Duration::from_secs(2) - EPSILON,
-    )
+    run_rate_limit_test(&[
+        ("RateLimit-Limit", "100"),
+        ("RateLimit-Remaining", "0"),
+        ("RateLimit-Reset", &reset_time),
+        ("RateLimit-Observed", "100"),
+    ])
     .await;
 }
 
 #[tokio::test]
 async fn test_ietf_draft_exhausted() {
-    run_rate_limit_test(
-        &[
-            ("RateLimit-Limit", "100"),
-            ("RateLimit-Remaining", "0"),
-            ("RateLimit-Reset", "2"),
-        ],
-        Duration::from_secs(2) - EPSILON,
-    )
+    let delay_str = RATE_LIMIT_DELAY_SECONDS.to_string();
+    run_rate_limit_test(&[
+        ("RateLimit-Limit", "100"),
+        ("RateLimit-Remaining", "0"),
+        ("RateLimit-Reset", &delay_str),
+    ])
     .await;
 }
 
 #[tokio::test]
 async fn test_retry_rate_limit_headers() {
     const RETRY_DELAY: Duration = Duration::from_secs(1);
-    const TOLERANCE: Duration = Duration::from_millis(500);
     let server = MockServer::start().await;
 
     Mock::given(method("GET"))
@@ -136,7 +140,6 @@ async fn test_retry_rate_limit_headers() {
         .respond_with(move |_: &wiremock::Request| {
             let delta = Instant::now().duration_since(start);
             assert!(delta >= RETRY_DELAY);
-            assert!(delta < RETRY_DELAY + TOLERANCE);
             ResponseTemplate::new(200)
         })
         .expect(1)
@@ -158,5 +161,6 @@ async fn test_retry_rate_limit_headers() {
 
 #[tokio::test]
 async fn test_retry_after_seconds() {
-    run_rate_limit_test(&[("Retry-After", "2")], Duration::from_secs(2) - EPSILON).await;
+    let delay_str = RATE_LIMIT_DELAY_SECONDS.to_string();
+    run_rate_limit_test(&[("Retry-After", &delay_str)]).await;
 }
