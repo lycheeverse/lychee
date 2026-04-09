@@ -5,7 +5,6 @@ use std::time::Duration;
 use futures::{FutureExt, Stream, StreamExt, future::Either};
 use log::warn;
 use reqwest::Url;
-use tokio::sync::SetOnce;
 use tokio::sync::mpsc;
 
 use lychee_lib::InputSource;
@@ -13,9 +12,9 @@ use lychee_lib::RequestError;
 use lychee_lib::Status;
 use lychee_lib::archive::Archive;
 use lychee_lib::ratelimit::HostPool;
+use lychee_lib::stream_lib::StreamExt as _;
 use lychee_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::{Client, ErrorKind, Request, Response};
-use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::CommandParams;
@@ -56,32 +55,27 @@ pub(crate) async fn check(
 
     /*** Input streams and channels (both initial and recursive) ****/
 
-    let early_return = SetOnce::<ErrorKind>::new();
-
-    // bypass channel for errors that occur while building requests
-    let (request_error_send, request_error_recv) =
-        mpsc::channel::<(WaitGuard, Response)>(max_concurrency);
-
     let (waiter, wait_guard) = WaitGroup::new();
 
     // split initial requests into: valid requests, fatal user input errors, and non-fatal request
     // building errors.
     // note that this stream closure *owns* a wait guard, so we must drop the closure
-    // after it's finished to avoid deadlock. this is done using then `.chain()` combinator.
-    let valid_initial_requests = requests
+    // after it's finished to avoid deadlock. this is done using the `.chain()` combinator.
+    let (valid_initial_requests, early_errors) = requests
         .inspect(|_| progress.inc_length(1))
-        .map(move |r| (wait_guard.clone(), r, request_error_send.clone()))
+        .map(move |request| (request, wait_guard.clone()))
         .chain(futures::stream::empty())
-        .filter_map(
-            async |(guard, request, send_resp)| -> Option<(WaitGuard, Request)> {
-                match request.map_err(RequestError::into_response) {
-                    Ok(request) => return Some((guard, request)),
-                    Err(Err(user_input_error)) => early_return.set(user_input_error).unwrap_or(()),
-                    Err(Ok(resp)) => send_resp.send((guard, resp)).await.expect("send_resp"),
-                }
-                None
+        .map(
+            |(request, guard)| match request.map_err(RequestError::into_response) {
+                Ok(request) => Ok((guard, request)),
+                Err(Ok(req_error_response)) => Err(Ok((guard, req_error_response))),
+                Err(Err(user_input_error)) => Err(Err((guard, user_input_error))),
             },
-        );
+        )
+        .partition_result::<(WaitGuard, Request), Result<_, _>>();
+
+    let (request_error_responses, mut fatal_errors) =
+        early_errors.partition_result::<(WaitGuard, Response), (WaitGuard, ErrorKind)>();
 
     let (recursive_channel_send, recursive_channel_recv) =
         mpsc::unbounded_channel::<(WaitGuard, Request)>();
@@ -113,11 +107,10 @@ pub(crate) async fn check(
         })
         .buffer_unordered(max_concurrency);
 
-    let combined_responses = futures::stream::select_with_strategy(
-        responses,
-        ReceiverStream::new(request_error_recv),
-        |()| futures::stream::PollNext::Right,
-    );
+    let combined_responses =
+        futures::stream::select_with_strategy(responses, request_error_responses, |()| {
+            futures::stream::PollNext::Right
+        });
     // increment stats and extract recursive uris from responses.
     let recursive_uris = combined_responses.map(|(guard, response)| -> Vec<(WaitGuard, Request)> {
         progress.update(Some(response.body()));
@@ -134,23 +127,16 @@ pub(crate) async fn check(
         .for_each(async |uris| uris.into_iter().for_each(send_recursive_req))
         .boxed_local();
 
-    let has_early_return = early_return.wait().map(|_| ()).boxed_local();
-
     let start = std::time::Instant::now();
 
     // this `await` is where execution begins. all streams start running and
     // we wait for `all_done` or an early return with an error value.
-    match futures::future::select(all_done, has_early_return).await {
+    match futures::future::select(all_done, fatal_errors.next()).await {
         Either::Left(((), _)) => (),
-
-        // NOTE: We need to drop `remaining_tasks` so that the `early_return` borrows
-        // will be dropped and we can re-take ownership. This relies on an unbroken
-        // chain of ownership between all the streams. In particular, an intermediate
-        // stream cannot use `pin!` because dropping a pin does not drop the inner value.
-        remaining_tasks @ Either::Right(_) => {
-            drop(remaining_tasks);
+        Either::Right((None, remaining)) => remaining.await,
+        Either::Right((Some((_guard, err)), _remaining)) => {
             progress.finish("Error while fetching initial inputs");
-            return Err(early_return.into_inner().expect("wait() finished"));
+            return Err(err);
         }
     }
 

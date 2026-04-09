@@ -81,6 +81,8 @@ pub mod filter;
 
 pub mod waiter;
 
+pub mod stream_lib;
+
 #[cfg(test)]
 use doc_comment as _; // required for doctest
 use ring as _; // required for apple silicon
