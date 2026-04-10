@@ -24,7 +24,11 @@ use crate::progress::Progress;
 use crate::{ExitCode, cache::Cache};
 
 #[allow(clippy::match_bool, reason = "more readable and compact")]
-#[allow(clippy::too_many_lines, reason = "for now...")]
+#[allow(
+    clippy::result_large_err,
+    reason = "no point in using Box<Response> inside Err when we have whole streams \
+              of Response in other places. also, streams are lazy and on-demand."
+)]
 pub(crate) async fn check(
     params: CommandParams<impl Stream<Item = Result<Request, RequestError>>>,
 ) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind> {
@@ -65,18 +69,17 @@ pub(crate) async fn check(
         .inspect(|_| progress.inc_length(1))
         .map(move |request| (request, wait_guard.clone()))
         .chain(futures::stream::empty())
-        .map(|(request, guard)| match request {
-            Ok(request) => Ok((guard, request)),
-            Err(request_error) => Err((guard, request_error)),
-        })
-        .partition_result::<(WaitGuard, Request), (WaitGuard, RequestError)>();
+        .map(
+            |(request, guard)| match request.map_err(RequestError::into_response) {
+                Ok(request) => Ok((guard, request)),
+                Err(Ok(req_error_resp)) => Err(Ok((guard, req_error_resp))),
+                Err(Err(fatal_error)) => Err(Err((guard, fatal_error))),
+            },
+        )
+        .partition_result::<(WaitGuard, Request), Result<_, _>>();
 
-    let (request_error_responses, mut fatal_errors) = early_errors
-        .map(|(guard, error)| match error.into_response() {
-            Ok(request_error_response) => Ok((guard, request_error_response)),
-            Err(fatal_error) => Err((guard, fatal_error)),
-        })
-        .partition_result::<(WaitGuard, Response), (WaitGuard, ErrorKind)>();
+    let (request_error_responses, mut fatal_errors) =
+        early_errors.partition_result::<(WaitGuard, Response), (WaitGuard, ErrorKind)>();
 
     let (recursive_channel_send, recursive_channel_recv) =
         mpsc::unbounded_channel::<(WaitGuard, Request)>();
@@ -148,14 +151,9 @@ pub(crate) async fn check(
 
     if cfg.suggest {
         let progress = Progress::new("Searching for alternatives", hide_bar, level, &cfg.mode());
-        suggest_archived_links(
-            cfg.archive(),
-            &mut stats,
-            progress,
-            max_concurrency,
-            cfg.timeout(),
-        )
-        .await;
+        let archive = cfg.archive();
+        let timeout = cfg.timeout();
+        suggest_archived_links(archive, &mut stats, progress, max_concurrency, timeout).await;
     }
 
     let is_success = match cfg.accept_timeouts {
