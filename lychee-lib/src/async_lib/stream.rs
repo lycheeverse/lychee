@@ -3,6 +3,7 @@
 use futures::FutureExt as _;
 use futures::StreamExt as _;
 use futures::channel::mpsc::{self, Receiver};
+use futures::never::Never;
 use futures::{SinkExt, Stream};
 use futures::{future, stream};
 
@@ -10,11 +11,12 @@ use futures::{future, stream};
 pub type PendingUntil<T, Fut> = stream::TakeUntil<stream::Pending<T>, Fut>;
 
 /// Stream returned by [`StreamExt::concurrently_with`].
-pub type ConcurrentlyWith<St, Fut> = stream::Select<St, PendingUntil<<St as Stream>::Item, Fut>>;
+pub type ConcurrentlyWith<St, Fut> =
+    stream::TakeUntil<St, future::Join<Fut, future::Pending<Never>>>;
 
 /// Stream returned by [`StreamExt::partition_result`].
-pub type Partitioned<T, Fut = future::Ready<()>> =
-    stream::Select<Receiver<T>, PendingUntil<T, Fut>>;
+pub type Partitioned<T, SenderFut = future::Pending<Never>> =
+    stream::TakeUntil<Receiver<T>, future::Join<SenderFut, future::Pending<Never>>>;
 
 /// A stream which is pending until the given future completes, at which point
 /// the stream will terminate. The returned stream will never return any values,
@@ -30,15 +32,13 @@ pub trait StreamExt: Stream {
     /// A stream which wraps a stream while concurrently polling a given future.
     ///
     /// The future is only polled for its side effects. Its output is discarded.
-    /// All items from the input stream will be propagated unchanged.
-    ///
-    /// However, the returned stream can only terminate after the future has
-    /// completed (this is a shortcoming in the implementation).
+    /// All items from the input stream will be propagated unchanged. The returned
+    /// stream will terminate when the argument stream terminates.
     fn concurrently_with<Fut: Future>(self, fut: Fut) -> ConcurrentlyWith<Self, Fut>
     where
         Self: Sized,
     {
-        stream::select(self, pending_until(fut))
+        self.take_until(future::join(fut, future::pending()))
     }
 
     /// Partitions the given stream of [`Result<T, E>`] into two streams&mdash;one yielding the
@@ -64,7 +64,7 @@ pub trait StreamExt: Stream {
 
         (
             ok_recv.concurrently_with(driver),
-            err_recv.concurrently_with(future::ready(())),
+            err_recv.concurrently_with(future::pending()),
         )
     }
 }
