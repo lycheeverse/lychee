@@ -127,20 +127,20 @@ pub(crate) async fn check(
     });
 
     // send recursive uris back to the initial channel.
-    let all_done = recursive_uris
-        .for_each(async |uris| uris.into_iter().for_each(send_recursive_req))
-        .boxed_local();
+    let all_done =
+        recursive_uris.for_each(async |uris| uris.into_iter().for_each(send_recursive_req));
 
     let start = std::time::Instant::now();
-
-    // this `await` is where execution begins. all streams start running and
-    // we wait for `all_done` or an early return with an error value.
-    match futures::future::select(all_done, fatal_errors.next()).await {
-        Either::Left(((), _)) => (),
-        Either::Right((None, remaining)) => remaining.await,
-        Either::Right((Some((_guard, fatal_error)), _remaining)) => {
-            progress.finish("Error while fetching initial inputs");
-            return Err(fatal_error);
+    {
+        // this `await` is where execution begins. all streams start running and
+        // we wait for `all_done` or an early return with an error value.
+        match futures::future::select(std::pin::pin!(all_done), fatal_errors.next()).await {
+            Either::Left(((), _)) => (),
+            Either::Right((None, remaining)) => remaining.await,
+            Either::Right((Some((_guard, fatal_error)), _remaining)) => {
+                progress.finish("Error while fetching initial inputs");
+                return Err(fatal_error);
+            }
         }
     }
 
