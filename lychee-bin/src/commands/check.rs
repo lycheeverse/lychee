@@ -52,7 +52,7 @@ pub(crate) async fn check(
 
     let progress = Progress::new("Extracting links", hide_bar, level, &cfg.mode());
 
-    let stats = match cfg.verbose().log_level() >= log::Level::Info {
+    let mut stats = match cfg.verbose().log_level() >= log::Level::Info {
         true => ResponseStats::extended(),
         false => ResponseStats::default(),
     };
@@ -84,16 +84,11 @@ pub(crate) async fn check(
     let (recursive_channel_send, recursive_channel_recv) =
         mpsc::unbounded_channel::<(WaitGuard, Request)>();
 
-    let send_recursive_req = {
-        let progress = progress.clone();
-        move |(guard, req)| {
-            progress.inc_length(1);
-            recursive_channel_send
-                .send((guard, req))
-                .unwrap_or_else(|e| {
-                    warn!("unable to send recursive uri {:?} - channel closed?", e.0)
-                });
-        }
+    let send_recursive_req = |(guard, req)| {
+        progress.inc_length(1);
+        recursive_channel_send
+            .send((guard, req))
+            .unwrap_or_else(|e| warn!("unable to send recursive uri {:?} - channel closed?", e.0));
     };
 
     // combine recursive requests and input requests.
@@ -120,47 +115,34 @@ pub(crate) async fn check(
         futures::stream::select_with_strategy(responses, request_error_responses, |()| {
             futures::stream::PollNext::Right
         });
-    let (a, b) = combined_responses.remote_handle();
+    // increment stats and extract recursive uris from responses.
+    let recursive_uris = combined_responses.map(|(guard, response)| -> Vec<(WaitGuard, Request)> {
+        progress.update(Some(response.body()));
+        stats.add(response);
 
-    let all_done = tokio::spawn({
-        let mut stats = stats;
-        let progress = progress.clone();
+        let recursive_uris = vec![]; // currently unused.
+        let _ = guard;
 
-        async move {
-            // increment stats and extract recursive uris from responses.
-            let recursive_uris = b.map(|(guard, response)| -> Vec<(WaitGuard, Request)> {
-                progress.update(Some(response.body()));
-                stats.add(response);
-
-                let recursive_uris = vec![]; // currently unused.
-                let _ = guard;
-
-                recursive_uris
-            });
-
-            recursive_uris
-                .for_each(async |uris| uris.into_iter().for_each(&send_recursive_req))
-                .await;
-            stats
-        }
+        recursive_uris
     });
 
     // send recursive uris back to the initial channel.
+    let all_done =
+        recursive_uris.for_each(async |uris| uris.into_iter().for_each(send_recursive_req));
 
     let start = std::time::Instant::now();
-    let mut stats = {
-        let all_done = futures::future::join(all_done, a);
+    {
         // this `await` is where execution begins. all streams start running and
         // we wait for `all_done` or an early return with an error value.
         match futures::future::select(std::pin::pin!(all_done), fatal_errors.next()).await {
-            Either::Left((a, _)) => a.0?,
-            Either::Right((None, remaining)) => remaining.await.0?,
+            Either::Left(((), _)) => (),
+            Either::Right((None, remaining)) => remaining.await,
             Either::Right((Some((_guard, fatal_error)), _remaining)) => {
                 progress.finish("Error while fetching initial inputs");
                 return Err(fatal_error);
             }
         }
-    };
+    }
 
     /*** Finalising stats and archive suggestion ****/
 

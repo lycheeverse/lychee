@@ -60,8 +60,8 @@ pub trait StreamExt: Stream {
     where
         Self: Stream<Item = Result<T, E>> + Sized,
     {
-        let (ok_send, ok_recv) = mpsc::channel(8);
-        let (err_send, err_recv) = mpsc::channel(8);
+        let (ok_send, ok_recv) = mpsc::channel(1);
+        let (err_send, err_recv) = mpsc::channel(1);
 
         let driver = self
             .map(move |x| (x, ok_send.clone(), err_send.clone()))
@@ -82,7 +82,7 @@ pub trait StreamExt: Stream {
     where
         Self: Sized,
     {
-        let (send, recv) = mpsc::channel(8);
+        let (send, recv) = mpsc::channel(1);
         let driver = self
             .map(move |x| (x, send.clone()))
             .for_each(async |(x, send)| send.send(x).await.unwrap())
