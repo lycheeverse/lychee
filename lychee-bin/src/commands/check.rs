@@ -118,7 +118,6 @@ pub(crate) async fn check(
     // increment stats and extract recursive uris from responses.
     let recursive_uris = combined_responses.map(|(guard, response)| -> Vec<(WaitGuard, Request)> {
         progress.update(Some(response.body()));
-        stats.add(response);
 
         let recursive_uris = vec![]; // currently unused.
         let _ = guard;

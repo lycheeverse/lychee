@@ -1,11 +1,15 @@
 //! Helper functions for async [`stream::Stream`] combinators and type aliases.
 
 use futures::FutureExt as _;
+use futures::Stream;
 use futures::StreamExt as _;
-use futures::channel::mpsc::{self, Receiver};
+use futures::future::FusedFuture;
 use futures::never::Never;
-use futures::{SinkExt, Stream};
 use futures::{future, stream};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_util::sync::PollSendError;
+use tokio_util::sync::PollSender;
 
 /// Stream returned by [`pending_until`].
 pub type PendingUntil<T, Fut> = stream::TakeUntil<stream::Pending<T>, Fut>;
@@ -16,7 +20,7 @@ pub type ConcurrentlyWith<St, Fut> =
 
 /// Stream returned by [`StreamExt::partition_result`].
 pub type Partitioned<T, SenderFut = future::Pending<Never>> =
-    stream::TakeUntil<Receiver<T>, future::Join<SenderFut, future::Pending<Never>>>;
+    stream::TakeUntil<ReceiverStream<T>, future::Join<SenderFut, future::Pending<Never>>>;
 
 /// A stream which is pending until the given future completes, at which point
 /// the stream will terminate. The returned stream will never return any values,
@@ -47,25 +51,43 @@ pub trait StreamExt: Stream {
     /// **Deadlocks**: Both returned streams must be polled concurrently to avoid deadlock!
     /// This combinator performs minimal buffering. If only one output stream is polled,
     /// encountering a result of the opposite type will block the stream.
-    fn partition_result<T, E>(self) -> (Partitioned<T, impl Future>, Partitioned<E>)
+    fn partition_result<T, E>(
+        self,
+    ) -> (
+        Partitioned<T, impl FusedFuture<Output = ()>>,
+        Partitioned<E>,
+    )
     where
         Self: Stream<Item = Result<T, E>> + Sized,
     {
-        let (ok_send, ok_recv) = mpsc::channel(1);
-        let (err_send, err_recv) = mpsc::channel(1);
+        let (ok_send, ok_recv) = mpsc::channel(8);
+        let (err_send, err_recv) = mpsc::channel(8);
 
         let driver = self
             .map(move |x| (x, ok_send.clone(), err_send.clone()))
-            .for_each(async |(x, mut ok_send, mut err_send)| match x {
+            .for_each(async |(x, ok_send, err_send)| match x {
                 Ok(x) => ok_send.send(x).await.unwrap(),
                 Err(x) => err_send.send(x).await.unwrap(),
             })
             .fuse();
 
         (
-            ok_recv.concurrently_with(driver),
-            err_recv.concurrently_with(future::pending()),
+            ReceiverStream::new(ok_recv).concurrently_with(driver),
+            ReceiverStream::new(err_recv).concurrently_with(future::pending()),
         )
+    }
+
+    /// .
+    fn remote_handle(self) -> (impl FusedFuture<Output = ()>, ReceiverStream<Self::Item>)
+    where
+        Self: Sized,
+    {
+        let (send, recv) = mpsc::channel(8);
+        let driver = self
+            .map(move |x| (x, send.clone()))
+            .for_each(async |(x, send)| send.send(x).await.unwrap())
+            .fuse();
+        (driver, ReceiverStream::new(recv))
     }
 }
 
