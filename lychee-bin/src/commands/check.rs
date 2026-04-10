@@ -11,9 +11,9 @@ use lychee_lib::InputSource;
 use lychee_lib::RequestError;
 use lychee_lib::Status;
 use lychee_lib::archive::Archive;
+use lychee_lib::async_lib::stream::StreamExt as _;
+use lychee_lib::async_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::ratelimit::HostPool;
-use lychee_lib::stream_lib::StreamExt as _;
-use lychee_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::{Client, ErrorKind, Request, Response};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 

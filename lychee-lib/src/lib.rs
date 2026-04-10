@@ -79,9 +79,7 @@ pub mod ratelimit;
 /// local IPs or e-mail addresses
 pub mod filter;
 
-pub mod waiter;
-
-pub mod stream_lib;
+pub mod async_lib;
 
 #[cfg(test)]
 use doc_comment as _; // required for doctest

@@ -1,4 +1,4 @@
-//! Library for useful stream combinators missing from other libraries.
+//! Helper functions for async [`stream::Stream`] combinators and type aliases.
 
 use futures::FutureExt as _;
 use futures::StreamExt as _;
@@ -23,7 +23,9 @@ pub fn pending_until<T, Fut: Future>(fut: Fut) -> PendingUntil<T, Fut> {
     stream::pending().take_until(fut)
 }
 
-/// Useful stream combinators. See also [`futures::StreamExt`].
+/// Useful stream combinators. See also [`futures::StreamExt`] ([online][]).
+///
+/// [online]: https://docs.rs/futures/latest/futures/stream/trait.StreamExt.html
 pub trait StreamExt: Stream {
     /// A stream which wraps a stream while concurrently polling a given future.
     ///
