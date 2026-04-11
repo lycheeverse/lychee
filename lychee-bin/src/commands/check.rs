@@ -48,7 +48,7 @@ where
     let cache = params.cache;
     let cache_exclude_status = params.cfg.cache_exclude_status().into();
     let accept = params.cfg.accept().into();
-    let accept_timeouts = params.cfg.accept_timeouts;
+    let accept_timeouts = params.cfg.accept_timeouts();
 
     // Start receiving requests
     let request_handle = tokio::spawn(request_channel_task(
@@ -61,7 +61,7 @@ where
         accept,
     ));
 
-    let hide_bar = params.cfg.no_progress || params.is_stdin_input;
+    let hide_bar = params.cfg.no_progress() || params.is_stdin_input;
     let level = params.cfg.verbose().log_level();
 
     let progress = Progress::new("Extracting links", hide_bar, level, &params.cfg.mode());
@@ -93,7 +93,7 @@ where
     // must go before printing the stats
     progress.finish("Finished extracting links");
 
-    if params.cfg.suggest {
+    if params.cfg.suggest() {
         let progress = Progress::new(
             "Searching for alternatives",
             hide_bar,
