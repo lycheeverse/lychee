@@ -569,6 +569,11 @@ Options:
       --include-mail[=<false|true>]
           Also check email addresses
 
+      --include-text-fragments[=<INCLUDE_TEXT_FRAGMENTS>]
+          Enable the checking of text fragments in links, e.g., `#:~:text=example`
+
+          [possible values: true, false]
+
       --include-verbatim[=<false|true>]
           Find links in verbatim sections like `pre`- and `code` blocks
 

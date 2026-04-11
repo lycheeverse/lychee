@@ -483,6 +483,16 @@ pub(crate) struct Config {
     #[serde(default)]
     include_fragments: Option<bool>,
 
+    /// Enable the checking of text fragments in links, e.g., `#:~:text=example`.
+    #[arg(
+        long,
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+    )]
+    #[serde(default)]
+    include_text_fragments: Option<bool>,
+
     /// Website timeout in seconds from connect to response finished
     ///
     /// [default: 20]
@@ -858,6 +868,11 @@ impl Config {
         self.header.iter().cloned().collect()
     }
 
+    /// Include text fragments in link checking
+    pub(crate) fn include_text_fragments(&self) -> bool {
+        self.include_text_fragments.unwrap_or(false)
+    }
+
     /// Merge `self` with another `Config` where the fields of `self` take precedence
     /// over `other`.
     pub(crate) fn merge(self, other: Config) -> Config {
@@ -900,6 +915,7 @@ impl Config {
                 hidden,
                 host_concurrency,
                 host_request_interval,
+                include_text_fragments,
                 files_from,
                 generate,
                 host_stats,
