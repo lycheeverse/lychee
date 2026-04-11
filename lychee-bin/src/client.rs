@@ -53,6 +53,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .cookie_jar(cookie_jar.cloned())
         .min_tls_version(cfg.min_tls.clone().map(Into::into))
         .include_fragments(cfg.include_fragments())
+        .include_text_fragments(cfg.include_text_fragments())
         .fallback_extensions(cfg.fallback_extensions.clone())
         .index_files(cfg.index_files.clone())
         .include_wikilinks(cfg.include_wikilinks())

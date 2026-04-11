@@ -47,6 +47,11 @@ pub(crate) struct WebsiteChecker {
     /// Will be disabled if the request method is `HEAD`.
     include_fragments: bool,
 
+    /// Whether to check the existence of text fragments in the response HTML files.
+    ///
+    /// Will be disabled if the request method is `HEAD`.
+    include_text_fragments: bool,
+
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
 
@@ -78,6 +83,7 @@ impl WebsiteChecker {
         require_https: bool,
         plugin_request_chain: RequestChain,
         include_fragments: bool,
+        include_text_fragments: bool,
         host_pool: Arc<HostPool>,
     ) -> Self {
         Self {
@@ -90,6 +96,7 @@ impl WebsiteChecker {
             accepted,
             require_https,
             include_fragments,
+            include_text_fragments,
             fragment_checker: FragmentChecker::new(),
             host_pool,
         }
@@ -121,7 +128,7 @@ impl WebsiteChecker {
         let method = request.method().clone();
         let request_url = request.url().clone();
 
-        let check_request_fragments = self.include_fragments
+        let check_request_fragments = (self.include_fragments || self.include_text_fragments)
             && method == Method::GET
             && request_url.fragment().is_some_and(|x| !x.is_empty());
 

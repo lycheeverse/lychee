@@ -301,6 +301,9 @@ pub struct ClientBuilder {
     /// Enable the checking of fragments in links.
     include_fragments: bool,
 
+    /// Enable the checking of text fragments in links.
+    include_text_fragments: bool,
+
     /// Enable the checking of wikilinks in markdown files.
     /// Note that base must not be `None` if you set this `true`.
     include_wikilinks: bool,
@@ -390,6 +393,7 @@ impl ClientBuilder {
             self.require_https,
             self.plugin_request_chain,
             self.include_fragments,
+            self.include_text_fragments,
             Arc::new(host_pool),
         );
 
