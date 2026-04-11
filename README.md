@@ -393,8 +393,10 @@ Options:
 
           [default: lychee.toml]
 
-      --cache
+      --cache[=<CACHE>]
           Use request cache stored on disk at `.lycheecache`
+
+          [possible values: true, false]
 
       --cache-exclude-status <CACHE_EXCLUDE_STATUS>
           A list of status codes that will be ignored from the cache

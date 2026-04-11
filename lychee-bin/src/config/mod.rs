@@ -189,9 +189,14 @@ pub(crate) struct Config {
     default_extension: Option<String>,
 
     #[arg(help = HELP_MSG_CACHE)]
-    #[arg(long)]
+    #[arg(
+        long,
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true,
+    )]
     #[serde(default)]
-    pub(crate) cache: bool,
+    cache: Option<bool>,
 
     /// Discard all cached requests older than this duration
     ///
@@ -741,6 +746,11 @@ impl Config {
             .unwrap_or(StatusCodeSelector::empty())
     }
 
+    /// Whether to use the on-disk request cache
+    pub(crate) fn cache(&self) -> bool {
+        self.cache.unwrap_or(false)
+    }
+
     /// Status codes that are considered successful
     pub(crate) fn accept(&self) -> StatusCodeSelector {
         self.accept
@@ -793,6 +803,7 @@ impl Config {
                 base,
                 base_url,
                 basic_auth,
+                cache,
                 cache_exclude_status,
                 cookie_jar,
                 default_extension,
@@ -831,7 +842,6 @@ impl Config {
                 header,
             },
             bool {
-                cache,
                 dump,
                 dump_inputs,
                 exclude_all_private,
