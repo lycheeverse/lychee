@@ -55,6 +55,7 @@ occurrences take precedence over previous occurrences.
 [default: {}]",
     loaders::lychee_toml::LYCHEE_CONFIG_FILE
 );
+
 /// lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses
 /// in local files and websites. It supports Markdown and HTML and works with other file formats.
 ///
@@ -453,9 +454,14 @@ pub(crate) struct Config {
 
     /// Accept timed out requests and return exit code 0
     /// when encountering timeouts but not any other errors.
-    #[arg(long)]
+    #[arg(
+        long,
+        default_missing_value = "true", // `--flag` is equivalent to `--flag=true`
+        num_args = 0..=1, // allow `--flag` with no value
+        require_equals = true, // ensures `--flag parameter` is interpreted as `--flag=true parameter`
+    )]
     #[serde(default)]
-    pub(crate) accept_timeouts: bool,
+    accept_timeouts: Option<bool>,
 
     /// Enable the checking of fragments in links.
     #[arg(long)]
@@ -742,6 +748,11 @@ impl Config {
             .unwrap_or(StatusCodeSelector::default_accepted())
     }
 
+    /// Whether to accept timeouts as valid results
+    pub(crate) fn accept_timeouts(&self) -> bool {
+        self.accept_timeouts.unwrap_or(false)
+    }
+
     /// Custom headers to send with requests
     pub(crate) fn headers(&self) -> HashMap<String, String> {
         self.header.iter().cloned().collect()
@@ -777,6 +788,7 @@ impl Config {
         merge!(
             option {
                 accept,
+                accept_timeouts,
                 archive,
                 base,
                 base_url,
@@ -819,7 +831,6 @@ impl Config {
                 header,
             },
             bool {
-                accept_timeouts,
                 cache,
                 dump,
                 dump_inputs,

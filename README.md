@@ -346,8 +346,10 @@ Options:
 
           [default: 100..=103,200..=299]
 
-      --accept-timeouts
+      --accept-timeouts[=<ACCEPT_TIMEOUTS>]
           Accept timed out requests and return exit code 0 when encountering timeouts but not any other errors
+
+          [possible values: true, false]
 
       --archive <ARCHIVE>
           Web archive to use to provide suggestions for `--suggest`.
