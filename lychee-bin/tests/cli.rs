@@ -29,7 +29,7 @@ mod cli {
     use uuid::Uuid;
     use wiremock::{
         Mock, Request, ResponseTemplate,
-        matchers::{basic_auth, method},
+        matchers::{basic_auth, method, path},
     };
 
     type Result<T> = std::result::Result<T, Box<dyn Error>>;
@@ -50,6 +50,43 @@ mod cli {
                 .await;
             mock_server
         }};
+    }
+
+    async fn text_fragments_server() -> Result<wiremock::MockServer> {
+        let mock_server = wiremock::MockServer::start().await;
+        let fixtures_dir = fixtures_path!().join("text_fragments");
+        let html_response = |name: &str| -> Result<ResponseTemplate> {
+            let body = fs::read_to_string(fixtures_dir.join(name))?;
+            Ok(ResponseTemplate::new(200)
+                .insert_header("Content-Type", "text/html")
+                .set_body_string(body))
+        };
+
+        Mock::given(method("GET"))
+            .and(path("/"))
+            .respond_with(html_response("index.html")?)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/index.html"))
+            .respond_with(html_response("index.html")?)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/should-match.html"))
+            .respond_with(html_response("should-match.html")?)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/should-not-match.html"))
+            .respond_with(html_response("should-not-match.html")?)
+            .mount(&mock_server)
+            .await;
+
+        Ok(mock_server)
     }
 
     /// Convert a relative path to an absolute path string
@@ -3897,6 +3934,28 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .assert()
             .success()
             .stdout(contains("resource-1.md").count(2));
+    }
+
+    #[tokio::test]
+    async fn test_text_fragments() -> Result<()> {
+        let mock_server = text_fragments_server().await?;
+
+        cargo_bin_cmd!()
+            .arg("--include-text-fragments")
+            .arg(format!("{}/should-match.html", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("4 Total"));
+
+        cargo_bin_cmd!()
+            .arg("--include-text-fragments")
+            .arg(format!("{}/should-not-match.html", mock_server.uri()))
+            .assert()
+            .failure()
+            .stdout(contains("4 Total"))
+            .stdout(contains("4 Errors"));
+
+        Ok(())
     }
 
     #[tokio::test]
