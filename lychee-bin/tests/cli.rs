@@ -314,7 +314,6 @@ mod cli {
     }
 
     #[test]
-    #[ignore = "SMTP is blocked on my network."]
     fn test_email() -> Result<()> {
         cargo_bin_cmd!()
             .write_stdin("test@example.com idiomatic-rust-doesnt-exist-man@wikipedia.org")
@@ -2706,7 +2705,6 @@ The config file should contain every possible key for documentation purposes."
     }
 
     #[tokio::test]
-    #[ignore = "Skipping test because it is flaky on my laptop"]
     async fn test_retry_rate_limit_headers() {
         const RETRY_DELAY: Duration = Duration::from_secs(1);
         const TOLERANCE: Duration = Duration::from_millis(500);
