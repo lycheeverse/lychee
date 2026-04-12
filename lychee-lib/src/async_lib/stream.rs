@@ -8,8 +8,6 @@ use futures::never::Never;
 use futures::{future, stream};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tokio_util::sync::PollSendError;
-use tokio_util::sync::PollSender;
 
 /// Stream returned by [`pending_until`].
 pub type PendingUntil<T, Fut> = stream::TakeUntil<stream::Pending<T>, Fut>;
@@ -60,8 +58,8 @@ pub trait StreamExt: Stream {
     where
         Self: Stream<Item = Result<T, E>> + Sized,
     {
-        let (ok_send, ok_recv) = mpsc::channel(1);
-        let (err_send, err_recv) = mpsc::channel(1);
+        let (ok_send, ok_recv) = mpsc::channel(16);
+        let (err_send, err_recv) = mpsc::channel(16);
 
         let driver = self
             .map(move |x| (x, ok_send.clone(), err_send.clone()))
@@ -75,19 +73,6 @@ pub trait StreamExt: Stream {
             ReceiverStream::new(ok_recv).concurrently_with(driver),
             ReceiverStream::new(err_recv).concurrently_with(future::pending()),
         )
-    }
-
-    /// .
-    fn remote_handle(self) -> (impl FusedFuture<Output = ()>, ReceiverStream<Self::Item>)
-    where
-        Self: Sized,
-    {
-        let (send, recv) = mpsc::channel(1);
-        let driver = self
-            .map(move |x| (x, send.clone()))
-            .for_each(async |(x, send)| send.send(x).await.unwrap())
-            .fuse();
-        (driver, ReceiverStream::new(recv))
     }
 }
 

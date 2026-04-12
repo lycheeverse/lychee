@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use futures::{FutureExt, Stream, StreamExt, future::Either};
+use futures::{Stream, StreamExt, future::Either};
 use log::warn;
 use reqwest::Url;
 use tokio::sync::mpsc;
@@ -135,7 +135,7 @@ pub(crate) async fn check(
         // this `await` is where execution begins. all streams start running and
         // we wait for `all_done` or an early return with an error value.
         match futures::future::select(std::pin::pin!(all_done), fatal_errors.next()).await {
-            Either::Left(((), _)) => (),
+            Either::Left(((), _fatal_errors)) => (),
             Either::Right((None, remaining)) => remaining.await,
             Either::Right((Some((_guard, fatal_error)), _remaining)) => {
                 progress.finish("Error while fetching initial inputs");
