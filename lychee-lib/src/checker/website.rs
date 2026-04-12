@@ -393,6 +393,7 @@ mod tests {
             false,
             RequestChain::default(),
             false,
+            false,
             Arc::new(host_pool),
         )
     }
