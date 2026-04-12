@@ -13,7 +13,7 @@ struct TextDirective {
     suffix: Option<String>,
 }
 
-pub(crate) async fn check_text_fragments(
+pub(crate) fn check_text_fragments(
     url: &Url,
     status: Status,
     content: &str,
@@ -29,7 +29,9 @@ pub(crate) async fn check_text_fragments(
     }
 
     let document = normalize_whitespace(&extract_visible_text(content));
-    let all_match = directives.iter().all(|directive| directive.matches(&document));
+    let all_match = directives
+        .iter()
+        .all(|directive| directive.matches(&document));
 
     if all_match {
         status
@@ -147,7 +149,7 @@ fn extract_visible_text(input: &str) -> String {
             matches!(name, "head" | "script" | "style" | "template")
         }
 
-        fn in_hidden_context(&self) -> bool {
+        const fn in_hidden_context(&self) -> bool {
             !self.hidden_stack.is_empty()
         }
     }
@@ -167,7 +169,11 @@ fn extract_visible_text(input: &str) -> String {
                 }
                 CallbackEvent::EndTag { name } => {
                     let tag = String::from_utf8_lossy(name);
-                    if self.hidden_stack.last().is_some_and(|last| last == tag.as_ref()) {
+                    if self
+                        .hidden_stack
+                        .last()
+                        .is_some_and(|last| last == tag.as_ref())
+                    {
                         self.hidden_stack.pop();
                     }
                 }
@@ -263,8 +269,11 @@ mod tests {
 
         for raw_url in urls {
             let url = Url::parse(raw_url).unwrap();
-            let status = check_text_fragments(&url, ok_status(), INDEX_HTML, FileType::Html).await;
-            assert!(status.is_success(), "expected success for {raw_url}, got {status}");
+            let status = check_text_fragments(&url, ok_status(), INDEX_HTML, FileType::Html);
+            assert!(
+                status.is_success(),
+                "expected success for {raw_url}, got {status}"
+            );
         }
     }
 
@@ -279,8 +288,11 @@ mod tests {
 
         for raw_url in urls {
             let url = Url::parse(raw_url).unwrap();
-            let status = check_text_fragments(&url, ok_status(), INDEX_HTML, FileType::Html).await;
-            assert!(status.is_error(), "expected error for {raw_url}, got {status}");
+            let status = check_text_fragments(&url, ok_status(), INDEX_HTML, FileType::Html);
+            assert!(
+                status.is_error(),
+                "expected error for {raw_url}, got {status}"
+            );
         }
     }
 }

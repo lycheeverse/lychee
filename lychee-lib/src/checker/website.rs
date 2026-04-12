@@ -173,11 +173,7 @@ impl WebsiteChecker {
             && parsed_fragment.text_directive.is_some();
         let needs_body = check_anchor_fragments || check_text_fragments;
 
-        match self
-            .host_pool
-            .execute_request(request, needs_body)
-            .await
-        {
+        match self.host_pool.execute_request(request, needs_body).await {
             Ok(response) => {
                 let status = Status::new(&response, &self.accepted);
                 // when `accept=200,429`, `status_code=429` will be treated as success
@@ -221,7 +217,6 @@ impl WebsiteChecker {
                             &content,
                             file_type,
                         )
-                        .await
                     } else {
                         status
                     }
