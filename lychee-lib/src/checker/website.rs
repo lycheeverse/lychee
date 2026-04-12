@@ -1,6 +1,7 @@
 use crate::{
     BasicAuthCredentials, ErrorKind, FileType, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
+    checker::text_fragments,
     quirks::Quirks,
     ratelimit::HostPool,
     retry::RetryExt,
@@ -164,13 +165,17 @@ impl WebsiteChecker {
         let anchor_fragment_url =
             Self::with_element_fragment(&request_url, parsed_fragment.anchor_fragment);
 
-        let check_request_fragments = self.include_fragments
+        let check_anchor_fragments = self.include_fragments
             && method == Method::GET
             && parsed_fragment.anchor_fragment.is_some();
+        let check_text_fragments = self.include_text_fragments
+            && method == Method::GET
+            && parsed_fragment.text_directive.is_some();
+        let needs_body = check_anchor_fragments || check_text_fragments;
 
         match self
             .host_pool
-            .execute_request(request, check_request_fragments)
+            .execute_request(request, needs_body)
             .await
         {
             Ok(response) => {
@@ -178,7 +183,7 @@ impl WebsiteChecker {
                 // when `accept=200,429`, `status_code=429` will be treated as success
                 // but we are not able the check the fragment since it's inapplicable.
                 if let Some(content) = response.text
-                    && check_request_fragments
+                    && needs_body
                     && response.status.is_success()
                 {
                     let Some(content_type) = response
@@ -202,8 +207,24 @@ impl WebsiteChecker {
                         _ => return status,
                     };
 
-                    self.check_anchor_fragment(anchor_fragment_url, status, &content, file_type)
+                    let status = if check_anchor_fragments {
+                        self.check_anchor_fragment(anchor_fragment_url, status, &content, file_type)
+                            .await
+                    } else {
+                        status
+                    };
+
+                    if check_text_fragments {
+                        text_fragments::check_text_fragments(
+                            &request_url,
+                            status,
+                            &content,
+                            file_type,
+                        )
                         .await
+                    } else {
+                        status
+                    }
                 } else {
                     status
                 }
