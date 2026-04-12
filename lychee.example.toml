@@ -125,6 +125,10 @@ basic_auth = ["example.com user:pwd"]
 # Enable the checking of fragments in links.
 include_fragments = true
 
+# Enable the checking of text fragments in links.
+# See <https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Fragment/Text_fragments>
+include_text_fragments = true
+
 # Minimum accepted TLS Version
 min_tls = "TLSv1_3"
 
