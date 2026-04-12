@@ -14,6 +14,12 @@ use reqwest::{Request, header::CONTENT_TYPE};
 use std::{borrow::Cow, collections::HashSet, path::Path, sync::Arc, time::Duration};
 use url::Url;
 
+#[derive(Debug, PartialEq, Eq)]
+struct ParsedFragment<'a> {
+    anchor_fragment: Option<&'a str>,
+    text_directive: Option<&'a str>,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
     /// Request method used for making requests.
@@ -66,6 +72,33 @@ pub(crate) struct WebsiteChecker {
 }
 
 impl WebsiteChecker {
+    fn parse_fragment(url: &Url) -> ParsedFragment<'_> {
+        let Some(fragment) = url.fragment() else {
+            return ParsedFragment {
+                anchor_fragment: None,
+                text_directive: None,
+            };
+        };
+
+        let Some((element, text_directive)) = fragment.split_once(":~:text=") else {
+            return ParsedFragment {
+                anchor_fragment: Some(fragment),
+                text_directive: None,
+            };
+        };
+
+        ParsedFragment {
+            anchor_fragment: (!element.is_empty()).then_some(element),
+            text_directive: Some(text_directive),
+        }
+    }
+
+    fn with_element_fragment(url: &Url, fragment: Option<&str>) -> Url {
+        let mut updated = url.clone();
+        updated.set_fragment(fragment);
+        updated
+    }
+
     /// Get a reference to `HostPool`
     #[must_use]
     pub(crate) fn host_pool(&self) -> Arc<HostPool> {
@@ -127,10 +160,13 @@ impl WebsiteChecker {
     async fn check_default(&self, request: Request) -> Status {
         let method = request.method().clone();
         let request_url = request.url().clone();
+        let parsed_fragment = Self::parse_fragment(&request_url);
+        let anchor_fragment_url =
+            Self::with_element_fragment(&request_url, parsed_fragment.anchor_fragment);
 
         let check_request_fragments = self.include_fragments
             && method == Method::GET
-            && request_url.fragment().is_some_and(|x| !x.is_empty());
+            && parsed_fragment.anchor_fragment.is_some();
 
         match self
             .host_pool
@@ -166,7 +202,7 @@ impl WebsiteChecker {
                         _ => return status,
                     };
 
-                    self.check_html_fragment(request_url, status, &content, file_type)
+                    self.check_anchor_fragment(anchor_fragment_url, status, &content, file_type)
                         .await
                 } else {
                     status
@@ -176,7 +212,7 @@ impl WebsiteChecker {
         }
     }
 
-    async fn check_html_fragment(
+    async fn check_anchor_fragment(
         &self,
         url: Url,
         status: Status,
@@ -353,7 +389,9 @@ mod tests {
 
     use http::Method;
     use octocrab::Octocrab;
+    use reqwest::Url;
 
+    use super::ParsedFragment;
     use crate::{
         Uri,
         chain::RequestChain,
@@ -396,5 +434,50 @@ mod tests {
             false,
             Arc::new(host_pool),
         )
+    }
+
+    #[test]
+    fn parses_pure_text_fragment_directive() {
+        let url = Url::parse("https://example.com/#:~:text=needle").unwrap();
+
+        let parsed = WebsiteChecker::parse_fragment(&url);
+
+        assert_eq!(
+            parsed,
+            ParsedFragment {
+                anchor_fragment: None,
+                text_directive: Some("needle"),
+            }
+        );
+    }
+
+    #[test]
+    fn parses_element_fragment_before_text_directive() {
+        let url = Url::parse("https://example.com/#section:~:text=needle").unwrap();
+
+        let parsed = WebsiteChecker::parse_fragment(&url);
+
+        assert_eq!(
+            parsed,
+            ParsedFragment {
+                anchor_fragment: Some("section"),
+                text_directive: Some("needle"),
+            }
+        );
+    }
+
+    #[test]
+    fn parses_plain_element_fragment() {
+        let url = Url::parse("https://example.com/#section").unwrap();
+
+        let parsed = WebsiteChecker::parse_fragment(&url);
+
+        assert_eq!(
+            parsed,
+            ParsedFragment {
+                anchor_fragment: Some("section"),
+                text_directive: None,
+            }
+        );
     }
 }
