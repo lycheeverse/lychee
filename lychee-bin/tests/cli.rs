@@ -57,8 +57,7 @@ mod cli {
         let fixtures_dir = fixtures_path!().join("text_fragments");
         let html_response = |name: &str| -> Result<ResponseTemplate> {
             let body = fs::read(fixtures_dir.join(name))?;
-            Ok(ResponseTemplate::new(200)
-                .set_body_raw(body, "text/html"))
+            Ok(ResponseTemplate::new(200).set_body_raw(body, "text/html"))
         };
 
         Mock::given(method("GET"))
