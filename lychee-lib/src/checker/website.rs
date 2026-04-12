@@ -128,7 +128,7 @@ impl WebsiteChecker {
         let method = request.method().clone();
         let request_url = request.url().clone();
 
-        let check_request_fragments = (self.include_fragments || self.include_text_fragments)
+        let check_request_fragments = self.include_fragments
             && method == Method::GET
             && request_url.fragment().is_some_and(|x| !x.is_empty());
 

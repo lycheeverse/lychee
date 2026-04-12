@@ -56,10 +56,9 @@ mod cli {
         let mock_server = wiremock::MockServer::start().await;
         let fixtures_dir = fixtures_path!().join("text_fragments");
         let html_response = |name: &str| -> Result<ResponseTemplate> {
-            let body = fs::read_to_string(fixtures_dir.join(name))?;
+            let body = fs::read(fixtures_dir.join(name))?;
             Ok(ResponseTemplate::new(200)
-                .insert_header("Content-Type", "text/html")
-                .set_body_string(body))
+                .set_body_raw(body, "text/html"))
         };
 
         Mock::given(method("GET"))
@@ -4160,12 +4159,30 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
     async fn test_text_fragments() -> Result<()> {
         let mock_server = text_fragments_server().await?;
 
+        // Make sure --include-fragments ignores text fragments and doesn't cause false positives.
+        cargo_bin_cmd!()
+            .arg("--include-fragments")
+            .arg(format!("{}/should-match.html", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("4 Total"))
+            .stdout(contains("0 Errors"));
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments")
+            .arg(format!("{}/should-not-match.html", mock_server.uri()))
+            .assert()
+            .success()
+            .stdout(contains("4 Total"))
+            .stdout(contains("0 Errors"));
+
         cargo_bin_cmd!()
             .arg("--include-text-fragments")
             .arg(format!("{}/should-match.html", mock_server.uri()))
             .assert()
             .success()
-            .stdout(contains("4 Total"));
+            .stdout(contains("4 Total"))
+            .stdout(contains("0 Errors"));
 
         cargo_bin_cmd!()
             .arg("--include-text-fragments")
