@@ -1,6 +1,7 @@
 use crate::{
     BasicAuthCredentials, ErrorKind, FileType, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
+    checker::text_fragments,
     quirks::Quirks,
     ratelimit::HostPool,
     retry::RetryExt,
@@ -13,6 +14,12 @@ use octocrab::Octocrab;
 use reqwest::{Request, header::CONTENT_TYPE};
 use std::{borrow::Cow, collections::HashSet, path::Path, sync::Arc, time::Duration};
 use url::Url;
+
+#[derive(Debug, PartialEq, Eq)]
+struct ParsedFragment<'a> {
+    anchor_fragment: Option<&'a str>,
+    text_directive: Option<&'a str>,
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct WebsiteChecker {
@@ -47,6 +54,11 @@ pub(crate) struct WebsiteChecker {
     /// Will be disabled if the request method is `HEAD`.
     include_fragments: bool,
 
+    /// Whether to check the existence of text fragments in the response HTML files.
+    ///
+    /// Will be disabled if the request method is `HEAD`.
+    include_text_fragments: bool,
+
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
 
@@ -61,6 +73,33 @@ pub(crate) struct WebsiteChecker {
 }
 
 impl WebsiteChecker {
+    fn parse_fragment(url: &Url) -> ParsedFragment<'_> {
+        let Some(fragment) = url.fragment() else {
+            return ParsedFragment {
+                anchor_fragment: None,
+                text_directive: None,
+            };
+        };
+
+        let Some((element, text_directive)) = fragment.split_once(":~:text=") else {
+            return ParsedFragment {
+                anchor_fragment: Some(fragment),
+                text_directive: None,
+            };
+        };
+
+        ParsedFragment {
+            anchor_fragment: (!element.is_empty()).then_some(element),
+            text_directive: Some(text_directive),
+        }
+    }
+
+    fn with_element_fragment(url: &Url, fragment: Option<&str>) -> Url {
+        let mut updated = url.clone();
+        updated.set_fragment(fragment);
+        updated
+    }
+
     /// Get a reference to `HostPool`
     #[must_use]
     pub(crate) fn host_pool(&self) -> Arc<HostPool> {
@@ -78,6 +117,7 @@ impl WebsiteChecker {
         require_https: bool,
         plugin_request_chain: RequestChain,
         include_fragments: bool,
+        include_text_fragments: bool,
         host_pool: Arc<HostPool>,
     ) -> Self {
         Self {
@@ -90,6 +130,7 @@ impl WebsiteChecker {
             accepted,
             require_https,
             include_fragments,
+            include_text_fragments,
             fragment_checker: FragmentChecker::new(),
             host_pool,
         }
@@ -120,22 +161,25 @@ impl WebsiteChecker {
     async fn check_default(&self, request: Request) -> Status {
         let method = request.method().clone();
         let request_url = request.url().clone();
+        let parsed_fragment = Self::parse_fragment(&request_url);
+        let anchor_fragment_url =
+            Self::with_element_fragment(&request_url, parsed_fragment.anchor_fragment);
 
-        let check_request_fragments = self.include_fragments
+        let check_anchor_fragments = self.include_fragments
             && method == Method::GET
-            && request_url.fragment().is_some_and(|x| !x.is_empty());
+            && parsed_fragment.anchor_fragment.is_some();
+        let check_text_fragments = self.include_text_fragments
+            && method == Method::GET
+            && parsed_fragment.text_directive.is_some();
+        let needs_body = check_anchor_fragments || check_text_fragments;
 
-        match self
-            .host_pool
-            .execute_request(request, check_request_fragments)
-            .await
-        {
+        match self.host_pool.execute_request(request, needs_body).await {
             Ok(response) => {
                 let status = Status::new(&response, &self.accepted);
                 // when `accept=200,429`, `status_code=429` will be treated as success
                 // but we are not able the check the fragment since it's inapplicable.
                 if let Some(content) = response.text
-                    && check_request_fragments
+                    && needs_body
                     && response.status.is_success()
                 {
                     let Some(content_type) = response
@@ -159,8 +203,23 @@ impl WebsiteChecker {
                         _ => return status,
                     };
 
-                    self.check_html_fragment(request_url, status, &content, file_type)
-                        .await
+                    let status = if check_anchor_fragments {
+                        self.check_anchor_fragment(anchor_fragment_url, status, &content, file_type)
+                            .await
+                    } else {
+                        status
+                    };
+
+                    if check_text_fragments {
+                        text_fragments::check_text_fragments(
+                            &request_url,
+                            status,
+                            &content,
+                            file_type,
+                        )
+                    } else {
+                        status
+                    }
                 } else {
                     status
                 }
@@ -169,7 +228,7 @@ impl WebsiteChecker {
         }
     }
 
-    async fn check_html_fragment(
+    async fn check_anchor_fragment(
         &self,
         url: Url,
         status: Status,
@@ -346,7 +405,9 @@ mod tests {
 
     use http::Method;
     use octocrab::Octocrab;
+    use reqwest::Url;
 
+    use super::ParsedFragment;
     use crate::{
         Uri,
         chain::RequestChain,
@@ -386,7 +447,53 @@ mod tests {
             false,
             RequestChain::default(),
             false,
+            false,
             Arc::new(host_pool),
         )
+    }
+
+    #[test]
+    fn parses_pure_text_fragment_directive() {
+        let url = Url::parse("https://example.com/#:~:text=needle").unwrap();
+
+        let parsed = WebsiteChecker::parse_fragment(&url);
+
+        assert_eq!(
+            parsed,
+            ParsedFragment {
+                anchor_fragment: None,
+                text_directive: Some("needle"),
+            }
+        );
+    }
+
+    #[test]
+    fn parses_element_fragment_before_text_directive() {
+        let url = Url::parse("https://example.com/#section:~:text=needle").unwrap();
+
+        let parsed = WebsiteChecker::parse_fragment(&url);
+
+        assert_eq!(
+            parsed,
+            ParsedFragment {
+                anchor_fragment: Some("section"),
+                text_directive: Some("needle"),
+            }
+        );
+    }
+
+    #[test]
+    fn parses_plain_element_fragment() {
+        let url = Url::parse("https://example.com/#section").unwrap();
+
+        let parsed = WebsiteChecker::parse_fragment(&url);
+
+        assert_eq!(
+            parsed,
+            ParsedFragment {
+                anchor_fragment: Some("section"),
+                text_directive: None,
+            }
+        );
     }
 }
