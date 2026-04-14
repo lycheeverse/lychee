@@ -61,10 +61,40 @@ pub(crate) async fn check(
 
     let (waiter, wait_guard) = WaitGroup::new();
 
-    // split initial requests into: valid requests, fatal user input errors, and non-fatal request
-    // building errors.
-    // note that this stream closure *owns* a wait guard, so we must drop the closure
-    // after it's finished to avoid deadlock. this is done using the `.chain()` combinator.
+    // Split initial requests into three categories by chaining two `partition_result` calls:
+    //   1. `valid_initial_requests` — well-formed `Request` values ready to be checked.
+    //   2. `request_error_responses` — non-fatal errors that can be turned into `Response`
+    //      values and reported normally (e.g. a bad URL in a source file).
+    //   3. `fatal_errors` — errors so severe that the whole run should be aborted
+    //      (e.g. an unreadable input file).
+    //
+    // The stream closure *owns* a `WaitGuard`, so we must drop the closure after it is
+    // exhausted to avoid deadlocking the `WaitGroup`. The `.chain(stream::empty())` ensures
+    // the closure — and therefore the last guard clone it holds — is dropped as soon as the
+    // source stream ends, rather than being kept alive inside the combinator machinery.
+    //
+    // ┌─────────────────────────────────────────────────────────────────────────────┐
+    // │  DEADLOCK NOTICE — `partition_result` requires concurrent polling           │
+    // │                                                                             │
+    // │  Each call to `partition_result` returns two `PartitionedStream` halves     │
+    // │  that share a single internal driver.  If either half is never polled,      │
+    // │  the driver will eventually block trying to send into the stalled channel,  │
+    // │  and the entire pipeline will hang.                                         │
+    // │                                                                             │
+    // │  Both halves from the first call (`valid_initial_requests` and              │
+    // │  `early_errors`) are consumed further below: `valid_initial_requests` flows │
+    // │  into `combined_requests` and `early_errors` is immediately split again by  │
+    // │  the second `partition_result` call.                                        │
+    // │                                                                             │
+    // │  Both halves from the second call (`request_error_responses` and            │
+    // │  `fatal_errors`) are also consumed: `request_error_responses` is merged     │
+    // │  into `combined_responses` via `select_with_strategy`, and `fatal_errors`   │
+    // │  is polled in the `select` at the bottom of this function.                  │
+    // │                                                                             │
+    // │  All four streams therefore end up being driven inside the single           │
+    // │  `futures::future::select(all_done, fatal_errors.next())` await, which      │
+    // │  keeps the pipeline moving without deadlock.                                │
+    // └─────────────────────────────────────────────────────────────────────────────┘
     let (valid_initial_requests, early_errors) = requests
         .inspect(|_| progress.inc_length(1))
         .map(move |request| (request, wait_guard.clone()))
@@ -76,8 +106,13 @@ pub(crate) async fn check(
                 Err(Err(fatal_error)) => Err(Err((guard, fatal_error))),
             },
         )
+        // First split: Ok((guard, Request))  →  valid_initial_requests
+        //              Err(...)              →  early_errors
         .partition_result::<(WaitGuard, Request), Result<_, _>>();
 
+    // Second split of `early_errors`:
+    //   Ok((guard, Response))    →  request_error_responses  (reported as normal results)
+    //   Err((guard, ErrorKind))  →  fatal_errors             (abort the run)
     let (request_error_responses, mut fatal_errors) =
         early_errors.partition_result::<(WaitGuard, Response), (WaitGuard, ErrorKind)>();
 
