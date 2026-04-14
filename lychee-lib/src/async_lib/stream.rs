@@ -28,6 +28,11 @@ pub type ConcurrentlyWith<St, Fut> =
     stream::TakeUntil<St, future::Join<Fut, future::Pending<Never>>>;
 
 /// Stream returned by [`StreamExt::partition_result`].
+///
+/// The `SenderFut` parameter allows the [`Partitioned`] stream to optionally
+/// carry a future which generates and distributes values into the [`Partitioned`]
+/// streams. This makes it more convenient to use and ensures the sender task
+/// will be polled alongside the receiver.
 pub type Partitioned<T, SenderFut = future::Pending<Never>> =
     stream::TakeUntil<ReceiverStream<T>, future::Join<SenderFut, future::Pending<Never>>>;
 
@@ -57,9 +62,15 @@ pub trait StreamExt: Stream {
     /// Partitions the given stream of [`Result<T, E>`] into two streams&mdash;one yielding the
     /// `T` values and one yielding the `E` values.
     ///
-    /// **Deadlocks**: Both returned streams must be polled concurrently to avoid deadlock!
+    /// # Deadlocks
+    ///
+    /// Both returned streams must be polled concurrently to avoid deadlock!
     /// This combinator performs minimal buffering. If only one output stream is polled,
     /// encountering a result of the opposite type will block the stream.
+    ///
+    /// The typical way to avoid this is to merge both halves back together with
+    /// something like [`futures::stream::select`] or, if the stream is collected
+    /// into a Future, [`futures::future::join`] or [`futures::future::select`] .
     #[must_use = "partitioned streams must be polled, and both streams should be polled concurrently"]
     fn partition_result<T, E>(
         self,
@@ -87,10 +98,15 @@ pub trait StreamExt: Stream {
         // When finished, `.fuse()` drops the closure which owns the channel senders.
         // This allows the receiving streams to terminate.
 
-        (
-            ReceiverStream::new(ok_recv).concurrently_with(driver),
-            ReceiverStream::new(err_recv).concurrently_with(future::pending()),
-        )
+        // The Ok stream includes the driver, so polling this causes
+        // the driver to forward values to the correct channel.
+        let ok_stream = ReceiverStream::new(ok_recv).concurrently_with(driver);
+
+        // The Err stream is a simple receiver stream. `pending` will never resolve and does
+        // nothing.
+        let err_stream = ReceiverStream::new(err_recv).concurrently_with(future::pending());
+
+        (ok_stream, err_stream)
     }
 }
 
