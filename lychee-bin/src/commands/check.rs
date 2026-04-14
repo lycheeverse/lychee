@@ -61,9 +61,9 @@ pub(crate) async fn check(
 
     let (waiter, wait_guard) = WaitGroup::new();
 
-    // split initial requests into: valid requests, fatal user input errors, and non-fatal request
+    // Split initial requests into: valid requests, fatal user input errors, and non-fatal request
     // building errors.
-    // note that this stream closure *owns* a wait guard, so we must drop the closure
+    // Note that this stream closure *owns* a wait guard, so we must drop the closure
     // after it's finished to avoid deadlock. this is done using the `.chain()` combinator.
     let (valid_initial_requests, early_errors) = requests
         .inspect(|_| progress.inc_length(1))
@@ -134,7 +134,7 @@ pub(crate) async fn check(
     {
         // this `await` is where execution begins. all streams start running and
         // we wait for `all_done` or an early return with an error value.
-        match futures::future::select(std::pin::pin!(all_done), fatal_errors.next()).await {
+        match futures::future::select(pin!(all_done), fatal_errors.next()).await {
             Either::Left(((), _fatal_errors)) => (),
             Either::Right((None, remaining)) => remaining.await,
             Either::Right((Some((_guard, fatal_error)), _remaining)) => {
