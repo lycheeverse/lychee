@@ -77,15 +77,15 @@ pub trait StreamExt: Stream {
             .map(move |x| (x, ok_send.clone(), err_send.clone()))
             .for_each(async |(x, ok_send, err_send)| match x {
                 Ok(x) => ok_send.send(x).await.unwrap_or_else(|_| {
-                    warn!("partition_result: cannot send item. Ok channel has been closed")
+                    warn!("partition_result: cannot send item. Ok channel has been closed");
                 }),
                 Err(x) => err_send.send(x).await.unwrap_or_else(|_| {
-                    warn!("partition_result: cannot send item. Err channel has been closed")
+                    warn!("partition_result: cannot send item. Err channel has been closed");
                 }),
             })
             .fuse();
         // When finished, `.fuse()` drops the closure which owns the channel senders.
-        // This is important for termination.
+        // This allows the receiving streams to terminate.
 
         (
             ReceiverStream::new(ok_recv).concurrently_with(driver),

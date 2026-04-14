@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
+use futures::stream;
 use futures::{Stream, StreamExt, future::Either};
 use log::warn;
 use reqwest::Url;
@@ -16,7 +17,7 @@ use lychee_lib::async_lib::stream::StreamExt as _;
 use lychee_lib::async_lib::waiter::{WaitGroup, WaitGuard};
 use lychee_lib::ratelimit::HostPool;
 use lychee_lib::{Client, ErrorKind, Request, Response};
-use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_stream::wrappers::ReceiverStream;
 
 use crate::CommandParams;
 use crate::formatters::stats::ResponseStats;
@@ -62,40 +63,44 @@ pub(crate) async fn check(
 
     let (waiter, wait_guard) = WaitGroup::new();
 
-    // Split initial requests into: valid requests, fatal user input errors, and
-    // non-fatal request building errors. Note that this stream closure *owns*
-    // a wait guard, so we must drop the closure after it's finished to avoid
-    // deadlock. This is done using the `.chain()` combinator.
-    let (valid_initial_requests, early_errors) = requests
+    // Split initial requests into: valid requests and request errors. Note that
+    // this stream closure *owns* a wait guard, so we must drop the closure after
+    // it's finished to avoid deadlock. This is done using the `.chain()` combinator.
+    let (valid_initial_requests, request_errors) = requests
         .inspect(|_| progress.inc_length(1))
         .map(move |request| (request, wait_guard.clone()))
         .chain(futures::stream::empty())
+        .map(|(request, guard)| match request {
+            Ok(request) => Ok((guard, request)),
+            Err(request_error) => Err((guard, request_error)),
+        })
+        .partition_result::<(WaitGuard, Request), (WaitGuard, RequestError)>();
+
+    // Further partition the request errors into request building errors (like
+    // unresolved relative URLs) and fatal errors when fetching a user input fails.
+    let (request_building_errors, mut fatal_errors) = request_errors
         .map(
-            |(request, guard)| match request.map_err(RequestError::into_response) {
-                Ok(request) => Ok((guard, request)),
-                Err(Ok(req_error_resp)) => Err(Ok((guard, req_error_resp))),
-                Err(Err(fatal_error)) => Err(Err((guard, fatal_error))),
+            |(guard, request_error)| match request_error.into_response() {
+                Ok(request_building_error) => Ok((guard, request_building_error)),
+                Err(fatal_user_input_error) => Err((guard, fatal_user_input_error)),
             },
         )
-        .partition_result::<(WaitGuard, Request), Result<_, _>>();
+        .partition_result::<(WaitGuard, Response), (WaitGuard, ErrorKind)>();
 
-    let (request_error_responses, mut fatal_errors) =
-        early_errors.partition_result::<(WaitGuard, Response), (WaitGuard, ErrorKind)>();
+    let (recursive_channel_send, recursive_channel_recv) = mpsc::channel(max_concurrency);
 
-    let (recursive_channel_send, recursive_channel_recv) =
-        mpsc::unbounded_channel::<(WaitGuard, Request)>();
-
-    let send_recursive_req = |(guard, req)| {
+    let send_recursive_req = async |(guard, req)| {
         progress.inc_length(1);
         recursive_channel_send
             .send((guard, req))
+            .await
             .unwrap_or_else(|e| warn!("unable to send recursive uri {:?} - channel closed?", e.0));
     };
 
     // Combine recursive requests and input requests.
     let requests = futures::stream::select_with_strategy(
         valid_initial_requests,
-        UnboundedReceiverStream::new(recursive_channel_recv).take_until(waiter.wait()),
+        ReceiverStream::new(recursive_channel_recv).take_until(waiter.wait()),
         |()| futures::stream::PollNext::Right, // Recursive requests consume memory, prefer those.
     );
 
@@ -105,6 +110,8 @@ pub(crate) async fn check(
     let check_responses = requests
         .map(async |(guard, request)| -> (WaitGuard, Response) {
             let check_url = |r| check_url(&client, r);
+            // TODO: eventually, this should be a checker that uses a cache, rather than
+            // a cache that uses a checker.
             let response = cache
                 .handle(&client, &cache_exclude_status, &accept, request, check_url)
                 .await;
@@ -112,7 +119,7 @@ pub(crate) async fn check(
         })
         .buffer_unordered(max_concurrency);
 
-    let responses = futures::stream::select(check_responses, request_error_responses);
+    let responses = futures::stream::select(check_responses, request_building_errors);
 
     // Increment stats and extract recursive uris from responses.
     let recursive_uris = responses.map(|(_guard, response)| -> Vec<(WaitGuard, Request)> {
@@ -124,9 +131,11 @@ pub(crate) async fn check(
         recursive_uris
     });
 
-    // Send recursive uris back to the initial channel.
-    let all_done =
-        recursive_uris.for_each(async |uris| uris.into_iter().for_each(send_recursive_req));
+    // Send recursive uris back to the initial channel. This will terminate
+    // only when all requests are finished and all `WaitGuard`s are dropped.
+    let all_done = recursive_uris
+        .flat_map(stream::iter)
+        .for_each(send_recursive_req);
 
     let start = std::time::Instant::now();
 
@@ -135,9 +144,9 @@ pub(crate) async fn check(
     // This `await` is where execution begins. All streams are polled concurrently
     // and we wait for `all_done` or an early return with an error value.
     // WARNING: Before changing the `.await` structure, be aware of the
-    // concurrent polling requirements imposed by
-    // [`lychee_lib::async_lib::stream::partition_result`] in order to avoid
-    // deadlock!
+    // requirements imposed by [`lychee_lib::async_lib::stream::partition_result`].
+    // Partitioned streams must be concurrently polled. At the moment, this is
+    // achieved because all partitioned streams are within `all_done`.
     match futures::future::select(pin!(all_done), fatal_errors.next()).await {
         Either::Left(((), _fatal_errors)) => (),
         Either::Right((None, remaining)) => remaining.await,
