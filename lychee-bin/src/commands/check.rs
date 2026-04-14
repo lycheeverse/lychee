@@ -1,3 +1,4 @@
+use std::pin::pin;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -40,7 +41,7 @@ pub(crate) async fn check(
         is_stdin_input,
     } = params;
 
-    /**** Config options, progress bar, and stats ****/
+    /* Config options, progress bar, and stats */
 
     let max_concurrency = cfg.max_concurrency();
 
@@ -57,14 +58,14 @@ pub(crate) async fn check(
         false => ResponseStats::default(),
     };
 
-    /*** Input streams and channels (both initial and recursive) ****/
+    /* Input streams and channels (both initial and recursive) */
 
     let (waiter, wait_guard) = WaitGroup::new();
 
-    // Split initial requests into: valid requests, fatal user input errors, and non-fatal request
-    // building errors.
-    // Note that this stream closure *owns* a wait guard, so we must drop the closure
-    // after it's finished to avoid deadlock. this is done using the `.chain()` combinator.
+    // Split initial requests into: valid requests, fatal user input errors, and
+    // non-fatal request building errors. Note that this stream closure *owns*
+    // a wait guard, so we must drop the closure after it's finished to avoid
+    // deadlock. This is done using the `.chain()` combinator.
     let (valid_initial_requests, early_errors) = requests
         .inspect(|_| progress.inc_length(1))
         .map(move |request| (request, wait_guard.clone()))
@@ -91,16 +92,16 @@ pub(crate) async fn check(
             .unwrap_or_else(|e| warn!("unable to send recursive uri {:?} - channel closed?", e.0));
     };
 
-    // combine recursive requests and input requests.
+    // Combine recursive requests and input requests.
     let combined_requests = futures::stream::select_with_strategy(
         valid_initial_requests,
         UnboundedReceiverStream::new(recursive_channel_recv).take_until(waiter.wait()),
         |()| futures::stream::PollNext::Right, // prefer requests from recursive channel
     );
 
-    /*** Main link checking pipeline ****/
+    /* Main link checking pipeline */
 
-    // perform requests. this is the only part of the main pipeline that happens concurrently.
+    // Perform requests. This is the only part of the main pipeline that happens concurrently.
     let responses = combined_requests
         .map(async |(guard, request)| -> (WaitGuard, Response) {
             let check_url = |r| check_url(&client, r);
@@ -115,7 +116,8 @@ pub(crate) async fn check(
         futures::stream::select_with_strategy(responses, request_error_responses, |()| {
             futures::stream::PollNext::Right
         });
-    // increment stats and extract recursive uris from responses.
+
+    // Increment stats and extract recursive uris from responses.
     let recursive_uris = combined_responses.map(|(guard, response)| -> Vec<(WaitGuard, Request)> {
         progress.update(Some(response.body()));
         stats.add(response);
@@ -126,25 +128,30 @@ pub(crate) async fn check(
         recursive_uris
     });
 
-    // send recursive uris back to the initial channel.
+    // Send recursive uris back to the initial channel.
     let all_done =
         recursive_uris.for_each(async |uris| uris.into_iter().for_each(send_recursive_req));
 
     let start = std::time::Instant::now();
-    {
-        // this `await` is where execution begins. all streams start running and
-        // we wait for `all_done` or an early return with an error value.
-        match futures::future::select(pin!(all_done), fatal_errors.next()).await {
-            Either::Left(((), _fatal_errors)) => (),
-            Either::Right((None, remaining)) => remaining.await,
-            Either::Right((Some((_guard, fatal_error)), _remaining)) => {
-                progress.finish("Error while fetching initial inputs");
-                return Err(fatal_error);
-            }
+
+    /* Setup complete and streams ready. Starting execution */
+
+    // This `await` is where execution begins. All streams are polled concurrently
+    // and we wait for `all_done` or an early return with an error value.
+    // WARNING: Before changing the `.await` structure, be aware of the
+    // concurrent polling requirements imposed by
+    // [`lychee_lib::async_lib::stream::partition_result`] in order to avoid
+    // deadlock!
+    match futures::future::select(pin!(all_done), fatal_errors.next()).await {
+        Either::Left(((), _fatal_errors)) => (),
+        Either::Right((None, remaining)) => remaining.await,
+        Either::Right((Some((_guard, fatal_error)), _remaining)) => {
+            progress.finish("Error while fetching initial inputs");
+            return Err(fatal_error);
         }
     }
 
-    /*** Finalising stats and archive suggestion ****/
+    /* Main execution finished. Finalise stats and archive suggestions */
 
     progress.finish("Finished processing links");
     stats.duration = start.elapsed();

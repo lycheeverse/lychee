@@ -9,6 +9,16 @@ use futures::{future, stream};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
+/// Number of elements to store in channels which are *essentially* unbuffered.
+///
+/// This is greater than 1 because Tokio allocates channel elements in blocks
+/// of size 16 or 32, so this uses no extra memory and gives the Tokio runtime
+/// the option to do multiple enqueue operations in a row, if it decides this
+/// is beneficial.
+///
+/// Users of these channels should *not* rely on any buffering behaviour.
+const TOKIO_SMALL_CHANNEL_SIZE: usize = 16;
+
 /// Stream returned by [`pending_until`].
 pub type PendingUntil<T, Fut> = stream::TakeUntil<stream::Pending<T>, Fut>;
 
@@ -49,6 +59,7 @@ pub trait StreamExt: Stream {
     /// **Deadlocks**: Both returned streams must be polled concurrently to avoid deadlock!
     /// This combinator performs minimal buffering. If only one output stream is polled,
     /// encountering a result of the opposite type will block the stream.
+    #[must_use = "partitioned streams must be polled, and both streams should be polled concurrently"]
     fn partition_result<T, E>(
         self,
     ) -> (
@@ -58,8 +69,8 @@ pub trait StreamExt: Stream {
     where
         Self: Stream<Item = Result<T, E>> + Sized,
     {
-        let (ok_send, ok_recv) = mpsc::channel(16);
-        let (err_send, err_recv) = mpsc::channel(16);
+        let (ok_send, ok_recv) = mpsc::channel(TOKIO_SMALL_CHANNEL_SIZE);
+        let (err_send, err_recv) = mpsc::channel(TOKIO_SMALL_CHANNEL_SIZE);
 
         let driver = self
             .map(move |x| (x, ok_send.clone(), err_send.clone()))
@@ -68,6 +79,8 @@ pub trait StreamExt: Stream {
                 Err(x) => err_send.send(x).await.unwrap(),
             })
             .fuse();
+        // When finished, `.fuse()` drops the closure which owns the channel senders.
+        // This is important for termination.
 
         (
             ReceiverStream::new(ok_recv).concurrently_with(driver),
