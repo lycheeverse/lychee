@@ -963,7 +963,6 @@ impl Config {
             (
                 option { $( $optional:ident ),* $(,)? },
                 chain { $( $chainable:ident ),* $(,)? },
-                bool { $( $bool:ident ),* $(,)? },
             ) => {
                 Config {
                     hosts,
@@ -971,13 +970,6 @@ impl Config {
                     $( $chainable: self.$chainable.into_iter().chain(other.$chainable).collect(), )*
                     // Use self if present, otherwise use other
                     $( $optional: self.$optional.or(other.$optional), )*
-                    // Use `true` when self or other is `true`.
-                    // Note that this has the drawback, that a value cannot be overwritten with
-                    // `false` in the merge chain, as there is no way to distinguish
-                    // between "default" `false` and user-provided `false`.
-                    // We would have to use `Option<bool>` in order to do that.
-                    // See: https://github.com/lycheeverse/lychee/issues/2051
-                    $( $bool: self.$bool || other.$bool, )*
                 }
             };
         }
@@ -1047,13 +1039,6 @@ impl Config {
                 remap,
                 scheme,
                 header,
-            },
-            bool {
-                /*
-                 * None for now. We prefer to use `Option<bool>` for boolean flags, because it allows us to distinguish between
-                 * "default" `false` and user-provided `false`, which is important for merging configs.
-                 * If you have a good reason, feel free to add `bool`s here which should be merged with OR.
-                 */
             },
         )
     }
