@@ -349,8 +349,6 @@ Options:
       --accept-timeouts[=<false|true>]
           Accept timed out requests and return exit code 0 when encountering timeouts but not any other errors
 
-          [default: false]
-
       --archive <ARCHIVE>
           Web archive to use to provide suggestions for `--suggest`.
 
@@ -396,8 +394,6 @@ Options:
       --cache[=<false|true>]
           Use request cache stored on disk at `.lycheecache`
 
-          [default: false]
-
       --cache-exclude-status <CACHE_EXCLUDE_STATUS>
           A list of status codes that will be ignored from the cache
 
@@ -432,18 +428,12 @@ Options:
       --dump[=<false|true>]
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
 
-          [default: false]
-
       --dump-inputs[=<false|true>]
           Don't perform any link extraction and checking. Instead, dump all input sources from which links would be collected
-
-          [default: false]
 
   -E, --exclude-all-private[=<false|true>]
           Exclude all private IPs from checking.
           Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
-
-          [default: false]
 
       --exclude <EXCLUDE>
           Exclude URLs and mail addresses from checking. The values are treated as regular expressions
@@ -454,20 +444,14 @@ Options:
       --exclude-link-local[=<false|true>]
           Exclude link-local IP address range from checking
 
-          [default: false]
-
       --exclude-loopback[=<false|true>]
           Exclude loopback IP address range and localhost from checking
-
-          [default: false]
 
       --exclude-path <EXCLUDE_PATH>
           Exclude paths from getting checked. The values are treated as regular expressions
 
       --exclude-private[=<false|true>]
           Exclude private IP address ranges from checking
-
-          [default: false]
 
       --extensions <EXTENSIONS>
           A list of file extensions. Files not matching the specified extensions are skipped.
@@ -530,8 +514,6 @@ Options:
       --glob-ignore-case[=<false|true>]
           Ignore case when expanding filesystem path glob inputs
 
-          [default: false]
-
   -h, --help
           Print help (see a summary with '-h')
 
@@ -547,8 +529,6 @@ Options:
 
       --hidden[=<false|true>]
           Do not skip hidden directories and files
-
-          [default: false]
 
       --host-concurrency <HOST_CONCURRENCY>
           Default maximum concurrent requests per host (default: 10)
@@ -577,12 +557,8 @@ Options:
       --host-stats[=<false|true>]
           Show per-host statistics at the end of the run
 
-          [default: false]
-
   -i, --insecure[=<false|true>]
           Proceed for server connections considered insecure (invalid TLS)
-
-          [default: false]
 
       --include <INCLUDE>
           URLs to check (supports regex). Has preference over all excludes
@@ -590,22 +566,14 @@ Options:
       --include-fragments[=<false|true>]
           Enable the checking of fragments in links
 
-          [default: false]
-
       --include-mail[=<false|true>]
           Also check email addresses
-
-          [default: false]
 
       --include-verbatim[=<false|true>]
           Find links in verbatim sections like `pre`- and `code` blocks
 
-          [default: false]
-
       --include-wikilinks[=<false|true>]
           Check WikiLinks in Markdown files, this requires specifying --base-url
-
-          [default: false]
 
       --index-files <INDEX_FILES>
           When checking locally, resolves directory links to a separate index file.
@@ -667,20 +635,14 @@ Options:
           Do not show progress bar.
           This is recommended for non-interactive shells (e.g. for continuous integration)
 
-          [default: false]
-
       --no-ignore[=<false|true>]
           Do not skip files that would otherwise be ignored by '.gitignore', '.ignore', or the global ignore file
-
-          [default: false]
 
   -o, --output <OUTPUT>
           Output file of status report
 
       --offline[=<false|true>]
           Only check local files and block network requests
-
-          [default: false]
 
   -p, --preprocess <COMMAND>
           Preprocess input files with the given command.
@@ -723,8 +685,6 @@ Options:
       --require-https[=<false|true>]
           When HTTPS is available, treat HTTP links as errors
 
-          [default: false]
-
       --root-dir <ROOT_DIR>
           Root directory to use when checking absolute links in local files. This option is
           required if absolute links appear in local files, otherwise those links will be
@@ -747,12 +707,8 @@ Options:
       --skip-missing[=<false|true>]
           Skip missing input files (default is to error if they don't exist)
 
-          [default: false]
-
       --suggest[=<false|true>]
           Suggest link replacements for broken links, using a web archive. The web archive can be specified with `--archive`
-
-          [default: false]
 
   -t, --timeout <TIMEOUT>
           Website timeout in seconds from connect to response finished
