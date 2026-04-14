@@ -70,7 +70,6 @@ impl ArgBoolOptionalExt for Arg {
             .require_equals(true) // Ensure that `--flag value` is not misinterpreted as `--flag=true value`
             .value_name("false|true") // Set the value name for help messages
             .hide_possible_values(true) // We already provide the values
-            .default_value("false") // Default to false if the flag is not provided
     }
 }
 
