@@ -1079,6 +1079,25 @@ This convention also simplifies our default value testing."
     }
 
     #[test]
+    #[expect(clippy::bool_assert_comparison)]
+    fn test_bool_flags() {
+        // Values for boolean flags can be specified explicitly.
+        let explicit = parse_options(vec!["lychee", "-", "--dump=false"]);
+        assert_eq!(explicit.config.dump(), false);
+
+        let explicit = parse_options(vec!["lychee", "-", "--dump=true"]);
+        assert_eq!(explicit.config.dump(), true);
+
+        // Or implicitly
+        let implicit = parse_options(vec!["lychee", "-", "--dump"]);
+        assert_eq!(implicit.config.dump(), true);
+
+        // They default to `false`
+        let default = parse_options(vec!["lychee", "-"]);
+        assert_eq!(default.config.dump(), false);
+    }
+
+    #[test]
     fn test_header_parsing_and_merging() {
         // Simulate commandline arguments with multiple headers
         let args = vec![
