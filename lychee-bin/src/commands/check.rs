@@ -93,16 +93,16 @@ pub(crate) async fn check(
     };
 
     // Combine recursive requests and input requests.
-    let combined_requests = futures::stream::select_with_strategy(
+    let requests = futures::stream::select_with_strategy(
         valid_initial_requests,
         UnboundedReceiverStream::new(recursive_channel_recv).take_until(waiter.wait()),
-        |()| futures::stream::PollNext::Right, // prefer requests from recursive channel
+        |()| futures::stream::PollNext::Right, // Recursive requests consume memory, prefer those.
     );
 
     /* Main link checking pipeline */
 
     // Perform requests. This is the only part of the main pipeline that happens concurrently.
-    let responses = combined_requests
+    let check_responses = requests
         .map(async |(guard, request)| -> (WaitGuard, Response) {
             let check_url = |r| check_url(&client, r);
             let response = cache
@@ -112,18 +112,14 @@ pub(crate) async fn check(
         })
         .buffer_unordered(max_concurrency);
 
-    let combined_responses =
-        futures::stream::select_with_strategy(responses, request_error_responses, |()| {
-            futures::stream::PollNext::Right
-        });
+    let responses = futures::stream::select(check_responses, request_error_responses);
 
     // Increment stats and extract recursive uris from responses.
-    let recursive_uris = combined_responses.map(|(guard, response)| -> Vec<(WaitGuard, Request)> {
+    let recursive_uris = responses.map(|(_guard, response)| -> Vec<(WaitGuard, Request)> {
         progress.update(Some(response.body()));
         stats.add(response);
 
         let recursive_uris = vec![]; // currently unused.
-        let _ = guard;
 
         recursive_uris
     });

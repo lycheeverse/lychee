@@ -6,6 +6,7 @@ use futures::StreamExt as _;
 use futures::future::FusedFuture;
 use futures::never::Never;
 use futures::{future, stream};
+use log::warn;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -75,8 +76,12 @@ pub trait StreamExt: Stream {
         let driver = self
             .map(move |x| (x, ok_send.clone(), err_send.clone()))
             .for_each(async |(x, ok_send, err_send)| match x {
-                Ok(x) => ok_send.send(x).await.unwrap(),
-                Err(x) => err_send.send(x).await.unwrap(),
+                Ok(x) => ok_send.send(x).await.unwrap_or_else(|_| {
+                    warn!("partition_result: cannot send item. Ok channel has been closed")
+                }),
+                Err(x) => err_send.send(x).await.unwrap_or_else(|_| {
+                    warn!("partition_result: cannot send item. Err channel has been closed")
+                }),
             })
             .fuse();
         // When finished, `.fuse()` drops the closure which owns the channel senders.
