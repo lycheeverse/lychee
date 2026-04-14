@@ -56,6 +56,21 @@ occurrences take precedence over previous occurrences.
     loaders::lychee_toml::LYCHEE_CONFIG_FILE
 );
 
+use clap::Arg;
+
+/// Extension trait for `clap::Arg` to add a custom method for boolean flags that can be specified without a value (e.g. `--flag` is equivalent to `--flag=true`).
+trait ArgBoolOptionalExt {
+    fn optional_bool_flag(self) -> Self;
+}
+
+impl ArgBoolOptionalExt for Arg {
+    fn optional_bool_flag(self) -> Self {
+        self.default_missing_value("true") // Ensure `--flag` is treated as `--flag=true`
+            .num_args(0..=1) // Allow the flag to be specified with no value
+            .require_equals(true) // Ensure that `--flag value` is not misinterpreted as `--flag=true value`
+    }
+}
+
 /// lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses
 /// in local files and websites. It supports Markdown and HTML and works with other file formats.
 ///
@@ -156,24 +171,12 @@ pub(crate) struct Config {
 
     /// Do not show progress bar.
     /// This is recommended for non-interactive shells (e.g. for continuous integration)
-    #[arg(
-        short,
-        long,
-        verbatim_doc_comment,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(short, long, verbatim_doc_comment, optional_bool_flag())]
     #[serde(default)]
     no_progress: Option<bool>,
 
     /// Show per-host statistics at the end of the run
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     host_stats: Option<bool>,
 
@@ -203,12 +206,7 @@ pub(crate) struct Config {
     default_extension: Option<String>,
 
     #[arg(help = HELP_MSG_CACHE)]
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     cache: Option<bool>,
 
@@ -238,23 +236,13 @@ pub(crate) struct Config {
 
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     dump: Option<bool>,
 
     /// Don't perform any link extraction and checking.
     /// Instead, dump all input sources from which links would be collected
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     dump_inputs: Option<bool>,
 
@@ -266,12 +254,7 @@ pub(crate) struct Config {
 
     /// Suggest link replacements for broken links, using a web archive.
     /// The web archive can be specified with `--archive`
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     suggest: Option<bool>,
 
@@ -336,13 +319,7 @@ pub(crate) struct Config {
     user_agent: Option<String>,
 
     /// Proceed for server connections considered insecure (invalid TLS)
-    #[arg(
-        short,
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(short, long, optional_bool_flag())]
     #[serde(default)]
     insecure: Option<bool>,
 
@@ -354,12 +331,7 @@ pub(crate) struct Config {
     pub(crate) scheme: Vec<String>,
 
     /// Only check local files and block network requests.
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     offline: Option<bool>,
 
@@ -387,54 +359,27 @@ pub(crate) struct Config {
 
     /// Exclude all private IPs from checking.
     /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
-    #[arg(
-        short = 'E',
-        long,
-        verbatim_doc_comment,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(short = 'E', long, verbatim_doc_comment, optional_bool_flag())]
     #[serde(default)]
     exclude_all_private: Option<bool>,
 
     /// Exclude private IP address ranges from checking
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     exclude_private: Option<bool>,
 
     /// Exclude link-local IP address range from checking
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     exclude_link_local: Option<bool>,
 
     /// Exclude loopback IP address range and localhost from checking
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     exclude_loopback: Option<bool>,
 
     /// Also check email addresses
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     include_mail: Option<bool>,
 
@@ -526,22 +471,12 @@ pub(crate) struct Config {
 
     /// Accept timed out requests and return exit code 0
     /// when encountering timeouts but not any other errors.
-    #[arg(
-        long,
-        default_missing_value = "true", // `--flag` is equivalent to `--flag=true`
-        num_args = 0..=1, // allow `--flag` with no value
-        require_equals = true, // ensures `--flag parameter` is interpreted as `--flag=true parameter`
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     accept_timeouts: Option<bool>,
 
     /// Enable the checking of fragments in links.
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     include_fragments: Option<bool>,
 
@@ -620,53 +555,28 @@ pub(crate) struct Config {
     pub(crate) github_token: Option<SecretString>,
 
     /// Skip missing input files (default is to error if they don't exist)
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     skip_missing: Option<bool>,
 
     /// Do not skip files that would otherwise be ignored by
     /// '.gitignore', '.ignore', or the global ignore file.
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     no_ignore: Option<bool>,
 
     /// Do not skip hidden directories and files.
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     hidden: Option<bool>,
 
     /// Find links in verbatim sections like `pre`- and `code` blocks
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     include_verbatim: Option<bool>,
 
     /// Ignore case when expanding filesystem path glob inputs
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     glob_ignore_case: Option<bool>,
 
@@ -691,12 +601,7 @@ pub(crate) struct Config {
     pub(crate) generate: Option<GenerateMode>,
 
     /// When HTTPS is available, treat HTTP links as errors
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     require_https: Option<bool>,
 
@@ -709,12 +614,7 @@ pub(crate) struct Config {
     #[allow(clippy::doc_markdown)]
     /// Check WikiLinks in Markdown files, this requires specifying --base-url
     #[clap(requires = "base_url")]
-    #[arg(
-        long,
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
     include_wikilinks: Option<bool>,
 
