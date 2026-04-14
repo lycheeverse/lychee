@@ -346,10 +346,10 @@ Options:
 
           [default: 100..=103,200..=299]
 
-      --accept-timeouts[=<ACCEPT_TIMEOUTS>]
+      --accept-timeouts[=<false|true>]
           Accept timed out requests and return exit code 0 when encountering timeouts but not any other errors
 
-          [possible values: true, false]
+          [default: false]
 
       --archive <ARCHIVE>
           Web archive to use to provide suggestions for `--suggest`.
@@ -393,10 +393,10 @@ Options:
 
           [default: lychee.toml]
 
-      --cache[=<CACHE>]
+      --cache[=<false|true>]
           Use request cache stored on disk at `.lycheecache`
 
-          [possible values: true, false]
+          [default: false]
 
       --cache-exclude-status <CACHE_EXCLUDE_STATUS>
           A list of status codes that will be ignored from the cache
@@ -429,21 +429,21 @@ Options:
             --default-extension md
             --default-extension html
 
-      --dump[=<DUMP>]
+      --dump[=<false|true>]
           Don't perform any link checking. Instead, dump all the links extracted from inputs that would be checked
 
-          [possible values: true, false]
+          [default: false]
 
-      --dump-inputs[=<DUMP_INPUTS>]
+      --dump-inputs[=<false|true>]
           Don't perform any link extraction and checking. Instead, dump all input sources from which links would be collected
 
-          [possible values: true, false]
+          [default: false]
 
-  -E, --exclude-all-private[=<EXCLUDE_ALL_PRIVATE>]
+  -E, --exclude-all-private[=<false|true>]
           Exclude all private IPs from checking.
           Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
 
-          [possible values: true, false]
+          [default: false]
 
       --exclude <EXCLUDE>
           Exclude URLs and mail addresses from checking. The values are treated as regular expressions
@@ -451,23 +451,23 @@ Options:
       --exclude-file <EXCLUDE_FILE>
           Deprecated; use `--exclude-path` instead
 
-      --exclude-link-local[=<EXCLUDE_LINK_LOCAL>]
+      --exclude-link-local[=<false|true>]
           Exclude link-local IP address range from checking
 
-          [possible values: true, false]
+          [default: false]
 
-      --exclude-loopback[=<EXCLUDE_LOOPBACK>]
+      --exclude-loopback[=<false|true>]
           Exclude loopback IP address range and localhost from checking
 
-          [possible values: true, false]
+          [default: false]
 
       --exclude-path <EXCLUDE_PATH>
           Exclude paths from getting checked. The values are treated as regular expressions
 
-      --exclude-private[=<EXCLUDE_PRIVATE>]
+      --exclude-private[=<false|true>]
           Exclude private IP address ranges from checking
 
-          [possible values: true, false]
+          [default: false]
 
       --extensions <EXTENSIONS>
           A list of file extensions. Files not matching the specified extensions are skipped.
@@ -527,10 +527,10 @@ Options:
 
           [env: GITHUB_TOKEN]
 
-      --glob-ignore-case[=<GLOB_IGNORE_CASE>]
+      --glob-ignore-case[=<false|true>]
           Ignore case when expanding filesystem path glob inputs
 
-          [possible values: true, false]
+          [default: false]
 
   -h, --help
           Print help (see a summary with '-h')
@@ -545,10 +545,10 @@ Options:
           The specified headers are used for ALL requests.
           Use the `hosts` option to configure headers on a per-host basis.
 
-      --hidden[=<HIDDEN>]
+      --hidden[=<false|true>]
           Do not skip hidden directories and files
 
-          [possible values: true, false]
+          [default: false]
 
       --host-concurrency <HOST_CONCURRENCY>
           Default maximum concurrent requests per host (default: 10)
@@ -574,38 +574,38 @@ Options:
             --host-request-interval 50ms   # Fast for robust APIs
             --host-request-interval 1s     # Conservative for rate-limited APIs
 
-      --host-stats[=<HOST_STATS>]
+      --host-stats[=<false|true>]
           Show per-host statistics at the end of the run
 
-          [possible values: true, false]
+          [default: false]
 
-  -i, --insecure[=<INSECURE>]
+  -i, --insecure[=<false|true>]
           Proceed for server connections considered insecure (invalid TLS)
 
-          [possible values: true, false]
+          [default: false]
 
       --include <INCLUDE>
           URLs to check (supports regex). Has preference over all excludes
 
-      --include-fragments[=<INCLUDE_FRAGMENTS>]
+      --include-fragments[=<false|true>]
           Enable the checking of fragments in links
 
-          [possible values: true, false]
+          [default: false]
 
-      --include-mail[=<INCLUDE_MAIL>]
+      --include-mail[=<false|true>]
           Also check email addresses
 
-          [possible values: true, false]
+          [default: false]
 
-      --include-verbatim[=<INCLUDE_VERBATIM>]
+      --include-verbatim[=<false|true>]
           Find links in verbatim sections like `pre`- and `code` blocks
 
-          [possible values: true, false]
+          [default: false]
 
-      --include-wikilinks[=<INCLUDE_WIKILINKS>]
+      --include-wikilinks[=<false|true>]
           Check WikiLinks in Markdown files, this requires specifying --base-url
 
-          [possible values: true, false]
+          [default: false]
 
       --index-files <INDEX_FILES>
           When checking locally, resolves directory links to a separate index file.
@@ -663,24 +663,24 @@ Options:
 
           [possible values: plain, color, emoji, task]
 
-  -n, --no-progress[=<NO_PROGRESS>]
+  -n, --no-progress[=<false|true>]
           Do not show progress bar.
           This is recommended for non-interactive shells (e.g. for continuous integration)
 
-          [possible values: true, false]
+          [default: false]
 
-      --no-ignore[=<NO_IGNORE>]
+      --no-ignore[=<false|true>]
           Do not skip files that would otherwise be ignored by '.gitignore', '.ignore', or the global ignore file
 
-          [possible values: true, false]
+          [default: false]
 
   -o, --output <OUTPUT>
           Output file of status report
 
-      --offline[=<OFFLINE>]
+      --offline[=<false|true>]
           Only check local files and block network requests
 
-          [possible values: true, false]
+          [default: false]
 
   -p, --preprocess <COMMAND>
           Preprocess input files with the given command.
@@ -720,10 +720,10 @@ Options:
       --remap <REMAP>
           Remap URI matching pattern to different URI
 
-      --require-https[=<REQUIRE_HTTPS>]
+      --require-https[=<false|true>]
           When HTTPS is available, treat HTTP links as errors
 
-          [possible values: true, false]
+          [default: false]
 
       --root-dir <ROOT_DIR>
           Root directory to use when checking absolute links in local files. This option is
@@ -744,15 +744,15 @@ Options:
           Omit to check links with any other scheme.
           At the moment, we support http, https, file, and mailto.
 
-      --skip-missing[=<SKIP_MISSING>]
+      --skip-missing[=<false|true>]
           Skip missing input files (default is to error if they don't exist)
 
-          [possible values: true, false]
+          [default: false]
 
-      --suggest[=<SUGGEST>]
+      --suggest[=<false|true>]
           Suggest link replacements for broken links, using a web archive. The web archive can be specified with `--archive`
 
-          [possible values: true, false]
+          [default: false]
 
   -t, --timeout <TIMEOUT>
           Website timeout in seconds from connect to response finished

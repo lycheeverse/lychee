@@ -68,6 +68,9 @@ impl ArgBoolOptionalExt for Arg {
         self.default_missing_value("true") // Ensure `--flag` is treated as `--flag=true`
             .num_args(0..=1) // Allow the flag to be specified with no value
             .require_equals(true) // Ensure that `--flag value` is not misinterpreted as `--flag=true value`
+            .value_name("false|true") // Set the value name for help messages
+            .hide_possible_values(true) // We already provide the values
+            .default_value("false") // Default to false if the flag is not provided
     }
 }
 
