@@ -16,10 +16,6 @@ pub type PendingUntil<T, Fut> = stream::TakeUntil<stream::Pending<T>, Fut>;
 pub type ConcurrentlyWith<St, Fut> =
     stream::TakeUntil<St, future::Join<Fut, future::Pending<Never>>>;
 
-/// The inner stream type underlying a [`PartitionedStream`].
-type PartitionedInner<T, SenderFut = future::Pending<Never>> =
-    stream::TakeUntil<ReceiverStream<T>, future::Join<SenderFut, future::Pending<Never>>>;
-
 /// One half of the pair returned by [`StreamExt::partition_result`].
 ///
 /// # Must be polled
@@ -86,12 +82,19 @@ type PartitionedInner<T, SenderFut = future::Pending<Never>> =
               additionally, BOTH halves returned by `partition_result` \
               must be polled concurrently or the pipeline will deadlock — \
               see the `PartitionedStream` documentation for details"]
-pub struct PartitionedStream<T, SenderFut = future::Pending<Never>>(PartitionedInner<T, SenderFut>)
+pub struct PartitionedStream<T, SenderFut = future::Pending<Never>>(
+    stream::TakeUntil<ReceiverStream<T>, future::Join<SenderFut, future::Pending<Never>>>,
+)
 where
     SenderFut: Future;
 
 impl<T, SenderFut: Future> PartitionedStream<T, SenderFut> {
-    fn new(inner: PartitionedInner<T, SenderFut>) -> Self {
+    fn new(
+        inner: stream::TakeUntil<
+            ReceiverStream<T>,
+            future::Join<SenderFut, future::Pending<Never>>,
+        >,
+    ) -> Self {
         Self(inner)
     }
 }
@@ -99,11 +102,7 @@ impl<T, SenderFut: Future> PartitionedStream<T, SenderFut> {
 // Forward the `Stream` impl so callers can use all the normal combinators
 // (`.next()`, `.map()`, `.for_each()`, etc.) directly on `PartitionedStream`
 // without having to unwrap the inner type.
-impl<T, SenderFut> Stream for PartitionedStream<T, SenderFut>
-where
-    SenderFut: Future,
-    PartitionedInner<T, SenderFut>: Stream<Item = T>,
-{
+impl<T, SenderFut: Future> Stream for PartitionedStream<T, SenderFut> {
     type Item = T;
 
     fn poll_next(
@@ -119,11 +118,7 @@ where
 }
 
 // Also forward `FusedStream` so callers can use this inside `select!`.
-impl<T, SenderFut> futures::stream::FusedStream for PartitionedStream<T, SenderFut>
-where
-    SenderFut: Future,
-    PartitionedInner<T, SenderFut>: futures::stream::FusedStream<Item = T>,
-{
+impl<T, SenderFut: Future> futures::stream::FusedStream for PartitionedStream<T, SenderFut> {
     fn is_terminated(&self) -> bool {
         self.0.is_terminated()
     }
