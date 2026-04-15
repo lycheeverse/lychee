@@ -171,7 +171,7 @@ impl WebsiteChecker {
         let check_text_fragments = self.include_text_fragments
             && method == Method::GET
             && parsed_fragment.text_directive.is_some();
-        let needs_body = check_anchor_fragments || check_text_fragments;
+        let fetch_body = check_anchor_fragments || check_text_fragments;
 
         match self.host_pool.execute_request(request, needs_body).await {
             Ok(response) => {
