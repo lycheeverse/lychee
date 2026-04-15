@@ -82,9 +82,8 @@ pub trait StreamExt: Stream {
         let (ok_send, ok_recv) = mpsc::channel(TOKIO_SMALL_CHANNEL_SIZE);
         let (err_send, err_recv) = mpsc::channel(TOKIO_SMALL_CHANNEL_SIZE);
 
-        let driver = self
-            .map(move |x| (x, ok_send.clone(), err_send.clone()))
-            .for_each(async |(x, ok_send, err_send)| match x {
+        let driver = async move {
+            self.for_each(async |x| match x {
                 Ok(x) => ok_send.send(x).await.unwrap_or_else(|_| {
                     warn!("partition_result: cannot send item. Ok channel has been closed");
                 }),
@@ -92,7 +91,9 @@ pub trait StreamExt: Stream {
                     warn!("partition_result: cannot send item. Err channel has been closed");
                 }),
             })
-            .fuse();
+            .await;
+        }
+        .fuse();
         // When finished, `.fuse()` drops the closure which owns the channel senders.
         // This allows the receiving streams to terminate.
 
