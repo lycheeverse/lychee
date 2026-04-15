@@ -1140,28 +1140,28 @@ This convention also simplifies our default value testing."
     #[test]
     fn test_fragment_option_values() {
         let p = parse_options(vec!["lychee", "-"]);
-        assert!(p.config.fragment_checker_options().check_anchor_fragments == false);
-        assert!(p.config.fragment_checker_options().check_text_fragments == false);
+        assert!(!p.config.fragment_checker_options().check_anchor_fragments);
+        assert!(!p.config.fragment_checker_options().check_text_fragments);
 
         let p = parse_options(vec!["lychee", "-", "--include-fragments=none"]);
-        assert!(p.config.fragment_checker_options().check_anchor_fragments == false);
-        assert!(p.config.fragment_checker_options().check_text_fragments == false);
+        assert!(!p.config.fragment_checker_options().check_anchor_fragments);
+        assert!(!p.config.fragment_checker_options().check_text_fragments);
 
         let p = parse_options(vec!["lychee", "-", "--include-fragments"]);
-        assert!(p.config.fragment_checker_options().check_anchor_fragments == true);
-        assert!(p.config.fragment_checker_options().check_text_fragments == false);
+        assert!(p.config.fragment_checker_options().check_anchor_fragments);
+        assert!(!p.config.fragment_checker_options().check_text_fragments);
 
         let p = parse_options(vec!["lychee", "-", "--include-fragments=anchor-only"]);
-        assert!(p.config.fragment_checker_options().check_anchor_fragments == true);
-        assert!(p.config.fragment_checker_options().check_text_fragments == false);
+        assert!(p.config.fragment_checker_options().check_anchor_fragments);
+        assert!(!p.config.fragment_checker_options().check_text_fragments);
 
         let p = parse_options(vec!["lychee", "-", "--include-fragments=text-only"]);
-        assert!(p.config.fragment_checker_options().check_anchor_fragments == false);
-        assert!(p.config.fragment_checker_options().check_text_fragments == true);
+        assert!(!p.config.fragment_checker_options().check_anchor_fragments);
+        assert!(p.config.fragment_checker_options().check_text_fragments);
 
         let p = parse_options(vec!["lychee", "-", "--include-fragments=full"]);
-        assert!(p.config.fragment_checker_options().check_anchor_fragments == true);
-        assert!(p.config.fragment_checker_options().check_text_fragments == true);
+        assert!(p.config.fragment_checker_options().check_anchor_fragments);
+        assert!(p.config.fragment_checker_options().check_text_fragments);
     }
 
     #[test]
