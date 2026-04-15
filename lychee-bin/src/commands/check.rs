@@ -47,7 +47,7 @@ pub(crate) async fn check(
     let max_concurrency = cfg.max_concurrency();
 
     let level = cfg.verbose().log_level();
-    let hide_bar = cfg.no_progress || is_stdin_input;
+    let hide_bar = cfg.no_progress() || is_stdin_input;
 
     let accept = cfg.accept().into();
     let cache_exclude_status = cfg.cache_exclude_status().into();
@@ -161,14 +161,14 @@ pub(crate) async fn check(
     progress.finish("Finished processing links");
     stats.duration = start.elapsed();
 
-    if cfg.suggest {
+    if cfg.suggest() {
         let progress = Progress::new("Searching for alternatives", hide_bar, level, &cfg.mode());
         let archive = cfg.archive();
         let timeout = cfg.timeout();
         suggest_archived_links(archive, &mut stats, progress, max_concurrency, timeout).await;
     }
 
-    let is_success = match cfg.accept_timeouts {
+    let is_success = match cfg.accept_timeouts() {
         true => stats.is_success_ignoring_timeouts(),
         false => stats.is_success(),
     };

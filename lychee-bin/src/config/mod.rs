@@ -55,6 +55,24 @@ occurrences take precedence over previous occurrences.
 [default: {}]",
     loaders::lychee_toml::LYCHEE_CONFIG_FILE
 );
+
+use clap::Arg;
+
+/// Extension trait for `clap::Arg` to add a custom method for boolean flags that can be specified without a value (e.g. `--flag` is equivalent to `--flag=true`).
+trait ArgBoolOptionalExt {
+    fn optional_bool_flag(self) -> Self;
+}
+
+impl ArgBoolOptionalExt for Arg {
+    fn optional_bool_flag(self) -> Self {
+        self.default_missing_value("true") // Ensure `--flag` is treated as `--flag=true`
+            .num_args(0..=1) // Allow the flag to be specified with no value
+            .require_equals(true) // Ensure that `--flag value` is not misinterpreted as `--flag=true value`
+            .value_name("false|true") // Set the value name for help messages
+            .hide_possible_values(true) // We already provide the values
+    }
+}
+
 /// lychee is a fast, asynchronous link checker which detects broken URLs and mail addresses
 /// in local files and websites. It supports Markdown and HTML and works with other file formats.
 ///
@@ -109,7 +127,9 @@ impl LycheeOptions {
 
         all_inputs
             .iter()
-            .map(|raw_input| Input::new(raw_input, default_file_type, self.config.glob_ignore_case))
+            .map(|raw_input| {
+                Input::new(raw_input, default_file_type, self.config.glob_ignore_case())
+            })
             .collect::<Result<_, _>>()
             .context("Cannot parse inputs from arguments")
     }
@@ -153,14 +173,14 @@ pub(crate) struct Config {
 
     /// Do not show progress bar.
     /// This is recommended for non-interactive shells (e.g. for continuous integration)
-    #[arg(short, long, verbatim_doc_comment)]
+    #[arg(short, long, verbatim_doc_comment, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) no_progress: bool,
+    no_progress: Option<bool>,
 
     /// Show per-host statistics at the end of the run
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) host_stats: bool,
+    host_stats: Option<bool>,
 
     /// A list of file extensions. Files not matching the specified extensions are skipped.
     ///
@@ -188,9 +208,9 @@ pub(crate) struct Config {
     default_extension: Option<String>,
 
     #[arg(help = HELP_MSG_CACHE)]
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) cache: bool,
+    cache: Option<bool>,
 
     /// Discard all cached requests older than this duration
     ///
@@ -218,15 +238,15 @@ pub(crate) struct Config {
 
     /// Don't perform any link checking.
     /// Instead, dump all the links extracted from inputs that would be checked
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) dump: bool,
+    dump: Option<bool>,
 
     /// Don't perform any link extraction and checking.
     /// Instead, dump all input sources from which links would be collected
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) dump_inputs: bool,
+    dump_inputs: Option<bool>,
 
     /// Web archive to use to provide suggestions for `--suggest`.
     ///
@@ -236,9 +256,9 @@ pub(crate) struct Config {
 
     /// Suggest link replacements for broken links, using a web archive.
     /// The web archive can be specified with `--archive`
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) suggest: bool,
+    suggest: Option<bool>,
 
     /// Maximum number of allowed redirects
     ///
@@ -301,9 +321,9 @@ pub(crate) struct Config {
     user_agent: Option<String>,
 
     /// Proceed for server connections considered insecure (invalid TLS)
-    #[arg(short, long)]
+    #[arg(short, long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) insecure: bool,
+    insecure: Option<bool>,
 
     /// Only test links with the given schemes (e.g. https).
     /// Omit to check links with any other scheme.
@@ -313,9 +333,9 @@ pub(crate) struct Config {
     pub(crate) scheme: Vec<String>,
 
     /// Only check local files and block network requests.
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) offline: bool,
+    offline: Option<bool>,
 
     /// URLs to check (supports regex). Has preference over all excludes.
     #[arg(long)]
@@ -341,29 +361,29 @@ pub(crate) struct Config {
 
     /// Exclude all private IPs from checking.
     /// Equivalent to `--exclude-private --exclude-link-local --exclude-loopback`
-    #[arg(short = 'E', long, verbatim_doc_comment)]
+    #[arg(short = 'E', long, verbatim_doc_comment, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) exclude_all_private: bool,
+    exclude_all_private: Option<bool>,
 
     /// Exclude private IP address ranges from checking
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) exclude_private: bool,
+    exclude_private: Option<bool>,
 
     /// Exclude link-local IP address range from checking
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) exclude_link_local: bool,
+    exclude_link_local: Option<bool>,
 
     /// Exclude loopback IP address range and localhost from checking
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) exclude_loopback: bool,
+    exclude_loopback: Option<bool>,
 
     /// Also check email addresses
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) include_mail: bool,
+    include_mail: Option<bool>,
 
     /// Remap URI matching pattern to different URI
     #[serde(default)]
@@ -453,14 +473,14 @@ pub(crate) struct Config {
 
     /// Accept timed out requests and return exit code 0
     /// when encountering timeouts but not any other errors.
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) accept_timeouts: bool,
+    accept_timeouts: Option<bool>,
 
     /// Enable the checking of fragments in links.
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) include_fragments: bool,
+    include_fragments: Option<bool>,
 
     /// Website timeout in seconds from connect to response finished
     ///
@@ -537,30 +557,30 @@ pub(crate) struct Config {
     pub(crate) github_token: Option<SecretString>,
 
     /// Skip missing input files (default is to error if they don't exist)
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) skip_missing: bool,
+    skip_missing: Option<bool>,
 
     /// Do not skip files that would otherwise be ignored by
     /// '.gitignore', '.ignore', or the global ignore file.
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) no_ignore: bool,
+    no_ignore: Option<bool>,
 
     /// Do not skip hidden directories and files.
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) hidden: bool,
+    hidden: Option<bool>,
 
     /// Find links in verbatim sections like `pre`- and `code` blocks
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) include_verbatim: bool,
+    include_verbatim: Option<bool>,
 
     /// Ignore case when expanding filesystem path glob inputs
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) glob_ignore_case: bool,
+    glob_ignore_case: Option<bool>,
 
     /// Output file of status report
     #[arg(short, long, value_parser)]
@@ -583,9 +603,9 @@ pub(crate) struct Config {
     pub(crate) generate: Option<GenerateMode>,
 
     /// When HTTPS is available, treat HTTP links as errors
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) require_https: bool,
+    require_https: Option<bool>,
 
     /// Read and write cookies using the given file. Cookies will be stored in the
     /// cookie jar and sent with requests. New cookies will be stored in the cookie jar
@@ -596,9 +616,9 @@ pub(crate) struct Config {
     #[allow(clippy::doc_markdown)]
     /// Check WikiLinks in Markdown files, this requires specifying --base-url
     #[clap(requires = "base_url")]
-    #[arg(long)]
+    #[arg(long, optional_bool_flag())]
     #[serde(default)]
-    pub(crate) include_wikilinks: bool,
+    include_wikilinks: Option<bool>,
 
     /// Preprocess input files with the given command.
     ///
@@ -735,11 +755,101 @@ impl Config {
             .unwrap_or(StatusCodeSelector::empty())
     }
 
+    /// Whether to use the on-disk request cache
+    pub(crate) fn cache(&self) -> bool {
+        self.cache.unwrap_or(false)
+    }
+
+    pub(crate) fn dump(&self) -> bool {
+        self.dump.unwrap_or(false)
+    }
+
+    pub(crate) fn dump_inputs(&self) -> bool {
+        self.dump_inputs.unwrap_or(false)
+    }
+
+    pub(crate) fn exclude_all_private(&self) -> bool {
+        self.exclude_all_private.unwrap_or(false)
+    }
+
+    pub(crate) fn exclude_link_local(&self) -> bool {
+        self.exclude_link_local.unwrap_or(false)
+    }
+
+    pub(crate) fn exclude_loopback(&self) -> bool {
+        self.exclude_loopback.unwrap_or(false)
+    }
+
+    pub(crate) fn exclude_private(&self) -> bool {
+        self.exclude_private.unwrap_or(false)
+    }
+
+    pub(crate) fn glob_ignore_case(&self) -> bool {
+        self.glob_ignore_case.unwrap_or(false)
+    }
+
+    pub(crate) fn hidden(&self) -> bool {
+        self.hidden.unwrap_or(false)
+    }
+
+    pub(crate) fn host_stats(&self) -> bool {
+        self.host_stats.unwrap_or(false)
+    }
+
+    pub(crate) fn include_fragments(&self) -> bool {
+        self.include_fragments.unwrap_or(false)
+    }
+
+    pub(crate) fn include_mail(&self) -> bool {
+        self.include_mail.unwrap_or(false)
+    }
+
+    pub(crate) fn include_verbatim(&self) -> bool {
+        self.include_verbatim.unwrap_or(false)
+    }
+
+    pub(crate) fn include_wikilinks(&self) -> bool {
+        self.include_wikilinks.unwrap_or(false)
+    }
+
+    pub(crate) fn insecure(&self) -> bool {
+        self.insecure.unwrap_or(false)
+    }
+
+    pub(crate) fn no_ignore(&self) -> bool {
+        self.no_ignore.unwrap_or(false)
+    }
+
+    pub(crate) fn no_progress(&self) -> bool {
+        self.no_progress.unwrap_or(false)
+    }
+
+    pub(crate) fn offline(&self) -> bool {
+        self.offline.unwrap_or(false)
+    }
+
+    pub(crate) fn require_https(&self) -> bool {
+        self.require_https.unwrap_or(false)
+    }
+
+    pub(crate) fn skip_missing(&self) -> bool {
+        self.skip_missing.unwrap_or(false)
+    }
+
+    pub(crate) fn suggest(&self) -> bool {
+        self.suggest.unwrap_or(false)
+    }
+
     /// Status codes that are considered successful
     pub(crate) fn accept(&self) -> StatusCodeSelector {
         self.accept
             .clone()
             .unwrap_or(StatusCodeSelector::default_accepted())
+    }
+
+    /// Whether to accept timeouts as valid results
+    pub(crate) fn accept_timeouts(&self) -> bool {
+        self.accept_timeouts.unwrap_or(false)
     }
 
     /// Custom headers to send with requests
@@ -755,7 +865,6 @@ impl Config {
             (
                 option { $( $optional:ident ),* $(,)? },
                 chain { $( $chainable:ident ),* $(,)? },
-                bool { $( $bool:ident ),* $(,)? },
             ) => {
                 Config {
                     hosts,
@@ -763,13 +872,6 @@ impl Config {
                     $( $chainable: self.$chainable.into_iter().chain(other.$chainable).collect(), )*
                     // Use self if present, otherwise use other
                     $( $optional: self.$optional.or(other.$optional), )*
-                    // Use `true` when self or other is `true`.
-                    // Note that this has the drawback, that a value cannot be overwritten with
-                    // `false` in the merge chain, as there is no way to distinguish
-                    // between "default" `false` and user-provided `false`.
-                    // We would have to use `Option<bool>` in order to do that.
-                    // See: https://github.com/lycheeverse/lychee/issues/2051
-                    $( $bool: self.$bool || other.$bool, )*
                 }
             };
         }
@@ -777,23 +879,45 @@ impl Config {
         merge!(
             option {
                 accept,
+                accept_timeouts,
                 archive,
                 base,
                 base_url,
                 basic_auth,
+                cache,
                 cache_exclude_status,
                 cookie_jar,
                 default_extension,
+                dump,
+                dump_inputs,
+                exclude_all_private,
+                exclude_link_local,
+                exclude_loopback,
+                exclude_private,
                 github_token,
+                glob_ignore_case,
+                hidden,
                 host_concurrency,
                 host_request_interval,
                 files_from,
                 generate,
+                host_stats,
+                include_fragments,
+                include_mail,
+                include_verbatim,
+                include_wikilinks,
                 index_files,
+                insecure,
                 min_tls,
+                no_ignore,
+                no_progress,
+                offline,
                 output,
                 preprocess,
+                require_https,
                 root_dir,
+                skip_missing,
+                suggest,
                 threads,
                 extensions,
                 format,
@@ -817,30 +941,6 @@ impl Config {
                 remap,
                 scheme,
                 header,
-            },
-            bool {
-                accept_timeouts,
-                cache,
-                dump,
-                dump_inputs,
-                exclude_all_private,
-                exclude_link_local,
-                exclude_loopback,
-                exclude_private,
-                glob_ignore_case,
-                hidden,
-                host_stats,
-                include_fragments,
-                include_mail,
-                include_verbatim,
-                include_wikilinks,
-                insecure,
-                no_ignore,
-                no_progress,
-                offline,
-                require_https,
-                skip_missing,
-                suggest,
             },
         )
     }
@@ -976,6 +1076,25 @@ This convention also simplifies our default value testing."
             HashMap::new(),
             "Untested default values found. Add them to this test."
         );
+    }
+
+    #[test]
+    #[expect(clippy::bool_assert_comparison)]
+    fn test_bool_flags() {
+        // Values for boolean flags can be specified explicitly.
+        let explicit = parse_options(vec!["lychee", "-", "--dump=false"]);
+        assert_eq!(explicit.config.dump(), false);
+
+        let explicit = parse_options(vec!["lychee", "-", "--dump=true"]);
+        assert_eq!(explicit.config.dump(), true);
+
+        // Or implicitly
+        let implicit = parse_options(vec!["lychee", "-", "--dump"]);
+        assert_eq!(implicit.config.dump(), true);
+
+        // They default to `false`
+        let default = parse_options(vec!["lychee", "-"]);
+        assert_eq!(default.config.dump(), false);
     }
 
     #[test]
