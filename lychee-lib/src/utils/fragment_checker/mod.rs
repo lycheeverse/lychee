@@ -38,8 +38,13 @@ impl FragmentInput<'_> {
 
 #[derive(Debug, PartialEq, Eq)]
 struct ParsedFragment<'a> {
+    // The element ID part of the fragment, e.g., "section" in `https://example.com/#section:~:text=example`.
     element_id: Option<&'a str>,
-    text_directive_value: Option<String>,
+    // The raw value of the text directive, e.g., "The%20concept%20of-,end%2Duser,-first%20surfaced%20in" in `https://en.wikipedia.org/wiki/End_user#:~:text=The%20concept%20of-,end%2Duser,-first%20surfaced%20in`.
+    // Dashes and commas have special meaning in the text directive, so we need to keep them percentage-encoded.
+    // Full parsing of the text directive value into its components (prefix, start, end, suffix) is done later in the `TextDirective` struct.
+    // See https://wicg.github.io/scroll-to-text-fragment/#syntax
+    encoded_text_directive_value: Option<String>,
 }
 
 const FRAGMENT_DIRECTIVE_DELIMITER: &str = ":~:";
@@ -51,7 +56,7 @@ impl<'a> ParsedFragment<'a> {
         let Some(fragment) = url.fragment() else {
             return Self {
                 element_id: None,
-                text_directive_value: None,
+                encoded_text_directive_value: None,
             };
         };
 
@@ -63,28 +68,29 @@ impl<'a> ParsedFragment<'a> {
         else {
             return Self {
                 element_id: Some(fragment),
-                text_directive_value: None,
+                encoded_text_directive_value: None,
             };
         };
 
         let element_id = (!element_id.is_empty()).then_some(element_id);
 
-        // The fragment directive may contain several URL-encoded components, separated by ampersant, such as https://example.com#:~:text=foo&text=bar&unknownDirective
+        // The fragment directive may contain several components, separated by ampersant, such as https://example.com#:~:text=foo&text=bar&unknownDirective
+        // We do not URL decode the text directive value yet, because comma and dashes have special meaning and need to be percentage encoded.
         // See Example 6 in https://wicg.github.io/scroll-to-text-fragment/#the-fragment-directive
-        for (key, value) in url::form_urlencoded::parse(fragment_directive.as_bytes()) {
+        for (key, value) in fragment_directive.split('&').filter_map(|part| part.split_once('=')) {
             // The standard allows several directives, including serveral text directives. We only support the first text directive, and ignore other directives.
             // See https://wicg.github.io/scroll-to-text-fragment/#text-directives
             if key == TEXT_DIRECTIVE_KEY {
                 return Self {
                     element_id,
-                    text_directive_value: Some(value.into_owned()),
+                    encoded_text_directive_value: Some(value.to_owned()),
                 };
             }
         }
 
         Self {
             element_id,
-            text_directive_value: None,
+            encoded_text_directive_value: None,
         }
     }
 }
@@ -188,7 +194,7 @@ impl FragmentChecker {
         }
 
         if options.check_text_fragments
-            && parsed.text_directive_value.is_some()
+            && parsed.encoded_text_directive_value.is_some()
             && !text::check_text_fragments(url, &content, file_type)
         {
             return Ok(false);
@@ -267,7 +273,7 @@ mod tests {
             parsed,
             ParsedFragment {
                 element_id: None,
-                text_directive_value: Some("needle".to_string()),
+                encoded_text_directive_value: Some("needle".to_string()),
             }
         );
     }
@@ -282,7 +288,7 @@ mod tests {
             parsed,
             ParsedFragment {
                 element_id: Some("section"),
-                text_directive_value: Some("needle".to_string()),
+                encoded_text_directive_value: Some("needle".to_string()),
             }
         );
     }
@@ -297,7 +303,21 @@ mod tests {
             parsed,
             ParsedFragment {
                 element_id: Some("section"),
-                text_directive_value: None,
+                encoded_text_directive_value: None,
+            }
+        );
+    }
+
+    #[test]
+    fn parses_text_directive_with_encoded_values() {
+        let url = Url::parse("https://en.wikipedia.org/wiki/End_user#:~:unknown&text=The%20concept%20of-,end%2Duser,-first%20surfaced%20in&unknown&text=ignored-in-lychee").unwrap();
+        let parsed = ParsedFragment::parse(&url);
+
+        assert_eq!(
+            parsed,
+            ParsedFragment {
+                element_id: None,
+                encoded_text_directive_value: Some("The%20concept%20of-,end%2Duser,-first%20surfaced%20in".to_string()),
             }
         );
     }
