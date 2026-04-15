@@ -156,10 +156,10 @@ impl WebsiteChecker {
         let anchor_fragment_url =
             Self::with_element_fragment(&request_url, parsed_fragment.anchor_fragment);
 
-        let check_anchor_fragments = self.fragment_checker_options.include_anchor()
+        let check_anchor_fragments = self.fragment_checker_options.check_anchor_fragments
             && method == Method::GET
             && parsed_fragment.anchor_fragment.is_some();
-        let check_text_fragments = self.fragment_checker_options.include_text()
+        let check_text_fragments = self.fragment_checker_options.check_text_fragments
             && method == Method::GET
             && parsed_fragment.text_directive.is_some();
         let fetch_body = check_anchor_fragments || check_text_fragments;

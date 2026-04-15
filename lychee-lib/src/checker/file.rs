@@ -252,7 +252,7 @@ impl FileChecker {
     ///
     /// Returns a `Status` indicating the result of the check.
     async fn check_file(&self, path: &Path, uri: &Uri) -> Status {
-        if self.fragment_checker_options.include_anchor() {
+        if self.fragment_checker_options.check_anchor_fragments {
             self.check_fragment(path, uri).await
         } else {
             Status::Ok(StatusCode::OK)
@@ -364,7 +364,10 @@ mod tests {
             &BaseInfo::none(),
             vec![],
             None,
-            FragmentCheckerOptions::AnchorOnly,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
             false,
         )
         .unwrap();
@@ -424,7 +427,10 @@ mod tests {
             &BaseInfo::none(),
             vec![],
             Some(vec!["index.html".to_owned(), "index.md".to_owned()]),
-            FragmentCheckerOptions::AnchorOnly,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
             false,
         )
         .unwrap();
@@ -464,7 +470,7 @@ mod tests {
             &BaseInfo::none(),
             vec!["html".to_owned()],
             Some(vec!["index".to_owned()]),
-            FragmentCheckerOptions::None,
+            FragmentCheckerOptions::default(),
             false,
         )
         .unwrap();
@@ -495,7 +501,7 @@ mod tests {
             &BaseInfo::none(),
             vec![],
             Some(vec![]),
-            FragmentCheckerOptions::None,
+            FragmentCheckerOptions::default(),
             false,
         )
         .unwrap();
@@ -526,7 +532,7 @@ mod tests {
             &BaseInfo::none(),
             vec![],
             Some(dir_names),
-            FragmentCheckerOptions::None,
+            FragmentCheckerOptions::default(),
             false,
         )
         .unwrap();
@@ -549,7 +555,10 @@ mod tests {
             &BaseInfo::none(),
             vec![],
             Some(vec!["../index_dir/index.html".to_owned()]),
-            FragmentCheckerOptions::AnchorOnly,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
             false,
         )
         .unwrap();
@@ -569,7 +578,10 @@ mod tests {
             &BaseInfo::none(),
             vec![],
             Some(vec![absolute_html]),
-            FragmentCheckerOptions::AnchorOnly,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
             false,
         )
         .unwrap();
@@ -586,7 +598,10 @@ mod tests {
             &BaseInfo::none(),
             vec!["html".to_owned()],
             None,
-            FragmentCheckerOptions::AnchorOnly,
+            FragmentCheckerOptions {
+                check_anchor_fragments: true,
+                check_text_fragments: false,
+            },
             false,
         )
         .unwrap();

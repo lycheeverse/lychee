@@ -26,8 +26,6 @@ use regex::RegexSet;
 use reqwest::{header, redirect, tls};
 use reqwest_cookie_store::CookieStoreMutex;
 use secrecy::{ExposeSecret, SecretString};
-use serde::Deserialize;
-use strum::{Display, EnumString, VariantNames};
 use typed_builder::TypedBuilder;
 
 use crate::{
@@ -61,39 +59,12 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const TCP_KEEPALIVE: Duration = Duration::from_secs(60);
 
 /// Controls which fragment types should be checked for supported links.
-///
-/// This enum sounds a bit like it provides more than it does. I chosen the name thinking that in future we might
-/// want to replace this with a struct allowing more options.
-#[derive(
-    Debug, Clone, Copy, Default, Deserialize, Display, EnumString, VariantNames, PartialEq, Eq,
-)]
-/// I'm not sure I like these serde and strum attributes here, but they do allow for more consistent naming across the codebase and CLI, so I guess it's fine.
-#[serde(rename_all = "kebab-case")]
-#[strum(serialize_all = "kebab-case")]
-pub enum FragmentCheckerOptions {
-    /// Disable fragment checks entirely.
-    #[default]
-    None,
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FragmentCheckerOptions {
     /// Check anchor fragments like `#section`.
-    AnchorOnly,
+    pub check_anchor_fragments: bool,
     /// Check text fragments like `#:~:text=example`.
-    TextOnly,
-    /// Check both anchor and text fragments.
-    Full,
-}
-
-impl FragmentCheckerOptions {
-    /// Returns `true` when anchor fragments like `#section` should be checked.
-    #[must_use]
-    pub const fn include_anchor(self) -> bool {
-        matches!(self, Self::AnchorOnly | Self::Full)
-    }
-
-    /// Returns `true` when text fragments like `#:~:text=example` should be checked.
-    #[must_use]
-    pub const fn include_text(self) -> bool {
-        matches!(self, Self::TextOnly | Self::Full)
-    }
+    pub check_text_fragments: bool,
 }
 
 /// Builder for [`Client`].

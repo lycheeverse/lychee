@@ -571,7 +571,7 @@ Options:
           `text-only` for text fragments like `#:~:text=example`,
           or `full` to check both.
 
-          [default: anchor-only]
+          If provided without a value, defaults to `anchor-only`.
 
       --include-mail[=<false|true>]
           Also check email addresses
