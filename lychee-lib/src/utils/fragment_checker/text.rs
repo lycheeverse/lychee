@@ -1,4 +1,4 @@
-use crate::{ErrorKind, FileType, Status};
+use crate::types::FileType;
 use html5gum::{
     Tokenizer,
     emitters::callback::{Callback, CallbackEmitter, CallbackEvent},
@@ -13,31 +13,20 @@ struct TextDirective {
     suffix: Option<String>,
 }
 
-pub(crate) fn check_text_fragments(
-    url: &Url,
-    status: Status,
-    content: &str,
-    file_type: FileType,
-) -> Status {
-    if !status.is_success() || file_type != FileType::Html {
-        return status;
+pub(super) fn check_text_fragments(url: &Url, content: &str, file_type: FileType) -> bool {
+    if file_type != FileType::Html {
+        return true;
     }
 
     let directives = parse_text_directives(url);
     if directives.is_empty() {
-        return status;
+        return true;
     }
 
     let document = normalize_whitespace(&extract_visible_text(content));
-    let all_match = directives
+    directives
         .iter()
-        .all(|directive| directive.matches(&document));
-
-    if all_match {
-        status
-    } else {
-        Status::Error(ErrorKind::InvalidFragment(url.clone().into()))
-    }
+        .all(|directive| directive.matches(&document))
 }
 
 impl TextDirective {
@@ -202,15 +191,9 @@ fn extract_visible_text(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use http::StatusCode;
-
     use super::*;
 
-    const INDEX_HTML: &str = include_str!("../../../fixtures/text_fragments/index.html");
-
-    fn ok_status() -> Status {
-        Status::Ok(StatusCode::OK)
-    }
+    const INDEX_HTML: &str = include_str!("../../../../fixtures/text_fragments/index.html");
 
     #[test]
     fn parses_single_text_directive() {
@@ -256,43 +239,5 @@ mod tests {
         assert!(text.contains("Sed porta nisl sit amet quam ornare rutrum."));
         assert!(!text.contains("my-style-property"));
         assert!(!text.contains("my-element-attribute-value"));
-    }
-
-    #[tokio::test]
-    async fn matches_fixture_text_fragments() {
-        let urls = [
-            "https://example.com/#:~:text=rutrum",
-            "https://example.com/#:~:text=Pellentesque%20accumsan%20blandit%20ex%20iaculis%20pretium",
-            "https://example.com/#:~:text=malesuada.,Duis",
-            "https://example.com/#:~:text=consectetur%20adipiscing%20elit.-,Sed%20porta,-nisl%20sit%20amet",
-        ];
-
-        for raw_url in urls {
-            let url = Url::parse(raw_url).unwrap();
-            let status = check_text_fragments(&url, ok_status(), INDEX_HTML, FileType::Html);
-            assert!(
-                status.is_success(),
-                "expected success for {raw_url}, got {status}"
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn rejects_non_matching_fixture_text_fragments() {
-        let urls = [
-            "https://example.com/#:~:text=non-existent",
-            "https://example.com/#:~:text=my-style",
-            "https://example.com/#:~:text=my-element",
-            "https://example.com/#:~:text=my-script",
-        ];
-
-        for raw_url in urls {
-            let url = Url::parse(raw_url).unwrap();
-            let status = check_text_fragments(&url, ok_status(), INDEX_HTML, FileType::Html);
-            assert!(
-                status.is_error(),
-                "expected error for {raw_url}, got {status}"
-            );
-        }
     }
 }

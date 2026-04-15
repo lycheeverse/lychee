@@ -4,6 +4,5 @@
 
 pub(crate) mod file;
 pub(crate) mod mail;
-pub(crate) mod text_fragments;
 pub(crate) mod website;
 pub(crate) mod wikilink;

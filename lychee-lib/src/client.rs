@@ -67,6 +67,14 @@ pub struct FragmentCheckerOptions {
     pub check_text_fragments: bool,
 }
 
+impl FragmentCheckerOptions {
+    /// Returns `true` if either anchor or text fragment checking is enabled.
+    #[must_use]
+    pub const fn any_enabled(self) -> bool {
+        self.check_anchor_fragments || self.check_text_fragments
+    }
+}
+
 /// Builder for [`Client`].
 ///
 /// See crate-level documentation for usage example.
