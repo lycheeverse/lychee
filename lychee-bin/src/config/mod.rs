@@ -1116,24 +1116,24 @@ This convention also simplifies our default value testing."
     #[test]
     fn test_fragment_option_values() {
         let p = parse_options(vec!["lychee", "-", "--include-fragments"]);
-        assert_eq!(p.config.fragment_checker_options().include_anchor(), true);
-        assert_eq!(p.config.fragment_checker_options().include_text(), false);
+        assert!(p.config.fragment_checker_options().include_anchor());
+        assert!(!p.config.fragment_checker_options().include_text());
 
         let p = parse_options(vec!["lychee", "-", "--include-fragments=none"]);
-        assert_eq!(p.config.fragment_checker_options().include_anchor(), false);
-        assert_eq!(p.config.fragment_checker_options().include_text(), false);
+        assert!(!p.config.fragment_checker_options().include_anchor());
+        assert!(!p.config.fragment_checker_options().include_text());
 
         let p = parse_options(vec!["lychee", "-", "--include-fragments=anchor-only"]);
-        assert_eq!(p.config.fragment_checker_options().include_anchor(), true);
-        assert_eq!(p.config.fragment_checker_options().include_text(), false);
+        assert!(p.config.fragment_checker_options().include_anchor());
+        assert!(!p.config.fragment_checker_options().include_text());
 
         let p = parse_options(vec!["lychee", "-", "--include-fragments=text-only"]);
-        assert_eq!(p.config.fragment_checker_options().include_anchor(), false);
-        assert_eq!(p.config.fragment_checker_options().include_text(), true);
+        assert!(!p.config.fragment_checker_options().include_anchor());
+        assert!(p.config.fragment_checker_options().include_text());
 
         let p = parse_options(vec!["lychee", "-", "--include-fragments=full"]);
-        assert_eq!(p.config.fragment_checker_options().include_anchor(), true);
-        assert_eq!(p.config.fragment_checker_options().include_text(), true);
+        assert!(p.config.fragment_checker_options().include_anchor());
+        assert!(p.config.fragment_checker_options().include_text());
     }
 
     #[test]

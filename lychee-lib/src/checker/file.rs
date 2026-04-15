@@ -364,7 +364,7 @@ mod tests {
             &BaseInfo::none(),
             vec![],
             None,
-            FragmentCheckerOptions::default(),
+            FragmentCheckerOptions::AnchorOnly,
             false,
         )
         .unwrap();
@@ -464,7 +464,7 @@ mod tests {
             &BaseInfo::none(),
             vec!["html".to_owned()],
             Some(vec!["index".to_owned()]),
-            FragmentCheckerOptions::default(),
+            FragmentCheckerOptions::None,
             false,
         )
         .unwrap();
@@ -495,7 +495,7 @@ mod tests {
             &BaseInfo::none(),
             vec![],
             Some(vec![]),
-            FragmentCheckerOptions::default(),
+            FragmentCheckerOptions::None,
             false,
         )
         .unwrap();
@@ -526,7 +526,7 @@ mod tests {
             &BaseInfo::none(),
             vec![],
             Some(dir_names),
-            FragmentCheckerOptions::default(),
+            FragmentCheckerOptions::None,
             false,
         )
         .unwrap();
