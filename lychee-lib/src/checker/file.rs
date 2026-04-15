@@ -308,8 +308,7 @@ mod tests {
     use crate::{
         BaseInfo,
         ErrorKind::{InvalidFilePath, InvalidFragment, InvalidIndexFile},
-        FragmentCheckerOptions,
-        Status, Uri,
+        FragmentCheckerOptions, Status, Uri,
     };
     use test_utils::{fixture_uri, fixtures_path};
 
@@ -361,7 +360,14 @@ mod tests {
     #[tokio::test]
     async fn test_default() {
         // default behaviour accepts dir links as long as the directory exists.
-        let checker = FileChecker::new(&BaseInfo::none(), vec![], None, FragmentCheckerOptions::default(), false).unwrap();
+        let checker = FileChecker::new(
+            &BaseInfo::none(),
+            vec![],
+            None,
+            FragmentCheckerOptions::default(),
+            false,
+        )
+        .unwrap();
 
         assert_filecheck!(&checker, "filechecker/index_dir", Status::Ok(_));
 
@@ -485,8 +491,14 @@ mod tests {
     #[tokio::test]
     async fn test_empty_index_list_corner() {
         // empty index_files list will reject all directory links
-        let checker_no_indexes =
-            FileChecker::new(&BaseInfo::none(), vec![], Some(vec![]), FragmentCheckerOptions::default(), false).unwrap();
+        let checker_no_indexes = FileChecker::new(
+            &BaseInfo::none(),
+            vec![],
+            Some(vec![]),
+            FragmentCheckerOptions::default(),
+            false,
+        )
+        .unwrap();
         assert_resolves!(
             &checker_no_indexes,
             "filechecker/index_dir",
@@ -510,8 +522,14 @@ mod tests {
             "..".to_owned(),
             "/".to_owned(),
         ];
-        let checker_dir_indexes =
-            FileChecker::new(&BaseInfo::none(), vec![], Some(dir_names), FragmentCheckerOptions::default(), false).unwrap();
+        let checker_dir_indexes = FileChecker::new(
+            &BaseInfo::none(),
+            vec![],
+            Some(dir_names),
+            FragmentCheckerOptions::default(),
+            false,
+        )
+        .unwrap();
         assert_resolves!(
             &checker_dir_indexes,
             "filechecker/index_dir",

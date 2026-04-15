@@ -400,8 +400,7 @@ mod tests {
 
     use super::ParsedFragment;
     use crate::{
-        FragmentCheckerOptions,
-        Uri,
+        FragmentCheckerOptions, Uri,
         chain::RequestChain,
         checker::website::WebsiteChecker,
         ratelimit::HostPool,
