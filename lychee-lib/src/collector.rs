@@ -99,11 +99,11 @@ impl Collector {
             }
             (Some(root_dir), base) => {
                 let root_dir = std::path::absolute(&root_dir).unwrap_or(root_dir);
-                if !root_dir.is_dir() {
-                    warn!(
-                        "Root dir '{}' does not exist or is not a directory",
-                        root_dir.to_string_lossy()
-                    );
+
+                if !root_dir.exists() {
+                    warn!("Root dir '{}' does not exist", root_dir.to_string_lossy());
+                } else if !root_dir.is_dir() {
+                    warn!("Root dir '{}' not a directory", root_dir.to_string_lossy());
                 }
                 (Some(root_dir), base)
             }
