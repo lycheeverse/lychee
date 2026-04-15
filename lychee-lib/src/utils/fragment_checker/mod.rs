@@ -38,29 +38,53 @@ impl FragmentInput<'_> {
 
 #[derive(Debug, PartialEq, Eq)]
 struct ParsedFragment<'a> {
-    anchor_fragment: Option<&'a str>,
-    text_directive: Option<&'a str>,
+    element_id: Option<&'a str>,
+    text_directive_value: Option<String>,
 }
 
+const FRAGMENT_DIRECTIVE_DELIMITER: &str = ":~:";
+const TEXT_DIRECTIVE_KEY: &str = "text";
+
 impl<'a> ParsedFragment<'a> {
+    /// This method does top-level parsing of the fragment, separating the element id (if any) from the text directive (if any).
     fn parse(url: &'a Url) -> Self {
         let Some(fragment) = url.fragment() else {
             return Self {
-                anchor_fragment: None,
-                text_directive: None,
+                element_id: None,
+                text_directive_value: None,
             };
         };
 
-        let Some((element, text_directive)) = fragment.split_once(":~:text=") else {
+        // Split off the element id from the fragment directive
+        // See https://wicg.github.io/scroll-to-text-fragment/#the-fragment-directive
+        // See https://wicg.github.io/scroll-to-text-fragment/#determine-if-fragment-id-is-needed
+        let Some((element_id, fragment_directive)) =
+            fragment.split_once(FRAGMENT_DIRECTIVE_DELIMITER)
+        else {
             return Self {
-                anchor_fragment: Some(fragment),
-                text_directive: None,
+                element_id: Some(fragment),
+                text_directive_value: None,
             };
         };
+
+        let element_id = (!element_id.is_empty()).then_some(element_id);
+
+        // The fragment directive may contain several URL-encoded components, separated by ampersant, such as https://example.com#:~:text=foo&text=bar&unknownDirective
+        // See Example 6 in https://wicg.github.io/scroll-to-text-fragment/#the-fragment-directive
+        for (key, value) in url::form_urlencoded::parse(fragment_directive.as_bytes()) {
+            // The standard allows several directives, including serveral text directives. We only support the first text directive, and ignore other directives.
+            // See https://wicg.github.io/scroll-to-text-fragment/#text-directives
+            if key == TEXT_DIRECTIVE_KEY {
+                return Self {
+                    element_id,
+                    text_directive_value: Some(value.into_owned()),
+                };
+            }
+        }
 
         Self {
-            anchor_fragment: (!element.is_empty()).then_some(element),
-            text_directive: Some(text_directive),
+            element_id,
+            text_directive_value: None,
         }
     }
 }
@@ -155,16 +179,16 @@ impl FragmentChecker {
         let FragmentInput { content, file_type } = input;
 
         if options.check_anchor_fragments
-            && parsed.anchor_fragment.is_some()
+            && parsed.element_id.is_some()
             && !self
-                .check_anchor_fragment(&content, file_type, url, parsed.anchor_fragment)
+                .check_anchor_fragment(&content, file_type, url, parsed.element_id)
                 .await?
         {
             return Ok(false);
         }
 
         if options.check_text_fragments
-            && parsed.text_directive.is_some()
+            && parsed.text_directive_value.is_some()
             && !text::check_text_fragments(url, &content, file_type)
         {
             return Ok(false);
@@ -235,30 +259,30 @@ mod tests {
 
     #[test]
     fn parses_pure_text_fragment_directive() {
-        let url = Url::parse("https://example.com/#:~:text=needle").unwrap();
+        let url = Url::parse("https://example.com/#:~:unknown&text=needle").unwrap();
 
         let parsed = ParsedFragment::parse(&url);
 
         assert_eq!(
             parsed,
             ParsedFragment {
-                anchor_fragment: None,
-                text_directive: Some("needle"),
+                element_id: None,
+                text_directive_value: Some("needle".to_string()),
             }
         );
     }
 
     #[test]
     fn parses_element_fragment_before_text_directive() {
-        let url = Url::parse("https://example.com/#section:~:text=needle").unwrap();
+        let url = Url::parse("https://example.com/#section:~:text=needle&unknown").unwrap();
 
         let parsed = ParsedFragment::parse(&url);
 
         assert_eq!(
             parsed,
             ParsedFragment {
-                anchor_fragment: Some("section"),
-                text_directive: Some("needle"),
+                element_id: Some("section"),
+                text_directive_value: Some("needle".to_string()),
             }
         );
     }
@@ -272,8 +296,8 @@ mod tests {
         assert_eq!(
             parsed,
             ParsedFragment {
-                anchor_fragment: Some("section"),
-                text_directive: None,
+                element_id: Some("section"),
+                text_directive_value: None,
             }
         );
     }
