@@ -26,8 +26,8 @@ use const_format::formatcp;
 use lychee_lib::ratelimit::HostConfigs;
 use lychee_lib::{
     BaseInfo, BasicAuthSelector, DEFAULT_MAX_REDIRECTS, DEFAULT_MAX_RETRIES,
-    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, FileExtensions, FileType, Input,
-    StatusCodeSelector, archive::Archive,
+    DEFAULT_RETRY_WAIT_TIME_SECS, DEFAULT_TIMEOUT_SECS, FileExtensions, FileType,
+    FragmentCheckerOptions, Input, StatusCodeSelector, archive::Archive,
 };
 use lychee_lib::{DEFAULT_USER_AGENT, Preprocessor};
 use secrecy::SecretString;
@@ -479,19 +479,23 @@ pub(crate) struct Config {
     accept_timeouts: Option<bool>,
 
     /// Enable the checking of fragments in links.
-    #[arg(long, optional_bool_flag())]
-    #[serde(default)]
-    include_fragments: Option<bool>,
-
-    /// Enable the checking of text fragments in links, e.g., `#:~:text=example`.
+    ///
+    /// Use `none` to disable fragment checks,
+    /// `anchor-only` for anchor fragments like `#section`,
+    /// `text-only` for text fragments like `#:~:text=example`,
+    /// or `full` to check both.
+    ///
+    /// [default: anchor-only]
     #[arg(
         long,
-        default_missing_value = "true",
+        default_missing_value = "anchor-only",
         num_args = 0..=1,
         require_equals = true,
+        value_name = "none|anchor-only|text-only|full",
+        verbatim_doc_comment,
     )]
     #[serde(default)]
-    include_text_fragments: Option<bool>,
+    include_fragments: Option<FragmentCheckerOptions>,
 
     /// Website timeout in seconds from connect to response finished
     ///
@@ -807,8 +811,9 @@ impl Config {
         self.host_stats.unwrap_or(false)
     }
 
-    pub(crate) fn include_fragments(&self) -> bool {
-        self.include_fragments.unwrap_or(false)
+    pub(crate) fn fragment_checker_options(&self) -> FragmentCheckerOptions {
+        self.include_fragments
+            .unwrap_or(FragmentCheckerOptions::None)
     }
 
     pub(crate) fn include_mail(&self) -> bool {
@@ -868,11 +873,6 @@ impl Config {
         self.header.iter().cloned().collect()
     }
 
-    /// Include text fragments in link checking
-    pub(crate) fn include_text_fragments(&self) -> bool {
-        self.include_text_fragments.unwrap_or(false)
-    }
-
     /// Merge `self` with another `Config` where the fields of `self` take precedence
     /// over `other`.
     pub(crate) fn merge(self, other: Config) -> Config {
@@ -915,7 +915,6 @@ impl Config {
                 hidden,
                 host_concurrency,
                 host_request_interval,
-                include_text_fragments,
                 files_from,
                 generate,
                 host_stats,
@@ -1112,6 +1111,29 @@ This convention also simplifies our default value testing."
         // They default to `false`
         let default = parse_options(vec!["lychee", "-"]);
         assert_eq!(default.config.dump(), false);
+    }
+
+    #[test]
+    fn test_fragment_option_values() {
+        let p = parse_options(vec!["lychee", "-", "--include-fragments"]);
+        assert_eq!(p.config.fragment_checker_options().include_anchor(), true);
+        assert_eq!(p.config.fragment_checker_options().include_text(), false);
+
+        let p = parse_options(vec!["lychee", "-", "--include-fragments=none"]);
+        assert_eq!(p.config.fragment_checker_options().include_anchor(), false);
+        assert_eq!(p.config.fragment_checker_options().include_text(), false);
+
+        let p = parse_options(vec!["lychee", "-", "--include-fragments=anchor-only"]);
+        assert_eq!(p.config.fragment_checker_options().include_anchor(), true);
+        assert_eq!(p.config.fragment_checker_options().include_text(), false);
+
+        let p = parse_options(vec!["lychee", "-", "--include-fragments=text-only"]);
+        assert_eq!(p.config.fragment_checker_options().include_anchor(), false);
+        assert_eq!(p.config.fragment_checker_options().include_text(), true);
+
+        let p = parse_options(vec!["lychee", "-", "--include-fragments=full"]);
+        assert_eq!(p.config.fragment_checker_options().include_anchor(), true);
+        assert_eq!(p.config.fragment_checker_options().include_text(), false);
     }
 
     #[test]

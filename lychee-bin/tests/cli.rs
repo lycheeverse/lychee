@@ -4176,7 +4176,7 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .stdout(contains("0 Errors"));
 
         cargo_bin_cmd!()
-            .arg("--include-text-fragments")
+            .arg("--include-fragments=text-only")
             .arg(format!("{}/should-match.html", mock_server.uri()))
             .assert()
             .success()
@@ -4184,7 +4184,7 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
             .stdout(contains("0 Errors"));
 
         cargo_bin_cmd!()
-            .arg("--include-text-fragments")
+            .arg("--include-fragments=text-only")
             .arg(format!("{}/should-not-match.html", mock_server.uri()))
             .assert()
             .failure()

@@ -26,6 +26,8 @@ use regex::RegexSet;
 use reqwest::{header, redirect, tls};
 use reqwest_cookie_store::CookieStoreMutex;
 use secrecy::{ExposeSecret, SecretString};
+use serde::Deserialize;
+use strum::{Display, EnumString, VariantNames};
 use typed_builder::TypedBuilder;
 
 use crate::{
@@ -57,6 +59,39 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// See <https://tldp.org/HOWTO/TCP-Keepalive-HOWTO/overview.html> for more
 /// information.
 const TCP_KEEPALIVE: Duration = Duration::from_secs(60);
+
+/// Controls which fragment types should be checked for supported links.
+///
+/// This enum sounds a bit like it provides more than it does. I chosen the name thinking that in future we might
+/// want to replace this with a struct allowing more options.
+#[derive(
+    Debug, Clone, Copy, Default, Deserialize, Display, EnumString, VariantNames, PartialEq, Eq,
+)]
+pub enum FragmentCheckerOptions {
+    /// Disable fragment checks entirely.
+    #[default]
+    None,
+    /// Check anchor fragments like `#section`.
+    AnchorOnly,
+    /// Check text fragments like `#:~:text=example`.
+    TextOnly,
+    /// Check both anchor and text fragments.
+    Full,
+}
+
+impl FragmentCheckerOptions {
+    /// Returns `true` when anchor fragments like `#section` should be checked.
+    #[must_use]
+    pub const fn include_anchor(self) -> bool {
+        matches!(self, Self::AnchorOnly | Self::Full)
+    }
+
+    /// Returns `true` when text fragments like `#:~:text=example` should be checked.
+    #[must_use]
+    pub const fn include_text(self) -> bool {
+        matches!(self, Self::TextOnly | Self::Full)
+    }
+}
 
 /// Builder for [`Client`].
 ///
@@ -298,11 +333,8 @@ pub struct ClientBuilder {
     /// See <https://docs.rs/reqwest/latest/reqwest/struct.ClientBuilder.html#method.cookie_store>
     cookie_jar: Option<Arc<CookieStoreMutex>>,
 
-    /// Enable the checking of fragments in links.
-    include_fragments: bool,
-
-    /// Enable the checking of text fragments in links.
-    include_text_fragments: bool,
+    /// Controls which fragment types are checked in links.
+    fragment_checker_options: FragmentCheckerOptions,
 
     /// Enable the checking of wikilinks in markdown files.
     /// Note that base must not be `None` if you set this `true`.
@@ -392,8 +424,7 @@ impl ClientBuilder {
             github_client,
             self.require_https,
             self.plugin_request_chain,
-            self.include_fragments,
-            self.include_text_fragments,
+            self.fragment_checker_options,
             Arc::new(host_pool),
         );
 
@@ -406,7 +437,7 @@ impl ClientBuilder {
                 &self.base,
                 self.fallback_extensions,
                 self.index_files,
-                self.include_fragments,
+                self.fragment_checker_options,
                 self.include_wikilinks,
             )?,
         })

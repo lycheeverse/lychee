@@ -1,5 +1,5 @@
 use crate::{
-    BasicAuthCredentials, ErrorKind, FileType, Status, Uri,
+    BasicAuthCredentials, ErrorKind, FileType, FragmentCheckerOptions, Status, Uri,
     chain::{Chain, ChainResult, ClientRequestChains, Handler, RequestChain},
     checker::text_fragments,
     quirks::Quirks,
@@ -49,15 +49,8 @@ pub(crate) struct WebsiteChecker {
     /// This would treat unencrypted links as errors when HTTPS is available.
     require_https: bool,
 
-    /// Whether to check the existence of fragments in the response HTML files.
-    ///
-    /// Will be disabled if the request method is `HEAD`.
-    include_fragments: bool,
-
-    /// Whether to check the existence of text fragments in the response HTML files.
-    ///
-    /// Will be disabled if the request method is `HEAD`.
-    include_text_fragments: bool,
+    /// Controls which fragment types are checked in the response body.
+    fragment_checker_options: FragmentCheckerOptions,
 
     /// Utility for performing fragment checks in HTML files.
     fragment_checker: FragmentChecker,
@@ -116,8 +109,7 @@ impl WebsiteChecker {
         github_client: Option<Octocrab>,
         require_https: bool,
         plugin_request_chain: RequestChain,
-        include_fragments: bool,
-        include_text_fragments: bool,
+        fragment_checker_options: FragmentCheckerOptions,
         host_pool: Arc<HostPool>,
     ) -> Self {
         Self {
@@ -129,8 +121,7 @@ impl WebsiteChecker {
             retry_wait_time,
             accepted,
             require_https,
-            include_fragments,
-            include_text_fragments,
+            fragment_checker_options,
             fragment_checker: FragmentChecker::new(),
             host_pool,
         }
@@ -165,21 +156,21 @@ impl WebsiteChecker {
         let anchor_fragment_url =
             Self::with_element_fragment(&request_url, parsed_fragment.anchor_fragment);
 
-        let check_anchor_fragments = self.include_fragments
+        let check_anchor_fragments = self.fragment_checker_options.include_anchor()
             && method == Method::GET
             && parsed_fragment.anchor_fragment.is_some();
-        let check_text_fragments = self.include_text_fragments
+        let check_text_fragments = self.fragment_checker_options.include_text()
             && method == Method::GET
             && parsed_fragment.text_directive.is_some();
         let fetch_body = check_anchor_fragments || check_text_fragments;
 
-        match self.host_pool.execute_request(request, needs_body).await {
+        match self.host_pool.execute_request(request, fetch_body).await {
             Ok(response) => {
                 let status = Status::new(&response, &self.accepted);
                 // when `accept=200,429`, `status_code=429` will be treated as success
                 // but we are not able the check the fragment since it's inapplicable.
                 if let Some(content) = response.text
-                    && needs_body
+                    && fetch_body
                     && response.status.is_success()
                 {
                     let Some(content_type) = response
@@ -409,6 +400,7 @@ mod tests {
 
     use super::ParsedFragment;
     use crate::{
+        FragmentCheckerOptions,
         Uri,
         chain::RequestChain,
         checker::website::WebsiteChecker,
@@ -446,8 +438,7 @@ mod tests {
             Some(client),
             false,
             RequestChain::default(),
-            false,
-            false,
+            FragmentCheckerOptions::default(),
             Arc::new(host_pool),
         )
     }
