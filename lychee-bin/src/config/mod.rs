@@ -1133,7 +1133,7 @@ This convention also simplifies our default value testing."
 
         let p = parse_options(vec!["lychee", "-", "--include-fragments=full"]);
         assert_eq!(p.config.fragment_checker_options().include_anchor(), true);
-        assert_eq!(p.config.fragment_checker_options().include_text(), false);
+        assert_eq!(p.config.fragment_checker_options().include_text(), true);
     }
 
     #[test]
