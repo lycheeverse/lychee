@@ -67,6 +67,9 @@ const TCP_KEEPALIVE: Duration = Duration::from_secs(60);
 #[derive(
     Debug, Clone, Copy, Default, Deserialize, Display, EnumString, VariantNames, PartialEq, Eq,
 )]
+/// I'm not sure I like these serde and strum attributes here, but they do allow for more consistent naming across the codebase and CLI, so I guess it's fine.
+#[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
 pub enum FragmentCheckerOptions {
     /// Disable fragment checks entirely.
     #[default]

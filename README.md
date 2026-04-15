@@ -563,13 +563,15 @@ Options:
       --include <INCLUDE>
           URLs to check (supports regex). Has preference over all excludes
 
-      --include-fragments[=<false|anchor-only|text-only|full>]
+      --include-fragments[=<none|anchor-only|text-only|full>]
           Enable the checking of fragments in links.
 
-          Use `false` to disable fragment checks,
+          Use `none` to disable fragment checks,
           `anchor-only` for anchor fragments like `#section`,
           `text-only` for text fragments like `#:~:text=example`,
           or `full` to check both.
+
+          [default: anchor-only]
 
       --include-mail[=<false|true>]
           Also check email addresses
