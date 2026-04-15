@@ -1,4 +1,3 @@
-use crate::ErrorKind;
 use crate::Preprocessor;
 use crate::filter::PathExcludes;
 use crate::ratelimit::HostPool;
@@ -13,6 +12,7 @@ use futures::{
     stream::{self, Stream},
 };
 use http::HeaderMap;
+use log::warn;
 use par_stream::ParStreamExt;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -98,10 +98,13 @@ impl Collector {
                 }
             }
             (Some(root_dir), base) => {
-                let root_dir_exists = root_dir.read_dir().map(|_| ());
-                let root_dir = root_dir_exists
-                    .and_then(|()| std::path::absolute(&root_dir))
-                    .map_err(|e| ErrorKind::InvalidRootDir(root_dir, e))?;
+                let root_dir = std::path::absolute(&root_dir).unwrap_or(root_dir);
+
+                if !root_dir.exists() {
+                    warn!("Root dir '{}' does not exist", root_dir.to_string_lossy());
+                } else if !root_dir.is_dir() {
+                    warn!("Root dir '{}' not a directory", root_dir.to_string_lossy());
+                }
                 (Some(root_dir), base)
             }
             (None, base) => (None, base),

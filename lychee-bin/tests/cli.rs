@@ -534,9 +534,7 @@ mod cli {
             .arg("i don't exist blah blah")
             .arg("http://example.com")
             .assert()
-            .failure()
-            .stderr(contains("Invalid root directory"))
-            .code(1);
+            .success();
 
         let file = NamedTempFile::new().unwrap();
         cargo_bin_cmd!()
@@ -544,9 +542,7 @@ mod cli {
             .arg(file.path())
             .arg("http://example.com")
             .assert()
-            .failure()
-            .stderr(contains("Invalid root directory"))
-            .code(1);
+            .success();
     }
 
     #[test]
