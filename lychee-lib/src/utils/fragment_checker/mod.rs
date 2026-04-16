@@ -118,7 +118,16 @@ impl FragmentChecker {
         }
     }
 
-    /// Checks whether the fragments in the given URL are valid for the provided input.
+    /// Checks if the given [`FragmentInput`] contains the given fragment.
+    ///
+    /// Returns false, if there is a fragment in the link which is not empty or "top"
+    /// and the path is to a Markdown file, which doesn't contain the given fragment.
+    /// (Empty # and #top fragments are always valid, triggering the browser to scroll to top.)
+    ///
+    /// For HTML files, also checks for text fragments, if the options specify to do so.
+    /// Returns false if any of the text fragments are not found in the content.
+    ///
+    /// In all other cases, returns true.
     pub(crate) async fn check(
         &self,
         input: FragmentInput<'_>,

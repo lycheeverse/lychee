@@ -1,11 +1,11 @@
+use super::parsed_fragment::TextDirective;
 use crate::types::FileType;
 use html5gum::{
     Tokenizer,
     emitters::callback::{Callback, CallbackEmitter, CallbackEvent},
 };
-use super::parsed_fragment::TextDirective;
-use url::Url;
 
+/// Check if the text fragments in the given URL are valid for the provided content and file type.
 pub(super) fn check_text_fragments(
     directives: &[TextDirective],
     content: &str,
@@ -22,6 +22,10 @@ pub(super) fn check_text_fragments(
         return true;
     }
 
+    // The algorithm to find a range in a document likely requires a full implementation of a browser.
+    // See https://wicg.github.io/scroll-to-text-fragment/#finding-ranges-in-a-document
+    // Here, we try to approximate it by extracting all visible text, then normalizing whitespace.
+    // This ensures that `Hell<i>o</i> <strong>world</strong>` is matched.
     let document = normalize_whitespace(&extract_visible_text(content));
     directives
         .iter()
@@ -66,10 +70,15 @@ impl TextDirective {
     }
 }
 
+/// Collapse consecutive whitespace characters into a single space.
 fn normalize_whitespace(input: &str) -> String {
     input.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// Extract visible text from the given HTML content.
+///
+/// This method is a good enough heuristic using html5gum. All `CallbackEvent::String` is considered visible text,
+/// except known hidden (e.g., `<head>`, `<script>`, `<style>`, and `<template>`).
 fn extract_visible_text(input: &str) -> String {
     #[derive(Default)]
     struct TextExtractor {
