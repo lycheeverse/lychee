@@ -66,7 +66,7 @@ pub(crate) async fn check(
     // Split initial requests into: valid requests and request errors. Note that
     // this stream closure *owns* a wait guard, so we must drop the closure after
     // it's finished to avoid deadlock. This is done using the `.chain()` combinator.
-    let (valid_initial_requests, request_errors) = requests
+    let (valid_requests, request_errors) = requests
         .inspect(|_| progress.inc_length(1))
         .map(move |request| (request, wait_guard.clone()))
         .chain(futures::stream::empty())
@@ -99,7 +99,7 @@ pub(crate) async fn check(
 
     // Combine recursive requests and input requests.
     let requests = futures::stream::select_with_strategy(
-        valid_initial_requests,
+        valid_requests,
         ReceiverStream::new(recursive_channel_recv).take_until(waiter.wait()),
         |()| futures::stream::PollNext::Right, // Recursive requests consume memory, prefer those.
     );
