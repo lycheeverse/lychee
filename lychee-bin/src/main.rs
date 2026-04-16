@@ -298,6 +298,19 @@ fn run_main() -> Result<i32> {
         }
     };
 
+    // Exit if output path parent directory does not exist
+    if let Some(output) = &opts.config.output {
+        let parent = output.parent().filter(|p| !p.as_os_str().is_empty());
+        if let Some(parent) = parent && !parent.exists() {
+            error!(
+                "Output path `{}` is not writable: parent directory `{}` does not exist",
+                output.display(),
+                parent.display()
+            );
+            exit(ExitCode::UnexpectedFailure as i32);
+        }
+    }
+
     if let Some(mode) = opts.config.generate {
         print!("{}", generate(&mode)?);
         exit(ExitCode::Success as i32);
