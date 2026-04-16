@@ -189,7 +189,7 @@ fn analyze_io_error(io_error: &std::io::Error) -> String {
                         .to_string()
                 }
                 _ => {
-                    format!("I/O error ({kind_name}). Check network connectivity and server status",)
+                    format!("I/O error ({kind_name}). Check network connectivity and server status")
                 }
             }
         }

@@ -25,6 +25,7 @@ use crate::formatters::suggestion::Suggestion;
 use crate::progress::Progress;
 use crate::{ExitCode, cache::Cache};
 
+<<<<<<< refactor-check
 #[allow(clippy::match_bool, reason = "more readable and compact")]
 #[allow(
     clippy::result_large_err,
@@ -43,6 +44,21 @@ pub(crate) async fn check(
     } = params;
 
     /* Config options, progress bar, and stats */
+=======
+use super::CommandParams;
+
+pub(crate) async fn check<S>(
+    params: CommandParams<S>,
+) -> Result<(ResponseStats, Cache, ExitCode, Arc<HostPool>), ErrorKind>
+where
+    S: futures::Stream<Item = Result<Request, RequestError>>,
+{
+    // Setup
+    let max_concurrency = params.cfg.max_concurrency().get();
+    let (send_req, recv_req) = mpsc::channel(max_concurrency);
+    let (send_resp, recv_resp) = mpsc::channel(max_concurrency);
+    let (waiter, wait_guard) = WaitGroup::new();
+>>>>>>> master
 
     let max_concurrency = cfg.max_concurrency();
 
