@@ -5,6 +5,7 @@ use crate::{
 use async_trait::async_trait;
 use header::HeaderValue;
 use http::header;
+use log::debug;
 use regex::{Captures, Regex};
 use reqwest::{Request, Url};
 use std::{collections::HashMap, sync::LazyLock};
@@ -14,9 +15,13 @@ static CRATES_PATTERN: LazyLock<Regex> =
 static YOUTUBE_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?youtube(-nocookie)?\.com").unwrap());
 static YOUTUBE_SHORT_PATTERN: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?(youtu\.?be)").unwrap());
+    LazyLock::new(|| Regex::new(r"^(https?://)?(www\.)?(youtu\.be)").unwrap());
 static GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^https://github\.com/(?<user>.*?)/(?<repo>.*?)/blob/(?<path>.*?)/(?<file>.*\.(md|markdown)#.*)$")
+        .unwrap()
+});
+static GITHUB_BLOB_LINE_FRAGMENT_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^https://github\.com/(?<user>.*?)/(?<repo>.*?)/blob/(?<path>.*?)#L\d+(?:-L?\d+)?$")
         .unwrap()
 });
 
@@ -27,6 +32,7 @@ fn query(request: &Request) -> HashMap<String, String> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Quirk {
+    pub(crate) name: &'static str,
     pub(crate) pattern: &'static LazyLock<Regex>,
     pub(crate) rewrite: fn(Request, Captures) -> Request,
 }
@@ -40,6 +46,7 @@ impl Default for Quirks {
     fn default() -> Self {
         let quirks = vec![
             Quirk {
+                name: "add accept header for crates.io",
                 pattern: &CRATES_PATTERN,
                 rewrite: |mut request, _| {
                     request
@@ -49,6 +56,7 @@ impl Default for Quirks {
                 },
             },
             Quirk {
+                name: "check YouTube IDs via thumbnail",
                 pattern: &YOUTUBE_PATTERN,
                 rewrite: |mut request, _| {
                     // Extract video id if it's a video page
@@ -70,6 +78,7 @@ impl Default for Quirks {
                 },
             },
             Quirk {
+                name: "check YouTube IDs via thumbnail (short link)",
                 pattern: &YOUTUBE_SHORT_PATTERN,
                 rewrite: |mut request, _| {
                     // Short links use the path as video id
@@ -83,6 +92,15 @@ impl Default for Quirks {
                 },
             },
             Quirk {
+                name: "delete line number fragments in GitHub links",
+                pattern: &GITHUB_BLOB_LINE_FRAGMENT_PATTERN,
+                rewrite: |mut request, _| {
+                    request.url_mut().set_fragment(None);
+                    request
+                },
+            },
+            Quirk {
+                name: "fetch raw GitHub Markdown files",
                 pattern: &GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN,
                 rewrite: |mut request, captures| {
                     let mut raw_url = String::new();
@@ -100,16 +118,17 @@ impl Default for Quirks {
 }
 
 impl Quirks {
-    /// Apply quirks to a given request. Only the first quirk regex pattern
-    /// matching the URL will be applied. The rest will be discarded for
-    /// simplicity reasons. This limitation might be lifted in the future.
-    pub(crate) fn apply(&self, request: Request) -> Request {
+    /// Apply quirks to the given request, if applicable.
+    ///
+    /// Quirks are applied in sequence. The URL produced by earlier quirks can
+    /// be transformed by later quirks.
+    pub(crate) fn apply(&self, mut request: Request) -> Request {
         for quirk in &self.quirks {
             if let Some(captures) = quirk.pattern.captures(request.url().clone().as_str()) {
-                return (quirk.rewrite)(request, captures);
+                debug!("Applied quirk '{}' to {}", quirk.name, request.url());
+                request = (quirk.rewrite)(request, captures);
             }
         }
-        // Request was not modified
         request
     }
 }
@@ -126,7 +145,9 @@ mod tests {
     use header::HeaderValue;
     use http::{Method, header};
     use reqwest::{Request, Url};
+    use rstest::rstest;
 
+    use super::GITHUB_BLOB_LINE_FRAGMENT_PATTERN;
     use super::Quirks;
 
     #[derive(Debug)]
@@ -227,6 +248,12 @@ mod tests {
                 "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md#features",
                 "https://raw.githubusercontent.com/lycheeverse/lychee/v0.15.0/README.md#features",
             ),
+            (
+                // GITHUB_BLOB_LINE_FRAGMENT_PATTERN should have precedence over
+                // GITHUB_BLOB_MARKDOWN_FRAGMENT_PATTERN for line-number fragments.
+                "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md#L1",
+                "https://github.com/lycheeverse/lychee/blob/v0.15.0/README.md",
+            ),
         ];
         for (origin, expect) in &cases {
             let url = Url::parse(origin).unwrap();
@@ -238,6 +265,46 @@ mod tests {
                 MockRequest::new(Method::GET, Url::parse(expect).unwrap())
             );
         }
+    }
+
+    #[rstest]
+    // Standard single line
+    #[case(
+        "https://github.com/lycheeverse/lychee/blob/master/README.md#L10",
+        true
+    )]
+    // Standard range with double 'L'
+    #[case(
+        "https://github.com/lycheeverse/lychee/blob/master/src/main.rs#L10-L20",
+        true
+    )]
+    // Shorthand range (no second 'L')
+    #[case(
+        "https://github.com/lycheeverse/lychee/blob/master/src/lib.rs#L5-15",
+        true
+    )]
+    // Deeply nested path
+    #[case(
+        "https://github.com/user/repo/blob/feat/branch/path/to/file.txt#L1",
+        true
+    )]
+    // Should match: Markdown file with line number fragment
+    #[case("https://github.com/user/repo/blob/master/README.md#L2", true)]
+    // Should NOT match: Markdown fragment (handled by the other regex)
+    #[case(
+        "https://github.com/user/repo/blob/master/README.md#installation",
+        false
+    )]
+    // Should NOT match: Raw blob without line numbers
+    #[case("https://github.com/user/repo/blob/master/src/main.rs", false)]
+    // Should NOT match: Normal website URL
+    #[case("https://github.com/user/repo", false)]
+    fn test_github_blob_line_fragment_regex(#[case] url: &str, #[case] expected: bool) {
+        assert_eq!(
+            GITHUB_BLOB_LINE_FRAGMENT_PATTERN.is_match(url),
+            expected,
+            "Github blob line regex had unexpected outcome for {url}"
+        );
     }
 
     #[test]

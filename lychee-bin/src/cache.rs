@@ -1,9 +1,10 @@
 use crate::time::{self, Timestamp, timestamp};
 use anyhow::Result;
-use dashmap::DashMap;
-use lychee_lib::{CacheStatus, Status, StatusCodeSelector, Uri};
+use dashmap::{DashMap, mapref::one::Ref};
+use http::StatusCode;
+use lychee_lib::{CacheStatus, Client, Request, Response, Status, StatusCodeSelector, Uri};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 /// Describes a response status that can be serialized to disk
 #[derive(Serialize, Deserialize)]
@@ -26,37 +27,47 @@ impl From<&Status> for CacheValue {
 ///
 /// At the moment it is backed by `DashMap`, but this is an
 /// implementation detail, which should not be relied upon.
-pub(crate) type Cache = DashMap<Uri, CacheValue>;
+#[derive(Default)]
+pub(crate) struct Cache(DashMap<Uri, CacheValue>);
 
-pub(crate) trait StoreExt {
+impl Cache {
+    pub(crate) fn new() -> Self {
+        Self(DashMap::new())
+    }
+
+    fn insert(&self, key: Uri, value: CacheValue) -> Option<CacheValue> {
+        self.0.insert(key, value)
+    }
+
+    fn get(&self, key: &Uri) -> Option<Ref<'_, Uri, CacheValue>> {
+        self.0.get(key)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn contains_key(&self, key: &Uri) -> bool {
+        self.0.contains_key(key)
+    }
+
     /// Store the cache under the given path. Update access timestamps
-    fn store<T: AsRef<Path>>(&self, path: T) -> Result<()>;
-
-    /// Load cache from path. Discard entries older than `max_age_secs`
-    fn load<T: AsRef<Path>>(
-        path: T,
-        max_age_secs: u64,
-        excluder: &StatusCodeSelector,
-    ) -> Result<Cache>;
-}
-
-impl StoreExt for Cache {
-    fn store<T: AsRef<Path>>(&self, path: T) -> Result<()> {
+    pub(crate) fn store(&self, path: impl AsRef<Path>) -> Result<()> {
         let mut wtr = csv::WriterBuilder::new()
             .has_headers(false)
             .from_path(path)?;
-        for result in self {
+
+        for result in &self.0 {
             // Do not serialize errors to disk. We always want to recheck failing links.
             if matches!(result.value().status, CacheStatus::Error(_)) {
                 continue;
             }
             wtr.serialize((result.key(), result.value()))?;
         }
+
         Ok(())
     }
 
-    fn load<T: AsRef<Path>>(
-        path: T,
+    /// Load cache from path. Discard entries older than `max_age_secs`
+    pub(crate) fn load(
+        path: impl AsRef<Path>,
         max_age_secs: u64,
         excluder: &StatusCodeSelector,
     ) -> Result<Cache> {
@@ -66,6 +77,7 @@ impl StoreExt for Cache {
 
         let map = Cache::new();
         let current_ts = timestamp();
+
         for result in rdr.deserialize() {
             let (uri, value): (Uri, CacheValue) = result?;
             // Discard entries older than `max_age_secs`.
@@ -91,17 +103,102 @@ impl StoreExt for Cache {
 
             map.insert(uri, value);
         }
+
         Ok(map)
     }
+
+    pub(crate) async fn handle<F: Future<Output = Response>>(
+        &self,
+        client: &Client,
+        cache_exclude_status: HashSet<StatusCode>,
+        accept: &HashSet<StatusCode>,
+        request: Request,
+        check: impl Fn(Request) -> F,
+    ) -> lychee_lib::Result<Response> {
+        // The cache key should be the actual URL which gets requested, i.e. after remaps.
+        // If using the original URL then the cache is at risk of being incorrect if remaps
+        // change between runs. The cached status code comes from the actual URL anyway.
+        let cache_key = {
+            let mut uri = request.uri.clone();
+            client.remap(&mut uri).is_ok().then_some(uri)
+        };
+
+        if let Some(cache_key) = &cache_key
+            && let Some(r) = self.get(cache_key)
+        {
+            return Ok(cache_hit(client, accept, request, cache_key, r.value()));
+        }
+
+        let response = check(request).await;
+        let status = response.status();
+
+        if let Some(cache_key) = cache_key
+            && !should_ignore(&cache_key, status, &cache_exclude_status)
+        {
+            self.insert(cache_key, status.into());
+        }
+
+        Ok(response)
+    }
+}
+
+fn cache_hit(
+    client: &Client,
+    accept: &HashSet<StatusCode>,
+    request: Request,
+    cache_key: &Uri,
+    value: &CacheValue,
+) -> Response {
+    let status = if client.is_excluded(cache_key) {
+        Status::Excluded
+    } else {
+        // Can't impl `Status::from(v.value().status)` here because the
+        // `accepted` status codes might have changed from the previous run
+        // and they may have an impact on the interpretation of the status
+        // code.
+        client.host_pool().record_persistent_cache_hit(cache_key);
+        Status::from_cache_status(value.status, accept)
+    };
+
+    Response::new(
+        cache_key.clone(),
+        status,
+        None,
+        None,
+        request.source.into(),
+        request.span,
+        None,
+    )
+}
+
+/// Returns `true` if the resulting [`Status`] associated to the [`Uri`]
+/// should not be cached.
+fn should_ignore(uri: &Uri, status: &Status, cache_exclude_status: &HashSet<StatusCode>) -> bool {
+    // - Never cache filesystem access as it is fast already so caching has no benefit.
+    // - Skip caching unsupported URLs as they might be supported in a future run.
+    // - Skip caching excluded links; they might not be excluded in the next run.
+    // - Skip caching links for which the status code has been explicitly excluded from the cache.
+
+    let status_code_excluded = status
+        .code()
+        .is_some_and(|code| cache_exclude_status.contains(&code));
+
+    uri.is_file()
+        || status.is_excluded()
+        || status.is_unsupported()
+        || status.is_unknown()
+        || status_code_excluded
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use http::StatusCode;
-    use lychee_lib::{CacheStatus, StatusCodeSelector, StatusRange, Uri};
+    use lychee_lib::{CacheStatus, ErrorKind, Status, StatusCodeSelector, StatusRange, Uri};
 
     use crate::{
-        cache::{Cache, CacheValue, StoreExt},
+        cache::{Cache, CacheValue, should_ignore},
         time::timestamp,
     };
 
@@ -156,5 +253,56 @@ mod tests {
         let loaded_cache = Cache::load(tmp.path(), u64::MAX, &excluder).unwrap();
         assert!(loaded_cache.get(&uri).is_none());
         assert!(loaded_cache.get(&uri_none).is_none());
+    }
+
+    #[test]
+    fn test_cache_by_default() {
+        assert!(!should_ignore(
+            &Uri::try_from("https://[::1]").unwrap(),
+            &Status::Ok(StatusCode::OK),
+            &HashSet::default()
+        ));
+    }
+
+    #[test]
+    // Cache is ignored for file URLs
+    fn test_cache_ignore_file_urls() {
+        assert!(should_ignore(
+            &Uri::try_from("file:///home").unwrap(),
+            &Status::Ok(StatusCode::OK),
+            &HashSet::default()
+        ));
+    }
+
+    #[test]
+    // Cache is ignored for unsupported status
+    fn test_cache_ignore_unsupported_status() {
+        assert!(should_ignore(
+            &Uri::try_from("https://[::1]").unwrap(),
+            &Status::Unsupported(ErrorKind::EmptyUrl),
+            &HashSet::default()
+        ));
+    }
+
+    #[test]
+    // Cache is ignored for unknown status
+    fn test_cache_ignore_unknown_status() {
+        assert!(should_ignore(
+            &Uri::try_from("https://[::1]").unwrap(),
+            &Status::UnknownStatusCode(StatusCode::IM_A_TEAPOT),
+            &HashSet::default()
+        ));
+    }
+
+    #[test]
+    fn test_cache_ignore_excluded_status() {
+        // Cache is ignored for excluded status codes
+        let exclude = HashSet::from([StatusCode::OK]);
+
+        assert!(should_ignore(
+            &Uri::try_from("https://[::1]").unwrap(),
+            &Status::Ok(StatusCode::OK),
+            &exclude
+        ));
     }
 }

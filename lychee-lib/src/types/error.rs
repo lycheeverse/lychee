@@ -104,10 +104,6 @@ pub enum ErrorKind {
     #[error("Invalid base URL or directory: '{0}'. {1}")]
     InvalidBase(String, String),
 
-    /// Invalid root directory given
-    #[error("Invalid root directory '{0}': {1}")]
-    InvalidRootDir(PathBuf, #[source] std::io::Error),
-
     /// The given URI type is not supported
     #[error("Unsupported URI type: '{0}'")]
     UnsupportedUriType(String),
@@ -320,7 +316,6 @@ impl ErrorKind {
             | ErrorKind::ReadStdinInput(_)
             | ErrorKind::InvalidBase(_, _)
             | ErrorKind::WikilinkNotFound(_, _)
-            | ErrorKind::InvalidRootDir(_, _)
             | ErrorKind::EmptyUrl
             | ErrorKind::InvalidUrlHost
             | ErrorKind::PreprocessorError {
@@ -442,7 +437,6 @@ impl Hash for ErrorKind {
             Self::UnreachableEmailAddress(u, ..) => u.hash(state),
             Self::InsecureURL(u, ..) => u.hash(state),
             Self::InvalidBase(base, e) => (base, e).hash(state),
-            Self::InvalidRootDir(s, _) => s.hash(state),
             Self::UnsupportedUriType(s) => s.hash(state),
             Self::InvalidUrlRemap(remap) => (remap).hash(state),
             Self::InvalidHeader(e) => e.to_string().hash(state),

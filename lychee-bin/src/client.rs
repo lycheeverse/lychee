@@ -20,7 +20,7 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
     let accepted: HashSet<StatusCode> = cfg.accept().into();
 
     // Offline mode overrides the scheme
-    let schemes = if cfg.offline {
+    let schemes = if cfg.offline() {
         vec!["file".to_string()]
     } else {
         cfg.scheme.clone()
@@ -33,14 +33,14 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .base(cfg.base_url.clone().unwrap_or_default())
         .includes(includes)
         .excludes(excludes)
-        .exclude_all_private(cfg.exclude_all_private)
-        .exclude_private_ips(cfg.exclude_private)
-        .exclude_link_local_ips(cfg.exclude_link_local)
-        .exclude_loopback_ips(cfg.exclude_loopback)
-        .include_mail(cfg.include_mail)
+        .exclude_all_private(cfg.exclude_all_private())
+        .exclude_private_ips(cfg.exclude_private())
+        .exclude_link_local_ips(cfg.exclude_link_local())
+        .exclude_loopback_ips(cfg.exclude_loopback())
+        .include_mail(cfg.include_mail())
         .max_redirects(cfg.max_redirects())
         .user_agent(cfg.user_agent())
-        .allow_insecure(cfg.insecure)
+        .allow_insecure(cfg.insecure())
         .custom_headers(headers)
         .method(method)
         .timeout(timeout)
@@ -49,13 +49,13 @@ pub(crate) fn create(cfg: &Config, cookie_jar: Option<&Arc<CookieStoreMutex>>) -
         .github_token(cfg.github_token.clone())
         .schemes(HashSet::from_iter(schemes))
         .accepted(accepted)
-        .require_https(cfg.require_https)
+        .require_https(cfg.require_https())
         .cookie_jar(cookie_jar.cloned())
         .min_tls_version(cfg.min_tls.clone().map(Into::into))
-        .include_fragments(cfg.include_fragments)
+        .include_fragments(cfg.include_fragments())
         .fallback_extensions(cfg.fallback_extensions.clone())
         .index_files(cfg.index_files.clone())
-        .include_wikilinks(cfg.include_wikilinks)
+        .include_wikilinks(cfg.include_wikilinks())
         .rate_limit_config(RateLimitConfig::from_options(
             cfg.host_concurrency,
             cfg.host_request_interval,
