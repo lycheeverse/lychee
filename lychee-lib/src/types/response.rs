@@ -154,14 +154,14 @@ impl Display for ResponseBody {
         let details = self.status.details();
         write!(f, " | {details}")?;
 
+        if let Some(remap) = &self.remap {
+            write!(f, " | Remaps: {remap}")?;
+        }
+
         if let Some(redirects) = &self.redirects {
             let count = redirects.count();
             let noun = if count == 1 { "redirect" } else { "redirects" };
             write!(f, " | Followed {count} {noun}. Redirects: {redirects}")?;
-        }
-
-        if let Some(remap) = &self.remap {
-            write!(f, " | Remaps: {remap}")?;
         }
 
         Ok(())
