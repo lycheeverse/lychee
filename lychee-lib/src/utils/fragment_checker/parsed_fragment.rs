@@ -45,7 +45,7 @@ impl<'a> ParsedFragment<'a> {
             .split('&')
             .filter_map(|part| part.split_once('='))
         {
-            // The standard allows several directives, including serveral text directives. We only support the first text directive, and ignore other directives.
+            // The standard allows several directives, including several text directives. We only support the first text directive, and ignore other directives.
             // See https://wicg.github.io/scroll-to-text-fragment/#text-directives
             if key == TEXT_DIRECTIVE_KEY {
                 return Self {
