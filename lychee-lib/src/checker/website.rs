@@ -122,6 +122,7 @@ impl WebsiteChecker {
         let request_url = request.url().clone();
         let check_request_fragments = self.fragment_checker_options.any_enabled()
             && method == Method::GET
+            // This last part ensures empty and top fragments do not trigger body retrieval.
             && request_url.fragment().is_some_and(|x| !x.is_empty());
 
         match self
