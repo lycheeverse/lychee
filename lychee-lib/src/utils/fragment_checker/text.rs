@@ -145,6 +145,7 @@ fn extract_visible_text(input: &str) -> String {
 mod tests {
     use super::*;
     use crate::utils::fragment_checker::parsed_fragment::ParsedFragment;
+    use url::Url;
 
     const INDEX_HTML: &str = include_str!("../../../../fixtures/text_fragments/index.html");
 
