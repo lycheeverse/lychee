@@ -4195,6 +4195,31 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
     }
 
     #[tokio::test]
+    async fn test_text_fragments_in_files() -> Result<()> {
+        let fixtures_dir = fixtures_path!().join("text_fragments");
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments=full")
+            .arg("--root-dir").arg(&fixtures_dir)
+            .arg(fixtures_dir.join("should-match.html"))
+            .assert()
+            .success()
+            .stdout(contains("4 Total"))
+            .stdout(contains("0 Errors"));
+
+        cargo_bin_cmd!()
+            .arg("--include-fragments=full")
+            .arg("--root-dir").arg(&fixtures_dir)
+            .arg(fixtures_dir.join("should-not-match.html"))
+            .assert()
+            .failure()
+            .stdout(contains("4 Total"))
+            .stdout(contains("4 Errors"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_pyproject_toml() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let pyproject = dir.path().join("pyproject.toml");
