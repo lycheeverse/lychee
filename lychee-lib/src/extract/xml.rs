@@ -31,29 +31,27 @@ pub(crate) fn extract_xml<S: SpanProvider>(input: &str, span_provider: &S) -> Ve
                 },
                 _ => {}
             },
-            Event::Empty(e) => {
-                if e.name().as_ref() == b"link" {
-                    for attr in e.attributes().flatten() {
-                        if attr.key.as_ref() == b"href" {
-                            let text = std::str::from_utf8(attr.value.as_ref())
-                                .unwrap_or("")
-                                .to_string();
-                            let element = std::str::from_utf8(e.name().as_ref())
-                                .unwrap_or("")
-                                .to_string();
-                            let end_of_empty_tag: usize =
-                                reader.buffer_position().try_into().unwrap_or_default();
-                            // Span is a bit imprecise, as it points to the end of the element. However, quick_xml does not provide the position of attributes, so this is the best we can do.
-                            let span = span_provider.span(end_of_empty_tag);
+            Event::Empty(e) if e.name().as_ref() == b"link" => {
+                for attr in e.attributes().flatten() {
+                    if attr.key.as_ref() == b"href" {
+                        let text = std::str::from_utf8(attr.value.as_ref())
+                            .unwrap_or("")
+                            .to_string();
+                        let element = std::str::from_utf8(e.name().as_ref())
+                            .unwrap_or("")
+                            .to_string();
+                        let end_of_empty_tag: usize =
+                            reader.buffer_position().try_into().unwrap_or_default();
+                        // Span is a bit imprecise, as it points to the end of the element. However, quick_xml does not provide the position of attributes, so this is the best we can do.
+                        let span = span_provider.span(end_of_empty_tag);
 
-                            if !text.is_empty() && !element.is_empty() {
-                                uris.push(RawUri {
-                                    text,
-                                    element: Some(element),
-                                    attribute: Some("href".to_string()),
-                                    span,
-                                });
-                            }
+                        if !text.is_empty() && !element.is_empty() {
+                            uris.push(RawUri {
+                                text,
+                                element: Some(element),
+                                attribute: Some("href".to_string()),
+                                span,
+                            });
                         }
                     }
                 }
