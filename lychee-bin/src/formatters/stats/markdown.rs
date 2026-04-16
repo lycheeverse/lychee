@@ -73,15 +73,32 @@ fn stats_table(stats: &ResponseStats) -> String {
         .to_string()
 }
 
+/// Placeholder scheme used in [`lychee_lib::types::request_error`] when a
+/// malformed link can't be parsed into a URL. Treat it as "no URL".
+const UNPARSEABLE_URI_SCHEME: &str = "error";
+
 /// Helper function to format single response body as markdown
 ///
 /// Optional details get added if available.
 fn markdown_response(response: &ResponseBody) -> Result<String> {
-    let mut formatted = format!(
-        "* [{}] <{}>",
-        response.status.code_as_string(),
-        response.uri,
-    );
+    // For links that could not be parsed as a URL, the underlying
+    // `RequestError::CreateRequestItem` path emits a placeholder `Uri`
+    // whose scheme is `error` (see `lychee-lib/src/types/request_error.rs`).
+    // Rendering `<{uri}>` on that placeholder leaks `<error:>` into the
+    // markdown output and obscures the actual failure (see #2143). Skip the
+    // URL segment in that case so the status code + error details carry the
+    // message instead.
+    let has_unparseable_uri = response.uri.scheme() == UNPARSEABLE_URI_SCHEME;
+
+    let mut formatted = if has_unparseable_uri {
+        format!("* [{}]", response.status.code_as_string())
+    } else {
+        format!(
+            "* [{}] <{}>",
+            response.status.code_as_string(),
+            response.uri,
+        )
+    };
 
     if let Some(span) = response.span {
         formatted = format!("{formatted} (at {span})");
@@ -233,6 +250,43 @@ mod tests {
         assert_eq!(
             markdown,
             "* [400] <http://example.com/> (at 1:1) | Error (cached)"
+        );
+    }
+
+    #[test]
+    fn test_markdown_response_unparseable_url_omits_uri_segment() {
+        // Mirrors the path in `lychee-lib` that produces `Uri("error:")` when
+        // a malformed link cannot be parsed -- see #2143. The markdown output
+        // should not leak `<error:>`; it should carry the status + details
+        // and skip the URL segment entirely.
+        use lychee_lib::ErrorKind;
+
+        let body = ResponseBody {
+            // The public `Uri::try_from("error:")` path reconstructs the
+            // same placeholder that `RequestError::into_response` emits.
+            uri: Uri::try_from("error:").unwrap(),
+            status: Status::Error(ErrorKind::InvalidInput(
+                "https://example]org/malformed".to_string(),
+            )),
+            span: SPAN,
+            duration: DURATION,
+        };
+        let markdown = markdown_response(&body).unwrap();
+        // The leading placeholder URL is gone -- no `<error:>` leak.
+        assert!(
+            !markdown.contains("<error:>"),
+            "markdown output leaked placeholder URI: {markdown}"
+        );
+        // Status code and span are still present so the error is still
+        // actionable from the report alone.
+        assert!(markdown.starts_with("* [ERROR]"), "unexpected prefix: {markdown}");
+        assert!(markdown.contains("(at 1:1)"), "span missing: {markdown}");
+        // The underlying cause (the malformed URL string) survives as part
+        // of the status details, not the Uri, so readers still see *what*
+        // failed even without the `<>` link.
+        assert!(
+            markdown.contains("malformed"),
+            "malformed url detail missing from output: {markdown}"
         );
     }
 
