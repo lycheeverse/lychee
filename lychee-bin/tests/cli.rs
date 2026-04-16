@@ -4200,7 +4200,8 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
 
         cargo_bin_cmd!()
             .arg("--include-fragments=full")
-            .arg("--root-dir").arg(&fixtures_dir)
+            .arg("--root-dir")
+            .arg(&fixtures_dir)
             .arg(fixtures_dir.join("should-match.html"))
             .assert()
             .success()
@@ -4209,7 +4210,8 @@ https://lychee.cli.rs/guides/cli/#fragments-ignored
 
         cargo_bin_cmd!()
             .arg("--include-fragments=full")
-            .arg("--root-dir").arg(&fixtures_dir)
+            .arg("--root-dir")
+            .arg(&fixtures_dir)
             .arg(fixtures_dir.join("should-not-match.html"))
             .assert()
             .failure()
