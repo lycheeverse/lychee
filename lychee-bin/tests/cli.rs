@@ -1961,17 +1961,31 @@ The config file should contain every possible key for documentation purposes."
         let json = stdout_to_json(&stdout);
         assert_eq!(json["remaps"], 1);
         assert_eq!(json["excludes"], 1);
-        let excluded = &json["excluded_map"]["stdin"][0];
-        assert_eq!(excluded["url"], "https://bbb.com/");
-        assert_eq!(excluded["status"]["text"], "Excluded");
         assert_eq!(
-            excluded["status"]["details"],
-            "This is due to your 'exclude' values"
+            json["excluded_map"],
+            json!({
+            "stdin": [
+              {
+                "url": "https://bbb.com/",
+                "status": {
+                  "text": "Excluded",
+                  "details": "This is due to your 'exclude' values"
+                },
+                "remap": {
+                    "new": {
+                        "url": "https://bbb.com/",
+                    },
+                    "original": {
+                        "url": "https://aaa.com/",
+                     },
+                },
+                "span": {
+                  "line": 1,
+                  "column": 1
+                },
+              }
+            ]})
         );
-        assert_eq!(excluded["remap"]["original"]["url"], "https://aaa.com/");
-        assert_eq!(excluded["remap"]["new"]["url"], "https://bbb.com/");
-        assert_eq!(excluded["span"]["line"], 1);
-        assert_eq!(excluded["span"]["column"], 1);
     }
 
     #[test]
