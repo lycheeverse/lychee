@@ -305,10 +305,8 @@ pub(crate) fn extract_markdown_fragments(input: &str) -> HashSet<String> {
 
                 in_heading = false;
             }
-            Event::Text(text) | Event::Code(text) => {
-                if in_heading {
-                    heading_text.push_str(&text);
-                }
+            Event::Text(text) | Event::Code(text) if in_heading => {
+                heading_text.push_str(&text);
             }
 
             // An HTML node
