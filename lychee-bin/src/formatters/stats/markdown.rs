@@ -76,7 +76,7 @@ fn stats_table(stats: &ResponseStats) -> String {
 /// Placeholder Uri used in [`lychee_lib::types::request_error`] when a
 /// malformed link can't be parsed into a URL. Matched exactly (not by scheme
 /// alone) so a real input like `error:foo` still renders its URI.
-const UNPARSEABLE_URI_SENTINEL: &str = "error:";
+const UNPARSABLE_URI_SENTINEL: &str = "error:";
 
 /// Helper function to format single response body as markdown
 ///
@@ -90,9 +90,9 @@ fn markdown_response(response: &ResponseBody) -> Result<String> {
     // segment in that exact case so the status code + error details carry
     // the message instead; arbitrary user input with an `error:` scheme
     // (e.g. `error:foo`) continues to render normally.
-    let has_unparseable_uri = response.uri.as_str() == UNPARSEABLE_URI_SENTINEL;
+    let has_unparsable_uri = response.uri.as_str() == UNPARSABLE_URI_SENTINEL;
 
-    let mut formatted = if has_unparseable_uri {
+    let mut formatted = if has_unparsable_uri {
         format!("* [{}]", response.status.code_as_string())
     } else {
         format!(
@@ -256,7 +256,7 @@ mod tests {
     }
 
     #[test]
-    fn test_markdown_response_unparseable_url_omits_uri_segment() {
+    fn test_markdown_response_unparsable_url_omits_uri_segment() {
         // Mirrors the path in `lychee-lib` that produces `Uri("error:")` when
         // a malformed link cannot be parsed -- see #2143. The markdown output
         // should not leak `<error:>`; it should carry the status + details
