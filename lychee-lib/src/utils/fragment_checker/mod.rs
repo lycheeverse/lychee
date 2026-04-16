@@ -138,8 +138,8 @@ impl FragmentChecker {
         }
 
         if options.check_text_fragments
-            && parsed.encoded_text_directive_value.is_some()
-            && !text::check_text_fragments(url, &content, file_type)
+            && !parsed.text_directives.is_empty()
+            && !text::check_text_fragments(&parsed.text_directives, &content, file_type)
         {
             return Ok(false);
         }
