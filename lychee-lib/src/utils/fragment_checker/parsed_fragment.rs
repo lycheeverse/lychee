@@ -20,13 +20,18 @@ const FRAGMENT_DIRECTIVE_DELIMITER: &str = ":~:";
 const TEXT_DIRECTIVE_KEY: &str = "text";
 
 impl<'a> ParsedFragment<'a> {
+    /// By default, there is no fragment.
+    pub(super) fn default() -> Self {
+        Self {
+            element_id: None,
+            text_directives: Vec::new(),
+        }
+    }
+
     /// This method parses the fragment, separating the element id (if any) from the text directives (if any).
     pub(super) fn parse(url: &'a Url) -> Self {
         let Some(fragment) = url.fragment() else {
-            return Self {
-                element_id: None,
-                text_directives: Vec::new(),
-            };
+            return Self::default();
         };
 
         // Split off the element id from the fragment directive
