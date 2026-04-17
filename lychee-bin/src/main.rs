@@ -301,7 +301,9 @@ fn run_main() -> Result<i32> {
     // Exit if output path parent directory does not exist
     if let Some(output) = &opts.config.output {
         let parent = output.parent().filter(|p| !p.as_os_str().is_empty());
-        if let Some(parent) = parent && !parent.exists() {
+        if let Some(parent) = parent
+            && !parent.exists()
+        {
             error!(
                 "Output path `{}` is not writable: parent directory `{}` does not exist",
                 output.display(),
