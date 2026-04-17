@@ -21,7 +21,7 @@ const TEXT_DIRECTIVE_KEY: &str = "text";
 
 impl<'a> ParsedFragment<'a> {
     /// By default, there is no fragment.
-    pub(super) fn default() -> Self {
+    pub(super) const fn default() -> Self {
         Self {
             element_id: None,
             text_directives: Vec::new(),

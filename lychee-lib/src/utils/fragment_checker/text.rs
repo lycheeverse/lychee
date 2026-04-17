@@ -82,7 +82,7 @@ fn extract_visible_text(input: &str) -> String {
     }
 
     impl TextExtractor {
-        fn new() -> Self {
+        const fn new() -> Self {
             Self {
                 text: String::new(),
                 hidden_stack: Vec::new(),
