@@ -58,6 +58,21 @@ impl<'a> ParsedFragment<'a> {
 }
 
 impl TextDirective {
+    /// Parse a [text directive] from a string.
+    ///
+    /// Text directives follow the format:
+    ///
+    /// ```text
+    /// prefix-,start,end,-suffix
+    /// ```
+    ///
+    /// where `prefix-` and `-suffix` are optional context anchors and `end` is an
+    /// optional range end. Only `start` is required.
+    ///
+    /// Returns `None` if the input is empty or contains more than two parts
+    /// after stripping the optional prefix and suffix anchors.
+    ///
+    /// [text directive]: https://wicg.github.io/scroll-to-text-fragment/#the-text-directive
     fn parse(input: &str) -> Option<Self> {
         let mut parts: Vec<&str> = input.split(',').collect();
         if parts.is_empty() {
