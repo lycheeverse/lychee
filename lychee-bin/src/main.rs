@@ -290,7 +290,7 @@ fn run_main() -> Result<i32> {
         Ok(opts) => opts,
         Err(e) => {
             error!(
-                "Error while loading config: {}\n\
+                "Error while loading config: {:?}\n\
                 See: https://github.com/lycheeverse/lychee/blob/lychee-v{}/lychee.example.toml",
                 e,
                 crate_version!()
