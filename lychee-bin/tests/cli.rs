@@ -4414,7 +4414,7 @@ fn test_output_invalid_path() {
     cmd.arg("--output")
         .arg("does/not/exist")
         .arg("https://example.com");
-    cmd.assert().stderr(predicates::str::contains(
+    cmd.assert().failure().stderr(predicates::str::contains(
         "Output path `does/not/exist` is not writable: parent directory `does/not` does not exist",
     ));
 }

@@ -300,6 +300,7 @@ fn run_main() -> Result<i32> {
 
     // Exit if output path parent directory does not exist
     if let Some(output) = &opts.config.output {
+        // parent() returns Some("") for paths with no directory component
         let parent = output.parent().filter(|p| !p.as_os_str().is_empty());
         if let Some(parent) = parent
             && !parent.exists()
