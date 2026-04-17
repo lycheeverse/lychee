@@ -24,9 +24,9 @@ pub(super) fn check_text_fragments(
 
     // The algorithm to find a range in a document likely requires a full implementation of a browser.
     // See https://wicg.github.io/scroll-to-text-fragment/#finding-ranges-in-a-document
-    // Here, we try to approximate it by extracting all visible text, then normalizing whitespace.
+    // Here, we try to approximate it by extracting visible text.
     // This ensures that `Hell<i>o</i> <strong>world</strong>` is matched.
-    let document = normalize_whitespace(&extract_visible_text(content));
+    let document = extract_visible_text(content);
     directives
         .iter()
         .all(|directive| directive.matches(&document))
@@ -68,11 +68,6 @@ impl TextDirective {
 
         false
     }
-}
-
-/// Collapse consecutive whitespace characters into a single space.
-fn normalize_whitespace(input: &str) -> String {
-    input.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Extract visible text from the given HTML content.
@@ -151,7 +146,7 @@ mod tests {
 
     #[test]
     fn extracts_visible_text_without_style_or_attributes() {
-        let text = normalize_whitespace(&extract_visible_text(INDEX_HTML));
+        let text = extract_visible_text(INDEX_HTML);
 
         assert!(text.contains("Sed porta nisl sit amet quam ornare rutrum."));
         assert!(text.contains("Proin vulputate mi id sem pulvinar euismod."));
