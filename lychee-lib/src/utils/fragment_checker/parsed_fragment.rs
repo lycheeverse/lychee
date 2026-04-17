@@ -46,6 +46,7 @@ impl<'a> ParsedFragment<'a> {
             };
         };
 
+        // Convert empty element id to None.
         let element_id = (!element_id.is_empty()).then_some(element_id);
 
         // The fragment directive may contain several components, separated by ampersant, such as https://example.com#:~:text=foo&text=bar&unknownDirective
